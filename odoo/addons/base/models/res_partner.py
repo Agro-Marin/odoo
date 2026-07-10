@@ -1318,9 +1318,24 @@ class ResPartner(models.Model):
                             )
             # Validate every partner first, then cascade to ALL children in one
             # write (each level recurses through this same code path), instead
-            # of one write per parent.
-            if children := self.child_ids:
+            # of one write per parent. Search with active_test=False: ``child_ids``
+            # is active-filtered, so archived children would otherwise keep the
+            # stale company_id and diverge after being unarchived.
+            children = self.with_context(active_test=False).search(
+                [("parent_id", "in", self.ids)]
+            )
+            if children:
                 children.write({"company_id": company_id})
+
+        # Access control BEFORE mutating: writing to a partner that backs another
+        # internal user requires write access on that user. Run it pre-write (on
+        # the current user_ids) so a caller catching AccessError cannot keep the
+        # unauthorized change — the check previously ran after super().write().
+        for partner in self:
+            if internal_users := partner.user_ids.filtered(
+                lambda u: u._is_internal() and u != self.env.user
+            ):
+                internal_users.check_access("write")
         result = True
         # Sudo required for is_company writes by non-system partner managers:
         # changing is_company recomputes commercial_partner_id across the whole
@@ -1348,10 +1363,6 @@ class ResPartner(models.Model):
         ).user_ids:
             self.env.registry.clear_cache()
         for partner, pre_values in zip(self, pre_values_list, strict=True):
-            if internal_users := partner.user_ids.filtered(
-                lambda u: u._is_internal() and u != self.env.user
-            ):
-                internal_users.check_access("write")
             updated = {
                 fname: fvalue
                 for fname, fvalue in vals.items()

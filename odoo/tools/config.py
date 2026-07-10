@@ -260,6 +260,14 @@ class configmanager:
         )
         parser.add_option(
             FileOnlyOption(
+                dest="registry_lru_size",
+                type="int",
+                my_default=42,
+                file_exportable=False,
+            )
+        )
+        parser.add_option(
+            FileOnlyOption(
                 dest="import_file_maxbytes",
                 type="int",
                 my_default=10 * 1024 * 1024,
@@ -338,7 +346,7 @@ class configmanager:
             metavar="MODULE,...",
             my_default=[],
             file_loadable=False,
-            help='install one or more modules (comma-separated list, use "all" for all modules), requires -d',
+            help="install one or more modules (comma-separated list), requires -d",
         )
         group.add_option(
             "-u",
@@ -1045,8 +1053,11 @@ class configmanager:
                 "--limit-memory-hard",
                 dest="limit_memory_hard",
                 my_default=2560 * 1024 * 1024,
-                help="Maximum allowed virtual memory per worker (in bytes), when reached, any memory "
-                "allocation will fail (default 2560MiB).",
+                help="Deprecated/not enforced in-process (default 2560MiB): the "
+                "in-process RLIMIT_AS was removed because the allocator/gevent "
+                "reserve multi-GB of never-resident virtual space. Set the hard "
+                "cap with a cgroup v2 limit on the systemd unit (MemoryMax= + "
+                "MemorySwapMax=0) instead; see --limit-memory-soft for recycling.",
                 type="int",
             )
         )
@@ -1055,8 +1066,9 @@ class configmanager:
                 "--limit-memory-hard-gevent",
                 dest="limit_memory_hard_gevent",
                 my_default=None,
-                help="Maximum allowed virtual memory per evented worker (in bytes), when reached, any memory "
-                "allocation will fail. Defaults to `--limit-memory-hard`.",
+                help="Deprecated/not enforced in-process (see --limit-memory-hard "
+                "for the rationale and the cgroup v2 alternative). Defaults to "
+                "`--limit-memory-hard`.",
                 type="int",
             )
         )
@@ -1213,7 +1225,9 @@ class configmanager:
             )
 
         # non-cli-loadable options still appear in opt; drop them
-        for option_name in list(vars(opt).keys()):  # list() so we can delattr while iterating
+        for option_name in list(
+            vars(opt).keys()
+        ):  # list() so we can delattr while iterating
             if not self.options_index[option_name].cli_loadable:
                 delattr(opt, option_name)
 
@@ -1310,7 +1324,19 @@ class configmanager:
             )
         )
 
-        self._runtime_options["init"] = dict.fromkeys(self["init"], True) or {}
+        init_modules = self["init"]
+        if "all" in init_modules:
+            # 'all' only works for --update (updating 'base' cascades to every
+            # module that depends on it); install has no such cascade, so 'all'
+            # here matched no module and silently did nothing. Warn + drop it
+            # rather than leave the user thinking every module was installed.
+            self._warn(
+                "the 'all' pseudo-module is only supported by --update (-u), not "
+                "--init (-i); it has been ignored — list modules to install "
+                "explicitly."
+            )
+            init_modules = [m for m in init_modules if m != "all"]
+        self._runtime_options["init"] = dict.fromkeys(init_modules, True) or {}
         self._runtime_options["update"] = (
             {"base": True}
             if "all" in self["update"]
@@ -1449,11 +1475,15 @@ class configmanager:
                 # a literal path is handled by the branches below. `path` is
                 # already absolute (via _normalize), so glob from its anchor.
                 anchor = Path(path).anchor
-                ad_paths.extend(sorted(
-                    str(match)
-                    for match in Path(anchor).glob(str(Path(path).relative_to(anchor)))
-                    if match.is_dir() and cls._is_addons_path(str(match))
-                ))
+                ad_paths.extend(
+                    sorted(
+                        str(match)
+                        for match in Path(anchor).glob(
+                            str(Path(path).relative_to(anchor))
+                        )
+                        if match.is_dir() and cls._is_addons_path(str(match))
+                    )
+                )
                 continue
             if not Path(path).is_dir():
                 cls._log(

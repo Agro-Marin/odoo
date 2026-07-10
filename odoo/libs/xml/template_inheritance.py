@@ -336,7 +336,11 @@ def apply_inheritance_specs(
                             "decoration-"
                         ):
                             # attribute containing a python expression
-                            separator = separator.strip()
+                            # ``separator`` is None when the spec omits it; coerce
+                            # to "" so the check below raises the crafted
+                            # ValueError (caught by the ValidationError wrapper)
+                            # instead of an AttributeError escaping as a 500.
+                            separator = (separator or "").strip()
                             if separator not in ("and", "or"):
                                 raise ValueError(
                                     f"Invalid separator {separator!r} for python expression {attribute!r}; "

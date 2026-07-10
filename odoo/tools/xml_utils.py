@@ -91,7 +91,12 @@ def _check_with_xsd(
         enable 'SiiTypes_v10.xsd' to be resolved to 'l10n_cl_edi.SiiTypes_v10.xsd'.
     """
     if not isinstance(tree_or_str, etree._Element):
-        tree_or_str = etree.fromstring(tree_or_str)
+        # Parse the (untrusted) XML-under-validation with entity resolution and
+        # network access disabled — an XXE guard, matching cleanup_xml_node.
+        tree_or_str = etree.fromstring(
+            tree_or_str,
+            parser=etree.XMLParser(resolve_entities=False, no_network=True),
+        )
     parser = etree.XMLParser()
     if env:
         parser.resolvers.add(odoo_resolver(env, prefix))

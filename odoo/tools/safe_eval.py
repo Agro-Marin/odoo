@@ -358,8 +358,13 @@ def assert_valid_codeobj(
     nested_code = [c for c in code_obj.co_consts if isinstance(c, CodeType)]
     cacheable = not nested_code
 
-    # Fast path: identical bytecode + names + allowed set already validated
-    cache_key = (code_obj.co_code, code_obj.co_names, id(allowed_codes))
+    # Fast path: identical bytecode + names + allowed set already validated.
+    # Key on the allowlist's CONTENT (frozenset), not id(): a garbage-collected
+    # allowlist set's id can be reused by a *different* set, which would let the
+    # new allowlist silently inherit the old one's "validated" verdicts — a
+    # cache-poisoning seam in a sandbox primitive. frozenset() of ~50 opcode ints
+    # is negligible next to the dis.get_instructions() it guards.
+    cache_key = (code_obj.co_code, code_obj.co_names, frozenset(allowed_codes))
     if cacheable and cache_key in _validated_bytecode_cache:
         return
 

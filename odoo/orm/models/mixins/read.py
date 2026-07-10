@@ -434,10 +434,13 @@ class ReadMixin(_ModelStubs):
         fields_done = {self._fields["id"]}  # trick: ignore 'id'
         for field_name in field_names:
             if not isinstance(field_name, str) or field_name not in self._fields:
-                _logger.warning(
-                    "Invalid field %r on %r, skipping", field_name, self._name
+                # Raise (not skip): only ``read()`` is lenient about unknown
+                # fields, and it sanitizes its own input beforehand. Silently
+                # dropping here turned ``fetch(["typo"])`` / ``search_fetch`` into
+                # no-ops that mask caller bugs.
+                raise ValueError(
+                    f"Invalid field {field_name!r} on model {self._name!r}"
                 )
-                continue
             field = self._fields[field_name]
             self._check_field_access(field, "read")
             fields_todo.append(field)
@@ -482,9 +485,7 @@ class ReadMixin(_ModelStubs):
             # raise (not assert): holds under python -O; a non-stored field
             # would otherwise fail later at SQL generation with an opaque error.
             if not field.store:
-                raise RuntimeError(
-                    f"_fetch_query expects stored fields, got {field}"
-                )
+                raise RuntimeError(f"_fetch_query expects stored fields, got {field}")
             (column_fields if field.column_type else other_fields).add(field)
 
         context = self.env.context

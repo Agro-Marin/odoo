@@ -117,19 +117,23 @@ def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any
         used when the token was created)
     :param payload: the token to verify
     :return: the message_values if verification succeeds, None otherwise
-    :raises ValueError: if the token version is unknown
-    """
-    token = base64.urlsafe_b64decode(payload.encode() + b"===")
-    version = token[:1]
-    if version != b"\x01":
-        msg = "Unknown token version"
-        raise ValueError(msg)
 
-    expiration_value, hash_value, message = (
-        token[1:9],
-        token[9:41].hex(),
-        token[41:].decode(),
-    )
+    Any malformed/undecodable payload (bad base64, unknown version, non-UTF-8
+    body) returns None rather than raising: ``payload`` is attacker-controllable
+    (e.g. a value POSTed to a webhook), so a bad token is a verification failure,
+    not a server error.
+    """
+    try:
+        token = base64.urlsafe_b64decode(payload.encode() + b"===")
+        if token[:1] != b"\x01":
+            return None
+        expiration_value, hash_value, message = (
+            token[1:9],
+            token[9:41].hex(),
+            token[41:].decode(),
+        )
+    except ValueError, TypeError:
+        return None
     expiration_value = int.from_bytes(expiration_value, byteorder="little")
     hash_value_expected = hmac(
         env,

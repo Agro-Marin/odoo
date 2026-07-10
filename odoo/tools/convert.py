@@ -6,6 +6,7 @@ __all__ = [
 ]
 import base64
 import csv
+import functools
 import io
 import logging
 import pprint
@@ -861,6 +862,18 @@ def convert_csv_import(
         )
 
 
+@functools.cache
+def _get_import_relaxng() -> tuple[str, etree.RelaxNG]:
+    """Compile the import-data RelaxNG schema once per process.
+
+    The schema path is a constant, but ``convert_xml_import`` runs once per XML
+    data file -- hundreds of times per ``-i``/``-u`` -- so re-parsing and
+    re-compiling it each call was pure waste.
+    """
+    schema = str(Path(config.root_path, "import_xml.rng"))
+    return schema, etree.RelaxNG(etree.parse(schema))
+
+
 def convert_xml_import(
     env: Environment,
     module: str,
@@ -871,8 +884,7 @@ def convert_xml_import(
     report: Any = None,
 ) -> None:
     doc = etree.parse(xmlfile)
-    schema = str(Path(config.root_path, "import_xml.rng"))
-    relaxng = etree.RelaxNG(etree.parse(schema))
+    schema, relaxng = _get_import_relaxng()
     try:
         relaxng.assert_(doc)
     except Exception:

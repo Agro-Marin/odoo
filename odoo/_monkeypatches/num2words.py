@@ -8,6 +8,7 @@ This patch can be removed when Bulgarian is added to upstream num2words.
 """
 
 import logging
+from decimal import Decimal
 
 _logger = logging.getLogger(__name__)
 
@@ -75,11 +76,30 @@ class Num2Word_BG:
         63: "вигинтилион",
     }
 
-    def __init__(self) -> None:
-        self._last_and: bool = False
+    def str_to_number(self, value: str) -> int | float:
+        """Parse a string to a number (part of the num2words converter API).
+
+        ``num2words(number, lang="bg")`` calls this for string inputs before
+        dispatching to ``to_cardinal``/``to_ordinal``; without it a str argument
+        raised AttributeError.
+        """
+        number = Decimal(value)
+        return int(number) if number == number.to_integral_value() else float(number)
 
     def to_cardinal(self, value: int | float | None) -> str:
-        return "" if value is None else self._to_words(value).strip()
+        if value is None:
+            return ""
+        if isinstance(value, float):
+            # ``_split_number``/``_show_digits_group`` operate on integer digit
+            # groups; a non-integer float would crash (``len(float)``). Bulgarian
+            # fractional rendering is not implemented (as for ``to_currency``).
+            if value.is_integer():
+                value = int(value)
+            else:
+                raise NotImplementedError(
+                    "Fractional cardinals are not implemented for Bulgarian"
+                )
+        return self._to_words(value).strip()
 
     def to_ordinal(self, value: int) -> str:
         msg = "Ordinal not implemented for Bulgarian"
@@ -114,7 +134,11 @@ class Num2Word_BG:
         return [x for x in ls if x is not None]
 
     def _show_digits_group(
-        self, num: int | str, gender: int = 0, last: bool | int = False
+        self,
+        num: int | str,
+        gender: int = 0,
+        last: bool | int = False,
+        and_state: list[bool] | None = None,
     ) -> str:
         num = int(num)
         e = num % 10  # ones
@@ -159,12 +183,16 @@ class Num2Word_BG:
         if last:
             if not s or len(non_empty) == 1:
                 ret[0] = self._and
-            self._last_and = True
+            if and_state is not None:
+                and_state[0] = True
 
         return self._sep.join(self._discard_empties(ret))
 
     def _to_words(self, num: int | float = 0) -> str:
-        self._last_and = False
+        # Per-conversion state kept in a local holder (not on ``self``): the
+        # converter instance is shared across threads via CONVERTER_CLASSES, so
+        # instance state would race under the threaded server.
+        and_state = [False]
         num_groups = self._split_number(abs(num) if num < 0 else num)
         sizeof_num_groups = len(num_groups)
 
@@ -190,7 +218,7 @@ class Num2Word_BG:
                     if _pow == 1:
                         ret[j] += (
                             self._show_digits_group(
-                                num_groups[i], 0, not self._last_and and i
+                                num_groups[i], 0, not and_state[0] and i, and_state
                             )
                             + self._sep
                         )
@@ -198,7 +226,7 @@ class Num2Word_BG:
                     elif _pow == 2:
                         ret[j] += (
                             self._show_digits_group(
-                                num_groups[i], -1, not self._last_and and i
+                                num_groups[i], -1, not and_state[0] and i, and_state
                             )
                             + self._sep
                         )
@@ -206,7 +234,7 @@ class Num2Word_BG:
                     else:
                         ret[j] += (
                             self._show_digits_group(
-                                num_groups[i], 1, not self._last_and and i
+                                num_groups[i], 1, not and_state[0] and i, and_state
                             )
                             + self._sep
                         )
@@ -216,7 +244,7 @@ class Num2Word_BG:
                 elif _pow == 1:
                     ret[j] += (
                         self._show_digits_group(
-                            num_groups[i], 0, not self._last_and and i
+                            num_groups[i], 0, not and_state[0] and i, and_state
                         )
                         + self._sep
                     )

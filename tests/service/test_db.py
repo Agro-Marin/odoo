@@ -5,7 +5,7 @@ database, subprocess, or Odoo module loading.
 
 Run with::
 
-    python -m pytest core/tests/service/test_db.py -v
+    python -m pytest tests/service/test_db.py -v
 """
 
 import io

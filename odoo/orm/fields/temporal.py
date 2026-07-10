@@ -70,7 +70,11 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             case "day_of_month":
                 return lambda value: value.day
             case "day_of_week":
-                return lambda value: value.timetuple().tm_wday
+                # Match PostgreSQL date_part('dow', …) used by the SQL/read_group
+                # path (constants.READ_GROUP_NUMBER_GRANULARITY): Sunday=0..Sat=6.
+                # ``tm_wday`` is Monday=0, which made filtered_domain (in-memory)
+                # disagree with search on the same ``date.day_of_week`` term.
+                return lambda value: value.isoweekday() % 7
             case "hour_number" if self.type == "datetime":
                 return lambda value: value.hour
             case "minute_number" if self.type == "datetime":

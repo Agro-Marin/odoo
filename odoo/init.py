@@ -6,9 +6,14 @@ import sys
 
 from .release import MIN_PY_VERSION
 
-assert sys.version_info[:2] >= MIN_PY_VERSION, (
-    f"Outdated python version detected, Odoo requires Python >= {'.'.join(map(str, MIN_PY_VERSION))} to run."
-)
+# raise (not assert): a hard runtime floor must hold under ``python -O``, which
+# strips asserts and would let an unsupported interpreter proceed to obscure
+# failures deep in a later import.
+if sys.version_info[:2] < MIN_PY_VERSION:
+    raise RuntimeError(
+        f"Outdated python version detected, Odoo requires Python >= "
+        f"{'.'.join(map(str, MIN_PY_VERSION))} to run."
+    )
 
 # ----------------------------------------------------------
 # The ``odoo_rust`` native extension is a HARD requirement of this fork: the ORM

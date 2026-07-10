@@ -458,7 +458,20 @@ class IrFieldsConverter(models.AbstractModel):
         the shared reference resolver. Returns a single id for m2o, a list for
         m2m, plus any resolution warnings.
         """
-        [record] = property_dict["value"]
+        # The reference resolver expects a single referencing record (a dict like
+        # {None: 'ref'}). A malformed/technical value (a bare id, [id, label], or
+        # an id list) would raise an uncaught TypeError/ValueError here and abort
+        # the entire load(); surface it as a graceful per-cell import error.
+        try:
+            [record] = property_dict["value"]
+        except TypeError, ValueError:
+            msg = self.env._(
+                "'%(value)s' is not a valid value for the '%(label_property)s' "
+                "relational property (subfield of '%%(field)s' field)."
+            )
+            raise self._property_import_error(
+                msg, property_dict["value"], property_dict
+            ) from None
         fake_field = FakeField(
             comodel_name=property_dict["comodel"],
             name=property_dict["string"],

@@ -20,6 +20,8 @@ import unittest
 import odoo.orm.domain.optimizations  # noqa: F401  (side-effect import)
 from odoo.orm.domain.ast import Domain, OptimizationLevel
 
+_UNSET = object()  # sentinel: "falsy_value not passed" vs. explicit None
+
 
 class _StubField:
     """Minimal structural stand-in for :class:`odoo.fields.Field`.
@@ -27,8 +29,27 @@ class _StubField:
     Carries only the attributes the optimizer reads when resolving a leaf.
     """
 
+    # Falsy value SQL-aliases with NULL/False per field type, matching the real
+    # Field subclasses (textual="", numeric=0/0.0, boolean=False, else None).
+    _FALSY_BY_TYPE = {
+        "char": "",
+        "text": "",
+        "html": "",
+        "integer": 0,
+        "float": 0.0,
+        "monetary": 0.0,
+        "boolean": False,
+    }
+
     def __init__(
-        self, name, ftype="integer", *, relational=False, comodel=None, search=None
+        self,
+        name,
+        ftype="integer",
+        *,
+        relational=False,
+        comodel=None,
+        search=None,
+        falsy_value=_UNSET,
     ):
         self.name = name
         self.type = ftype
@@ -39,6 +60,11 @@ class _StubField:
         self.required = False
         self.inherited = False
         self.company_dependent = False
+        # Real fields carry ``falsy_value`` (class default ``None``); the
+        # optimizer reads it to canonicalize falsy elements in in/not-in sets.
+        self.falsy_value = (
+            self._FALSY_BY_TYPE.get(ftype) if falsy_value is _UNSET else falsy_value
+        )
         # A field's search method (truthy → the FULL optimizer routes leaves on
         # this field through ``determine_domain`` instead of a raw column).
         self.search = search
@@ -146,6 +172,49 @@ class TestSetMerging(unittest.TestCase):
         self.assertEqual(_opt(Domain("a", "<", 3) & Domain("a", "<", 5)), canonical)
 
 
+class TestFalsyValueSetMerging(unittest.TestCase):
+    """A field's ``falsy_value`` (``""`` for char) is SQL-aliased with False/NULL.
+
+    The optimizer must canonicalize it to ``False`` in in/not-in sets so the
+    n-ary set-merge (which uses Python set algebra, where ``"" != False``) stays
+    sound. Regression guard for the previously-wrong collapses.
+    """
+
+    def test_eq_empty_string_canonicalizes_to_false(self):
+        # ``name = ""`` and ``name = False`` are the same SQL predicate.
+        self.assertEqual(_opt(Domain("name", "=", "")), [("name", "in", [False])])
+        self.assertEqual(_opt(Domain("name", "=", False)), [("name", "in", [False])])
+
+    def test_neq_empty_string_canonicalizes_to_false(self):
+        self.assertEqual(_opt(Domain("name", "!=", "")), [("name", "not in", [False])])
+        self.assertEqual(
+            _opt(Domain("name", "!=", False)), [("name", "not in", [False])]
+        )
+
+    def test_or_of_neq_empty_and_neq_false_is_not_tautology(self):
+        # BUG GUARD: both mean "non-empty", so the union is "not in [False]",
+        # NOT the TRUE domain that plain set algebra ("" != False) produced.
+        self.assertEqual(
+            _opt(Domain("name", "!=", "") | Domain("name", "!=", False)),
+            [("name", "not in", [False])],
+        )
+
+    def test_and_of_eq_empty_and_neq_false_is_false(self):
+        # "is falsy" AND "is not falsy" is a contradiction → FALSE leaf.
+        self.assertEqual(
+            _opt(Domain("name", "=", "") & Domain("name", "!=", False)),
+            [(0, "=", 1)],
+        )
+
+    def test_in_set_mixed_empty_and_value(self):
+        self.assertEqual(
+            _opt(Domain("name", "in", ["a", ""])), [("name", "in", ["a", False])]
+        )
+        self.assertEqual(
+            _opt(Domain("name", "in", ["a", False])), [("name", "in", ["a", False])]
+        )
+
+
 class TestBooleanAbsorption(unittest.TestCase):
     """TRUE / FALSE absorb correctly in AND / OR."""
 
@@ -233,6 +302,7 @@ class TestOptimizeModelScoping(unittest.TestCase):
             self.required = False
             self.inherited = False
             self.company_dependent = False
+            self.falsy_value = _StubField._FALSY_BY_TYPE.get(ftype)
 
     class _Model:
         def __init__(self, name, field_types):

@@ -77,6 +77,14 @@ class Savepoint:
             self._close(rollback)
 
     def rollback(self) -> None:
+        # Guard against rolling back a closed savepoint: its name has been
+        # RELEASEd, so ``ROLLBACK TO`` would abort the whole outer transaction
+        # with InvalidSavepointSpecification.  ``_close`` calls this *before*
+        # marking closed, so its internal rollback is unaffected.
+        if self.closed:
+            raise RuntimeError(
+                f'Savepoint "{self.name}" is already closed; cannot roll back'
+            )
         self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
 
     def _close(self, rollback: bool) -> None:
@@ -84,12 +92,16 @@ class Savepoint:
             if rollback:
                 self.rollback()
             self._cr.execute(f'RELEASE SAVEPOINT "{self.name}"')
-            self.closed = True
         finally:
-            # Balance __init__'s +1, even on a ROLLBACK TO / RELEASE failure —
-            # else the leaked count wedges every later commit/rollback.  _close
-            # runs at most once and only after a successful SAVEPOINT, so this
-            # never goes below 0.  ``hasattr`` guard mirrors __init__'s.
+            # Mark closed and balance __init__'s +1 exactly once — even on a
+            # ROLLBACK TO / RELEASE failure.  A failed close leaves the savepoint
+            # in an unknown state (e.g. released behind our back), so it must NOT
+            # be retried: a second _close would ROLLBACK TO a released name
+            # (aborting the outer transaction) AND decrement the depth again,
+            # driving it negative and permanently wedging commit()/rollback().
+            # Setting ``closed`` here makes the ``close()`` gate a no-op on retry.
+            # ``hasattr`` guard mirrors __init__'s (TestCursor._check_savepoint).
+            self.closed = True
             if hasattr(self._cr, "_savepoint_depth"):
                 self._cr._savepoint_depth -= 1
 

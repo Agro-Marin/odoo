@@ -74,8 +74,6 @@ if TYPE_CHECKING:
 _logger = logging.getLogger("odoo.service.server")  # preserve operator log filters
 
 
-
-
 class CpuTimeLimitExceeded(Exception):
     """Raised by ``Worker.signal_time_expired_handler`` on SIGXCPU.
 
@@ -162,7 +160,9 @@ class Worker:
         # Recycle a worker that leaked memory.  ``over_memory_soft_limit`` reads
         # RSS only when the soft limit is enabled (a per-cycle ``/proc`` read,
         # wasted when ``limit_memory_soft`` is 0 — a common config).
-        memory = over_memory_soft_limit(self._process_handle, config["limit_memory_soft"])
+        memory = over_memory_soft_limit(
+            self._process_handle, config["limit_memory_soft"]
+        )
         if memory is not None:
             self.logger.info("RSS memory soft-limit reached: %s bytes.", memory)
             self.alive = False  # Commit suicide after the request.
@@ -402,7 +402,9 @@ class WorkerCron(Worker):
             self.logger.info("Max age (%ss) reached.", config["limit_time_worker_cron"])
             self.alive = False
 
-    def _backoff_after_failed_connect(self, attempt: int, what: str, exc: BaseException) -> None:
+    def _backoff_after_failed_connect(
+        self, attempt: int, what: str, exc: BaseException
+    ) -> None:
         """Warn and sleep with exponential backoff after a failed PG connect.
 
         Shared by the boot-time connect loop (``start``) and the per-cycle
@@ -411,7 +413,7 @@ class WorkerCron(Worker):
         The caller owns the attempt counter (a local at boot, the persistent
         ``self._reconnect_attempts`` mid-run) and the loop/return control flow.
         """
-        backoff = min(2 ** attempt, 60)
+        backoff = min(2**attempt, 60)
         self.logger.warning(
             "%s failed (attempt %d): %s; sleeping %ds", what, attempt, exc, backoff
         )
@@ -469,7 +471,7 @@ class WorkerCron(Worker):
             try:
                 db_names = OrderedSet(cron_database_list())
                 notified = drain_cron_notifies(self.dbcursor.connection)
-            except (psycopg.OperationalError, PoolError):
+            except psycopg.OperationalError, PoolError:
                 self.logger.warning("Lost postgres connection, reconnecting...")
                 with contextlib.suppress(Exception):
                     self.dbcursor.connection.close()
@@ -502,7 +504,19 @@ class WorkerCron(Worker):
 
         from odoo.addons.base.models.ir_cron import IrCron
 
-        IrCron._process_jobs(db_name)
+        try:
+            IrCron._process_jobs(db_name)
+        except Exception:
+            # Isolate per-database faults: _process_jobs re-raises e.g.
+            # psycopg.ProgrammingError, which would otherwise kill this cron
+            # worker mid-queue (dropping the remaining db_queue entries and
+            # triggering a respawn loop). Log and keep serving the other
+            # databases, matching the threaded cron driver.
+            self.logger.warning(
+                "Uncaught error while processing cron jobs for database %s",
+                db_name,
+                exc_info=True,
+            )
 
         # dont keep cursors in multi database mode
         if self.db_count > 1:
@@ -570,4 +584,3 @@ class WorkerCron(Worker):
                 self.dbcursor.connection.close()
             with contextlib.suppress(Exception):
                 self.dbcursor.close()
-

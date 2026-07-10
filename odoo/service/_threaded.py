@@ -127,7 +127,7 @@ class ThreadedServer(CommonServer):
                     ):
                         thread_limit_time_real = config["limit_time_real_cron"]
                     if (
-                        thread_limit_time_real
+                        thread_limit_time_real > 0
                         and thread_execution_time > thread_limit_time_real
                     ):
                         self.logger.warning(

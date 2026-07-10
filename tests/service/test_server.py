@@ -10,7 +10,7 @@ NOT covered here (require live infra / fork):
 
 Run with::
 
-    python -m pytest core/tests/service/ -v
+    python -m pytest tests/service/ -v
 """
 
 import errno

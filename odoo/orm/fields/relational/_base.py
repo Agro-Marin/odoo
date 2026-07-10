@@ -50,6 +50,7 @@ def _domain_depend_paths(domain: Domain) -> Iterator[str]:
         for sub_path in _domain_depend_paths(subdomain):
             yield f"{condition.field_expr}.{sub_path}"
 
+
 if typing.TYPE_CHECKING:
     from odoo.tools.misc import Collector
 
@@ -147,6 +148,10 @@ class _Relational(Field["BaseModel"]):
                 # a lot of missing records, just fetch that field
                 remaining = records[len(vals) :]
                 remaining.fetch([self.name])
+                # re-resolve: fetch() flushes/recomputes, which can call
+                # env.invalidate_all() and detach the per-field dict captured
+                # above (mirrors base Field.__get__ after _fetch_field).
+                field_cache = self._get_cache(env)
                 # fetch does not raise MissingError, check value
                 if record_id not in field_cache:
                     raise MissingError(
@@ -167,6 +172,9 @@ class _Relational(Field["BaseModel"]):
                 remaining._ids = (record_id,)
                 remaining._prefetch_ids = records._prefetch_ids
                 super().__get__(remaining, owner)
+                # re-resolve: the singleton fetch above can likewise flush and
+                # detach the captured dict.
+                field_cache = self._get_cache(env)
             # we have the record now
             _append(field_cache[record_id])
 
@@ -396,9 +404,7 @@ class _RelationalMulti(_Relational):
             # the cache must include inactive ids (see class docstring);
             # convert_to_record filters them on read.
             if record._origin:
-                ids = OrderedSet(
-                    record.with_context(active_test=False)[self.name]._ids
-                )
+                ids = OrderedSet(record.with_context(active_test=False)[self.name]._ids)
             else:
                 ids = OrderedSet()
             # modify ids with the commands
@@ -552,10 +558,7 @@ class _RelationalMulti(_Relational):
             depends = unique(
                 itertools.chain(
                     depends,
-                    (
-                        self.name + "." + path
-                        for path in _domain_depend_paths(domain)
-                    ),
+                    (self.name + "." + path for path in _domain_depend_paths(domain)),
                 )
             )
         return depends, depends_context

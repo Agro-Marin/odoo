@@ -794,26 +794,34 @@ class IrMail_Server(models.Model):
             connection = smtplib.SMTP(
                 transport.server, transport.port, timeout=SMTP_TIMEOUT
             )
-        connection.set_debuglevel(transport.debug)
-        if transport.encryption in ("starttls", "starttls_strict"):
-            # starttls() does ehlo() first and discards the service list per
-            # RFC 3207, so AUTH capabilities exposed only on encrypted channels
-            # are detected for the next step.
-            connection.starttls(context=transport.ssl_context)
+        try:
+            connection.set_debuglevel(transport.debug)
+            if transport.encryption in ("starttls", "starttls_strict"):
+                # starttls() does ehlo() first and discards the service list per
+                # RFC 3207, so AUTH capabilities exposed only on encrypted
+                # channels are detected for the next step.
+                connection.starttls(context=transport.ssl_context)
 
-        if transport.user:
-            # Raises if the AUTH service is not supported.
-            smtp_user = transport.user
-            local, at, domain = smtp_user.rpartition("@")
-            if at:
-                smtp_user = local + at + idna.encode(domain).decode("ascii")
-            transport.login_server._smtp_login__(
-                connection, smtp_user, transport.password or ""
-            )
+            if transport.user:
+                # Raises if the AUTH service is not supported.
+                smtp_user = transport.user
+                local, at, domain = smtp_user.rpartition("@")
+                if at:
+                    smtp_user = local + at + idna.encode(domain).decode("ascii")
+                transport.login_server._smtp_login__(
+                    connection, smtp_user, transport.password or ""
+                )
 
-        # Some SMTP methods don't check whether EHLO/HELO was sent; login() may
-        # have sent it, so treat it as sent for all subsequent usages.
-        connection.ehlo_or_helo_if_needed()
+            # Some SMTP methods don't check whether EHLO/HELO was sent; login()
+            # may have sent it, so treat it as sent for all subsequent usages.
+            connection.ehlo_or_helo_if_needed()
+        except Exception:
+            # The TCP socket is open once SMTP()/SMTP_SSL() connected; close it
+            # on any post-connect failure (STARTTLS/AUTH/EHLO) so a broken server
+            # doesn't leak one socket per attempt. The caller only quit()s the
+            # returned session, which it never receives on this error path.
+            connection.close()
+            raise
 
         # Record routing context for _prepare_email_message__ (see _SmtpSessionContext).
         self._stash_session_context(

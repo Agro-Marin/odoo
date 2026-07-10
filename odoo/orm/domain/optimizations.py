@@ -211,9 +211,7 @@ def _operator_equal_as_in(condition, _):
     if isinstance(value, COLLECTION_TYPES):
         # Equality against a collection is common in views; debug-level since
         # it's noisy and already handled by converting to 'in'/'not in'.
-        if (
-            not value
-        ):  # views use ('user_ids', '!=', []) to mean the field is set
+        if not value:  # views use ('user_ids', '!=', []) to mean the field is set
             _logger.debug(
                 "The domain condition %r should compare with False.", condition
             )
@@ -250,6 +248,39 @@ def _optimize_in_set(condition, _model):
         _logger.debug("The domain condition %r should have a list value.", condition)
         value = [value]
     return DomainCondition(condition.field_expr, condition.operator, OrderedSet(value))
+
+
+@operator_optimization(["in", "not in"])
+def _optimize_in_set_falsy_value(condition, model):
+    """Canonicalize a field's falsy value to ``False`` in in/not-in sets.
+
+    SQL aliases a field's ``falsy_value`` (``""`` for char/text/html, ``0`` for
+    integer, ``0.0`` for float/monetary) with NULL/False, but Python set algebra
+    does not (``"" != False``). The n-ary set-merge (``_merge_set_conditions``)
+    relies on set equality, so without this normalization
+    ``a != "" | a != False`` would wrongly collapse to TRUE (and
+    ``a = "" & a != False`` to a non-empty set). Mapping every element equal to
+    ``falsy_value`` to ``False`` is SQL-identical (see ``condition_to_sql``) and
+    makes the merge sound and the optimized form canonical.
+    """
+    value = condition.value
+    if not isinstance(value, OrderedSet):
+        # _optimize_in_set (also BASIC) has not built the set yet; retry later.
+        return condition
+    falsy = condition._field(model).falsy_value
+    if falsy is None or falsy is False:
+        # No falsy aliasing (most fields), or the falsy value is already False
+        # (boolean) — nothing to canonicalize.
+        return condition
+    # Use ``is not False and == falsy`` so a genuine falsy element is caught
+    # without tripping on Python's ``0 == False`` / ``hash(0) == hash(False)``.
+    if not any(v is not False and v == falsy for v in value):
+        return condition
+    return DomainCondition(
+        condition.field_expr,
+        condition.operator,
+        OrderedSet(False if (v is not False and v == falsy) else v for v in value),
+    )
 
 
 @operator_optimization(["in", "not in"], OptimizationLevel.FULL)
@@ -679,8 +710,7 @@ def _optimize_properties_date_datetime(condition, model):
     # serialize the value as a string to compare against the jsonb-stored value
     if isinstance(value, COLLECTION_TYPES):
         value = OrderedSet(
-            str(item) if isinstance(item, (date, datetime)) else item
-            for item in value
+            str(item) if isinstance(item, (date, datetime)) else item for item in value
         )
     elif isinstance(value, (date, datetime)):
         value = str(value)

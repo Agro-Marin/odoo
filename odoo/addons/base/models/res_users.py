@@ -266,8 +266,16 @@ class ResUsers(models.Model):
 
     @api.model
     @tools.ormcache("uid", "passwd_hash")
-    def _check_uid_passwd_cached(self, uid: int, passwd: str, passwd_hash: str) -> None:
-        """Cache-backed credential verification keyed on a hash, not plaintext."""
+    def _check_uid_passwd_cached(
+        self, uid: int, passwd: str, passwd_hash: str
+    ) -> datetime.datetime | None:
+        """Cache-backed credential verification keyed on a hash, not plaintext.
+
+        Returns the API key's ``expiration_date`` (naive UTC) when the auth used
+        an expiring key, else None. The caller re-checks that expiry on every
+        call (see ``_check_uid_passwd``): time advances but this memoised result
+        does not, so an expiring key must not be trusted on cache hits alone.
+        """
         # Invalidation contract (security): only successful checks are memoised,
         # so the cached fact is "sha256(passwd) is currently valid for uid".
         # Correct only because every password mutation carries `password` in
@@ -282,7 +290,12 @@ class ResUsers(models.Model):
             "password": passwd,
             "type": "password",
         }
-        user._check_credentials(credential, {"interactive": False})
+        result = user._check_credentials(credential, {"interactive": False})
+        if result.get("auth_method") == "apikey":
+            return self.env["res.users.apikeys"]._get_key_expiration(
+                scope="rpc", key=passwd
+            )
+        return None
 
     @tools.ormcache("self.id", "sid")
     def _compute_session_token(self, sid: str) -> str | bool:
@@ -1224,7 +1237,13 @@ class ResUsers(models.Model):
         with self._assert_can_auth(user=uid):
             # Hash the password for cache key to avoid storing plaintext in memory.
             passwd_hash = sha256(passwd.encode()).hexdigest()
-            self._check_uid_passwd_cached(uid, passwd, passwd_hash)
+            key_expiration = self._check_uid_passwd_cached(uid, passwd, passwd_hash)
+            # Re-check API-key expiry on EVERY call: the ormcache above memoises
+            # success keyed on (uid, passwd_hash), so an expiring key that was
+            # valid when first used would otherwise keep authenticating past its
+            # expiration_date until the daily GC clears the cache.
+            if key_expiration is not None and key_expiration <= fields.Datetime.now():
+                raise AccessDenied
 
     def _get_session_token_fields(self) -> set[str]:
         return {"id", "login", "password", "active"}

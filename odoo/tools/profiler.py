@@ -100,7 +100,9 @@ class Collector:
     """
 
     name = None  # symbolic name of the collector
-    _store = None  # storage discriminator; the "others" collector sets it (see line ~760)
+    _store = (
+        None  # storage discriminator; the "others" collector sets it (see line ~760)
+    )
     _registry = {}  # map collector names to their class
 
     @classmethod
@@ -180,7 +182,11 @@ class Collector:
 
     def summary(self) -> str:
         """Return a brief text summary of this collector's data."""
-        return f"{'=' * 10} {self.name} {'=' * 10} \n Entries: {len(self._entries)}"
+        # After ``entries`` runs post-processing it nulls ``_entries`` and moves
+        # the data to ``processed_entries``; read the live source so a call after
+        # processing (e.g. Profiler(log=True).end()) does not crash on len(None).
+        entries = self.processed_entries if self._processed else self._entries
+        return f"{'=' * 10} {self.name} {'=' * 10} \n Entries: {len(entries)}"
 
 
 class SQLCollector(Collector):

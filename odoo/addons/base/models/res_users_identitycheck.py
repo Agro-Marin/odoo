@@ -51,16 +51,20 @@ class ResUsersIdentitycheck(models.TransientModel):
             raise UserError(_("This method can only be accessed over HTTP."))
         self._check_identity()
 
-        # RIC-L1 (audit 2026-05-28, S3 latent, inherited design): `identity-check-last`
-        # is stamped before the allow-list check below and is session-global, so any
-        # passing check opens a prompt-free 10-minute window for every @check_identity
-        # method (even a rejected call refreshes it). This is the upstream decorator's
-        # intended coarse "sudo window"; fixing it needs a decorator-level redesign.
-        request.session["identity-check-last"] = time.time()
+        if not self.sudo().request:
+            # An empty wizard (any user can create one; `request` is NO_ACCESS so
+            # it stays False) must not reach json_loads(False) -> 500.
+            raise UserError(_("There is no method to run after the identity check."))
         ctx, model, ids, method_name, args, kwargs = json_loads(self.sudo().request)
         method = getattr(self.env(context=ctx)[model].browse(ids), method_name)
         if not getattr(method, "__has_check_identity", False):
             raise UserError(
                 _("This method is not allowed for identity-checked execution.")
             )
+        # RIC-L1 (audit 2026-05-28): stamp the prompt-free 10-minute sudo window
+        # only AFTER the payload passes the allow-list check, so a rejected or
+        # malformed call can never refresh it. Still session-global across every
+        # @check_identity method — narrowing that further needs a decorator-level
+        # redesign.
+        request.session["identity-check-last"] = time.time()
         return method(*args, **kwargs)

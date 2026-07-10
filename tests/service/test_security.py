@@ -5,7 +5,7 @@ No live database required — all ORM calls are mocked.
 
 Run with::
 
-    python -m pytest core/tests/service/ -v
+    python -m pytest tests/service/ -v
 """
 
 import time

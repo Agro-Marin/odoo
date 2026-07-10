@@ -10,6 +10,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 
+from odoo.libs.func import locked
 from odoo.tools.misc import Collector
 
 from ..components.model_graph import TriggerTree
@@ -108,8 +109,18 @@ class _RegistryFieldsMixin(_RegistryStubs):
         self._field_triggers  # noqa: B018 — ensure trigger data is computed
         return self.model_graph.get_dependent_fields(field)
 
+    @locked
     def _discard_fields(self, fields: list[Field]) -> None:
-        """Discard the given fields from the registry's internal data structures."""
+        """Discard the given fields from the registry's internal data structures.
+
+        Taken under ``Registry._lock``: this is called from a request thread
+        (``ir.model.fields.unlink`` → ``pool._discard_fields``) and mutates the
+        shared ``model_graph`` trigger/inverse/computed maps in place, which
+        request threads read concurrently on the ``_search``/flush hot path.
+        Without the lock (and the eager rebuild below), a concurrent reader
+        iterating those dicts hits a "dictionary changed size during iteration"
+        RuntimeError. Mirrors the eager-under-lock rebuild in ``_setup_models__``.
+        """
         for f in fields:
             # tests usually don't reload the registry, so when they create
             # custom fields those may not have the entire dependency setup, and
@@ -129,6 +140,12 @@ class _RegistryFieldsMixin(_RegistryStubs):
         # discard from model_graph's data structures (inverses, triggers,
         # computed, depends) and clear its trigger tree caches
         self.model_graph.discard_fields(fields)
+
+        # Eagerly rebuild the field-dependency caches while still holding the
+        # lock, so a concurrent reader never observes a half-populated map (the
+        # cached_property has no internal lock since Py 3.12). ``_field_triggers``
+        # pulls in ``field_inverses``/``field_computed`` transitively.
+        self._field_triggers  # noqa: B018 — eager rebuild for thread-safety
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
         """Return a field's trigger tree (transitive closure of field triggers).
