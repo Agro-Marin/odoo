@@ -107,7 +107,7 @@ export function dayCellClassNames(info) {
     classes.push("fc-daygrid-day");
     // v6 also carried ``fc-day-<short-weekday>`` per cell. v7 dropped it but
     // exposes ``info.dow`` (0=Sunday..6=Saturday) — see
-    // ``fullcalendar.esm.js:8367`` (``getDateMeta``). Derive the suffix from
+    // ``fullcalendar.esm.js`` (``getDateMeta``). Derive the suffix from
     // ``dow`` directly, independent of timezone-marker handling on ``info.date``.
     if (Number.isInteger(info?.dow) && info.dow >= 0 && info.dow < 7) {
         const SHORT_WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -219,7 +219,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
         try {
             // v7's ``Calendar`` wrapper already pre-injects the five default
             // plugins (dayGrid/timeGrid/interaction/list/multiMonth — see
-            // fullcalendar.esm.js:16956-16973); callers don't pass ``plugins``.
+            // fullcalendar.esm.js); callers don't pass ``plugins``.
             // Mark the FC root as portal host BEFORE construction so the
             // fork-local ``getAppendableRoot`` override (fullcalendar.esm.js)
             // routes MorePopover/ElementMirror here instead of <body>, which

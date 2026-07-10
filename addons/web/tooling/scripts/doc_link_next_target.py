@@ -65,18 +65,18 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_BASELINE_PATH = (
     REPO_ROOT
-    / "addons/core/addons/web/tooling/scripts/doc_link_baseline.json"
+    / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
 # Authoritative surfaces — broken refs here are most damaging because
 # readers trust these documents.  Mirrors the team's existing tier
 # system (machine_doc_v1 is the single most read-heavy doc surface).
 AUTHORITATIVE_PATHS = (
-    "addons/core/addons/web/machine_doc_v1/",
-    "addons/core/.github/workflows/",
+    "addons/odoo/addons/web/machine_doc_v1/",
+    "addons/odoo/.github/workflows/",
     "CLAUDE.md",
-    "addons/core/CLAUDE.md",
-    "addons/core/addons/web/CLAUDE.md",
+    "addons/odoo/CLAUDE.md",
+    "addons/odoo/addons/web/CLAUDE.md",
 )
 
 KNOWLEDGE_PATHS = (

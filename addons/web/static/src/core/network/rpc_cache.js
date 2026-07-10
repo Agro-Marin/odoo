@@ -27,7 +27,7 @@ import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
  * response so ``payloadChanged`` can compare versions in O(1) instead of
  * deep-serializing both payloads on ``update: "always"`` refreshes.
  *
- * See ``addons/core/addons/web/models/web_search_panel.py`` for the
+ * See ``addons/odoo/addons/web/models/web_search_panel.py`` for the
  * server-side stamping pattern (sha256 of canonical JSON).
  */
 const VERSION_FIELD = "__version";

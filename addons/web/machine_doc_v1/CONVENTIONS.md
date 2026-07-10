@@ -26,7 +26,7 @@ JS: button click in views
 path, used specifically for UI button actions — it wraps the result through
 `clean_action()` before returning.
 
-**x2Many commands from JS follow this encoding** (see `core/odoo/orm/primitives.py:187-272` `Command` IntEnum):
+**x2Many commands from JS follow this encoding** (see `core/odoo/orm/primitives.py` `Command` IntEnum):
 
 | Command | Tuple | Meaning |
 |---------|-------|---------|
@@ -82,7 +82,7 @@ Many routes declare `readonly=True` which routes them to a read replica if confi
 Write operations (create, write, unlink, button clicks) use `readonly=False` (default).
 
 The `call_kw` route uses a dynamic `readonly=_call_kw_readonly` function
-(`controllers/dataset.py:15-26`) that walks the target model's MRO looking
+(`controllers/dataset.py`) that walks the target model's MRO looking
 for a `_readonly` attribute on the named method (set by the `@api.readonly`
 decorator). Defaults to `False` when the attribute is absent. Callers adding
 new read-only ORM methods must decorate them with `@api.readonly` for the
@@ -394,7 +394,7 @@ When refactoring a widget:
    **declarative**: each module lists its bundles under an `esm` key in its own
    `__manifest__.py` (`bundles` / `dynamic_children` / `import_map_includes` /
    `secondary_import_map_includes`), aggregated by
-   `odoo.tools.assets.esm_registry.esm_registry()` (`esm_registry.py:92`). Check a
+   `odoo.tools.assets.esm_registry.esm_registry()` (`esm_registry.py`). Check a
    bundle's membership there before relying on positional placement.
 
 4. **`readonly=True` on routes** — This is not about user permissions. It tells the
@@ -463,7 +463,7 @@ When refactoring a widget:
    bundle; calling `loadJS(url)` on it after page load is a no-op at best and a
    re-evaluation hazard at worst. Example:
    `mail/static/lib/selfie_segmentation/selfie_segmentation.js` ships in
-   `web.assets_backend` (mail/__manifest__.py:149).
+   `web.assets_backend` (mail/__manifest__.py).
 
 7. **`CLEAR-CACHES` on result-set removal is model-scoped on BOTH layers.** Any RPC
    whose method removes records from the model's result sets — `unlink`,
@@ -490,9 +490,9 @@ When refactoring a widget:
    and get rewritten as responses come back through the cache.
 
    Method-set source of truth:
-   `services/result_set_cache_invalidator_service.js:31`
+   `services/result_set_cache_invalidator_service.js`
    `RESULT_SET_REMOVING_METHODS`. Emission site:
-   `services/result_set_cache_invalidator_service.js:84`. The listener
+   `services/result_set_cache_invalidator_service.js`. The listener
    lives in a dedicated service (not `relational_model.js`) so wiring is owned
    by env lifecycle — one subscription per page, one per Hoot test, torn down
    with the env. See `doc/FLOW_DIAGRAM.md` Flow 14 for the full invalidation chain.
@@ -511,22 +511,22 @@ When refactoring a widget:
    `<script>` tag during page load. It carries the `registry_hash` HMAC and, for
    internal users, the company hierarchy. Note `browser_cache_secret` is **not**
    part of `session_info()`: it is injected separately into the page context by
-   `home.py` (`home.py:113-121`, whose comment notes it is added "here and not in
+   `home.py` (`home.py`, whose comment notes it is added "here and not in
    session_info()"). The JS reads `odoo.__session_info__` into a local snapshot
    but **does not delete it** from the global — the test harness re-reads the same
-   global (`session.js:10-20`). Never add sensitive data (passwords, API keys) to
+   global (`session.js`). Never add sensitive data (passwords, API keys) to
    `session_info()` — it's visible in page source.
 
 9. **Field-scoped optimistic locking (`known_values`), with urgent-save
    parity** — The client no longer sends a whole-record `last_write_date`
    (the server keeps that kwarg only as a legacy fallback). Instead
-   `record_save.js` builds a `concurrencyBaseline` map (`record_save.js:129`):
+   `record_save.js` builds a `concurrencyBaseline` map (`record_save.js`):
    for each field being written, the originally-loaded value from
    `record._values` — skipping types that can't be compared safely (x2many,
    binary, html, date/datetime, json, properties, reference) and jsonb-backed
    `translate` / `company_dependent` fields. It is sent as
-   `kwargs.known_values` on BOTH the normal path (`record_save.js:243`) and
-   the urgent sendBeacon path (`urgentKwargs`, `record_save.js:179-183`), for
+   `kwargs.known_values` on BOTH the normal path (`record_save.js`) and
+   the urgent sendBeacon path (`urgentKwargs`, `record_save.js`), for
    existing records only (`resId` truthy). Server side,
    `models/web_read.py:_check_concurrent_field_changes` rejects only a
    genuine per-field conflict and ignores concurrent writes to OTHER fields
@@ -540,16 +540,16 @@ When refactoring a widget:
     — form and multi-record differ only in the presence source** — the helper
     checks `"active" in presenceSource` (with `"x_active"` fallback for custom
     no-active-field models) and returns `!readonlySource.<field>.readonly`.
-    `form_controller.js:606-608` calls it as
+    `form_controller.js` calls it as
     `computeArchiveEnabled(this.props.fields, this.model.root.activeFields)` —
     presence is gated on the field actually being **in the view**.
-    `multi_record_controller.js:86` calls
+    `multi_record_controller.js` calls
     `computeArchiveEnabled(this.props.fields)` — presence and writability both
     come from the model-level fields definition.
 
     **Why the form needs the stricter `activeFields` gate**: the form
     conditions archive vs unarchive on `model.root.isActive`
-    (`form_controller.js:562,571`). If `active` is not in `activeFields`,
+    (`form_controller.js`). If `active` is not in `activeFields`,
     the view never loads it, so `record.data.active` is `undefined` and
     `record.isActive` is falsy. Without the gate, `archiveEnabled` would still
     be true and the form would show "Unarchive" on a record whose active state
@@ -633,10 +633,10 @@ When refactoring a widget:
     was removed as dead code.)
 
 13. **`patch()` targets prototypes and plain objects, never namespace
-    imports** — `core/utils/patch.js:79`. Native ES module namespaces
+    imports** — `core/utils/patch.js`. Native ES module namespaces
     (`import * as X from "..."`) are **frozen by the ECMAScript spec**:
     properties are non-configurable, so `Object.defineProperty()` (which
-    `patch()` uses internally at line 119) throws `TypeError`. Use one of:
+    `patch()` uses internally) throws `TypeError`. Use one of:
 
     - **Class methods / instance behavior** → `patch(MyClass.prototype, {...})`
     - **Static methods** → `patch(MyClass, {...})` (the constructor object

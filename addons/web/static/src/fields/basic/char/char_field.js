@@ -87,7 +87,7 @@ export const charField = {
     // ``char`` and ``text`` both render sensibly in a single-line input (line
     // breaks in ``text`` values collapse, which is fine for compact display).
     // The overlap with ``textField.supportedTypes`` is intentional polymorphism —
-    // the arch-author picks by aesthetic; ``field.js:162``'s warning only fires
+    // the arch-author picks by aesthetic; ``field.js``'s missing-widget warning only fires
     // for genuinely incompatible combinations like ``widget="char"`` on an integer.
     supportedTypes: ["char", "text"],
     supportedOptions: [

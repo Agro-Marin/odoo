@@ -2,7 +2,7 @@
 """generate_model_types.py — emit TypeScript .d.ts from Odoo fields_get.
 
 Produces one ``<model_name>.d.ts`` per Odoo model under
-``addons/core/addons/web/static/src/@types/models/<module>/`` so that
+``addons/odoo/addons/web/static/src/@types/models/<module>/`` so that
 ``RelationalRecord<"sale.order">.data.partner_id`` resolves to
 ``Many2one<"res.partner">`` instead of ``any``.  Pairs with the
 existing typecheck CI gate (``tooling/scripts/typecheck_gate.mjs``):
@@ -17,7 +17,7 @@ From a running Odoo shell (preferred — fields_get reflects the live
 inheritance chain):
 
     cd /home/marin/Odoo
-    ./addons/core/odoo-bin shell -c conf/odoo.conf -d $DB <<'PY'
+    ./addons/odoo/odoo-bin shell -c conf/odoo.conf -d $DB <<'PY'
     from addons.core.addons.web.tooling.scripts.generate_model_types import generate
     generate(env, modules=["sale", "sale_management", "stock"])
     PY
@@ -28,7 +28,7 @@ Standalone (bootstraps Odoo internally — slower but self-contained):
         --config conf/odoo.conf --db marin190 \\
         --modules sale,sale_management,stock
 
-Output goes to ``addons/core/addons/web/static/src/@types/models/`` by
+Output goes to ``addons/odoo/addons/web/static/src/@types/models/`` by
 default; pass ``--output-dir`` to override.
 
 DESIGN CHOICES
@@ -82,13 +82,13 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-# Path math: /home/marin/Odoo/addons/core/addons/web/tooling/scripts/<this>
+# Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
 #   parents[0] = scripts/, [1] = tooling/, [2] = web/,
 #   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
 #   parents[6] = Odoo/        ← the workspace root.
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_OUTPUT_DIR = (
-    REPO_ROOT / "addons/core/addons/web/static/src/@types/models"
+    REPO_ROOT / "addons/odoo/addons/web/static/src/@types/models"
 )
 
 # Selection literal-union cap — past this, fall back to ``string``.
@@ -386,7 +386,7 @@ def generate(
 def _bootstrap_odoo(config_path: str, db: str) -> Any:
     """Initialise Odoo and return an Environment for ``db``."""
     # Lazy import — only needed in standalone mode.
-    sys.path.insert(0, str(REPO_ROOT / "addons/core"))
+    sys.path.insert(0, str(REPO_ROOT / "addons/odoo"))
     import odoo  # type: ignore[import-not-found]
     from odoo.tools import config  # type: ignore[import-not-found]
 

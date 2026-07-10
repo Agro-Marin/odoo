@@ -79,8 +79,8 @@ Top-level layout of `core/addons/web/` (detailed maps are separate docs):
 | `controllers/` | 23 `.py` — HTTP endpoints (21 Controller classes) | `ROUTE_MAP.md` |
 | `models/` | 22 `.py` — ORM extensions (web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
 | `static/src/` | 658 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
-| `static/lib/` | 19 vendored JS libraries — DO NOT MODIFY | versions table below |
-| `static/tests/` | 408 `.js` (incl. 352 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
+| `static/lib/` | 17 vendored JS libraries — DO NOT MODIFY | versions table below |
+| `static/tests/` | 434 `.js` (incl. 378 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
 | `tests/` | 44 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 | `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) | — |
@@ -121,7 +121,7 @@ Services are registered in `registry.category("services")` and injected via `use
 
 #### `orm` full public API
 
-16 methods on the `ORM` class (`orm_service.js:82` onward). All return a Promise.
+16 methods on the `ORM` class (`orm_service.js` onward). All return a Promise.
 
 | Method | Python call | Notes |
 |---|---|---|
@@ -141,21 +141,21 @@ Services are registered in `registry.category("services")` and injected via `use
 | `webResequence(model, ids, kwargs)` | `web_resequence` | **Forces `specification: {}`** if caller omits |
 | `formattedReadGroup` / `formattedReadGroupingSets` | same | Result is mutated: each group gets `__domain` built from `Domain.and([domain, __extra_domain])` |
 
-**Methods NOT on `orm`**: `nameSearch`, `name_create`, `readGroup` (use `orm.call(model, "name_search", ...)` etc.). `UPDATE_METHODS` constant (create/write/unlink/web_save/web_save_multi/action_archive/action_unarchive) is exported for cache-invalidation consumers AND used inside orm_service itself: it seeds the private `NON_IDEMPOTENT_METHODS` superset (`orm_service.js:76`), which `call()` checks to hard-reject `retry`/`dedup`/`cache` on write-class methods (throws before anything reaches the network).
+**Methods NOT on `orm`**: `nameSearch`, `name_create`, `readGroup` (use `orm.call(model, "name_search", ...)` etc.). `UPDATE_METHODS` constant (create/write/unlink/web_save/web_save_multi/action_archive/action_unarchive) is exported for cache-invalidation consumers AND used inside orm_service itself: it seeds the private `NON_IDEMPOTENT_METHODS` superset (`orm_service.js`), which `call()` checks to hard-reject `retry`/`dedup`/`cache` on write-class methods (throws before anything reaches the network).
 
-**`orm.cache({type:"disk"})`** — proxy pattern (`orm_service.js:101`): `Object.assign(Object.create(this), {_cache: options})`. Every `call()` passes `cache: this._cache` to `rpc()`, where `rpcCache.read(table, key, fetcher, options)` is invoked. **table** = python method name (e.g. `"fields_get"`). **key** = `JSON.stringify({url, params})`. Options pass through — `{type:"disk"}` and `{type:"ram"}` both valid; `cache:true` uses defaults. `{immutable:true}` makes warm hits share a single deep-frozen cached payload (`rpc_cache.js` — `immutable ? deepFreeze : deepCopy`) instead of deep-copying per read; only for consumers that never mutate the result (adopted by `field_service`).
+**`orm.cache({type:"disk"})`** — proxy pattern (`orm_service.js`): `Object.assign(Object.create(this), {_cache: options})`. Every `call()` passes `cache: this._cache` to `rpc()`, where `rpcCache.read(table, key, fetcher, options)` is invoked. **table** = python method name (e.g. `"fields_get"`). **key** = `JSON.stringify({url, params})`. Options pass through — `{type:"disk"}` and `{type:"ram"}` both valid; `cache:true` uses defaults. `{immutable:true}` makes warm hits share a single deep-frozen cached payload (`rpc_cache.js` — `immutable ? deepFreeze : deepCopy`) instead of deep-copying per read; only for consumers that never mutate the result (adopted by `field_service`).
 
-**`orm.silent`** — same proxy pattern (`orm_service.js:93`) adds `_silent:true` for the downstream error_service to suppress dialogs. **Composable but not chainable with itself**: `orm.silent.cache({type:"disk"})` works; re-invoking `.silent` or `.cache()` re-creates, doesn't stack.
+**`orm.silent`** — same proxy pattern (`orm_service.js`) adds `_silent:true` for the downstream error_service to suppress dialogs. **Composable but not chainable with itself**: `orm.silent.cache({type:"disk"})` works; re-invoking `.silent` or `.cache()` re-creates, doesn't stack.
 
-**`orm.dedup`** — same proxy pattern (`orm_service.js:128`) adds `_dedup: true` to subsequent calls. Concurrent callers issuing the same `(url, params)` key share a single in-flight fetch (stampede prevention for **uncached** reads). Redundant when chained onto `.cache(...)` — the cache layer already prevents duplicate fires. Abort semantics are shared: aborting any caller cancels the underlying fetch and rejects every observer with `ConnectionAbortedError`. Never apply to writes.
+**`orm.dedup`** — same proxy pattern (`orm_service.js`) adds `_dedup: true` to subsequent calls. Concurrent callers issuing the same `(url, params)` key share a single in-flight fetch (stampede prevention for **uncached** reads). Redundant when chained onto `.cache(...)` — the cache layer already prevents duplicate fires. Abort semantics are shared: aborting any caller cancels the underlying fetch and rejects every observer with `ConnectionAbortedError`. Never apply to writes.
 
-**`orm.retry(options)`** — same proxy pattern (`orm_service.js:152`) adds `_retry: options` to subsequent calls. Accepts a number (interpreted as retries with default backoff) or a partial config `{retries, baseMs, maxMs}`. Composes with `silent` and `cache`: `orm.silent.cache({type:"disk"}).retry(1).call(...)` is the canonical boot-path-resilient idiom (see `services/field_service.js`, `views/view_service.js`). Caller is responsible for ensuring the call is idempotent — never apply to writes (create/write/unlink/web_save/web_save_multi/web_resequence).
+**`orm.retry(options)`** — same proxy pattern (`orm_service.js`) adds `_retry: options` to subsequent calls. Accepts a number (interpreted as retries with default backoff) or a partial config `{retries, baseMs, maxMs}`. Composes with `silent` and `cache`: `orm.silent.cache({type:"disk"}).retry(1).call(...)` is the canonical boot-path-resilient idiom (see `services/field_service.js`, `views/view_service.js`). Caller is responsible for ensuring the call is idempotent — never apply to writes (create/write/unlink/web_save/web_save_multi/web_resequence).
 
-**Context merging rule** (`orm_service.js:190`): `fullContext = {...user.context, ...(kwargs.context||{})}`. Spread order means **caller keys win on collision** — `user.context` values can be overridden, though the keys themselves cannot be deleted (omit from caller context to inherit, set to a new value to override).
+**Context merging rule** (`orm_service.js`): `fullContext = {...user.context, ...(kwargs.context||{})}`. Spread order means **caller keys win on collision** — `user.context` values can be overridden, though the keys themselves cannot be deleted (omit from caller context to inherit, set to a new value to override).
 
-**rpc.js settings whitelist** (`rpc.js:109`): `cache, silent, headers, timeout, retry, dedup`. Any other key throws. The previous `xhr` setting (XHR injection escape hatch) was dropped along with the migration to `fetch`. `cache` + `retry` compose: cache wraps retry so warm hits skip the retry layer entirely. `timeout` (milliseconds) installs an `AbortSignal.timeout()` that combines with the caller-controlled abort signal via `AbortSignal.any()`. No `credentials`.
+**rpc.js settings whitelist** (`rpc.js`): `cache, silent, headers, timeout, retry, dedup`. Any other key throws. The previous `xhr` setting (XHR injection escape hatch) was dropped along with the migration to `fetch`. `cache` + `retry` compose: cache wraps retry so warm hits skip the retry layer entirely. `timeout` (milliseconds) installs an `AbortSignal.timeout()` that combines with the caller-controlled abort signal via `AbortSignal.any()`. No `credentials`.
 
-**Error class hierarchy** (`rpc.js:129-235`):
+**Error class hierarchy** (`rpc.js`):
 - `NetworkError` (base) — all network/RPC failures
 - `RPCError extends NetworkError` — server-returned errors; `{name:"RPC_ERROR", type:"server", code, data, exceptionName, subType}`. **Never retryable** (server-deterministic).
 - `ConnectionLostError extends NetworkError` — HTTP 502/503/504, JSON parse failure under an ``application/json`` content-type, missing content-type, or fetch network failure (DNS, CORS, server unreachable). Frontend never sees a status code for these. **Retryable**.
@@ -352,14 +352,10 @@ and the version string in the source file.
 | `popper` | 2.11.8 | Popover positioning (dropdown, tooltip, popover services) |
 | `prismjs` | 1.30.0 | Syntax highlighting in test setup UI |
 | `signature_pad` | 5.1.3 | Signature component (upstream ESM build; `signature_pad` import-map external) |
-| `stacktracejs` | 2.0-unknown | Traceback annotation in error_utils.js |
 | `zxing-library` | 0.21.3 | BarcodeDetector polyfill (barcode scanner) |
 
 > **Three "internal" entries** (`owl`, `hoot`, `hoot-dom`) are maintained
 > in-tree, versioned by git commit rather than a released tag.
->
-> **`stacktracejs` `2.0-unknown`** — no canonical upstream release matches; do
-> not assume it is a real upstream tag.
 >
 > **`diff_match_patch` is forked** — upstream frozen since Google's last commit;
 > the local copy has patches, so don't upgrade via npm.
@@ -372,9 +368,9 @@ and the version string in the source file.
 | Python (models) | 22 (21 model files + `__init__.py`) |
 | Python (tests) | 44 |
 | JavaScript (src) | 658 |
-| JavaScript (tests) | 408 (incl. 352 `*.test.js` Hoot suites) |
+| JavaScript (tests) | 434 (incl. 378 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 91 |
-| SCSS/CSS | 193 (25 in `static/src/scss/` shared base; remaining 168 co-located with JS components) |
-| XML (views/ + data/ + static/src OWL templates) | 275 (12 views + 3 data + 260 OWL templates) |
+| SCSS/CSS | 202 (25 in `static/src/scss/` shared base; remaining 177 co-located with JS components) |
+| XML (views/ + data/ + static/src OWL templates) | 277 (12 views + 3 data + 262 OWL templates) |
 | i18n (.po + .pot) | 61 |
-| Total | ~1,680+ |
+| Total | ~1,810+ |

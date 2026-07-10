@@ -141,7 +141,7 @@ export class CalendarYearRenderer extends Component {
     viewDidMount({ el, view, options }) {
         // v7 dropped ``view.calendar.currentData.options``; the same options now
         // arrive as the ``options`` field of the didMount payload
-        // (``fullcalendar.esm.js:5358``).
+        // (``fullcalendar.esm.js``).
         if (!options) {
             return; // v6-shape fallback or unexpected payload
         }

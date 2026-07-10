@@ -72,14 +72,14 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Path math: /home/marin/Odoo/addons/core/addons/web/tooling/scripts/<this>
+# Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
 #   parents[0] = scripts/, [1] = tooling/, [2] = web/,
 #   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
 #   parents[6] = Odoo/        ← the workspace root we want.
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_BASELINE_PATH = (
     REPO_ROOT
-    / "addons/core/addons/web/tooling/scripts/doc_link_baseline.json"
+    / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
 # Source-file globs scanned by default.  Edits to this list belong with
@@ -87,13 +87,13 @@ DEFAULT_BASELINE_PATH = (
 # diff.  Exclusions go through the negative-glob mechanism below.
 DEFAULT_SCAN_GLOBS = [
     # Machine-consumable docs the team treats as authoritative.
-    "addons/core/addons/web/machine_doc_v1/*.md",
+    "addons/odoo/addons/web/machine_doc_v1/*.md",
     # CI workflows that frequently reference plan/audit docs.
-    "addons/core/.github/workflows/*.yml",
+    "addons/odoo/.github/workflows/*.yml",
     # Top-level CLAUDE.md surface (workspace + repo + addon-level).
     "CLAUDE.md",
-    "addons/core/CLAUDE.md",
-    "addons/core/addons/web/CLAUDE.md",
+    "addons/odoo/CLAUDE.md",
+    "addons/odoo/addons/web/CLAUDE.md",
     # Knowledge tree — the most common source of dangling refs.
     "knowledge/agromarin-knowledge/research/*.md",
     "knowledge/agromarin-knowledge/plans/*.md",
@@ -330,7 +330,7 @@ def scan(
 #   "_total_violations": 3,
 #   "_generator": "...",
 #   "violations": [
-#     {"source_file": "addons/core/.github/workflows/lint.yml",
+#     {"source_file": "addons/odoo/.github/workflows/lint.yml",
 #      "raw_path": "knowledge/.../audit.md"},
 #     ...
 #   ]

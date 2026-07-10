@@ -156,7 +156,7 @@ Files are listed with approximate line counts.
 | JS | `static/src/module_loader.js` | ~161 | Post-ESM shim — installs `globalThis.odoo.loader` as `OdooModuleLoader` with only 3 members (`bus`, `modules`, `registerNativeModules`). NOT an ES module loader anymore (legacy AMD loader removed after the 2026 ESM migration); it exists solely so sibling esbuild bundles share the same singleton module instances via the `modules` Map. |
 | PY | `controllers/home.py` | ~295 | `/`, `/web`, `/odoo`, `/web/webclient/load_menus`, `/web/login`, `/web/login_successful`, `/web/become`, `/web/health`, `/robots.txt` |
 | PY | `models/ir_http.py` | ~280 | `session_info()`, `webclient_rendering_context()` |
-| XML | `views/webclient_templates.xml` | ~385 | HTML shell, `t-call-assets`, inline session JSON. Contains `web.layout` (line 19) with `<!DOCTYPE html>`, `<meta>`, `<link rel="icon">`, and inline `<script id="web.layout.odooscript">` that writes `window.odoo = {csrf_token, debug}`. Frontend layout injects `odoo.__session_info__` via `json.dumps(get_frontend_session_info())` at line ~63. |
+| XML | `views/webclient_templates.xml` | ~385 | HTML shell, `t-call-assets`, inline session JSON. Contains `web.layout` with `<!DOCTYPE html>`, `<meta>`, `<link rel="icon">`, and inline `<script id="web.layout.odooscript">` that writes `window.odoo = {csrf_token, debug}`. Frontend layout injects `odoo.__session_info__` via `json.dumps(get_frontend_session_info())`. |
 
 **Key invariants to check**:
 - Service dependency order is acyclic
@@ -208,11 +208,11 @@ Files are listed with approximate line counts.
 - RPC cache invalidation triggered on write/unlink/create
 
 > **Security note (documented behavior, not an invariant):**
-> `serialize_exception()` in `core/odoo/http/helpers.py:161-176` unconditionally
+> `serialize_exception()` in `core/odoo/http/helpers.py` unconditionally
 > puts the full Python traceback into `error.data.debug` of every JSON-RPC
 > error response — **regardless of debug mode**. Any refactor that aims to
 > suppress traces in production must change `serialize_exception` and audit
-> every caller (`dispatcher.py:281, 347, 350, 359`). The rpc_cache client
+> every caller (`dispatcher.py, 347, 350, 359`). The rpc_cache client
 > does NOT filter this, so traces reach the browser verbatim.
 
 ---
@@ -308,23 +308,23 @@ Files are listed with approximate line counts.
 >   `currentCtx + buttonContext + activeCtx + action.context` — `action.context`
 >   wins last. `CTX_KEY_REGEX` strips `default_*`, `search_default_*`, `show_*`,
 >   `*_view_ref`, `group_by`, `active_id`, `active_ids`, `orderedBy` from
->   forwarded context. **Applied only in `action_button_executor.js:171-175`** —
+>   forwarded context. **Applied only in `action_button_executor.js`** —
 >   NOT in `_preprocessAction`. Direct `doAction(actionRequest)` calls do NOT
 >   get their context scrubbed.
 > - **`preprocessAction` no longer mutates the cached action** (moved to
->   `action_loader.js:106`; `action_service.js:_preprocessAction` is a thin
+>   `action_loader.js`; `action_service.js:_preprocessAction` is a thin
 >   delegator): the shallow copy now happens FIRST (`action = { ...action }`
->   at `action_loader.js:107`), so `_originalAction`, `context` merge,
+>   at `action_loader.js`), so `_originalAction`, `context` merge,
 >   `domain` coercion and `help` drop all land on a fresh object and the
 >   cached descriptor stays unmodified. The historical footgun (mutations
 >   before the copy persisting on the cached object) is fixed — do not
 >   reintroduce mutation above the copy line. `action.views` is also
 >   rebuilt on the copy.
-> - **`call_button` sentinel** (`dataset.py:62-66`): server returning
+> - **`call_button` sentinel** (`dataset.py`): server returning
 >   `{type: ""}` → JS receives `False` (no action). Absent `type` →
->   `setdefault("type", "ir.actions.act_window_close")` at `utils.py:35`.
+>   `setdefault("type", "ir.actions.act_window_close")` at `utils.py`.
 >   Normalizing falsy returns will break Python buttons that rely on this.
-> - **`action_handlers` registry extension point** (registry at `action_service.js:50`, dispatch at `:702`):
+> - **`action_handlers` registry extension point** (registry at `action_service.js`, dispatched via `actionHandlersRegistry.get(action.type)`):
 >   zero registrations in core web — pure addon hook. Shape:
 >   `(params: {env, action, options}) => void | Promise<void>`. Register with
 >   `registry.category("action_handlers").add("my.type", handler)`.
@@ -361,7 +361,7 @@ Files are listed with approximate line counts.
 
 > **View registry entries are objects, not components**:
 > `{ type, Controller, Renderer, ArchParser, Model, buttonTemplate, ... }`
-> See `list_view.js:22-57` for the canonical shape.
+> See `list_view.js` for the canonical shape.
 
 > **Form compiler extension point**: `registry.category("form_compilers")`
 > is how other addons plug in node handlers (e.g., mail registers `<chatter>`

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """generate_service_types.py — emit ``@types/services.d.ts`` from JS source.
 
-Produces ``addons/core/addons/web/static/src/@types/services.d.ts`` from
+Produces ``addons/odoo/addons/web/static/src/@types/services.d.ts`` from
 the actual ``registry.category("services").add(...)`` call sites under
-``addons/core/addons/web/static/src/``.  The hand-maintained file drifts
+``addons/odoo/addons/web/static/src/``.  The hand-maintained file drifts
 silently when a service is added or moved (one observed drift on
 2026-05-10: ``httpService`` was imported from ``@web/core/network/http_service``
 but the registration lives in ``@web/services/http_service``).  Pairs
@@ -17,15 +17,15 @@ USAGE
 Regenerate the file in place::
 
     cd /home/marin/Odoo
-    python addons/core/addons/web/tooling/scripts/generate_service_types.py
+    python addons/odoo/addons/web/tooling/scripts/generate_service_types.py
 
 Convenience wrapper (matches ``regen_model_types.sh``)::
 
-    ./addons/core/addons/web/tooling/scripts/regen_service_types.sh
+    ./addons/odoo/addons/web/tooling/scripts/regen_service_types.sh
 
 CI freshness check (paired with the existing typecheck_gate pattern)::
 
-    python addons/core/addons/web/tooling/scripts/generate_service_types.py --check
+    python addons/odoo/addons/web/tooling/scripts/generate_service_types.py --check
     # exits non-zero if the committed file disagrees with the regenerated one
 
 DESIGN CHOICES
@@ -73,12 +73,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Path math: /home/marin/Odoo/addons/core/addons/web/tooling/scripts/<this>
+# Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
 #   parents[0] = scripts/, [1] = tooling/, [2] = web/,
 #   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
 #   parents[6] = Odoo/        ← the workspace root.
 REPO_ROOT = Path(__file__).resolve().parents[6]
-WEB_SRC_ROOT = REPO_ROOT / "addons/core/addons/web/static/src"
+WEB_SRC_ROOT = REPO_ROOT / "addons/odoo/addons/web/static/src"
 DEFAULT_OUTPUT = WEB_SRC_ROOT / "@types/services.d.ts"
 
 # Registration grammar — three concrete forms occur in the tree:
@@ -180,7 +180,7 @@ class Registration:
 def _js_to_import_path(file: Path) -> str:
     """Convert a JS file path to its ``@web/...`` import specifier.
 
-    ``addons/core/addons/web/static/src/services/orm_service.js``
+    ``addons/odoo/addons/web/static/src/services/orm_service.js``
     → ``@web/services/orm_service``
     """
     rel = file.relative_to(WEB_SRC_ROOT)
@@ -401,7 +401,7 @@ def render(registrations: list[Registration]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Regenerate addons/core/addons/web/static/src/@types/services.d.ts",
+        description="Regenerate addons/odoo/addons/web/static/src/@types/services.d.ts",
     )
     parser.add_argument(
         "--output",

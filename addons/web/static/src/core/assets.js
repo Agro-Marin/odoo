@@ -222,7 +222,7 @@ export class AssetsLoadingError extends Error {}
 // mounts it via ``<t t-component="Component" .../>``. Validate at ``add()`` time
 // so a non-Component entry surfaces here instead of failing deep inside OWL at
 // mount with an unhelpful error (same pattern as the ``dialogs`` registry, see
-// ``ui/dialog/dialog_service.js:13``).
+// ``ui/dialog/dialog_service.js``).
 registry
     .category("lazy_components")
     .addValidation((entry) => entry?.prototype instanceof Component);

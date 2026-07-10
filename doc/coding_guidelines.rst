@@ -2000,9 +2000,9 @@ Running the standalone (Tier 1 / Tier 2) suites takes **two** invocations:
 
 .. code-block:: bash
 
-   cd addons/core
+   cd addons/odoo
 
-   # Tier 1 component suite + standalone unit suites (config: addons/core/pytest.ini)
+   # Tier 1 component suite + standalone unit suites (config: addons/odoo/pytest.ini)
    pytest
 
    # Tier 2 real-ORM model suites + service tests — SEPARATE invocation.

@@ -13,7 +13,7 @@ const ENDPOINT = "/web/observability/cwv";
  * Service that captures Core Web Vitals via PerformanceObserver and beacons
  * them to the server when the page is hidden or unloaded.  Reuses the
  * ``pagehide`` + ``navigator.sendBeacon`` pattern proven in
- * ``record_save.js:85`` for urgent saves.
+ * ``record_save.js`` (``save()``) for urgent saves.
  *
  * Captures: LCP (Largest Contentful Paint), FCP (First Contentful Paint),
  * CLS (Cumulative Layout Shift), TTFB (Time To First Byte), and INP

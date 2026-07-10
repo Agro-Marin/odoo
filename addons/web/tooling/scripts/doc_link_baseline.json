@@ -1,7 +1,7 @@
 {
   "_generated_at": "2026-05-10",
   "_total_violations": 478,
-  "_generator": "addons/core/addons/web/tooling/scripts/doc_link_gate.py",
+  "_generator": "addons/odoo/addons/web/tooling/scripts/doc_link_gate.py",
   "violations": [
     {
       "source_file": "CLAUDE.md",
@@ -48,11 +48,11 @@
       "raw_path": "reference/dev/error-catalog.md"
     },
     {
-      "source_file": "addons/core/.github/workflows/lint.yml",
+      "source_file": "addons/odoo/.github/workflows/lint.yml",
       "raw_path": "knowledge/agromarin-knowledge/workspaces/workspace-LMMG/2026-05-03-web-js-architecture-audit.md"
     },
     {
-      "source_file": "addons/core/addons/web/machine_doc_v1/CONVENTIONS.md",
+      "source_file": "addons/odoo/addons/web/machine_doc_v1/CONVENTIONS.md",
       "raw_path": "research/2026-03-12-esm-native-migration-feasibility.md"
     },
     {
@@ -1029,11 +1029,11 @@
     },
     {
       "source_file": "knowledge/agromarin-knowledge/plans/2026-05-09-t21850-chart-esm-plan.md",
-      "raw_path": "addons/core/addons/spreadsheet/static/src/o_spreadsheet/PATCH.md"
+      "raw_path": "addons/odoo/addons/spreadsheet/static/src/o_spreadsheet/PATCH.md"
     },
     {
       "source_file": "knowledge/agromarin-knowledge/plans/2026-05-09-t21850-chart-esm-plan.md",
-      "raw_path": "addons/core/addons/web/static/lib/Chart/README-vendoring.md"
+      "raw_path": "addons/odoo/addons/web/static/lib/Chart/README-vendoring.md"
     },
     {
       "source_file": "knowledge/agromarin-knowledge/reference/api_gateway/ARCHITECTURE.md",

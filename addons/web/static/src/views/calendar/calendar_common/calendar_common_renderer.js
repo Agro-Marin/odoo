@@ -266,7 +266,7 @@ export class CalendarCommonRenderer extends Component {
             fixedWeekCount: false,
             // FC v7's StandardEvent.render only mounts the after-class div
             // (carries the fork-patched fc-event-resizer-end,
-            // fullcalendar.esm.js:9020) when afterClassName||afterContent is
+            // fullcalendar.esm.js) when afterClassName||afterContent is
             // truthy, so without a non-empty generator the resize handle
             // vanishes even when isEndResizable is true. Same rationale on
             // the start side (line 9015) for eventResizableFromStart.
@@ -291,7 +291,7 @@ export class CalendarCommonRenderer extends Component {
     viewDidMount({ el, view, options }) {
         // v7 dropped view.calendar.currentData.options; the same options
         // now arrive directly as the options field of the didMount payload
-        // (fullcalendar.esm.js:5358). view itself is just { type,
+        // (fullcalendar.esm.js). view itself is just { type,
         // getCurrentData, dateEnv } in v7.
         if (!options) {
             return; // v6-shape fallback or unexpected payload
@@ -624,7 +624,7 @@ export class CalendarCommonRenderer extends Component {
         //
         // Detect the "local" case and rebuild the DateTime from UTC
         // components in the local zone so serializers produce the
-        // user-visible clock time. See fullcalendar.esm.js:1767-1789
+        // user-visible clock time. See fullcalendar.esm.js
         // (timestampToMarker/toDate) for the FC-side conversion mirrored here.
         const isMarkerMode = getFullCalendarTimeZone() === "local";
         const Lux = DateTime;

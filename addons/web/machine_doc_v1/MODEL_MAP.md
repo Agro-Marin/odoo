@@ -97,7 +97,7 @@ Webclient context setup, session info, and request handling.
   - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, optionally `server_version`, `server_version_info`
   - Added by `session_info`: `user_context`, `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
   - `groups` is a single-flag dict `{"base.group_allow_export": bool}`, NOT a full list of the user's groups
-  - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py:119-121` into the HTML template after `session_info()` returns
+  - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py` into the HTML template after `session_info()` returns
 - `get_frontend_session_info()` — Lightweight variant for public/website pages (no company hierarchy).
 - `lazy_session_info()` — Hook for expensive session data loaded after bootstrap. Currently returns `{profile_session, profile_collectors, profile_params}`. Note: `max_profile_allowed` is NOT part of this response.
 - `webclient_rendering_context()` — Context dict for webclient HTML template.
@@ -255,7 +255,7 @@ high-volume; `recorded_at` captures beacon arrival).
 - `lcp` (Float, ms, readonly) — Largest Contentful Paint
 - `fcp` (Float, ms, readonly) — First Contentful Paint
 - `ttfb` (Float, ms, readonly) — Time To First Byte
-- `inp` (Float, ms, readonly) — Interaction to Next Paint, reported by `web_vitals_service.js` as the **worst-observed interaction duration over the page lifetime** (a P100 running max — a strict upper bound on the canonical Chromium P98 INP, actionable as a regression signal; swap the reducer for a proper P98 if the `web-vitals` library is ever vendored). Server-clamped like the other latencies (`_clamp_latency`, `controllers/observability.py:99`)
+- `inp` (Float, ms, readonly) — Interaction to Next Paint, reported by `web_vitals_service.js` as the **worst-observed interaction duration over the page lifetime** (a P100 running max — a strict upper bound on the canonical Chromium P98 INP, actionable as a regression signal; swap the reducer for a proper P98 if the `web-vitals` library is ever vendored). Server-clamped like the other latencies (`_clamp_latency`, `controllers/observability.py`)
 - `cls` (Float, unitless, readonly) — Cumulative Layout Shift (0 is best; not capped at 1)
 
 **Key Methods:**

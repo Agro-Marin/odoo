@@ -254,7 +254,7 @@ export class CommandPalette extends Component {
                 let commandsSorted = [];
                 // Copy: the config array is caller-owned — pushing "default"
                 // through the alias would permanently mutate the provider's
-                // registered categories (cf. default_providers.js:66).
+                // registered categories (cf. ``default_providers.js``).
                 this.categoryKeys = [...namespaceConfig.categories];
                 this.categoryNames = namespaceConfig.categoryNames || {};
                 if (!this.categoryKeys.includes("default")) {

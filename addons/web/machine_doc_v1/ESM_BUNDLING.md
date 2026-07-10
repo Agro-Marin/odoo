@@ -12,17 +12,17 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │   Pragma: /** @odoo-module native */                                 │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │  is_native_module() / is_odoo_module()
-                                │  odoo/tools/assets/esm_graph.py:57 / :63
+                                │  odoo/tools/assets/esm_graph.py
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│ AssetsBundle.__init__()   assetsbundle.py:1513                       │
+│ AssetsBundle.__init__()   assetsbundle/bundle.py                     │
 │   files partitioned into:                                            │
 │     • self.javascripts         (classic JS; legacy bundle)           │
 │     • self.native_modules      (@odoo-module [native]; esbuild fuel) │
 │     • self.templates           (XML for QWeb)                        │
 │     • self.stylesheets         (SCSS/CSS)                            │
 │   Only when bundle name ∈ esm_registry().bundles                     │
-│   (assetsbundle.py:1539 sets self._is_esm_bundle).                   │
+│   (assetsbundle/bundle.py sets self._is_esm_bundle).                 │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │
                                 ▼
@@ -41,7 +41,7 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │       /<addon>/static/... │                     ▼
 └────────────┬──────────────┘   ┌────────────────────────────────────────┐
              │                  │ esbuild_native_bundle()                │
-             │                  │   assetsbundle.py:1847                 │
+             │                  │   assetsbundle/bundle.py               │
              │                  │                                        │
              │                  │ 1. Generate entry.js (piped on STDIN — │
              │                  │    nothing written to the code tree):  │
@@ -104,8 +104,8 @@ The old hardcoded frozensets in `assetsbundle.py`
 declares its own ESM bundle relationships in its `__manifest__.py` under an
 `esm` key; the aggregate is built once per process from
 `Manifest.all_addon_manifests()` by `esm_registry()`
-(odoo/tools/assets/esm_registry.py:92, returning an `EsmRegistry`
-NamedTuple, :75) and invalidated by `invalidate_esm_registry()` (:107),
+(odoo/tools/assets/esm_registry.py, returning an `EsmRegistry`
+NamedTuple) and invalidated by `invalidate_esm_registry()`,
 wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 "addons on disk changed" signal from `ir.module.module.update_list()`).
 
@@ -153,10 +153,10 @@ import-map-include of the same parent.  Unknown keys under `esm` are rejected
 non-dict mapping value raise `TypeError` earlier in the build.
 
 The esbuild alias table `_LIB_CANDIDATES` (vendored `@odoo/*` paths)
-lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py:299).
+lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py).
 Cross-file invariants enforced at module-load
 (`AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)` in
-assetsbundle.py, invoked at module load (end of the file); `ODOO_EXTERNAL_LIBS`
+assetsbundle/bundle.py, invoked at import time; `ODOO_EXTERNAL_LIBS`
 itself is defined in odoo/libs/constants.py with a class alias
 `IrQweb._ODOO_EXTERNAL_LIBS` in ir_qweb_assets.py):
 - Every `ODOO_EXTERNAL_LIBS` entry has a matching `_LIB_CANDIDATES` alias,
@@ -273,7 +273,7 @@ env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
 | Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
 | `DuplicatedKeyError` in registry | Module loaded twice (separate instances) | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
-| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py:22` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_esm_prod_nodes` (`ir_qweb_assets.py`). |
+| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_esm_prod_nodes` (`ir_qweb_assets.py`). |
 
 ## Serving & caching
 

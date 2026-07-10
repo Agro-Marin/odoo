@@ -1,10 +1,10 @@
-# AgroMarin Odoo 19 — Core Framework Fork (`addons/core`)
+# AgroMarin Odoo 19 — Core Framework Fork (`addons/odoo`)
 
 This repository is **a fork of Odoo Community 19.0**
 (`github.com/Agro-Marin/odoo`): the Odoo framework plus its bundled base addons.
 
 > Throughout this file, **"repo root"** means the directory that contains this
-> file — the `core` checkout itself.
+> file — the `odoo` checkout itself.
 
 ## Branch Model
 
@@ -41,7 +41,7 @@ exploration and provides immediate context.
 source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions,
 and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
 OCA. It supersedes any other `coding_guidelines` file inside a code repo and is
-canonical for **all** AgroMarin repos in the workspace (`core`, `enterprise`,
+canonical for **all** AgroMarin repos in the workspace (`odoo`, `enterprise`,
 `agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule carries
 an enforcement marker — 🔧 (linted by `ruff`) or 👁 (review-only).
 
