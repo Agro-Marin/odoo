@@ -949,6 +949,9 @@ class StockRule(models.Model):
         orderpoints = self.env["stock.warehouse.orderpoint"].search(domain)
         orderpoints.sudo()._compute_qty_to_order_computed()
         orderpoints.sudo()._compute_deadline_date()
+        # Refresh stored lead-time analytics from freshly completed receipts; they cannot
+        # ORM-depend on the pickings they aggregate, so the scheduler owns their refresh.
+        orderpoints.sudo()._compute_lead_time_stats()
         orderpoints.sudo()._procure_orderpoint_confirm(
             use_new_cursor=use_new_cursor, company_id=company_id, raise_user_error=False
         )

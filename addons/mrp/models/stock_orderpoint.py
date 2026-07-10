@@ -161,14 +161,16 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.days_to_order = (boms and boms[0].days_to_prepare_mo) or 0
         return res
 
-    def _get_default_route(self):
-        route_ids = (
+    def _get_default_route_map(self):
+        routes = super()._get_default_route_map()
+        manufacture_routes = (
             self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
         )
-        route_id = self.rule_ids.route_id & route_ids
-        if self.product_id.bom_ids and route_id:
-            return route_id[0]
-        return super()._get_default_route()
+        for orderpoint in self.filtered("location_id"):
+            route_id = orderpoint.rule_ids.route_id & manufacture_routes
+            if orderpoint.product_id.bom_ids and route_id:
+                routes[orderpoint.id] = route_id[0]
+        return routes
 
     def _get_default_bom(self):
         self.ensure_one()

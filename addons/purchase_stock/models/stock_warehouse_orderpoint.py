@@ -202,12 +202,14 @@ class StockWarehouseOrderpoint(models.Model):
     # HELPER METHODS
     # ------------------------------------------------------------
 
-    def _get_default_route(self):
-        route_ids = self.env["stock.rule"].search([("action", "=", "buy")]).route_id
-        route_id = self.rule_ids.route_id & route_ids
-        if self.product_id.seller_ids and route_id:
-            return route_id[0]
-        return super()._get_default_route()
+    def _get_default_route_map(self):
+        routes = super()._get_default_route_map()
+        buy_routes = self.env["stock.rule"].search([("action", "=", "buy")]).route_id
+        for orderpoint in self.filtered("location_id"):
+            route_id = orderpoint.rule_ids.route_id & buy_routes
+            if orderpoint.product_id.seller_ids and route_id:
+                routes[orderpoint.id] = route_id[0]
+        return routes
 
     def _get_default_supplier(self):
         self.ensure_one()
