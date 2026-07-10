@@ -588,7 +588,15 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         if "depends" in attrs:
             attrs["_depends"] = tuple(attrs.pop("depends"))
         if "depends_context" in attrs:
-            attrs["_depends_context"] = tuple(attrs.pop("depends_context"))
+            depends_context = tuple(attrs.pop("depends_context"))
+            # A company_dependent field's cache MUST stay keyed on company. The
+            # block above set ("company",), but a user-supplied depends_context
+            # would otherwise REPLACE it, silently leaking values across
+            # companies. Prepend "company" (mirrors how BaseString force-prepends
+            # "lang" for translated fields).
+            if attrs.get("company_dependent") and "company" not in depends_context:
+                depends_context = ("company", *depends_context)
+            attrs["_depends_context"] = depends_context
 
         if "group_operator" in attrs:
             warnings.warn(
@@ -1605,7 +1613,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                         )
                         self._update_cache(rec, value)
                 fallback_single = False
-            except (AccessError, KeyError, MissingError):
+            except AccessError, KeyError, MissingError:
                 if len(recs) == 1:
                     raise
                 fallback_single = True
@@ -1629,7 +1637,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 try:
                     self.compute_value(recs)
                     fallback_single = False
-                except (AccessError, MissingError):
+                except AccessError, MissingError:
                     fallback_single = True
                 if fallback_single:
                     self.compute_value(record)

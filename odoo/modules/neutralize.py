@@ -2,6 +2,7 @@ import logging
 import typing
 from contextlib import suppress
 
+from odoo.modules.module import Manifest
 from odoo.tools.misc import file_open
 
 if typing.TYPE_CHECKING:
@@ -24,6 +25,20 @@ def get_installed_modules(cursor: Cursor) -> list[str]:
 def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
     # neutralization for each module
     for module in modules:
+        # An installed module whose code is absent from the current addons path
+        # (e.g. running `neutralize` without the enterprise dir configured) would
+        # have its neutralize.sql silently skipped by the FileNotFoundError
+        # suppression below — a hole in a command whose whole contract is a
+        # safety guarantee. Warn loudly so the operator knows the neutralization
+        # is incomplete.
+        if Manifest.for_addon(module, display_warning=False) is None:
+            _logger.warning(
+                "Module %r is installed but not found on the addons path; its "
+                "neutralization (if any) is SKIPPED. The database may not be "
+                "fully neutralized — configure all addons paths and re-run.",
+                module,
+            )
+            continue
         filename = f"{module}/data/neutralize.sql"
         with suppress(FileNotFoundError):
             with file_open(filename) as file:

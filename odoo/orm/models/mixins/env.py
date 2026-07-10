@@ -71,7 +71,13 @@ class EnvironmentMixin(_ModelStubs):
             The returned recordset has the same prefetch object as ``self``.
 
         """
-        assert isinstance(flag, bool)
+        # raise (not assert): under python -O the classic ``record.sudo(user_id)``
+        # mistake would set ``env.su = <int>`` (truthy -> permanent superuser).
+        if not isinstance(flag, bool):
+            raise TypeError(
+                f"sudo() expects a bool, got {type(flag).__name__}; did you mean"
+                " with_user()?"
+            )
         if flag == self.env.su:
             return self
         return self.with_env(self.env(su=flag))
@@ -182,7 +188,9 @@ class EnvironmentMixin(_ModelStubs):
                 (fields[name], value) for name, value in values.items() if name != "id"
             ]
         except KeyError as e:
-            raise ValueError(f"Invalid field {e.args[0]!r} on model {self._name!r}") from e
+            raise ValueError(
+                f"Invalid field {e.args[0]!r} on model {self._name!r}"
+            ) from e
 
         # convert monetary fields after other columns for correct value rounding
         for field, value in sorted(
@@ -200,7 +208,6 @@ class EnvironmentMixin(_ModelStubs):
                 # x2many fields should add self, while many2one fields should replace with self
                 for invf in self.pool.field_inverses[field]:
                     invf._update_inverse(inv_recs, self)
-
 
     def _convert_to_write(self, values: dict) -> ValuesType:
         """Convert the ``values`` dictionary into the format of :meth:`write`."""

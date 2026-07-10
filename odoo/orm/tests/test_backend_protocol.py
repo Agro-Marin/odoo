@@ -18,8 +18,8 @@ from odoo.orm.runtime.backend import InMemoryBackend, StorageBackend
 
 _MIXINS_DIR = pathlib.Path(__file__).resolve().parent.parent / "models" / "mixins"
 
-# ``supports_parent_store`` is read as an attribute, not dispatched to as a call.
-_ATTRIBUTE_MEMBERS = {"supports_parent_store"}
+# Attribute (capability-flag) members: read as attributes, not dispatched as calls.
+_ATTRIBUTE_MEMBERS = {"supports_parent_store", "supports_record_rules"}
 
 
 def _protocol_methods() -> set[str]:
@@ -27,8 +27,11 @@ def _protocol_methods() -> set[str]:
 
 
 def test_in_memory_backend_implements_the_whole_protocol():
-    missing = [m for m in typing.get_protocol_members(StorageBackend)
-               if not hasattr(InMemoryBackend, m)]
+    missing = [
+        m
+        for m in typing.get_protocol_members(StorageBackend)
+        if not hasattr(InMemoryBackend, m)
+    ]
     assert not missing, f"InMemoryBackend does not implement: {missing}"
 
 

@@ -1,9 +1,12 @@
 import contextlib
+import ipaddress
 import json
 import logging
+import socket
 from functools import reduce
 from operator import getitem
 from typing import Any, Self
+from urllib.parse import urlparse
 
 import babel
 
@@ -23,6 +26,55 @@ _logger = logging.getLogger(__name__)
 _server_action_logger = logging.getLogger(
     "odoo.addons.base.models.ir_actions.server_action_safe_eval"
 )
+
+
+def _webhook_url_blocked_reason(url: str) -> str | None:
+    """Return a reason string if ``url`` targets a private/reserved address.
+
+    SSRF guard for admin-configured webhook server actions: rejects a URL whose
+    host is (or resolves to) a loopback/private/link-local/reserved IP — notably
+    the ``169.254.169.254`` cloud-metadata endpoint. Unlike the report fetcher
+    (which allows DNS because WeasyPrint re-enters ``fetch()`` on each redirect),
+    a webhook is a one-shot POST, so we also resolve the hostname. Returns None
+    when the URL is allowed.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return "malformed URL"
+    if parsed.scheme not in ("http", "https"):
+        return f"unsupported scheme {parsed.scheme!r}"
+    hostname = parsed.hostname
+    if not hostname:
+        return "missing host"
+
+    candidates: list[ipaddress._BaseAddress] = []
+    try:
+        candidates.append(ipaddress.ip_address(hostname.strip("[]")))
+    except ValueError:
+        # A real hostname: resolve it and screen every returned address.
+        try:
+            candidates.extend(
+                ipaddress.ip_address(info[4][0])
+                for info in socket.getaddrinfo(
+                    hostname, parsed.port or None, proto=socket.IPPROTO_TCP
+                )
+            )
+        except OSError, ValueError:
+            # Unresolvable host reaches nothing internal; let requests fail.
+            return None
+
+    for ip in candidates:
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return f"blocked address {ip} (private/reserved range)"
+    return None
 
 
 class LoggerProxy:
@@ -877,6 +929,17 @@ class IrActionsServer(models.Model):
                     "The webhook action '%(name)s' has no URL to send the request "
                     "to. Please set a Webhook URL.",
                     name=self.name,
+                )
+            )
+        if blocked := _webhook_url_blocked_reason(url):
+            # SSRF guard: never let a server action POST to an internal/metadata
+            # address (e.g. 169.254.169.254, RFC1918, loopback).
+            raise UserError(
+                _(
+                    "The webhook action '%(name)s' targets a forbidden address "
+                    "(%(reason)s). Webhooks may only call public hosts.",
+                    name=self.name,
+                    reason=blocked,
                 )
             )
         vals = {

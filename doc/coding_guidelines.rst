@@ -2008,7 +2008,7 @@ Running the standalone (Tier 1 / Tier 2) suites takes **two** invocations:
    # Tier 2 real-ORM model suites + service tests — SEPARATE invocation.
    # The Tier 1 suites register process-global sys.modules stubs for odoo.*,
    # which would shadow these suites' real ``import odoo.*`` if run together.
-   pytest tests/models tests/service
+   pytest odoo/orm/tests tests/service
 
 The ``sys.modules`` stub bootstrap shared by the standalone suites lives in
 ``odoo/_testing_bootstrap.py``; each suite's ``conftest.py`` is a thin wrapper

@@ -126,12 +126,17 @@ class Registry(
 
     _lock: threading.RLock | DummyRLock = threading.RLock()
 
-    registries = LRU[str, "Registry"](42)  # random default value
+    # Import-time default; resized from ``config['registry_lru_size']`` in
+    # ``new()`` once config is available.
+    registries = LRU[str, "Registry"](42)
     """A mapping from database names to registries."""
 
     def __new__(cls, db_name: str):
         """Return the registry for the given database name."""
-        assert db_name, "Missing database name"
+        # raise (not assert): the contract must hold under python -O, matching
+        # the fork's other converted contract checks in this module.
+        if not db_name:
+            raise ValueError("Missing database name")
         with cls._lock:
             try:
                 return cls.registries[db_name]
@@ -179,6 +184,13 @@ class Registry(
           determined by the ``config['with_demo']``. Defaults to ``None``
         """
         t0 = time.time()
+        # Sync the registry-cache capacity from config: the class-level LRU is
+        # sized at import time (before config is parsed), so honour an operator
+        # override here rather than hardcoding how many databases stay cached
+        # (beyond the limit, a live registry is evicted and fully reloaded).
+        lru_size = config.get("registry_lru_size")
+        if lru_size and cls.registries.count != lru_size:
+            cls.registries.count = lru_size
         registry: Registry = object.__new__(cls)
         registry.init(db_name)
         registry.new = registry.init = registry.registries = None  # type: ignore[assignment, method-assign]
@@ -805,7 +817,9 @@ class Registry(
         )
         cr.execute(SQL("SELECT %s", signaling_selects))
         row = cr.fetchone()
-        assert row is not None, "No result when reading signaling sequences"
+        # raise (not assert): must hold under python -O.
+        if row is None:
+            raise RuntimeError("No result when reading signaling sequences")
         registry_sequence, *cache_sequences_values = row
         cache_sequences = dict(
             zip(_CACHES_BY_KEY, cache_sequences_values, strict=False)
@@ -849,7 +863,9 @@ class Registry(
                     # regress the sequence and force a redundant reload next
                     # request.
                     if _logger.isEnabledFor(logging.DEBUG):
-                        changes += f"[Registry - {old_sequence} -> {self.registry_sequence}]"
+                        changes += (
+                            f"[Registry - {old_sequence} -> {self.registry_sequence}]"
+                        )
                 # Check if the model caches must be invalidated.
                 else:
                     invalidated = []
@@ -875,7 +891,7 @@ class Registry(
                         )
                 if changes:
                     _logger.debug("Multiprocess signaling check: %s", changes)
-        except (psycopg.OperationalError, db.PoolError):
+        except psycopg.OperationalError, db.PoolError:
             if cr is None:
                 # We couldn't open a cursor — database likely unreachable
                 # (e.g. dropped). Remove stale registry to prevent repeated hangs.
@@ -956,7 +972,7 @@ class Registry(
                     # the resolved fallback state.
                     threading.current_thread().cursor_mode = "ro"
                     return cr
-                except (psycopg.OperationalError, db.PoolError):
+                except psycopg.OperationalError, db.PoolError:
                     self._db_readonly_failed_time = time.monotonic()
                     _logger.warning(
                         "Failed to open a readonly cursor, falling back to read-write cursor for %dmin %dsec",

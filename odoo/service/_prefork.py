@@ -68,6 +68,7 @@ def _graceful_stop_timeout(logger: logging.Logger) -> float:
         logger=logger,
     )
 
+
 # Fork-storm throttle.  A worker that raises before serving real work dies
 # immediately, and the master otherwise refills its slot every main-loop
 # iteration with no delay — a dying child's SIGCHLD wakes ``sleep`` at once, so
@@ -92,11 +93,14 @@ class PreforkServer(CommonServer):
         super().__init__(app)
         # config
         self.population = config["workers"]
-        # ``limit_time_real <= 0`` means "no real-time watchdog": a 0 would make
-        # every HTTP worker's ``watchdog_timeout`` 0, so ``process_timeout``
-        # would SIGKILL brand-new workers at once and the master would respawn
-        # them in a loop.
-        self.timeout = config["limit_time_real"] or None
+        # ``limit_time_real <= 0`` means "no real-time watchdog": a 0 or negative
+        # value would make every HTTP worker's ``watchdog_timeout`` non-positive,
+        # so ``process_timeout`` would SIGKILL brand-new workers at once and the
+        # master would respawn them in a loop. ``or None`` only caught 0, so a
+        # negative slipped through; gate on ``> 0`` to match the intent.
+        self.timeout = (
+            config["limit_time_real"] if config["limit_time_real"] > 0 else None
+        )
         self.limit_request = config["limit_request"]
         self.cron_timeout = config["limit_time_real_cron"] or None
         if self.cron_timeout == -1:
@@ -450,9 +454,23 @@ class PreforkServer(CommonServer):
             # check the registries on the first call only!
             if not registries:
                 return
-            for registry in registries.values():
-                with registry.cursor() as cr:
-                    registry.check_signaling(cr)
+            for db_name, registry in list(registries.items()):
+                try:
+                    with registry.cursor() as cr:
+                        registry.check_signaling(cr)
+                except Exception:
+                    # A transient PG outage (or an externally-dropped database)
+                    # at worker-respawn time must NOT take down the whole
+                    # supervisor: registry.cursor() -> pool.borrow can raise
+                    # PoolError, which would otherwise propagate to run()'s
+                    # catch-all and stop the master permanently.  Freshly forked
+                    # workers re-check signaling themselves, so log and continue.
+                    _logger.warning(
+                        "Could not check signaling for database %r during worker "
+                        "spawn; skipping this cycle.",
+                        db_name,
+                        exc_info=True,
+                    )
             registries.clear()
             # Close all opened cursors
             db.close_all()
@@ -651,8 +669,7 @@ class PreforkServer(CommonServer):
             if not escalated and time.monotonic() >= deadline:
                 escalated = True
                 self.logger.warning(
-                    "Workers still alive %.0fs after SIGINT; escalating to "
-                    "SIGKILL: %s",
+                    "Workers still alive %.0fs after SIGINT; escalating to SIGKILL: %s",
                     stop_timeout,
                     list(self.workers),
                 )

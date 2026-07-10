@@ -22,7 +22,6 @@ import odoo.addons
 try:
     from packaging.requirements import InvalidRequirement, Requirement
 except ImportError:
-
     # The Error-suffix lint is suppressed on the class below: the name must
     # mirror packaging.requirements.InvalidRequirement, which this shadows when
     # `packaging` is unavailable.
@@ -217,7 +216,13 @@ def initialize_sys_path() -> None:
     # The addons path may have just gained (or changed) entries, so drop any
     # memoized manifests: a previously-negative lookup must not mask a module
     # that is now reachable, and an edited manifest on disk must be re-read.
-    Manifest.clear_caches()
+    # Only clear when the path actually changed, though: this runs on every
+    # config.parse_config / Registry.new / cross-worker reload, and re-parsing
+    # ~1600 manifests each time is pure waste when the path is stable.
+    current_addons_path = tuple(odoo.addons.__path__)
+    if getattr(initialize_sys_path, "_last_addons_path", None) != current_addons_path:
+        Manifest.clear_caches()
+        initialize_sys_path._last_addons_path = current_addons_path
 
     # hook for upgrades and namespace freeze
     # Reviewed 2026-03: function attribute guard is a valid Python pattern —
@@ -432,7 +437,9 @@ class Manifest(Mapping[str, typing.Any]):
                 # manifest authored by a developer; surface the message at
                 # WARNING so an operator running default log levels notices.
                 _logger.warning(
-                    "Failed to parse the manifest file at %r: %s", path, e,
+                    "Failed to parse the manifest file at %r: %s",
+                    path,
+                    e,
                 )
             else:
                 try:
@@ -443,7 +450,8 @@ class Manifest(Mapping[str, typing.Any]):
                     # silently so all_addon_manifests() does not crash
                     # bootstrap on stray directories.
                     _logger.debug(
-                        "Manifest at %r has invalid module name, skipped", path,
+                        "Manifest at %r has invalid module name, skipped",
+                        path,
                     )
         return None
 
@@ -710,7 +718,12 @@ def adapt_version(version: str) -> str:
     except ValueError as e:
         raise ValueError(f"Invalid version {version!r}") from e
     serie = release.major_version
-    if len(parts) <= 3 and not version.startswith(serie):
+    # Compare against ``serie + "."``, not ``serie``: a bare ``startswith(serie)``
+    # also matches lookalikes like "19.05"/"19.01", leaving them unprefixed so
+    # check_version later rejects them and the module silently becomes
+    # installable=False. A version exactly equal to the serie ("19.0") is already
+    # serie-qualified and must not be double-prefixed.
+    if len(parts) <= 3 and version != serie and not version.startswith(serie + "."):
         # prefix the bare module version with the server serie
         return f"{serie}.{version}"
     return version
@@ -720,7 +733,9 @@ def check_version(version: str, should_raise: bool = True) -> bool:
     """Check that the version is in a valid format for the current release."""
     version = adapt_version(version)
     serie = release.major_version
-    if version.startswith(serie + "."):
+    # Accept exactly the serie ("19.0"): adapt_version leaves it as-is (a
+    # bare-serie module version is valid, meaning the series itself).
+    if version == serie or version.startswith(serie + "."):
         return True
     if should_raise:
         raise ValueError(

@@ -50,9 +50,18 @@ class StorageBackend(typing.Protocol):
     the safeguard that turns "a new persistence op silently runs SQL against the
     in-memory store" from a latent bug into a failed test (as it did for the
     row-lock methods). ``supports_parent_store`` is an attribute, not a method.
+
+    ``supports_record_rules`` declares whether ``search()`` enforces ``ir.rule``
+    record rules. The SQL path always does (via the security domain in
+    ``SearchMixin._search``); the in-memory tier dispatches before that domain is
+    applied and evaluates rules with different (non-sudo, no related-field SQL)
+    semantics, so it declares ``False`` — tests needing record-rule behaviour
+    must use the DB tier, and can assert on this flag rather than silently
+    getting a false green.
     """
 
     supports_parent_store: bool
+    supports_record_rules: bool
 
     def create_rows(
         self,
@@ -85,9 +94,7 @@ class StorageBackend(typing.Protocol):
 
     def as_query(self, model: BaseModel, ordered: bool = True) -> Query: ...
 
-    def existing_ids(
-        self, model: BaseModel, ids: typing.Iterable[int]
-    ) -> set[int]: ...
+    def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]: ...
 
     def lock_for_update(
         self, model: BaseModel, *, allow_referencing: bool = False
@@ -123,6 +130,11 @@ class InMemoryBackend:
     #: This backend has no hierarchical-tree support (``parent_path``); the
     #: ``_parent_store`` maintenance in ``create``/``write`` is skipped for it.
     supports_parent_store: bool = False
+
+    #: ``search()`` does NOT enforce ir.rule record rules: dispatch happens before
+    #: the security domain is applied (see ``SearchMixin._search``). Tests that
+    #: depend on record-rule filtering must use the DB tier.
+    supports_record_rules: bool = False
 
     __slots__ = ("storage",)
 
@@ -169,9 +181,7 @@ class InMemoryBackend:
         does for translated / company-dependent fields (enough for business
         tests, which is the only context this backend runs in).
         """
-        updates = [
-            (row[0], dict(zip(fnames, row[1:], strict=True))) for row in rows
-        ]
+        updates = [(row[0], dict(zip(fnames, row[1:], strict=True))) for row in rows]
         self.storage.upsert_rows(model._table, updates)
 
     # -- read ---------------------------------------------------------------
@@ -207,9 +217,19 @@ class InMemoryBackend:
                 if field not in _fdc:
                     field_caches[field] = env._core.get_field_data(field)
                 else:
+                    # cache_key may fail to resolve when the env is not fully
+                    # seeded (DictBackend tests).  Narrow the catch (as the
+                    # sibling ``search`` does) so genuine _get_cache / cache_key
+                    # bugs surface instead of being silently swallowed.
                     try:
                         field_caches[field] = field._get_cache(env)
-                    except Exception:
+                    except (KeyError, AttributeError, TypeError) as e:
+                        _logger.debug(
+                            "DictBackend cache load skipped %s.%s: %s",
+                            model._name,
+                            field.name,
+                            e,
+                        )
                         field_caches[field] = env._core.get_field_data(field)
             for record_id in result_ids:
                 row = self.storage.get_row(model._table, record_id)
@@ -281,7 +301,9 @@ class InMemoryBackend:
                     except (KeyError, AttributeError, TypeError) as e:
                         _logger.debug(
                             "DictBackend cache load skipped %s.%s: %s",
-                            model._name, fname, e,
+                            model._name,
+                            fname,
+                            e,
                         )
 
         # Batch-load directly into cache dicts (fields outer, records inner).

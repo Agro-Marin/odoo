@@ -217,7 +217,9 @@ class Binary(Field[bytes | typing.Literal[False]]):
         # active would size-convert an int value (the "client returned the bin
         # size instead of the content" case) into a human_size string and cache
         # it as content. Mirrors get_column_update / compute_value.
-        records = records.with_context(**{"bin_size": False, "bin_size_" + self.name: False})
+        records = records.with_context(
+            **{"bin_size": False, "bin_size_" + self.name: False}
+        )
         if not self.attachment:
             super().mark_dirty(records, value)
             return
@@ -347,6 +349,14 @@ class Image(Binary):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
+        # Reset the bin_size context up front so the cache writes below land in
+        # the (False,) sub-cache (unprocessed content), not size strings.
+        # Binary.mark_dirty resets its OWN local records, which does not
+        # propagate back to the `records` used for our local conversion/cache
+        # write, so do it here once.
+        records = records.with_context(
+            **{"bin_size": False, "bin_size_" + self.name: False}
+        )
         try:
             new_value = self._image_process(value, records.env)
         except UserError:

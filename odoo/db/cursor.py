@@ -326,7 +326,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 and self.dbname in tools.config["db_name"]
             ):
                 self.execute("SET search_path = public, pg_catalog;")
-                self.commit()  # persist search_path across later rollbacks
+                # Commit on the raw connection: the public ``commit()`` guards
+                # on ``self._closed`` (still True here, so it would raise
+                # "Cursor already closed"), and no ORM flush/savepoint state
+                # exists yet during __init__. Persists search_path across later
+                # rollbacks.
+                self._cnx.commit()
 
             self._closed = False  # only after all setup succeeds
         except Exception:

@@ -8,6 +8,8 @@ optimization registries populated by ``optimizations.py``.
 """
 
 import collections
+import datetime
+import decimal
 import enum
 import functools
 import itertools
@@ -177,6 +179,16 @@ def _nary_value_tiebreak(value: typing.Any) -> tuple[int, typing.Any]:
         return (0, value)
     if isinstance(value, (int, float)):
         return (1, value)
+    # datetime is a subclass of date, so test it FIRST; date and datetime are not
+    # mutually comparable (TypeError), hence distinct kinds. Without these,
+    # date/datetime/Decimal inequalities kept caller order and fragmented the
+    # query cache (the very thing this tie-break exists to prevent).
+    if isinstance(value, datetime.datetime):
+        return (3, value)
+    if isinstance(value, datetime.date):
+        return (4, value)
+    if isinstance(value, decimal.Decimal):
+        return (5, value)
     return _CONSTANT_TIEBREAK
 
 
@@ -326,9 +338,7 @@ class Domain:
                 op = item[1].lower()
                 if internal:
                     # parse subdomain values for any/any!/not any/not any!
-                    if op in SUBDOMAIN_OPERATORS and isinstance(
-                        item[2], (list, tuple)
-                    ):
+                    if op in SUBDOMAIN_OPERATORS and isinstance(item[2], (list, tuple)):
                         item = (
                             item[0],
                             item[1],
@@ -995,7 +1005,7 @@ class DomainCondition(Domain):
     operators are described in CONDITION_OPERATORS.
     """
 
-    __slots__ = ("_field_instance", "field_expr", "operator", "value")
+    __slots__ = ("_field_instance", "_hash", "field_expr", "operator", "value")
     _field_instance: Field | None  # mutable cached property
     field_expr: str
     operator: str
@@ -1116,15 +1126,26 @@ class DomainCondition(Domain):
         # order-independently (frozenset), sequences order-dependently (tuple).
         # Anything still unhashable (SQL/Query) falls back to a value-independent
         # hash, which remains consistent for the same reason.
+        # Memoize: the node is immutable (optimizations build new conditions
+        # rather than mutating value), and the dedup pass hashes every child on
+        # every nary step/level, so recomputing frozenset(value)/tuple(value)
+        # per call is O(set size) waste on a hot path.
+        try:
+            return self._hash
+        except AttributeError:
+            pass
         value = self.value
         try:
             if isinstance(value, (set, frozenset, OrderedSet)):
-                return hash((self.field_expr, self.operator, frozenset(value)))
-            if isinstance(value, list):
-                return hash((self.field_expr, self.operator, tuple(value)))
-            return hash((self.field_expr, self.operator, value))
+                h = hash((self.field_expr, self.operator, frozenset(value)))
+            elif isinstance(value, list):
+                h = hash((self.field_expr, self.operator, tuple(value)))
+            else:
+                h = hash((self.field_expr, self.operator, value))
         except TypeError:
-            return hash((self.field_expr, self.operator))
+            h = hash((self.field_expr, self.operator))
+        object.__setattr__(self, "_hash", h)
+        return h
 
     def iter_conditions(self) -> typing.Iterator[DomainCondition]:
         yield self
@@ -1165,10 +1186,16 @@ class DomainCondition(Domain):
         """
         # raise (not assert): under python -O, skipping a level would silently
         # yield an under-optimized domain.
-        if level is not self._opt_level.next_level:
-            raise RuntimeError(
-                f"Trying to skip optimization level after {self._opt_level}"
-            )
+        opt_level = self._opt_level
+        if level <= opt_level:
+            # Benign interleaving: a concurrent optimizer sharing this node
+            # (e.g. an ormcached record-rule domain advanced by another request
+            # thread between our stamp-read and this call) already reached this
+            # level. Return self so the caller's resume loop re-reads the stamp
+            # and continues, instead of raising on a harmless race.
+            return self
+        if level > opt_level.next_level:
+            raise RuntimeError(f"Trying to skip optimization level after {opt_level}")
 
         if level == OptimizationLevel.BASIC:
             # decompose a path into an 'any' sub-domain

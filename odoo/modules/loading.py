@@ -518,14 +518,27 @@ def load_modules(
             install_demo=new_db_demo,
         )
 
-        load_lang = tools.config._cli_options.pop("load_language", None)
-        if load_lang or update_module:
+        # Read load_language from ALL config layers, not just argv. The old code
+        # popped ``_cli_options`` only, so a value written to the runtime layer
+        # (``initialize_db`` via ``config[...] = lang``) or set in the config file
+        # was silently ignored here, while ``res_lang._install_lang`` -- which
+        # reads ``config.get()`` -- saw it: two readers, two answers. Track
+        # application per registry (rather than mutating the shared config
+        # source) so a multi-DB ``-d db1,db2`` run loads the language into every
+        # database, and a later signaling-triggered reload of the same registry
+        # does not re-import it.
+        load_lang = tools.config.get("load_language")
+        lang_pending = bool(load_lang) and not getattr(
+            registry, "_load_language_done", False
+        )
+        if lang_pending or update_module:
             # some base models are used below, so make sure they are set up
             registry._setup_models__(cr, [])  # incremental setup
 
-        if load_lang:
+        if lang_pending:
             for lang in load_lang.split(","):
                 tools.translate.load_language(cr, lang)
+            registry._load_language_done = True
 
         # STEP 2: Mark other modules to be loaded/updated
         if update_module:
@@ -712,10 +725,9 @@ def load_modules(
                 # _trigger expects a naive UTC datetime; build it from a
                 # timezone-aware UTC instant so the trigger fires at the right
                 # wall clock even if the host's TZ is not set to UTC.
-                trigger_at = (
-                    datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
-                    + datetime.timedelta(minutes=1)
-                )
+                trigger_at = datetime.datetime.now(datetime.UTC).replace(
+                    tzinfo=None
+                ) + datetime.timedelta(minutes=1)
                 vacuum_cron._trigger(at=trigger_at)
 
             env.flush_all()

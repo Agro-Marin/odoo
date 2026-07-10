@@ -849,12 +849,22 @@ class EsbuildCompiler:
                 check=False,  # returncode is inspected explicitly below
             )
             if result.returncode != 0:
-                # Preserve the entry for post-mortem inspection. Path is
-                # deterministic per bundle so repeat failures overwrite
-                # rather than filling /tmp.
-                debug_path = f"/tmp/esbuild_fail_{self.name}.js"
+                # Preserve the entry for post-mortem inspection. Use a unique
+                # temp file (0600, unpredictable name) rather than a deterministic
+                # /tmp/esbuild_fail_<bundle>.js path: the latter is symlink-
+                # followable by a local user, who could pre-create it pointing at
+                # a file the Odoo user may write, turning a build failure into an
+                # arbitrary-file overwrite (CWE-377/59).
                 try:
-                    Path(debug_path).write_text(entry_text, encoding="utf-8")
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        prefix=f"esbuild_fail_{self.name}_",
+                        suffix=".js",
+                        delete=False,
+                        encoding="utf-8",
+                    ) as debug_file:
+                        debug_file.write(entry_text)
+                        debug_path = debug_file.name
                 except OSError:
                     debug_path = "(write failed)"
                 log_event(

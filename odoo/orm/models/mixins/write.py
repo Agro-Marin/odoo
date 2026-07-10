@@ -302,6 +302,12 @@ class WriteMixin(_ModelStubs):
                 vals_list = [(log_vals | vals) for vals in vals_list]
             updates = defaultdict(list)
             for id_, vals in zip(self._ids, vals_list, strict=True):
+                if not vals:
+                    # Nothing to write for this record (e.g. every dirty field
+                    # flushed as PENDING on a _log_access=False model, so no
+                    # write_uid/write_date merge padded it). An empty dict would
+                    # crash `zip(*sorted(vals.items()))` on unpack; skip it.
+                    continue
                 fnames, row = zip(*sorted(vals.items()), strict=False)
                 updates[fnames].append((id_,) + row)
             for fnames, rows in updates.items():

@@ -118,9 +118,7 @@ class UnitOfWork:
             return True, []
 
         # Stalled — same fields with same counts
-        stalled = sorted(
-            f"{self._field_label(f)}({cnt})" for f, cnt in curr_snapshot
-        )
+        stalled = sorted(f"{self._field_label(f)}({cnt})" for f, cnt in curr_snapshot)
         return False, stalled
 
     def check_flush_progress(
@@ -133,9 +131,7 @@ class UnitOfWork:
         if curr_dirty_count < prev_dirty_count:
             return True, []
 
-        stalled = sorted(
-            self._field_label(f) for f in self.cache.iter_dirty_fields()
-        )
+        stalled = sorted(self._field_label(f) for f in self.cache.iter_dirty_fields())
         return False, stalled
 
     # Convergence loops
@@ -156,7 +152,6 @@ class UnitOfWork:
         :return: :class:`LoopResult` with iteration count and convergence info.
         """
         result = LoopResult()
-        prev_snapshot = None
         # Resolve the order source once per loop. A callable (wired by
         # Transaction) reads the live registry order, surviving a registry
         # reload / metadata rebuild that invalidates field identities.
@@ -174,16 +169,12 @@ class UnitOfWork:
                 result.stalled_fields = []
                 break
 
-            curr_snapshot = self.recompute_snapshot(fields)
-            progressing, stalled = self.check_convergence(prev_snapshot, curr_snapshot)
-            if progressing:
-                # Transient stall recovered: clear it so a converged loop does
-                # not report stalled fields.
-                result.stalled_fields = []
-            else:
-                result.stalled_fields = stalled
-
-            prev_snapshot = curr_snapshot
+            # NOTE: no per-iteration stall snapshot here. ``stalled_fields`` is
+            # determined solely by the exit paths (break = converged -> []; the
+            # ``else`` = exhausted -> computed from ``pending``), so a mid-loop
+            # ``recompute_snapshot``/``check_convergence`` only allocated a
+            # frozenset whose result was always overwritten. The convergence
+            # helpers remain (unit-tested) for a future real stall-detection.
 
             # Sort by topological priority: dependencies (lower value) compute
             # first, so their results are cached when dependents run.
@@ -203,9 +194,7 @@ class UnitOfWork:
                 # exactly on the last iteration must not report stalled fields.
                 result.stalled_fields = []
             else:
-                result.stalled_fields = sorted(
-                    self._field_label(f) for f in pending
-                )
+                result.stalled_fields = sorted(self._field_label(f) for f in pending)
 
         return result
 
@@ -225,7 +214,6 @@ class UnitOfWork:
         :return: :class:`LoopResult`.
         """
         result = LoopResult()
-        prev_dirty_count = 0
 
         for iteration in range(self.max_iterations):
             # Inner recompute loop
@@ -248,19 +236,9 @@ class UnitOfWork:
                 result.stalled_fields = []
                 break
 
-            curr_dirty_count = self.cache.dirty_entry_count()
-            if iteration and curr_dirty_count >= prev_dirty_count:
-                _, stalled = self.check_flush_progress(
-                    prev_dirty_count, curr_dirty_count
-                )
-                result.stalled_fields = stalled
-            else:
-                # Progress made: clear any transient stall so a loop that
-                # converges does not return stale stalled_fields (symmetric
-                # with run_recompute_loop's progress branch).
-                result.stalled_fields = []
-
-            prev_dirty_count = curr_dirty_count
+            # NOTE: no per-iteration flush-progress snapshot here — as in
+            # run_recompute_loop, ``stalled_fields`` is set only by the exit
+            # paths, so mid-loop bookkeeping was always overwritten.
 
             # Flush all dirty models
             flush_fn(model_names)
@@ -276,9 +254,7 @@ class UnitOfWork:
             if result.converged:
                 result.stalled_fields = []
             else:
-                labels = {
-                    self._field_label(f) for f in self.cache.iter_dirty_fields()
-                }
+                labels = {self._field_label(f) for f in self.cache.iter_dirty_fields()}
                 labels.update(self._field_label(f) for f in pending)
                 result.stalled_fields = sorted(labels)
 

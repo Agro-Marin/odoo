@@ -358,6 +358,7 @@ def exp_duplicate_database(
     with closing(db.cursor()) as cr:
         # database-altering operations cannot be executed inside a transaction
         cr.connection.autocommit = True
+
         # ``CREATE DATABASE … TEMPLATE …`` requires zero sessions on the
         # source.  ``_drop_conn`` is best-effort (silent on missing
         # ``pg_signal_backend`` privilege), and a fresh request landing
@@ -378,9 +379,7 @@ def exp_duplicate_database(
                 # Same exception type whether the name collision happens at
                 # ``_create_empty_database`` or here.  (``ObjectInUse`` and any
                 # other error propagate to the retry helper / caller.)
-                raise DatabaseExists(
-                    f"database {db_name!r} already exists!"
-                ) from exc
+                raise DatabaseExists(f"database {db_name!r} already exists!") from exc
 
         _retry_terminate_then_ddl(
             cr,
@@ -520,35 +519,32 @@ def _drop_database(db_name: str) -> bool:
     Retry up to ``_DROP_DATABASE_MAX_RETRIES`` times, re-running the
     terminate step each iteration.
     """
-    if db_name not in list_dbs(True):
-        # ``list_dbs(True)`` filters to DBs owned by the connecting PG role,
-        # so a database created with ``createdb`` (peer-auth as the OS user)
-        # rather than via Odoo will silently not appear here.  Distinguish
-        # "doesn't exist anywhere" from "exists but owned by another role"
-        # so the operator gets an actionable message instead of a silent
-        # False return.  The pg_database probe uses an autocommit cursor so
-        # it never blocks on the target database's transaction state.
-        try:
-            probe = odoo.db.db_connect("postgres")
-            with closing(probe.cursor()) as cr:
-                cr.connection.autocommit = True
-                cr.execute(
-                    "SELECT datdba::regrole FROM pg_database WHERE datname = %s",
-                    (db_name,),
-                )
-                row = cr.fetchone()
-            if row:
-                _logger.warning(
-                    "DROP DB: %r exists but is owned by %s, not the current role; "
-                    "Odoo cannot drop it.  Use ``dropdb -U %s %s`` from the shell, "
-                    "or REASSIGN OWNED BY before retrying.",
-                    db_name, row[0], row[0], db_name,
-                )
-        except Exception:
-            # Probe is best-effort; missing diagnostic should never break the drop path.
-            _logger.debug(
-                "DROP DB %r: ownership probe failed", db_name, exc_info=True
+    # Existence check against PostgreSQL itself, NOT ``list_dbs(True)``: when
+    # ``--database`` is set without ``--db-filter``, ``list_dbs(True)`` returns
+    # the configured allowlist, so a freshly-created database outside that list
+    # (e.g. a half-built one being rolled back after a failed
+    # create/restore/duplicate) would wrongly look non-existent and this drop
+    # would silently no-op, orphaning it.  The pg_database probe uses an
+    # autocommit cursor on the maintenance DB so it never blocks on the target
+    # database's transaction state.
+    try:
+        probe = odoo.db.db_connect("postgres")
+        with closing(probe.cursor()) as cr:
+            cr.connection.autocommit = True
+            cr.execute(
+                "SELECT datdba::regrole FROM pg_database WHERE datname = %s",
+                (db_name,),
             )
+            owner_row = cr.fetchone()
+    except Exception:
+        # If we cannot probe (e.g. no access to the maintenance DB), fall
+        # through and let DROP DATABASE below surface the real error rather
+        # than silently returning False.
+        _logger.debug("DROP DB %r: existence probe failed", db_name, exc_info=True)
+        owner_row = ()  # sentinel: existence unknown -> attempt the drop
+
+    if owner_row is None:
+        # Genuinely absent from PostgreSQL: nothing to drop.
         return False
     odoo.modules.registry.Registry.delete(db_name)
     odoo.db.close_db(db_name)
@@ -1026,7 +1022,13 @@ def restore_db(
                 # guard below would never trip — a silent partial restore
                 # reported as success.  With the flag psql exits non-zero on
                 # the first ERROR, which propagates to the rollback path.
-                pg_args = ["-q", "-v", "ON_ERROR_STOP=1", "-f", str(Path(dump_dir, "dump.sql"))]
+                pg_args = [
+                    "-q",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-f",
+                    str(Path(dump_dir, "dump.sql")),
+                ]
 
             else:
                 # <= 7.0 format (raw pg_dump output)
@@ -1136,6 +1138,7 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
     with closing(db.cursor()) as cr:
         # database-altering operations cannot be executed inside a transaction
         cr.connection.autocommit = True
+
         # Same terminate-then-act race as DROP / DUPLICATE: a fresh request
         # can land between ``_drop_conn`` and ``ALTER DATABASE … RENAME``.
         # Retry with the shared exponential backoff so RENAME degrades
@@ -1153,9 +1156,7 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
             except psycopg.errors.DuplicateDatabase as exc:
                 # Same exception type whether the collision happens at
                 # create / duplicate / rename time.
-                raise DatabaseExists(
-                    f"database {new_name!r} already exists!"
-                ) from exc
+                raise DatabaseExists(f"database {new_name!r} already exists!") from exc
             except psycopg.errors.ObjectInUse:
                 raise  # let _retry_terminate_then_ddl back off and retry
             except Exception as e:
@@ -1188,7 +1189,9 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
                 _logger.error(
                     "RENAME DB: filestore move %r -> %r failed (%s); "
                     "rolling back DB rename",
-                    old_fs, new_fs, fs_err,
+                    old_fs,
+                    new_fs,
+                    fs_err,
                 )
                 try:
                     _rollback_db_rename(cr, old_name, new_name)
@@ -1557,13 +1560,15 @@ _DISPATCH: dict[str, Callable] = {
 # it would either raise ``ValueError`` on the empty-params unpack or
 # ``AccessDenied`` on a public read; ``TestDbDispatchAuth`` pins that it
 # (and the other public reads) stay unauthenticated.
-_REQUIRES_MASTER_PASSWORD: frozenset[str] = frozenset({
-    "create_database",
-    "duplicate_database",
-    "drop",
-    "dump",
-    "restore",
-    "rename",
-    "change_admin_password",
-    "migrate_databases",
-})
+_REQUIRES_MASTER_PASSWORD: frozenset[str] = frozenset(
+    {
+        "create_database",
+        "duplicate_database",
+        "drop",
+        "dump",
+        "restore",
+        "rename",
+        "change_admin_password",
+        "migrate_databases",
+    }
+)

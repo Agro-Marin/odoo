@@ -1,4 +1,3 @@
-import logging
 import typing
 import warnings
 from collections.abc import Callable, Collection, Mapping
@@ -9,8 +8,6 @@ Decorator = Callable[[C], C]
 
 if typing.TYPE_CHECKING:
     from ._typing import BaseModel, ValuesType
-
-_logger = logging.getLogger("odoo.api")
 
 
 # Marker attributes set on decorated methods:

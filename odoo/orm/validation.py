@@ -19,9 +19,6 @@ regex_object_name = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)*$")
 # ``MyTable`` and ``mytable`` would silently collide.
 regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*$")
 
-# Match private methods, to prevent their remote invocation
-regex_private = re.compile(r"^(_.*|init)$")
-
 # Manual (custom / Studio) fields and models are created at runtime rather than
 # declared in Python, and are conventionally prefixed with ``x_`` so the ORM can
 # tell them apart from code-defined ones.
@@ -69,7 +66,7 @@ def check_method_name(name: str) -> None:
 
     :raises AccessError: if *name* matches the private-method pattern.
     """
-    # Use startswith/equality rather than ``regex_private.match``: ``.`` does not
+    # Use startswith/equality rather than a ``^(_.*|init)$`` regex: ``.`` does not
     # match a newline and ``$`` matches before a trailing one, so a regex would
     # let a name like ``"_secret\nx"`` slip through (defense in depth -- such a
     # name cannot resolve to a real method, but the check must reject it).

@@ -14,7 +14,7 @@ referential integrity. Notable behaviours:
 
 import logging
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -129,32 +129,50 @@ class PopulateContext:
                 model.env.cr.execute(
                     SQL("DROP INDEX %s CASCADE", SQL.identifier(index["name"]))
                 )
-            yield
-            _logger.info("Adding indexes back on table %s...", model._table)
-            for index in indexes:
-                model.env.cr.execute(index["definition"])
+            try:
+                yield
+            finally:
+                # Recreate indexes even if the body raised. On an aborted
+                # transaction the DROP was already undone (DDL is transactional)
+                # so recreation is redundant and would itself fail -- guard it.
+                _logger.info("Adding indexes back on table %s...", model._table)
+                for index in indexes:
+                    with suppress(Exception):
+                        model.env.cr.execute(index["definition"])
         else:
             yield
 
     @contextmanager
     def ignore_fkey_constraints(self, model: Model) -> Generator[None]:
         """Disable FK constraint checks by setting the session to replica."""
-        if self.has_session_replication_role:
-            try:
-                model.env.cr.execute("SET session_replication_role TO replica")
-                yield
-                model.env.cr.execute("RESET session_replication_role")
-            except InsufficientPrivilege:
-                _logger.warning(
-                    "Cannot ignore Fkey constraints during insertion due to insufficient privileges for current pg_role. "
-                    "Resetting transaction and retrying to populate without dropping the check on Fkey constraints. "
-                    "The bulk insertion will be vastly slower than anticipated."
-                )
-                model.env.cr.rollback()
-                self.has_session_replication_role = False
-                yield
-        else:
+        if not self.has_session_replication_role:
             yield
+            return
+        try:
+            model.env.cr.execute("SET session_replication_role TO replica")
+        except InsufficientPrivilege:
+            # Only the SET can raise this -- NOT the body. The old code wrapped
+            # the yield too, so a body-raised InsufficientPrivilege reached this
+            # handler and yielded a second time -> "generator didn't stop after
+            # throw()".
+            _logger.warning(
+                "Cannot ignore Fkey constraints during insertion due to "
+                "insufficient privileges for current pg_role. Retrying without "
+                "dropping the FK constraint check; the bulk insertion will be "
+                "vastly slower than anticipated."
+            )
+            model.env.cr.rollback()
+            self.has_session_replication_role = False
+            yield
+            return
+        try:
+            yield
+        finally:
+            # Restore FK checking even if the body raised, so a caught-and-
+            # continued caller can never keep inserting with checks off. Guarded:
+            # on an aborted transaction the rollback already discarded the SET.
+            with suppress(Exception):
+                model.env.cr.execute("RESET session_replication_role")
 
 
 def field_needs_variation(model: Model, field: Field) -> bool:

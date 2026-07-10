@@ -5,7 +5,7 @@ replaced ``globals()`` reflection with an explicit ``_DISPATCH`` dict.
 
 Run with::
 
-    python -m pytest core/tests/service/test_common.py -v
+    python -m pytest tests/service/test_common.py -v
 """
 
 from unittest.mock import patch

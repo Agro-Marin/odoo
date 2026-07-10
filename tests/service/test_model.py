@@ -11,7 +11,7 @@ NOT covered here (require a live cursor / registry / ORM):
 
 Run with::
 
-    python -m pytest core/tests/service/ -v
+    python -m pytest tests/service/ -v
 """
 
 import random

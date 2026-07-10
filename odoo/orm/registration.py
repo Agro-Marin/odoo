@@ -17,6 +17,7 @@ from . import (
     fields,  # must be imported after models
     models,
 )
+from .primitives import LOG_ACCESS_COLUMNS
 from .validation import check_pg_name, is_manual_name
 
 if typing.TYPE_CHECKING:
@@ -140,9 +141,7 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
             "TransientModels must have log_access turned on, "
             "in order to implement their vacuum policy"
         )
-        raise TypeError(
-            msg
-        )
+        raise TypeError(msg)
 
     # update the registry after all checks have passed
     registry[name] = model_cls
@@ -310,9 +309,7 @@ def _setup(model_cls: type[BaseModel], env: Environment):
     # Detect cyclic _inherits before Phase 3 recurses to stack overflow:
     # _setup_done__ is set only in Phase 4, so a cycle would re-enter forever.
     if getattr(model_cls, "_setup_in_progress__", False):
-        raise TypeError(
-            f"Circular _inherits chain involving model {model_cls._name!r}"
-        )
+        raise TypeError(f"Circular _inherits chain involving model {model_cls._name!r}")
     model_cls._setup_in_progress__ = True
     try:
         _setup_phases(model_cls, env)
@@ -637,7 +634,7 @@ def _add_manual_models(env: Environment):
             )
             attrs["_auto"] = False
             columns = sql.table_columns(env.cr, table_name).keys()
-            attrs["_log_access"] = set(models.LOG_ACCESS_COLUMNS) <= columns
+            attrs["_log_access"] = set(LOG_ACCESS_COLUMNS) <= columns
 
         model_def = type("CustomDefinitionModel", (models.Model,), attrs)
         add_to_registry(env.registry, model_def)

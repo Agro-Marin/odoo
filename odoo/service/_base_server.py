@@ -9,12 +9,9 @@ it without a cycle (``server.py`` re-exports it for external callers such as
 
 from __future__ import annotations
 
-import errno
 import logging
 import os
-import platform
 import signal
-import socket
 from typing import TYPE_CHECKING, Any
 
 from odoo.tools import config
@@ -47,30 +44,6 @@ class CommonServer:
         self.pid: int = os.getpid()
         self.logger = _logger.getChild(self.__class__.__name__)
 
-    def close_socket(self, sock: socket.socket) -> None:
-        """Closes a socket instance cleanly
-        :param sock: the network socket to close
-        :type sock: socket.socket
-        """
-        try:
-            sock.shutdown(socket.SHUT_RDWR)
-        except OSError as e:
-            if e.errno == errno.EBADF:
-                # Werkzeug > 0.9.6 closes the socket itself (see commit
-                # https://github.com/mitsuhiko/werkzeug/commit/4d8ca089)
-                return
-            # On OSX, socket shutdowns both sides if any side closes it
-            # causing an error 57 'Socket is not connected' on shutdown
-            # of the other side (or something), see
-            # http://bugs.python.org/issue4397
-            # note: stdlib fixed test, not behavior
-            if e.errno != errno.ENOTCONN or platform.system() not in [
-                "Darwin",
-                "Windows",
-            ]:
-                raise
-        sock.close()
-
     @classmethod
     def on_stop(cls, func: Callable) -> None:
         """Register a cleanup function to be executed when the server stops.
@@ -94,5 +67,3 @@ class CommonServer:
                 # remaining hooks.
                 name = getattr(func, "__name__", repr(func))
                 self.logger.warning("Exception in %s", name, exc_info=True)
-
-

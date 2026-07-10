@@ -466,6 +466,9 @@ class SearchMixin(_ModelStubs):
             return self.browse()._as_query()
 
         # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
+        # NOTE: the in-memory tier returns here, BEFORE the ir.rule security
+        # domain below — it declares ``supports_record_rules = False`` (see
+        # backend.py). Record-rule-dependent tests must use the DB tier.
         if (backend := self.env.backend) is not None:
             return backend.search(self, domain, offset, limit, order)
 

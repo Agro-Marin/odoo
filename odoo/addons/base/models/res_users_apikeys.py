@@ -168,6 +168,37 @@ class ResUsersApikeys(models.Model):
                 return user_id
         return None
 
+    def _get_key_expiration(self, *, scope: str, key: str) -> datetime.datetime | None:
+        """Return the ``expiration_date`` of the API key matching (scope, key).
+
+        Mirrors :meth:`_check_credentials`' lookup but WITHOUT the expiration
+        filter, so it reports the expiration itself. Used by res.users to
+        re-validate expiry on cached credential checks: the outer ormcache would
+        otherwise serve an expired-but-recently-used key until the daily GC.
+
+        :return: the matched key's expiration (naive UTC datetime), or None when
+            the key has no expiration or no active key matches.
+        """
+        if not scope or not key:
+            return None
+        index = key[:INDEX_SIZE]
+        self.env.cr.execute(
+            SQL(
+                """
+                SELECT key, expiration_date
+                FROM %s INNER JOIN res_users u ON (u.id = user_id)
+                WHERE u.active AND index = %s AND (scope IS NULL OR scope = %s)
+                """,
+                SQL.identifier(self._table),
+                index,
+                scope,
+            )
+        )
+        for current_key, expiration_date in self.env.cr.fetchall():
+            if KEY_CRYPT_CONTEXT.verify(key, current_key):
+                return expiration_date
+        return None
+
     def _get_max_duration(self) -> float:
         """Return the maximum API-key duration (in days) for ``self.env.user``.
 

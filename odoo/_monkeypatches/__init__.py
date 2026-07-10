@@ -59,7 +59,12 @@ class PatchImportHook:
                     exec_module=exec_module,
                 )
                 return spec
-        raise ImportError(f"Could not load the module {fullname!r} to patch")
+        # No downstream finder can locate the module: return None (not raise) so
+        # the import machinery produces a standard ModuleNotFoundError. Raising a
+        # bare ImportError here breaks importlib.util.find_spec() (contract:
+        # return None for a missing module) and `except ModuleNotFoundError`
+        # probing of optional deps (e.g. num2words, stdnum).
+        return None
 
 
 HOOK_IMPORT = PatchImportHook()

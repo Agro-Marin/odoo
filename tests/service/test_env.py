@@ -6,7 +6,7 @@ DB, no Odoo import chain — the module depends only on ``os`` and ``logging``.
 
 Run with::
 
-    python -m pytest core/tests/service/test_env.py -v
+    python -m pytest tests/service/test_env.py -v
 """
 
 import logging
