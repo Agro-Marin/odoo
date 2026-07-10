@@ -460,7 +460,7 @@
                                     <field name="forecast_availability" string=""
                                         widget="forecast_widget"
                                         column_invisible="parent.state in ('done', 'cancel') or parent.picking_type_code not in ['internal', 'outgoing']" />
-                                    <field name="packaging_uom_qty" optional="hide"
+                                    <field name="quantity_packaging_uom" optional="hide"
                                         groups="uom.group_uom" />
                                     <field name="packaging_uom_id" optional="hide"
                                         groups="uom.group_uom" />

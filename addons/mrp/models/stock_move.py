@@ -929,8 +929,8 @@ class StockMove(models.Model):
     def _get_production_assignation_domain(self):
         return [("production_group_id", "=", self.production_group_id.id)]
 
-    def action_open_reference(self):
-        res = super().action_open_reference()
+    def action_view_reference(self):
+        res = super().action_view_reference()
         source = self.production_id or self.raw_material_production_id
         if source and source.browse().has_access("read"):
             return {
