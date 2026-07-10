@@ -58,6 +58,10 @@ const buttonProperties = [
     "border-color",
 ];
 
+const sizedButtonProperties = ["font-size", "padding-x", "padding-y"];
+
+const outlinedButtonProperties = ["background-color", "color", "border-color"];
+
 const separatorProperties = [
     "border-top-width",
     "border-style",
@@ -99,6 +103,36 @@ export const CUSTOMIZE_MAILING_VARIABLES = Object.assign(
         "btn-secondary",
         ["a.btn.btn-fill-secondary", "a.btn.btn-outline-secondary", "a.btn.btn-secondary"],
         buttonProperties
+    ),
+    generateSimpleMailingVariables(
+        "btn-primary-lg",
+        ["a.btn.btn-fill-primary.btn-lg", "a.btn.btn-outline-primary.btn-lg", "a.btn.btn-primary.btn-lg"],
+        sizedButtonProperties
+    ),
+    generateSimpleMailingVariables(
+        "btn-primary-sm",
+        ["a.btn.btn-fill-primary.btn-sm", "a.btn.btn-outline-primary.btn-sm", "a.btn.btn-primary.btn-sm"],
+        sizedButtonProperties
+    ),
+    generateSimpleMailingVariables(
+        "btn-secondary-lg",
+        ["a.btn.btn-fill-secondary.btn-lg", "a.btn.btn-outline-secondary.btn-lg", "a.btn.btn-secondary.btn-lg"],
+        sizedButtonProperties
+    ),
+    generateSimpleMailingVariables(
+        "btn-secondary-sm",
+        ["a.btn.btn-fill-secondary.btn-sm", "a.btn.btn-outline-secondary.btn-sm", "a.btn.btn-secondary.btn-sm"],
+        sizedButtonProperties
+    ),
+    generateSimpleMailingVariables(
+        "btn-primary-outline",
+        ["a.btn.btn-outline-primary"],
+        outlinedButtonProperties
+    ),
+    generateSimpleMailingVariables(
+        "btn-secondary-outline",
+        ["a.btn.btn-outline-secondary"],
+        outlinedButtonProperties
     ),
     generateSimpleMailingVariables("separator", ["hr"], separatorProperties)
 );
