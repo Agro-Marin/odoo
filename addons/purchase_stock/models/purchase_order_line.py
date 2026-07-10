@@ -102,7 +102,7 @@ class PurchaseOrderLine(models.Model):
                 )
                 moves.write({"price_unit": line._get_price_unit()})
 
-        valuation_trigger = ["price_unit", "product_qty", "product_uom"]
+        valuation_trigger = ["price_unit", "product_qty", "product_uom_id"]
         if any(field in valuation_trigger for field in vals):
             self.move_ids.filtered(lambda m: m.is_valued)._set_value()
 
@@ -135,7 +135,7 @@ class PurchaseOrderLine(models.Model):
     @api.depends(
         "product_qty",
         "move_ids.state",
-        "move_ids.product_uom",
+        "move_ids.product_uom_id",
         "move_ids.quantity",
     )
     def _compute_qty_transferred(self):
@@ -154,7 +154,7 @@ class PurchaseOrderLine(models.Model):
             for move in line._get_stock_moves():
                 if move._is_purchase_return():
                     if not move.origin_returned_move_id or move.to_refund:
-                        qty_transferred -= move.product_uom._compute_quantity(
+                        qty_transferred -= move.product_uom_id._compute_quantity(
                             move.quantity,
                             line.product_uom_id,
                             rounding_method="HALF-UP",
@@ -176,7 +176,7 @@ class PurchaseOrderLine(models.Model):
                 ):
                     pass
                 else:
-                    qty_transferred += move.product_uom._compute_quantity(
+                    qty_transferred += move.product_uom_id._compute_quantity(
                         move.quantity,
                         line.product_uom_id,
                         rounding_method="HALF-UP",
@@ -239,7 +239,7 @@ class PurchaseOrderLine(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         location_id,
         name,
         origin,
@@ -262,7 +262,7 @@ class PurchaseOrderLine(models.Model):
                 if values["orderpoint_id"] and not values["move_dest_ids"]
                 else True
             )
-            and (l.product_uom_id == product_uom if values.get("force_uom") else True),
+            and (l.product_uom_id == product_uom_id if values.get("force_uom") else True),
         )
 
         # In case 'product_description_variants' is in the values, we also filter on the PO line
@@ -330,7 +330,7 @@ class PurchaseOrderLine(models.Model):
 
         for move in outgoing_moves:
             qty_to_compute = move.quantity if move.state == "done" else move.product_uom_qty
-            qty -= move.product_uom._compute_quantity(
+            qty -= move.product_uom_id._compute_quantity(
                 qty_to_compute,
                 self.product_uom_id,
                 rounding_method="HALF-UP",
@@ -338,7 +338,7 @@ class PurchaseOrderLine(models.Model):
 
         for move in incoming_moves:
             qty_to_compute = move.quantity if move.state == "done" else move.product_uom_qty
-            qty += move.product_uom._compute_quantity(
+            qty += move.product_uom_id._compute_quantity(
                 qty_to_compute,
                 self.product_uom_id,
                 rounding_method="HALF-UP",
@@ -426,7 +426,7 @@ class PurchaseOrderLine(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         location_dest_id,
         name,
         origin,
@@ -441,17 +441,17 @@ class PurchaseOrderLine(models.Model):
 
         supplier = values.get("supplier")
 
-        if not values.get("force_uom") and supplier.product_uom_id != product_uom:
-            product_qty = product_uom._compute_quantity(
+        if not values.get("force_uom") and supplier.product_uom_id != product_uom_id:
+            product_qty = product_uom_id._compute_quantity(
                 product_qty,
                 supplier.product_uom_id,
             )
-            product_uom = supplier.product_uom_id
+            product_uom_id = supplier.product_uom_id
 
         res = self.with_context(procurement_values=values)._prepare_purchase_order_line(
             product_id,
             product_qty,
-            product_uom,
+            product_uom_id,
             company_id,
             supplier.partner_id,
             po,
@@ -501,7 +501,7 @@ class PurchaseOrderLine(models.Model):
                     if move.state == "done":
                         if move._is_purchase_return():
                             if not move.origin_returned_move_id or move.to_refund:
-                                total -= move.product_uom._compute_quantity(
+                                total -= move.product_uom_id._compute_quantity(
                                     move.quantity,
                                     line.product_uom_id,
                                     rounding_method="HALF-UP",
@@ -523,7 +523,7 @@ class PurchaseOrderLine(models.Model):
                         ):
                             pass
                         else:
-                            total += move.product_uom._compute_quantity(
+                            total += move.product_uom_id._compute_quantity(
                                 move.quantity,
                                 line.product_uom_id,
                                 rounding_method="HALF-UP",
@@ -560,7 +560,7 @@ class PurchaseOrderLine(models.Model):
 
         if self.product_uom_id.compare(qty_to_attach, 0.0) > 0:
             qty_to_push = self.product_qty - move_dests_initial_demand
-            product_uom_qty, product_uom = self.product_uom_id._adjust_uom_quantities(
+            product_uom_qty, product_uom_id = self.product_uom_id._adjust_uom_quantities(
                 qty_to_attach,
                 self.product_id.uom_id,
             )
@@ -569,12 +569,12 @@ class PurchaseOrderLine(models.Model):
                     picking,
                     price_unit,
                     product_uom_qty,
-                    product_uom,
+                    product_uom_id,
                 ),
             )
 
         if not self.product_uom_id.is_zero(qty_to_push):
-            product_uom_qty, product_uom = self.product_uom_id._adjust_uom_quantities(
+            product_uom_qty, product_uom_id = self.product_uom_id._adjust_uom_quantities(
                 qty_to_push,
                 self.product_id.uom_id,
             )
@@ -582,7 +582,7 @@ class PurchaseOrderLine(models.Model):
                 picking,
                 price_unit,
                 product_uom_qty,
-                product_uom,
+                product_uom_id,
             )
             extra_move_vals["move_dest_ids"] = False  # don't attach
             res.append(extra_move_vals)
@@ -594,7 +594,7 @@ class PurchaseOrderLine(models.Model):
         picking,
         price_unit,
         product_uom_qty,
-        product_uom,
+        product_uom_id,
     ):
         self.ensure_one()
         self._check_orderpoint_picking_type()
@@ -630,7 +630,7 @@ class PurchaseOrderLine(models.Model):
             "propagate_cancel": self.propagate_cancel,
             "warehouse_id": self.order_id.picking_type_id.warehouse_id.id,
             "product_uom_qty": product_uom_qty,
-            "product_uom": product_uom.id,
+            "product_uom_id": product_uom_id.id,
             "sequence": self.sequence,
         }
 

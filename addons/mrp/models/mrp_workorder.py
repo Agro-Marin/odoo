@@ -1066,7 +1066,7 @@ class MrpWorkorder(models.Model):
                 qty_available = production_id.product_qty
             else:
                 qty_available = production_id.qty_producing
-            new_qty = move.product_uom.round(qty_available * move.unit_factor)
+            new_qty = move.product_uom_id.round(qty_available * move.unit_factor)
             move._set_quantity_done(new_qty)
 
         moves_to_pick.picked = True

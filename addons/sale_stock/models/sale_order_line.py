@@ -189,7 +189,7 @@ class SaleOrderLine(models.Model):
         "product_qty",
         "move_ids.state",
         "move_ids.location_dest_usage",
-        "move_ids.product_uom",
+        "move_ids.product_uom_id",
         "move_ids.quantity",
     )
     def _compute_qty_transferred(self):
@@ -203,14 +203,14 @@ class SaleOrderLine(models.Model):
             outgoing_moves, incoming_moves = line._get_stock_moves_outgoing_incoming()
 
             for move in incoming_moves.filtered(lambda x: x.state == "done"):
-                qty_transferred -= move.product_uom._compute_quantity(
+                qty_transferred -= move.product_uom_id._compute_quantity(
                     move.quantity,
                     line.product_uom_id,
                     rounding_method="HALF-UP",
                 )
 
             for move in outgoing_moves.filtered(lambda x: x.state == "done"):
-                qty_transferred += move.product_uom._compute_quantity(
+                qty_transferred += move.product_uom_id._compute_quantity(
                     move.quantity,
                     line.product_uom_id,
                     rounding_method="HALF-UP",
@@ -334,7 +334,7 @@ class SaleOrderLine(models.Model):
             qty_free_today = 0
 
             for move in moves:
-                qty_available_today += move.product_uom._compute_quantity(
+                qty_available_today += move.product_uom_id._compute_quantity(
                     move.quantity,
                     line.product_uom_id,
                 )
@@ -570,7 +570,7 @@ class SaleOrderLine(models.Model):
             qty_to_compute = (
                 move.quantity if move.state == "done" else move.product_uom_qty
             )
-            qty += move.product_uom._compute_quantity(
+            qty += move.product_uom_id._compute_quantity(
                 qty_to_compute,
                 self.product_uom_id,
                 rounding_method="HALF-UP",
@@ -579,7 +579,7 @@ class SaleOrderLine(models.Model):
             qty_to_compute = (
                 move.quantity if move.state == "done" else move.product_uom_qty
             )
-            qty -= move.product_uom._compute_quantity(
+            qty -= move.product_uom_id._compute_quantity(
                 qty_to_compute,
                 self.product_uom_id,
                 rounding_method="HALF-UP",
@@ -697,7 +697,7 @@ class SaleOrderLine(models.Model):
                 for move in outgoing_moves:
                     if move.state != "done":
                         continue
-                    qty += move.product_uom._compute_quantity(
+                    qty += move.product_uom_id._compute_quantity(
                         move.quantity,
                         line.product_uom_id,
                         rounding_method="HALF-UP",
@@ -705,7 +705,7 @@ class SaleOrderLine(models.Model):
                 for move in incoming_moves:
                     if move.state != "done":
                         continue
-                    qty -= move.product_uom._compute_quantity(
+                    qty -= move.product_uom_id._compute_quantity(
                         move.quantity,
                         line.product_uom_id,
                         rounding_method="HALF-UP",

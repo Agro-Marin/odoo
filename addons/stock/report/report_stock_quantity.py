@@ -22,7 +22,7 @@ class ReportStockQuantity(models.Model):
             "location_id",
             "product_id",
             "product_qty",
-            "product_uom",
+            "product_uom_id",
             "quantity",
             "state",
         ],
@@ -85,7 +85,7 @@ WITH
         LEFT JOIN product_product pp on pp.id=m.product_id
         LEFT JOIN product_template pt on pt.id=pp.product_tmpl_id
         LEFT JOIN uom_uom pt_uom ON pt_uom.id = pt.uom_id
-        LEFT JOIN uom_uom move_uom ON move_uom.id = m.product_uom
+        LEFT JOIN uom_uom move_uom ON move_uom.id = m.product_uom_id
         WHERE pt.is_storable = true AND
             source.warehouse_id IS DISTINCT FROM dest.warehouse_id AND
             m.product_qty != 0 AND

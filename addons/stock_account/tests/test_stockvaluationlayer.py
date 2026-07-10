@@ -47,7 +47,7 @@ class TestStockValuationStandard(TestStockValuationCommon):
             'move_id': move1.id,
             'product_id': move1.product_id.id,
             'quantity': 5,
-            'product_uom_id': move1.product_uom.id,
+            'product_uom_id': move1.product_uom_id.id,
             'location_id': move1.location_id.id,
             'location_dest_id': move1.location_dest_id.id,
         })
@@ -90,7 +90,7 @@ class TestStockValuationStandard(TestStockValuationCommon):
             'move_id': move1.id,
             'product_id': move1.product_id.id,
             'quantity': 10,
-            'product_uom_id': move1.product_uom.id,
+            'product_uom_id': move1.product_uom_id.id,
             'location_id': move1.location_id.id,
             'location_dest_id': move1.location_dest_id.id,
         })
@@ -133,7 +133,7 @@ class TestStockValuationStandard(TestStockValuationCommon):
                 'product_id': product.id,
                 'location_id': self.supplier_location.id,
                 'location_dest_id': self.stock_location.id,
-                'product_uom': self.uom.id,
+                'product_uom_id': self.uom.id,
                 'product_uom_qty': 2,
                 'price_unit': 10,
                 'picking_type_id': self.picking_type_in.id,

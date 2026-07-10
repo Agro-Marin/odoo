@@ -31,7 +31,7 @@ class TestStockValuationCommon(BaseCommon):
         if kwargs.get('reversed_entry_id'):
             invoice_vals["reversed_entry_id"] = kwargs['reversed_entry_id']
         invoice = self.env["account.move"].create(invoice_vals)
-        product_uom = kwargs.get('product_uom') or product.uom_id
+        product_uom_id = kwargs.get('product_uom_id') or product.uom_id
         self.env["account.move.line"].create({
             "move_id": invoice.id,
              "display_type": "product",
@@ -39,7 +39,7 @@ class TestStockValuationCommon(BaseCommon):
              "price_unit": price_unit,
              "quantity": quantity,
              "product_id": product.id,
-             "product_uom_id": product_uom.id,
+             "product_uom_id": product_uom_id.id,
              "tax_ids": [(5, 0, 0)],
         })
         if post:
@@ -147,7 +147,7 @@ class TestStockValuationCommon(BaseCommon):
             'product_id': product.id,
             'location_id': kwargs.get('location_id', self.supplier_location.id),
             'location_dest_id': kwargs.get('location_dest_id', self.stock_location.id),
-            'product_uom': kwargs.get('uom_id', self.uom.id),
+            'product_uom_id': kwargs.get('uom_id', self.uom.id),
             'product_uom_qty': quantity,
             'picking_type_id': kwargs.get('picking_type_id', self.picking_type_in.id),
         }
@@ -220,7 +220,7 @@ class TestStockValuationCommon(BaseCommon):
             'product_id': product.id,
             'location_id': kwargs.get('location_id', self.stock_location.id),
             'location_dest_id': kwargs.get('location_dest_id', self.customer_location.id),
-            'product_uom': kwargs.get('uom_id', self.uom.id),
+            'product_uom_id': kwargs.get('uom_id', self.uom.id),
             'product_uom_qty': quantity,
             'picking_type_id': kwargs.get('picking_type_id', self.picking_type_out.id),
         })
@@ -257,7 +257,7 @@ class TestStockValuationCommon(BaseCommon):
             'product_id': product.id,
             'location_id': self.supplier_location.id,
             'location_dest_id': self.customer_location.id,
-            'product_uom': self.uom.id,
+            'product_uom_id': self.uom.id,
             'product_uom_qty': quantity,
             'picking_type_id': self.picking_type_out.id,
         })
@@ -298,7 +298,7 @@ class TestStockValuationCommon(BaseCommon):
         self.env['stock.move.line'].create({
             'move_id': move.id,
             'product_id': move.product_id.id,
-            'product_uom_id': move.product_uom.id,
+            'product_uom_id': move.product_uom_id.id,
             'location_id': move.location_id.id,
             'location_dest_id': move.location_dest_id.id,
         } | kwargs)

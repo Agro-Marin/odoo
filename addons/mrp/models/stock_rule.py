@@ -74,7 +74,7 @@ class StockRule(models.Model):
                 procurement.product_id
             )
             if bom_kit:
-                order_qty = procurement.product_uom._compute_quantity(
+                order_qty = procurement.product_uom_id._compute_quantity(
                     procurement.product_qty, bom_kit.product_uom_id, round=False
                 )
                 qty_to_produce = order_qty / bom_kit.product_qty
@@ -122,7 +122,7 @@ class StockRule(models.Model):
     def _run_manufacture(self, procurements):
         new_productions_values_by_company = defaultdict(lambda: defaultdict(list))
         for procurement, rule in procurements:
-            if procurement.product_uom.compare(procurement.product_qty, 0) <= 0:
+            if procurement.product_uom_id.compare(procurement.product_qty, 0) <= 0:
                 # If procurement contains negative quantity, don't create a MO that would be for a negative value.
                 continue
             bom = rule._get_matching_bom(
@@ -141,19 +141,19 @@ class StockRule(models.Model):
                 procurement_qty = procurement.product_qty
                 batch_size = (
                     bom.product_uom_id._compute_quantity(
-                        bom.batch_size, procurement.product_uom
+                        bom.batch_size, procurement.product_uom_id
                     )
                     if is_batch_size
                     else procurement_qty
                 )
                 vals = rule._prepare_mo_vals(*procurement, bom)
-                while procurement.product_uom.compare(procurement_qty, 0) > 0:
+                while procurement.product_uom_id.compare(procurement_qty, 0) > 0:
                     new_productions_values_by_company[procurement.company_id.id][
                         "values"
                     ].append(
                         {
                             **vals,
-                            "product_qty": procurement.product_uom._compute_quantity(
+                            "product_qty": procurement.product_uom_id._compute_quantity(
                                 batch_size, bom.product_uom_id
                             ),
                         }
@@ -163,7 +163,7 @@ class StockRule(models.Model):
                     ].append(procurement)
                     procurement_qty -= batch_size
             else:
-                procurement_product_uom_qty = procurement.product_uom._compute_quantity(
+                procurement_product_uom_qty = procurement.product_uom_id._compute_quantity(
                     procurement.product_qty, procurement.product_id.uom_id
                 )
                 self.env["change.production.qty"].sudo().with_context(
@@ -211,7 +211,7 @@ class StockRule(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         location_id,
         name,
         origin,
@@ -221,7 +221,7 @@ class StockRule(models.Model):
         res = super()._get_stock_move_values(
             product_id,
             product_qty,
-            product_uom,
+            product_uom_id,
             location_id,
             name,
             origin,
@@ -297,7 +297,7 @@ class StockRule(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         location_dest_id,
         name,
         origin,
@@ -317,12 +317,12 @@ class StockRule(models.Model):
             "never_product_template_attribute_value_ids": values.get(
                 "never_product_template_attribute_value_ids"
             ),
-            "product_qty": product_uom._compute_quantity(
+            "product_qty": product_uom_id._compute_quantity(
                 product_qty, bom.product_uom_id
             )
             if bom
             else product_qty,
-            "product_uom_id": bom.product_uom_id.id if bom else product_uom.id,
+            "product_uom_id": bom.product_uom_id.id if bom else product_uom_id.id,
             "location_src_id": picking_type.default_location_src_id.id,
             "location_dest_id": picking_type.default_location_dest_id.id
             or location_dest_id.id,

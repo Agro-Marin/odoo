@@ -331,10 +331,10 @@
                                                         <span t-out="grouped_line['quantity']" t-options="{'widget': 'float', 'decimal_precision': 'Product Unit'}">1.00</span>
                                                         <t t-if="grouped_line.get('line_uom')">
                                                             <span t-out="grouped_line['line_uom'].display_name" groups="uom.group_uom">Unit</span>
-                                                            <span t-if="grouped_line.get('product_uom') != grouped_line['line_uom']" groups="uom.group_uom" class="text-muted small">
+                                                            <span t-if="grouped_line.get('product_uom_id') != grouped_line['line_uom']" groups="uom.group_uom" class="text-muted small">
                                                                 <br/>
-                                                                <t t-set="product_uom_qty" t-value="grouped_line['line_uom']._compute_quantity(grouped_line['quantity'], grouped_line['product_uom'])"/>
-                                                                <span t-out="product_uom_qty" t-options="{'widget': 'float', 'decimal_precision': 'Product Unit'}" data-oe-demo="3.00"/> <span t-out="grouped_line['product_uom'].display_name" data-oe-demo="units"/>
+                                                                <t t-set="product_uom_qty" t-value="grouped_line['line_uom']._compute_quantity(grouped_line['quantity'], grouped_line['product_uom_id'])"/>
+                                                                <span t-out="product_uom_qty" t-options="{'widget': 'float', 'decimal_precision': 'Product Unit'}" data-oe-demo="3.00"/> <span t-out="grouped_line['product_uom_id'].display_name" data-oe-demo="units"/>
                                                             </span>
                                                         </t>
                                                     </div>

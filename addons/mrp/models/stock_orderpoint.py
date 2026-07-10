@@ -242,7 +242,7 @@ class StockWarehouseOrderpoint(models.Model):
             #  (the quantity if we have received all in-progress components) - (the quantity using only available components)
             product_qty = min(ratios_total or [0]) - min(ratios_qty_available or [0])
             res[orderpoint.id] = orderpoint.product_id.uom_id._compute_quantity(
-                product_qty, orderpoint.product_uom, round=False
+                product_qty, orderpoint.product_uom_id, round=False
             )
 
         bom_manufacture = self.env["mrp.bom"]._bom_find(
@@ -262,7 +262,7 @@ class StockWarehouseOrderpoint(models.Model):
         )
         for orderpoint, uom, product_qty_sum in productions_group:
             res[orderpoint.id] += uom._compute_quantity(
-                product_qty_sum, orderpoint.product_uom, round=False
+                product_qty_sum, orderpoint.product_uom_id, round=False
             )
 
         # add quantities coming from confirmed MO to be started but not finished
@@ -284,7 +284,7 @@ class StockWarehouseOrderpoint(models.Model):
             lead_horizon_date = datetime.combine(orderpoint.lead_horizon_date, time.max)
             if date_start <= lead_horizon_date < date_end:
                 res[orderpoint.id] += prod.product_uom_id._compute_quantity(
-                    prod.product_qty, orderpoint.product_uom, round=False
+                    prod.product_qty, orderpoint.product_uom_id, round=False
                 )
         return res
 

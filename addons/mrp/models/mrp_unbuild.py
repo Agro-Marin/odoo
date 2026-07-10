@@ -203,7 +203,7 @@ class MrpUnbuild(models.Model):
             "lot_id": self.lot_id.id,
             "quantity": finished_move.product_uom_qty - finished_move.quantity,
             "product_id": finished_move.product_id.id,
-            "product_uom_id": finished_move.product_uom.id,
+            "product_uom_id": finished_move.product_uom_id.id,
             "location_id": finished_move.location_id.id,
             "location_dest_id": finished_move.location_dest_id.id,
         }
@@ -274,7 +274,7 @@ class MrpUnbuild(models.Model):
                 float_compare(
                     finished_move.product_uom_qty,
                     finished_move.quantity,
-                    precision_rounding=finished_move.product_uom.rounding,
+                    precision_rounding=finished_move.product_uom_id.rounding,
                 )
                 > 0
             ):
@@ -290,7 +290,7 @@ class MrpUnbuild(models.Model):
                 float_compare(
                     move.product_uom_qty,
                     move.quantity,
-                    precision_rounding=move.product_uom.rounding,
+                    precision_rounding=move.product_uom_id.rounding,
                 )
                 < 1
             ):
@@ -304,7 +304,7 @@ class MrpUnbuild(models.Model):
                 lambda m: m.product_id == move.product_id
             )
             if not original_move:
-                move.quantity = move.product_uom.round(move.product_uom_qty)
+                move.quantity = move.product_uom_id.round(move.product_uom_qty)
                 continue
             needed_quantity = move.product_uom_qty
             moves_lines = original_move.mapped("move_line_ids")
@@ -320,7 +320,7 @@ class MrpUnbuild(models.Model):
                 taken_quantity = min(
                     needed_quantity, move_line.quantity - qty_already_used[move_line]
                 )
-                taken_quantity = move.product_uom.round(taken_quantity)
+                taken_quantity = move.product_uom_id.round(taken_quantity)
                 if taken_quantity:
                     move_line_vals = self._prepare_move_line_vals(
                         move, move_line, taken_quantity
@@ -334,7 +334,7 @@ class MrpUnbuild(models.Model):
                     qty_already_used[move_line] += taken_quantity
                     unbuild_move_line._apply_putaway_strategy()
             if move in produce_moves and float_compare(
-                needed_quantity, 0, precision_rounding=move.product_uom.rounding
+                needed_quantity, 0, precision_rounding=move.product_uom_id.rounding
             ) > 0:
                 move.quantity += needed_quantity
 
@@ -452,7 +452,7 @@ class MrpUnbuild(models.Model):
                 "date": self.create_date,
                 "product_id": move.product_id.id,
                 "product_uom_qty": move.quantity * factor,
-                "product_uom": move.product_uom.id,
+                "product_uom_id": move.product_uom_id.id,
                 "procure_method": "make_to_stock",
                 "location_dest_id": location_dest_id.id,
                 "location_id": location_id.id,
@@ -464,7 +464,7 @@ class MrpUnbuild(models.Model):
         )
 
     def _generate_move_from_bom_line(
-        self, product, product_uom, quantity, bom_line_id=False, byproduct_id=False
+        self, product, product_uom_id, quantity, bom_line_id=False, byproduct_id=False
     ):
         product_prod_location = product.with_company(
             self.company_id
@@ -481,7 +481,7 @@ class MrpUnbuild(models.Model):
                 "byproduct_id": byproduct_id,
                 "product_id": product.id,
                 "product_uom_qty": quantity,
-                "product_uom": product_uom.id,
+                "product_uom_id": product_uom_id.id,
                 "procure_method": "make_to_stock",
                 "location_dest_id": location_dest_id.id,
                 "location_id": location_id.id,

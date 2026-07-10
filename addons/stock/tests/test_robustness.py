@@ -40,7 +40,7 @@ class TestRobustness(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_dozen.id,
+                "product_uom_id": self.uom_dozen.id,
                 "product_uom_qty": 1,
             }
         )
@@ -86,7 +86,7 @@ class TestRobustness(TransactionCase):
                 "location_id": test_stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 1,
             }
         )
@@ -130,7 +130,7 @@ class TestRobustness(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 10,
             }
         )
@@ -206,7 +206,7 @@ class TestRobustness(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 1.0,
             }
         )
@@ -215,7 +215,7 @@ class TestRobustness(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": product2.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 1.0,
             }
         )
@@ -284,7 +284,7 @@ class TestRobustness(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": productA.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 5.0,
             }
         )
@@ -335,7 +335,7 @@ class TestRobustness(TransactionCase):
                 "location_dest_id": receipt.location_dest_id.id,
                 "picking_id": receipt.id,
                 "product_id": product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 1.0,
             }
         )
@@ -356,7 +356,7 @@ class TestRobustness(TransactionCase):
                 "picking_id": receipt.id,
                 "state": "draft",
                 "product_id": product2.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 1.0,
                 "quantity": 1.0,
             }
@@ -458,7 +458,7 @@ class TestRobustness(TransactionCase):
                 "location_dest_id": self.customer_location.id,
                 "product_id": product_reservation_too_high.id,
                 "product_uom_qty": 100,
-                "product_uom": self.env.ref("uom.product_uom_gram").id,
+                "product_uom_id": self.env.ref("uom.product_uom_gram").id,
             }
         )
         move._action_confirm()
@@ -493,7 +493,7 @@ class TestRobustness(TransactionCase):
                 "location_id": self.ref("stock.stock_location_inter_company"),
                 "location_dest_id": self.stock_location.id,
                 "product_id": product_without_quant.id,
-                "product_uom": product_without_quant.uom_id.id,
+                "product_uom_id": product_without_quant.uom_id.id,
                 "product_uom_qty": 5.0,
             }
         )
@@ -596,7 +596,7 @@ class TestRobustness(TransactionCase):
                 "location_dest_id": loc_a.id,
                 "product_id": product.id,
                 "product_uom_qty": 1.0,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "move_line_ids": [
                     Command.create(
                         {
@@ -644,7 +644,7 @@ class TestRobustness(TransactionCase):
                 "location_dest_id": self.customer_location.id,
                 "product_id": product.id,
                 "product_uom_qty": 5.0,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
             }
         )
         move._action_confirm()
@@ -682,7 +682,7 @@ class TestRobustness(TransactionCase):
                 "location_dest_id": self.stock_location.id,
                 "product_id": product_a.id,
                 "product_uom_qty": 1.0,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
             }
         )
         # Stored field should match product_a's template
@@ -730,7 +730,7 @@ class TestRobustness(TransactionCase):
                     "location_dest_id": self.customer_location.id,
                     "product_id": product.id,
                     "product_uom_qty": qty,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 }
                 for qty in (10.0, 20.0, 30.0)
             ]

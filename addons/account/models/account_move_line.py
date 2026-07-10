@@ -1199,7 +1199,7 @@ class AccountMoveLine(models.Model):
                 line.move_id.date,
                 document_type,
                 fiscal_position=line.move_id.fiscal_position_id,
-                product_uom=line.product_uom_id,
+                product_uom_id=line.product_uom_id,
             )
 
     @api.depends("product_id", "product_uom_id")
@@ -4747,7 +4747,7 @@ class AccountMoveLine(models.Model):
                             "display_type": "product",
                             "quantity": 1,
                             "line_uom": False,
-                            "product_uom": False,
+                            "product_uom_id": False,
                             "discount": 0.0,
                         }
                     )
@@ -4765,7 +4765,7 @@ class AccountMoveLine(models.Model):
                             "display_type": line.display_type,
                             "quantity": line.quantity,
                             "line_uom": line.product_uom_id,
-                            "product_uom": line.product_id.uom_id,
+                            "product_uom_id": line.product_id.uom_id,
                             "discount": line.discount,
                         }
                         for line in section_line | move_lines

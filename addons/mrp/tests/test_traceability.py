@@ -695,7 +695,7 @@ class TestTraceability(TestMrpCommon):
             {
                 "product_id": endproductA.id,
                 "quantity": 1,
-                "product_uom": endproductA.uom_id.id,
+                "product_uom_id": endproductA.uom_id.id,
                 "picking_id": pickingA_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -775,7 +775,7 @@ class TestTraceability(TestMrpCommon):
                 "location_id": scrap_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": component.id,
-                "product_uom": component.uom_id.id,
+                "product_uom_id": component.uom_id.id,
                 "product_uom_qty": 1.0,
                 "picked": True,
                 "move_line_ids": [

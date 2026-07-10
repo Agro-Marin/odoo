@@ -74,7 +74,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
                     'location_id': delivery_type.default_location_src_id.id,
                     'location_dest_id': delivery_type.default_location_dest_id.id,
                     'product_id': product.id,
-                    'product_uom': self.uom.id,
+                    'product_uom_id': self.uom.id,
                     'product_uom_qty': qty,
                 }) for (product, qty) in products_and_quantities],
             })
@@ -387,7 +387,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
                 'location_id': self.supplier_location.id,
                 'location_dest_id': self.stock_location.id,
                 'product_id': self.product_1.id,
-                'product_uom': self.uom.id,
+                'product_uom_id': self.uom.id,
                 'product_uom_qty': 6,
             })],
         })
@@ -436,7 +436,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
                 'location_id': self.supplier_location.id,
                 'location_dest_id': self.stock_location.id,
                 'product_id': product_ad.id,
-                'product_uom': self.uom.id,
+                'product_uom_id': self.uom.id,
                 'product_uom_qty': 4,
             })],
         })

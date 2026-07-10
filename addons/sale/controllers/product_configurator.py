@@ -167,7 +167,7 @@ class SaleProductConfiguratorController(Controller):
             request.update_context(allowed_company_ids=[company_id])
         product_template = self._get_product_template(product_template_id)
         pricelist = request.env["product.pricelist"].browse(pricelist_id)
-        product_uom = request.env["uom.uom"].browse(product_uom_id)
+        product_uom_id = request.env["uom.uom"].browse(product_uom_id)
         currency = request.env["res.currency"].browse(currency_id)
         combination = request.env["product.template.attribute.value"].browse(ptav_ids)
         product = product_template._get_variant_for_combination(combination)
@@ -177,7 +177,7 @@ class SaleProductConfiguratorController(Controller):
             pricelist,
             combination,
             quantity=quantity or 0.0,
-            uom=product_uom,
+            uom=product_uom_id,
             currency=currency,
             date=datetime.fromisoformat(so_date),
             **kwargs,

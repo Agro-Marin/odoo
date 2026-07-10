@@ -234,7 +234,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
             'product_id': component.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.company_data['default_warehouse'].lot_stock_id.id,
-            'product_uom': component.uom_id.id,
+            'product_uom_id': component.uom_id.id,
             'product_uom_qty': 1,
             'price_unit': p,
         } for p in [10, 20, 60]])
@@ -275,7 +275,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
             'product_id': component.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.company_data['default_warehouse'].lot_stock_id.id,
-            'product_uom': component.uom_id.id,
+            'product_uom_id': component.uom_id.id,
             'product_uom_qty': 1,
             'price_unit': 100,
         })
@@ -335,7 +335,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
             'product_id': component.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.company_data['default_warehouse'].lot_stock_id.id,
-            'product_uom': component.uom_id.id,
+            'product_uom_id': component.uom_id.id,
             'product_uom_qty': 1,
             'price_unit': p,
         } for p in [10, 20, 60]])
@@ -376,7 +376,7 @@ class TestSaleMRPAngloSaxonValuation(TestSaleCommon, ValuationReconciliationTest
             'product_id': component.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.company_data['default_warehouse'].lot_stock_id.id,
-            'product_uom': component.uom_id.id,
+            'product_uom_id': component.uom_id.id,
             'product_uom_qty': 1,
             'price_unit': 100,
         })

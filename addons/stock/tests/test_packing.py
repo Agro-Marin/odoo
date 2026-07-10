@@ -77,12 +77,12 @@ class TestPacking(TestPackingCommon):
                 {
                     **move_values,
                     "product_id": self.productA.id,
-                    "product_uom": self.productA.uom_id.id,
+                    "product_uom_id": self.productA.uom_id.id,
                 },
                 {
                     **move_values,
                     "product_id": self.productB.id,
-                    "product_uom": self.productB.uom_id.id,
+                    "product_uom_id": self.productB.uom_id.id,
                 },
             ]
         )[0]
@@ -162,7 +162,7 @@ class TestPacking(TestPackingCommon):
                     Command.create(
                         {
                             "product_id": self.productA.id,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "product_uom_qty": 5,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
@@ -171,7 +171,7 @@ class TestPacking(TestPackingCommon):
                     Command.create(
                         {
                             "product_id": self.productB.id,
-                            "product_uom": self.productB.uom_id.id,
+                            "product_uom_id": self.productB.uom_id.id,
                             "product_uom_qty": 5,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
@@ -342,7 +342,7 @@ class TestPacking(TestPackingCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5.0,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "location_id": self.customer_location.id,
                 "location_dest_id": shelf1_location.id,
                 "picking_id": picking.id,
@@ -453,7 +453,7 @@ class TestPacking(TestPackingCommon):
                 **location_dict,
                 **{
                     "product_id": self.productA.id,
-                    "product_uom": self.productA.uom_id.id,
+                    "product_uom_id": self.productA.uom_id.id,
                     "product_uom_qty": 355.40000000000003,  # other number
                 },
             }
@@ -541,7 +541,7 @@ class TestPacking(TestPackingCommon):
             {
                 "product_id": prod.id,
                 "product_uom_qty": 5.0,
-                "product_uom": prod.uom_id.id,
+                "product_uom_id": prod.uom_id.id,
                 "location_id": self.warehouse.lot_stock_id.id,
                 "location_dest_id": self.warehouse.wh_pack_stock_loc_id.id,
                 "warehouse_id": self.warehouse.id,
@@ -960,7 +960,7 @@ class TestPacking(TestPackingCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5.0,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.ship_location.id,
                 "warehouse_id": self.warehouse.id,
@@ -1213,7 +1213,7 @@ class TestPacking(TestPackingCommon):
                     {
                         "product_id": self.productA.id,
                         "product_uom_qty": 1,
-                        "product_uom": self.productA.uom_id.id,
+                        "product_uom_id": self.productA.uom_id.id,
                         "picking_id": picking.id,
                         "location_id": from_loc.id,
                         "location_dest_id": to_loc.id,
@@ -1221,7 +1221,7 @@ class TestPacking(TestPackingCommon):
                     {
                         "product_id": self.productB.id,
                         "product_uom_qty": 1,
-                        "product_uom": self.productB.uom_id.id,
+                        "product_uom_id": self.productB.uom_id.id,
                         "picking_id": picking.id,
                         "location_id": from_loc.id,
                         "location_dest_id": to_loc.id,
@@ -1394,7 +1394,7 @@ class TestPacking(TestPackingCommon):
         self.env["stock.move"].create(
             {
                 "product_id": self.productA.id,
-                "product_uom": pack_of_6.id,
+                "product_uom_id": pack_of_6.id,
                 "product_uom_qty": 10.0,
                 "picking_id": receipt_picking.id,
                 "location_id": receipt_picking.location_id.id,
@@ -1551,7 +1551,7 @@ class TestPacking(TestPackingCommon):
             [
                 {
                     "product_id": p.id,
-                    "product_uom": p.uom_id.id,
+                    "product_uom_id": p.uom_id.id,
                     "product_uom_qty": 50,
                     "picking_id": receipt_picking.id,
                     "location_id": receipt_picking.location_id.id,
@@ -1698,7 +1698,7 @@ class TestPacking(TestPackingCommon):
                             "location_id": supplier_location.id,
                             "location_dest_id": input_location.id,
                             "product_id": p.id,
-                            "product_uom": p.uom_id.id,
+                            "product_uom_id": p.uom_id.id,
                             "product_uom_qty": 1.0,
                         },
                     )
@@ -1745,7 +1745,7 @@ class TestPacking(TestPackingCommon):
                             "location_id": supplier_location.id,
                             "location_dest_id": input_location.id,
                             "product_id": self.productA.id,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "product_uom_qty": 2.0,
                         },
                     )
@@ -1800,7 +1800,7 @@ class TestPacking(TestPackingCommon):
                             "location_id": supplier_location.id,
                             "location_dest_id": input_location.id,
                             "product_id": product.id,
-                            "product_uom": product.uom_id.id,
+                            "product_uom_id": product.uom_id.id,
                             "product_uom_qty": qty,
                         },
                     )
@@ -1880,7 +1880,7 @@ class TestPacking(TestPackingCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 0.4,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
                             "picking_type_id": self.warehouse.out_type_id.id,
@@ -1954,7 +1954,7 @@ class TestPacking(TestPackingCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": loc_1.id,
                 "location_dest_id": loc_2.id,
@@ -1964,7 +1964,7 @@ class TestPacking(TestPackingCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 4,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": loc_1.id,
                 "location_dest_id": loc_2.id,
@@ -2055,7 +2055,7 @@ class TestPacking(TestPackingCommon):
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
                 "quantity": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": internal_picking_1.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2074,7 +2074,7 @@ class TestPacking(TestPackingCommon):
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
                 "quantity": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": internal_picking_2.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2094,7 +2094,7 @@ class TestPacking(TestPackingCommon):
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
                 "quantity": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": in_picking_1.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2206,7 +2206,7 @@ class TestPacking(TestPackingCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking.id,
                 "product_uom_qty": 20,
                 "location_id": self.stock_location.id,
@@ -2226,7 +2226,7 @@ class TestPacking(TestPackingCommon):
         move_02 = self.env["stock.move"].create(
             {
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking_02.id,
                 "product_uom_qty": 10,
                 "location_id": self.stock_location.id,
@@ -2246,7 +2246,7 @@ class TestPacking(TestPackingCommon):
         move_03 = self.env["stock.move"].create(
             {
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking_03.id,
                 "product_uom_qty": 10,
                 "location_id": self.stock_location.id,
@@ -2438,7 +2438,7 @@ class TestPacking(TestPackingCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2.0,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.env.ref("stock.stock_location_customers").id,
@@ -2501,7 +2501,7 @@ class TestPacking(TestPackingCommon):
                                 "location_id": self.stock_location.id,
                                 "location_dest_id": locations[i].id,
                                 "product_id": self.productA.id,
-                                "product_uom": self.productA.uom_id.id,
+                                "product_uom_id": self.productA.uom_id.id,
                                 "product_uom_qty": 10,
                             }
                         )
@@ -2541,7 +2541,7 @@ class TestPacking(TestPackingCommon):
                             "location_id": locations[1].id,
                             "location_dest_id": self.customer_location.id,
                             "product_id": self.productA.id,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "product_uom_qty": 10,
                         }
                     )
@@ -2658,7 +2658,7 @@ class TestPackagePropagation(TestPackingCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 30.0,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
                         }
@@ -2692,7 +2692,7 @@ class TestPackagePropagation(TestPackingCommon):
                             {
                                 "product_id": self.productA.id,
                                 "product_uom_qty": qty,
-                                "product_uom": self.productA.uom_id.id,
+                                "product_uom_id": self.productA.uom_id.id,
                                 "location_id": self.stock_location.id,
                                 "location_dest_id": self.customer_location.id,
                             }
@@ -3151,7 +3151,7 @@ class TestPackagePropagation(TestPackingCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 2.0,
-                            "product_uom": self.productA.uom_ids.id,
+                            "product_uom_id": self.productA.uom_ids.id,
                             "location_id": supplier_location.id,
                             "location_dest_id": self.warehouse.wh_input_stock_loc_id.id,
                         }

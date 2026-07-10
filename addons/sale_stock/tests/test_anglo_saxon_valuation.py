@@ -386,7 +386,7 @@ class TestAngloSaxonValuation(TestStockValuationCommon, TestSaleStockCommon):
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.stock_location.id,
             'product_id': product.id,
-            'product_uom': product.uom_id.id,
+            'product_uom_id': product.uom_id.id,
             'quantity': 1,
             'picked': True,
         })

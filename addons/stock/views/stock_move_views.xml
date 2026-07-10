@@ -92,7 +92,7 @@
                 <field name="quantity" string="Quantity" sum="Total Quantity" readonly="1"
                     decoration-danger="(location_usage in ('internal','transit')) and (location_dest_usage not in ('internal','transit'))"
                     decoration-success="(location_usage not in ('internal','transit')) and (location_dest_usage in ('internal','transit'))" />
-                <field name="product_uom" readonly="1"
+                <field name="product_uom_id" readonly="1"
                     options="{'no_open': True, 'no_create': True}" groups="uom.group_uom"
                     widget="many2one_uom" />
                 <field name="company_id" readonly="1" groups="base.group_multi_company" />
@@ -135,7 +135,7 @@
                     readonly="not is_initial_demand_editable" />
                 <field name="quantity" string="Quantity" readonly="not is_quantity_done_editable" />
                 <field name="picked" />
-                <field name="product_uom" readonly="state != 'draft' and id"
+                <field name="product_uom_id" readonly="state != 'draft' and id"
                     options="{'no_open': True, 'no_create': True}" widget="many2one_uom"
                     groups="uom.group_uom" />
             </list>
@@ -161,7 +161,7 @@
                 <field name="origin" optional="show" />
                 <field name="product_id" readonly="state == 'done'" />
                 <field name="product_uom_qty" readonly="state == 'done'" />
-                <field name="product_uom" options="{'no_open': True, 'no_create': True}"
+                <field name="product_uom_id" options="{'no_open': True, 'no_create': True}"
                     groups="uom.group_uom" widget="many2one_uom" />
                 <field name="location_id" options="{'no_create': True}" column_invisible="True" />
                 <field name="location_dest_id" column_invisible="True" />
@@ -195,7 +195,7 @@
                         <span invisible="is_inventory"> Quantity <field name="quantity" /> / <field
                                 name="product_uom_qty" readonly="state != 'draft'" />
                                 <field
-                                name="product_uom" groups="uom.group_uom" class="ms-1" />
+                                name="product_uom_id" groups="uom.group_uom" class="ms-1" />
                         </span>
                     </t>
                 </templates>
@@ -259,7 +259,7 @@
                                     nolabel="1" />
                             </span>
                             <span>
-                                <field name="product_uom" groups="uom.group_uom"
+                                <field name="product_uom_id" groups="uom.group_uom"
                                     widget="many2one_uom" readonly="state != 'draft'" nolabel="1"
                                     options="{'no_open': True}" />
                             </span>
@@ -308,7 +308,7 @@
                                 <label for="product_uom_qty" />
                                 <div class="o_row">
                                     <field name="product_uom_qty" readonly="state == 'done'" />
-                                    <field name="product_uom" widget="many2one_uom"
+                                    <field name="product_uom_id" widget="many2one_uom"
                                         options="{'no_open': True, 'no_create': True}"
                                         groups="uom.group_uom" />
                                 </div>
@@ -333,7 +333,7 @@
                                     <field name="location_id" />
                                     <field name="location_dest_id" />
                                     <field name="product_uom_qty" readonly="state == 'done'" />
-                                    <field name="product_uom" />
+                                    <field name="product_uom_id" />
                                     <field name="state" />
                                 </list>
                             </field>
@@ -342,7 +342,7 @@
                                     <field name="location_id" />
                                     <field name="location_dest_id" />
                                     <field name="product_uom_qty" readonly="state == 'done'" />
-                                    <field name="product_uom" />
+                                    <field name="product_uom_id" />
                                     <field name="state" />
                                 </list>
                             </field>

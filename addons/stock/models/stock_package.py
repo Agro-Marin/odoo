@@ -752,10 +752,10 @@ class StockPackage(models.Model):
                 ["result_package_id", "product_id", "product_uom_id", "quantity"],
                 ["__count"],
             )
-            for result_package, product, product_uom, quantity, count in res_groups:
+            for result_package, product, product_uom_id, quantity, count in res_groups:
                 package_weights[result_package.id] += (
                     count
-                    * product_uom._compute_quantity(quantity, product.uom_id)
+                    * product_uom_id._compute_quantity(quantity, product.uom_id)
                     * product.weight
                 )
         for package in self:

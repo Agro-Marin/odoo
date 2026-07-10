@@ -88,7 +88,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'product_id': sm.product_id.id,
             'quantity': 12,
             'company_id': sm.company_id.id,
-            'product_uom_id': sm.product_uom.id,
+            'product_uom_id': sm.product_uom_id.id,
             'picking_id': delivery.id,
         })]
         delivery.button_validate()
@@ -304,7 +304,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
         in_move = self.env['stock.move'].create({
             'product_id': product.id,
             'product_uom_qty': 2,
-            'product_uom': product.uom_id.id,
+            'product_uom_id': product.uom_id.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': wh.lot_stock_id.id,
             'picking_type_id': self.env.ref('stock.picking_type_in').id,

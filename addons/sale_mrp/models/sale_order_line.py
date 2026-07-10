@@ -95,8 +95,8 @@ class SaleOrderLine(models.Model):
                             or (m.location_dest_id.usage != 'customer'
                             and m.state == 'done'
                             and float_compare(m.quantity,
-                                                sum(sub_m.product_uom._compute_quantity(sub_m.quantity, m.product_uom) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
-                                                precision_rounding=m.product_uom.rounding) > 0)
+                                                sum(sub_m.product_uom_id._compute_quantity(sub_m.quantity, m.product_uom_id) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
+                                                precision_rounding=m.product_uom_id.rounding) > 0)
                             for m in moves) or not moves:
                         line.qty_transferred = 0
                     else:
@@ -160,8 +160,8 @@ class SaleOrderLine(models.Model):
                                or (m.location_dest_id.usage != 'customer'
                                and m.state == 'done'
                                and float_compare(m.quantity,
-                                                 sum(sub_m.product_uom._compute_quantity(sub_m.quantity, m.product_uom) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
-                                                 precision_rounding=m.product_uom.rounding) > 0)
+                                                 sum(sub_m.product_uom_id._compute_quantity(sub_m.quantity, m.product_uom_id) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
+                                                 precision_rounding=m.product_uom_id.rounding) > 0)
                                for m in moves) or not moves:
                             delivered_qties[order_line] = 0
                         else:

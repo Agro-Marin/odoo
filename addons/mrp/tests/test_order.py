@@ -110,7 +110,7 @@ class TestMrpOrder(TestMrpCommon):
             delta=timedelta(seconds=10),
         )
         self.assertEqual(production_move.product_id, self.product_4)
-        self.assertEqual(production_move.product_uom, man_order.product_uom_id)
+        self.assertEqual(production_move.product_uom_id, man_order.product_uom_id)
         self.assertEqual(production_move.product_qty, man_order.product_qty)
         self.assertEqual(
             production_move.location_id, self.product_4.property_stock_production
@@ -1376,7 +1376,7 @@ class TestMrpOrder(TestMrpCommon):
         )
         self.assertEqual(move_byproduct_3.product_uom_qty, 4.0)
         self.assertEqual(move_byproduct_3.quantity, 4)
-        self.assertEqual(move_byproduct_3.product_uom, self.uom_dozen)
+        self.assertEqual(move_byproduct_3.product_uom_id, self.uom_dozen)
         self.assertEqual(len(move_byproduct_3.move_line_ids), 1)
 
         mo_form = Form(mo)
@@ -1404,7 +1404,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(move_byproduct_3.product_uom_qty, 4.0)
         self.assertEqual(move_byproduct_3.quantity, 2.0)
         self.assertFalse(move_byproduct_3.picked)
-        self.assertEqual(move_byproduct_3.product_uom, self.uom_dozen)
+        self.assertEqual(move_byproduct_3.product_uom_id, self.uom_dozen)
 
         details_operation_form = Form(
             move_byproduct_1, view=self.env.ref("stock.view_stock_move_form_operations")
@@ -1451,7 +1451,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(move_byproduct_3.product_uom_qty, 2.0)
         self.assertEqual(move_byproduct_3.quantity, 2.0)
         self.assertFalse(move_byproduct_3.picked)
-        self.assertEqual(move_byproduct_3.product_uom, self.uom_dozen)
+        self.assertEqual(move_byproduct_3.product_uom_id, self.uom_dozen)
 
         details_operation_form = Form(
             move_byproduct_1, view=self.env.ref("stock.view_stock_move_form_operations")
@@ -1999,7 +1999,7 @@ class TestMrpOrder(TestMrpCommon):
                 "location_id": scrap.scrap_location_id.id,
                 "location_dest_id": scrap.location_id.id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": unscrap_picking.id,
             }
         )
@@ -2010,7 +2010,7 @@ class TestMrpOrder(TestMrpCommon):
                 "product_id": unscrap_move.product_id.id,
                 "lot_id": sn.id,
                 "quantity": 1,
-                "product_uom_id": unscrap_move.product_uom.id,
+                "product_uom_id": unscrap_move.product_uom_id.id,
                 "picking_id": unscrap_move.picking_id.id,
             }
         )
@@ -2049,7 +2049,7 @@ class TestMrpOrder(TestMrpCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product_2.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "production_id": mo.id,
                 "location_dest_id": self.output_location.id,
             }
@@ -2088,7 +2088,7 @@ class TestMrpOrder(TestMrpCommon):
             move = self.env["stock.move"].create(
                 {
                     "product_id": self.product_2.id,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                     "production_id": mo.id,
                     "location_id": self.stock_location.id,
                     "location_dest_id": self.output_location.id,
@@ -5231,7 +5231,7 @@ class TestMrpOrder(TestMrpCommon):
                 move.unlink()
             elif move.product_id == p1:
                 # p1 = qty_base_1 = 12 => now 12 dozens instead of units
-                move.product_uom = self.uom_dozen
+                move.product_uom_id = self.uom_dozen
         mo2.action_confirm()
         mo2_form = Form(mo2)
         mo2_form.qty_producing = 4
@@ -6536,12 +6536,12 @@ class TestMrpOrder(TestMrpCommon):
                 {
                     "product_id": kit_bom.bom_line_ids[0].product_id.id,
                     "product_uom_qty": 4,
-                    "product_uom": kit_bom.bom_line_ids[0].product_id.uom_id.id,
+                    "product_uom_id": kit_bom.bom_line_ids[0].product_id.uom_id.id,
                 },
                 {
                     "product_id": kit_bom.bom_line_ids[1].product_id.id,
                     "product_uom_qty": 6,
-                    "product_uom": kit_bom.bom_line_ids[1].product_id.uom_id.id,
+                    "product_uom_id": kit_bom.bom_line_ids[1].product_id.uom_id.id,
                 },
             ],
         )
@@ -6555,12 +6555,12 @@ class TestMrpOrder(TestMrpCommon):
                 {
                     "product_id": kit_bom.bom_line_ids[0].product_id.id,
                     "product_uom_qty": 12,
-                    "product_uom": kit_bom.bom_line_ids[0].product_id.uom_id.id,
+                    "product_uom_id": kit_bom.bom_line_ids[0].product_id.uom_id.id,
                 },
                 {
                     "product_id": kit_bom.bom_line_ids[1].product_id.id,
                     "product_uom_qty": 9,
-                    "product_uom": kit_bom.bom_line_ids[1].product_id.uom_id.id,
+                    "product_uom_id": kit_bom.bom_line_ids[1].product_id.uom_id.id,
                 },
             ],
         )
@@ -6577,12 +6577,12 @@ class TestMrpOrder(TestMrpCommon):
                 {
                     "product_id": kit_bom.bom_line_ids[0].product_id.id,
                     "product_uom_qty": 60,
-                    "product_uom": kit_bom.bom_line_ids[0].product_id.uom_id.id,
+                    "product_uom_id": kit_bom.bom_line_ids[0].product_id.uom_id.id,
                 },
                 {
                     "product_id": kit_bom.bom_line_ids[1].product_id.id,
                     "product_uom_qty": 45,
-                    "product_uom": kit_bom.bom_line_ids[1].product_id.uom_id.id,
+                    "product_uom_id": kit_bom.bom_line_ids[1].product_id.uom_id.id,
                 },
             ],
         )

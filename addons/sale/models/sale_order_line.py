@@ -1349,7 +1349,7 @@ class SaleOrderLine(models.Model):
     def compute_uom_qty(self, new_qty, stock_move, rounding=True):
         return self.product_uom_id._compute_quantity(
             new_qty,
-            stock_move.product_uom,
+            stock_move.product_uom_id,
             rounding,
         )
 

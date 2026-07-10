@@ -33,4 +33,4 @@ class TestTaxCommonAccountTaxPython(TestTaxCommon):
             })
         else:
             uom = None
-        return self.assert_taxes_computation(tax, price_unit, expected_values, product=product, product_uom=uom)
+        return self.assert_taxes_computation(tax, price_unit, expected_values, product=product, product_uom_id=uom)

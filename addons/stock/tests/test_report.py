@@ -255,7 +255,7 @@ class TestReports(TestReportsCommon):
                 "location_id": stock.id,
                 "location_dest_id": self.env.ref("stock.stock_location_customers").id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 20.0,
             }
         )
@@ -316,7 +316,7 @@ class TestReports(TestReportsCommon):
                 "location_id": self.env.ref("stock.stock_location_suppliers").id,
                 "location_dest_id": stock.id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 10.0,
             }
         )
@@ -375,7 +375,7 @@ class TestReports(TestReportsCommon):
                 "location_id": stock.id,
                 "location_dest_id": self.env.ref("stock.stock_location_customers").id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 30.0,
             }
         )
@@ -518,7 +518,7 @@ class TestReports(TestReportsCommon):
                 "location_id": stock.id,
                 "location_dest_id": stock_without_wh.id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 10.0,
             }
         )
@@ -559,7 +559,7 @@ class TestReports(TestReportsCommon):
                 "location_id": stock_without_wh.id,
                 "location_dest_id": self.env.ref("stock.stock_location_customers").id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 10.0,
             }
         )
@@ -615,7 +615,7 @@ class TestReports(TestReportsCommon):
                 "location_id": self.env.ref("stock.stock_location_suppliers").id,
                 "location_dest_id": stock.id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 20.0,
             }
         )
@@ -638,7 +638,7 @@ class TestReports(TestReportsCommon):
                 "location_id": stock.id,
                 "location_dest_id": self.env.ref("stock.stock_location_customers").id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 10.0,
             }
         )
@@ -1281,7 +1281,7 @@ class TestReports(TestReportsCommon):
                         {
                             "product_id": self.product.id,
                             "product_uom_qty": 5,
-                            "product_uom": self.product.uom_id.id,
+                            "product_uom_id": self.product.uom_id.id,
                             "location_id": wh.lot_stock_id.id,
                             "location_dest_id": self.env.ref(
                                 "stock.stock_location_customers"
@@ -3055,7 +3055,7 @@ class TestReports(TestReportsCommon):
                     Command.create(
                         {
                             "product_id": self.product.id,
-                            "product_uom": self.ref("uom.product_uom_unit"),
+                            "product_uom_id": self.ref("uom.product_uom_unit"),
                             "product_uom_qty": 3.0,
                         }
                     )
@@ -3074,7 +3074,7 @@ class TestReports(TestReportsCommon):
                     Command.create(
                         {
                             "product_id": self.product.id,
-                            "product_uom": self.ref("uom.product_uom_unit"),
+                            "product_uom_id": self.ref("uom.product_uom_unit"),
                             "product_uom_qty": 1.0,
                         }
                     )
@@ -3118,7 +3118,7 @@ class TestReports(TestReportsCommon):
                         Command.create(
                             {
                                 "product_id": self.product.id,
-                                "product_uom": self.ref("uom.product_uom_unit"),
+                                "product_uom_id": self.ref("uom.product_uom_unit"),
                                 "product_uom_qty": qty,
                             }
                         )
@@ -3136,7 +3136,7 @@ class TestReports(TestReportsCommon):
                     Command.create(
                         {
                             "product_id": self.product.id,
-                            "product_uom": self.ref("uom.product_uom_unit"),
+                            "product_uom_id": self.ref("uom.product_uom_unit"),
                             "product_uom_qty": 10.0,
                         }
                     )

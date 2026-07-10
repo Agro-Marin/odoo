@@ -57,7 +57,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": self.product_2.id,
                 "product_uom_qty": 3,
-                "product_uom": self.product_2.uom_id.id,
+                "product_uom_id": self.product_2.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -101,7 +101,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": self.product_2.id,
                 "product_uom_qty": 1,
-                "product_uom": self.product_2.uom_id.id,
+                "product_uom_id": self.product_2.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -133,7 +133,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 5,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -161,7 +161,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 5,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": delivery.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -197,7 +197,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": self.product_2.id,
                 "product_uom_qty": 8,
-                "product_uom": self.product_2.uom_id.id,
+                "product_uom_id": self.product_2.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -314,7 +314,7 @@ class TestPickingRefactor(TestStockCommon):
                             {
                                 "product_id": product.id,
                                 "product_uom_qty": 1,
-                                "product_uom": product.uom_id.id,
+                                "product_uom_id": product.uom_id.id,
                                 "location_id": self.stock_location.id,
                                 "location_dest_id": self.customer_location.id,
                             },
@@ -359,7 +359,7 @@ class TestPickingRefactor(TestStockCommon):
                             {
                                 "product_id": tracked.id,
                                 "product_uom_qty": 1,
-                                "product_uom": tracked.uom_id.id,
+                                "product_uom_id": tracked.uom_id.id,
                                 "location_id": self.stock_location.id,
                                 "location_dest_id": self.customer_location.id,
                             },
@@ -408,7 +408,7 @@ class TestPickingRefactor(TestStockCommon):
                 {
                     "product_id": product.id,
                     "product_uom_qty": 5,
-                    "product_uom": product.uom_id.id,
+                    "product_uom_id": product.uom_id.id,
                     "picking_id": receipt.id,
                     "location_id": self.supplier_location.id,
                     "location_dest_id": self.stock_location.id,
@@ -423,7 +423,7 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_sanity_check_flags_zero_quantity_picking(self):
-        """The `float_is_zero` -> `move.product_uom.is_zero` swap in `_sanity_check`
+        """The `float_is_zero` -> `move.product_uom_id.is_zero` swap in `_sanity_check`
         must still detect a picking whose moves have no done quantity.
         """
         product = self.ProductObj.create({"name": "ZeroQty", "is_storable": True})
@@ -432,7 +432,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 5,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -486,7 +486,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": self.product_2.id,
                 "product_uom_qty": demand,
-                "product_uom": self.product_2.uom_id.id,
+                "product_uom_id": self.product_2.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": dest_location.id,
@@ -581,7 +581,7 @@ class TestPickingRefactor(TestStockCommon):
             {
                 "product_id": self.product_2.id,
                 "product_uom_qty": 3,
-                "product_uom": self.product_2.uom_id.id,
+                "product_uom_id": self.product_2.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -634,7 +634,7 @@ class TestPickingRefactor(TestStockCommon):
                 {
                     "product_id": product.id,
                     "product_uom_qty": 5,
-                    "product_uom": product.uom_id.id,
+                    "product_uom_id": product.uom_id.id,
                     "picking_id": picking.id,
                     "location_id": picking_type.default_location_src_id.id,
                     "location_dest_id": picking_type.default_location_dest_id.id,

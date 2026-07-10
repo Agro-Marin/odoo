@@ -98,13 +98,13 @@ class StockWarehouseOrderpoint(models.Model):
         comodel_name="product.category",
         name="Product Category",
     )
-    product_uom = fields.Many2one(
+    product_uom_id = fields.Many2one(
         related="product_id.uom_id",
         comodel_name="uom.uom",
         string="Unit",
     )
     product_uom_name = fields.Char(
-        related="product_uom.display_name",
+        related="product_uom_id.display_name",
         string="Product unit of measure label",
         readonly=True,
     )
@@ -669,8 +669,8 @@ class StockWarehouseOrderpoint(models.Model):
         for orderpoint in self:
             if (
                 not orderpoint.product_id
-                or orderpoint.product_uom.is_zero(orderpoint.qty_to_order)
-                or orderpoint.product_uom.compare(orderpoint.product_max_qty, 0) == -1
+                or orderpoint.product_uom_id.is_zero(orderpoint.qty_to_order)
+                or orderpoint.product_uom_id.compare(orderpoint.product_max_qty, 0) == -1
             ):
                 orderpoint.unwanted_replenish = False
             else:
@@ -682,7 +682,7 @@ class StockWarehouseOrderpoint(models.Model):
                     + orderpoint.qty_to_order
                 )
                 orderpoint.unwanted_replenish = (
-                    orderpoint.product_uom.compare(
+                    orderpoint.product_uom_id.compare(
                         after_replenish_qty,
                         orderpoint.product_max_qty,
                     )
@@ -855,7 +855,7 @@ class StockWarehouseOrderpoint(models.Model):
     @api.onchange("product_id")
     def _onchange_product_id(self):
         if self.product_id:
-            self.product_uom = self.product_id.uom_id.id
+            self.product_uom_id = self.product_id.uom_id.id
 
     # ------------------------------------------------------------
     # ACTION METHODS
@@ -1022,7 +1022,7 @@ class StockWarehouseOrderpoint(models.Model):
             float_compare(
                 self.qty_forecast,
                 self.product_min_qty,
-                precision_rounding=self.product_uom.rounding,
+                precision_rounding=self.product_uom_id.rounding,
             )
             < 0
         )
@@ -1448,7 +1448,7 @@ class StockWarehouseOrderpoint(models.Model):
                         else:
                             origin = orderpoint.name
                         if (
-                            orderpoint.product_uom.compare(orderpoint.qty_to_order, 0.0)
+                            orderpoint.product_uom_id.compare(orderpoint.qty_to_order, 0.0)
                             == 1
                         ):
                             date = orderpoint._get_orderpoint_procurement_date()
@@ -1462,7 +1462,7 @@ class StockWarehouseOrderpoint(models.Model):
                                 self.env["stock.rule"].Procurement(
                                     orderpoint.product_id,
                                     orderpoint.qty_to_order,
-                                    orderpoint.product_uom,
+                                    orderpoint.product_uom_id,
                                     orderpoint.location_id,
                                     orderpoint.name,
                                     origin,

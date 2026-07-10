@@ -39,7 +39,7 @@ class UomUom(models.Model):
                     .sudo()
                     .search_count(
                         [
-                            ("product_uom", "in", changed.ids),
+                            ("product_uom_id", "in", changed.ids),
                             ("state", "not in", ("cancel", "done")),
                         ],
                     )

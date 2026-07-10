@@ -28,7 +28,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_client.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -50,7 +50,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_pick.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
@@ -74,7 +74,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_ship.id,
                 "location_id": self.output_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -94,7 +94,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_pack.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.output_location.id,
@@ -115,7 +115,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_pick.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
@@ -143,7 +143,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": product_unreserve.id,
                 "product_uom_qty": 3,
-                "product_uom": product_unreserve.uom_id.id,
+                "product_uom_id": product_unreserve.uom_id.id,
                 "state": "confirmed",
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -156,7 +156,7 @@ class TestPickShip(TestStockCommon):
                 "product_id": product_unreserve.id,
                 "product_uom_qty": 2,
                 "quantity": 2,
-                "product_uom": product_unreserve.uom_id.id,
+                "product_uom_id": product_unreserve.uom_id.id,
                 "state": "confirmed",
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -710,7 +710,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.gB.id,
                 "product_uom_qty": 5,
-                "product_uom": self.uom_kg.id,
+                "product_uom_id": self.uom_kg.id,
                 "picking_id": picking_client.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -731,7 +731,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.gB.id,
                 "product_uom_qty": 5,
-                "product_uom": self.uom_kg.id,
+                "product_uom_id": self.uom_kg.id,
                 "picking_id": picking_pick.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
@@ -1012,7 +1012,7 @@ class TestPickShip(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_client.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1126,7 +1126,7 @@ class TestPickShip(TestStockCommon):
                         {
                             "product_id": p.id,
                             "product_uom_qty": 10 + i,
-                            "product_uom": p.uom_id.id,
+                            "product_uom_id": p.uom_id.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
                             "state": "waiting",
@@ -1382,7 +1382,7 @@ class TestSinglePicking(TestStockCommon):
                 {
                     "product_id": product.id,
                     "product_uom_qty": 5,
-                    "product_uom": product.uom_id.id,
+                    "product_uom_id": product.uom_id.id,
                     "location_id": self.stock_location.id,
                     "location_dest_id": self.customer_location.id,
                 }
@@ -1425,7 +1425,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1487,7 +1487,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1543,7 +1543,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1553,7 +1553,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1598,7 +1598,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1608,7 +1608,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1663,7 +1663,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 4,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1674,7 +1674,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 4,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1685,7 +1685,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1696,7 +1696,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1781,7 +1781,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1854,7 +1854,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1926,7 +1926,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -1971,7 +1971,7 @@ class TestSinglePicking(TestStockCommon):
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
                 "quantity": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1992,7 +1992,7 @@ class TestSinglePicking(TestStockCommon):
                             "product_uom_qty": 0,
                             "quantity": 10,
                             "state": "assigned",
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "picking_id": delivery.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
@@ -2034,7 +2034,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2094,7 +2094,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2159,7 +2159,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2227,7 +2227,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2287,7 +2287,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "picking_type_id": self.picking_type_out.id,
                 "location_id": self.pack_location.id,
@@ -2325,7 +2325,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "picking_type_id": self.picking_type_out.id,
                 "location_id": self.pack_location.id,
@@ -2370,7 +2370,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "picking_type_id": self.picking_type_out.id,
                 "location_id": self.pack_location.id,
@@ -2415,7 +2415,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "picking_type_id": self.picking_type_out.id,
                 "location_id": self.pack_location.id,
@@ -2475,7 +2475,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "picking_type_id": self.picking_type_in.id,
                 "location_id": self.supplier_location.id,
@@ -2517,7 +2517,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_type_id": self.picking_type_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2549,7 +2549,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2559,7 +2559,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2569,7 +2569,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2579,7 +2579,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2615,7 +2615,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2626,7 +2626,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2637,7 +2637,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2674,7 +2674,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 0,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2685,7 +2685,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 0,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2735,7 +2735,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2748,7 +2748,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2761,7 +2761,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2774,7 +2774,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2826,7 +2826,7 @@ class TestSinglePicking(TestStockCommon):
         )
         move_values = {
             "product_id": self.productA.id,
-            "product_uom": self.productA.uom_id.id,
+            "product_uom_id": self.productA.uom_id.id,
             "location_id": self.supplier_location.id,
             "location_dest_id": warehouse.wh_input_stock_loc_id.id,
             "reference_ids": [Command.link(ref.id)],
@@ -2903,7 +2903,7 @@ class TestSinglePicking(TestStockCommon):
         )
         move_values = {
             "product_id": self.productA.id,
-            "product_uom": self.productA.uom_id.id,
+            "product_uom_id": self.productA.uom_id.id,
             "product_uom_qty": 5,
             "location_id": self.supplier_location.id,
             "location_dest_id": warehouse.wh_input_stock_loc_id.id,
@@ -2939,7 +2939,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 0,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2949,7 +2949,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 0,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2978,7 +2978,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 0,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2988,7 +2988,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 0,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -3038,7 +3038,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3048,7 +3048,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3076,7 +3076,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": delivery_order.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -3128,7 +3128,7 @@ class TestSinglePicking(TestStockCommon):
                     Command.create(
                         {
                             "product_id": self.productA.id,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
                             "quantity": 5,
@@ -3165,7 +3165,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": receipt.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3246,7 +3246,7 @@ class TestSinglePicking(TestStockCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 10,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "location_id": self.pack_location.id,
                             "location_dest_id": self.customer_location.id,
                         }
@@ -3348,7 +3348,7 @@ class TestSinglePicking(TestStockCommon):
                         {
                             "product_id": product.id,
                             "product_uom_qty": 10,
-                            "product_uom": product.uom_id.id,
+                            "product_uom_id": product.uom_id.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
                         }
@@ -3389,7 +3389,7 @@ class TestSinglePicking(TestStockCommon):
                         {
                             "product_id": product.id,
                             "product_uom_qty": 10,
-                            "product_uom": product.uom_id.id,
+                            "product_uom_id": product.uom_id.id,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
                         }
@@ -3464,7 +3464,7 @@ class TestSinglePicking(TestStockCommon):
                             "product_uom_qty": 50,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
-                            "product_uom": tracked_product.uom_id.id,
+                            "product_uom_id": tracked_product.uom_id.id,
                         }
                     )
                 ],
@@ -3550,7 +3550,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "picking_type_id": self.picking_type_out.id,
@@ -3591,7 +3591,7 @@ class TestSinglePicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "picking_type_id": self.picking_type_out.id,
@@ -3662,7 +3662,7 @@ class TestSinglePicking(TestStockCommon):
                             "product_uom_qty": 50,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                         }
                     ),
                 ],
@@ -3720,7 +3720,7 @@ class TestStockUOM(TestStockCommon):
             {
                 "product_id": T_TEST.id,
                 "product_uom_qty": 60,
-                "product_uom": T_GT.id,
+                "product_uom_id": T_GT.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3808,12 +3808,12 @@ class TestStockUOM(TestStockCommon):
                 "location_dest_id": self.customer_location.id,
                 "picking_id": picking.id,
                 "product_id": product_G.id,
-                "product_uom": self.uom_kg.id,
+                "product_uom_id": self.uom_kg.id,
                 "product_uom_qty": 1,
             }
         )
 
-        self.assertEqual(move.product_uom.id, self.uom_kg.id)
+        self.assertEqual(move.product_uom_id.id, self.uom_kg.id)
         self.assertEqual(move.product_uom_qty, 1.0)
 
         picking.action_confirm()
@@ -4024,7 +4024,7 @@ class TestRoutes(TestStockCommon):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 1.0,
                 "route_ids": [Command.link(route.id)],
             }
@@ -4089,7 +4089,7 @@ class TestRoutes(TestStockCommon):
                 "location_dest_id": self.stock_location.id,
                 "product_id": product.id,
                 "product_uom_qty": 1.0,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "move_line_ids": [
                     Command.create(
                         {
@@ -4149,7 +4149,7 @@ class TestRoutes(TestStockCommon):
         )
 
         move_tmpl = {
-            "product_uom": self.uom_unit.id,
+            "product_uom_id": self.uom_unit.id,
             "product_uom_qty": 4.0,
             "location_id": warehouse.lot_stock_id.id,
             "location_dest_id": self.partner.property_stock_customer.id,
@@ -4211,7 +4211,7 @@ class TestRoutes(TestStockCommon):
                             "location_dest_id": warehouse.wh_output_stock_loc_id.id,
                             "location_final_id": final_location.id,
                             "product_id": self.product.id,
-                            "product_uom": self.product.uom_id.id,
+                            "product_uom_id": self.product.uom_id.id,
                             "product_uom_qty": 1.0,
                         }
                     )
@@ -4241,7 +4241,7 @@ class TestAutoAssign(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_client.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -4263,7 +4263,7 @@ class TestAutoAssign(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_pick.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
@@ -4294,7 +4294,7 @@ class TestAutoAssign(TestStockCommon):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.productA.id,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "product_uom_qty": 10.0,
                 "picking_id": customer_picking.id,
                 "picking_type_id": self.picking_type_out.id,
@@ -4324,7 +4324,7 @@ class TestAutoAssign(TestStockCommon):
                 "location_id": self.customer_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": self.productA.id,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "product_uom_qty": 10.0,
                 "picking_id": supplier_picking.id,
             }
@@ -4369,7 +4369,7 @@ class TestAutoAssign(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_pick_2.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
@@ -4530,7 +4530,7 @@ class TestAutoAssign(TestStockCommon):
                 "location_id": self.customer_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": self.productA.id,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "product_uom_qty": 50.0,
                 "picking_id": supplier_picking.id,
             }
@@ -4588,7 +4588,7 @@ class TestAutoAssign(TestStockCommon):
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": self.product_serial.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_type_id": self.picking_type_in.id,
             }
         )
@@ -4623,7 +4623,7 @@ class TestAutoAssign(TestStockCommon):
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": self.product_serial.id,
-                "product_uom": self.uom_dozen.id,
+                "product_uom_id": self.uom_dozen.id,
                 "picking_type_id": self.picking_type_in.id,
             }
         )
@@ -4663,7 +4663,7 @@ class TestAutoAssign(TestStockCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 2,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "location_dest_id": warehouse.wh_output_stock_loc_id.id,
                             "location_id": warehouse.lot_stock_id.id,
                         }
@@ -4672,7 +4672,7 @@ class TestAutoAssign(TestStockCommon):
                         {
                             "product_id": self.productB.id,
                             "product_uom_qty": 3,
-                            "product_uom": self.productB.uom_id.id,
+                            "product_uom_id": self.productB.uom_id.id,
                             "location_dest_id": warehouse.wh_output_stock_loc_id.id,
                             "location_id": warehouse.lot_stock_id.id,
                         }
@@ -4710,7 +4710,7 @@ class TestAutoAssign(TestStockCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 1,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                             "location_dest_id": warehouse.wh_output_stock_loc_id.id,
                             "location_id": warehouse.lot_stock_id.id,
                         }

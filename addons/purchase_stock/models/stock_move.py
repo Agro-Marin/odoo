@@ -108,7 +108,7 @@ class StockMove(models.Model):
                 "order_id": purchase_order.id,
                 "product_id": product.id,
                 "product_qty": 0,
-                "product_uom_id": move.product_uom.id,
+                "product_uom_id": move.product_uom_id.id,
                 "qty_transferred": quantity,
             }
             if product.bill_policy == "ordered":
@@ -286,7 +286,7 @@ class StockMove(models.Model):
             elif move.is_out:
                 other_candidates_qty -= -move._get_valued_qty()
 
-        if self.product_uom.compare(aml_quantity, other_candidates_qty) <= 0:
+        if self.product_uom_id.compare(aml_quantity, other_candidates_qty) <= 0:
             return valuation_data
 
         # Remove quantity from prior moves.
@@ -317,7 +317,7 @@ class StockMove(models.Model):
         price_unit = self.purchase_line_id.with_context(
             conversion_date=self.date
         )._get_price_unit()
-        uom_quantity = self.product_uom._compute_quantity(
+        uom_quantity = self.product_uom_id._compute_quantity(
             quantity,
             self.product_id.uom_id,
         )

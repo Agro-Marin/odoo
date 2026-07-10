@@ -55,7 +55,7 @@ class TestPackingNeg(TransactionCase):
                     0,
                     {
                         "product_id": product_neg.id,
-                        "product_uom": product_neg.uom_id.id,
+                        "product_uom_id": product_neg.uom_id.id,
                         "product_uom_qty": 300.00,
                         "location_id": self.ref("stock.stock_location_suppliers"),
                         "location_dest_id": self.ref("stock.stock_location_stock"),
@@ -126,7 +126,7 @@ class TestPackingNeg(TransactionCase):
                     0,
                     {
                         "product_id": product_neg.id,
-                        "product_uom": product_neg.uom_id.id,
+                        "product_uom_id": product_neg.uom_id.id,
                         "product_uom_qty": 300.00,
                         "location_id": self.ref("stock.stock_location_stock"),
                         "location_dest_id": self.ref("stock.stock_location_customers"),
@@ -207,7 +207,7 @@ class TestPackingNeg(TransactionCase):
                     0,
                     {
                         "product_id": product_neg.id,
-                        "product_uom": product_neg.uom_id.id,
+                        "product_uom_id": product_neg.uom_id.id,
                         "product_uom_qty": 20.0,
                         "location_id": self.ref("stock.stock_location_suppliers"),
                         "location_dest_id": self.ref("stock.stock_location_stock"),

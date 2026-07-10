@@ -72,7 +72,7 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
         lc.button_validate()
         return lc
 
-    def _make_in_move(self, product, quantity, unit_cost=None, create_picking=False, product_uom=False):
+    def _make_in_move(self, product, quantity, unit_cost=None, create_picking=False, product_uom_id=False):
         """ Helper to create and validate a receipt move.
         """
         unit_cost = unit_cost or product.standard_price
@@ -80,7 +80,7 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
             'product_id': product.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.company_data['default_warehouse'].lot_stock_id.id,
-            'product_uom': product_uom.id if product_uom else self.env.ref('uom.product_uom_unit').id,
+            'product_uom_id': product_uom_id.id if product_uom_id else self.env.ref('uom.product_uom_unit').id,
             'product_uom_qty': quantity,
             'price_unit': unit_cost,
             'picking_type_id': self.company_data['default_warehouse'].in_type_id.id,
@@ -110,7 +110,7 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
             'product_id': product.id,
             'location_id': self.company_data['default_warehouse'].lot_stock_id.id,
             'location_dest_id': self.env.ref('stock.stock_location_customers').id,
-            'product_uom': self.env.ref('uom.product_uom_unit').id,
+            'product_uom_id': self.env.ref('uom.product_uom_unit').id,
             'product_uom_qty': quantity,
             'picking_type_id': self.company_data['default_warehouse'].out_type_id.id,
         })
@@ -129,7 +129,7 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
             self.env['stock.move.line'].create({
                 'move_id': out_move.id,
                 'product_id': out_move.product_id.id,
-                'product_uom_id': out_move.product_uom.id,
+                'product_uom_id': out_move.product_uom_id.id,
                 'location_id': out_move.location_id.id,
                 'location_dest_id': out_move.location_dest_id.id,
             })
@@ -265,7 +265,7 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
         uom_kgm = self.env.ref('uom.product_uom_kgm')
         # the product uom is in gram but the transfer is in kg
         self.product1.uom_id = uom_gram
-        move1 = self._make_in_move(self.product1, 1, unit_cost=10, create_picking=True, product_uom=uom_kgm)
+        move1 = self._make_in_move(self.product1, 1, unit_cost=10, create_picking=True, product_uom_id=uom_kgm)
         self.assertEqual(move1.stock_valuation_layer_ids[0].remaining_value, 10000)
         self.assertEqual(move1.stock_valuation_layer_ids[0].remaining_qty, 1000)
         self._make_lc(move1, 250)

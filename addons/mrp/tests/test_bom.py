@@ -2292,11 +2292,11 @@ class TestBoM(TestMrpCommon):
         with mo_form.move_raw_ids.new() as raw_move:
             raw_move.product_id = component_1
             raw_move.product_uom_qty = 12
-            raw_move.product_uom = self.uom_unit
+            raw_move.product_uom_id = self.uom_unit
         with mo_form.move_raw_ids.new() as raw_move:
             raw_move.product_id = component_2
             raw_move.product_uom_qty = 2
-            raw_move.product_uom = self.uom_dozen
+            raw_move.product_uom_id = self.uom_dozen
         mo = mo_form.save()
         mo.action_confirm()
         # Generates a BoM from the MO and checks its values.
@@ -2650,12 +2650,12 @@ class TestBoM(TestMrpCommon):
                 {
                     "product_id": component_1.id,
                     "product_uom_qty": 24,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
                 {
                     "product_id": component_2.id,
                     "product_uom_qty": 24,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
             ],
         )
@@ -2676,12 +2676,12 @@ class TestBoM(TestMrpCommon):
                 {
                     "product_id": component_1.id,
                     "product_uom_qty": 48,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
                 {
                     "product_id": component_2.id,
                     "product_uom_qty": 48,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
             ],
         )
@@ -2694,12 +2694,12 @@ class TestBoM(TestMrpCommon):
                 {
                     "product_id": component_1.id,
                     "product_uom_qty": 12,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
                 {
                     "product_id": component_2.id,
                     "product_uom_qty": 12,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
             ],
         )
@@ -2720,12 +2720,12 @@ class TestBoM(TestMrpCommon):
                 {
                     "product_id": component_1.id,
                     "product_uom_qty": 24,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
                 {
                     "product_id": component_2.id,
                     "product_uom_qty": 12,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                 },
             ],
         )
@@ -2736,10 +2736,10 @@ class TestBoM(TestMrpCommon):
         mo_form.product_uom_id = self.uom_dozen
         with mo_form.move_raw_ids.edit(0) as move_raw:
             move_raw.product_uom_qty = 2
-            move_raw.product_uom = self.uom_dozen
+            move_raw.product_uom_id = self.uom_dozen
         with mo_form.move_raw_ids.edit(1) as move_raw:
             move_raw.product_uom_qty = 1
-            move_raw.product_uom = self.uom_dozen
+            move_raw.product_uom_id = self.uom_dozen
         mo_2 = mo_form.save()
         self.assertEqual(mo_2.state, "draft")
         mo_2.action_confirm()
@@ -2750,12 +2750,12 @@ class TestBoM(TestMrpCommon):
                 {
                     "product_id": component_1.id,
                     "product_uom_qty": 2,
-                    "product_uom": self.uom_dozen.id,
+                    "product_uom_id": self.uom_dozen.id,
                 },
                 {
                     "product_id": component_2.id,
                     "product_uom_qty": 1,
-                    "product_uom": self.uom_dozen.id,
+                    "product_uom_id": self.uom_dozen.id,
                 },
             ],
         )

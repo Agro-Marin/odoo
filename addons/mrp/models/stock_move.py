@@ -287,15 +287,15 @@ class StockMove(models.Model):
                 move.reference_ids = [Command.set(production.reference_ids.ids)]
 
     @api.depends(
-        "raw_material_production_id.qty_producing", "product_uom_qty", "product_uom"
+        "raw_material_production_id.qty_producing", "product_uom_qty", "product_uom_id"
     )
     def _compute_should_consume_qty(self):
         for move in self:
             mo = move.raw_material_production_id
-            if not mo or not move.product_uom:
+            if not mo or not move.product_uom_id:
                 move.should_consume_qty = 0
                 continue
-            move.should_consume_qty = move.product_uom.round(
+            move.should_consume_qty = move.product_uom_id.round(
                 (mo.qty_producing - mo.qty_produced) * move.unit_factor
             )
 
@@ -320,29 +320,29 @@ class StockMove(models.Model):
                 move.display_import_lot = False
                 move.display_assign_serial = False
 
-    @api.onchange("product_uom_qty", "product_uom")
+    @api.onchange("product_uom_qty", "product_uom_id")
     def _onchange_product_uom_qty(self):
         if (
-            self.product_uom
+            self.product_uom_id
             and self.raw_material_production_id
             and self.has_tracking == "none"
             and self.state not in ("draft", "cancel", "done")
         ):
             mo = self.raw_material_production_id
-            new_qty = self.product_uom.round(
+            new_qty = self.product_uom_id.round(
                 (mo.qty_producing - mo.qty_produced) * self.unit_factor
             )
             self.quantity = new_qty
 
-    @api.onchange("quantity", "product_uom", "picked")
+    @api.onchange("quantity", "product_uom_id", "picked")
     def _onchange_quantity(self):
         if (
             self.raw_material_production_id
-            and self.product_uom
+            and self.product_uom_id
             and not float_is_zero(
-                self.quantity, precision_rounding=self.product_uom.rounding
+                self.quantity, precision_rounding=self.product_uom_id.rounding
             )
-            and self.product_uom.compare(self.product_uom_qty, self.quantity) != 0
+            and self.product_uom_id.compare(self.product_uom_qty, self.quantity) != 0
         ):
             self.manual_consumption = True
             self.picked = True
@@ -352,7 +352,7 @@ class StockMove(models.Model):
         for move in self:
             if (
                 move.raw_material_production_id
-                and move.product_uom.compare(move.quantity, 0) < 0
+                and move.product_uom_id.compare(move.quantity, 0) < 0
             ):
                 raise ValidationError(_("Please enter a positive quantity."))
 
@@ -461,7 +461,7 @@ class StockMove(models.Model):
         self._adjust_procure_method()
         for move in self:
             if (
-                move.product_uom.compare(
+                move.product_uom_id.compare(
                     move.product_uom_qty - old_qties.get(move.id, 0), 0
                 )
                 < 0
@@ -470,7 +470,7 @@ class StockMove(models.Model):
                 and all(m.state == "done" for m in move.move_orig_ids)
             ):
                 continue
-            if move.product_uom.compare(move.product_uom_qty, 0) > 0:
+            if move.product_uom_id.compare(move.product_uom_qty, 0) > 0:
                 if (
                     move._should_bypass_reservation()
                     or move.picking_type_id.reservation_method == "at_confirm"
@@ -520,7 +520,7 @@ class StockMove(models.Model):
                     self.env["stock.rule"].Procurement(
                         move.product_id,
                         procurement_qty,
-                        move.product_uom,
+                        move.product_uom_id,
                         move.location_id,
                         move.reference,
                         move.origin,
@@ -605,16 +605,16 @@ class StockMove(models.Model):
             if not bom:
                 moves_ids_to_return.add(move.id)
                 continue
-            if move.product_uom.is_zero(move.product_uom_qty):
+            if move.product_uom_id.is_zero(move.product_uom_qty):
                 factor = (
-                    move.product_uom._compute_quantity(
+                    move.product_uom_id._compute_quantity(
                         move.quantity, bom.product_uom_id
                     )
                     / bom.product_qty
                 )
             else:
                 factor = (
-                    move.product_uom._compute_quantity(
+                    move.product_uom_id._compute_quantity(
                         move.product_uom_qty, bom.product_uom_id
                     )
                     / bom.product_qty
@@ -726,7 +726,7 @@ class StockMove(models.Model):
         return {
             "picking_id": self.picking_id.id if self.picking_id else False,
             "product_id": bom_line.product_id.id,
-            "product_uom": bom_line.product_uom_id.id,
+            "product_uom_id": bom_line.product_uom_id.id,
             "product_uom_qty": product_qty,
             "quantity": quantity_done,
             "picked": self.picked,
@@ -738,7 +738,7 @@ class StockMove(models.Model):
         self.ensure_one()
         phantom_moves_vals_list = []
         for bom_line, line_data in exploded_lines_data:
-            if self.product_uom.is_zero(self.product_uom_qty) or self.env.context.get(
+            if self.product_uom_id.is_zero(self.product_uom_qty) or self.env.context.get(
                 "is_scrap"
             ):
                 vals = self._generate_move_phantom(bom_line, 0, line_data["qty"])
@@ -800,7 +800,7 @@ class StockMove(models.Model):
         if self.state in ("done", "cancel"):
             return True
         # Do not update extra product quantities
-        return self.product_uom.is_zero(self.product_uom_qty)
+        return self.product_uom_id.is_zero(self.product_uom_qty)
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
@@ -848,7 +848,7 @@ class StockMove(models.Model):
 
         def get_qty(move):
             if move.picked:
-                return move.product_uom._compute_quantity(
+                return move.product_uom_id._compute_quantity(
                     move.quantity, move.product_id.uom_id, rounding_method="HALF-UP"
                 )
             else:
@@ -956,10 +956,10 @@ class StockMove(models.Model):
             and self.raw_material_production_id
             and all(
                 (move.should_consume_qty
-                and move.product_uom.compare(move.quantity, move.should_consume_qty)
+                and move.product_uom_id.compare(move.quantity, move.should_consume_qty)
                 >= 0)
                 or (
-                    move.product_uom.compare(move.quantity, move.product_uom_qty) >= 0
+                    move.product_uom_id.compare(move.quantity, move.product_uom_qty) >= 0
                     or (move.manual_consumption and move.picked)
                 )
                 for move in self

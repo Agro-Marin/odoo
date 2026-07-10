@@ -29,7 +29,7 @@ class TestMoveCancelPropagation(PurchaseTestCommon):
         cls.move = cls.env['stock.move'].create({
             'product_id': product.id,
             'product_uom_qty': 10,
-            'product_uom': product.uom_id.id,
+            'product_uom_id': product.uom_id.id,
             'picking_id': cls.picking_out.id,
             'location_id': cls.picking_type_out.default_location_src_id.id,
             'location_dest_id': cls.customer_location.id,
@@ -258,7 +258,7 @@ class TestMoveCancelPropagation(PurchaseTestCommon):
             'location_id': self.stock_location.id,
             'location_dest_id': self.customer_location.id,
             'product_id': product_car.id,
-            'product_uom': product_car.uom_id.id,
+            'product_uom_id': product_car.uom_id.id,
             'product_uom_qty': 10.0,
             'procure_method': 'make_to_order',
             'picking_id': customer_picking.id,

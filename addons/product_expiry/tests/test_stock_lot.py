@@ -55,7 +55,7 @@ class TestStockLot(TestStockCommon):
         move_a = self.MoveObj.create({
             'product_id': self.productAAA.id,
             'product_uom_qty': 33,
-            'product_uom': self.productAAA.uom_id.id,
+            'product_uom_id': self.productAAA.uom_id.id,
             'picking_id': picking_in.id,
             'location_id': self.supplier_location.id,
             'location_dest_id': self.stock_location.id,
@@ -151,7 +151,7 @@ class TestStockLot(TestStockCommon):
         move_b = self.MoveObj.create({
             'product_id': self.productBBB.id,
             'product_uom_qty': 44,
-            'product_uom': self.productBBB.uom_id.id,
+            'product_uom_id': self.productBBB.uom_id.id,
             'picking_id': picking_in.id,
             'location_id': self.supplier_location.id,
             'location_dest_id': self.stock_location.id,
@@ -200,7 +200,7 @@ class TestStockLot(TestStockCommon):
         move_c = self.MoveObj.create({
             'product_id': self.productCCC.id,
             'product_uom_qty': 44,
-            'product_uom': self.productCCC.uom_id.id,
+            'product_uom_id': self.productCCC.uom_id.id,
             'picking_id': picking_in.id,
             'location_id': self.supplier_location.id,
             'location_dest_id': self.stock_location.id,
@@ -532,7 +532,7 @@ class TestStockLot(TestStockCommon):
             'location_id': self.supplier_location.id,
             'location_dest_id': self.stock_location.id,
             'product_id': self.apple_product.id,
-            'product_uom': self.apple_product.uom_id.id,
+            'product_uom_id': self.apple_product.uom_id.id,
         })
         sml = self.env['stock.move.line'].create({
             'location_id': self.supplier_location.id,
@@ -606,7 +606,7 @@ class TestStockLot(TestStockCommon):
         self.MoveObj.create({
             'product_id': self.apple_product.id,
             'product_uom_qty': 10,
-            'product_uom': self.apple_product.uom_id.id,
+            'product_uom_id': self.apple_product.uom_id.id,
             'picking_id': picking_out.id,
             'location_id': self.stock_location.id,
             'location_dest_id': self.customer_location.id,

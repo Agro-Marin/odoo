@@ -146,7 +146,7 @@ class SaleOrderLine(models.Model):
             if sale_line.product_type or (
                 sale_line.is_downpayment and sale_line.price_unit != 0
             ):
-                product_uom = sale_line.product_id.uom_id
+                product_uom_id = sale_line.product_id.uom_id
                 sale_line_uom = sale_line.product_uom_id
                 item = sale_line.read(field_names, load=False)[0]
                 if sale_line.product_id.tracking != "none":
@@ -157,7 +157,7 @@ class SaleOrderLine(models.Model):
                     item["lot_qty_by_name"] = {
                         line.lot_id.name: line.quantity for line in move_lines
                     }
-                if product_uom == sale_line_uom:
+                if product_uom_id == sale_line_uom:
                     results.append(item)
                     continue
                 item["product_uom_qty"] = self._convert_qty(
@@ -173,7 +173,7 @@ class SaleOrderLine(models.Model):
                     sale_line, item["qty_to_invoice"], "s2p"
                 )
                 item["price_unit"] = sale_line_uom._compute_price(
-                    item["price_unit"], product_uom
+                    item["price_unit"], product_uom_id
                 )
                 results.append(item)
 
@@ -193,12 +193,12 @@ class SaleOrderLine(models.Model):
         if DIR='s2p': convert from sale line uom to product uom
         if DIR='p2s': convert from product uom to sale line uom
         """
-        product_uom = sale_line.product_id.uom_id
+        product_uom_id = sale_line.product_id.uom_id
         sale_line_uom = sale_line.product_uom_id
         if direction == "s2p":
-            return sale_line_uom._compute_quantity(qty, product_uom, False)
+            return sale_line_uom._compute_quantity(qty, product_uom_id, False)
         elif direction == "p2s":
-            return product_uom._compute_quantity(qty, sale_line_uom, False)
+            return product_uom_id._compute_quantity(qty, sale_line_uom, False)
 
     def unlink(self):
         # do not delete downpayment lines created from pos

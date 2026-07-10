@@ -60,9 +60,9 @@ class MrpConsumptionWarning(models.TransientModel):
                     if line.product_id != move.product_id:
                         continue
                     qty_expected = line.product_uom_id._compute_quantity(
-                        line.product_expected_qty_uom, move.product_uom
+                        line.product_expected_qty_uom, move.product_uom_id
                     )
-                    qty_compare_result = move.product_uom.compare(
+                    qty_compare_result = move.product_uom_id.compare(
                         qty_expected, move.quantity
                     )
                     if qty_compare_result != 0:
@@ -76,7 +76,7 @@ class MrpConsumptionWarning(models.TransientModel):
                     missing_move_vals.append(
                         {
                             "product_id": line.product_id.id,
-                            "product_uom": line.product_uom_id.id,
+                            "product_uom_id": line.product_uom_id.id,
                             "product_uom_qty": line.product_expected_qty_uom,
                             "quantity": line.product_expected_qty_uom,
                             "raw_material_production_id": line.mrp_production_id.id,

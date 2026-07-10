@@ -53,7 +53,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {
                 "product_id": self.lot_product.id,
                 "product_uom_qty": 3,
-                "product_uom": self.lot_product.uom_id.id,
+                "product_uom_id": self.lot_product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "picking_id": picking_c.id,
@@ -68,7 +68,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {
                 "product_id": self.lot_product.id,
                 "product_uom_qty": 3,
-                "product_uom": self.lot_product.uom_id.id,
+                "product_uom_id": self.lot_product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "picking_id": picking_w.id,
@@ -99,7 +99,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {
                 "product_id": self.lot_product.id,
                 "product_uom_qty": 1,
-                "product_uom": self.lot_product.uom_id.id,
+                "product_uom_id": self.lot_product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "picking_id": picking.id,
@@ -164,7 +164,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {
                 "product_id": self.lot_product.id,
                 "product_uom_qty": 1,
-                "product_uom": self.lot_product.uom_id.id,
+                "product_uom_id": self.lot_product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "picking_id": picking.id,
@@ -207,7 +207,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {
                 "product_id": storable.id,
                 "product_uom_qty": 4,
-                "product_uom": storable.uom_id.id,
+                "product_uom_id": storable.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.shelf_1.id,
                 "picking_id": picking.id,

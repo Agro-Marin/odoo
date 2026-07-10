@@ -638,7 +638,7 @@ class TestKitPicking(common.TestMrpCommon):
                 "product_id": self.kit_parent.id,
                 "quantity": 3,
                 "picked": True,
-                "product_uom": self.kit_parent.uom_id.id,
+                "product_uom_id": self.kit_parent.uom_id.id,
                 "picking_id": picking.id,
                 "picking_type_id": self.picking_type_in.id,
                 "location_id": self.test_supplier.id,
@@ -669,7 +669,7 @@ class TestKitPicking(common.TestMrpCommon):
             {
                 "product_id": self.kit_parent.id,
                 "product_uom_qty": 3,
-                "product_uom": self.kit_parent.uom_id.id,
+                "product_uom_id": self.kit_parent.uom_id.id,
                 "picking_id": picking.id,
                 "picking_type_id": self.picking_type_in.id,
                 "location_id": self.test_supplier.id,
@@ -708,7 +708,7 @@ class TestKitPicking(common.TestMrpCommon):
                         {
                             "product_id": product.id,
                             "product_uom_qty": 1,
-                            "product_uom": product.uom_id.id,
+                            "product_uom_id": product.uom_id.id,
                             "location_id": self.customer_location.id,
                             "location_dest_id": self.stock_location.id,
                         }
@@ -925,7 +925,7 @@ class TestKitPicking(common.TestMrpCommon):
                         {
                             "product_id": kit.id,
                             "product_uom_qty": 12,
-                            "product_uom": packaging.id,
+                            "product_uom_id": packaging.id,
                             "location_id": stock_location.id,
                             "location_dest_id": self.customer_location.id,
                         }

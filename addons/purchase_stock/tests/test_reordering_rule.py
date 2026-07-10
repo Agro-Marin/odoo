@@ -267,7 +267,7 @@ class TestReorderingRule(TransactionCase):
         # Create move out of 10 product
         move = self.env['stock.move'].create({
             'product_id': product.id,
-            'product_uom': product.uom_id.id,
+            'product_uom_id': product.uom_id.id,
             'product_uom_qty': 10,
             'location_id': outside_loc.id,
             'location_dest_id': self.env.ref('stock.stock_location_customers').id,
@@ -329,7 +329,7 @@ class TestReorderingRule(TransactionCase):
             'move_ids': [(0, 0, {
                 'product_id': self.product_01.id,
                 'product_uom_qty': 1,
-                'product_uom': self.product_01.uom_id.id,
+                'product_uom_id': self.product_01.uom_id.id,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,
             })]
@@ -350,7 +350,7 @@ class TestReorderingRule(TransactionCase):
             'move_ids': [(0, 0, {
                 'product_id': self.product_01.id,
                 'product_uom_qty': 1,
-                'product_uom': self.product_01.uom_id.id,
+                'product_uom_id': self.product_01.uom_id.id,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,
             })]
@@ -943,7 +943,7 @@ class TestReorderingRule(TransactionCase):
 
         out_move = self.env['stock.move'].create({
             'product_id': self.product_01.id,
-            'product_uom': self.product_01.uom_id.id,
+            'product_uom_id': self.product_01.uom_id.id,
             'product_uom_qty': 5,
             'location_id': stock_location_id,
             'location_dest_id': customer_location_id,
@@ -1043,7 +1043,7 @@ class TestReorderingRule(TransactionCase):
         # out move on January 20th
         move = self.env['stock.move'].create({
             'product_id': self.product_01.id,
-            'product_uom': self.product_01.uom_id.id,
+            'product_uom_id': self.product_01.uom_id.id,
             'product_uom_qty': 1,
             'location_id': wh.lot_stock_id.id,
             'location_dest_id': self.env.ref('stock.stock_location_customers').id,
@@ -1054,7 +1054,7 @@ class TestReorderingRule(TransactionCase):
         # out move today to force the forecast to be negative
         move = self.env['stock.move'].create({
             'product_id': self.product_01.id,
-            'product_uom': self.product_01.uom_id.id,
+            'product_uom_id': self.product_01.uom_id.id,
             'product_uom_qty': 1,
             'location_id': wh.lot_stock_id.id,
             'location_dest_id': self.env.ref('stock.stock_location_customers').id,
@@ -1152,7 +1152,7 @@ class TestReorderingRule(TransactionCase):
             'picking_type_id': warehouse.out_type_id.id,
             'move_ids': [(0, 0, {
                 'product_id': product.id,
-                'product_uom': product.uom_id.id,
+                'product_uom_id': product.uom_id.id,
                 'product_uom_qty': 1,
                 'location_id': warehouse.lot_stock_id.id,
                 'location_dest_id': self.env.ref('stock.stock_location_customers').id,
@@ -1187,7 +1187,7 @@ class TestReorderingRule(TransactionCase):
         })
         product.seller_ids.with_context(orderpoint_id=orderpoint.id).action_set_supplier()
         self.assertEqual(orderpoint.supplier_id, product.seller_ids, 'The supplier should be set in the orderpoint')
-        self.assertEqual(orderpoint.product_uom, product.uom_id, 'The orderpoint uom should be the same as the product uom')
+        self.assertEqual(orderpoint.product_uom_id, product.uom_id, 'The orderpoint uom should be the same as the product uom')
         self.assertEqual(orderpoint.qty_to_order, 6000)
 
     def test_tax_po_line_reordering_rule_with_branch_company(self):

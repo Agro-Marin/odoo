@@ -34,7 +34,7 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(len(move_in_id), 1)
         self.assertEqual(move_in_id.product_qty, 50.0)
         self.assertEqual(product_1_quant.quantity, 50.0)
-        self.assertEqual(move_in_id.product_uom, self.product_1.uom_id)
+        self.assertEqual(move_in_id.product_uom_id, self.product_1.uom_id)
         self.assertEqual(move_in_id.state, "done")
 
         # Update the inventory, set to 35
@@ -135,7 +135,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 5,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.warehouse_1.lot_stock_id.id,
                 "location_dest_id": self.customer_location.id,
@@ -143,7 +143,7 @@ class TestWarehouse(TestStockCommon):
         )
         # simulate create + onchange
         # test move values
-        self.assertEqual(customer_move.product_uom, product.uom_id)
+        self.assertEqual(customer_move.product_uom_id, product.uom_id)
         self.assertEqual(customer_move.location_id, self.warehouse_1.lot_stock_id)
         self.assertEqual(customer_move.location_dest_id, self.customer_location)
 
@@ -212,7 +212,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": productA.id,
                 "product_uom_qty": 1,
-                "product_uom": productA.uom_id.id,
+                "product_uom_id": productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -276,7 +276,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": productA.id,
                 "product_uom_qty": 1,
-                "product_uom": productA.uom_id.id,
+                "product_uom_id": productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -394,7 +394,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 1,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": warehouse_shop.lot_stock_id.id,
                 "location_dest_id": self.customer_location.id,
@@ -544,7 +544,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 1,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking_out_namur.id,
                 "location_id": warehouse_shop_namur.lot_stock_id.id,
                 "location_dest_id": customer_location.id,
@@ -608,7 +608,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": product.id,
                 "product_uom_qty": 1,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "picking_id": picking_out_wavre.id,
                 "location_id": warehouse_shop_wavre.lot_stock_id.id,
                 "location_dest_id": customer_location.id,
@@ -1201,7 +1201,7 @@ class TestWarehouse(TestStockCommon):
             {
                 "product_id": self.product.id,
                 "product_uom_qty": 1,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": warehouse_A.lot_stock_id.id,
                 "location_dest_id": self.customer_location.id,
@@ -1264,7 +1264,7 @@ class TestWarehouse(TestStockCommon):
                             {
                                 "product_id": self.product.id,
                                 "product_uom_qty": 1,
-                                "product_uom": self.product.uom_id.id,
+                                "product_uom_id": self.product.uom_id.id,
                                 "company_id": companies.ids[0],
                                 "location_id": warehouse.lot_stock_id.id,
                                 "location_dest_id": warehouse.wh_output_stock_loc_id.id,

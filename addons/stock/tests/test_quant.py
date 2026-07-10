@@ -761,7 +761,7 @@ class TestStockQuant(TestStockCommon):
                 "location_id": stock_location.id,
                 "location_dest_id": dst_location.id,
                 "product_uom_qty": 5,
-                "product_uom": self.product_consu.uom_id.id,
+                "product_uom_id": self.product_consu.uom_id.id,
             }
         )
         move._action_confirm()
@@ -1236,7 +1236,7 @@ class TestStockQuant(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
             }
@@ -1253,7 +1253,7 @@ class TestStockQuant(TestStockCommon):
                 {
                     "product_id": self.productA.id,
                     "product_uom_qty": 1,
-                    "product_uom": self.productA.uom_id.id,
+                    "product_uom_id": self.productA.uom_id.id,
                     "location_id": self.supplier_location.id,
                     "location_dest_id": self.stock_location.id,
                 }
@@ -1285,7 +1285,7 @@ class TestStockQuant(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.shelf_2.id,
             }
@@ -1323,7 +1323,7 @@ class TestStockQuant(TestStockCommon):
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                             "product_uom_qty": 10,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                         },
                     )
                 ],
@@ -1412,7 +1412,7 @@ class TestStockQuant(TestStockCommon):
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                             "product_uom_qty": 1,
-                            "product_uom": self.product_serial.uom_id.id,
+                            "product_uom_id": self.product_serial.uom_id.id,
                         },
                     )
                 ],
@@ -1465,7 +1465,7 @@ class TestStockQuant(TestStockCommon):
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                             "product_uom_qty": 1,
-                            "product_uom": self.product_serial.uom_id.id,
+                            "product_uom_id": self.product_serial.uom_id.id,
                         },
                     )
                 ],
@@ -2098,7 +2098,7 @@ class TestStockQuant(TestStockCommon):
                             "location_id": stock_location.id,
                             "location_dest_id": dst_location.id,
                             "product_uom_qty": 5,
-                            "product_uom": product.uom_id.id,
+                            "product_uom_id": product.uom_id.id,
                         },
                     )
                 ],
@@ -2143,7 +2143,7 @@ class TestStockQuant(TestStockCommon):
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                             "product_uom_qty": 5,
-                            "product_uom": self.productA.uom_id.id,
+                            "product_uom_id": self.productA.uom_id.id,
                         }
                     )
                 ],
@@ -2263,7 +2263,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
             }
@@ -2326,7 +2326,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_uom_qty": 1000,
@@ -2356,7 +2356,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_uom_qty": 1280,
@@ -2388,7 +2388,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_uom_qty": 13,
@@ -2420,7 +2420,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_uom_qty": 90,
@@ -2450,7 +2450,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
             {
                 "product_id": self.product.id,
                 "product_uom_qty": 1,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
             }

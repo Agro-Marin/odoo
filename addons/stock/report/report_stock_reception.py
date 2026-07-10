@@ -159,7 +159,7 @@ class ReportStockReport_Reception(models.AbstractModel):
 
         sources_to_lines = defaultdict(list)  # group by source to print together
         for product, product_outs in products_to_outs.items():
-            product_uom = product.uom_id
+            product_uom_id = product.uom_id
             assign_queue = qty_to_assign[product]
             for out in product_outs:
                 source = self._get_report_source(out)
@@ -168,14 +168,14 @@ class ReportStockReport_Reception(models.AbstractModel):
 
                 qty_to_reserve = out.product_qty
                 if "done" not in doc_states and out.state == "partially_available":
-                    qty_to_reserve -= out.product_uom._compute_quantity(
-                        out.quantity, product_uom
+                    qty_to_reserve -= out.product_uom_id._compute_quantity(
+                        out.quantity, product_uom_id
                     )
 
                 quantity, moves_in_ids = self._consume_from_queue(
-                    assign_queue, qty_to_reserve, product_uom
+                    assign_queue, qty_to_reserve, product_uom_id
                 )
-                if not product_uom.is_zero(quantity):
+                if not product_uom_id.is_zero(quantity):
                     sources_to_lines[source].append(
                         self._prepare_report_line(
                             quantity,
@@ -188,9 +188,9 @@ class ReportStockReport_Reception(models.AbstractModel):
 
                 # draft qtys can be shown but not assigned
                 qty_expected = qty_draft.get(product, 0)
-                if product_uom.compare(
+                if product_uom_id.compare(
                     qty_to_reserve, quantity
-                ) > 0 and not product_uom.is_zero(qty_expected):
+                ) > 0 and not product_uom_id.is_zero(qty_expected):
                     to_expect = min(qty_expected, qty_to_reserve - quantity)
                     sources_to_lines[source].append(
                         self._prepare_report_line(
@@ -204,7 +204,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                     qty_draft[product] -= to_expect
         return sources_to_lines
 
-    def _consume_from_queue(self, assign_queue, qty_to_reserve, product_uom):
+    def _consume_from_queue(self, assign_queue, qty_to_reserve, product_uom_id):
         """Draw up to `qty_to_reserve` from the FIFO `assign_queue` of
         `(qty, move)` entries, mutating it in place (fully-consumed entries are
         popped, a partially-consumed entry keeps its remainder at the front).
@@ -213,10 +213,10 @@ class ReportStockReport_Reception(models.AbstractModel):
         """
         quantity = 0
         moves_in_ids = []
-        while assign_queue and product_uom.compare(quantity, qty_to_reserve) < 0:
+        while assign_queue and product_uom_id.compare(quantity, qty_to_reserve) < 0:
             move_in_qty, move_in = assign_queue[0]
             moves_in_ids.append(move_in.id)
-            if product_uom.compare(quantity + move_in_qty, qty_to_reserve) <= 0:
+            if product_uom_id.compare(quantity + move_in_qty, qty_to_reserve) <= 0:
                 quantity += move_in_qty
                 assign_queue.pop(0)
             else:
@@ -253,7 +253,7 @@ class ReportStockReport_Reception(models.AbstractModel):
     def _get_move_quantity(self, move):
         """The move's demand in the product's reference UoM, falling back to the
         reserved quantity when there is no stored demand (e.g. done moves)."""
-        return move.product_qty or move.product_uom._compute_quantity(
+        return move.product_qty or move.product_uom_id._compute_quantity(
             move.quantity, move.product_id.uom_id, rounding_method="HALF-UP"
         )
 
@@ -387,14 +387,14 @@ class ReportStockReport_Reception(models.AbstractModel):
                             move_line_id.quantity = (
                                 out.product_id.uom_id._compute_quantity(
                                     qty_to_link - assigned_amount,
-                                    out.product_uom,
+                                    out.product_uom_id,
                                     rounding_method="HALF-UP",
                                 )
                             )
                             new_move_line.quantity -= (
                                 out.product_id.uom_id._compute_quantity(
                                     move_line_id.quantity_product_uom,
-                                    out.product_uom,
+                                    out.product_uom_id,
                                     rounding_method="HALF-UP",
                                 )
                             )

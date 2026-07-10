@@ -571,7 +571,7 @@ class TestMrpByProduct(common.TransactionCase):
         byproduct_1 = self.env["stock.move"].create(
             {
                 "product_id": self.product_d.id,
-                "product_uom": self.ref("uom.product_uom_unit"),
+                "product_uom_id": self.ref("uom.product_uom_unit"),
                 "production_id": mo.id,
                 "location_id": self.ref("stock.stock_location_stock"),
                 "location_dest_id": self.ref("stock.stock_location_output"),
@@ -580,7 +580,7 @@ class TestMrpByProduct(common.TransactionCase):
         byproduct_2 = self.env["stock.move"].create(
             {
                 "product_id": self.product_e.id,
-                "product_uom": self.ref("uom.product_uom_unit"),
+                "product_uom_id": self.ref("uom.product_uom_unit"),
                 "production_id": mo.id,
                 "location_id": self.ref("stock.stock_location_stock"),
                 "location_dest_id": self.ref("stock.stock_location_output"),

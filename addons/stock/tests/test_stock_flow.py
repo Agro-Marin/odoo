@@ -76,7 +76,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -86,7 +86,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -96,7 +96,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productC.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productC.uom_id.id,
+                "product_uom_id": self.productC.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -106,7 +106,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productD.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productD.uom_id.id,
+                "product_uom_id": self.productD.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -116,7 +116,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productD.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productD.uom_id.id,
+                "product_uom_id": self.productD.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -277,7 +277,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -287,7 +287,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 5,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -297,7 +297,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productC.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productC.uom_id.id,
+                "product_uom_id": self.productC.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -307,7 +307,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productD.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productD.uom_id.id,
+                "product_uom_id": self.productD.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -826,7 +826,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.DozA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.DozA.uom_id.id,
+                "product_uom_id": self.DozA.uom_id.id,
                 "picking_id": picking_in_A.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -836,7 +836,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.SDozA.id,
                 "product_uom_qty": 10.5,
-                "product_uom": self.SDozA.uom_id.id,
+                "product_uom_id": self.SDozA.uom_id.id,
                 "picking_id": picking_in_A.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -846,7 +846,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.kgB.id,
                 "product_uom_qty": 0.020,
-                "product_uom": self.kgB.uom_id.id,
+                "product_uom_id": self.kgB.uom_id.id,
                 "picking_id": picking_in_A.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -856,7 +856,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.gB.id,
                 "product_uom_qty": 525.3,
-                "product_uom": self.gB.uom_id.id,
+                "product_uom_id": self.gB.uom_id.id,
                 "picking_id": picking_in_A.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -972,7 +972,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.DozA.id,
                 "product_uom_qty": 120,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_id": picking_in_B.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -982,7 +982,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.SDozA.id,
                 "product_uom_qty": 1512,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_id": picking_in_B.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -992,7 +992,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.kgB.id,
                 "product_uom_qty": 20.0,
-                "product_uom": self.uom_gm.id,
+                "product_uom_id": self.uom_gm.id,
                 "picking_id": picking_in_B.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -1002,7 +1002,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.gB.id,
                 "product_uom_qty": 0.525,
-                "product_uom": self.uom_kg.id,
+                "product_uom_id": self.uom_kg.id,
                 "picking_id": picking_in_B.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -1079,7 +1079,7 @@ class TestStockFlow(TestStockCommon):
         )
         self.assertEqual(
             packgB.product_uom_id.id,
-            packgB.move_id.product_uom.id,
+            packgB.move_id.product_uom_id.id,
             "Wrong uom in pack operation for product kgB.",
         )
         # Check pack operation quantity and unit of measure for product kgB.
@@ -1159,7 +1159,7 @@ class TestStockFlow(TestStockCommon):
             % (moves_DozA.product_uom_qty),
         )
         self.assertEqual(
-            moves_DozA.product_uom.id,
+            moves_DozA.product_uom_id.id,
             self.uom_unit.id,
             "Wrong uom in move for product DozA.",
         )
@@ -1175,7 +1175,7 @@ class TestStockFlow(TestStockCommon):
             % (moves_SDozA.product_uom_qty),
         )
         self.assertEqual(
-            moves_SDozA.product_uom.id,
+            moves_SDozA.product_uom_id.id,
             self.uom_unit.id,
             "Wrong uom in move for product SDozA.",
         )
@@ -1191,7 +1191,7 @@ class TestStockFlow(TestStockCommon):
             % (moves_kgB.product_uom_qty),
         )
         self.assertEqual(
-            moves_kgB.product_uom.id,
+            moves_kgB.product_uom_id.id,
             self.uom_gm.id,
             "Wrong uom in move for product kgB.",
         )
@@ -1200,7 +1200,7 @@ class TestStockFlow(TestStockCommon):
             [
                 ("product_id", "=", self.gB.id),
                 ("picking_id", "=", picking_in_B.id),
-                ("product_uom", "=", self.uom_kg.id),
+                ("product_uom_id", "=", self.uom_kg.id),
             ],
             limit=1,
         )
@@ -1211,7 +1211,7 @@ class TestStockFlow(TestStockCommon):
             % (moves_gB_kg.product_uom_qty),
         )
         self.assertEqual(
-            moves_gB_kg.product_uom.id,
+            moves_gB_kg.product_uom_id.id,
             self.uom_kg.id,
             "Wrong uom in move for product gB.",
         )
@@ -1244,7 +1244,7 @@ class TestStockFlow(TestStockCommon):
             % (moves_DozA.product_uom_qty),
         )
         self.assertEqual(
-            moves_DozA.product_uom.id,
+            moves_DozA.product_uom_id.id,
             self.uom_unit.id,
             "Wrong uom in move for product DozA.",
         )
@@ -1348,7 +1348,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.kgB.id,
                 "product_uom_qty": 0.966,
-                "product_uom": self.uom_gm.id,
+                "product_uom_id": self.uom_gm.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1358,7 +1358,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.kgB.id,
                 "product_uom_qty": 0.034,
-                "product_uom": self.uom_gm.id,
+                "product_uom_id": self.uom_gm.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1403,7 +1403,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.DozA.id,
                 "product_uom_qty": 54,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1413,7 +1413,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.SDozA.id,
                 "product_uom_qty": 288,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1423,7 +1423,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.gB.id,
                 "product_uom_qty": 0.503,
-                "product_uom": self.uom_kg.id,
+                "product_uom_id": self.uom_kg.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1433,7 +1433,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.kgB.id,
                 "product_uom_qty": 20,
-                "product_uom": self.uom_gm.id,
+                "product_uom_id": self.uom_gm.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1617,7 +1617,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": productKG.id,
                 "product_uom_qty": 1.0,
-                "product_uom": self.uom_ton.id,
+                "product_uom_id": self.uom_ton.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -1684,7 +1684,7 @@ class TestStockFlow(TestStockCommon):
             move.product_uom_qty, 1, "Wrong product quantity in done move."
         )
         self.assertEqual(
-            move.product_uom.id, self.uom_ton.id, "Wrong unit of measure in done move."
+            move.product_uom_id.id, self.uom_ton.id, "Wrong unit of measure in done move."
         )
         self.assertEqual(
             productKG.qty_available,
@@ -1704,7 +1704,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": productKG.id,
                 "product_uom_qty": 25,
-                "product_uom": self.uom_gm.id,
+                "product_uom_id": self.uom_gm.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -1756,7 +1756,7 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 20)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
         )
         bo_out_1.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1803,7 +1803,7 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 15)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
         )
         bo_out_2.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1849,7 +1849,7 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 10)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
         )
         bo_out_3.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1895,7 +1895,7 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 5)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
         )
         bo_out_4.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -2055,7 +2055,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 4,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_in.id,
                 "picking_type_id": self.picking_type_in.id,
                 "location_id": self.supplier_location.id,
@@ -2086,7 +2086,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2106,7 +2106,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "move_id": move_out.id,
-                "product_uom_id": move_out.product_uom.id,
+                "product_uom_id": move_out.product_uom_id.id,
                 "lot_id": lot2.id,
                 "quantity": 1.0,
                 "location_id": self.stock_location.id,
@@ -2117,7 +2117,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "move_id": move_out.id,
-                "product_uom_id": move_out.product_uom.id,
+                "product_uom_id": move_out.product_uom_id.id,
                 "lot_id": lot3.id,
                 "quantity": 2.0,
                 "location_id": self.stock_location.id,
@@ -2146,7 +2146,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2164,7 +2164,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_pack.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
@@ -2183,7 +2183,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2302,7 +2302,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productE.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productE.uom_id.id,
+                "product_uom_id": self.productE.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2342,7 +2342,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productE.id,
                 "product_uom_qty": 3,
-                "product_uom": self.productE.uom_id.id,
+                "product_uom_id": self.productE.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2387,7 +2387,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productE.id,
                 "product_uom_qty": 200,
-                "product_uom": self.productE.uom_id.id,
+                "product_uom_id": self.productE.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2430,7 +2430,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productE.id,
                 "product_uom_qty": 200,
-                "product_uom": self.productE.uom_id.id,
+                "product_uom_id": self.productE.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2512,7 +2512,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2556,7 +2556,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2602,7 +2602,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2645,7 +2645,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2673,7 +2673,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2684,7 +2684,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2694,7 +2694,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2705,7 +2705,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productC.id,
                 "product_uom_qty": 2,
-                "product_uom": self.productC.uom_id.id,
+                "product_uom_id": self.productC.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -2743,7 +2743,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2804,7 +2804,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_ask.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2822,7 +2822,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_always.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -2840,7 +2840,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_never.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3335,7 +3335,7 @@ class TestStockFlow(TestStockCommon):
                     "date_reservation": fields.Date.today(),
                     "product_id": self.productA.id,
                     "product_uom_qty": 1,
-                    "product_uom": self.productA.uom_id.id,
+                    "product_uom_id": self.productA.uom_id.id,
                     "picking_id": picking.id,
                     "location_id": from_loc,
                     "location_dest_id": to_loc,
@@ -3407,7 +3407,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -3433,7 +3433,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3443,7 +3443,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking_in.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3544,7 +3544,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3706,7 +3706,7 @@ class TestStockFlow(TestStockCommon):
                 "product_id": self.productA.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "product_uom_qty": 1,
                 "picking_type_id": self.picking_type_out.id,
                 "date_reservation": fields.Date.today(),
@@ -3719,7 +3719,7 @@ class TestStockFlow(TestStockCommon):
                 "product_id": self.productA.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.warehouse_1.wh_input_stock_loc_id.id,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "product_uom_qty": 1,
                 "picking_type_id": self.picking_type_in.id,
             }
@@ -3816,7 +3816,7 @@ class TestStockFlow(TestStockCommon):
                 {
                     "product_id": self.DozA.id,
                     "product_uom_qty": 10,
-                    "product_uom": self.DozA.uom_id.id,
+                    "product_uom_id": self.DozA.uom_id.id,
                     "quantity": 10,
                     "picking_id": picking_A.id,
                     "location_id": self.supplier_location.id,
@@ -3825,7 +3825,7 @@ class TestStockFlow(TestStockCommon):
                 {
                     "product_id": self.DozA.id,
                     "product_uom_qty": 10,
-                    "product_uom": self.DozA.uom_id.id,
+                    "product_uom_id": self.DozA.uom_id.id,
                     "quantity": 10,
                     "picking_id": picking_B.id,
                     "location_id": self.stock_location.id,
@@ -3872,7 +3872,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.customer_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3882,7 +3882,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 10,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.customer_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3923,7 +3923,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3933,7 +3933,7 @@ class TestStockFlow(TestStockCommon):
             {
                 "product_id": self.productB.id,
                 "product_uom_qty": 1,
-                "product_uom": self.productB.uom_id.id,
+                "product_uom_id": self.productB.uom_id.id,
                 "picking_id": picking.id,
                 "location_id": self.supplier_location.id,
                 "location_dest_id": self.stock_location.id,
@@ -3972,7 +3972,7 @@ class TestStockFlowTourPostInstall(TestStockCommon, HttpCase):
                         Command.create(
                             {
                                 "product_id": self.product.id,
-                                "product_uom": self.product.uom_id.id,
+                                "product_uom_id": self.product.uom_id.id,
                                 "product_uom_qty": 1.0,
                                 "location_id": self.supplier_location.id,
                                 "location_dest_id": self.stock_location.id,
@@ -3989,7 +3989,7 @@ class TestStockFlowTourPostInstall(TestStockCommon, HttpCase):
                         Command.create(
                             {
                                 "product_id": self.product.id,
-                                "product_uom": self.product.uom_id.id,
+                                "product_uom_id": self.product.uom_id.id,
                                 "product_uom_qty": 1.0,
                                 "location_id": self.stock_location.id,
                                 "location_dest_id": self.customer_location.id,
@@ -4038,7 +4038,7 @@ class TestStockFlowPostInstall(TestStockCommon):
                     Command.create(
                         {
                             "product_id": product.id,
-                            "product_uom": product.uom_id.id,
+                            "product_uom_id": product.uom_id.id,
                             "product_uom_qty": 1.0,
                             "location_id": self.stock_location.id,
                             "location_dest_id": self.customer_location.id,
@@ -4069,7 +4069,7 @@ class TestStockFlowPostInstall(TestStockCommon):
                 {
                     "product_id": self.productA.id,
                     "product_uom_qty": 10,
-                    "product_uom": self.productA.uom_id.id,
+                    "product_uom_id": self.productA.uom_id.id,
                     "description_picking": desc,
                     "picking_id": picking.id,
                     "location_id": self.supplier_location.id,

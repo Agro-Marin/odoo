@@ -67,9 +67,9 @@ class ProductLabelLayout(models.TransientModel):
             )
         ):
             for move in self.move_ids:
-                use_reserved = move.product_uom.compare(move.quantity, 0) > 0
+                use_reserved = move.product_uom_id.compare(move.quantity, 0) > 0
                 useable_qty = move.quantity if use_reserved else move.product_uom_qty
-                if not move.product_uom.is_zero(useable_qty):
+                if not move.product_uom_id.is_zero(useable_qty):
                     quantities[move.product_id.id] += useable_qty
             data["quantity_by_product"] = {p: int(q) for p, q in quantities.items()}
         elif self.move_quantity == "move" and self.move_ids.move_line_ids:

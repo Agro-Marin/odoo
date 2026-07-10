@@ -113,7 +113,7 @@ class StockMove(models.Model):
                 "product_id": product.id,
                 "product_qty": 0,
                 "qty_transferred": quantity,
-                "product_uom_id": move.product_uom.id,
+                "product_uom_id": move.product_uom_id.id,
             }
             # No unit price if the product is invoiced on the ordered qty.
             if product.invoice_policy == "ordered":
