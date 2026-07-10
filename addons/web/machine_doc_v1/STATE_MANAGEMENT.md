@@ -204,11 +204,11 @@ remains fine on a `SignalStore` getter.
 >
 > | Site | Verdict |
 > |---|---|
-> | `views/kanban/kanban_controller.js:163` (`set groupId`) | ⛔ Canonical exception to Pattern 4. The setter MUST clear sample data synchronously on the same microtask as the `groupId` mutation — see the 24-line comment block at lines 132-155 above the setter. A previous `useEffect` migration (commit `19fb5d01bb81`) was reverted because deferred cleanup broke 3 sample-data integration tests in `kanban_view.test.js` ("empty grouped kanban with sample data and click quick create" and siblings). The eslint-disable comment is explicit: *"synchronous timing contract; see comment above."* **Keep as-is.** |
-> | `components/transition.js:88` (`set shouldMount`) | ⚠ Pattern 4 by syntax, but the setter implements a deliberate state-machine timing contract (`clearTimeout`, `prevState` tracking, `onNextPatch` scheduling). A `useEffect` rewrite changes observable timing. **Leave**. |
-> | `components/transition.js:60` (`set shouldMount`, disabled-config branch) | ✗ Not Pattern 4. Pure passthrough `state.shouldMount = val`. |
-> | `components/emoji_picker/emoji_picker.js:325` (`set searchTerm`) | ✗ Not Pattern 4. Delegation between `props.state` and `this.state`. |
-> | `components/dropdown/_behaviours/dropdown_nesting.js:25` (`set isOpen`) | ⚠ Edge case — fires `BUS.trigger("dropdown-opened", this)` (fire-once-on-edge signal, not state mutation). `useEffect` rewrite would either fire too often or require a `prev`-tracking dance uglier than the setter. **Leave**. |
+> | `views/kanban/kanban_controller.js` (`set groupId`) | ⛔ Canonical exception to Pattern 4. The setter MUST clear sample data synchronously on the same microtask as the `groupId` mutation — see the comment block above the setter. A previous `useEffect` migration (commit `19fb5d01bb81`) was reverted because deferred cleanup broke 3 sample-data integration tests in `kanban_view.test.js` ("empty grouped kanban with sample data and click quick create" and siblings). The eslint-disable comment is explicit: *"synchronous timing contract; see comment above."* **Keep as-is.** |
+> | `components/transition.js` (`set shouldMount`) | ⚠ Pattern 4 by syntax, but the setter implements a deliberate state-machine timing contract (`clearTimeout`, `prevState` tracking, `onNextPatch` scheduling). A `useEffect` rewrite changes observable timing. **Leave**. |
+> | `components/transition.js` (`set shouldMount`, disabled-config branch) | ✗ Not Pattern 4. Pure passthrough `state.shouldMount = val`. |
+> | `components/emoji_picker/emoji_picker.js` (`set searchTerm`) | ✗ Not Pattern 4. Delegation between `props.state` and `this.state`. |
+> | `components/dropdown/_behaviours/dropdown_nesting.js` (`set isOpen`) | ⚠ Edge case — fires `BUS.trigger("dropdown-opened", this)` (fire-once-on-edge signal, not state mutation). `useEffect` rewrite would either fire too often or require a `prev`-tracking dance uglier than the setter. **Leave**. |
 >
 > Pattern 4 is a *vocabulary check* for new code review, not a backlog. When a new
 > setter introduces cross-state side effects, the reviewer's question is:
@@ -268,13 +268,13 @@ Records maintain a three-layer state model:
 **Scoped re-validation on commit**: committing changes re-checks
 unset-required status only for fields whose status could actually have
 changed. `computeRevalidationScope(changedFieldNames, activeFields)`
-(`model/relational_model/record_utils.js:220`) returns the changed fields
+(`model/relational_model/record_utils.js`) returns the changed fields
 plus every field whose `invisible` / `required` / `readonly` modifier
 expression references one of them (a per-`activeFields` memoized dependency
 map), plus fields with an unparseable modifier (always re-validated as a
 fallback — fails safe). The scope is passed as `scopedFields` to
 `_checkValidity({ removeInvalidOnly: true, scopedFields })`
-(`record.js:526-530`; orchestration lives in
+(`record.js`; orchestration lives in
 `model/relational_model/record_validator.js`), so a keystroke does not
 re-evaluate the modifier expressions of every field in a large form.
 
@@ -329,13 +329,13 @@ the mutex and normal flow.
 
 > **Optimistic-locking parity — field-scoped baseline values**: both paths
 > send `kwargs.known_values`, a `{field: originally-loaded value}` map built
-> once per save (`concurrencyBaseline`, `record_save.js:123-146`) from
+> once per save (`concurrencyBaseline`, `record_save.js`) from
 > `record._values` for the fields being written — skipping uncomparable types
 > (x2many, binary, html, date/datetime, json, properties, reference) and
 > jsonb-backed `translate` / `company_dependent` fields. The urgent
 > (sendBeacon) path attaches it via `urgentKwargs`
-> (`record_save.js:179-183`); the normal path via `kwargs.known_values`
-> (`record_save.js:239-244`); both only for existing records (`resId`
+> (`record_save.js`); the normal path via `kwargs.known_values`
+> (`record_save.js`); both only for existing records (`resId`
 > truthy). Server side, `models/web_read.py:_check_concurrent_field_changes`
 > rejects only genuine per-field conflicts, ignores concurrent writes to
 > other fields, and **fails open** for fields with no baseline (an empty
@@ -345,25 +345,25 @@ the mutex and normal flow.
 > consulted when `known_values` is absent.
 
 **Key files**:
-- `views/form/form_controller.js:704` — `save()` entry point
-- `views/form/form_controller.js:724` — `discard()` entry point
-- `views/form/form_controller.js:521` — `beforeLeave()` auto-save
-- `model/relational_model/record.js:472` — `_applyChanges()` (dirty tracking)
-- `model/relational_model/record.js:263` — `discard()` (mutex-wrapped)
-- `services/result_set_cache_invalidator_service.js:101` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined at `:31` `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).
+- `views/form/form_controller.js` — `save()` entry point
+- `views/form/form_controller.js` — `discard()` entry point
+- `views/form/form_controller.js` — `beforeLeave()` auto-save
+- `model/relational_model/record.js` — `_applyChanges()` (dirty tracking)
+- `model/relational_model/record.js` — `discard()` (mutex-wrapped)
+- `services/result_set_cache_invalidator_service.js` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined by `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).
 
 **All 6 CLEAR-CACHES emission sites in the web module:**
 
 | File:Line | Trigger | Scope |
 |---|---|---|
-| `services/result_set_cache_invalidator_service.js:101` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined at `:31` `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
-| `services/result_set_cache_invalidator_service.js:95` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
-| `search/search_query_mutations.js:51` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
-| `webclient/actions/action_cache_invalidation.js:40` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
-| `views/view_service.js:65` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
-| `webclient/webclient.js:240` | Post-service-worker-registration on hard refresh | all |
+| `services/result_set_cache_invalidator_service.js` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined by `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
+| `services/result_set_cache_invalidator_service.js` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
+| `search/search_query_mutations.js` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
+| `webclient/actions/action_cache_invalidation.js` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
+| `views/view_service.js` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
+| `webclient/webclient.js` | Post-service-worker-registration on hard refresh | all |
 
-Plus **one listener** at `core/network/rpc.js:271` that routes the event to `rpc_cache.js` for cache invalidation.
+Plus **one listener** at `core/network/rpc.js` that routes the event to `rpc_cache.js` for cache invalidation.
 
 ## Model Load Lifecycle
 
@@ -378,10 +378,10 @@ The load lifecycle is now carried by three primitives on
 
 | Primitive | Lives | Role |
 |---|---|---|
-| `model.keepLast` | `relational_model.js:190` (`markRaw(new KeepLast())`) | Cancellation: `load()` wraps `_loadData` in `keepLast.add(...)` (`relational_model.js:316`) so an in-flight load is dropped when a newer one starts. |
+| `model.keepLast` | `relational_model.js` (`markRaw(new KeepLast())`) | Cancellation: `load()` wraps `_loadData` in `keepLast.add(...)` (`relational_model.js`) so an in-flight load is dropped when a newer one starts. |
 | `model.mutex` | RelationalModel | Per-record save/discard serialization. Used across `RelationalRecord.save` / `.discard` / `.delete` / `.update`. |
 | `model.urgentSave` (`UrgentSaveCoordinator`) | `model/relational_model/urgent_save_coordinator.js` | Cross-cutting urgent-save mode, orthogonal to loading. |
-| `model.isReady` | `model.js:59` / `relational_model.js:331-332` | Reactive "first load done" flag. Before the first load resolves, `load()` installs an **empty root** (`_createEmptyRoot`) so the control panel renders immediately; `isReady = true` is promoted in the same synchronous block as the real-root + config writes so OWL batches them into a single render. |
+| `model.isReady` | `model.js` / `relational_model.js` | Reactive "first load done" flag. Before the first load resolves, `load()` installs an **empty root** (`_createEmptyRoot`) so the control panel renders immediately; `isReady = true` is promoted in the same synchronous block as the real-root + config writes so OWL batches them into a single render. |
 
 ## Typed Events
 
@@ -421,8 +421,8 @@ new client → fallback path; new server + old client → unknown field ignored.
 
 | Surface | File | Role |
 |---|---|---|
-| Decorator | `addons/core/odoo/tools/cache_version.py` `versioned` / `versioned_envelope` | Stamps `__version = sha256(json.dumps(result, sort_keys=True, default=str, separators=(",", ":")))` on dict returns (`versioned`); or stashes hash on `http.request._response_version` for non-dict returns (`versioned_envelope`). Located under `odoo.tools` so any addon can import without manifest dependency gymnastics. |
-| Consumer | `addons/core/addons/web/static/src/core/network/rpc_cache.js` `payloadChanged` | Replaces direct `jsonEqual(prev, curr)` in the `hasChanged` computation. Prefers `__version === __version` when both sides have it. |
+| Decorator | `addons/odoo/odoo/tools/cache_version.py` `versioned` / `versioned_envelope` | Stamps `__version = sha256(json.dumps(result, sort_keys=True, default=str, separators=(",", ":")))` on dict returns (`versioned`); or stashes hash on `http.request._response_version` for non-dict returns (`versioned_envelope`). Located under `odoo.tools` so any addon can import without manifest dependency gymnastics. |
+| Consumer | `addons/odoo/addons/web/static/src/core/network/rpc_cache.js` `payloadChanged` | Replaces direct `jsonEqual(prev, curr)` in the `hasChanged` computation. Prefers `__version === __version` when both sides have it. |
 
 **Currently opted-in endpoints** (Phases 1 + 2 + 3 + 4a):
 - `search_panel_select_range` / `search_panel_select_multi_range` — Phase 1, `@versioned`
@@ -432,7 +432,7 @@ new client → fallback path; new server + old client → unknown field ignored.
 - `project.project.get_template_tasks` (`addons/project/models/project_project.py`) — Phase 4a, `@versioned_envelope`, consumed by `project_task_template_dropdown.js` and `fsm_task_template_dropdown.js`
 
 **Pending follow-up endpoints** (also `update: "always"` consumers):
-- m2o special data (`fields/relational/special_data.js:32`) — generic ORM proxy; per-`loadFn` identification needed before decorating the backing methods
+- m2o special data (`fields/relational/special_data.js`) — generic ORM proxy; per-`loadFn` identification needed before decorating the backing methods
 - `project.project` template list (`project_template_dropdown.js` uses raw `searchRead`) — switch the JS to a custom `@versioned_envelope` server method, e.g. `get_project_templates`, when the perf win is profiled to matter
 
 ### Two decorator forms

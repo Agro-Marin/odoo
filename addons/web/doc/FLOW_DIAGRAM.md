@@ -173,79 +173,79 @@ Browser                          Server (Python)                    Database
 **Audit areas**: 3 (RPC Gateway), 4 (Web Data Access)
 
 ```
-OWL Component                    JS Services              Server (Python)           DB
-  │                                │                         │                        │
-  │  orm.call("res.partner",       │                         │                        │
-  │           "web_read",          │                         │                        │
-  │           [[1,2,3], spec])     │                         │                        │
-  ├───────────────────────────────▶│                         │                        │
-  │                                │  orm_service.js:        │                        │
-  │                                │  ├─ Merge user context  │                        │
-  │                                │  │  into kwargs         │                        │
-  │                                │  ├─ Build URL:          │                        │
-  │                                │  │  /web/dataset/call_kw/res.partner/web_read    │
-  │                                │  └─ rpc(url, params)    │                        │
-  │                                │     │                   │                        │
-  │                                │     │  rpc.js:          │                        │
-  │                                │     │  ├─ Check cache?  │                        │
-  │                                │     │  │  └─ Hit → return cached                 │
-  │                                │     │  ├─ Build JSON-RPC envelope:               │
-  │                                │     │  │  {jsonrpc:"2.0", id:N,                  │
-  │                                │     │  │   method:"call",                        │
-  │                                │     │  │   params:{model, method, args, kwargs}} │
-  │                                │     │  ├─ rpcBus.trigger(RpcEvent.REQUEST)       │
-  │                                │     │  └─ XHR POST     │                         │
-  │                                │     │     │            │                         │
-  │                                │     │     ├───────────▶│                         │
-  │                                │     │     │            │  dataset.py:call_kw()   │
-  │                                │     │     │            │  ├─ _call_kw_readonly() │
+OWL Component                    JS Services              Server (Python)               DB
+  │                                │                         │                          │
+  │  orm.call("res.partner",       │                         │                          │
+  │           "web_read",          │                         │                          │
+  │           [[1,2,3], spec])     │                         │                          │
+  ├───────────────────────────────▶│                         │                          │
+  │                                │  orm_service.js:        │                          │
+  │                                │  ├─ Merge user context  │                          │
+  │                                │  │  into kwargs         │                          │
+  │                                │  ├─ Build URL:          │                          │
+  │                                │  │  /web/dataset/call_kw/res.partner/web_read      │
+  │                                │  └─ rpc(url, params)    │                          │
+  │                                │     │                   │                          │
+  │                                │     │  rpc.js:          │                          │
+  │                                │     │  ├─ Check cache?  │                          │
+  │                                │     │  │  └─ Hit → return cached                   │
+  │                                │     │  ├─ Build JSON-RPC envelope:                 │
+  │                                │     │  │  {jsonrpc:"2.0", id:N,                    │
+  │                                │     │  │   method:"call",                          │
+  │                                │     │  │   params:{model, method, args, kwargs}}   │
+  │                                │     │  ├─ rpcBus.trigger(RpcEvent.REQUEST)         │
+  │                                │     │  └─ XHR POST     │                           │
+  │                                │     │     │            │                           │
+  │                                │     │     ├───────────▶│                           │
+  │                                │     │     │            │  dataset.py:call_kw()     │
+  │                                │     │     │            │  ├─ _call_kw_readonly()   │
   │                                │     │     │            │  │  └─ Check method._readonly
   │                                │     │     │            │  │     └─ True → read replica
   │                                │     │     │            │  │     └─ False → primary
-  │                                │     │     │            │  ├─ call_kw(env[model], │
-  │                                │     │     │            │  │         method, args,│
-  │                                │     │     │            │  │         kwargs)      │
-  │                                │     │     │            │  │  ├─ check_access()   ├──▶ ACL
-  │                                │     │     │            │  │  ├─ Execute method   ├──▶ SQL
-  │                                │     │     │            │  │  └─ Return result    │
-  │                                │     │     │            │  └─ Return JSON-RPC     │
-  │                                │     │     │            │     {jsonrpc:"2.0",     │
-  │                                │     │     │            │      id:N,              │
-  │                                │     │     │            │      result: [...]}     │
-  │                                │     │     │◀───────────│                         │
-  │                                │     │  ├─ Parse response│                        │
-  │                                │     │  ├─ rpcBus.trigger(RpcEvent.RESPONSE)      │
-  │                                │     │  ├─ Cache result (if cacheable)            │
-  │                                │     │  └─ Return result│                         │
-  │                                │     │                  │                         │
-  │  ◀─── Promise resolves ────────│                        │                         │
-  │  with [record1, record2, ...]  │                        │                         │
-  │                                │                        │                         │
+  │                                │     │     │            │  ├─ call_kw(env[model],   │
+  │                                │     │     │            │  │         method, args,  │
+  │                                │     │     │            │  │         kwargs)        │
+  │                                │     │     │            │  │  ├─ check_access()     ├──▶ ACL
+  │                                │     │     │            │  │  ├─ Execute method     ├──▶ SQL
+  │                                │     │     │            │  │  └─ Return result      │
+  │                                │     │     │            │  └─ Return JSON-RPC       │
+  │                                │     │     │            │     {jsonrpc:"2.0",       │
+  │                                │     │     │            │      id:N,                │
+  │                                │     │     │            │      result: [...]}       │
+  │                                │     │     │◀───────────│                           │
+  │                                │     │     ├─ Parse response│                       │
+  │                                │     │     ├─ rpcBus.trigger(RpcEvent.RESPONSE)     │
+  │                                │     │     ├─ Cache result (if cacheable)           │
+  │                                │     │     └─ Return result│                        │
+  │                                │     │                  │                           │
+  │  ◀─── Promise resolves ────────│                        │                           │
+  │  with [record1, record2, ...]  │                        │                           │
+  │                                │                        │                           │
 
   ERROR PATH:
-  │                                │     │                  │                         │
-  │                                │     │  ◀── HTTP 200 ───│  {error: {              │
-  │                                │     │     with error   │    code: 0 | 100 | 404, │
-  │                                │     │                  │    message: "...",      │
-  │                                │     │                  │    data: {              │
+  │                                │     │                  │                           │
+  │                                │     │  ◀── HTTP 200 ───│  {error: {                │
+  │                                │     │     with error   │    code: 0 | 100 | 404,   │
+  │                                │     │                  │    message: "...",        │
+  │                                │     │                  │    data: {                │
   │                                │     │                  │      name: "odoo...AccessError",
-  │                                │     │                  │      debug: "<full py   │
-  │                                │     │                  │              traceback>",│
-  │                                │     │                  │      arguments: [...],  │
-  │                                │     │                  │      context: {...} } } │
-  │                                │     │                  │  Server code values:    │
-  │                                │     │                  │   0   = generic (default)│
-  │                                │     │                  │   100 = SessionExpired   │
-  │                                │     │                  │   404 = NotFound         │
-  │                                │     │                  │  (no -32xxx JSON-RPC    │
-  │                                │     │                  │   spec codes are used)  │
-  │                                │     │  ├─ Create RPCError                        │
-  │                                │     │  └─ Promise.reject(error)                  │
-  │                                │     │                  │                         │
-  │  ◀─── Promise rejects ─────────│                        │                         │
-  │                                │                        │                         │
-  │  error_service catches globally│                        │                         │
-  │  └─ Show error dialog/toast    │                        │                         │
+  │                                │     │                  │      debug: "<full py     │
+  │                                │     │                  │              traceback>", │
+  │                                │     │                  │      arguments: [...],    │
+  │                                │     │                  │      context: {...} } }   │
+  │                                │     │                  │  Server code values:      │
+  │                                │     │                  │   0   = generic (default) │
+  │                                │     │                  │   100 = SessionExpired    │
+  │                                │     │                  │   404 = NotFound          │
+  │                                │     │                  │  (no -32xxx JSON-RPC      │
+  │                                │     │                  │   spec codes are used)    │
+  │                                │     │  ├─ Create RPCError                          │
+  │                                │     │  └─ Promise.reject(error)                    │
+  │                                │     │                  │                           │
+  │  ◀─── Promise rejects ─────────│                        │                           │
+  │                                │                        │                           │
+  │  error_service catches globally│                        │                           │
+  │  └─ Show error dialog/toast    │                        │                           │
 ```
 
 ---
@@ -283,7 +283,7 @@ Action Service                   View Component              Server
   │     ├─ RPC: get_views()        │                          │
   │     │  (via orm.cache({type:   │                          │
   │     │    "disk"}) — see        │                          │
-  │     │   view_service.js:106)   │                          ├──▶ ir.ui.view
+  │     │   view_service.js    )   │                          ├──▶ ir.ui.view
   │     │  ◀── {                   │──────────────────────────│
   │     │    models: {<resModel>:  │                          │
   │     │      {fields: {...}}},   │                          │
@@ -478,7 +478,7 @@ List Controller                  SearchModel             Server
   │                                  │                     │
   │  1. Get domain from search       │                     │
   │  ├─ searchModel.domain (getter) ▶│                     │
-  │  │  (search_model.js:350)        │                     │
+  │  │  (search_model.js    )        │                     │
   │  │                               │  _getDomain() (:777-792)
   │  │                               │  composes:          │
   │  │                               │  ├─ globalDomain    │
@@ -606,9 +606,9 @@ User Interaction                 Action Service               Server
   │                                │                            │
   │  TYPE: ir.actions.server       │                            │
   │  ├─ RPC: /web/action/run       │                            │
-  │  │  ├──────────────────────────▶│ Execute server code       │
-  │  │  ◀── next_action ───────────│ (already cleaned via      │
-  │  │                             │  clean_action on server)  │
+  │  │  ├─────────────────────────▶│ Execute server code        │
+  │  │  ◀── next_action ───────────│ (already cleaned via       │
+  │  │                             │  clean_action on server)   │
   │  └─ Recursively doAction(next) │                            │
   │                                │                            │
   │  TYPE: ir.actions.act_window_close                          │
@@ -617,12 +617,12 @@ User Interaction                 Action Service               Server
   │     (dispatched to             │                            │
   │      _executeCloseAction)      │                            │
   │                                │                            │
-  │  REGISTRY EXTENSION:            │                            │
-  │  └─ registry.category(          │                            │
-  │      "action_handlers") lets    │                            │
-  │     other addons plug in        │                            │
-  │     additional action types     │                            │
-  │     (looked up by type name).   │                            │
+  │  REGISTRY EXTENSION:           │                            │
+  │  └─ registry.category(         │                            │
+  │      "action_handlers") lets   │                            │
+  │     other addons plug in       │                            │
+  │     additional action types    │                            │
+  │     (looked up by type name).  │                            │
   │                                │                            │
   │  BREADCRUMB BACK:              │                            │
   │  ├─ Pop controller from stack  │                            │
@@ -735,11 +735,11 @@ Browser                          Server (Python)                       Cache/Dis
   │   view code lives in           │                                     │
   │   assets_backend; only the     │                                     │
   │   heavy library is lazy)       │                                     │
-  │  ├─ graph_renderer calls      │                                      │
+  │  ├─ graph_renderer calls       │                                     │
   │  │   loadChartJS()  (core/lib/chartjs.js)                            │
   │  ├─ dynamic import("chart.js") + import("chartjs-adapter-luxon")     │
   │  │   resolved via the page's import map (bare specifiers)            │
-  │  ├───────────────────────────▶│  (static file serve of the           │
+  │  ├────────────────────────────▶│  (static file serve of the          │
   │  │                             │   vendored ESM builds)              │
   │  └─ Live-bound `Chart` export populated; one shared fetch app-wide   │
   │     (FullCalendar: same pattern via loadFullCalendar())              │
@@ -748,13 +748,13 @@ Browser                          Server (Python)                       Cache/Dis
   import-map `import("signature_pad")` pattern above):
   │  ├─ profiling_qweb / code_editor call                                │
   │  │   loadBundle("web.ace_lib")                                       │
-  │  │  GET /web/bundle/<name>    │                                      │
-  │  ├───────────────────────────▶│                                      │
+  │  │  GET /web/bundle/<name>     │                                     │
+  │  ├────────────────────────────▶│                                     │
   │  │                             │  webclient.py:bundle()              │
   │  │                             │  └─ Return file list as JSON        │
-  │  │  ◀── [{src, type}, ...] ───│                                      │
+  │  │  ◀── [{src, type}, ...] ────│                                     │
   │  ├─ Dynamically inject <script>/<link> tags                          │
-  │  └─ Resolve when all loaded   │                                      │
+  │  └─ Resolve when all loaded    │                                     │
   │                                │                                     │
   │  NOTE: there is NO             │                                     │
   │  `web.assets_backend_lazy`     │                                     │
@@ -793,7 +793,7 @@ Export Dialog                    Server                                  Respons
   │   import_compat}}              │                                         │
   ├───────────────────────────────▶│                                         │
   │                                │  ExportFormat.base() — inherited by     │
-  │                                │  CSVExport and ExcelExport (export.py:318) │
+  │                                │  CSVExport and ExcelExport (export.py ) │
   │                                │  ├─ Resolve export fields               │
   │                                │  │  (expand paths: partner_id/name)     │
   │                                │  ├─ If ids: browse(ids)                 │
@@ -846,7 +846,7 @@ User                             SearchModel                 ORM Service
   │                                │  │  │    ("date","<=","2026-01-31")]
   │                                │  │  │  Both bounds INCLUSIVE
   │                                │  │  │  (constructDateRange in
-  │                                │  │  │   search/utils/dates.js:152)
+  │                                │  │  │   search/utils/dates.js)
   │                                │  │  └─ Custom domain → as-is
   │                                │  ├─ AND all filter domains
   │                                │  ├─ AND action domain
@@ -866,7 +866,7 @@ User                             SearchModel                 ORM Service
   │                                │                           │  RPC to server
   │                                │                           │  (Flow 3 + 7)
   │                                │                           │
-  │  ◀─── View re-renders ────────│                            │
+  │  ◀─── View re-renders  ────────│                           │
   │  with filtered/grouped data    │                           │
   │                                │                           │
 
@@ -880,7 +880,7 @@ User                             SearchModel                 ORM Service
   │                                │     ir.filters            │
   │                                │     ├────────────────────▶│ INSERT
   │                                │     │                     │
-  │  ◀── Filter saved ────────────│                            │
+  │  ◀── Filter saved  ────────────│                           │
 ```
 
 ---
@@ -915,7 +915,7 @@ NORMAL OPERATION
   ├─ /web/session/check (no-op auth probe, NOT a keepalive)
   │  └─ Returns None; session refresh happens implicitly
   │     via `_authenticate` + `_save_session` on every
-  │     authenticated RPC (session.py:83-85)
+  │     authenticated RPC (session.py)
   │
   ├─ On company switch:
   │  └─ /web/session/get_session_info (full refresh)
@@ -928,7 +928,7 @@ NORMAL OPERATION
   │    │  includes registry_hash → new DBs created,
   │    │  old DBs orphaned)
   │    └─ Explicit full reloads only occur on:
-  │        * module install/uninstall (module_views.js:24)
+  │        * module install/uninstall (module_views.js)
   │        * unrecoverable error handlers (error_notifications.js)
   │
   ▼
@@ -964,17 +964,17 @@ Write Operation                  Cache Layers                    State
   │     invalidator_service        │                               │
   │     triggers CLEAR-CACHES      │                               │
   │  │  (method ∈ RESULT_SET_      │                               │
-  │  │   REMOVING_METHODS, :31;    │                               │
+  │  │   REMOVING_METHODS;         │                               │
   │  │   lang_install instead      │                               │
   │  │   fires an unscoped full    │                               │
-  │  │   clear, :95)               │                               │
+  │  │   clear)                    │                               │
   │  ├─ rpcBus.trigger(            │                               │
   │  │   "CLEAR-CACHES",           │                               │
   │  │   {model: <unlinked model>, │                               │
   │  │    tables: ["web_read",     │                               │
   │  │             "web_search_read",                              │
   │  │             "web_read_group"]})                             │
-  │  │  (result_set_cache_invalidator_service.js:101)              │
+  │  │  (result_set_cache_invalidator_service.js    )              │
   │  │                             │                               │
   │  │  ┌─ RAM cache (Map) ───────▶│  Purge entries matching       │
   │  │  │                          │  model=<unlinked model>       │
@@ -988,7 +988,7 @@ Write Operation                  Cache Layers                    State
   │  │  │                          │  _invalidateByModel walks an  │
   │  │  │                          │  openCursor and deletes only  │
   │  │  │                          │  cursor.value.model matches   │
-  │  │  │                          │  (indexed_db.js:397; model    │
+  │  │  │                          │  (indexed_db.js    ; model    │
   │  │  │                          │  stored plaintext beside the  │
   │  │  │                          │  ciphertext). Pre-migration   │
   │  │  │                          │  entries without a model prop │

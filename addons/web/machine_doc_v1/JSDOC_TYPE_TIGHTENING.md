@@ -1,8 +1,8 @@
 # JSDoc Type Tightening — Migration Recipe
 
 > Recipe for eliminating `/** @type {any} */` escape hatches in seam files
-> WITHOUT migrating to actual `.ts` files. The asset pipeline (`assetsbundle.py`
-> URL stripping, `ir_qweb.py` URL extension forcing) hardcodes `.js` in 6+
+> WITHOUT migrating to actual `.ts` files. The asset pipeline (the `assetsbundle/`
+> package's URL stripping, `ir_qweb_assets.py` URL extension forcing) hardcodes `.js` in 6+
 > sites; flipping a file's extension would require a separate infrastructure
 > change.
 
@@ -255,10 +255,10 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
 
 ## What this recipe does NOT cover
 
-- **Migrating to literal `.ts` files** — blocked by `assetsbundle.py`
-  hardcoding `.js` extension in URL stripping and forced-suffix logic.
-  Would need 6+ pipeline patches across `assetsbundle.py` and
-  `ir_qweb.py` plus a `--loader=ts:` esbuild flag.
+- **Migrating to literal `.ts` files** — blocked by the `assetsbundle/`
+  package hardcoding `.js` extension in URL stripping and forced-suffix logic.
+  Would need 6+ pipeline patches across the `assetsbundle/` package and
+  `ir_qweb_assets.py` plus a `--loader=ts:` esbuild flag.
 - ~~**CI gating**~~ — no longer a gap: `.github/workflows/typecheck.yml`
   runs `npx tsc --project tsconfig.json --noEmit` on every PR touching
   JS/TS (and on every push to `19.0-marin` / `19.0`) as a **blocking

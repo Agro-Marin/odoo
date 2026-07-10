@@ -953,7 +953,7 @@ export class StaticList extends DataPoint {
             return;
         }
         // ``this.context`` mirrors getFieldContext() exactly (it has no other
-        // contributor — see record.js:794), so drop keys that disappeared before
+        // contributor — see the ``getFieldContext`` loop in ``record.js``), so drop keys that disappeared before
         // merging; a plain Object.assign would leave stale keys lingering in
         // every sub-record's eval context (and in load/save RPCs).
         for (const key of Object.keys(this.context)) {

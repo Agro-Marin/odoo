@@ -318,7 +318,7 @@ export class RelationalModel extends Model {
         // Promote ``isReady`` in the same synchronous block as the real-
         // root + config writes so OWL's reactivity batches all three into
         // a single render.  Keeping the old ``this.isReady = true`` in
-        // ``whenReady.then`` (model.js:83-86) instead would put the write
+        // ``whenReady.then`` (in ``model.js``) instead would put the write
         // in a later microtask separated by the upcoming ``await
         // onRootLoaded(...)``, producing a third render visible to
         // ``onRendered`` step assertions on mount.  ``whenReady`` is still

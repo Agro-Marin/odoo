@@ -1,7 +1,7 @@
 /**
  * Brand types for generated model declarations.
  *
- * The codegen script ``addons/core/addons/web/tooling/scripts/generate_model_types.py``
+ * The codegen script ``addons/odoo/addons/web/tooling/scripts/generate_model_types.py``
  * emits one ``.d.ts`` per Odoo model under this directory.  Each generated
  * file declares an interface using the brands below — ``Many2one<"res.partner">``
  * etc. — so that field-level types carry their related model name as a

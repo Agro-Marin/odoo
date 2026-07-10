@@ -18,7 +18,7 @@ REPO_ROOT="$(cd -- "$(dirname "$0")" && cd ../../../../.. && pwd)"
 VENV_PY="${VENV_PY:-${REPO_ROOT}/venv/agromarin/bin/python}"
 CONFIG="${CONFIG:-${REPO_ROOT}/conf/odoo.conf}"
 DB="${DB:-marin190}"
-SCRIPT="${REPO_ROOT}/addons/core/addons/web/tooling/scripts/generate_model_types.py"
+SCRIPT="${REPO_ROOT}/addons/odoo/addons/web/tooling/scripts/generate_model_types.py"
 
 if [[ ! -x "$VENV_PY" ]]; then
     echo "✗ Python venv not found at $VENV_PY" >&2
@@ -53,7 +53,7 @@ echo
 
 # odoo-bin shell binds ``env`` and reads stdin. ``--no-http`` + a
 # non-default port avoid colliding with the running systemd Odoo.
-"$VENV_PY" "${REPO_ROOT}/addons/core/odoo-bin" shell \
+"$VENV_PY" "${REPO_ROOT}/addons/odoo/odoo-bin" shell \
     -c "$CONFIG" -d "$DB" --no-http --http-port=8169 <<PY
 import sys
 sys.path.insert(0, '$(dirname "$SCRIPT")')

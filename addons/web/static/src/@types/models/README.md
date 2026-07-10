@@ -23,7 +23,7 @@ each emit their own file; TS unions them at compile time.
 
 ```bash
 # From a running odoo-bin shell (preferred):
-./addons/core/odoo-bin shell -c conf/odoo.conf -d $DB <<'PY'
+./addons/odoo/odoo-bin shell -c conf/odoo.conf -d $DB <<'PY'
 from addons.core.addons.web.tooling.scripts.generate_model_types import generate
 generate(env)  # all installed modules
 # or:
@@ -32,7 +32,7 @@ generate(env, models=["res.partner"])
 PY
 
 # Standalone (slower — bootstraps Odoo internally):
-python addons/core/addons/web/tooling/scripts/generate_model_types.py \
+python addons/odoo/addons/web/tooling/scripts/generate_model_types.py \
     --config conf/odoo.conf --db $DB --modules sale,stock
 ```
 
