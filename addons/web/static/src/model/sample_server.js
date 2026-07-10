@@ -417,9 +417,7 @@ export class SampleServer {
             }
             const matches = measureSpec.match(MEASURE_SPEC_REGEX);
             if (!matches) {
-                throw new Error(
-                    `Invalid Aggregate "${measureSpec}" in SampleServer`,
-                );
+                throw new Error(`Invalid Aggregate "${measureSpec}" in SampleServer`);
             }
             const { fieldName, func } = matches.groups;
             measures.push({ fieldName, func, name: measureSpec });

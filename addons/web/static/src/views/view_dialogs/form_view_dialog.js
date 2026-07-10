@@ -4,9 +4,9 @@
 /** @module @web/views/view_dialogs/form_view_dialog - Modal dialog embedding a full form view for creating or editing a single record */
 
 import { Component } from "@odoo/owl";
+import { CallbackRecorder } from "@web/core/action_hook";
 import { registry } from "@web/core/registry";
 import { useChildRef, useService } from "@web/core/utils/hooks";
-import { CallbackRecorder } from "@web/core/action_hook";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { View } from "@web/views/view";
 

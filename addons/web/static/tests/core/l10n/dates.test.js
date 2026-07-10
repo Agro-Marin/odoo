@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { mockDate, mockTimeZone } from "@odoo/hoot-mock";
 import {
@@ -22,6 +21,7 @@ import {
     strftimeToLuxonFormat,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime, Settings } = luxon;
 
@@ -146,7 +146,9 @@ test("formatDuration respects the unit count in an 'and'-joined locale", async (
     // Narrow => a single (largest) unit only.
     expect(formatDuration(twoHoursThreeMinutes, false)).toBe("2 س");
     // The minutes part must be dropped: same as formatting just the hours.
-    expect(formatDuration(twoHoursThreeMinutes, false)).toBe(formatDuration(2 * 3600, false));
+    expect(formatDuration(twoHoursThreeMinutes, false)).toBe(
+        formatDuration(2 * 3600, false),
+    );
     // Full => the two largest units.
     expect(formatDuration(twoHoursThreeMinutes, true)).toBe("ساعتان, 3 دقائق");
 

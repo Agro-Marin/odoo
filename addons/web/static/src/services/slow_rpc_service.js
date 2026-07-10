@@ -3,10 +3,10 @@
 
 /** @module @web/services/slow_rpc_service - Sticky toast when an RPC exceeds the patience threshold; auto-dismissed on response */
 
-import { _t } from "@web/core/l10n/translation";
 import { browser } from "@web/core/browser/browser";
-import { rpcBus } from "@web/core/network/rpc";
 import { RpcEvent } from "@web/core/events";
+import { _t } from "@web/core/l10n/translation";
+import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
 /**

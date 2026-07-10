@@ -1,6 +1,6 @@
 // @ts-check
 
-import { after, describe, expect, tick, test } from "@odoo/hoot";
+import { after, describe, expect, test, tick } from "@odoo/hoot";
 import { IndexedDB } from "@web/core/utils/indexed_db";
 
 // These tests live under tests/core/network/ (alongside rpc.test.js) rather
@@ -22,7 +22,10 @@ const CACHE_NAME = "unit_test_idb_rejection";
 function patchOpenToThrow() {
     const original = indexedDB.open;
     indexedDB.open = () => {
-        throw new DOMException("The user denied access to the database", "SecurityError");
+        throw new DOMException(
+            "The user denied access to the database",
+            "SecurityError",
+        );
     };
     after(() => {
         indexedDB.open = original;

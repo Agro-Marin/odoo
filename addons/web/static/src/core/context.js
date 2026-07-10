@@ -3,10 +3,10 @@
 
 /** @module @web/core/context - Builds an evaluation context by merging and evaluating Python expressions */
 
+import { ASTType } from "./py_js/ast_type.js";
 import { evaluateExpr, parseExpr } from "./py_js/py.js";
 import { BUILTINS } from "./py_js/py_builtin.js";
 import { evaluate } from "./py_js/py_interpreter.js";
-import { ASTType } from "./py_js/ast_type.js";
 
 /** @typedef {import("./py_js/ast_type.js").AST} AST */
 

@@ -32,15 +32,11 @@ import { executeClientAction } from "./action_executors/client.js";
 import { executeCloseAction } from "./action_executors/close.js";
 import { executeServerAction } from "./action_executors/server.js";
 import { buildActionInfo, buildViewInfo } from "./action_info_builders.js";
-import {
-    loadAction,
-    makeController,
-    preprocessAction,
-} from "./action_loader.js";
-import { loadState } from "./load_state.js";
+import { loadAction, makeController, preprocessAction } from "./action_loader.js";
 import { getActionParams, makeActionState } from "./action_state.js";
 import { buildBreadcrumbs, controllersFromState } from "./breadcrumb_manager.js";
 import { makeControllerComponent } from "./controller_component.js";
+import { loadState } from "./load_state.js";
 import { executeReportAction } from "./reports/report_executor.js";
 import { SkeletonView } from "./skeleton_view.js";
 
@@ -460,7 +456,11 @@ export class ActionManager {
         this._prepareControllerConfig(controller, action, nextStack);
 
         if (action.target === "new") {
-            return this._dispatchTargetNew(controllerContext, options, currentActionProm);
+            return this._dispatchTargetNew(
+                controllerContext,
+                options,
+                currentActionProm,
+            );
         }
         return this._dispatchInline(controllerContext, options, currentActionProm);
     }
@@ -497,14 +497,16 @@ export class ActionManager {
             }
         };
         controller.config.historyBack = () => {
-            const previousController = this.controllerStack[this.controllerStack.length - 2];
+            const previousController =
+                this.controllerStack[this.controllerStack.length - 2];
             if (previousController) {
                 this.restore(previousController.jsId);
             } else {
                 this.env.bus.trigger(AppEvent.WEBCLIENT_LOAD_DEFAULT_APP);
             }
         };
-        controller.config.isReloadingController = controller === this.controllerStack.at(-1);
+        controller.config.isReloadingController =
+            controller === this.controllerStack.at(-1);
     }
 
     /**
@@ -536,10 +538,8 @@ export class ActionManager {
         if (size) {
             actionDialogProps.size = size;
         }
-        actionDialogProps.header =
-            action.context.header ?? actionDialogProps.header;
-        actionDialogProps.footer =
-            action.context.footer ?? actionDialogProps.footer;
+        actionDialogProps.header = action.context.header ?? actionDialogProps.header;
+        actionDialogProps.footer = action.context.footer ?? actionDialogProps.footer;
         // Propagate the committed dialog's onClose to the dialog replacing
         // it: the callback transfers to the entry built below, and deleting
         // it here guarantees the old dialog's removal (performed by
@@ -547,11 +547,11 @@ export class ActionManager {
         // fires no user callback.
         const onClose = this.dialog?.onClose;
         delete this.dialog?.onClose;
-        const removeDialogFn = removeDialogRef.current = this.env.services.dialog.add(
+        const removeDialogFn = (removeDialogRef.current = this.env.services.dialog.add(
             ActionDialog,
             actionDialogProps,
             { onClose: (closeParams) => this._removeDialog(closeParams) },
-        );
+        ));
         if (this.nextDialog) {
             // Discard a dialog that was dispatched but never mounted (its
             // ControllerComponent has not committed it to ``this.dialog``
@@ -761,11 +761,7 @@ export class ActionManager {
      * @param {Object} [props={}]
      * @param {{ newWindow?: boolean }} [options={}]
      */
-    async switchView(
-        viewType,
-        props = {},
-        { newWindow } = {},
-    ) {
+    async switchView(viewType, props = {}, { newWindow } = {}) {
         await this.keepLast.add(Promise.resolve());
         if (this.dialog) {
             // we don't want to switch view when there's a dialog open, as we would
@@ -836,7 +832,9 @@ export class ActionManager {
         if (!jsId) {
             index = this.controllerStack.length - 2;
         } else {
-            index = this.controllerStack.findIndex((controller) => controller.jsId === jsId);
+            index = this.controllerStack.findIndex(
+                (controller) => controller.jsId === jsId,
+            );
         }
         if (index < 0) {
             const msg = jsId

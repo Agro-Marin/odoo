@@ -5,14 +5,13 @@
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
+import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     extractM2OFieldProps,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
-import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
 /**
  * @typedef ReferenceValue
@@ -185,10 +184,12 @@ export class ReferenceField extends Component {
             const { specialDataCaches, orm } = props.record.model;
             const key = `__reference__name_get-${recordData}`;
             if (!specialDataCaches[key]) {
-                specialDataCaches[key] = orm.read(resModel, [resId], ["display_name"]).catch((e) => {
-                    delete specialDataCaches[key];
-                    throw e;
-                });
+                specialDataCaches[key] = orm
+                    .read(resModel, [resId], ["display_name"])
+                    .catch((e) => {
+                        delete specialDataCaches[key];
+                        throw e;
+                    });
             }
             const result = await specialDataCaches[key];
             if (!result[0]) {
@@ -231,10 +232,12 @@ export class ReferenceField extends Component {
         const { specialDataCaches, orm } = props.record.model;
         const key = `__reference__ir_model-${modelId}`;
         if (!specialDataCaches[key]) {
-            specialDataCaches[key] = orm.read("ir.model", [modelId], ["model"]).catch((e) => {
-                delete specialDataCaches[key];
-                throw e;
-            });
+            specialDataCaches[key] = orm
+                .read("ir.model", [modelId], ["model"])
+                .catch((e) => {
+                    delete specialDataCaches[key];
+                    throw e;
+                });
         }
         const result = await specialDataCaches[key];
         return result[0]?.model ?? false;

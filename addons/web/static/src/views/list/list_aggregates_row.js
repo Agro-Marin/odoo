@@ -4,9 +4,9 @@
 /** @module views/list/list_aggregates_row - Footer aggregate row component for ListRenderer */
 
 import { Component, onWillRender, useRef } from "@odoo/owl";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useAutofocus } from "@web/core/utils/hooks";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 import { useListAggregates } from "./list_aggregates.js";
 import { processAllColumns } from "./list_column_utils.js";
@@ -120,7 +120,10 @@ export class ListAggregatesRow extends Component {
                         return false;
                     }
                     if (
-                        evaluateBooleanExpr(col.column_invisible, this.props.list.evalContext)
+                        evaluateBooleanExpr(
+                            col.column_invisible,
+                            this.props.list.evalContext,
+                        )
                     ) {
                         return false;
                     }

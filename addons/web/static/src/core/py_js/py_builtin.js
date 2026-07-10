@@ -124,7 +124,8 @@ function _pythonRound(value, ndigits) {
     }
 
     const roundDigit = Number.parseInt(decPart[ndigits]);
-    const truncStr = ndigits === 0 ? intPart : `${intPart}.${decPart.slice(0, ndigits)}`;
+    const truncStr =
+        ndigits === 0 ? intPart : `${intPart}.${decPart.slice(0, ndigits)}`;
     const truncated = Number.parseFloat(truncStr);
     const increment = 10 ** -ndigits;
 
@@ -238,7 +239,10 @@ export const BUILTINS = {
                 `set expected at most 1 argument, got (${arguments.length - 1})`,
             );
         }
-        return execOnIterable(iterable, (/** @type {any} */ iterable) => new Set(iterable));
+        return execOnIterable(
+            iterable,
+            (/** @type {any} */ iterable) => new Set(iterable),
+        );
     },
 
     max(/** @type {any[]} */ ...args) {
@@ -297,7 +301,9 @@ export const BUILTINS = {
         if (typeof value === "string") {
             const trimmed = value.trim();
             if (!trimmed || !/^[+-]?\d+$/.test(trimmed)) {
-                throw new EvaluationError(`invalid literal for int() with base 10: '${value}'`);
+                throw new EvaluationError(
+                    `invalid literal for int() with base 10: '${value}'`,
+                );
             }
             return Number.parseInt(trimmed, 10);
         }

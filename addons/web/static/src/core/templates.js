@@ -213,7 +213,9 @@ export class TemplateRegistry {
                     });
                 }
             }
-            for (const { template, url } of this.parsedTemplateExtensions[name][otherBlockId]) {
+            for (const { template, url } of this.parsedTemplateExtensions[name][
+                otherBlockId
+            ]) {
                 if (!this.urlFilters.every((filter) => filter(url))) {
                     continue;
                 }
@@ -419,8 +421,9 @@ export class TemplateRegistry {
  *
  * @type {TemplateRegistry}
  */
-export const templates = /** @type {any} */ (globalThis).__odooTemplates__
-    ?? (/** @type {any} */ (globalThis).__odooTemplates__ = new TemplateRegistry());
+export const templates =
+    /** @type {any} */ (globalThis).__odooTemplates__ ??
+    /** @type {any} */ (globalThis.__odooTemplates__ = new TemplateRegistry());
 
 // ---------------------------------------------------------------------------
 // Backward-compatible module-level wrappers

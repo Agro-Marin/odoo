@@ -4,7 +4,6 @@
 /** @module @web/fields/selection/radio/radio_field - Radio button group field for Selection and Many2one columns */
 
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";

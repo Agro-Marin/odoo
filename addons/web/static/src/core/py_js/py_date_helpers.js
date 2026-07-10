@@ -159,11 +159,13 @@ function ord2ymd(n) {
     assert(leapyear === isLeap(year));
     let month = (n + 50) >> 5;
     let preceding =
-        /** @type {number} */ (DAYS_BEFORE_MONTH[month]) + (month > 2 && leapyear ? 1 : 0);
+        /** @type {number} */ (DAYS_BEFORE_MONTH[month]) +
+        (month > 2 && leapyear ? 1 : 0);
     if (preceding > n) {
         --month;
         preceding -=
-            /** @type {number} */ (DAYS_IN_MONTH[month]) + (month === 2 && leapyear ? 1 : 0);
+            /** @type {number} */ (DAYS_IN_MONTH[month]) +
+            (month === 2 && leapyear ? 1 : 0);
     }
     n -= preceding;
     return {

@@ -221,7 +221,9 @@ export function throttleForAnimation(func) {
             handle = browser.requestAnimationFrame(pending);
             const { args, resolve } = lastCall;
             lastCall = null;
-            Promise.resolve(func.apply(self, args)).then(/** @type {(v: any) => any} */ (resolve));
+            Promise.resolve(func.apply(self, args)).then(
+                /** @type {(v: any) => any} */ (resolve),
+            );
         } else {
             handle = null;
         }

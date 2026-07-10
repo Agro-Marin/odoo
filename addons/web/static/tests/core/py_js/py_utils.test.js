@@ -169,7 +169,9 @@ describe("formatAST", () => {
     test("low-precedence sub-expressions keep their parentheses", () => {
         // A conditional expression has the lowest precedence in Python.
         expect(checkAST("1 + (2 if x else 3)", "ternary in addition")).toBe(true);
-        expect(checkAST("(a if x else b) if y else c", "ternary in ternary")).toBe(true);
+        expect(checkAST("(a if x else b) if y else c", "ternary in ternary")).toBe(
+            true,
+        );
         expect(
             evaluateExpr(formatAST(parseExpr("1 + (2 if x else 3)")), { x: false }),
         ).toBe(4);
@@ -184,7 +186,9 @@ describe("formatAST", () => {
     });
 
     test("dictionary keys are escaped", () => {
-        expect(formatAST(parseExpr(String.raw`{'a"b': 1}`))).toBe(String.raw`{"a\"b": 1}`);
+        expect(formatAST(parseExpr(String.raw`{'a"b': 1}`))).toBe(
+            String.raw`{"a\"b": 1}`,
+        );
         expect(checkAST(String.raw`{"a\"b": 1}`, "dict key with a double quote")).toBe(
             true,
         );

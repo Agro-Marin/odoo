@@ -5,13 +5,13 @@
 
 import { Component, onWillRender, useEffect, useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
+import { ModelEvent } from "@web/core/events";
 import {
     areDatesEqual,
     deserializeDate,
     deserializeDateTime,
     today,
 } from "@web/core/l10n/dates";
-import { ModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";

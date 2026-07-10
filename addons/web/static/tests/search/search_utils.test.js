@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { mockDate, mockTimeZone } from "@odoo/hoot-mock";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 import { constructDateDomain } from "@web/search/utils/dates";
 
 describe.current.tags("headless");

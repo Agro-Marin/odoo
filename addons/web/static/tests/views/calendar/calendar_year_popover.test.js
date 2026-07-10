@@ -144,11 +144,20 @@ test(`getSortedRecordGroups is a valid total order`, async () => {
     ];
 
     const expected = ["A", "B", "C", "D", "E"];
-    const titles = (groups) => popover.getSortedRecordGroups(groups).map((g) => g.title);
+    const titles = (groups) =>
+        popover.getSortedRecordGroups(groups).map((g) => g.title);
 
     // Same-day groups first, then multi-day sorted by start, then end.
     expect(titles(makeGroups())).toEqual(expected);
     // Total order: the sorted result is independent of the input order.
     expect(titles(makeGroups().reverse())).toEqual(expected);
-    expect(titles([makeGroups()[3], makeGroups()[0], makeGroups()[4], makeGroups()[1], makeGroups()[2]])).toEqual(expected);
+    expect(
+        titles([
+            makeGroups()[3],
+            makeGroups()[0],
+            makeGroups()[4],
+            makeGroups()[1],
+            makeGroups()[2],
+        ]),
+    ).toEqual(expected);
 });

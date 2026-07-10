@@ -6,9 +6,9 @@
 import { Select } from "@web/components/tree_editor/tree_editor_components";
 import { _t } from "@web/core/l10n/translation";
 import {
-    OPERATOR_DESCRIPTIONS,
     getOperatorInfo,
     getOperatorLabel,
+    OPERATOR_DESCRIPTIONS,
     toOperator,
 } from "@web/core/tree/operator_labels";
 

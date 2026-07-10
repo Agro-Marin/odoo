@@ -134,9 +134,9 @@ test("block-ui: overlay is released when the awaited task is superseded", async 
 
 test("block-ui: overlay is released on a missing-type error", async () => {
     const am = makeFakeAm();
-    await expect(
-        executeActionButton(am, { name: 1, "block-ui": "1" }),
-    ).rejects.toThrow(/Missing type/);
+    await expect(executeActionButton(am, { name: 1, "block-ui": "1" })).rejects.toThrow(
+        /Missing type/,
+    );
     expect(am.__ui.count).toBe(0);
 });
 
@@ -186,9 +186,16 @@ test("args: a non-list value raises InvalidButtonParamsError", async () => {
 test("buildCallButtonArgs: record id(s) then the parsed args list", () => {
     expect(buildCallButtonArgs({ resId: 5 })).toEqual([[5]]);
     expect(buildCallButtonArgs({ resIds: [1, 2] })).toEqual([[1, 2]]);
-    expect(buildCallButtonArgs({ resId: 5, name: "a", args: "[1, 'x']" })).toEqual([[5], 1, "x"]);
+    expect(buildCallButtonArgs({ resId: 5, name: "a", args: "[1, 'x']" })).toEqual([
+        [5],
+        1,
+        "x",
+    ]);
     // apostrophe inside a string round-trips (the L2 contract via evaluateExpr)
-    expect(buildCallButtonArgs({ resId: 5, name: "a", args: `["it's"]` })).toEqual([[5], "it's"]);
+    expect(buildCallButtonArgs({ resId: 5, name: "a", args: `["it's"]` })).toEqual([
+        [5],
+        "it's",
+    ]);
 });
 
 test("buildCallButtonArgs: an unparseable expression raises InvalidButtonParamsError", () => {

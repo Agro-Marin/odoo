@@ -4,7 +4,6 @@
 /** @module @web/fields/specialized/properties/property_value - Polymorphic value editor component supporting all property field types */
 
 import { Component } from "@odoo/owl";
-import { deepCopy } from "@web/core/utils/collections/objects";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -20,6 +19,7 @@ import {
     serializeDateTime,
 } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
+import { deepCopy } from "@web/core/utils/collections/objects";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
@@ -249,7 +249,9 @@ export class PropertyValue extends Component {
         } else if (this.props.type === "date" && value) {
             return formatDate(value);
         } else if (this.props.type === "selection") {
-            return this.props.selection.find((option) => option[0] === value)?.[1] ?? value;
+            return (
+                this.props.selection.find((option) => option[0] === value)?.[1] ?? value
+            );
         }
         return value.toString();
     }

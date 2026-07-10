@@ -7,6 +7,10 @@ import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
+import { TreeEditor } from "@web/components/tree_editor/tree_editor";
+import { getOperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor";
+import { Domain } from "@web/core/domain";
+import { _t } from "@web/core/l10n/translation";
 import {
     areEqualTrees,
     condition,
@@ -14,10 +18,6 @@ import {
     formatValue,
 } from "@web/core/tree/condition_tree";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
-import { TreeEditor } from "@web/components/tree_editor/tree_editor";
-import { getOperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor";
-import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { getDefaultCondition } from "./utils.js";

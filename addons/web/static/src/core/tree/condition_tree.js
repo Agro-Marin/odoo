@@ -52,6 +52,7 @@
 import { Domain } from "@web/core/domain";
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { toPyValue } from "@web/core/py_js/py_utils";
+
 import { ASTType } from "../py_js/ast_type.js";
 export class Expression {
     /**
@@ -148,7 +149,10 @@ export function cloneTree(tree) {
 const areEqualValues = (/** @type {Value} */ value, /** @type {Value} */ otherValue) =>
     formatValue(value) === formatValue(otherValue);
 
-const areEqualArraysOfTrees = (/** @type {Tree[]} */ array, /** @type {Tree[]} */ otherArray) => {
+const areEqualArraysOfTrees = (
+    /** @type {Tree[]} */ array,
+    /** @type {Tree[]} */ otherArray,
+) => {
     if (array.length !== otherArray.length) {
         return false;
     }
@@ -212,7 +216,11 @@ export function toValue(ast, isWithinArray = false) {
         return ast.value.map((/** @type {any} */ v) => toValue(v, true));
     } else if ([ASTType.Number, ASTType.String, ASTType.Boolean].includes(ast.type)) {
         return ast.value;
-    } else if (ast.type === ASTType.UnaryOperator && ast.op === "-" && ast.right.type === ASTType.Number) {
+    } else if (
+        ast.type === ASTType.UnaryOperator &&
+        ast.op === "-" &&
+        ast.right.type === ASTType.Number
+    ) {
         return -ast.right.value;
     } else if (ast.type === ASTType.Name && ["false", "true"].includes(ast.value)) {
         return JSON.parse(ast.value);
@@ -329,12 +337,7 @@ function makeOptions(path, options) {
  * @param {"condition"|"connector"|"complex_condition"} [treeType="condition"]
  * @returns {Tree}
  */
-export function operate(
-    transformation,
-    tree,
-    options = {},
-    treeType = "condition",
-) {
+export function operate(transformation, tree, options = {}, treeType = "condition") {
     if (tree.type === "connector") {
         const newTree = {
             ...tree,

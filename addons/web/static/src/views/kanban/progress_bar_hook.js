@@ -229,7 +229,11 @@ class ProgressBarState {
             }
         }
         value ||= 0;
-        if (aggregateField && aggregateField.type === "monetary" && aggregateField.currency_field) {
+        if (
+            aggregateField &&
+            aggregateField.type === "monetary" &&
+            aggregateField.currency_field
+        ) {
             const aggValues = _findGroup(
                 this._aggregateValues,
                 groupByField,
@@ -320,7 +324,11 @@ class ProgressBarState {
             ? Domain.and([group.groupDomain, filterDomain]).toList()
             : group.groupDomain;
         const groups = await this.model.orm.formattedReadGroup(
-            resModel, domain, groupBy, aggregateSpecs, kwargs,
+            resModel,
+            domain,
+            groupBy,
+            aggregateSpecs,
+            kwargs,
         );
         if (epoch !== this._aggEpoch) {
             return;
@@ -372,7 +380,10 @@ class ProgressBarState {
         // If the selected bar is empty, remove the selection. Use a distinct loop
         // variable so it does not shadow the `group` parameter above.
         for (const emptyGroup of this.model.root.groups) {
-            if (this.activeBars[emptyGroup.serverValue] && emptyGroup.list.count === 0) {
+            if (
+                this.activeBars[emptyGroup.serverValue] &&
+                emptyGroup.list.count === 0
+            ) {
                 // Fire-and-forget: selectBar awaits applyFilter RPCs, so a rejection
                 // would surface as an unhandled rejection -- catch it like the two
                 // refreshes above.

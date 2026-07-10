@@ -20,7 +20,10 @@ import { Modal } from "bootstrap";
 
 // Keep theme in sync if the user changes OS preference while the page is open
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    document.documentElement.setAttribute("data-bs-theme", e.matches ? "dark" : "light");
+    document.documentElement.setAttribute(
+        "data-bs-theme",
+        e.matches ? "dark" : "light",
+    );
 });
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -68,7 +71,9 @@ document.addEventListener("DOMContentLoaded", function () {
             );
             if (confirmInput) {
                 confirmInput.value = "";
-                confirmInput.setCustomValidity("Please type the database name to confirm deletion.");
+                confirmInput.setCustomValidity(
+                    "Please type the database name to confirm deletion.",
+                );
             }
         });
         deleteModal.addEventListener("input", function (ev) {

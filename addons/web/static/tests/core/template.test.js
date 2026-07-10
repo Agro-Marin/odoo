@@ -7,8 +7,8 @@ import {
     registerTemplate,
     registerTemplateExtension,
     setUrlFilters,
-    templates,
     TemplateRegistry,
+    templates,
 } from "@web/core/templates";
 
 function makeTemplate({ name, content, inheritFrom }) {

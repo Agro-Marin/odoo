@@ -4,7 +4,6 @@
 /** @module @web/fields/basic/float_factor/float_factor_field - Float field that applies a multiplication factor for display and storage */
 
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 
@@ -55,7 +54,9 @@ export const floatFactorField = {
         },
     ],
     extractProps({ options }) {
-        const props = /** @type {any} */ (floatField.extractProps(.../** @type {any} */ (arguments)));
+        const props = /** @type {any} */ (
+            floatField.extractProps(.../** @type {any} */ (arguments))
+        );
         props.factor = options.factor;
         return props;
     },

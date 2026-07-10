@@ -13,6 +13,7 @@ import { markRaw, markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { modelLog } from "@web/core/utils/asset_log";
+
 import { FetchRecordError } from "./errors.js";
 import { getBasicEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -132,8 +133,15 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         if (
             field?.type &&
             ![
-                "one2many", "many2many", "binary", "html",
-                "date", "datetime", "json", "properties", "reference",
+                "one2many",
+                "many2many",
+                "binary",
+                "html",
+                "date",
+                "datetime",
+                "json",
+                "properties",
+                "reference",
             ].includes(field.type) &&
             // jsonb-backed columns: the server-side raw read returns a
             // per-lang / per-company dict, never comparable to the scalar
@@ -223,7 +231,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         }
         return succeeded;
     }
-    const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(record, changes);
+    const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(
+        record,
+        changes,
+    );
     if (canProceed === false) {
         return false;
     }

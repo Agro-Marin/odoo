@@ -11,8 +11,8 @@
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 
-import { isBool, isNot } from "./ast_utils.js";
 import { ASTType } from "../py_js/ast_type.js";
+import { isBool, isNot } from "./ast_utils.js";
 import {
     astFromValue,
     condition,
@@ -31,7 +31,12 @@ function bool(ast) {
     if (isBool(ast) || isNot(ast) || ast.type === ASTType.Boolean) {
         return ast;
     }
-    return { type: ASTType.FunctionCall, fn: { type: ASTType.Name, value: "bool" }, args: [ast], kwargs: {} };
+    return {
+        type: ASTType.FunctionCall,
+        fn: { type: ASTType.Name, value: "bool" },
+        args: [ast],
+        kwargs: {},
+    };
 }
 
 /**

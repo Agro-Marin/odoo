@@ -87,11 +87,15 @@ describe("combineModifiers — AND", () => {
     });
 
     test("True AND expr = expr", () => {
-        expect(combineModifiers("True", "state == 'done'", "AND")).toBe("state == 'done'");
+        expect(combineModifiers("True", "state == 'done'", "AND")).toBe(
+            "state == 'done'",
+        );
     });
 
     test("expr AND True = expr", () => {
-        expect(combineModifiers("state == 'done'", "True", "AND")).toBe("state == 'done'");
+        expect(combineModifiers("state == 'done'", "True", "AND")).toBe(
+            "state == 'done'",
+        );
     });
 
     test("two expressions joined with AND", () => {
@@ -107,7 +111,9 @@ describe("combineModifiers — OR", () => {
     });
 
     test("False OR expr = expr", () => {
-        expect(combineModifiers("False", "state == 'done'", "OR")).toBe("state == 'done'");
+        expect(combineModifiers("False", "state == 'done'", "OR")).toBe(
+            "state == 'done'",
+        );
     });
 
     test("falsy OR expr = expr", () => {
@@ -187,7 +193,10 @@ describe("patchActiveFields", () => {
 
     test("defaultOrderBy set from patch", () => {
         const base = makeActiveField();
-        const patch = { ...makeActiveField(), defaultOrderBy: [{ name: "name", asc: true }] };
+        const patch = {
+            ...makeActiveField(),
+            defaultOrderBy: [{ name: "name", asc: true }],
+        };
         patchActiveFields(base, patch);
         expect(base.defaultOrderBy).toEqual([{ name: "name", asc: true }]);
     });

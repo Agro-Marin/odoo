@@ -103,7 +103,11 @@ export const localizationService = {
             const url = `${translationURL}${queryString}`;
             const preload = /** @type {any} */ (odoo);
             let responsePromise;
-            if (!hash && preload.loadTranslationsPromise && preload.loadTranslationsURL === url) {
+            if (
+                !hash &&
+                preload.loadTranslationsPromise &&
+                preload.loadTranslationsURL === url
+            ) {
                 // Cold boot: adopt the parse-time preload started by
                 // web.webclient_bootstrap instead of fetching again.
                 l10nLog("fetch", "fetchTranslations adopting preload", `url=${url}`);

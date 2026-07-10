@@ -15,9 +15,9 @@
  * Module under test: model/relational_model/record_save.js
  */
 
-import { markRaw } from "@odoo/owl";
 import { describe, expect, test } from "@odoo/hoot";
 import { mockSendBeacon } from "@odoo/hoot-mock";
+import { markRaw } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { save } from "@web/model/relational_model/record_save";
@@ -102,8 +102,7 @@ function makeRecord({
             },
             orm: {
                 webSave:
-                    webSave ??
-                    (async () => (resId ? [{ id: resId }] : [{ id: 99 }])),
+                    webSave ?? (async () => (resId ? [{ id: resId }] : [{ id: 99 }])),
             },
         },
     };

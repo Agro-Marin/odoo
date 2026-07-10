@@ -4,9 +4,8 @@
 /** @module @web/fields/basic/color/color_field - Native color picker input field for Char columns */
 
 import { Component } from "@odoo/owl";
-
-import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ColorField extends Component {

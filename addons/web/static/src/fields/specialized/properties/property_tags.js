@@ -10,9 +10,8 @@ import { useTagNavigation } from "@web/components/record_selectors/tag_navigatio
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
-
-import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
 

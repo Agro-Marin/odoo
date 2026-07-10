@@ -8,8 +8,8 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
+import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 
 // ---------------------------------------------------------------------------
 // Helpers

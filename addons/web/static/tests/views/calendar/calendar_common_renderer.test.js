@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, queryAllTexts, queryFirst, queryRect } from "@odoo/hoot-dom";
 import { mockDate, runAllTimers } from "@odoo/hoot-mock";
@@ -10,6 +9,7 @@ import {
     preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
 import { CallbackRecorder } from "@web/core/action_hook";
+import { luxon } from "@web/core/l10n/luxon";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 
 import {
@@ -221,7 +221,13 @@ test(`o_past_event: an all-day event on its last day today is not styled past`, 
     const model = {
         ...FAKE_MODEL,
         records: {
-            10: { id: 10, title: "all day today", isAllDay: true, start: today, end: today },
+            10: {
+                id: 10,
+                title: "all day today",
+                isAllDay: true,
+                start: today,
+                end: today,
+            },
             11: {
                 id: 11,
                 title: "all day yesterday",
@@ -240,7 +246,9 @@ test(`o_past_event: an all-day event on its last day today is not styled past`, 
     };
     const renderer = await start({ model });
     // FIX: today's all-day event is not past.
-    expect(renderer.eventClassNames({ event: { id: 10 } })).not.toInclude("o_past_event");
+    expect(renderer.eventClassNames({ event: { id: 10 } })).not.toInclude(
+        "o_past_event",
+    );
     // Regression guards: a genuinely finished event is still styled past.
     expect(renderer.eventClassNames({ event: { id: 11 } })).toInclude("o_past_event");
     expect(renderer.eventClassNames({ event: { id: 12 } })).toInclude("o_past_event");

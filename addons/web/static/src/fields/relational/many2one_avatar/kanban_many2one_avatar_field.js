@@ -26,13 +26,16 @@ export class KanbanMany2OneAvatarField extends Component {
     }
 }
 
-registerField({ name: "many2one_avatar", view: "kanban" }, {
-    ...buildM2OFieldDescription(KanbanMany2OneAvatarField),
-    additionalClasses: ["o_field_many2one_avatar_kanban"],
-    extractProps(staticInfo, dynamicInfo) {
-        return {
-            ...extractM2OFieldProps(staticInfo, dynamicInfo),
-            readonly: dynamicInfo.readonly,
-        };
+registerField(
+    { name: "many2one_avatar", view: "kanban" },
+    {
+        ...buildM2OFieldDescription(KanbanMany2OneAvatarField),
+        additionalClasses: ["o_field_many2one_avatar_kanban"],
+        extractProps(staticInfo, dynamicInfo) {
+            return {
+                ...extractM2OFieldProps(staticInfo, dynamicInfo),
+                readonly: dynamicInfo.readonly,
+            };
+        },
     },
-});
+);

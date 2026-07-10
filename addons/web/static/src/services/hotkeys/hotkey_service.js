@@ -453,7 +453,9 @@ export const hotkeyService = {
             });
 
             registrations.set(token, registration);
-            let sameHotkeyRegistrations = registrationsByHotkey.get(registration.hotkey);
+            let sameHotkeyRegistrations = registrationsByHotkey.get(
+                registration.hotkey,
+            );
             if (!sameHotkeyRegistrations) {
                 sameHotkeyRegistrations = new Set();
                 registrationsByHotkey.set(registration.hotkey, sameHotkeyRegistrations);

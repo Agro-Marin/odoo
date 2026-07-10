@@ -449,7 +449,7 @@ export class Many2XAutocomplete extends Component {
     addCreateEditSuggestion({ records, request }) {
         return Boolean(
             (this.activeActions.createEdit ?? this.activeActions.create) &&
-                (request.length || records?.length === 0),
+            (request.length || records?.length === 0),
         );
     }
 

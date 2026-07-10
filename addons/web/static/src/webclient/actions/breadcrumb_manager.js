@@ -105,7 +105,9 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
             );
         }
     }
-    const results = await Promise.all(controllerKeys.map((ck) => breadcrumbCache[ck.key]));
+    const results = await Promise.all(
+        controllerKeys.map((ck) => breadcrumbCache[ck.key]),
+    );
     const controllersToRemove = [];
     for (const [{ controller }, res] of zip(controllerKeys, results)) {
         if ("display_name" in res) {

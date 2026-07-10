@@ -4,10 +4,9 @@
 /** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field - Chart.js graph field for accounting journal dashboard data */
 
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
-import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor, hexToRGBA } from "@web/core/colors/colors";
-
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

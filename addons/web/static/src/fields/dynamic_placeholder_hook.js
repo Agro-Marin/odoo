@@ -30,7 +30,8 @@ export function useDynamicPlaceholder(elementRef) {
             return;
         }
         let rangeIndex = Number.parseInt(
-            element.getAttribute("data-oe-dynamic-placeholder-range-index"), 10,
+            element.getAttribute("data-oe-dynamic-placeholder-range-index"),
+            10,
         );
         // When the user cancel/close the popover, the path is empty.
         if (path) {

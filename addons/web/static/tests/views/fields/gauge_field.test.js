@@ -44,7 +44,9 @@ test("GaugeField in kanban view", async () => {
         setup() {
             super.setup();
             onMounted(() => {
-                maxes.push(this.chart.config.options.plugins.tooltip.callbacks.label({}));
+                maxes.push(
+                    this.chart.config.options.plugins.tooltip.callbacks.label({}),
+                );
             });
         },
     });

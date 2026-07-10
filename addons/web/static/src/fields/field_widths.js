@@ -89,17 +89,14 @@ function computeOptimalDateWidths() {
         );
         if (timeFormat === "hh:mm:ss a") {
             values.datetime.push(
-                toLocaleDateTimeString(
-                    DateTime.local(2017, month, 25, 22, 0, 0),
-                    { showSeconds: true },
-                ),
+                toLocaleDateTimeString(DateTime.local(2017, month, 25, 22, 0, 0), {
+                    showSeconds: true,
+                }),
             );
         }
     }
     values.numericDate.push(formatDate(DateTime.local(2017, 1, 1)));
-    values.numericDatetime.push(
-        formatDateTime(DateTime.local(2017, 1, 1, 10, 0, 0)),
-    );
+    values.numericDatetime.push(formatDateTime(DateTime.local(2017, 1, 1, 10, 0, 0)));
     if (timeFormat === "hh:mm:ss a") {
         values.numericDatetime.push(
             formatDateTime(DateTime.local(2017, 1, 1, 22, 0, 0)),

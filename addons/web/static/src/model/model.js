@@ -22,8 +22,8 @@ import { useService } from "@web/core/utils/hooks";
 import { SignalStore } from "@web/core/utils/reactive";
 import { featureFlag } from "@web/services/feature_flags";
 
-import { buildSampleORM } from "./sample_server.js";
 import { SampleDataCoordinator } from "./sample_data_coordinator.js";
+import { buildSampleORM } from "./sample_server.js";
 import { validateSearchParams } from "./search_params_schema.js";
 
 /** @import { OdooEnv } from "@web/env" */
@@ -257,8 +257,7 @@ function _isSearchParamsValidationEnabled() {
         return _searchParamsValidationCache;
     }
     _searchParamsValidationCache = Boolean(
-        odoo.debug ||
-            featureFlag("search_params_validation", { default: false }),
+        odoo.debug || featureFlag("search_params_validation", { default: false }),
     );
     return _searchParamsValidationCache;
 }
@@ -349,9 +348,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
         const onUpdate = () => component.render(true);
         model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
-        onWillUnmount(() =>
-            model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate),
-        );
+        onWillUnmount(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
     }
 
     const globalState = component.props.globalState || {};
@@ -378,7 +375,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         // Same save/load race guard as useModel's onWillUpdateProps; no-op
         // for model classes without a mutex (graph, pivot) and when idle.
         if (/** @type {any} */ (model).mutex?.locked) {
-            await (/** @type {any} */ (model)._askChanges?.());
+            await /** @type {any} */ (model)._askChanges?.();
         }
         const searchParams = getSearchParams(props);
         await model.load(searchParams);

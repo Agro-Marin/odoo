@@ -11,6 +11,7 @@ import {
     useComponent,
     useRef,
 } from "@odoo/owl";
+import { Settings } from "@web/core/l10n/luxon";
 /**
  * OWL hook that manages a FullCalendar instance lifecycle.
  *
@@ -22,7 +23,6 @@ import {
  * @returns {{ api: FullCalendar.Calendar, el: HTMLElement }} accessor for the calendar instance and DOM element
  */
 import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
-import { Settings } from "@web/core/l10n/luxon";
 
 /**
  * Returns a time-zone identifier safe to pass to ``new Calendar({ timeZone })``.
@@ -320,8 +320,10 @@ export function useFullCalendar(refName, paramsOrGetter) {
         //      before view/date changes worked because the fetch was
         //      view-agnostic — v7 ranges fetches by date window.
         const currentViewType = instance.view?.type;
-        const targetView = typeof params.initialView === "string" ? params.initialView : null;
-        const targetDate = typeof params.initialDate !== "undefined" ? params.initialDate : null;
+        const targetView =
+            typeof params.initialView === "string" ? params.initialView : null;
+        const targetDate =
+            typeof params.initialDate !== "undefined" ? params.initialDate : null;
         if (targetView && currentViewType && currentViewType !== targetView) {
             try {
                 instance.changeView(targetView, targetDate);

@@ -16,8 +16,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import {
     makeIsVisibleExpr,
-    useViewCompiler,
     resetViewCompilerCache,
+    useViewCompiler,
 } from "@web/views/view_compiler";
 
 // ---------------------------------------------------------------------------

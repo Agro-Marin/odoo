@@ -9,7 +9,6 @@ import { ChangeSet } from "./change_set.js";
 import { DataPoint } from "./datapoint.js";
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
 import { Operation } from "./operation.js";
-import { processProperties } from "./record_properties.js";
 import {
     archive,
     deleteRecord,
@@ -17,13 +16,14 @@ import {
     unarchive,
 } from "./record_lifecycle.js";
 import {
+    preprocessHtmlChanges,
     preprocessMany2oneChanges,
     preprocessMany2OneReferenceChanges,
+    preprocessPropertiesChanges,
     preprocessReferenceChanges,
     preprocessX2manyChanges,
-    preprocessPropertiesChanges,
-    preprocessHtmlChanges,
 } from "./record_preprocessors.js";
+import { processProperties } from "./record_properties.js";
 import { save } from "./record_save.js";
 import { addSavePoint, discard } from "./record_savepoint.js";
 import {
@@ -649,12 +649,7 @@ export class RelationalRecord extends DataPoint {
             ) => this._update({ [fieldName]: [] }, { withoutOnchange }),
             parent: this,
         };
-        return new this.model.Class.StaticList(
-            this.model,
-            config,
-            data,
-            options,
-        );
+        return new this.model.Class.StaticList(this.model, config, data, options);
     }
 
     _discard() {
@@ -992,7 +987,10 @@ export class RelationalRecord extends DataPoint {
             // the default hook is a no-op and ``_getChanges()`` (recursive x2many
             // command build for new records / dirty x2many) would be discarded.
             if (this.model.hasOnRecordChangedHook) {
-                await this.model.hooks.lifecycle.onRecordChanged(this, this._getChanges());
+                await this.model.hooks.lifecycle.onRecordChanged(
+                    this,
+                    this._getChanges(),
+                );
             }
         }
     }

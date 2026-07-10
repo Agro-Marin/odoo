@@ -2,8 +2,8 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
-import lazyloader from "@web/legacy/js/public/lazyloader";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import lazyloader from "@web/legacy/js/public/lazyloader";
 
 // `lazyloader` (src/legacy/js/public/lazyloader.js) is production code shipped
 // in `web.assets_frontend_minimal`: it blocks button/form events until the

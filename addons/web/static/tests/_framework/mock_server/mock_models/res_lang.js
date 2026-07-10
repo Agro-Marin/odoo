@@ -5,9 +5,7 @@ import { ServerModel } from "../mock_model.js";
 export class ResLang extends ServerModel {
     _name = "res.lang";
 
-    _records = [
-        { id: 1, code: "en_US", name: "English (US)", direction: "ltr" },
-    ];
+    _records = [{ id: 1, code: "en_US", name: "English (US)", direction: "ltr" }];
 
     /**
      * Default ``get_installed`` mock matching the production endpoint shape:

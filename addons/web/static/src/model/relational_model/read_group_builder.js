@@ -3,15 +3,12 @@
 
 /** @module @web/model/relational_model/read_group_builder - Pure assembly of the kwargs payload sent to web_read_group */
 
-import { orderByToString } from "@web/core/utils/order_by";
 import { pick } from "@web/core/utils/collections/objects";
+import { orderByToString } from "@web/core/utils/order_by";
 
 import { getBasicEvalContext } from "./field_context.js";
-import {
-    getAggregateSpecifications,
-    getGroupServerValue,
-} from "./field_values.js";
 import { getFieldsSpec } from "./field_spec.js";
+import { getAggregateSpecifications, getGroupServerValue } from "./field_values.js";
 
 /** @import { RelationalModelConfig } from "./relational_model" */
 
@@ -84,22 +81,14 @@ export function buildWebReadGroupParams(config, deps) {
     const currentGroupInfos = buildOpeningInfo(config.groups);
     const { activeFields, fields } = config;
     const evalContext = getBasicEvalContext(config);
-    const unfoldReadSpecification = getFieldsSpec(
-        activeFields,
-        fields,
-        evalContext,
-    );
+    const unfoldReadSpecification = getFieldsSpec(activeFields, fields, evalContext);
 
     const groupByReadSpecification = {};
     for (const groupBy of config.groupBy) {
         const groupInfo = groupByInfo[groupBy];
         if (groupInfo) {
             const { activeFields: gAf, fields: gF } = groupInfo;
-            groupByReadSpecification[groupBy] = getFieldsSpec(
-                gAf,
-                gF,
-                evalContext,
-            );
+            groupByReadSpecification[groupBy] = getFieldsSpec(gAf, gF, evalContext);
         }
     }
 

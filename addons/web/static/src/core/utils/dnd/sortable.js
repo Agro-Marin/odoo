@@ -100,10 +100,12 @@ const hookParams = {
     },
 
     // Build steps
-    onComputeParams(/** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
-        ctx,
-        params,
-    }) {
+    onComputeParams(
+        /** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
+            ctx,
+            params,
+        },
+    ) {
         // Group selector
         ctx.groupSelector = params.groups || null;
         if (ctx.groupSelector) {
@@ -120,12 +122,14 @@ const hookParams = {
     },
 
     // Runtime steps
-    onDragStart(/** @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }} */ {
-        ctx,
-        addListener,
-        addStyle,
-        callHandler,
-    }) {
+    onDragStart(
+        /** @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }} */ {
+            ctx,
+            addListener,
+            addStyle,
+            callHandler,
+        },
+    ) {
         const { connectGroups, current, elementSelector, groupSelector, ref } = ctx;
 
         /**
@@ -167,7 +171,7 @@ const hookParams = {
             }
             const siblingArray = [
                 // The dragged/target item is always attached to its list here.
-                ...(/** @type {HTMLElement} */ (element.parentElement)).children,
+                .../** @type {HTMLElement} */ (element.parentElement).children,
             ].filter(
                 (el) =>
                     el === current.placeHolder ||
@@ -224,7 +228,7 @@ const hookParams = {
 
             const siblingArray = [
                 // The dragged/target item is always attached to its list here.
-                ...(/** @type {HTMLElement} */ (element.parentElement)).children,
+                .../** @type {HTMLElement} */ (element.parentElement).children,
             ].filter(
                 (el) =>
                     el === current.placeHolder ||
@@ -414,10 +418,12 @@ const hookParams = {
             };
         }
     },
-    onWillStartDrag(/** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
-        ctx,
-        addCleanup,
-    }) {
+    onWillStartDrag(
+        /** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
+            ctx,
+            addCleanup,
+        },
+    ) {
         const { connectGroups, current, groupSelector } = ctx;
 
         if (groupSelector) {

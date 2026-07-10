@@ -3,12 +3,7 @@
 
 /** @module @web/views/calendar/calendar_year/calendar_year_renderer - Year-scale renderer displaying 12 mini month grids with background events */
 
-import {
-    Component,
-    useEffect,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { Component, useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info, Interval, Settings } from "@web/core/l10n/luxon";
@@ -48,9 +43,8 @@ export class CalendarYearRenderer extends Component {
             // ``events`` callbacks that depend on model state — capturing
             // the object once would strand the calendars on the first-mount
             // values when the user navigates between years.
-            this.fcs[month] = useFullCalendar(
-                `fullCalendar-${month}`,
-                () => this.getOptionsForMonth(month),
+            this.fcs[month] = useFullCalendar(`fullCalendar-${month}`, () =>
+                this.getOptionsForMonth(month),
             );
         }
         this.popover = useCalendarPopover(
@@ -83,9 +77,7 @@ export class CalendarYearRenderer extends Component {
             // ``dayCellClassNames`` for the per-state mapping.
             class: "fc",
             viewClass: ({ view }) =>
-                view && view.type
-                    ? `fc-view fc-${view.type}-view`
-                    : "fc-view",
+                view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
             dayCellClass: this.dayCellClass,
             dayCellInnerClass: "fc-daygrid-day-frame",
             dayCellTopClass: "fc-daygrid-day-top",
@@ -248,10 +240,9 @@ export class CalendarYearRenderer extends Component {
         // With date value we don't want to change the time, we need the exact date
         const date = DateTime.fromISO(info.dateStr);
         const records = Object.values(this.props.model.records).filter((r) =>
-            Interval.fromDateTimes(
-                r.start.startOf("day"),
-                r.end.endOf("day"),
-            ).contains(date),
+            Interval.fromDateTimes(r.start.startOf("day"), r.end.endOf("day")).contains(
+                date,
+            ),
         );
 
         this.popover.close();

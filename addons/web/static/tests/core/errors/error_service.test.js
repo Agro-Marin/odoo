@@ -570,7 +570,11 @@ describe("Error Service Logs", () => {
         patchWithCleanup(console, {
             error(errorMessage) {
                 const msg = String(errorMessage);
-                if (msg.startsWith('@web/services/error_service: handler "__test_handler__"')) {
+                if (
+                    msg.startsWith(
+                        '@web/services/error_service: handler "__test_handler__"',
+                    )
+                ) {
                     expect(msg).toMatch(
                         /failed with "Error: Boom in handler" while trying to handle:\nError: Genuine Business Boom/,
                     );

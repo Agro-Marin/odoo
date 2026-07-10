@@ -19,9 +19,9 @@ import {
     getCustomColor,
     lightenColor,
 } from "@web/core/colors/colors";
+import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
-import { getFieldCodec } from "@web/core/field_codec";
 import { formatFloat, formatMonetary } from "@web/fields/formatters";
 
 import { SEP } from "./graph_model.js";
@@ -437,8 +437,7 @@ export function buildScaleOptions(data, metaData) {
                     : null,
         },
         ticks: {
-            callback: (value) =>
-                formatValue(value, false, fieldAttrs[measure]?.widget),
+            callback: (value) => formatValue(value, false, fieldAttrs[measure]?.widget),
             color: GRAPH_LABEL_COLOR,
         },
         stacked: mode === "line" && stacked ? stacked : undefined,
@@ -475,8 +474,7 @@ export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDatas
         const index = /** @type {any} */ (item).dataIndex;
         // If `datasetIndex` is not found in the `datasets`, then it refers to the `lineOverlayDataset`.
         const dataset =
-            data.datasets[/** @type {any} */ (item).datasetIndex] ||
-            lineOverlayDataset;
+            data.datasets[/** @type {any} */ (item).datasetIndex] || lineOverlayDataset;
         let label = dataset.trueLabels[index];
         let value = dataset.data[index];
         const measureWidget = metaData.fieldAttrs[measure]?.widget;

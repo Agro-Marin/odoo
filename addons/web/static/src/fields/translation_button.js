@@ -4,11 +4,11 @@
 /** @module @web/fields/translation_button - Translation button component and useTranslationDialog hook for translatable fields */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { localization } from "@web/core/l10n/localization";
+import { _t } from "@web/core/l10n/translation";
 import { useOwnedDialogs } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 import { RelationalRecord } from "@web/model/relational_model/record";
+import { user } from "@web/services/user";
 
 import { TranslationDialog } from "./translation_dialog.js";
 
@@ -70,7 +70,9 @@ export class TranslationButton extends Component {
         return !this.isClickable ? { "text-muted": true } : undefined;
     }
     buttonTooltip() {
-        return !this.isClickable ? _t("Save this record and its parent to translate") : undefined;
+        return !this.isClickable
+            ? _t("Save this record and its parent to translate")
+            : undefined;
     }
 
     /** @returns {boolean} */

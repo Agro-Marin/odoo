@@ -24,7 +24,11 @@ import { ResLang } from "./_framework/mock_server/mock_models/res_lang.js";
 import { ResPartner } from "./_framework/mock_server/mock_models/res_partner.js";
 import { ResUsers } from "./_framework/mock_server/mock_models/res_users.js";
 import { ResUsersSettings } from "./_framework/mock_server/mock_models/res_users_settings.js";
-import { defineModels, setDefaultMockModels, setDefaultMockRoute } from "./_framework/mock_server/mock_server.js";
+import {
+    defineModels,
+    setDefaultMockModels,
+    setDefaultMockRoute,
+} from "./_framework/mock_server/mock_server.js";
 import { globalCachedFetch } from "./_framework/module_set.hoot.js";
 
 /**
@@ -88,7 +92,10 @@ export {
     validateKanbanColumn,
     validateKanbanRecord,
 } from "./_framework/kanban_test_helpers.js";
-export { Command, registerInlineViewArchs } from "./_framework/mock_server/mock_model.js";
+export {
+    Command,
+    registerInlineViewArchs,
+} from "./_framework/mock_server/mock_model.js";
 export {
     authenticate,
     defineActions,
@@ -283,4 +290,3 @@ setDefaultMockModels({ IrHttp });
 // runtime by ``store_service.fetchReadonly`` and tests don't pin it.
 setDefaultMockRoute("/mail/data", () => ({}));
 setDefaultMockRoute("/mail/action", () => ({}));
-

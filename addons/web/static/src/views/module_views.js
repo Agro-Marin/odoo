@@ -28,12 +28,7 @@ export class ResetModuleStateCogMenu extends Component {
     }
 
     async resetModuleState() {
-        await this.orm.call(
-            "ir.module.module",
-            "button_reset_state",
-            [],
-            {},
-        );
+        await this.orm.call("ir.module.module", "button_reset_state", [], {});
         browser.location.reload();
     }
 }

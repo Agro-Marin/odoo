@@ -3,8 +3,8 @@
 
 /** @module @web/core/py_js/py_timedelta - Python timedelta emulation: normalized duration stored as (days, seconds, microseconds) */
 
-import { divmod } from "./py_date_helpers.js";
 import { bindArgs } from "./py_args.js";
+import { divmod } from "./py_date_helpers.js";
 
 const TIME_DELTA_KEYS =
     "weeks days hours minutes seconds milliseconds microseconds".split(" ");

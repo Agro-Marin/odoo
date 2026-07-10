@@ -9,8 +9,8 @@
  * Date/datetime paths use luxon.DateTime (globally available in Hoot).
  */
 
-import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
+import { luxon } from "@web/core/l10n/luxon";
 import {
     computeDataContext,
     formatServerValue,
@@ -70,7 +70,12 @@ describe("formatServerValue — many2one", () => {
 
 describe("formatServerValue — many2one_reference", () => {
     test("returns resId when many2one_reference has a value", () => {
-        expect(formatServerValue("many2one_reference", { resId: 10, resModel: "res.partner" })).toBe(10);
+        expect(
+            formatServerValue("many2one_reference", {
+                resId: 10,
+                resModel: "res.partner",
+            }),
+        ).toBe(10);
     });
 
     test("returns 0 for falsy many2one_reference", () => {
@@ -81,7 +86,9 @@ describe("formatServerValue — many2one_reference", () => {
 
 describe("formatServerValue — reference", () => {
     test("returns 'model,id' string when fully populated", () => {
-        expect(formatServerValue("reference", { resModel: "res.partner", resId: 3 })).toBe("res.partner,3");
+        expect(
+            formatServerValue("reference", { resModel: "res.partner", resId: 3 }),
+        ).toBe("res.partner,3");
     });
 
     test("returns false when resModel is absent", () => {
@@ -89,7 +96,9 @@ describe("formatServerValue — reference", () => {
     });
 
     test("returns false when resId is absent", () => {
-        expect(formatServerValue("reference", { resModel: "res.partner", resId: 0 })).toBe(false);
+        expect(
+            formatServerValue("reference", { resModel: "res.partner", resId: 0 }),
+        ).toBe(false);
     });
 
     test("returns false for falsy reference", () => {
@@ -253,7 +262,11 @@ describe("getTextValues", () => {
         const activeFields = { name: {}, notes: {}, body: {} };
         const values = { name: "Alice", notes: "some text", body: "<p>html</p>" };
         const result = getTextValues(values, activeFields, fields);
-        expect(result).toEqual({ name: "Alice", notes: "some text", body: "<p>html</p>" });
+        expect(result).toEqual({
+            name: "Alice",
+            notes: "some text",
+            body: "<p>html</p>",
+        });
     });
 
     test("excludes non-text field types", () => {
@@ -336,7 +349,12 @@ describe("computeDataContext", () => {
 
     test("x2many withVirtualIds includes virtual IDs", () => {
         const data = { line_ids: { currentIds: [1, "virtual_1", 2] } };
-        const { withVirtualIds, withoutVirtualIds } = computeDataContext(data, fields, {}, 1);
+        const { withVirtualIds, withoutVirtualIds } = computeDataContext(
+            data,
+            fields,
+            {},
+            1,
+        );
         expect(withVirtualIds.line_ids).toEqual([1, "virtual_1", 2]);
         expect(withoutVirtualIds.line_ids).toEqual([1, 2]);
     });
@@ -355,10 +373,7 @@ describe("computeDataContext", () => {
 
     test("properties field is filtered to non-deleted entries", () => {
         const data = {
-            props: [
-                { name: "p1", definition_deleted: true },
-                { name: "p2" },
-            ],
+            props: [{ name: "p1", definition_deleted: true }, { name: "p2" }],
         };
         const { withVirtualIds } = computeDataContext(data, fields, {}, 1);
         expect(withVirtualIds.props).toEqual([{ name: "p2" }]);
@@ -441,8 +456,7 @@ function makeParseRecord({
                     this._appliedCommands = commands;
                 },
             })),
-        _processProperties:
-            processProperties ?? (() => ({})),
+        _processProperties: processProperties ?? (() => ({})),
     };
     return record;
 }
@@ -531,7 +545,10 @@ describe("parseServerValues — x2many record list", () => {
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
         });
-        const records = [{ id: 1, name: "A" }, { id: 2, name: "B" }];
+        const records = [
+            { id: 1, name: "A" },
+            { id: 2, name: "B" },
+        ];
         const result = parseServerValues(rec, { line_ids: records });
         expect(result.line_ids.data).toEqual(records);
         expect(result.line_ids.fieldName).toBe("line_ids");
@@ -554,11 +571,7 @@ describe("parseServerValues — x2many record list", () => {
             fields: { line_ids: { type: "one2many" } },
         });
         const orderBys = { line_ids: [{ name: "sequence", asc: true }] };
-        const result = parseServerValues(
-            rec,
-            { line_ids: [{ id: 1 }] },
-            { orderBys },
-        );
+        const result = parseServerValues(rec, { line_ids: [{ id: 1 }] }, { orderBys });
         expect(result.line_ids.options.orderBys).toBe(orderBys);
     });
 });
@@ -573,7 +586,10 @@ describe("parseServerValues — x2many command list", () => {
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
         });
-        const commands = [[0, 0, { name: "new" }], [4, 5, 0]];
+        const commands = [
+            [0, 0, { name: "new" }],
+            [4, 5, 0],
+        ];
         const result = parseServerValues(rec, { line_ids: commands });
         // The constructor receives an empty data list — the commands carry the data.
         expect(result.line_ids.data).toEqual([]);

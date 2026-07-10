@@ -134,18 +134,21 @@ const unconsumedContains = [];
 
 // { global: true } required: this runs at module top-level
 // (outside any describe() suite) when loaded by ModuleSetLoader.
-afterEach(async () => {
-    if (cancelCurrentDragSequence) {
-        await cancelCurrentDragSequence();
-    }
-    if (unconsumedContains.length) {
-        const targets = unconsumedContains.map(String).join(", ");
-        unconsumedContains.length = 0;
-        throw new Error(
-            `called 'contains' on "${targets}" without any action: use 'waitFor' if no interaction is intended`,
-        );
-    }
-}, { global: true });
+afterEach(
+    async () => {
+        if (cancelCurrentDragSequence) {
+            await cancelCurrentDragSequence();
+        }
+        if (unconsumedContains.length) {
+            const targets = unconsumedContains.map(String).join(", ");
+            unconsumedContains.length = 0;
+            throw new Error(
+                `called 'contains' on "${targets}" without any action: use 'waitFor' if no interaction is intended`,
+            );
+        }
+    },
+    { global: true },
+);
 
 //-----------------------------------------------------------------------------
 // Exports

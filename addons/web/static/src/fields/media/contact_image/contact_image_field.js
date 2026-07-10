@@ -3,9 +3,9 @@
 
 /** @module @web/fields/media/contact_image/contact_image_field - Image field variant with fallback to a preview image when empty */
 
-import { registerField } from "@web/fields/_registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { imageUrl } from "@web/core/utils/urls";
+import { registerField } from "@web/fields/_registry";
 import { ImageField, imageField } from "@web/fields/media/image/image_field";
 
 export class ContactImageField extends ImageField {

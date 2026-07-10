@@ -44,6 +44,7 @@
  */
 
 import { registry } from "@web/core/registry";
+
 import {
     countRecordsInGroup,
     getAggregateColumns as getAggregateColumnsUtil,

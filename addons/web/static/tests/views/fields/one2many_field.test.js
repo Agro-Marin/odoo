@@ -7734,7 +7734,10 @@ test("nested x2manys with context referencing parent record", async () => {
 test("resetting invisible one2manys", async () => {
     Partner._records[0].turtles = [];
     Partner._onChanges.foo = function (obj) {
-        obj.turtles = [[5, false, false], [4, 1, false]];
+        obj.turtles = [
+            [5, false, false],
+            [4, 1, false],
+        ];
     };
     onRpc((args) => {
         expect.step(args.method);
@@ -8263,7 +8266,16 @@ test("default value for nested one2manys (coming from onchange)", async () => {
     Partner._onChanges.p = function (obj) {
         obj.p = [
             [5, false, false],
-            [0, 0, { turtles: [[5, false, false], [4, 1, false]] }], // link record 1 by default
+            [
+                0,
+                0,
+                {
+                    turtles: [
+                        [5, false, false],
+                        [4, 1, false],
+                    ],
+                },
+            ], // link record 1 by default
         ];
     };
     onRpc("web_save", (args) => {
@@ -12481,8 +12493,26 @@ test("nested one2manys, multi page, onchange", async () => {
     Partner._onChanges.int_field = function (obj) {
         expect.step("onchange");
         obj.p = [[5, false, false]];
-        obj.p.push([1, 2, { turtles: [[5, false, false], [1, 1, { turtle_int: obj.int_field }]] }]);
-        obj.p.push([1, 4, { turtles: [[5, false, false], [1, 2, { turtle_int: obj.int_field }]] }]);
+        obj.p.push([
+            1,
+            2,
+            {
+                turtles: [
+                    [5, false, false],
+                    [1, 1, { turtle_int: obj.int_field }],
+                ],
+            },
+        ]);
+        obj.p.push([
+            1,
+            4,
+            {
+                turtles: [
+                    [5, false, false],
+                    [1, 2, { turtle_int: obj.int_field }],
+                ],
+            },
+        ]);
     };
 
     await mountView({

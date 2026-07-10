@@ -42,20 +42,22 @@ class SettingRecord extends formView.Model.Record {
                 // ``.catch``: the detached promise's rejections were previously
                 // unhandled; log them instead so a server-side failure in the
                 // flow can't surface as an uncaught rejection.
-                /** @type {any} */ (async () => {
-                    const isDiscard = await /** @type {any} */ (
-                        this.model
-                    )._onChangeHeaderFields();
-                    if (isDiscard) {
-                        await /** @type {any} */ (super._update)(changes);
-                        this.dirty = false;
-                    } else {
-                        // Apply and then undo changes to force field components
-                        // to re-render and restore previous values (e.g. RadioField).
-                        const undoChanges = this._applyChanges(changes);
-                        undoChanges();
+                /** @type {any} */ (
+                    async () => {
+                        const isDiscard = await /** @type {any} */ (
+                            this.model
+                        )._onChangeHeaderFields();
+                        if (isDiscard) {
+                            await /** @type {any} */ (super._update)(changes);
+                            this.dirty = false;
+                        } else {
+                            // Apply and then undo changes to force field components
+                            // to re-render and restore previous values (e.g. RadioField).
+                            const undoChanges = this._applyChanges(changes);
+                            undoChanges();
+                        }
                     }
-                })().catch((/** @type {any} */ error) => {
+                )().catch((/** @type {any} */ error) => {
                     console.error(error);
                 });
                 return;

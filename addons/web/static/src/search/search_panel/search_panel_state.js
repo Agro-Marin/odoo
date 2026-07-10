@@ -14,11 +14,12 @@
 import { Domain } from "@web/core/domain";
 import { SearchModelEvent } from "@web/core/events";
 import { deepEqual } from "@web/core/utils/collections/objects";
+
+import { hasValues } from "../search_state.js";
 import {
     createCategoryTree as buildCategoryTree,
     createFilterTree as buildFilterTree,
 } from "./search_panel_fetch.js";
-import { hasValues } from "../search_state.js";
 
 /** @import { Section } from "@web/search/search_model" */
 /** @import { DomainListRepr } from "@web/core/domain" */

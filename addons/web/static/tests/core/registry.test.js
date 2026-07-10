@@ -195,9 +195,7 @@ test("can override element with sequence 2 ", () => {
 test("force-replacing preserves sequence 0", () => {
     const registry = new Registry();
 
-    registry
-        .add("first", "a", { sequence: 0 })
-        .add("second", "b", { sequence: 1 });
+    registry.add("first", "a", { sequence: 0 }).add("second", "b", { sequence: 1 });
 
     // Force-replace without specifying sequence — should keep sequence 0
     registry.add("first", "a2", { force: true });
@@ -297,9 +295,7 @@ test("function predicate validates existing entries on addValidation", async () 
         message: "no schema yet, anything goes",
     });
     // Adding the predicate now retroactively validates the bad entry.
-    expect(() =>
-        fnRegistry.addValidation((v) => typeof v === "function"),
-    ).toThrow();
+    expect(() => fnRegistry.addValidation((v) => typeof v === "function")).toThrow();
 });
 
 // NOTE: The debug-mode collision warning added to ``Registry.add`` (the

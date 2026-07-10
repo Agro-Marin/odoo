@@ -3,17 +3,13 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import {
-    condition,
-    connector,
-    expression,
-} from "@web/core/tree/condition_tree";
+import { Domain } from "@web/core/domain";
+import { condition, connector, expression } from "@web/core/tree/condition_tree";
 import { constructDomainFromTree } from "@web/core/tree/construct_domain_from_tree";
 import {
     eliminateVirtualOperators,
     introduceVirtualOperators,
 } from "@web/core/tree/virtual_operators";
-import { Domain } from "@web/core/domain";
 
 describe.current.tags("headless");
 

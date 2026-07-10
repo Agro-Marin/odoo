@@ -16,9 +16,6 @@ import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { registry } from "@web/core/registry";
-import { useBus } from "@web/core/utils/hooks";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import {
     clickSave,
     contains,
@@ -30,6 +27,9 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+import { useBus } from "@web/core/utils/hooks";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 // ---------------------------------------------------------------------------
 // Shared model definitions
@@ -286,7 +286,8 @@ describe("rejected update clears dirty-typing signal", () => {
             message: "editing must have emitted FIELD_IS_DIRTY events",
         });
         expect(dirtyEvents.at(-1)).toBe(false, {
-            message: "the last FIELD_IS_DIRTY emitted after a rejected update must be false",
+            message:
+                "the last FIELD_IS_DIRTY emitted after a rejected update must be false",
         });
     });
 });

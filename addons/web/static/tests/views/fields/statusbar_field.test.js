@@ -135,7 +135,7 @@ test("static statusbar widget on many2one field", async () => {
 });
 
 test("folded statusbar widget on selection field has selected value in the toggler", async () => {
-    (/** @type {any} */ (mockService))("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: true,
         });

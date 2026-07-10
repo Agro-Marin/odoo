@@ -6,11 +6,10 @@
 import { Component, useState } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
+import { registerField } from "@web/fields/_registry";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

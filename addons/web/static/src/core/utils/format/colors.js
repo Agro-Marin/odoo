@@ -252,8 +252,9 @@ export function convertCSSColorToRgba(cssColor = "") {
             green: Number.parseInt(cssColor.slice(3, 5), 16),
             blue: Number.parseInt(cssColor.slice(5, 7), 16),
             opacity:
-                (cssColor.length === 9 ? Number.parseInt(cssColor.slice(7, 9), 16) / 255 : 1) *
-                100,
+                (cssColor.length === 9
+                    ? Number.parseInt(cssColor.slice(7, 9), 16) / 255
+                    : 1) * 100,
         };
     }
 
@@ -410,7 +411,8 @@ export function rgbToHex(rgb = "", node = null) {
             values
                 .map((value, index) => {
                     const converted = Math.floor(
-                        alpha * Number.parseInt(value, 10) + (1 - alpha) * bgRgbValues[index],
+                        alpha * Number.parseInt(value, 10) +
+                            (1 - alpha) * bgRgbValues[index],
                     );
                     return converted.toString(16).padStart(2, "0");
                 })
@@ -496,7 +498,8 @@ export function blendColors(color, node) {
         values
             .map((value, index) => {
                 const converted = Math.round(
-                    alpha * Number.parseInt(value, 10) + (1 - alpha) * bgRgbValues[index],
+                    alpha * Number.parseInt(value, 10) +
+                        (1 - alpha) * bgRgbValues[index],
                 );
                 return converted.toString(16).padStart(2, "0");
             })

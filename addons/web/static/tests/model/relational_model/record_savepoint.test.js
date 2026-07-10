@@ -27,8 +27,8 @@
  * Module under test: model/relational_model/record_savepoint.js
  */
 
-import { markRaw } from "@odoo/owl";
 import { describe, expect, test } from "@odoo/hoot";
+import { markRaw } from "@odoo/owl";
 import {
     addSavePoint,
     discard,
@@ -387,7 +387,8 @@ function makeDiscardRecord({
             this.dirty = false;
         },
         _savePoint: hasSavePoint
-            ? (savePoint ?? markRaw({
+            ? (savePoint ??
+              markRaw({
                   changes: { ...changes },
                   textValues: {},
                   invalidFields: [...invalid],

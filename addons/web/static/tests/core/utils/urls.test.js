@@ -130,9 +130,9 @@ describe("compareUrls", () => {
     });
 
     test("query parameter order does not matter", () => {
-        expect(compareUrls("http://host/path?a=1&b=2", "http://host/path?b=2&a=1")).toBe(
-            true,
-        );
+        expect(
+            compareUrls("http://host/path?a=1&b=2", "http://host/path?b=2&a=1"),
+        ).toBe(true);
     });
 
     test("different origins are not equal", () => {
@@ -148,7 +148,9 @@ describe("compareUrls", () => {
     });
 
     test("extra query parameter makes URLs different", () => {
-        expect(compareUrls("http://host/path?a=1", "http://host/path?a=1&b=2")).toBe(false);
+        expect(compareUrls("http://host/path?a=1", "http://host/path?a=1&b=2")).toBe(
+            false,
+        );
     });
 
     test("different hashes are not equal", () => {

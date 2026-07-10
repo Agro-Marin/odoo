@@ -4,7 +4,6 @@
 /** @module @web/fields/relational/x2many/list_x2many_field - Read-only list-view summary field for One2many and Many2many columns */
 
 import { Component } from "@odoo/owl";
-
 import { registerField } from "@web/fields/_registry";
 import { formatX2many } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";

@@ -10,7 +10,6 @@
 /** @import { Tree, Condition, ComplexCondition, Options } from "@web/core/tree/condition_tree" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
-
 import { isNot, isValidPath, not } from "@web/core/tree/ast_utils";
 import {
     addChild,
@@ -20,6 +19,7 @@ import {
     toValue,
 } from "@web/core/tree/condition_tree";
 import { COMPARATORS } from "@web/core/tree/operators";
+
 import { ASTType } from "../py_js/ast_type.js";
 
 /** @type {Record<string, string>} Operator exchange map for swapping left/right operands */
@@ -76,7 +76,10 @@ function isValidPath2(ast, options) {
     if (!ast) {
         return null;
     }
-    if ((ast.type === ASTType.List || ast.type === ASTType.Tuple) && ast.value.length === 1) {
+    if (
+        (ast.type === ASTType.List || ast.type === ASTType.Tuple) &&
+        ast.value.length === 1
+    ) {
         return isValidPath(ast.value[0], options);
     }
     return isValidPath(ast, options);

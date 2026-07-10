@@ -149,7 +149,9 @@ export function getFormattedRecord(record) {
             return isField(p) || Reflect.has(target, p);
         },
         ownKeys(target) {
-            return [...new Set(["id", ...record.fieldNames, ...Reflect.ownKeys(target)])];
+            return [
+                ...new Set(["id", ...record.fieldNames, ...Reflect.ownKeys(target)]),
+            ];
         },
         getOwnPropertyDescriptor(target, p) {
             if (isField(p)) {

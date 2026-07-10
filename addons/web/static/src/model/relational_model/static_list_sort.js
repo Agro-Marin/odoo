@@ -11,6 +11,7 @@
  */
 
 import { pick } from "@web/core/utils/collections/objects";
+
 import { computeResequencePlan } from "./resequence.js";
 import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
 
@@ -86,10 +87,6 @@ export async function resequence(list, movedId, targetId) {
  * @param {string} fieldName
  */
 export function sortBy(list, fieldName) {
-    const orderBy = computeNextOrderBy(
-        fieldName,
-        list.orderBy,
-        list._needsReordering,
-    );
+    const orderBy = computeNextOrderBy(fieldName, list.orderBy, list._needsReordering);
     return sort(list, list._currentIds, orderBy);
 }

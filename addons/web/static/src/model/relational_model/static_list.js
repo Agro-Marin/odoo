@@ -6,9 +6,9 @@
 import { markRaw } from "@odoo/owl";
 import { intersection } from "@web/core/utils/collections/arrays";
 import { deepEqual, omit } from "@web/core/utils/collections/objects";
-import { x2ManyCommands } from "./commands.js";
 
 import { serializeCommands } from "./command_builder.js";
+import { x2ManyCommands } from "./commands.js";
 import { DataPoint } from "./datapoint.js";
 import { getBasicEvalContext, getId } from "./field_context.js";
 import { completeActiveFields, patchActiveFields } from "./field_metadata.js";
@@ -837,7 +837,10 @@ export class StaticList extends DataPoint {
             return;
         }
         const targetIndex = Math.min(
-            Math.max(options.targetIndex ?? this.records.indexOf(records.at(-1)) + 1, 0),
+            Math.max(
+                options.targetIndex ?? this.records.indexOf(records.at(-1)) + 1,
+                0,
+            ),
             this.records.length,
         );
         const copyFields = options.copyFields || [];

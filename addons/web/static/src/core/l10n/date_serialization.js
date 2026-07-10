@@ -58,7 +58,10 @@ export function serializeDateTime(value) {
  * @returns {any} Luxon DateTime
  */
 export function deserializeDate(value) {
-    return DateTime.fromSQL(value, { numberingSystem: "latn", zone: "default" }).reconfigure({
+    return DateTime.fromSQL(value, {
+        numberingSystem: "latn",
+        zone: "default",
+    }).reconfigure({
         numberingSystem: Settings.defaultNumberingSystem,
     });
 }

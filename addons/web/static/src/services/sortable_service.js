@@ -70,7 +70,10 @@ export const sortableService = {
                     // A previous cleanup() may already have removed the element
                     // from boundElements (making get() return undefined). Guard
                     // so a double cleanup() is a no-op rather than a TypeError.
-                    if (boundElement && /** @type {any} */ (sortableId) in boundElement) {
+                    if (
+                        boundElement &&
+                        /** @type {any} */ (sortableId) in boundElement
+                    ) {
                         delete (/** @type {any} */ (boundElement)[sortableId]);
                         if (Reflect.ownKeys(boundElement).length === 0) {
                             boundElements.delete(element);

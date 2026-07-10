@@ -11,8 +11,6 @@ import { evaluateExpr } from "@web/core/py_js/py";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { user } from "@web/services/user";
 
-import * as panelState from "./search_panel/search_panel_state.js";
-import * as queryMut from "./search_query_mutations.js";
 import { SearchArchParser } from "./search_arch_parser.js";
 import { computeSearchContext, computeSearchItemContext } from "./search_context.js";
 import {
@@ -39,11 +37,13 @@ import {
     getQueryGroups,
     getSelectedGeneratorIds,
 } from "./search_group_by.js";
+import * as panelState from "./search_panel/search_panel_state.js";
 import {
     fetchPropertiesDefinition as _fetchPropertiesDefinition,
     fillSearchViewItemsProperty as _fillSearchViewItemsProperty,
     getSearchItemsProperties as _getSearchItemsProperties,
 } from "./search_properties.js";
+import * as queryMut from "./search_query_mutations.js";
 import { splitAndAddDomain as _splitAndAddDomain } from "./search_split_domain.js";
 import {
     arrayToMap,
@@ -90,8 +90,15 @@ export class SearchModel extends EventBus {
 
     setup(services, _args) {
         // services
-        const { field: fieldService, orm, view, dialog, treeProcessor, DomainSelectorDialog, getDefaultDomain } =
-            services;
+        const {
+            field: fieldService,
+            orm,
+            view,
+            dialog,
+            treeProcessor,
+            DomainSelectorDialog,
+            getDefaultDomain,
+        } = services;
         this.orm = orm;
         this.fieldService = fieldService;
         this.viewService = view;
@@ -794,8 +801,8 @@ export class SearchModel extends EventBus {
             controlPanel: "controlPanel" in display ? display.controlPanel : {},
             searchPanel: Boolean(
                 this.sections.size &&
-                    (!viewType || viewTypes.includes(viewType)) &&
-                    ("searchPanel" in display ? display.searchPanel : true),
+                (!viewType || viewTypes.includes(viewType)) &&
+                ("searchPanel" in display ? display.searchPanel : true),
             ),
         };
     }

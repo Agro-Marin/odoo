@@ -87,10 +87,16 @@ import { SignalStore } from "@web/core/utils/reactive";
  * @type {Record<FormSaveStatus, Partial<Record<FormSaveEvent, FormSaveStatus>>>}
  */
 const TRANSITIONS = {
-    clean:  { begin: "saving", discard: "clean" },
-    dirty:  { begin: "saving", discard: "clean" },
-    saving: { begin: "saving", ok: "clean", recoverable: "dirty", failed: "error", discard: "clean" },
-    error:  { begin: "saving", discard: "clean" },
+    clean: { begin: "saving", discard: "clean" },
+    dirty: { begin: "saving", discard: "clean" },
+    saving: {
+        begin: "saving",
+        ok: "clean",
+        recoverable: "dirty",
+        failed: "error",
+        discard: "clean",
+    },
+    error: { begin: "saving", discard: "clean" },
 };
 
 export class InvalidFormSaveTransitionError extends Error {
@@ -99,7 +105,9 @@ export class InvalidFormSaveTransitionError extends Error {
      * @param {string} event
      */
     constructor(from, event) {
-        super(`FormSaveCoordinator: invalid transition '${event}' from state '${from}'`);
+        super(
+            `FormSaveCoordinator: invalid transition '${event}' from state '${from}'`,
+        );
         this.name = "InvalidFormSaveTransitionError";
         this.from = from;
         this.event = event;

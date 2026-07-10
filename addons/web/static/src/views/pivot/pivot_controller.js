@@ -4,8 +4,8 @@
 /** @module @web/views/pivot/pivot_controller - Controller wiring PivotModel to PivotRenderer with search bar and scroll restoration */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { useModelWithSampleData } from "@web/model/model";
 import { useSetupAction } from "@web/core/action_hook";
+import { useModelWithSampleData } from "@web/model/model";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";

@@ -102,11 +102,9 @@ async function toggleArchive(record, state) {
  */
 export async function deleteRecord(record) {
     modelLog("delete", record.resModel, record.resId);
-    const unlinked = await record.model.orm.unlink(
-        record.resModel,
-        [record.resId],
-        { context: record.context },
-    );
+    const unlinked = await record.model.orm.unlink(record.resModel, [record.resId], {
+        context: record.context,
+    });
     if (!unlinked) {
         return false;
     }
@@ -123,9 +121,7 @@ export async function deleteRecord(record) {
         await record.model.load({ resId, resIds });
     } else {
         record.model._patchConfig(record.config, { resId: false });
-        record._values = markRaw(
-            record._parseServerValues(record._getDefaultValues()),
-        );
+        record._values = markRaw(record._parseServerValues(record._getDefaultValues()));
         record._textValues = markRaw({});
         record._clearChanges();
         record.data = { ...record._values };

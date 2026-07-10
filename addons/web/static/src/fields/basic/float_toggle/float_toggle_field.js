@@ -5,7 +5,6 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { extractDigits } from "@web/fields/field_utils";
 import { formatFloatFactor } from "@web/fields/formatters";

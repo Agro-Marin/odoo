@@ -3,7 +3,14 @@
 
 /** @module @web/search/embedded_actions_bar/embedded_actions_bar - Embedded actions tab bar: per-user visibility, ordering, creation and deletion of embedded actions */
 
-import { Component, reactive, useComponent, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    reactive,
+    useComponent,
+    useEffect,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -197,9 +204,8 @@ export class EmbeddedActions {
 
         /** @type {{showEmbedded: boolean, embeddedActions: EmbeddedAction[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: (number|false)[], currentEmbeddedAction: EmbeddedAction}} */
         this.embeddedInfos = reactive({
-            showEmbedded: !!this.configHandler.getEmbeddedActionsConfig(
-                "embedded_visibility",
-            ),
+            showEmbedded:
+                !!this.configHandler.getEmbeddedActionsConfig("embedded_visibility"),
             embeddedActions: this.defaultEmbeddedActions || [],
             newActionIsShared: false,
             newActionName: this.defaultNewActionName,
@@ -299,7 +305,8 @@ export class EmbeddedActions {
             } else {
                 // Store a new embedded actions config if still not found in the settings
                 const config = {
-                    res_model: this.embeddedInfos.currentEmbeddedAction.parent_res_model,
+                    res_model:
+                        this.embeddedInfos.currentEmbeddedAction.parent_res_model,
                     embedded_actions_visibility: [],
                     embedded_visibility: true,
                     embedded_actions_order: [],
@@ -546,8 +553,8 @@ export class EmbeddedActions {
      * @param {(number|false)[]} order
      */
     sortActions(order) {
-        this.embeddedInfos.embeddedActions =
-            this.embeddedInfos.embeddedActions.sort((a, b) => {
+        this.embeddedInfos.embeddedActions = this.embeddedInfos.embeddedActions.sort(
+            (a, b) => {
                 const indexA = order.indexOf(a.id);
                 const indexB = order.indexOf(b.id);
                 if (indexA === -1) {
@@ -557,7 +564,8 @@ export class EmbeddedActions {
                     return -1;
                 }
                 return indexA - indexB;
-            });
+            },
+        );
     }
 
     /**

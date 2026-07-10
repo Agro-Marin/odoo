@@ -5,8 +5,8 @@
 import { afterEach, beforeEach, globals } from "@odoo/hoot";
 
 import { setupMockCurrencies } from "./mock_currency.hoot.js";
-import { makeSession } from "./mock_session.hoot.js";
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
+import { makeSession } from "./mock_session.hoot.js";
 import { setupMockTemplates } from "./mock_templates.hoot.js";
 
 const { fetch: realFetch } = globals;
@@ -331,9 +331,14 @@ export function setupTestEnvironment() {
     }
     const content = serviceReg.content || {};
     for (const name of [
-        "pos_data", "pos", "pos.printer", "pos.barcode_reader",
-        "pos.bus", "pos_notification",
-        "report", "preparation_display",
+        "pos_data",
+        "pos",
+        "pos.printer",
+        "pos.barcode_reader",
+        "pos.bus",
+        "pos_notification",
+        "report",
+        "preparation_display",
     ]) {
         delete content[name];
     }

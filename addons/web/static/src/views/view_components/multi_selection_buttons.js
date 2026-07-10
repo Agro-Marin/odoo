@@ -4,13 +4,13 @@
 /** @module @web/views/view_components/multi_selection_buttons - Floating toolbar with Add/Cancel/Delete for multi-record selection in calendar/gantt views */
 
 import { Component, onWillRender, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/l10n/translation";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
-import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";

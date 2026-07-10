@@ -13,6 +13,7 @@
 
 import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+
 import { x2ManyCommands } from "./commands.js";
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -92,9 +93,7 @@ export async function preprocessMany2oneChanges(record, changes) {
  */
 export async function preprocessMany2OneReferenceChanges(record, changes) {
     const proms = Object.entries(changes)
-        .filter(
-            ([fieldName]) => record.fields[fieldName].type === "many2one_reference",
-        )
+        .filter(([fieldName]) => record.fields[fieldName].type === "many2one_reference")
         .map(async ([fieldName, value]) => {
             if (!value) {
                 changes[fieldName] = false;
@@ -113,8 +112,7 @@ export async function preprocessMany2OneReferenceChanges(record, changes) {
                         changes[fieldName] = false;
                         return;
                     }
-                    const m2o =
-                        /** @type {{ id: number, display_name: string }} */ (v);
+                    const m2o = /** @type {{ id: number, display_name: string }} */ (v);
                     changes[fieldName] = {
                         resId: m2o.id,
                         displayName: m2o.display_name,
@@ -147,8 +145,7 @@ export async function preprocessReferenceChanges(record, changes) {
                         changes[fieldName] = false;
                         return;
                     }
-                    const m2o =
-                        /** @type {{ id: number, display_name: string }} */ (v);
+                    const m2o = /** @type {{ id: number, display_name: string }} */ (v);
                     changes[fieldName] = {
                         resId: m2o.id,
                         resModel: value.resModel,
@@ -218,9 +215,7 @@ export function preprocessPropertiesChanges(record, changes) {
         } else if (field?.relatedPropertyField) {
             const [propertyFieldName, propertyName] = field.name.split(".");
             const propertiesData = record.data[propertyFieldName] || [];
-            if (
-                !propertiesData.find((property) => property.name === propertyName)
-            ) {
+            if (!propertiesData.find((property) => property.name === propertyName)) {
                 // try to change the value of a properties that has a different parent
                 record.model.hooks.ui.onDisplayPropertyWarning(
                     _t(

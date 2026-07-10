@@ -3,13 +3,7 @@
 
 /** @module @web/views/kanban/kanban_renderer - Card layout, column grouping, drag-and-drop reorder, and quick-create for kanban view */
 
-import {
-    Component,
-    onPatched,
-    onWillDestroy,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onPatched, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { SearchModelEvent } from "@web/core/events";
@@ -29,9 +23,9 @@ import { ColumnProgress } from "./column_progress.js";
 import { KanbanColumnExamplesDialog } from "./kanban_column_examples_dialog.js";
 import { KanbanColumnQuickCreate } from "./kanban_column_quick_create.js";
 import { KanbanHeader } from "./kanban_header.js";
+import { useKanbanKeyboardNavigation } from "./kanban_keyboard_nav.js";
 import { KanbanRecord } from "./kanban_record.js";
 import { KanbanRecordQuickCreate } from "./kanban_record_quick_create.js";
-import { useKanbanKeyboardNavigation } from "./kanban_keyboard_nav.js";
 import { useKanbanSelection } from "./kanban_selection_hook.js";
 import { useKanbanSortable } from "./kanban_sortable_hook.js";
 

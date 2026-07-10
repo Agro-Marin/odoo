@@ -115,9 +115,7 @@ export function computeNextConfig(currentConfig, params, deps) {
         if (!config.groupBy.length) {
             // ``__count`` is a synthetic order-by introduced when grouping
             // by record count; meaningless on an ungrouped list.
-            config.orderBy = config.orderBy.filter(
-                (order) => order.name !== "__count",
-            );
+            config.orderBy = config.orderBy.filter((order) => order.name !== "__count");
         }
     }
     if (!config.isMonoRecord && params.domain) {

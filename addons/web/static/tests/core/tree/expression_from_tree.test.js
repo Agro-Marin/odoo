@@ -1,11 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import {
-    complexCondition,
-    condition,
-    expression,
-} from "@web/core/tree/condition_tree";
+import { complexCondition, condition, expression } from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
 
 test("expressionFromTree", () => {

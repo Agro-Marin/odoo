@@ -5,11 +5,11 @@
 
 import { MultiRecordSelector } from "@web/components/record_selectors/multi_record_selector";
 import { RecordSelector } from "@web/components/record_selectors/record_selector";
-import { Expression } from "@web/core/tree/condition_tree";
-import { isId } from "@web/core/tree/utils";
 import { _t } from "@web/core/l10n/translation";
 import { formatAST } from "@web/core/py_js/py";
 import { toPyValue } from "@web/core/py_js/py_utils";
+import { Expression } from "@web/core/tree/condition_tree";
+import { isId } from "@web/core/tree/utils";
 import { imageUrl } from "@web/core/utils/urls";
 /**
  * Formats a record value for display as a tag, with color coding for validity.

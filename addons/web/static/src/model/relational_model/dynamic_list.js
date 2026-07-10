@@ -5,8 +5,8 @@
 
 import { _t } from "@web/core/l10n/translation";
 import { unique } from "@web/core/utils/collections/arrays";
-import { x2ManyCommands } from "./commands.js";
 
+import { x2ManyCommands } from "./commands.js";
 import { DataPoint } from "./datapoint.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { Operation } from "./operation.js";
@@ -349,7 +349,10 @@ export class DynamicList extends DataPoint {
         if (!Object.keys(changes).length || editedRecord === this._recordToDiscard) {
             return;
         }
-        let canProceed = await this.model.hooks.lifecycle.onWillSaveMulti(editedRecord, changes);
+        let canProceed = await this.model.hooks.lifecycle.onWillSaveMulti(
+            editedRecord,
+            changes,
+        );
         if (canProceed === false) {
             return false;
         }

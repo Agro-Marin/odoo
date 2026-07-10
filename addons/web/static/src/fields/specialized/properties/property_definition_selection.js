@@ -4,8 +4,8 @@
 /** @module @web/fields/specialized/properties/property_definition_selection - Sortable option editor for property definition selection/tags types */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { deepCopy } from "@web/core/utils/collections/objects";
+import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { uuid } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 export class PropertyDefinitionSelection extends Component {

@@ -14,7 +14,11 @@ import { RpcEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { rpcBus } from "@web/core/network/rpc";
 
-import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP, SPECIAL } from "./search_state.js";
+import {
+    FAVORITE_PRIVATE_GROUP,
+    FAVORITE_SHARED_GROUP,
+    SPECIAL,
+} from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
 /** SearchModel widened so this delegate module can read instance state

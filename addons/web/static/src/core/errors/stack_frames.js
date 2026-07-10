@@ -74,8 +74,7 @@ export function parseStackFrames(stack) {
 // segment arrays and binary-search them.  No ``sourcesContent`` handling,
 // no section-indexed maps — esbuild emits neither.
 
-const BASE64_CHARS =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const BASE64_VALUES = new Map([...BASE64_CHARS].map((c, i) => [c, i]));
 
 /**
@@ -224,11 +223,12 @@ function getConsumer(scriptUrl) {
             const mapUrl = new URL(match[1], scriptHref).href;
             const map = await (await fetch(mapUrl)).json();
             return new SourceMapConsumer(map);
-        })().catch(() => {
-            // Unreachable script, no directive, cross-origin block, corrupt
-            // map: annotation degrades to raw frames, never an error.
-            return null;
-        });
+        })().catch(
+            () =>
+                // Unreachable script, no directive, cross-origin block, corrupt
+                // map: annotation degrades to raw frames, never an error.
+                null,
+        );
         consumerCache.set(scriptUrl, promise);
     }
     return promise;

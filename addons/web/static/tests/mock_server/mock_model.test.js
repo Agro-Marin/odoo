@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
 import {
     defineModels,
@@ -11,6 +10,7 @@ import {
     MockServer,
     models,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 class Oui extends models.Model {
     name = fields.Char();

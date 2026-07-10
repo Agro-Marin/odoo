@@ -34,7 +34,8 @@ function useEarlyExternalListener(target, eventName, handler, eventParams) {
  */
 function useClickAway(popover, callback) {
     function blurHandler(/** @type {Event} */ ev) {
-        const target = /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
+        const target =
+            /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
         if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
             return callback(/** @type {Node} */ (target));
         }
@@ -77,7 +78,9 @@ function useClickAway(popover, callback) {
         } catch (e) {
             // In some browsers, if an iframe is loaded from a different
             // domain accessing it results in a SecurityError.
-            if (e.name !== "SecurityError") throw e;
+            if (e.name !== "SecurityError") {
+                throw e;
+            }
         }
     }
 }
@@ -223,7 +226,10 @@ export class Popover extends Component {
         return {
             extendedFlipping: this.props.extendedFlipping,
             margin: this.props.arrow ? 8 : 0,
-            onPositioned: (/** @type {HTMLElement} */ el, /** @type {any} */ solution) => {
+            onPositioned: (
+                /** @type {HTMLElement} */ el,
+                /** @type {any} */ solution,
+            ) => {
                 this.onPositioned(solution);
                 this.props.onPositioned?.(el, solution);
             },
@@ -269,11 +275,13 @@ export class Popover extends Component {
         }
     }
 
-    onPositioned(/** @type {{ direction: any, variant: any, variantOffset: any }} */ {
-        direction,
-        variant,
-        variantOffset,
-    }) {
+    onPositioned(
+        /** @type {{ direction: any, variant: any, variantOffset: any }} */ {
+            direction,
+            variant,
+            variantOffset,
+        },
+    ) {
         if (this.props.arrow) {
             this.updateArrow(direction, variant, variantOffset);
         }

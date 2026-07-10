@@ -18,8 +18,8 @@ import {
     addAutoCompletionValues,
     clearFilters,
     clearQuery,
-    createNewFilters,
     createNewFavorite,
+    createNewFilters,
     createNewGroupBy,
     deactivateGroup,
     switchGroupBySort,
@@ -28,7 +28,11 @@ import {
     toggleSearchItem,
     withNotificationsBlocked,
 } from "@web/search/search_query_mutations";
-import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP, SPECIAL } from "@web/search/search_state";
+import {
+    FAVORITE_PRIVATE_GROUP,
+    FAVORITE_SHARED_GROUP,
+    SPECIAL,
+} from "@web/search/search_state";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -120,7 +124,11 @@ describe("addAutoCompletionValues", () => {
         const model = makeSearchModel();
         addItem(model, 1, { type: "field" });
 
-        addAutoCompletionValues(model, 1, { label: "Alice", value: "Alice", operator: "=" });
+        addAutoCompletionValues(model, 1, {
+            label: "Alice",
+            value: "Alice",
+            operator: "=",
+        });
 
         expect(model.query.length).toBe(1);
         expect(model.query[0].autocompleteValue).toEqual({
@@ -133,9 +141,16 @@ describe("addAutoCompletionValues", () => {
     test("updates label when same value+operator already active", () => {
         const model = makeSearchModel();
         addItem(model, 1, { type: "field" });
-        model.query.push({ searchItemId: 1, autocompleteValue: { label: "Old", value: "Alice", operator: "=" } });
+        model.query.push({
+            searchItemId: 1,
+            autocompleteValue: { label: "Old", value: "Alice", operator: "=" },
+        });
 
-        addAutoCompletionValues(model, 1, { label: "New", value: "Alice", operator: "=" });
+        addAutoCompletionValues(model, 1, {
+            label: "New",
+            value: "Alice",
+            operator: "=",
+        });
 
         // no duplicate added
         expect(model.query.length).toBe(1);
@@ -581,7 +596,9 @@ describe("createNewFilters", () => {
 describe("createNewGroupBy", () => {
     test("non-date field: creates groupBy item and activates it", () => {
         const model = makeSearchModel();
-        model.searchViewFields = { partner_id: { string: "Partner", type: "many2one" } };
+        model.searchViewFields = {
+            partner_id: { string: "Partner", type: "many2one" },
+        };
 
         createNewGroupBy(model, "partner_id");
 
@@ -672,7 +689,12 @@ describe("createNewFavorite", () => {
     test("shared favorite gets FAVORITE_SHARED_GROUP number", async () => {
         const model = makeSearchModel({
             _getIrFilterDescription: () => ({
-                preFavorite: { userIds: [1, 2], domain: "[]", context: {}, orderedBy: [] },
+                preFavorite: {
+                    userIds: [1, 2],
+                    domain: "[]",
+                    context: {},
+                    orderedBy: [],
+                },
                 irFilter: {},
             }),
         });

@@ -52,8 +52,7 @@ test("warn on every contains(@class, ...) — not just alternating calls", async
         <xpath expr="*[contains(@class, 'c2')]" position="inside"><span/></xpath>
     </t>`;
     _applyInheritance(arch, operations, "");
-    const expectedWarning =
-        `Error-prone use of @class in template "web.B" (or one of its inheritors). Use the hasclass(*classes) function to filter elements by their classes`;
+    const expectedWarning = `Error-prone use of @class in template "web.B" (or one of its inheritors). Use the hasclass(*classes) function to filter elements by their classes`;
     expect.verifySteps([expectedWarning, expectedWarning]);
 });
 

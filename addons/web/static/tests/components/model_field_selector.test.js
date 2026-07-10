@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, getFixture, test } from "@odoo/hoot";
-import { press, queryOne, queryAllTexts } from "@odoo/hoot-dom";
+import { press, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {

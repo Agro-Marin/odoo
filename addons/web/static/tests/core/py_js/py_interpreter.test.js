@@ -902,15 +902,21 @@ describe("python numeric semantics", () => {
         // td // n → timedelta (floored)
         expect(evaluateExpr("str(datetime.timedelta(days=1) // 2)")).toBe("12:00:00");
         // td / td → float ratio
-        expect(evaluateExpr("datetime.timedelta(days=1) / datetime.timedelta(hours=8)")).toBe(3);
+        expect(
+            evaluateExpr("datetime.timedelta(days=1) / datetime.timedelta(hours=8)"),
+        ).toBe(3);
         // td // td → int
-        expect(evaluateExpr("datetime.timedelta(days=2) // datetime.timedelta(days=1)")).toBe(2);
+        expect(
+            evaluateExpr("datetime.timedelta(days=2) // datetime.timedelta(days=1)"),
+        ).toBe(2);
         expect(
             evaluateExpr("datetime.timedelta(hours=25) // datetime.timedelta(days=1)"),
         ).toBe(1);
         // td % td → timedelta
         expect(
-            evaluateExpr("str(datetime.timedelta(hours=25) % datetime.timedelta(days=1))"),
+            evaluateExpr(
+                "str(datetime.timedelta(hours=25) % datetime.timedelta(days=1))",
+            ),
         ).toBe("1:00:00");
         expect(() =>
             evaluateExpr("datetime.timedelta(days=1) / datetime.timedelta()"),

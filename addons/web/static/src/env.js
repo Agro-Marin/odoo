@@ -9,10 +9,13 @@ import { AppEvent } from "@web/core/events";
 import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
-import { createWaveResolver, findDependencyCycle } from "@web/core/utils/dependency_graph";
+import { makeAssetLog } from "@web/core/utils/asset_log";
+import {
+    createWaveResolver,
+    findDependencyCycle,
+} from "@web/core/utils/dependency_graph";
 import { SERVICES_METADATA } from "@web/core/utils/hooks";
 import { session } from "@web/session";
-import { makeAssetLog } from "@web/core/utils/asset_log";
 
 const log = makeAssetLog("env");
 
@@ -340,7 +343,10 @@ async function _startServices(env, toStart) {
             );
         }
         if (waveStarted.length) {
-            log(`services wave ${++_wave} started (${waveStarted.length}):`, waveStarted);
+            log(
+                `services wave ${++_wave} started (${waveStarted.length}):`,
+                waveStarted,
+            );
         }
         await Promise.all(proms);
         if (proms.length) {
@@ -463,7 +469,12 @@ async function _startServices(env, toStart) {
             throw new Error(`Circular service dependency detected: ${cycleInfo}`);
         }
     }
-    log("startServices: done — started=", Object.keys(services).length, "waves=", _wave);
+    log(
+        "startServices: done — started=",
+        Object.keys(services).length,
+        "waves=",
+        _wave,
+    );
     env.bus.trigger(AppEvent.SERVICES_LOADED);
 }
 
@@ -523,8 +534,14 @@ export const globalValues = {
 export async function mountComponent(component, target, appConfig = {}) {
     let { env } = appConfig;
     const isRoot = !env;
-    log("mountComponent:", component.name || "anon", "isRoot=", isRoot,
-        "target=", target.tagName || target);
+    log(
+        "mountComponent:",
+        component.name || "anon",
+        "isRoot=",
+        isRoot,
+        "target=",
+        target.tagName || target,
+    );
     if (isRoot) {
         env = makeEnv();
         await startServices(/** @type {OdooEnv} */ (env));

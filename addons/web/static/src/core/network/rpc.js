@@ -6,9 +6,9 @@
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
+import { buildKey } from "@web/core/network/rpc_dedup";
 import { rpcLog } from "@web/core/utils/asset_log";
 import { isObject, omit } from "@web/core/utils/collections/objects";
-import { buildKey } from "@web/core/network/rpc_dedup";
 
 /** @import { RPCCache } from "@web/core/network/rpc_cache" */
 
@@ -97,24 +97,33 @@ import { buildKey } from "@web/core/network/rpc_dedup";
 // uncached).  ``??=`` keeps the FIRST bundle's instance authoritative.
 const _RPC_STATE_KEY = "__odoo_rpc_state__";
 /** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number }} */
-const _rpcState = (/** @type {any} */ (globalThis)[_RPC_STATE_KEY] ??= {
-    rpcBus: new EventBus(),
-    inflightDedup: new Map(),
-    rpcCache: undefined,
-    busListenersAttached: false,
-    // Monotonic ``data.id`` source shared across every ESM bundle in the
-    // document.  MUST live on the cross-bundle singleton (not a module-level
-    // ``let``): esbuild inlines this module into every child bundle, so a
-    // per-copy counter would restart at 0 in each bundle while they all share
-    // one ``rpcBus`` — two live RPCs from different bundles would then collide
-    // on the same ``data.id``, conflating them for every bus observer that
-    // keys by ``data.id`` (loading_indicator, slow_rpc_service).
-    rpcId: 0,
-});
+const _rpcState = /** @type {any} */ (
+    globalThis[_RPC_STATE_KEY] ??= {
+        rpcBus: new EventBus(),
+        inflightDedup: new Map(),
+        rpcCache: undefined,
+        busListenersAttached: false,
+        // Monotonic ``data.id`` source shared across every ESM bundle in the
+        // document.  MUST live on the cross-bundle singleton (not a module-level
+        // ``let``): esbuild inlines this module into every child bundle, so a
+        // per-copy counter would restart at 0 in each bundle while they all share
+        // one ``rpcBus`` — two live RPCs from different bundles would then collide
+        // on the same ``data.id``, conflating them for every bus observer that
+        // keys by ``data.id`` (loading_indicator, slow_rpc_service).
+        rpcId: 0,
+    }
+);
 
 export const rpcBus = _rpcState.rpcBus;
 
-const RPC_SETTINGS = new Set(["cache", "silent", "headers", "timeout", "retry", "dedup"]);
+const RPC_SETTINGS = new Set([
+    "cache",
+    "silent",
+    "headers",
+    "timeout",
+    "retry",
+    "dedup",
+]);
 /**
  * @param {{[key: string]: any}} settings
  */
@@ -220,7 +229,9 @@ export class ConnectionAbortedError extends NetworkError {
  */
 export class RequestEntityTooLargeError extends NetworkError {
     constructor() {
-        super("The request you sent exceeded the maximum size limit configured on the server");
+        super(
+            "The request you sent exceeded the maximum size limit configured on the server",
+        );
         this.name = "RequestEntityTooLargeError";
     }
 }
@@ -401,7 +412,7 @@ const SERVER_OVERLOAD_BACKOFF_FLOOR_MS = 1000;
  * @returns {number} milliseconds to wait before the next attempt.
  */
 function backoffDelay(attempt, config, lastError) {
-    let exp = config.baseMs * (2 ** (attempt - 1));
+    let exp = config.baseMs * 2 ** (attempt - 1);
     if (lastError instanceof ServerOverloadError) {
         // Raise the floor; the caller's ``maxMs`` still clamps the upper
         // bound so a heavily tuned-down ``retry({ maxMs: 100 })`` config
@@ -420,10 +431,7 @@ function backoffDelay(attempt, config, lastError) {
  *   ConnectionAbortedError (caller intent).
  */
 function isRetryable(err) {
-    return (
-        err instanceof ConnectionLostError ||
-        err instanceof ConnectionTimeoutError
-    );
+    return err instanceof ConnectionLostError || err instanceof ConnectionTimeoutError;
 }
 
 // -----------------------------------------------------------------------------
@@ -668,121 +676,124 @@ function _rpcOnce(url, params, settings) {
     };
     rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings });
 
-    browser.fetch(url, {
-        method: "POST",
-        headers: requestHeaders,
-        body: JSON.stringify(data),
-        signal: fetchSignal,
-    }).then(async (response) => {
-        if (aborted) {
-            // abort() fired its own RPC:RESPONSE; nothing more to do.
-            return;
-        }
-        if (response.status >= 502 && response.status <= 504) {
-            // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
-            // — common when Odoo is behind a reverse proxy (nginx, etc.)
-            const error = new ConnectionLostError(url);
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-            settleReject(error);
-            return;
-        }
-        if (response.status === 413) {
-            // If the request content size exceeds the limit set by a reverse
-            // proxy (e.g. nginx), it returns an HTTP 413 with a non-JSON body.
-            const error = new RequestEntityTooLargeError();
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-            settleReject(error);
-            return;
-        }
-        // Server-overload detection: a non-JSON content type signals that
-        // the server returned an error page (typically werkzeug's HTML
-        // traceback for ``PoolError`` / ``OperationalError``) rather than
-        // a JSON-RPC envelope.  Classifying it as ``ServerOverloadError``
-        // (subclass of ``ConnectionLostError`` for backward compat) lets
-        // the retry layer apply a longer backoff floor so retries don't
-        // pile onto an already-struggling backend.
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType && !/application\/json/i.test(contentType)) {
-            const error = new ServerOverloadError(url, response.status);
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-            settleReject(error);
-            return;
-        }
-        let parsed;
-        try {
-            parsed = await response.json();
-        } catch {
-            // Genuinely-malformed JSON body despite an
-            // ``application/json`` content-type header, or no content-type
-            // at all.  Treated as transient connectivity failure: the
-            // server didn't produce a recognisable response and a retry
-            // with default backoff is reasonable.
-            const error = new ConnectionLostError(url);
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-            settleReject(error);
-            return;
-        }
-        if (!parsed.error) {
-            // Plan-C envelope versioning: server methods decorated with
-            // ``@versioned_envelope`` (web/models/_versioning.py) stash a
-            // content hash on ``request._response_version``, which the
-            // dispatcher lifts to ``parsed.version`` sibling-of-result.  We
-            // re-attach it as ``result.__version`` so the rpc cache's
-            // ``payloadChanged`` sees the same field whether the server
-            // used in-payload (@versioned) or out-of-band (@versioned_envelope)
-            // stamping.  Skips primitives (no place to attach a property)
-            // and dicts that already carry ``__version`` (in-payload path).
-            const result = parsed.result;
-            if (
-                parsed.version !== undefined
-                && result
-                && typeof result === "object"
-                && result.__version === undefined
-            ) {
-                result.__version = parsed.version;
+    browser
+        .fetch(url, {
+            method: "POST",
+            headers: requestHeaders,
+            body: JSON.stringify(data),
+            signal: fetchSignal,
+        })
+        .then(async (response) => {
+            if (aborted) {
+                // abort() fired its own RPC:RESPONSE; nothing more to do.
+                return;
             }
-            rpcBus.trigger(RpcEvent.RESPONSE, {
-                data,
-                settings,
-                result,
-            });
-            settleResolve(result);
-            return;
-        }
-        const error = makeErrorFromResponse(parsed.error);
-        error.model = data.params.model;
-        rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-        settleReject(error);
-    }).catch((err) => {
-        // fetch rejects with:
-        //   • TypeError on network failure (DNS, CORS, server unreachable)
-        //   • DOMException("AbortError") when controller.abort() fires
-        //   • DOMException("TimeoutError") when AbortSignal.timeout() fires
-        // The two abort paths must surface as different error classes;
-        // ConnectionTimeoutError carries the configured timeoutMs so
-        // callers can decide whether to retry, alert the user, etc.
-        if (aborted) {
-            // abort() fired its own RPC:RESPONSE; nothing more to do.
-            return;
-        }
-        if (err?.name === "TimeoutError" || timeoutSignal?.aborted) {
-            const error = new ConnectionTimeoutError(url, settings.timeout);
+            if (response.status >= 502 && response.status <= 504) {
+                // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
+                // — common when Odoo is behind a reverse proxy (nginx, etc.)
+                const error = new ConnectionLostError(url);
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
+            if (response.status === 413) {
+                // If the request content size exceeds the limit set by a reverse
+                // proxy (e.g. nginx), it returns an HTTP 413 with a non-JSON body.
+                const error = new RequestEntityTooLargeError();
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
+            // Server-overload detection: a non-JSON content type signals that
+            // the server returned an error page (typically werkzeug's HTML
+            // traceback for ``PoolError`` / ``OperationalError``) rather than
+            // a JSON-RPC envelope.  Classifying it as ``ServerOverloadError``
+            // (subclass of ``ConnectionLostError`` for backward compat) lets
+            // the retry layer apply a longer backoff floor so retries don't
+            // pile onto an already-struggling backend.
+            const contentType = response.headers.get("content-type") || "";
+            if (contentType && !/application\/json/i.test(contentType)) {
+                const error = new ServerOverloadError(url, response.status);
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
+            let parsed;
+            try {
+                parsed = await response.json();
+            } catch {
+                // Genuinely-malformed JSON body despite an
+                // ``application/json`` content-type header, or no content-type
+                // at all.  Treated as transient connectivity failure: the
+                // server didn't produce a recognisable response and a retry
+                // with default backoff is reasonable.
+                const error = new ConnectionLostError(url);
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
+            if (!parsed.error) {
+                // Plan-C envelope versioning: server methods decorated with
+                // ``@versioned_envelope`` (web/models/_versioning.py) stash a
+                // content hash on ``request._response_version``, which the
+                // dispatcher lifts to ``parsed.version`` sibling-of-result.  We
+                // re-attach it as ``result.__version`` so the rpc cache's
+                // ``payloadChanged`` sees the same field whether the server
+                // used in-payload (@versioned) or out-of-band (@versioned_envelope)
+                // stamping.  Skips primitives (no place to attach a property)
+                // and dicts that already carry ``__version`` (in-payload path).
+                const result = parsed.result;
+                if (
+                    parsed.version !== undefined &&
+                    result &&
+                    typeof result === "object" &&
+                    result.__version === undefined
+                ) {
+                    result.__version = parsed.version;
+                }
+                rpcBus.trigger(RpcEvent.RESPONSE, {
+                    data,
+                    settings,
+                    result,
+                });
+                settleResolve(result);
+                return;
+            }
+            const error = makeErrorFromResponse(parsed.error);
+            error.model = data.params.model;
             rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
             settleReject(error);
-            return;
-        }
-        if (err?.name === "AbortError") {
-            // External abort (e.g. parent AbortController forwarded
-            // through AbortSignal.any) — treat as caller-initiated.
-            const error = new ConnectionAbortedError("fetch abort");
+        })
+        .catch((err) => {
+            // fetch rejects with:
+            //   • TypeError on network failure (DNS, CORS, server unreachable)
+            //   • DOMException("AbortError") when controller.abort() fires
+            //   • DOMException("TimeoutError") when AbortSignal.timeout() fires
+            // The two abort paths must surface as different error classes;
+            // ConnectionTimeoutError carries the configured timeoutMs so
+            // callers can decide whether to retry, alert the user, etc.
+            if (aborted) {
+                // abort() fired its own RPC:RESPONSE; nothing more to do.
+                return;
+            }
+            if (err?.name === "TimeoutError" || timeoutSignal?.aborted) {
+                const error = new ConnectionTimeoutError(url, settings.timeout);
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
+            if (err?.name === "AbortError") {
+                // External abort (e.g. parent AbortController forwarded
+                // through AbortSignal.any) — treat as caller-initiated.
+                const error = new ConnectionAbortedError("fetch abort");
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
+            const error = new ConnectionLostError(url);
             rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
             settleReject(error);
-            return;
-        }
-        const error = new ConnectionLostError(url);
-        rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
-        settleReject(error);
-    });
+        });
 
     /**
      * @param {boolean} rejectError Returns an error if true. Allows you to cancel

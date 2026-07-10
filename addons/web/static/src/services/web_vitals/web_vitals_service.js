@@ -151,11 +151,13 @@ export const webVitalsService = {
             // for ``PerformanceObserverInit`` but is not yet in the standard
             // TS DOM lib (lands with PerformanceEventTiming). Cast keeps the
             // observe call type-clean.
-            inpObserver.observe(/** @type {any} */ ({
-                type: "event",
-                buffered: true,
-                durationThreshold: 40,
-            }));
+            inpObserver.observe(
+                /** @type {any} */ ({
+                    type: "event",
+                    buffered: true,
+                    durationThreshold: 40,
+                }),
+            );
         } catch {
             // ignore — Safari ≤16 ships event-timing without ``interactionId``
             // (lands in 16.4); pre-Chromium-96 lacks the entry type entirely.

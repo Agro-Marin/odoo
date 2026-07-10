@@ -49,6 +49,7 @@
  */
 
 import { _t } from "@web/core/l10n/translation";
+
 import { createPropertyActiveField } from "./field_metadata.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -73,7 +74,13 @@ import { createPropertyActiveField } from "./field_metadata.js";
  *  "Why ``hasCurrentValues`` toggles" note)
  * @returns {Object} flat bag keyed by ``${fieldName}.${property.name}``
  */
-export function processProperties(record, properties, fieldName, parent, currentValues = {}) {
+export function processProperties(
+    record,
+    properties,
+    fieldName,
+    parent,
+    currentValues = {},
+) {
     /** @type {Record<string, any>} */
     const data = {};
 
@@ -91,9 +98,7 @@ export function processProperties(record, properties, fieldName, parent, current
                 },
                 propertyName: property.name,
                 relation: property.comodel,
-                sortable: !["many2one", "many2many", "tags"].includes(
-                    property.type,
-                ),
+                sortable: !["many2one", "many2many", "tags"].includes(property.type),
             };
         }
         if (hasCurrentValues || !record.activeFields[propertyFieldName]) {

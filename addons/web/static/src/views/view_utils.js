@@ -4,12 +4,12 @@
 /** @module @web/views/view_utils - Shared utilities for view controllers (class names, active actions, archive, formatting) */
 
 import { WarningDialog } from "@web/components/errors/error_dialogs";
+import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-import { getFieldCodec } from "@web/core/field_codec";
 import { X2M_TYPES } from "@web/fields/field_types";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
 import { session } from "@web/session";

@@ -1022,9 +1022,7 @@ test("invalid selection search default does not crash the view", async () => {
     });
     expect(`.o_cp_searchview`).toHaveCount(1);
     expect(getFacetTexts()[0].replace("\n", "")).toBe("Selection Fieldghi");
-    expect(searchBar.env.searchModel.domain).toEqual([
-        ["selection_field", "=", "ghi"],
-    ]);
+    expect(searchBar.env.searchModel.domain).toEqual([["selection_field", "=", "ghi"]]);
 });
 
 test("globalContext keys in name_search", async () => {

@@ -4,9 +4,9 @@
 /** @module @web/components/main_components_container - Renders all dynamically registered main_components from the registry */
 
 import { Component, xml } from "@odoo/owl";
+import { localization } from "@web/core/l10n/localization";
 import { registry, useRegistry } from "@web/core/registry";
 import { ErrorHandler } from "@web/core/utils/components";
-import { localization } from "@web/core/l10n/localization";
 const mainComponents = registry.category("main_components");
 
 mainComponents.addValidation({

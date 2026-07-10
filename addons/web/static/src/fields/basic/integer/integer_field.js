@@ -4,7 +4,6 @@
 /** @module @web/fields/basic/integer/integer_field - Numeric input field for Integer columns with locale-aware formatting */
 
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { formatInteger } from "@web/fields/formatters";

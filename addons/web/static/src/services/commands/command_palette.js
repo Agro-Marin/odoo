@@ -113,11 +113,15 @@ export class CommandPalette extends Component {
 
     setup() {
         if (this.props.bus) {
-            const setConfig = (/** @type {{ detail: CommandPaletteConfig }} */ { detail }) =>
-                this.setCommandPaletteConfig(detail);
+            const setConfig = (
+                /** @type {{ detail: CommandPaletteConfig }} */ { detail },
+            ) => this.setCommandPaletteConfig(detail);
             this.props.bus.addEventListener(CommandPaletteEvent.SET_CONFIG, setConfig);
             onWillDestroy(() =>
-                this.props.bus.removeEventListener(CommandPaletteEvent.SET_CONFIG, setConfig),
+                this.props.bus.removeEventListener(
+                    CommandPaletteEvent.SET_CONFIG,
+                    setConfig,
+                ),
             );
         }
 

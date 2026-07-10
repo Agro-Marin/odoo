@@ -4,10 +4,10 @@
 /** @module @web/views/calendar/hooks/square_selection_hook - Drag-to-select date range hook for month-view calendar cells */
 
 import { useComponent, useEffect, useExternalListener, useRef } from "@odoo/owl";
+import { useCallbackRecorder } from "@web/core/action_hook";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { closest } from "@web/core/utils/dom/ui";
-import { useCallbackRecorder } from "@web/core/action_hook";
 
 // v7 dropped the ``<table><tbody><tr><td>`` skeleton in favour of
 // ``<div role="row"><div role="gridcell">``.  ``.fc-day`` is layered onto

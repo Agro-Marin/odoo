@@ -257,7 +257,9 @@ export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
                             fieldNode.views.default,
                             fieldNode.views.default.fields,
                         );
-                        for (const fieldName of Object.keys(defaultArchInfo.activeFields)) {
+                        for (const fieldName of Object.keys(
+                            defaultArchInfo.activeFields,
+                        )) {
                             if (fieldName in activeField.related.activeFields) {
                                 patchActiveFields(
                                     activeField.related.activeFields[fieldName],

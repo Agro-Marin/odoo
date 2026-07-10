@@ -4,8 +4,8 @@
 /** @module @web/webclient/actions/reports/report_action - Client action rendering an HTML report in an iframe with print button and action link enrichment */
 
 import { Component, useRef, useSubEnv } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
 import { useSetupAction } from "@web/core/action_hook";
+import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
 import { getDefaultConfig } from "@web/views/view";
 import { useEnrichWithActionLinks } from "@web/webclient/actions/reports/report_hook";
@@ -43,8 +43,8 @@ export class ReportAction extends Component {
 
     /** @param {Event} ev - iframe load event */
     onIframeLoaded(ev) {
-        const iframeDocument =
-            /** @type {HTMLIFrameElement} */ (ev.target).contentWindow.document;
+        const iframeDocument = /** @type {HTMLIFrameElement} */ (ev.target)
+            .contentWindow.document;
         iframeDocument.body.classList.add("o_in_iframe", "container-fluid");
         iframeDocument.body.classList.remove("container");
     }

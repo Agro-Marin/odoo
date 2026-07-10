@@ -178,10 +178,16 @@ export function makeDraggableHook(hookParams) {
              * @param {Record<any, any>} [arg]
              */
             const callBuildHandler = (hookHandlerName, arg = {}) => {
-                if (typeof /** @type {Record<string, any>} */ (hookParams)[hookHandlerName] !== "function") {
+                if (
+                    typeof (
+                        /** @type {Record<string, any>} */ (hookParams)[hookHandlerName]
+                    ) !== "function"
+                ) {
                     return;
                 }
-                const returnValue = /** @type {Record<string, any>} */ (hookParams)[hookHandlerName]({
+                const returnValue = /** @type {Record<string, any>} */ (hookParams)[
+                    hookHandlerName
+                ]({
                     ctx,
                     ...helpers,
                     ...arg,
@@ -937,11 +943,7 @@ export function makeDraggableHook(hookParams) {
                 const addWindowListener = (type, listener, options = {}) => {
                     options.signal = controller.signal;
                     if (params.iframeWindow) {
-                        params.iframeWindow.addEventListener(
-                            type,
-                            listener,
-                            options,
-                        );
+                        params.iframeWindow.addEventListener(type, listener, options);
                     }
                     window.addEventListener(type, listener, options);
                 };

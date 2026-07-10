@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, queryAllTexts, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
@@ -12,6 +11,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
+import { luxon } from "@web/core/l10n/luxon";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 
 import {

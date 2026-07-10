@@ -14,14 +14,14 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    assetLog,
-    rpcLog,
     actionLog,
-    modelLog,
-    makeAssetLog,
-    makeRpcLog,
+    assetLog,
     makeActionLog,
+    makeAssetLog,
     makeModelLog,
+    makeRpcLog,
+    modelLog,
+    rpcLog,
 } from "@web/core/utils/asset_log";
 
 describe.current.tags("headless");
@@ -119,7 +119,7 @@ describe("enabled()", () => {
             if (had) {
                 /** @type {any} */ (globalThis).__ODOO_ASSET_TRACE__ = prior;
             } else {
-                delete /** @type {any} */ (globalThis).__ODOO_ASSET_TRACE__;
+                delete (/** @type {any} */ (globalThis).__ODOO_ASSET_TRACE__);
             }
         }
     });
@@ -177,18 +177,10 @@ describe("makeXxxLog factory", () => {
     test("all four make* factories produce category-bound loggers", () => {
         // Sanity check that no factory is broken (e.g. typo in prefix).
         const calls = captureConsoleDebug(() => {
-            withLocalStorage("debug.assets", "1", () =>
-                makeAssetLog("a")("payload"),
-            );
-            withLocalStorage("debug.rpc", "1", () =>
-                makeRpcLog("b")("payload"),
-            );
-            withLocalStorage("debug.action", "1", () =>
-                makeActionLog("c")("payload"),
-            );
-            withLocalStorage("debug.model", "1", () =>
-                makeModelLog("d")("payload"),
-            );
+            withLocalStorage("debug.assets", "1", () => makeAssetLog("a")("payload"));
+            withLocalStorage("debug.rpc", "1", () => makeRpcLog("b")("payload"));
+            withLocalStorage("debug.action", "1", () => makeActionLog("c")("payload"));
+            withLocalStorage("debug.model", "1", () => makeModelLog("d")("payload"));
         });
         expect(calls.length).toBe(4);
         expect(calls[0][0]).toBe("[asset.a]");

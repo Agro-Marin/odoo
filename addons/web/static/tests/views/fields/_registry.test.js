@@ -1,5 +1,10 @@
 // @ts-check
 
+// Side-effect import: installs the fields registry validation schema
+// (fieldRegistry.addValidation in field.js) that the schema tests below
+// exercise.
+import "@web/fields/field";
+
 import { describe, expect, test } from "@odoo/hoot";
 import { Component } from "@odoo/owl";
 import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
@@ -8,10 +13,6 @@ import { fieldKey, registerField } from "@web/fields/_registry";
 import { floatField } from "@web/fields/basic/float/float_field";
 import { integerField } from "@web/fields/basic/integer/integer_field";
 import { many2ManyTagsField } from "@web/fields/relational/many2many_tags/many2many_tags_field";
-// Side-effect import: installs the fields registry validation schema
-// (fieldRegistry.addValidation in field.js) that the schema tests below
-// exercise.
-import "@web/fields/field";
 
 describe.current.tags("headless");
 
@@ -121,7 +122,13 @@ test("aliases form does NOT bind a variant widget to alias keys", () => {
     const baseKey = `${SENTINEL_PREFIX}base`;
     const variantKey = `form.${SENTINEL_PREFIX}variant`;
     try {
-        registerField({ name: baseKey, aliases: [{ name: `${SENTINEL_PREFIX}variant`, view: "form" }] }, base);
+        registerField(
+            {
+                name: baseKey,
+                aliases: [{ name: `${SENTINEL_PREFIX}variant`, view: "form" }],
+            },
+            base,
+        );
         // The variant key now (incorrectly, for this hypothetical caller) points to BASE.
         // We assert the helper's actual behaviour so callers know what they get if they
         // misuse aliases for variant registration.

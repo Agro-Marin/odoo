@@ -170,7 +170,7 @@ export function patch(objToPatch, extension) {
                 Object.defineProperty(objToPatch, key, property);
             } else {
                 // Or remove the property if it did not exist at first.
-                delete (/** @type {Record<string, any>} */ (objToPatch))[key];
+                delete (/** @type {Record<string, any>} */ (objToPatch)[key]);
             }
         }
 

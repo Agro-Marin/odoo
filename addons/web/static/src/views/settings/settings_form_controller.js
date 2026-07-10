@@ -202,7 +202,9 @@ export class SettingsFormController extends formView.Controller {
                     _continue = false;
                     try {
                         await this.saveCoordinator.requestDiscard();
-                        await this.saveCoordinator.requestSave({ errorMode: "rethrow" });
+                        await this.saveCoordinator.requestSave({
+                            errorMode: "rethrow",
+                        });
                         _continue = true;
                     } finally {
                         resolve();

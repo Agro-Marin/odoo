@@ -4,7 +4,6 @@
 /** @module @web/fields/relational/many2one_reference/many2one_reference_field - Many2one field for Many2oneReference columns with dynamic relation model */
 
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import {
     extractM2OFieldProps,

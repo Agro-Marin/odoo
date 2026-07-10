@@ -144,12 +144,7 @@ describe("processProperties — sortable flag", () => {
 describe("processProperties — relatedPropertyField back-pointer", () => {
     test("field.relatedPropertyField names the parent field (no id/displayName here)", () => {
         const rec = makePropertyRecord();
-        processProperties(
-            rec,
-            [{ name: "color", type: "char" }],
-            "props",
-            false,
-        );
+        processProperties(rec, [{ name: "color", type: "char" }], "props", false);
         // The field-level pointer is for the SCHEMA — only the parent
         // field name. (The id/displayName are at the activeField level.)
         expect(rec.fields["props.color"].relatedPropertyField).toEqual({
@@ -160,12 +155,7 @@ describe("processProperties — relatedPropertyField back-pointer", () => {
     test("activeField.relatedPropertyField carries parent id + displayName", () => {
         const rec = makePropertyRecord();
         const parent = { id: 7, display_name: "Definition Record" };
-        processProperties(
-            rec,
-            [{ name: "color", type: "char" }],
-            "props",
-            parent,
-        );
+        processProperties(rec, [{ name: "color", type: "char" }], "props", parent);
         expect(rec.activeFields["props.color"].relatedPropertyField).toEqual({
             name: "props",
             id: 7,
@@ -175,12 +165,7 @@ describe("processProperties — relatedPropertyField back-pointer", () => {
 
     test("parent=false: relatedPropertyField has undefined id and displayName", () => {
         const rec = makePropertyRecord();
-        processProperties(
-            rec,
-            [{ name: "color", type: "char" }],
-            "props",
-            false,
-        );
+        processProperties(rec, [{ name: "color", type: "char" }], "props", false);
         expect(rec.activeFields["props.color"].relatedPropertyField).toEqual({
             name: "props",
             id: undefined,
@@ -209,7 +194,7 @@ describe("processProperties — scalar value shaping", () => {
         const rec = makePropertyRecord();
         const result = processProperties(
             rec,
-            [{ name: "label", type: "char" }],   // no .value
+            [{ name: "label", type: "char" }], // no .value
             "props",
             false,
         );
@@ -245,7 +230,13 @@ describe("processProperties — many2one value shaping", () => {
         const rec = makePropertyRecord();
         const result = processProperties(
             rec,
-            [{ name: "partner", type: "many2one", value: { id: 5, display_name: null } }],
+            [
+                {
+                    name: "partner",
+                    type: "many2one",
+                    value: { id: 5, display_name: null },
+                },
+            ],
             "props",
             false,
         );
@@ -283,7 +274,10 @@ describe("processProperties — many2many value shaping", () => {
                     name: "tags",
                     type: "many2many",
                     comodel: "res.tag",
-                    value: [[1, "A"], [2, "B"]],
+                    value: [
+                        [1, "A"],
+                        [2, "B"],
+                    ],
                 },
             ],
             "props",

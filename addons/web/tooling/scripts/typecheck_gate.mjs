@@ -66,29 +66,31 @@ const VIOLATION_PRINT_LIMIT = 50;
  * @returns {Record<string, Record<string, number>>}
  */
 function parseTscOutput(text) {
-    /** @type {Record<string, Record<string, number>>} */
-    const counts = {};
-    for (const line of text.split("\n")) {
-        const m = ERROR_LINE_RE.exec(line);
-        if (!m) {
-            continue;
-        }
-        const [, file, , , code] = m;
-        counts[file] ??= {};
-        counts[file][code] = (counts[file][code] || 0) + 1;
+  /** @type {Record<string, Record<string, number>>} */
+  const counts = {};
+  for (const line of text.split("\n")) {
+    const m = ERROR_LINE_RE.exec(line);
+    if (!m) {
+      continue;
     }
-    return counts;
+    const [, file, , , code] = m;
+    counts[file] ??= {};
+    counts[file][code] = (counts[file][code] || 0) + 1;
+  }
+  return counts;
 }
 
 /** @returns {number} */
-function totalErrors(/** @type {Record<string, Record<string, number>>} */ counts) {
-    let n = 0;
-    for (const file of Object.values(counts)) {
-        for (const k of Object.values(file)) {
-            n += k;
-        }
+function totalErrors(
+  /** @type {Record<string, Record<string, number>>} */ counts,
+) {
+  let n = 0;
+  for (const file of Object.values(counts)) {
+    for (const k of Object.values(file)) {
+      n += k;
     }
-    return n;
+  }
+  return n;
 }
 
 /**
@@ -96,30 +98,33 @@ function totalErrors(/** @type {Record<string, Record<string, number>>} */ count
  * (violations) and REMOVED errors (cleanups) keyed by (file, code).
  */
 function compareCounts(
-    /** @type {{files?: Record<string, Record<string, number>>}} */ baseline,
-    /** @type {Record<string, Record<string, number>>} */ current,
+  /** @type {{files?: Record<string, Record<string, number>>}} */ baseline,
+  /** @type {Record<string, Record<string, number>>} */ current,
 ) {
-    /** @type {{file: string, code: string, baseline: number, current: number, delta: number}[]} */
-    const violations = [];
-    /** @type {{file: string, code: string, baseline: number, current: number, delta: number}[]} */
-    const cleanups = [];
-    const baseFiles = baseline.files || {};
-    const allFiles = new Set([...Object.keys(baseFiles), ...Object.keys(current)]);
-    for (const file of allFiles) {
-        const before = baseFiles[file] || {};
-        const after = current[file] || {};
-        const allCodes = new Set([...Object.keys(before), ...Object.keys(after)]);
-        for (const code of allCodes) {
-            const b = before[code] || 0;
-            const a = after[code] || 0;
-            if (a > b) {
-                violations.push({ file, code, baseline: b, current: a, delta: a - b });
-            } else if (a < b) {
-                cleanups.push({ file, code, baseline: b, current: a, delta: b - a });
-            }
-        }
+  /** @type {{file: string, code: string, baseline: number, current: number, delta: number}[]} */
+  const violations = [];
+  /** @type {{file: string, code: string, baseline: number, current: number, delta: number}[]} */
+  const cleanups = [];
+  const baseFiles = baseline.files || {};
+  const allFiles = new Set([
+    ...Object.keys(baseFiles),
+    ...Object.keys(current),
+  ]);
+  for (const file of allFiles) {
+    const before = baseFiles[file] || {};
+    const after = current[file] || {};
+    const allCodes = new Set([...Object.keys(before), ...Object.keys(after)]);
+    for (const code of allCodes) {
+      const b = before[code] || 0;
+      const a = after[code] || 0;
+      if (a > b) {
+        violations.push({ file, code, baseline: b, current: a, delta: a - b });
+      } else if (a < b) {
+        cleanups.push({ file, code, baseline: b, current: a, delta: b - a });
+      }
     }
-    return { violations, cleanups };
+  }
+  return { violations, cleanups };
 }
 
 /**
@@ -127,122 +132,123 @@ function compareCounts(
  * baseline diffs in PRs reflect real changes, not key reshuffling.
  */
 function writeBaseline(
-    /** @type {string} */ path,
-    /** @type {Record<string, Record<string, number>>} */ counts,
+  /** @type {string} */ path,
+  /** @type {Record<string, Record<string, number>>} */ counts,
 ) {
-    /** @type {Record<string, Record<string, number>>} */
-    const sortedFiles = {};
-    for (const file of Object.keys(counts).sort()) {
-        /** @type {Record<string, number>} */
-        const sortedCodes = {};
-        for (const code of Object.keys(counts[file]).sort()) {
-            sortedCodes[code] = counts[file][code];
-        }
-        sortedFiles[file] = sortedCodes;
+  /** @type {Record<string, Record<string, number>>} */
+  const sortedFiles = {};
+  for (const file of Object.keys(counts).sort()) {
+    /** @type {Record<string, number>} */
+    const sortedCodes = {};
+    for (const code of Object.keys(counts[file]).sort()) {
+      sortedCodes[code] = counts[file][code];
     }
-    const data = {
-        _generated_at: new Date().toISOString().slice(0, 10),
-        _total_errors: totalErrors(counts),
-        _file_count: Object.keys(sortedFiles).length,
-        _generator: "addons/web/tooling/scripts/typecheck_gate.mjs --update-baseline",
-        files: sortedFiles,
-    };
-    writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
-    return data;
+    sortedFiles[file] = sortedCodes;
+  }
+  const data = {
+    _generated_at: new Date().toISOString().slice(0, 10),
+    _total_errors: totalErrors(counts),
+    _file_count: Object.keys(sortedFiles).length,
+    _generator:
+      "addons/web/tooling/scripts/typecheck_gate.mjs --update-baseline",
+    files: sortedFiles,
+  };
+  writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
+  return data;
 }
 
 /** @param {string[]} argv */
 function parseArgs(argv) {
-    let baselinePath = DEFAULT_BASELINE_PATH;
-    let update = false;
-    for (const arg of argv) {
-        if (arg === "--update-baseline") {
-            update = true;
-        } else if (arg.startsWith("--baseline=")) {
-            baselinePath = resolve(arg.slice("--baseline=".length));
-        } else if (arg === "--help" || arg === "-h") {
-            console.log(
-                "Usage:\n" +
-                    "  tsc | typecheck_gate.mjs                  # gate against default baseline\n" +
-                    "  tsc | typecheck_gate.mjs --update-baseline # regenerate baseline\n" +
-                    "  tsc | typecheck_gate.mjs --baseline=PATH   # use a different baseline file",
-            );
-            process.exit(0);
-        } else {
-            console.error(`Unknown argument: ${arg}. Pass --help for usage.`);
-            process.exit(2);
-        }
+  let baselinePath = DEFAULT_BASELINE_PATH;
+  let update = false;
+  for (const arg of argv) {
+    if (arg === "--update-baseline") {
+      update = true;
+    } else if (arg.startsWith("--baseline=")) {
+      baselinePath = resolve(arg.slice("--baseline=".length));
+    } else if (arg === "--help" || arg === "-h") {
+      console.log(
+        "Usage:\n" +
+          "  tsc | typecheck_gate.mjs                  # gate against default baseline\n" +
+          "  tsc | typecheck_gate.mjs --update-baseline # regenerate baseline\n" +
+          "  tsc | typecheck_gate.mjs --baseline=PATH   # use a different baseline file",
+      );
+      process.exit(0);
+    } else {
+      console.error(`Unknown argument: ${arg}. Pass --help for usage.`);
+      process.exit(2);
     }
-    return { baselinePath, update };
+  }
+  return { baselinePath, update };
 }
 
 function main() {
-    const { baselinePath, update } = parseArgs(process.argv.slice(2));
-    // Read full tsc output from stdin.  fd 0 read works for both
-    // piped input and `< file` redirection.
-    const tscOutput = readFileSync(0, "utf-8");
-    const current = parseTscOutput(tscOutput);
-    const total = totalErrors(current);
-    const fileCount = Object.keys(current).length;
+  const { baselinePath, update } = parseArgs(process.argv.slice(2));
+  // Read full tsc output from stdin.  fd 0 read works for both
+  // piped input and `< file` redirection.
+  const tscOutput = readFileSync(0, "utf-8");
+  const current = parseTscOutput(tscOutput);
+  const total = totalErrors(current);
+  const fileCount = Object.keys(current).length;
 
-    if (update) {
-        const data = writeBaseline(baselinePath, current);
-        console.log(
-            `✓ Baseline updated: ${data._total_errors} errors across ${data._file_count} files`,
-        );
-        console.log(`  Written to ${baselinePath}`);
-        process.exit(0);
-    }
-
-    /** @type {{files?: Record<string, Record<string, number>>, _generated_at?: string, _total_errors?: number}} */
-    let baseline;
-    try {
-        baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
-    } catch (e) {
-        console.error(`✗ Could not read baseline at ${baselinePath}.`);
-        console.error(`  Reason: ${/** @type {Error} */ (e).message}`);
-        console.error(`  Run with --update-baseline to create one.`);
-        process.exit(2);
-        return;
-    }
-
-    const { violations, cleanups } = compareCounts(baseline, current);
-
-    if (violations.length) {
-        const newErrorCount = violations.reduce((sum, v) => sum + v.delta, 0);
-        console.error(
-            `✗ ${newErrorCount} new typecheck error(s) across ${violations.length} (file, code) pair(s) vs baseline:`,
-        );
-        console.error(
-            `  baseline @ ${baseline._generated_at}: ${baseline._total_errors} errors`,
-        );
-        console.error(`  current: ${total} errors across ${fileCount} files\n`);
-        for (const v of violations.slice(0, VIOLATION_PRINT_LIMIT)) {
-            console.error(
-                `  ${v.file}: ${v.code}: ${v.baseline} → ${v.current} (+${v.delta})`,
-            );
-        }
-        if (violations.length > VIOLATION_PRINT_LIMIT) {
-            console.error(
-                `  ...and ${violations.length - VIOLATION_PRINT_LIMIT} more`,
-            );
-        }
-        process.exit(1);
-    }
-
-    if (cleanups.length) {
-        const cleanupCount = cleanups.reduce((sum, c) => sum + c.delta, 0);
-        console.log(
-            `✓ No new violations. ${cleanupCount} error(s) cleaned up vs baseline ` +
-                `in ${cleanups.length} (file, code) pair(s).`,
-        );
-        console.log(`  Run with --update-baseline to tighten.`);
-    } else {
-        console.log(
-            `✓ No new violations. ${total} errors match baseline (${fileCount} files).`,
-        );
-    }
+  if (update) {
+    const data = writeBaseline(baselinePath, current);
+    console.log(
+      `✓ Baseline updated: ${data._total_errors} errors across ${data._file_count} files`,
+    );
+    console.log(`  Written to ${baselinePath}`);
     process.exit(0);
+  }
+
+  /** @type {{files?: Record<string, Record<string, number>>, _generated_at?: string, _total_errors?: number}} */
+  let baseline;
+  try {
+    baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
+  } catch (e) {
+    console.error(`✗ Could not read baseline at ${baselinePath}.`);
+    console.error(`  Reason: ${/** @type {Error} */ (e).message}`);
+    console.error(`  Run with --update-baseline to create one.`);
+    process.exit(2);
+    return;
+  }
+
+  const { violations, cleanups } = compareCounts(baseline, current);
+
+  if (violations.length) {
+    const newErrorCount = violations.reduce((sum, v) => sum + v.delta, 0);
+    console.error(
+      `✗ ${newErrorCount} new typecheck error(s) across ${violations.length} (file, code) pair(s) vs baseline:`,
+    );
+    console.error(
+      `  baseline @ ${baseline._generated_at}: ${baseline._total_errors} errors`,
+    );
+    console.error(`  current: ${total} errors across ${fileCount} files\n`);
+    for (const v of violations.slice(0, VIOLATION_PRINT_LIMIT)) {
+      console.error(
+        `  ${v.file}: ${v.code}: ${v.baseline} → ${v.current} (+${v.delta})`,
+      );
+    }
+    if (violations.length > VIOLATION_PRINT_LIMIT) {
+      console.error(
+        `  ...and ${violations.length - VIOLATION_PRINT_LIMIT} more`,
+      );
+    }
+    process.exit(1);
+  }
+
+  if (cleanups.length) {
+    const cleanupCount = cleanups.reduce((sum, c) => sum + c.delta, 0);
+    console.log(
+      `✓ No new violations. ${cleanupCount} error(s) cleaned up vs baseline ` +
+        `in ${cleanups.length} (file, code) pair(s).`,
+    );
+    console.log(`  Run with --update-baseline to tighten.`);
+  } else {
+    console.log(
+      `✓ No new violations. ${total} errors match baseline (${fileCount} files).`,
+    );
+  }
+  process.exit(0);
 }
 
 main();

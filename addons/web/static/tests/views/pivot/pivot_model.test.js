@@ -413,10 +413,7 @@ describe("getGroupDomain — domain retrieval", () => {
         const key = JSON.stringify([rowValues, colValues]);
         const config = makeConfig({}, { groupDomains: { [key]: [["id", "=", 5]] } });
 
-        const result = getGroupDomain(
-            { rowValues, colValues },
-            config,
-        );
+        const result = getGroupDomain({ rowValues, colValues }, config);
 
         expect(result).toEqual([["id", "=", 5]]);
     });

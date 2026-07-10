@@ -3,8 +3,8 @@
 
 /** @module @web/core/py_js/py_parser - Pratt parser that converts Python token streams into AST nodes */
 
-import { binaryOperators, comparators } from "./py_tokenizer.js";
 import { ASTType } from "./ast_type.js";
+import { binaryOperators, comparators } from "./py_tokenizer.js";
 import { TokenType } from "./token_type.js";
 
 // -----------------------------------------------------------------------------
@@ -121,7 +121,9 @@ export function bp(symbol) {
  * @returns {number}
  */
 function bindingPower(token) {
-    return token.type === TokenType.Symbol ? bp(/** @type {string} */ (token.value)) : 0;
+    return token.type === TokenType.Symbol
+        ? bp(/** @type {string} */ (token.value))
+        : 0;
 }
 
 /**
@@ -333,7 +335,8 @@ function parseInfix(left, current, cur) {
                     while (cur.peek() && !isSymbol(cur.peek(), ")")) {
                         const arg = _parse(cur, 0);
                         if (arg.type === ASTType.Assignment) {
-                            kwargs[/** @type {any} */ (arg).name.value] = /** @type {any} */ (arg).value;
+                            kwargs[/** @type {any} */ (arg).name.value] =
+                                /** @type {any} */ (arg).value;
                         } else {
                             args.push(arg);
                         }

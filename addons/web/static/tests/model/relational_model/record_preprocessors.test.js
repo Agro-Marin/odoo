@@ -14,16 +14,16 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
+import { x2ManyCommands } from "@web/model/relational_model/commands";
 import {
     completeMany2OneValue,
     preprocessHtmlChanges,
-    preprocessMany2OneReferenceChanges,
     preprocessMany2oneChanges,
+    preprocessMany2OneReferenceChanges,
     preprocessPropertiesChanges,
     preprocessReferenceChanges,
     preprocessX2manyChanges,
 } from "@web/model/relational_model/record_preprocessors";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
 
 // ---------------------------------------------------------------------------
 // Mock factory
@@ -78,7 +78,12 @@ describe("completeMany2OneValue", () => {
             activeFields: { partner_id: { context: "{}" } },
         });
         // {} → resId=undefined (falsy), displayName=undefined (falsy)
-        const result = await completeMany2OneValue(rec, {}, "partner_id", "res.partner");
+        const result = await completeMany2OneValue(
+            rec,
+            {},
+            "partner_id",
+            "res.partner",
+        );
         expect(result).toBe(false);
     });
 
@@ -129,7 +134,12 @@ describe("completeMany2OneValue", () => {
             activeFields: { partner_id: { context: "{}" } },
         });
         const value = { id: 42, display_name: "Acme Corp" };
-        const result = await completeMany2OneValue(rec, value, "partner_id", "res.partner");
+        const result = await completeMany2OneValue(
+            rec,
+            value,
+            "partner_id",
+            "res.partner",
+        );
         // Both present — no RPC needed, value returned as-is
         expect(result).toBe(value);
     });
@@ -164,7 +174,9 @@ describe("preprocessMany2oneChanges", () => {
 
     test("completes value when field is in activeFields with both id and display_name", async () => {
         const rec = makeRecord({
-            fields: { partner_id: { type: "many2one", relation: "res.partner", context: {} } },
+            fields: {
+                partner_id: { type: "many2one", relation: "res.partner", context: {} },
+            },
             activeFields: { partner_id: { context: "{}", related: null } },
         });
         const changes = { partner_id: { id: 5, display_name: "Acme" } };

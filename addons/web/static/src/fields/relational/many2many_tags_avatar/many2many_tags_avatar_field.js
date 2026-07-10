@@ -5,8 +5,8 @@
 
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
-import { registerField } from "@web/fields/_registry";
 import { imageUrl } from "@web/core/utils/urls";
+import { registerField } from "@web/fields/_registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
@@ -57,7 +57,10 @@ export const listMany2ManyTagsAvatarField = {
     component: ListMany2ManyTagsAvatarField,
 };
 
-registerField({ name: "many2many_tags_avatar", view: "list" }, listMany2ManyTagsAvatarField);
+registerField(
+    { name: "many2many_tags_avatar", view: "list" },
+    listMany2ManyTagsAvatarField,
+);
 
 export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
     static template = "web.Many2ManyTagsAvatarFieldPopover";
@@ -169,4 +172,7 @@ export const kanbanMany2ManyTagsAvatarField = {
     },
 };
 
-registerField({ name: "many2many_tags_avatar", view: "kanban" }, kanbanMany2ManyTagsAvatarField);
+registerField(
+    { name: "many2many_tags_avatar", view: "kanban" },
+    kanbanMany2ManyTagsAvatarField,
+);

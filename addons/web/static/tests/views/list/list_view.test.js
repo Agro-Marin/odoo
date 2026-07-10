@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { expect, getFixture, test } from "@odoo/hoot";
 import {
     clear,
@@ -80,6 +79,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { useBus } from "@web/core/utils/hooks";
@@ -197,8 +197,24 @@ class Currency extends models.Model {
     rate_date = fields.Date();
 
     _records = [
-        { id: 1, name: "USD", symbol: "$", position: "before", inverse_rate: 1, date: "2025-06-13", rate_date: "2025-06-13" },
-        { id: 2, name: "EUR", symbol: "€", position: "after", inverse_rate: 0.5, date: "2025-06-13", rate_date: "2025-06-13" },
+        {
+            id: 1,
+            name: "USD",
+            symbol: "$",
+            position: "before",
+            inverse_rate: 1,
+            date: "2025-06-13",
+            rate_date: "2025-06-13",
+        },
+        {
+            id: 2,
+            name: "EUR",
+            symbol: "€",
+            position: "after",
+            inverse_rate: 0.5,
+            date: "2025-06-13",
+            rate_date: "2025-06-13",
+        },
     ];
 }
 
@@ -1022,9 +1038,9 @@ test(`list view with icon buttons`, async () => {
     });
     expect(`button.btn.btn-link i.fa-solid.fa-asterisk`).toHaveCount(1);
     expect(`button.btn.btn-link.o_yeah i.fa-solid.fa-star`).toHaveCount(1);
-    expect(`button.btn.btn-link.o_yeah:contains(Refresh) i.fa-solid.fa-refresh`).toHaveCount(
-        1,
-    );
+    expect(
+        `button.btn.btn-link.o_yeah:contains(Refresh) i.fa-solid.fa-refresh`,
+    ).toHaveCount(1);
     expect(
         `button.btn.btn-danger.o_yeah:contains(Danger) i.fa-solid.fa-exclamation`,
     ).toHaveCount(1);
@@ -4881,7 +4897,9 @@ test(`monetary aggregates in grouped list`, async () => {
     expect(`.o_list_footer .o_list_number span:first`).toHaveText("$ 1,400.00?");
     await toggleMultiCurrencyPopover(".o_list_footer .o_list_number span:first sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
-    expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50 on Jun 13, 2025");
+    expect(".o_multi_currency_popover").toHaveText(
+        "2,800.00 € at $ 0.50 on Jun 13, 2025",
+    );
 });
 
 test.tags("desktop");
@@ -5195,7 +5213,9 @@ test(`aggregates monetary (different currencies)`, async () => {
     expect(`tfoot`).toHaveText("$ 1,400.00?");
     await toggleMultiCurrencyPopover("tfoot span sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
-    expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50 on Jun 13, 2025");
+    expect(".o_multi_currency_popover").toHaveText(
+        "2,800.00 € at $ 0.50 on Jun 13, 2025",
+    );
 });
 
 test(`aggregates monetary (different currencies, record without value)`, async () => {
@@ -5323,7 +5343,7 @@ test(`aggregates monetary (currency field not set on first record)`, async () =>
     await toggleMultiCurrencyPopover("tfoot span sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
     expect(".o_multi_currency_popover").toHaveText(
-        "3,700.00 € at $ 0.50 on Jun 13, 2025\n1,850.00 without currency"
+        "3,700.00 € at $ 0.50 on Jun 13, 2025\n1,850.00 without currency",
     );
 });
 
@@ -5693,7 +5713,10 @@ test.tags("desktop");
 test(`editable list: updating list state while invisible`, async () => {
     Foo._onChanges = {
         bar(record) {
-            record.o2m = [[5, false, false], [0, null, { display_name: "Whatever" }]];
+            record.o2m = [
+                [5, false, false],
+                [0, null, { display_name: "Whatever" }],
+            ];
         },
     };
 
@@ -16248,10 +16271,9 @@ test(`list view with optional fields from local storage being the empty array`, 
     // doAction triggers ``isStudioEditable()``); ``mountView`` mode does
     // not.  Filtering by ``:not(.dropdown-item-studio)`` keeps the
     // assertion stable across both runtimes.
-    expect(`.o-dropdown--menu span.dropdown-item:not(.dropdown-item-studio)`).toHaveCount(
-        2,
-        { message: "dropdown has 2 optional column headers" },
-    );
+    expect(
+        `.o-dropdown--menu span.dropdown-item:not(.dropdown-item-studio)`,
+    ).toHaveCount(2, { message: "dropdown has 2 optional column headers" });
     // disable optional field "reference" (no optional column enabled)
     await contains(`.o-dropdown--menu span.dropdown-item input:eq(1)`).click();
     // Only a setItem: the toggle refreshes the cached value, so the render

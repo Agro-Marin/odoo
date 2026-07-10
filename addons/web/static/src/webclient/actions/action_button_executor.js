@@ -205,7 +205,9 @@ export async function executeActionButton(
                 return;
             }
         } else {
-            throw new InvalidButtonParamsError("Missing type for doActionButton request");
+            throw new InvalidButtonParamsError(
+                "Missing type for doActionButton request",
+            );
         }
         if (!isEmbeddedAction && action.embedded_action_ids?.length) {
             const embeddedActionsKey = `${action.id}+${params.resId || ""}`;

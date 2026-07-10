@@ -35,7 +35,7 @@ defineModels([Turtle, IrAttachment]);
 test("widget many2many_binary", async () => {
     expect.assertions(17);
 
-    (/** @type {any} */ (mockService))("http", {
+    /** @type {any} */ (mockService)("http", {
         post(route, { ufile }) {
             expect(route).toBe("/web/binary/upload_attachment");
             expect(ufile[0].name).toBe("fake_file.tiff", {
@@ -141,7 +141,7 @@ test("widget many2many_binary", async () => {
 test("widget many2many_binary displays notification on error", async () => {
     expect.assertions(11);
 
-    (/** @type {any} */ (mockService))("http", {
+    /** @type {any} */ (mockService)("http", {
         post(route, { ufile }) {
             expect(route).toBe("/web/binary/upload_attachment");
             expect([ufile[0].name, ufile[1].name]).toEqual(
@@ -208,7 +208,7 @@ test("widget many2many_binary displays notification on error", async () => {
 test("widget many2many_binary keeps valid files uploaded after an errored one", async () => {
     expect.assertions(4);
 
-    (/** @type {any} */ (mockService))("http", {
+    /** @type {any} */ (mockService)("http", {
         post(route, { ufile }) {
             expect(route).toBe("/web/binary/upload_attachment");
             // The errored file is FIRST; the valid file is second. The old code
@@ -265,7 +265,7 @@ test("widget many2many_binary image MIME type preview", async () => {
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z9DwHwAGBQKA3H7sNwAAAABJRU5ErkJggg==";
     const imageData = Uint8Array.from([...atob(IMAGE_B64)].map((c) => c.charCodeAt(0)));
 
-    (/** @type {any} */ (mockService))("http", {
+    /** @type {any} */ (mockService)("http", {
         post(route, { ufile }) {
             expect(route).toBe("/web/binary/upload_attachment");
             expect(ufile[0].name).toBe("fake_image.png", {

@@ -144,7 +144,9 @@ test("a popover with an autofocus child can become the UI active element", async
 
     await click(".btn.test");
     await animationFrame();
-    expect(queryOne(".o_popover")).toBe(/** @type {any} */ (getService("ui").activeElement));
+    expect(queryOne(".o_popover")).toBe(
+        /** @type {any} */ (getService("ui").activeElement),
+    );
     expect(".o_popover input").toBeFocused();
 });
 

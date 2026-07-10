@@ -121,10 +121,9 @@ export async function postprocessReadGroup(config, response, deps) {
                         ...commonConfig,
                         groupBy: nextLevelGroupBy,
                         groups: {},
-                        limit:
-                            !nextLevelGroupBy.length
-                                ? initialLimit
-                                : initialGroupsLimit || defaultGroupLimit,
+                        limit: !nextLevelGroupBy.length
+                            ? initialLimit
+                            : initialGroupsLimit || defaultGroupLimit,
                     },
                 };
             }

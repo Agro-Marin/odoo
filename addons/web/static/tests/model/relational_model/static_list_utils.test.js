@@ -39,21 +39,36 @@ describe("compareRecords — char ascending", () => {
     test("returns -1 when r1 < r2", () => {
         const r1 = makeRecord({ name: "Alice" });
         const r2 = makeRecord({ name: "Bob" });
-        const result = compareRecords(r1, r2, [{ name: "name", asc: true }], charFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "name", asc: true }],
+            charFields,
+        );
         expect(result).toBe(-1);
     });
 
     test("returns 1 when r1 > r2", () => {
         const r1 = makeRecord({ name: "Zebra" });
         const r2 = makeRecord({ name: "Apple" });
-        const result = compareRecords(r1, r2, [{ name: "name", asc: true }], charFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "name", asc: true }],
+            charFields,
+        );
         expect(result).toBe(1);
     });
 
     test("returns 0 when r1 == r2", () => {
         const r1 = makeRecord({ name: "Same" });
         const r2 = makeRecord({ name: "Same" });
-        const result = compareRecords(r1, r2, [{ name: "name", asc: true }], charFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "name", asc: true }],
+            charFields,
+        );
         expect(result).toBe(0);
     });
 });
@@ -63,14 +78,24 @@ describe("compareRecords — descending", () => {
         const r1 = makeRecord({ name: "Alice" });
         const r2 = makeRecord({ name: "Bob" });
         // desc: r1 < r2 alphabetically, but with desc r1 comes AFTER r2 → returns 1
-        const result = compareRecords(r1, r2, [{ name: "name", asc: false }], charFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "name", asc: false }],
+            charFields,
+        );
         expect(result).toBe(1);
     });
 
     test("r1 > r2 descending returns -1", () => {
         const r1 = makeRecord({ name: "Zebra" });
         const r2 = makeRecord({ name: "Apple" });
-        const result = compareRecords(r1, r2, [{ name: "name", asc: false }], charFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "name", asc: false }],
+            charFields,
+        );
         expect(result).toBe(-1);
     });
 });
@@ -89,14 +114,24 @@ describe("compareRecords — many2one", () => {
     test("compares by display_name", () => {
         const r1 = makeRecord({ partner_id: { id: 1, display_name: "Alice Co" } });
         const r2 = makeRecord({ partner_id: { id: 2, display_name: "Bob Ltd" } });
-        const result = compareRecords(r1, r2, [{ name: "partner_id", asc: true }], m2oFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "partner_id", asc: true }],
+            m2oFields,
+        );
         expect(result).toBe(-1);
     });
 
     test("treats falsy many2one as empty string", () => {
         const r1 = makeRecord({ partner_id: false });
         const r2 = makeRecord({ partner_id: { id: 1, display_name: "Bob" } });
-        const result = compareRecords(r1, r2, [{ name: "partner_id", asc: true }], m2oFields);
+        const result = compareRecords(
+            r1,
+            r2,
+            [{ name: "partner_id", asc: true }],
+            m2oFields,
+        );
         // "" < "Bob" → -1
         expect(result).toBe(-1);
     });
@@ -107,7 +142,10 @@ describe("compareRecords — multi-criterion tie-break", () => {
         const fields = { name: { type: "char" }, code: { type: "char" } };
         const r1 = makeRecord({ name: "Same", code: "A" });
         const r2 = makeRecord({ name: "Same", code: "B" });
-        const orderBy = [{ name: "name", asc: true }, { name: "code", asc: true }];
+        const orderBy = [
+            { name: "name", asc: true },
+            { name: "code", asc: true },
+        ];
         expect(compareRecords(r1, r2, orderBy, fields)).toBe(-1);
         expect(compareRecords(r2, r1, orderBy, fields)).toBe(1);
     });
@@ -116,7 +154,10 @@ describe("compareRecords — multi-criterion tie-break", () => {
         const fields = { name: { type: "char" }, code: { type: "char" } };
         const r1 = makeRecord({ name: "X", code: "Y" });
         const r2 = makeRecord({ name: "X", code: "Y" });
-        const orderBy = [{ name: "name", asc: true }, { name: "code", asc: true }];
+        const orderBy = [
+            { name: "name", asc: true },
+            { name: "code", asc: true },
+        ];
         expect(compareRecords(r1, r2, orderBy, fields)).toBe(0);
     });
 });
@@ -138,7 +179,10 @@ describe("computeNextOrderBy — new field", () => {
     });
 
     test("existing occurrence of new field is removed from old position", () => {
-        const orderBy = [{ name: "name", asc: true }, { name: "code", asc: false }];
+        const orderBy = [
+            { name: "name", asc: true },
+            { name: "code", asc: false },
+        ];
         const result = computeNextOrderBy("code", orderBy, false);
         // code is now at front, not duplicated
         expect(result.filter((o) => o.name === "code").length).toBe(1);
@@ -153,7 +197,11 @@ describe("computeNextOrderBy — same field cycles", () => {
     });
 
     test("desc → reset to id asc", () => {
-        const result = computeNextOrderBy("name", [{ name: "name", asc: false }], false);
+        const result = computeNextOrderBy(
+            "name",
+            [{ name: "name", asc: false }],
+            false,
+        );
         expect(result).toEqual([{ name: "id", asc: true }]);
     });
 });

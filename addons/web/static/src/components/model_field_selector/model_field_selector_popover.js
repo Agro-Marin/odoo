@@ -347,7 +347,9 @@ export class ModelFieldSelectorPopover extends Component {
             case "Enter": {
                 ev.preventDefault();
                 ev.stopPropagation();
-                this.loadNewPath(/** @type {HTMLInputElement} */ (ev.currentTarget).value);
+                this.loadNewPath(
+                    /** @type {HTMLInputElement} */ (ev.currentTarget).value,
+                );
                 break;
             }
         }

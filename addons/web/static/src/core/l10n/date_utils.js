@@ -21,7 +21,9 @@ export function areDatesEqual(d1, d2) {
         d2 = ensureArray(d2);
         return (
             d1.length === d2.length &&
-            d1.every((/** @type {any} */ d1Val, /** @type {number} */ i) => areDatesEqual(d1Val, d2[i]))
+            d1.every((/** @type {any} */ d1Val, /** @type {number} */ i) =>
+                areDatesEqual(d1Val, d2[i]),
+            )
         );
     }
     if (d1 instanceof DateTime && d2 instanceof DateTime && d1 !== d2) {

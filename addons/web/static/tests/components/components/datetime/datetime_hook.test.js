@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { expect, test } from "@odoo/hoot";
 import { click, edit } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
@@ -8,6 +7,7 @@ import { Component, reactive, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
+import { luxon } from "@web/core/l10n/luxon";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 const { DateTime } = luxon;

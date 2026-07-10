@@ -211,7 +211,8 @@ export class RelationalModel extends Model {
         // can skip ``_getChanges()`` entirely in the overwhelmingly common
         // default case. (Only ``res_user_group_ids_field`` overrides it in core.)
         this.hasOnRecordChangedHook =
-            this.hooks.lifecycle.onRecordChanged !== DEFAULT_LIFECYCLE_HOOKS.onRecordChanged;
+            this.hooks.lifecycle.onRecordChanged !==
+            DEFAULT_LIFECYCLE_HOOKS.onRecordChanged;
 
         this.initialLimit = params.limit || this.Class.DEFAULT_LIMIT;
         this.initialGroupsLimit = params.groupsLimit;
@@ -423,7 +424,10 @@ export class RelationalModel extends Model {
                         return;
                     }
                     const { root, loadId } = await rootLoadDef;
-                    if (root.config.isMonoRecord && currentResId !== root.config.resId) {
+                    if (
+                        root.config.isMonoRecord &&
+                        currentResId !== root.config.resId
+                    ) {
                         // The record ID has been changed, likely because a new record was saved.
                         return;
                     }

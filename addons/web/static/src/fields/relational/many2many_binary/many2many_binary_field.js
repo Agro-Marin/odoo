@@ -6,9 +6,8 @@
 import { Component } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { useX2ManyCrud } from "../x2many_crud.js";

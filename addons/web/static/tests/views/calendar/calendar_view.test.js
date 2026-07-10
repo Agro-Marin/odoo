@@ -1214,9 +1214,7 @@ test(`create and change events on desktop`, async () => {
     // popover (if any) before the assertion is simpler than encoding
     // a "not inside popover" CSS predicate, which HOOT's query engine
     // doesn't reliably parse when ``:not()`` contains a combinator.
-    expect(
-        `.o_event:contains("new event in quick create")`,
-    ).toHaveCount(1);
+    expect(`.o_event:contains("new event in quick create")`).toHaveCount(1);
 
     // create a new event, quick create only (validated by pressing enter key)
     await clickDate("2016-12-13");
@@ -1345,9 +1343,7 @@ test(`create and change events on mobile`, async () => {
     // popover (if any) before the assertion is simpler than encoding
     // a "not inside popover" CSS predicate, which HOOT's query engine
     // doesn't reliably parse when ``:not()`` contains a combinator.
-    expect(
-        `.o_event:contains("new event in quick create")`,
-    ).toHaveCount(1);
+    expect(`.o_event:contains("new event in quick create")`).toHaveCount(1);
 
     // create a new event, quick create only (validated by pressing enter key)
     await clickDate("2016-12-13");
@@ -1645,7 +1641,9 @@ test(`Monday week start: clicking the displayed week's Sunday drills into day sc
 
     expect(`.fc-timeGridDay-view`).toHaveCount(1);
     expect(`.fc-timeGridWeek-view`).toHaveCount(0);
-    expect(`.o_calendar_container .o_calendar_header h5`).toHaveText("18 December 2016");
+    expect(`.o_calendar_container .o_calendar_header h5`).toHaveText(
+        "18 December 2016",
+    );
 });
 
 test.tags("desktop");
@@ -2004,12 +2002,8 @@ test(`check calendar week column time format`, async () => {
     // (with the time text) and a lane-side cell (the empty drop
     // target).  Both carry ``data-time`` and the v6 base class.
     // Disambiguate by addressing the label explicitly.
-    expect(`.fc-timegrid-slot-label[data-time="08:00:00"]:eq(0)`).toHaveText(
-        "8am",
-    );
-    expect(`.fc-timegrid-slot-label[data-time="23:00:00"]:eq(0)`).toHaveText(
-        "11pm",
-    );
+    expect(`.fc-timegrid-slot-label[data-time="08:00:00"]:eq(0)`).toHaveText("8am");
+    expect(`.fc-timegrid-slot-label[data-time="23:00:00"]:eq(0)`).toHaveText("11pm");
 });
 
 test(`create all day event in week mode`, async () => {
@@ -3829,7 +3823,8 @@ test(`event over two days but lasting less than 24h`, async () => {
     // (``.fc-day``) for the per-day width yardstick — the inner
     // ``.fc-daygrid-day-frame`` is a few pixels narrower (border /
     // padding) and event widths in v7 align to the outer cell.
-    cellWidth = queryFirst(`.fc-day:not(.fc-col-header-cell)`).getBoundingClientRect().width;
+    cellWidth = queryFirst(`.fc-day:not(.fc-col-header-cell)`).getBoundingClientRect()
+        .width;
     expect(eventWidth).toBeGreaterThan(cellWidth);
     // FC v7 events render with ~1-2px visual margin per side past
     // the nominal cell width. Allow a small tolerance.

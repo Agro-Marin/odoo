@@ -16,8 +16,8 @@ import {
     resize,
 } from "@odoo/hoot-dom";
 import { disableAnimations, mockDate, mockTimeZone } from "@odoo/hoot-mock";
-import { _makeUser, user } from "@web/services/user";
 import { resetDateFieldWidths } from "@web/fields/field_widths";
+import { _makeUser, user } from "@web/services/user";
 
 import {
     clickSave,

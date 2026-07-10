@@ -6,9 +6,8 @@
 /** @odoo-module native */
 
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 
 export function getGoogleSlideUrl(value, page) {

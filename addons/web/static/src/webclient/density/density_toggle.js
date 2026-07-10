@@ -7,8 +7,16 @@ import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 const DENSITY_META = {
-    default: { icon: "fa-solid fa-up-right-and-down-left-from-center", next: "compact", label: "Default" },
-    compact: { icon: "fa-solid fa-down-left-and-up-right-to-center", next: "condensed", label: "Compact" },
+    default: {
+        icon: "fa-solid fa-up-right-and-down-left-from-center",
+        next: "compact",
+        label: "Default",
+    },
+    compact: {
+        icon: "fa-solid fa-down-left-and-up-right-to-center",
+        next: "condensed",
+        label: "Compact",
+    },
     condensed: { icon: "fa-solid fa-bars", next: "default", label: "Condensed" },
 };
 
@@ -24,15 +32,19 @@ export class DensityToggle extends Component {
 
     /** Initialize density service and reactive state. */
     setup() {
-        this.densityService = /** @type {{ current: string, set: (d: string) => Promise<void>, cycle: () => Promise<void> }} */ (
-            /** @type {any} */ (useService("density"))
-        );
+        this.densityService =
+            /** @type {{ current: string, set: (d: string) => Promise<void>, cycle: () => Promise<void> }} */ (
+                /** @type {any} */ (useService("density"))
+            );
         this.state = useState({ density: this.densityService.current });
     }
 
     /** @returns {string} Font Awesome icon class for the current density. */
     get icon() {
-        return DENSITY_META[this.state.density]?.icon ?? "fa-solid fa-up-right-and-down-left-from-center";
+        return (
+            DENSITY_META[this.state.density]?.icon ??
+            "fa-solid fa-up-right-and-down-left-from-center"
+        );
     }
 
     /** @returns {string} Tooltip text describing current density and next on click. */

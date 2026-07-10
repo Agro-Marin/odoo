@@ -53,7 +53,9 @@ function _download(data, filename, mimetype) {
 
     // Pattern 1 & 2: Blob/File download via <a download> click
     const blob =
-        data instanceof Blob ? data : new Blob([data], { type: mimetype || "application/octet-stream" });
+        data instanceof Blob
+            ? data
+            : new Blob([data], { type: mimetype || "application/octet-stream" });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
@@ -161,7 +163,8 @@ function configureBlobDownloadXHR(
         let filename = null;
         if (header) {
             try {
-                filename = /** @type {Record<string, any>} */ (parse(header).parameters).filename;
+                filename = /** @type {Record<string, any>} */ (parse(header).parameters)
+                    .filename;
             } catch {
                 // Malformed Content-Disposition — fall back to no filename.
             }
@@ -173,7 +176,9 @@ function configureBlobDownloadXHR(
             // intercept the blob URL with their built-in PDF/office viewers and open it
             // inline instead of downloading. The filename extension is sufficient for the
             // OS to restore the correct file type after download.
-            const downloadBlob = new Blob([xhr.response], { type: "application/octet-stream" });
+            const downloadBlob = new Blob([xhr.response], {
+                type: "application/octet-stream",
+            });
             _download(downloadBlob, filename, "application/octet-stream");
             onSuccess(filename);
         } else if (xhr.status >= 502 && xhr.status <= 504) {
@@ -187,8 +192,9 @@ function configureBlobDownloadXHR(
             decoder.onload = () => {
                 const contents = /** @type {string} */ (decoder.result);
                 const doc = new DOMParser().parseFromString(contents, "text/html");
-                const nodes =
-                    !doc.body.children.length ? [doc.body] : doc.body.children;
+                const nodes = !doc.body.children.length
+                    ? [doc.body]
+                    : doc.body.children;
 
                 let error;
                 try {

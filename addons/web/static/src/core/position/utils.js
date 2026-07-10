@@ -293,8 +293,9 @@ function computePosition(
             let height;
             if (vertical) {
                 height = Math.abs(
-                    targetBox[/** @type {"top" | "bottom" | "left" | "right"} */ (direction)] -
-                        (d === "t" ? directionMin : directionMax),
+                    targetBox[
+                        /** @type {"top" | "bottom" | "left" | "right"} */ (direction)
+                    ] - (d === "t" ? directionMin : directionMax),
                 );
             } else {
                 height = {

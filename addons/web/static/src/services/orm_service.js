@@ -73,11 +73,7 @@ export const UPDATE_METHODS = [
  * Superset of {@link UPDATE_METHODS} (which is scoped to cache-invalidation
  * consumers and intentionally left untouched).
  */
-const NON_IDEMPOTENT_METHODS = [
-    ...UPDATE_METHODS,
-    "web_resequence",
-    "name_create",
-];
+const NON_IDEMPOTENT_METHODS = [...UPDATE_METHODS, "web_resequence", "name_create"];
 
 export class ORM {
     constructor() {
@@ -254,10 +250,7 @@ export class ORM {
             ...kwargs,
         });
         for (const group of res) {
-            group["__domain"] = Domain.and([
-                domain,
-                group["__extra_domain"],
-            ]).toList();
+            group["__domain"] = Domain.and([domain, group["__extra_domain"]]).toList();
         }
         return res;
     }
@@ -270,7 +263,13 @@ export class ORM {
      * @param {any} [kwargs={}]
      * @returns {Promise<any[]>}
      */
-    async formattedReadGroupingSets(model, domain, grouping_sets, aggregates, kwargs = {}) {
+    async formattedReadGroupingSets(
+        model,
+        domain,
+        grouping_sets,
+        aggregates,
+        kwargs = {},
+    ) {
         validateArray("domain", domain);
         validateArray("grouping_sets", grouping_sets);
         validatePrimitiveList("aggregates", "string", aggregates);

@@ -14,6 +14,7 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
+import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { AppEvent, ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
@@ -28,7 +29,6 @@ import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model/utils";
-import { useSetupAction } from "@web/core/action_hook";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { useDebugCategory } from "@web/services/debug/debug_context";
@@ -337,7 +337,9 @@ export class FormController extends Component {
             isDomainSelected: this.model.root.isDomainSelected,
             resModel: this.model.root.resModel,
             domain: this.props.domain,
-            onActionExecuted: (/** @type {{ noReload?: boolean }} */ { noReload } = {}) => {
+            onActionExecuted: (
+                /** @type {{ noReload?: boolean }} */ { noReload } = {},
+            ) => {
                 if (!noReload) {
                     const { resId, resIds } = this.model.root;
                     return this.model.load({ resId: resId, resIds: resIds });
@@ -725,9 +727,8 @@ export class FormController extends Component {
     }
 
     saveButtonClicked(params = {}) {
-        return executeButtonCallback(
-            /** @type {any} */ (this.ui.activeElement),
-            () => this.save(params),
+        return executeButtonCallback(/** @type {any} */ (this.ui.activeElement), () =>
+            this.save(params),
         );
     }
 

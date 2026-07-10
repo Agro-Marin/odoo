@@ -109,7 +109,9 @@ test("rebind: a mixed batch reports only the specifiers that changed", () => {
     const loader = new ModuleLoader();
     const stable = { a: 1 };
     const detered = [];
-    loader.bus.addEventListener("rebind", (ev) => detered.push(...ev.detail.specifiers));
+    loader.bus.addEventListener("rebind", (ev) =>
+        detered.push(...ev.detail.specifiers),
+    );
 
     loader.registerNativeModules({ "@web/a": stable, "@web/b": { b: 1 } });
     // @web/a unchanged (same object), @web/b rebound, @web/c is new.
@@ -131,9 +133,7 @@ test("registerNativeModules: subsequent calls accumulate entries", () => {
     loader.registerNativeModules({ "@web/c": { c: 3 } });
 
     expect(loader.modules.size).toBe(3);
-    expect([...loader.modules.keys()].sort()).toEqual([
-        "@web/a", "@web/b", "@web/c",
-    ]);
+    expect([...loader.modules.keys()].sort()).toEqual(["@web/a", "@web/b", "@web/c"]);
 });
 
 test("ambient odoo.loader exposes the full loader contract", () => {
@@ -213,9 +213,7 @@ describe("asset load self-heal", () => {
             loader.handleAssetLoadError(makeScript({ src: "/some/other/app.js" })),
         ).toBe(false);
         expect(loader.handleAssetLoadError(makeScript())).toBe(false);
-        expect(loader.handleAssetLoadError(document.createElement("link"))).toBe(
-            false,
-        );
+        expect(loader.handleAssetLoadError(document.createElement("link"))).toBe(false);
         expect(loader.handleAssetLoadError(null)).toBe(false);
         expect.verifySteps([]);
     });

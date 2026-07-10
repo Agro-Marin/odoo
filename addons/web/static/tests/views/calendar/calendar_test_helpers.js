@@ -1,7 +1,14 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
-import { click, drag, edit, hover, queryAll, queryFirst, queryRect } from "@odoo/hoot-dom";
+import {
+    click,
+    drag,
+    edit,
+    hover,
+    queryAll,
+    queryFirst,
+    queryRect,
+} from "@odoo/hoot-dom";
 import { advanceFrame, advanceTime, animationFrame } from "@odoo/hoot-mock";
 import { EventBus } from "@odoo/owl";
 import {
@@ -10,6 +17,7 @@ import {
     swipeLeft,
     swipeRight,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import { createElement } from "@web/core/utils/dom/xml";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { parseFieldNode } from "@web/views/field_arch";
@@ -259,9 +267,7 @@ export function findAllDaySlot(date) {
     // unique container hook.  Filter out the column-header cell (the
     // only other ``.fc-day[data-date]`` in day/week views) so the first
     // remaining match is the all-day grid cell.
-    return queryFirst(
-        `.fc-day[data-date="${date}"]:not(.fc-col-header-cell)`,
-    );
+    return queryFirst(`.fc-day[data-date="${date}"]:not(.fc-col-header-cell)`);
 }
 
 /**
@@ -437,7 +443,9 @@ export async function selectTimeRange(startDateTime, endDateTime) {
     const endCol = queryFirst(
         `[data-date="${endDate}"][role="gridcell"]:not(.fc-daygrid-day)`,
     );
-    const startLane = queryFirst(`.fc-timegrid-slot-lane[data-time="${startTime}"]:eq(0)`);
+    const startLane = queryFirst(
+        `.fc-timegrid-slot-lane[data-time="${startTime}"]:eq(0)`,
+    );
     const endLane = queryFirst(`.fc-timegrid-slot-lane[data-time="${endTime}"]:eq(0)`);
 
     const startColRect = queryRect(startCol);
@@ -483,7 +491,9 @@ export async function selectTimeRange(startDateTime, endDateTime) {
  */
 export async function clickTimeSlot(dateTime) {
     const [date, time] = dateTime.split(" ");
-    const col = queryFirst(`[data-date="${date}"][role="gridcell"]:not(.fc-daygrid-day)`);
+    const col = queryFirst(
+        `[data-date="${date}"][role="gridcell"]:not(.fc-daygrid-day)`,
+    );
     const lane = queryFirst(`.fc-timegrid-slot-lane[data-time="${time}"]:eq(0)`);
     instantScrollTo(lane);
     const colRect = queryRect(col);
@@ -684,8 +694,8 @@ export async function resizeEventToTime(eventId, dateTime) {
     if (!resizer) {
         throw new Error(
             "resizeEventToTime: .fc-event-resizer-end not found inside the last " +
-            `segment of event ${eventId} (${allSegments.length} segments total). ` +
-            "Check 'editable' / 'isEnd' / 'durationEditable' on the FC event.",
+                `segment of event ${eventId} (${allSegments.length} segments total). ` +
+                "Check 'editable' / 'isEnd' / 'durationEditable' on the FC event.",
         );
     }
     Object.assign(resizer.style, {
@@ -742,8 +752,8 @@ export async function resizeEventToDate(eventId, date) {
     if (!resizer) {
         throw new Error(
             "resizeEventToDate: .fc-event-resizer-end not found inside the last " +
-            `segment of event ${eventId} (${allSegments.length} segments total). ` +
-            "Check 'editable' / 'isEnd' / 'durationEditable' on the FC event.",
+                `segment of event ${eventId} (${allSegments.length} segments total). ` +
+                "Check 'editable' / 'isEnd' / 'durationEditable' on the FC event.",
         );
     }
     Object.assign(resizer.style, { display: "block", height: "1px", bottom: "0" });

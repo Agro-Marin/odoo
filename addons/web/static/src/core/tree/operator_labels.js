@@ -3,9 +3,10 @@
 
 /** @module @web/core/tree/operator_labels - Operator descriptions, labels, and serialization for domain condition trees */
 
-import { formatValue, toValue } from "./condition_tree.js";
 import { _t } from "@web/core/l10n/translation";
 import { parseExpr } from "@web/core/py_js/py";
+
+import { formatValue, toValue } from "./condition_tree.js";
 
 /** @type {Record<string, string|Function>} */
 export const OPERATOR_DESCRIPTIONS = {

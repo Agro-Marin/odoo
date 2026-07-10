@@ -322,7 +322,7 @@ test(`button box rendering on small screen`, async () => {
 test.tags("desktop");
 test(`button box rendering on big screen`, async () => {
     const bus = new EventBus();
-    (/** @type {any} */ (mockService))("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
@@ -371,7 +371,7 @@ test(`button box rendering invisible`, async () => {
 test(`form view gets size class on small and big screens`, async () => {
     let uiSize = SIZES.MD;
     const bus = new EventBus();
-    (/** @type {any} */ (mockService))("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
@@ -3046,7 +3046,7 @@ test(`form views in dialogs closes on discard on existing record`, async () => {
 
 test(`form views in dialogs do not have class o_xxl_form_view`, async () => {
     const bus = new EventBus();
-    (/** @type {any} */ (mockService))("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
@@ -6490,7 +6490,10 @@ test(`update many2many value in one2many after onchange`, async () => {
     Partner._records[1].child_ids = [4];
     Partner._onChanges = {
         foo(record) {
-            record.child_ids = [[5, false, false], [1, 4, { name: "gold", type_ids: [[5, false, false]] }]];
+            record.child_ids = [
+                [5, false, false],
+                [1, 4, { name: "gold", type_ids: [[5, false, false]] }],
+            ];
         },
     };
 
@@ -7384,7 +7387,7 @@ test(`invisible fields are not considered as visible in a buttonbox on mobile`, 
 });
 
 test(`display correctly buttonbox, in large size class`, async () => {
-    (/** @type {any} */ (mockService))("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             get() {
                 return false;
@@ -8048,7 +8051,7 @@ test(`check scroll on small height screens`, async () => {
 
 test(`correct amount of buttons`, async () => {
     let screenSize = SIZES.XXL;
-    (/** @type {any} */ (mockService))("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             get() {
                 return false;
@@ -13156,7 +13159,7 @@ test("attach_document widget also works inside a dropdown", async () => {
             fileInput = this.fileInput;
         },
     });
-    (/** @type {any} */ (mockService))("http", {
+    /** @type {any} */ (mockService)("http", {
         post: (route, params) => {
             expect.step("post");
             expect(route).toBe("/web/binary/upload_attachment");

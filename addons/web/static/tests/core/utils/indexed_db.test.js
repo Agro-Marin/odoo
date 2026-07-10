@@ -312,8 +312,12 @@ test("invalidateWhere, deletes only matching keys", async () => {
         }
     });
 
-    expect(await indexedDB.read("mytable", JSON.stringify({ model: "a" }))).toBe(undefined);
-    expect(await indexedDB.read("mytable", JSON.stringify({ model: "a", id: 2 }))).toBe(undefined);
+    expect(await indexedDB.read("mytable", JSON.stringify({ model: "a" }))).toBe(
+        undefined,
+    );
+    expect(await indexedDB.read("mytable", JSON.stringify({ model: "a", id: 2 }))).toBe(
+        undefined,
+    );
     expect(await indexedDB.read("mytable", JSON.stringify({ model: "b" }))).toBe("vb");
 
     await indexedDB.deleteDatabase();
@@ -332,7 +336,10 @@ test("invalidateWhere, iterates across many entries without committing early", a
         await indexedDB.write("mytable", `key-${i}`, `v${i}`);
     }
 
-    await indexedDB.invalidateWhere(["mytable"], (key) => Number(key.slice(4)) % 2 === 0);
+    await indexedDB.invalidateWhere(
+        ["mytable"],
+        (key) => Number(key.slice(4)) % 2 === 0,
+    );
 
     for (let i = 0; i < N; i += 1) {
         const expected = i % 2 === 0 ? undefined : `v${i}`;

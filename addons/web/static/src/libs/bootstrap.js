@@ -17,8 +17,20 @@ import {
 
 // Re-export all Bootstrap components so other modules can import them:
 //   import { Tooltip, Modal } from "@web/libs/bootstrap";
-export const { Alert, Button, Carousel, Collapse, Dropdown, Modal,
-               Offcanvas, Popover, ScrollSpy, Tab, Toast, Tooltip } = Bootstrap;
+export const {
+    Alert,
+    Button,
+    Carousel,
+    Collapse,
+    Dropdown,
+    Modal,
+    Offcanvas,
+    Popover,
+    ScrollSpy,
+    Tab,
+    Toast,
+    Tooltip,
+} = Bootstrap;
 
 /**
  * Review Bootstrap Sanitization: leave it enabled by default but extend it to
@@ -128,11 +140,17 @@ const NO_OP_DROPDOWN = Object.freeze({
     toggle() {},
     dispose() {},
     focus() {},
-    _isShown() { return false; },
+    _isShown() {
+        return false;
+    },
     _selectMenuItem() {},
 });
 Dropdown.getOrCreateInstance = function (element, config) {
-    if (!element || !element.parentNode || (element.closest && element.closest(".o-dropdown--menu"))) {
+    if (
+        !element ||
+        !element.parentNode ||
+        (element.closest && element.closest(".o-dropdown--menu"))
+    ) {
         return NO_OP_DROPDOWN;
     }
     return _origDropdownGetOrCreateInstance.call(this, element, config);

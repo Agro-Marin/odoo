@@ -9,10 +9,10 @@
 /** @import { Condition, Options } from "@web/core/tree/condition_tree" */
 
 import { formatAST } from "@web/core/py_js/py";
-
 import { isValidPath, not } from "@web/core/tree/ast_utils";
 import { astFromValue, Expression, isTree } from "@web/core/tree/condition_tree";
 import { COMPARATORS, TERM_OPERATORS_NEGATION } from "@web/core/tree/operators";
+
 import { ASTType } from "../py_js/ast_type.js";
 
 /**
@@ -42,7 +42,9 @@ function isX2Many(ast, options) {
         const fieldDef = options.getFieldDef?.(ast.value);
         return (
             !!fieldDef &&
-            ["many2many", "one2many"].includes(/** @type {Record<string, any>} */ (fieldDef).type)
+            ["many2many", "one2many"].includes(
+                /** @type {Record<string, any>} */ (fieldDef).type,
+            )
         );
     }
     return false;
@@ -137,7 +139,10 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     }
 
     const pathAST = astFromValue(path);
-    if (typeof path == "string" && isValidPath({ type: ASTType.Name, value: path }, options)) {
+    if (
+        typeof path == "string" &&
+        isValidPath({ type: ASTType.Name, value: path }, options)
+    ) {
         pathAST.type = ASTType.Name;
     }
 
@@ -154,7 +159,11 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     if (
         ["in", "not in"].includes(operator) &&
         !(value instanceof Expression) &&
-        !(/** @type {number[]} */ ([ASTType.List, ASTType.Tuple])).includes(valueAST.type)
+        !(
+            /** @type {number[]} */ ([ASTType.List, ASTType.Tuple]).includes(
+                valueAST.type,
+            )
+        )
     ) {
         valueAST = { type: ASTType.List, value: [valueAST] };
     }

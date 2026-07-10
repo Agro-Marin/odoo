@@ -25,7 +25,11 @@ function stableStringify(value) {
     if (value && typeof value.toJSON === "function") {
         value = value.toJSON();
     }
-    if (value === undefined || typeof value === "function" || typeof value === "symbol") {
+    if (
+        value === undefined ||
+        typeof value === "function" ||
+        typeof value === "symbol"
+    ) {
         return undefined;
     }
     if (value === null || typeof value !== "object") {

@@ -24,15 +24,15 @@
 export {
     DateTime,
     Duration,
-    Interval,
-    Settings,
-    Info,
-    Zone,
     FixedOffsetZone,
     IANAZone,
+    Info,
+    Interval,
     InvalidZone,
+    Settings,
     SystemZone,
     VERSION,
+    Zone,
 } from "luxon";
 
 // Namespace re-export for the rare consumer (e.g. kanban_record sandbox

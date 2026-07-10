@@ -36,8 +36,8 @@ import {
     mountView,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { FormController } from "@web/views/form/form_controller";
 import { RelationalRecord } from "@web/model/relational_model/record";
+import { FormController } from "@web/views/form/form_controller";
 
 class Order extends models.Model {
     name = fields.Char();
