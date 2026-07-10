@@ -1020,8 +1020,7 @@ class ResUsers(models.Model):
 
         if "company_id" in vals or "company_ids" in vals:
             # Reset lazy properties `company` & `companies` on all envs -- rare
-            # to change a user's company then do business, but handled (e.g.
-            # account_test_savepoint.py setup_company_data).
+            # to change a user's company then do business, but handled.
             for env in list(self.env.transaction.envs):
                 if env.user in self:
                     reset_cached_properties(env)

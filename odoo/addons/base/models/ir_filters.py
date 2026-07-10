@@ -53,7 +53,7 @@ class IrFilters(models.Model):
     # embedded_parent_res_model and embedded_parent_res_id.
     _check_res_id_only_when_embedded_action = models.Constraint(
         "CHECK(NOT (embedded_parent_res_id IS NOT NULL AND embedded_action_id IS NULL))",
-        "Constraint to ensure that the embedded_parent_res_id is only defined when a top_action_id is defined.",
+        "Constraint to ensure that the embedded_parent_res_id is only defined when an embedded_action_id is defined.",
     )
     _check_sort_json = models.Constraint(
         "CHECK(sort IS NULL OR jsonb_typeof(sort::jsonb) = 'array')",

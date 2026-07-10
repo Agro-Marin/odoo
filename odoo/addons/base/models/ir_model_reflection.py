@@ -101,7 +101,7 @@ class IrModelConstraint(models.Model):
                 # Our type='u' means any "other" constraint, so match check/
                 # unique/exclude ('c','u','x') and exclude primary and foreign
                 # keys. An 'f' may live on a related m2m table, which we ignore.
-                # See: https://www.postgresql.org/docs/9.5/catalog-pg-constraint.html
+                # See: https://www.postgresql.org/docs/current/catalog-pg-constraint.html
                 if self.env.execute_query(
                     SQL(
                         """SELECT

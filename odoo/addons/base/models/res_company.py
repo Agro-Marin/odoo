@@ -136,7 +136,7 @@ class ResCompany(models.Model):
         readonly=False,
     )
     # logo_web: do not store in attachments, since the image is retrieved in SQL for
-    # performance reasons (see addons/web/controllers/main.py, Binary.company_logo)
+    # performance reasons (see addons/web/controllers/binary.py, Binary.company_logo)
     logo_web = fields.Binary(
         compute="_compute_logo_web",
         store=True,

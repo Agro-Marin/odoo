@@ -237,8 +237,8 @@ class IrUiMenu(models.Model):
           * an image icon: ``f"{module},{path}"``
           * a built icon: ``f"{icon_class},{icon_color},{background_color}"``
 
-        The ``web_icon_data`` computed field uses :meth:`_read_image` for image
-        web icons, and is ``False`` for built icons.
+        The ``web_icon_data`` field is populated (in create/write) using
+        :meth:`_read_image` for image web icons, and is ``False`` for built icons.
         """
         # A 2-part value is an image icon "module,path"; a built icon has 3
         # parts. A 2-part built icon (no bg) is indistinguishable here, but

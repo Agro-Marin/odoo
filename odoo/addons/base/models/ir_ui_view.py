@@ -119,7 +119,8 @@ def _hasclass(context: Any, *cls: str) -> bool:
 
 
 # Suffix appended to a view's xmlid when it is created from a model that
-# inherits ir.ui.view (see convert.py's _tag_template).
+# inherits ir.ui.view (see the _inherits parent-xmlid generation in
+# odoo/orm/models/mixins/load.py).
 _IR_UI_VIEW_XMLID_SUFFIX = "_ir_ui_view"
 
 
@@ -2886,7 +2887,6 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        # ('calendar', 'form', 'graph', 'kanban', 'pivot', 'search', 'list', 'activity')
         if node_info["validate"] and any(
             "btn" in node.get(cl, "") for cl in att_names("class")
         ):

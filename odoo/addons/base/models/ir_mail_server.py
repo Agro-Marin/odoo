@@ -1285,8 +1285,7 @@ class IrMail_Server(models.Model):
             ``Return-Path`` or the default bounce address; recipients come from
             the combined ``To``/``CC``/``BCC`` headers.
         :param smtp_session: optional pre-established session; overrides
-            ``mail_server_id`` and the ``smtp_*`` args. Passing the matching
-            ``mail_server_id`` improves log messages. Caller disconnects it.
+            ``mail_server_id`` and the ``smtp_*`` args. Caller disconnects it.
         :param mail_server_id: optional id of ir.mail_server; overrides ``smtp_*`` args
         :param smtp_encryption: 'none', 'starttls', 'starttls_strict', 'ssl', or
             'ssl_strict'; 'strict' variants verify the server certificate against
