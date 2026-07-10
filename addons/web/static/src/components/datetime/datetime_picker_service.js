@@ -164,8 +164,15 @@ export const datetimePickerService = {
                     const onCalendarIconClick = () => open(0);
                     if (calendarIconGroupEl) {
                         calendarIconGroupEl.classList.add("cursor-pointer");
-                        calendarIconGroupEl.addEventListener("click", onCalendarIconClick);
-                        addedListeners.push([calendarIconGroupEl, "click", onCalendarIconClick]);
+                        calendarIconGroupEl.addEventListener(
+                            "click",
+                            onCalendarIconClick,
+                        );
+                        addedListeners.push([
+                            calendarIconGroupEl,
+                            "click",
+                            onCalendarIconClick,
+                        ]);
                     }
                     return () => {
                         for (const [el, event, handler] of addedListeners) {

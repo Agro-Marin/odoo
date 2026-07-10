@@ -40,11 +40,13 @@ test("openRecord does not navigate when the dirty record fails validation", asyn
             return super.openRecord(record);
         }
     }
-    registry.category("views").add(
-        "custom_list",
-        { ...listView, Controller: CustomListController },
-        { force: true },
-    );
+    registry
+        .category("views")
+        .add(
+            "custom_list",
+            { ...listView, Controller: CustomListController },
+            { force: true },
+        );
 
     await mountView({
         resModel: "partner",

@@ -4,11 +4,11 @@
 /** @module @web/fields/display/stat_info/stat_info_field - Stat button content showing a formatted value with a label */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { registerField } from "@web/fields/_registry";
-import { exprToBoolean } from "@web/core/utils/format/strings";
-import { extractDigits } from "@web/fields/field_utils";
 import { getFieldCodec } from "@web/core/field_codec";
+import { _t } from "@web/core/l10n/translation";
+import { exprToBoolean } from "@web/core/utils/format/strings";
+import { registerField } from "@web/fields/_registry";
+import { extractDigits } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class StatInfoField extends Component {
@@ -24,10 +24,13 @@ export class StatInfoField extends Component {
     /** @returns {string} Field value formatted according to its type and digit precision. */
     get formattedValue() {
         const field = this.props.record.fields[this.props.name];
-        return getFieldCodec(field.type).format(this.props.record.data[this.props.name], {
-            digits: this.props.digits,
-            field,
-        });
+        return getFieldCodec(field.type).format(
+            this.props.record.data[this.props.name],
+            {
+                digits: this.props.digits,
+                field,
+            },
+        );
     }
     /** @returns {string} Display label from the label field or the static string prop. */
     get label() {

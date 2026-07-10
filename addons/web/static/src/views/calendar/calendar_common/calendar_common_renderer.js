@@ -120,10 +120,7 @@ export class CalendarCommonRenderer extends Component {
             // because FC v7's ``createDuration`` rejects negative time
             // strings and ``scrollToTime`` becomes a silent no-op
             // otherwise — observed when the local hour is 0 or 1.
-            const targetHour = Math.max(
-                0,
-                DateTime.local().hour - 2,
-            );
+            const targetHour = Math.max(0, DateTime.local().hour - 2);
             this.fc.api.scrollToTime(`${targetHour}:00:00`);
         });
 
@@ -145,9 +142,7 @@ export class CalendarCommonRenderer extends Component {
             // pattern exactly.
             class: "fc",
             viewClass: ({ view }) =>
-                view && view.type
-                    ? `fc-view fc-${view.type}-view`
-                    : "fc-view",
+                view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
             // v7 dropped all the human-readable ``fc-*`` class hooks
             // (``fc-day``, ``fc-col-header-cell``, ``fc-event-main``…)
             // in favour of per-build hashed names.  Re-inject the
@@ -592,7 +587,10 @@ export class CalendarCommonRenderer extends Component {
         }
         const row = info.el.parentElement;
         // Only act when the row's first day cell mounts, and never duplicate.
-        if (row.querySelector(".fc-daygrid-day") !== info.el || row.querySelector(".o-fc-week")) {
+        if (
+            row.querySelector(".fc-daygrid-day") !== info.el ||
+            row.querySelector(".o-fc-week")
+        ) {
             return;
         }
         const weekCell = document.createElement("div");
@@ -808,5 +806,4 @@ export class CalendarCommonRenderer extends Component {
             scale,
         };
     }
-
 }

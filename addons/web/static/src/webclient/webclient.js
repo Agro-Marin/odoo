@@ -232,10 +232,7 @@ export class WebClient extends Component {
                     "/web/service-worker.js",
                     { scope: "/odoo" },
                 );
-                if (
-                    registration.active &&
-                    registration.active.state === "activated"
-                ) {
+                if (registration.active && registration.active.state === "activated") {
                     this.serviceWorkerActivatedDeferred.resolve();
                 } else {
                     const sw =

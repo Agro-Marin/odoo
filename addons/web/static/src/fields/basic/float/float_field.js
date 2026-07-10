@@ -4,9 +4,12 @@
 /** @module @web/fields/basic/float/float_field - Numeric input field for Float columns with locale-aware formatting */
 
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
-import { extractDigits, extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
+import {
+    extractDigits,
+    extractNumericOptions,
+    isFalseEmpty,
+} from "@web/fields/field_utils";
 import { formatFloat } from "@web/fields/formatters";
 import { parseFloat } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";

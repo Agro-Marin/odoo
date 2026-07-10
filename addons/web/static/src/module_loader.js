@@ -288,7 +288,9 @@
         }
         seenErrors.add(key);
         try {
-            const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+            const blob = new Blob([JSON.stringify(payload)], {
+                type: "application/json",
+            });
             globalThis.navigator?.sendBeacon?.("/web/observability/js_error", blob);
         } catch {
             // sendBeacon can throw on payload size > UA quota or in
@@ -343,11 +345,12 @@
     );
     globalThis.addEventListener?.("unhandledrejection", (ev) => {
         const reason = ev.reason;
-        const message = reason instanceof Error
-            ? reason.message
-            : typeof reason === "string"
-            ? reason
-            : "(non-error rejection)";
+        const message =
+            reason instanceof Error
+                ? reason.message
+                : typeof reason === "string"
+                  ? reason
+                  : "(non-error rejection)";
         reportError({
             phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
             kind: "unhandledrejection",
@@ -355,9 +358,10 @@
             filename: "",
             line: 0,
             col: 0,
-            stack: reason instanceof Error && reason.stack
-                ? String(reason.stack).slice(0, 4096)
-                : "",
+            stack:
+                reason instanceof Error && reason.stack
+                    ? String(reason.stack).slice(0, 4096)
+                    : "",
             url: globalThis.location?.href || "",
             user_agent: globalThis.navigator?.userAgent || "",
         });

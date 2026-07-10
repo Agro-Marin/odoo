@@ -75,7 +75,11 @@ export class SearchBarMenu extends Component {
         this.fields = sortBy(fields, "string");
         // Favorite
         this.state = useState({ sharedFavoritesExpanded: false });
-        useBus(this.env.searchModel, SearchModelEvent.UPDATE, /** @type {any} */ (this.render));
+        useBus(
+            this.env.searchModel,
+            SearchModelEvent.UPDATE,
+            /** @type {any} */ (this.render),
+        );
     }
 
     // Filter Panel
@@ -184,7 +188,9 @@ export class SearchBarMenu extends Component {
         for (const item of favoriteMenuRegistry.getAll()) {
             if (
                 "isDisplayed" in item
-                    ? item.isDisplayed(/** @type {import("@web/env").OdooEnv} */ (this.env))
+                    ? item.isDisplayed(
+                          /** @type {import("@web/env").OdooEnv} */ (this.env),
+                      )
                     : true
             ) {
                 registryMenus.push({

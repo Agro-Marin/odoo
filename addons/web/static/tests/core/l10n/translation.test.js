@@ -1,7 +1,6 @@
 // @ts-check
 
 /* eslint no-restricted-syntax: 0 */
-import { luxon } from "@web/core/l10n/luxon";
 import { after, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, markup, xml } from "@odoo/owl";
@@ -16,6 +15,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 import {
     _t as basic_t,
     translatedTerms,

@@ -141,7 +141,11 @@ export function useInputField(params) {
         // `pendingUpdate`), so re-deriving dirtiness here would resync the
         // input to a stale model value while a slow onchange is still pending,
         // wiping what the user typed. See list_view slow-onchange tests.
-        if (inputRef.el && !isDirty && !component.props.record.isFieldInvalid(fieldName)) {
+        if (
+            inputRef.el &&
+            !isDirty &&
+            !component.props.record.isFieldInvalid(fieldName)
+        ) {
             inputRef.el.value = value;
             lastSetValue = inputRef.el.value;
         }

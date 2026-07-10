@@ -118,7 +118,9 @@ export class ConversionError extends Error {
  * @param {NullableDateTime} date
  */
 function isValidDate(date) {
-    return date && date.isValid && isInRange(date, [getMinValidDate(), getMaxValidDate()]);
+    return (
+        date && date.isValid && isInRange(date, [getMinValidDate(), getMaxValidDate()])
+    );
 }
 
 /**
@@ -368,7 +370,9 @@ export function formatDuration(seconds, showFullDuration) {
     let magnitude = Math.abs(Math.trunc(seconds));
     magnitude -= magnitude % 60;
 
-    const duration = Duration.fromObject({ seconds: magnitude }).shiftTo(...durationKeys);
+    const duration = Duration.fromObject({ seconds: magnitude }).shiftTo(
+        ...durationKeys,
+    );
     const locale = /** @type {any} */ (duration).loc.locale;
 
     /**
@@ -415,7 +419,9 @@ export function formatDuration(seconds, showFullDuration) {
 
     // Carry the sign on the leading (largest) unit only.
     return parts
-        .map(([key, value], index) => formatUnit(index === 0 ? sign * value : value, key))
+        .map(([key, value], index) =>
+            formatUnit(index === 0 ? sign * value : value, key),
+        )
         .join(", ");
 }
 

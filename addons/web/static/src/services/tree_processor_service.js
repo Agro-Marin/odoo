@@ -4,6 +4,14 @@
 /** @module @web/services/tree_processor_service - Converts domains to condition trees with human-readable descriptions and tooltips */
 
 import {
+    deserializeDate,
+    deserializeDateTime,
+    formatDate,
+    formatDateTime,
+} from "@web/core/l10n/dates";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import {
     condition,
     Expression,
     isTree,
@@ -14,14 +22,6 @@ import { IN_RANGE_OPTIONS } from "@web/core/tree/in_range_options";
 import { getOperatorLabel } from "@web/core/tree/operator_labels";
 import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { introduceVirtualOperators } from "@web/core/tree/virtual_operators";
-import {
-    deserializeDate,
-    deserializeDateTime,
-    formatDate,
-    formatDateTime,
-} from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 
 /**
@@ -266,14 +266,20 @@ export const treeProcessorService = {
                 promises.push(
                     fieldService
                         .loadPathDescription(resModel, path)
-                        .then((/** @type {{ displayNames: string[] }} */ { displayNames }) => {
-                            pathDescriptions.set(
-                                path,
-                                `${displayNames.slice(0, limit).join(" \u2794 ")}${
-                                    displayNames.length > limit ? "..." : ""
-                                }`,
-                            );
-                        }),
+                        .then(
+                            (
+                                /** @type {{ displayNames: string[] }} */ {
+                                    displayNames,
+                                },
+                            ) => {
+                                pathDescriptions.set(
+                                    path,
+                                    `${displayNames.slice(0, limit).join(" \u2794 ")}${
+                                        displayNames.length > limit ? "..." : ""
+                                    }`,
+                                );
+                            },
+                        ),
                 );
             }
             await Promise.all(promises);
@@ -371,7 +377,9 @@ export const treeProcessorService = {
             let values;
             if (operator === "in range") {
                 const valueType = value[1];
-                values = [IN_RANGE_OPTIONS.find(([t]) => t === valueType)[1].toString()];
+                values = [
+                    IN_RANGE_OPTIONS.find(([t]) => t === valueType)[1].toString(),
+                ];
             } else {
                 const rawValues = Array.isArray(value) ? value : [value];
                 // Only append the "..." ellipsis when the list is actually
@@ -573,7 +581,9 @@ export const treeProcessorService = {
         async function treeFromDomain(resModel, domain, distributeNot = true) {
             const tree = constructTreeFromDomain(domain, distributeNot);
             const getFieldDef = await makeGetFieldDef(resModel, tree);
-            return introduceVirtualOperators(tree, { getFieldDef: /** @type {any} */ (getFieldDef) });
+            return introduceVirtualOperators(tree, {
+                getFieldDef: /** @type {any} */ (getFieldDef),
+            });
         }
 
         return {

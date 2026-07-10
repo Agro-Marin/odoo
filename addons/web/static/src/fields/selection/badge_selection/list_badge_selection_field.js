@@ -4,9 +4,8 @@
 /** @module @web/fields/selection/badge_selection/list_badge_selection_field - List-view variant of the badge selection field with color support */
 
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { registerField } from "@web/fields/_registry";
 
 import { BadgeSelectionField, badgeSelectionField } from "./badge_selection_field.js";
 

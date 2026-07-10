@@ -2,7 +2,14 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-import { __debug__, definePreset, defineTags, describe, isHootReady, start } from "@odoo/hoot";
+import {
+    __debug__,
+    definePreset,
+    defineTags,
+    describe,
+    isHootReady,
+    start,
+} from "@odoo/hoot";
 
 import { patchBrowserLocation } from "./mock_browser.hoot.js";
 import { setupTestEnvironment } from "./module_set.hoot.js";
@@ -187,12 +194,13 @@ export async function loadAndStart(testSpecifiers) {
             } else {
                 let typeName = "(unknown)";
                 try {
-                    typeName = reason?.constructor?.name
-                        || (reason === null ? "null" : typeof reason);
+                    typeName =
+                        reason?.constructor?.name ||
+                        (reason === null ? "null" : typeof reason);
                 } catch {
                     typeName = "(thrown-during-introspection)";
                 }
-                let stack = reason?.stack || "";
+                const stack = reason?.stack || "";
                 // Walk the cause chain so wrapped errors don't lose the
                 // root site.  ``cause`` is standard on Error in modern
                 // browsers; HOOT also uses it for re-throws.
@@ -262,7 +270,9 @@ export async function loadAndStart(testSpecifiers) {
                     const causeFrames = String(c.stack).split("\n").slice(0, 6);
                     for (const f of causeFrames) {
                         if (f.trim()) {
-                            console.warn(`[HOOT][import-fail]   cause[${i}] @ ${f.trim()}`);
+                            console.warn(
+                                `[HOOT][import-fail]   cause[${i}] @ ${f.trim()}`,
+                            );
                         }
                     }
                 }

@@ -51,8 +51,7 @@ export async function executeClientAction(action, options, am) {
                 action.target = clientAction.target;
             }
         }
-        const props =
-            /** @type {any} */ (clientAction).extractProps?.(action) || {};
+        const props = /** @type {any} */ (clientAction).extractProps?.(action) || {};
         const controller = am._makeController({
             Component: /** @type {any} */ (clientAction),
             action,

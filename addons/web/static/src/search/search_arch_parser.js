@@ -245,7 +245,10 @@ export class SearchArchParser {
                         let results;
                         try {
                             results = await orm.silent.call(
-                                relation, "read", [value, ["display_name"]], { context },
+                                relation,
+                                "read",
+                                [value, ["display_name"]],
+                                { context },
                             );
                         } catch {
                             results = [];
@@ -265,7 +268,10 @@ export class SearchArchParser {
                         let results;
                         try {
                             results = await orm.silent.call(
-                                relation, "read", [val, ["display_name"]], { context },
+                                relation,
+                                "read",
+                                [val, ["display_name"]],
+                                { context },
                             );
                         } catch {
                             results = [];
@@ -484,7 +490,8 @@ export class SearchArchParser {
             const type = attrs.select === "multi" ? "filter" : "category";
             const section = {
                 color: attrs.color || null,
-                description: attrs.string || this.fields[attrs.name]?.string || attrs.name,
+                description:
+                    attrs.string || this.fields[attrs.name]?.string || attrs.name,
                 enableCounters: evaluateBooleanExpr(attrs.enable_counters),
                 expand: evaluateBooleanExpr(attrs.expand),
                 fieldName: attrs.name,

@@ -11,11 +11,10 @@ import { TagsList } from "@web/components/tags_list/tags_list";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-
-import { registerField } from "@web/fields/_registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -293,13 +292,16 @@ export const many2ManyTagsField = {
     },
 };
 
-registerField({
-    name: "many2many_tags",
-    aliases: [
-        { name: "one2many", view: "calendar" },
-        { name: "many2many", view: "calendar" },
-    ],
-}, many2ManyTagsField);
+registerField(
+    {
+        name: "many2many_tags",
+        aliases: [
+            { name: "one2many", view: "calendar" },
+            { name: "many2many", view: "calendar" },
+        ],
+    },
+    many2ManyTagsField,
+);
 
 /**
  * A specialization that allows to edit the color with the colorpicker.
@@ -428,4 +430,7 @@ export const many2ManyTagsFieldColorEditable = {
     },
 };
 
-registerField({ name: "many2many_tags", view: "form" }, many2ManyTagsFieldColorEditable);
+registerField(
+    { name: "many2many_tags", view: "form" },
+    many2ManyTagsFieldColorEditable,
+);

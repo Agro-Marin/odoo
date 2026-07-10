@@ -502,9 +502,7 @@ test("group routes each item slot through makeIsVisibleExpr", () => {
         </form>`;
     const compiled = compileTemplate(arch, { compileInvisibleNodes: true });
     const group = compiled.getElementsByTagName("InnerGroup")[0];
-    const visibles = [...group.children].map((slot) =>
-        slot.getAttribute("isVisible"),
-    );
+    const visibles = [...group.children].map((slot) => slot.getAttribute("isVisible"));
     expect(visibles).toEqual([DYNAMIC_IS_VISIBLE, "true", "false"]);
 });
 

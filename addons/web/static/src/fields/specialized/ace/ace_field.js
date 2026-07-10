@@ -8,12 +8,11 @@ import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { cookie } from "@web/core/browser/cookie";
 import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useBus } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { formatText } from "@web/fields/formatters";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class AceField extends Component {
     static template = "web.AceField";

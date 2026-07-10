@@ -3,6 +3,7 @@
 
 /** @module @web/core/py_js/py_date - Python date, datetime, time, and relativedelta emulation in JavaScript */
 
+import { bindArgs } from "./py_args.js";
 import {
     assert,
     daysInMonth,
@@ -14,7 +15,6 @@ import {
     ValueError,
     ymd2ord,
 } from "./py_date_helpers.js";
-import { bindArgs } from "./py_args.js";
 import { PyTimeDelta } from "./py_timedelta.js";
 
 // Re-export for backward compatibility
@@ -352,7 +352,9 @@ export class PyDateTime {
         if (other instanceof PyDateTime) {
             const daysDiff = this.toordinal() - other.toordinal();
             const secsDiff =
-                (this.hour * 3600 + this.minute * 60 + this.second) -
+                this.hour * 3600 +
+                this.minute * 60 +
+                this.second -
                 (other.hour * 3600 + other.minute * 60 + other.second);
             const usDiff = this.microsecond - other.microsecond;
             return PyTimeDelta.create({

@@ -3,9 +3,8 @@
 
 /** @module @web/model/relational_model/urgent_save_coordinator - Observable urgent-save state machine for RelationalModel */
 
-import { SignalStore } from "@web/core/utils/reactive";
-
 import { ModelEvent } from "@web/core/events";
+import { SignalStore } from "@web/core/utils/reactive";
 
 /**
  * Observable state machine for the urgent-save axis of a

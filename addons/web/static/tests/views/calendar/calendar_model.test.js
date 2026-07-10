@@ -13,8 +13,8 @@
  *  - views/calendar/calendar_record.js     — raw record normalization
  */
 
-import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
+import { luxon } from "@web/core/l10n/luxon";
 import {
     computeCalendarRange,
     computeFiltersDomain,
@@ -207,11 +207,7 @@ describe("computeRangeDomain — serialization format", () => {
             end: DateTime.fromISO("2024-01-21"),
         };
 
-        const domain = computeRangeDomain(
-            { date_start: "start_date" },
-            "date",
-            range,
-        );
+        const domain = computeRangeDomain({ date_start: "start_date" }, "date", range);
 
         // Values should be ISO date strings
         expect(typeof domain[0][2]).toBe("string");

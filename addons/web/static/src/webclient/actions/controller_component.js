@@ -12,6 +12,7 @@ import {
     useChildSubEnv,
     xml,
 } from "@odoo/owl";
+import { CallbackRecorder } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -20,7 +21,6 @@ import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { useDebugCategory } from "@web/services/debug/debug_context";
 import { user } from "@web/services/user";
 import { View } from "@web/views/view";
-import { CallbackRecorder } from "@web/core/action_hook";
 
 import { getActionMode } from "./action_views.js";
 

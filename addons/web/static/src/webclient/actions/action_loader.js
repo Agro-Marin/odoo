@@ -32,10 +32,7 @@ const actionRegistry = registry.category("actions");
  * @returns {Promise<Action>}
  */
 export async function loadAction(actionRequest, context = {}) {
-    if (
-        typeof actionRequest === "string" &&
-        actionRegistry.contains(actionRequest)
-    ) {
+    if (typeof actionRequest === "string" && actionRegistry.contains(actionRequest)) {
         // actionRequest is a key in the actionRegistry
         return {
             target: "current",

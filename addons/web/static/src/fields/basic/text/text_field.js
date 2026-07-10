@@ -5,11 +5,10 @@
 
 import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";

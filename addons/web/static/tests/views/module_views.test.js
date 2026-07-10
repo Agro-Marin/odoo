@@ -1,8 +1,9 @@
 // @ts-check
 
+import "@web/views/module_views";
+
 import { expect, test } from "@odoo/hoot";
 import { registry } from "@web/core/registry";
-import "@web/views/module_views";
 
 function getIsDisplayed() {
     return registry.category("cogMenu").get("reset-module-state-cog-menu").isDisplayed;

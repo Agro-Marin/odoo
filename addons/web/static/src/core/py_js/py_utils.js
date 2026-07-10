@@ -3,9 +3,9 @@
 
 /** @module @web/core/py_js/py_utils - AST-to-value conversion and AST-to-string formatting for Python expressions */
 
+import { ASTType } from "./ast_type.js";
 import { PyDate, PyDateTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
-import { ASTType } from "./ast_type.js";
 
 // -----------------------------------------------------------------------------
 // Types

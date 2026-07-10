@@ -4,11 +4,11 @@
 /** @module @web/ui/block/ui_service - UI service: viewport size tracking, active element management, block/unblock, and focus trapping */
 
 import { EventBus, reactive, useEffect, useRef } from "@odoo/owl";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 import { BlockUI } from "./block_ui.js";
 export const SIZES = { XS: 0, SM: 1, MD: 2, LG: 3, XL: 4, XXL: 5 };

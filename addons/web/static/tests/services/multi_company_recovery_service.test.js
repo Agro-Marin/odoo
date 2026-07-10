@@ -1,7 +1,11 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { getService, makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    getService,
+    makeMockEnv,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { user } from "@web/services/user";
 
 /**

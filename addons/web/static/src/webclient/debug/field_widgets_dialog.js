@@ -68,8 +68,8 @@ export class FieldWidgetsDialog extends Component {
 
     setup() {
         this.title = _t("Field Widgets");
-        this.entries = [...registry.category("fields").getEntries()].sort(
-            ([a], [b]) => a.localeCompare(b),
+        this.entries = [...registry.category("fields").getEntries()].sort(([a], [b]) =>
+            a.localeCompare(b),
         );
         this.state = useState({ filter: "" });
     }
@@ -87,8 +87,8 @@ export class FieldWidgetsDialog extends Component {
             if (display.includes(filter)) {
                 return true;
             }
-            return (value?.supportedTypes ?? []).some(
-                (t) => String(t).toLowerCase().includes(filter),
+            return (value?.supportedTypes ?? []).some((t) =>
+                String(t).toLowerCase().includes(filter),
             );
         });
     }

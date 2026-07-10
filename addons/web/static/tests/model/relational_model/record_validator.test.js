@@ -9,6 +9,12 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
+    computeRevalidationScope,
+    extractFieldNamesFromExpr,
+    getModifierDependencies,
+    isFieldRequired,
+} from "@web/model/relational_model/record_utils";
+import {
     checkValidity,
     displayInvalidFieldNotification,
     findUnsetRequiredFields,
@@ -16,12 +22,6 @@ import {
     resetFieldValidity,
     setInvalidField,
 } from "@web/model/relational_model/record_validator";
-import {
-    computeRevalidationScope,
-    extractFieldNamesFromExpr,
-    getModifierDependencies,
-    isFieldRequired,
-} from "@web/model/relational_model/record_utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,49 +52,84 @@ describe("findUnsetRequiredFields — scalar types", () => {
     test("returns empty set when no fields are required", () => {
         const activeFields = { name: {}, description: {}, amount: {} };
         const data = { name: false, description: false, amount: 0 };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.size).toBe(0);
     });
 
     test("flags required char field when value is false", () => {
         const activeFields = { name: {} };
         const data = { name: false };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["name"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["name"] }),
+        );
         expect(result.has("name")).toBe(true);
     });
 
     test("does not flag required char field when value is set", () => {
         const activeFields = { name: {} };
         const data = { name: "Partner" };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["name"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["name"] }),
+        );
         expect(result.has("name")).toBe(false);
     });
 
     test("never flags boolean fields regardless of required", () => {
         const activeFields = { active: {} };
         const data = { active: false };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["active"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["active"] }),
+        );
         expect(result.has("active")).toBe(false);
     });
 
     test("never flags float fields regardless of required", () => {
         const activeFields = { amount: {} };
         const data = { amount: 0 };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["amount"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["amount"] }),
+        );
         expect(result.has("amount")).toBe(false);
     });
 
     test("never flags integer fields regardless of required", () => {
         const activeFields = { qty: {} };
         const data = { qty: 0 };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["qty"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["qty"] }),
+        );
         expect(result.has("qty")).toBe(false);
     });
 
     test("never flags monetary fields regardless of required", () => {
         const activeFields = { price: {} };
         const data = { price: 0 };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["price"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["price"] }),
+        );
         expect(result.has("price")).toBe(false);
     });
 
@@ -102,7 +137,9 @@ describe("findUnsetRequiredFields — scalar types", () => {
         const activeFields = { name: {} };
         const data = { name: false };
         const result = findUnsetRequiredFields(
-            activeFields, fields, data,
+            activeFields,
+            fields,
+            data,
             makeCallbacks({ required: ["name"], invisible: ["name"] }),
         );
         expect(result.has("name")).toBe(false);
@@ -112,7 +149,9 @@ describe("findUnsetRequiredFields — scalar types", () => {
         const activeFields = { name: {}, description: {} };
         const data = { name: "has value", description: false };
         const result = findUnsetRequiredFields(
-            activeFields, fields, data,
+            activeFields,
+            fields,
+            data,
             makeCallbacks({ required: ["name", "description"] }),
         );
         expect(result.has("name")).toBe(false);
@@ -130,21 +169,36 @@ describe("findUnsetRequiredFields — html", () => {
     test("flags required html when length is 0", () => {
         const activeFields = { body: {} };
         const data = { body: "" }; // length 0
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["body"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["body"] }),
+        );
         expect(result.has("body")).toBe(true);
     });
 
     test("does not flag required html when content present", () => {
         const activeFields = { body: {} };
         const data = { body: "<p>Hello</p>" };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["body"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["body"] }),
+        );
         expect(result.has("body")).toBe(false);
     });
 
     test("does not flag non-required empty html", () => {
         const activeFields = { body: {} };
         const data = { body: "" };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.has("body")).toBe(false);
     });
 });
@@ -162,14 +216,24 @@ describe("findUnsetRequiredFields — x2many", () => {
     test("flags required one2many when count is 0", () => {
         const activeFields = { line_ids: {} };
         const data = { line_ids: { count: 0 } };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["line_ids"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["line_ids"] }),
+        );
         expect(result.has("line_ids")).toBe(true);
     });
 
     test("does not flag required one2many when count > 0", () => {
         const activeFields = { line_ids: {} };
         const data = { line_ids: { count: 2 } };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["line_ids"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["line_ids"] }),
+        );
         expect(result.has("line_ids")).toBe(false);
     });
 
@@ -177,7 +241,9 @@ describe("findUnsetRequiredFields — x2many", () => {
         const activeFields = { line_ids: {} };
         const data = { line_ids: { count: 3 } };
         const result = findUnsetRequiredFields(
-            activeFields, fields, data,
+            activeFields,
+            fields,
+            data,
             makeCallbacks({ invalidLists: ["line_ids"] }),
         );
         expect(result.has("line_ids")).toBe(true);
@@ -186,7 +252,12 @@ describe("findUnsetRequiredFields — x2many", () => {
     test("flags required many2many when count is 0", () => {
         const activeFields = { tag_ids: {} };
         const data = { tag_ids: { count: 0 } };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["tag_ids"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["tag_ids"] }),
+        );
         expect(result.has("tag_ids")).toBe(true);
     });
 });
@@ -201,28 +272,48 @@ describe("findUnsetRequiredFields — json", () => {
     test("flags required json when null", () => {
         const activeFields = { metadata: {} };
         const data = { metadata: null };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["metadata"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["metadata"] }),
+        );
         expect(result.has("metadata")).toBe(true);
     });
 
     test("flags required json when empty object", () => {
         const activeFields = { metadata: {} };
         const data = { metadata: {} };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["metadata"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["metadata"] }),
+        );
         expect(result.has("metadata")).toBe(true);
     });
 
     test("does not flag required json when has content", () => {
         const activeFields = { metadata: {} };
         const data = { metadata: { key: "value" } };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks({ required: ["metadata"] }));
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks({ required: ["metadata"] }),
+        );
         expect(result.has("metadata")).toBe(false);
     });
 
     test("does not flag non-required empty json", () => {
         const activeFields = { metadata: {} };
         const data = { metadata: null };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.has("metadata")).toBe(false);
     });
 });
@@ -242,7 +333,12 @@ describe("findUnsetRequiredFields — properties", () => {
                 { name: "prop_a", string: "Prop A" },
             ],
         };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.has("properties")).toBe(true);
     });
 
@@ -251,7 +347,12 @@ describe("findUnsetRequiredFields — properties", () => {
         const data = {
             properties: [{ name: "prop_a", string: "" }],
         };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.has("properties")).toBe(true);
     });
 
@@ -263,14 +364,24 @@ describe("findUnsetRequiredFields — properties", () => {
                 { name: "prop_b", string: "Prop B" },
             ],
         };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.has("properties")).toBe(false);
     });
 
     test("does not flag properties when value is falsy (no definitions yet)", () => {
         const activeFields = { properties: {} };
         const data = { properties: false };
-        const result = findUnsetRequiredFields(activeFields, fields, data, makeCallbacks());
+        const result = findUnsetRequiredFields(
+            activeFields,
+            fields,
+            data,
+            makeCallbacks(),
+        );
         expect(result.has("properties")).toBe(false);
     });
 
@@ -282,7 +393,9 @@ describe("findUnsetRequiredFields — properties", () => {
         const activeFields = { derived_prop: {} };
         const data = { derived_prop: false };
         const result = findUnsetRequiredFields(
-            activeFields, fieldsWithProp, data,
+            activeFields,
+            fieldsWithProp,
+            data,
             makeCallbacks({ required: ["derived_prop"] }),
         );
         // relatedPropertyField is always skipped
@@ -375,8 +488,7 @@ function makeOrchestrationRecord({
                     onWillSetInvalidField: () => willSetInvalidResult,
                 },
                 ui: {
-                    onDisplayInvalidFields:
-                        onDisplayInvalidFields ?? (() => () => {}),
+                    onDisplayInvalidFields: onDisplayInvalidFields ?? (() => () => {}),
                 },
             },
         },
@@ -461,8 +573,8 @@ describe("checkValidity — default mode", () => {
             fields: { name: { type: "char" }, email: { type: "char" } },
             data: { name: "set", email: "set" },
             required: [],
-            invalid: ["name"],          // invalid-input flag survives
-            unsetRequired: [],          // but not in unset-required subset
+            invalid: ["name"], // invalid-input flag survives
+            unsetRequired: [], // but not in unset-required subset
         });
         checkValidity(rec);
         expect([...rec._invalidFields]).toEqual(["name"]);
@@ -776,7 +888,12 @@ describe("computeRevalidationScope", () => {
  * real modifier expressions declared on activeFields (via record_utils), and
  * count how many times each field's required modifier is evaluated.
  */
-function makeModifierCountingRecord({ activeFields, fields, data, unsetRequired = [] }) {
+function makeModifierCountingRecord({
+    activeFields,
+    fields,
+    data,
+    unsetRequired = [],
+}) {
     const requiredEvalCount = {};
     /** @type {any} */
     const rec = makeOrchestrationRecord({
@@ -793,10 +910,7 @@ function makeModifierCountingRecord({ activeFields, fields, data, unsetRequired 
     };
     rec._isInvisible = (name) =>
         activeFields[name].invisible
-            ? isFieldRequired(
-                  { required: activeFields[name].invisible },
-                  evalContext,
-              )
+            ? isFieldRequired({ required: activeFields[name].invisible }, evalContext)
             : false;
     return { rec, requiredEvalCount };
 }
@@ -807,7 +921,11 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
             a: {},
             b: { required: "c == 1" }, // B references C, not A
         };
-        const fields = { a: { type: "char" }, b: { type: "char" }, c: { type: "char" } };
+        const fields = {
+            a: { type: "char" },
+            b: { type: "char" },
+            c: { type: "char" },
+        };
         // B is currently unset+required (c==1 holds, b is false) -> flagged.
         const data = { a: "set", b: false, c: 1 };
         const { rec, requiredEvalCount } = makeModifierCountingRecord({

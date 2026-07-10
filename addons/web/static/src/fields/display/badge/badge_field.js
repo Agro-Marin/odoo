@@ -4,10 +4,10 @@
 /** @module @web/fields/display/badge/badge_field - Read-only badge pill for Selection and Many2one columns */
 
 import { Component } from "@odoo/owl";
+import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registerField } from "@web/fields/_registry";
-import { getFieldCodec } from "@web/core/field_codec";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class BadgeField extends Component {

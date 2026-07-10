@@ -7,10 +7,9 @@ import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
-
 import { registerField } from "@web/fields/_registry";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class BooleanField extends Component {
     static template = "web.BooleanField";

@@ -76,6 +76,4 @@ export const formDialogStackService = {
     },
 };
 
-registry
-    .category("services")
-    .add("form_dialog_stack", formDialogStackService);
+registry.category("services").add("form_dialog_stack", formDialogStackService);

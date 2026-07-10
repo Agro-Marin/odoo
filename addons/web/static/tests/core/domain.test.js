@@ -543,9 +543,9 @@ describe("Basic Properties", () => {
         expect(() => new Domain([["a", "=", 1], "!"])).toThrow(
             /invalid domain .* \(missing 1 segment/,
         );
-        expect(
-            () => new Domain([["a", "=", 1], ["b", "=", 2], "&"]),
-        ).toThrow(/invalid domain .* \(missing 2 segment/);
+        expect(() => new Domain([["a", "=", 1], ["b", "=", 2], "&"])).toThrow(
+            /invalid domain .* \(missing 2 segment/,
+        );
         // Mid-list operators that still receive their operands stay valid
         // (server parity): [A, "&", B, C] means A AND (B AND C).
         const domain = new Domain([["a", "=", 1], "&", ["b", "=", 2], ["c", "=", 3]]);
@@ -949,9 +949,17 @@ describe("Remove domain leaf", () => {
 
 describe("x2many emptiness", () => {
     test("('x2many', '=', False) matches an empty relation (server parity)", () => {
-        expect(new Domain([["tag_ids", "=", false]]).contains({ tag_ids: [] })).toBe(true);
-        expect(new Domain([["tag_ids", "=", false]]).contains({ tag_ids: [1] })).toBe(false);
-        expect(new Domain([["tag_ids", "!=", false]]).contains({ tag_ids: [] })).toBe(false);
-        expect(new Domain([["tag_ids", "!=", false]]).contains({ tag_ids: [1] })).toBe(true);
+        expect(new Domain([["tag_ids", "=", false]]).contains({ tag_ids: [] })).toBe(
+            true,
+        );
+        expect(new Domain([["tag_ids", "=", false]]).contains({ tag_ids: [1] })).toBe(
+            false,
+        );
+        expect(new Domain([["tag_ids", "!=", false]]).contains({ tag_ids: [] })).toBe(
+            false,
+        );
+        expect(new Domain([["tag_ids", "!=", false]]).contains({ tag_ids: [1] })).toBe(
+            true,
+        );
     });
 });

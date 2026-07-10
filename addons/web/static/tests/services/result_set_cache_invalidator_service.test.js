@@ -2,8 +2,8 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import { rpcBus } from "@web/core/network/rpc";
 import { RpcEvent } from "@web/core/events";
+import { rpcBus } from "@web/core/network/rpc";
 import { RESULT_SET_REMOVING_METHODS } from "@web/services/result_set_cache_invalidator_service";
 
 describe.current.tags("headless");

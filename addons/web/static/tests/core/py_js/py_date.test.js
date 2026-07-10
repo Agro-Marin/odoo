@@ -42,14 +42,18 @@ describe.current.tags("headless");
 
 describe("time", () => {
     test("strftime", () => {
-        expect(check("time.strftime('%Y')", (d) => String(d.getUTCFullYear()))).toBe(true);
+        expect(check("time.strftime('%Y')", (d) => String(d.getUTCFullYear()))).toBe(
+            true,
+        );
         expect(
             check(
                 "time.strftime('%Y') + '-01-30'",
                 (d) => String(d.getFullYear()) + "-01-30",
             ),
         ).toBe(true);
-        expect(check("time.strftime('%Y-%m-%d %H:%M:%S')", formatDateTimeUTC)).toBe(true);
+        expect(check("time.strftime('%Y-%m-%d %H:%M:%S')", formatDateTimeUTC)).toBe(
+            true,
+        );
     });
 });
 
@@ -62,7 +66,9 @@ describe("datetime.datetime", () => {
             true,
         );
         expect(check("datetime.datetime.now().day", (d) => d.getUTCDate())).toBe(true);
-        expect(check("datetime.datetime.now().hour", (d) => d.getUTCHours())).toBe(true);
+        expect(check("datetime.datetime.now().hour", (d) => d.getUTCHours())).toBe(
+            true,
+        );
         expect(check("datetime.datetime.now().minute", (d) => d.getUTCMinutes())).toBe(
             true,
         );
@@ -564,7 +570,9 @@ describe("ordering comparisons", () => {
             evaluateExpr("datetime.timedelta(days=1) <= datetime.timedelta(hours=24)"),
         ).toBe(true);
         expect(
-            evaluateExpr("max(datetime.timedelta(days=1), datetime.timedelta(days=2)).days"),
+            evaluateExpr(
+                "max(datetime.timedelta(days=1), datetime.timedelta(days=2)).days",
+            ),
         ).toBe(2);
     });
 });

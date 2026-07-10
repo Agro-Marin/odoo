@@ -5,8 +5,9 @@
 
 /** @import { Tree, Options } from "@web/core/tree/condition_tree" */
 
-import { constructExpressionFromTree } from "./construct_expression_from_tree.js";
 import { eliminateVirtualOperators } from "@web/core/tree/virtual_operators";
+
+import { constructExpressionFromTree } from "./construct_expression_from_tree.js";
 
 /**
  * Convert a condition tree to a Python expression string.

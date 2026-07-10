@@ -47,12 +47,11 @@ test("FavoriteField in kanban view", async () => {
             </kanban>
         `,
     });
-    expect(`.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`).toHaveCount(
-        1,
-        {
-            message: "should be favorite",
-        },
-    );
+    expect(
+        `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
+    ).toHaveCount(1, {
+        message: "should be favorite",
+    });
     expect(`.o_kanban_record .o_field_widget .o_favorite > a`).toHaveText(
         "Remove from Favorites",
         {
@@ -62,12 +61,11 @@ test("FavoriteField in kanban view", async () => {
 
     // click on favorite
     await contains(`.o_field_widget .o_favorite`).click();
-    expect(`.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`).toHaveCount(
-        0,
-        {
-            message: "should not be favorite",
-        },
-    );
+    expect(
+        `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
+    ).toHaveCount(0, {
+        message: "should not be favorite",
+    });
     expect(`.o_kanban_record .o_field_widget .o_favorite > a`).toHaveText(
         "Add to Favorites",
         {
@@ -99,12 +97,11 @@ test("FavoriteField saves changes by default", async () => {
 
     // click on favorite
     await contains(`.o_field_widget .o_favorite`).click();
-    expect(`.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`).toHaveCount(
-        0,
-        {
-            message: "should not be favorite",
-        },
-    );
+    expect(
+        `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
+    ).toHaveCount(0, {
+        message: "should not be favorite",
+    });
     expect(`.o_kanban_record .o_field_widget .o_favorite > a`).toHaveText(
         "Add to Favorites",
         {
@@ -136,12 +133,11 @@ test("FavoriteField does not save if autosave option is set to false", async () 
 
     // click on favorite
     await contains(`.o_field_widget .o_favorite`).click();
-    expect(`.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`).toHaveCount(
-        0,
-        {
-            message: "should not be favorite",
-        },
-    );
+    expect(
+        `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
+    ).toHaveCount(0, {
+        message: "should not be favorite",
+    });
     expect(`.o_kanban_record .o_field_widget .o_favorite > a`).toHaveText(
         "Add to Favorites",
         {
@@ -279,12 +275,11 @@ test("FavoriteField in kanban view with readonly attribute", async () => {
             </kanban>
         `,
     });
-    expect(`.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`).toHaveCount(
-        1,
-        {
-            message: "should be favorite",
-        },
-    );
+    expect(
+        `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
+    ).toHaveCount(1, {
+        message: "should be favorite",
+    });
     expect(`.o_kanban_record .o_field_widget .o_favorite > a`).toHaveClass("pe-none");
     expect(`.o_kanban_record .o_field_widget .o_favorite`).toHaveClass("o_disabled");
     expect(`.o_kanban_record .o_field_widget`).toHaveText("");
@@ -292,11 +287,10 @@ test("FavoriteField in kanban view with readonly attribute", async () => {
     // click on favorite
     await contains(`.o_field_widget .o_favorite`).click();
     // expect nothing to change since its readonly
-    expect(`.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`).toHaveCount(
-        1,
-        {
-            message: "should remain favorite",
-        },
-    );
+    expect(
+        `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
+    ).toHaveCount(1, {
+        message: "should remain favorite",
+    });
     expect.verifySteps([]);
 });

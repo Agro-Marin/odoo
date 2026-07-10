@@ -261,14 +261,17 @@ export class Interaction {
      */
     waitForTimeout(fn, delay) {
         fn = this.__colibri__.protectSyncAfterAsync(this, "waitForTimeout", fn);
-        return setTimeout(() => {
-            if (!this.isDestroyed) {
-                fn.call(this);
-                if (this.isReady) {
-                    this.updateContent();
+        return setTimeout(
+            () => {
+                if (!this.isDestroyed) {
+                    fn.call(this);
+                    if (this.isReady) {
+                        this.updateContent();
+                    }
                 }
-            }
-        }, Number.parseInt(delay, 10));
+            },
+            Number.parseInt(delay, 10),
+        );
     }
 
     /**

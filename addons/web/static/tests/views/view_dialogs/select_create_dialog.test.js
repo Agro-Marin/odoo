@@ -24,8 +24,8 @@ import {
     toggleSaveFavorite,
     toggleSearchBarMenu,
 } from "@web/../tests/web_test_helpers";
-import { renderToMarkup } from "@web/core/utils/render";
 import { useSetupAction } from "@web/core/action_hook";
+import { renderToMarkup } from "@web/core/utils/render";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { listView } from "@web/views/list/list_view";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";

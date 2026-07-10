@@ -21,7 +21,9 @@ export const frequentEmojiService = {
             /** @type {Record<string, number>} */
             all: (() => {
                 try {
-                    return JSON.parse(browser.localStorage.getItem("web.emoji.frequent") || "{}");
+                    return JSON.parse(
+                        browser.localStorage.getItem("web.emoji.frequent") || "{}",
+                    );
                 } catch {
                     return {};
                 }

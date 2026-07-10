@@ -19,6 +19,7 @@ import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { AppEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
@@ -29,7 +30,6 @@ import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { Field } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ActionHelper } from "@web/views/action_helper";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
@@ -39,21 +39,21 @@ import { Widget } from "@web/views/widgets/widget";
 import { useMagicColumnWidths } from "./column_width_hook.js";
 import { useListAggregates } from "./list_aggregates.js";
 import { ListAggregatesRow } from "./list_aggregates_row.js";
-import { listStylingMixin } from "./list_styling.js";
 import {
     getPropertyFieldColumns as getPropertyFieldColumnsUtil,
     processAllColumns,
 } from "./list_column_utils.js";
 import { ListGridState } from "./list_grid_state.js";
-import { getRowComponentClass } from "./list_record_row.js";
 import { listGroupRenderingMixin } from "./list_group_rendering.js";
 import {
     containsActiveElement,
     useListKeyboardNavigation,
 } from "./list_keyboard_nav.js";
-import { listSortingMixin } from "./list_sorting.js";
 import { useListOptionalFields } from "./list_optional_fields.js";
+import { getRowComponentClass } from "./list_record_row.js";
 import { useListSelection } from "./list_selection.js";
+import { listSortingMixin } from "./list_sorting.js";
+import { listStylingMixin } from "./list_styling.js";
 import { useListVirtualization } from "./list_virtualization.js";
 
 /**

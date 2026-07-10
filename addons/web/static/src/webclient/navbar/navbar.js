@@ -80,7 +80,10 @@ export class NavBar extends Component {
         // components destroyed before mount, which would leak the listeners.
         onWillDestroy(() => {
             systrayRegistry.removeEventListener("UPDATE", renderAndAdapt);
-            this.env.bus.removeEventListener(AppEvent.MENUS_APP_CHANGED, renderAndAdapt);
+            this.env.bus.removeEventListener(
+                AppEvent.MENUS_APP_CHANGED,
+                renderAndAdapt,
+            );
         });
 
         // We don't want to adapt every time we are patched
@@ -141,7 +144,9 @@ export class NavBar extends Component {
             .map(([key, value]) => ({ key, ...value }))
             .filter((item) =>
                 "isDisplayed" in item
-                    ? item.isDisplayed(/** @type {import("@web/env").OdooEnv} */ (this.env))
+                    ? item.isDisplayed(
+                          /** @type {import("@web/env").OdooEnv} */ (this.env),
+                      )
                     : true,
             )
             .reverse();
@@ -179,8 +184,7 @@ export class NavBar extends Component {
         // Save initial state to further check if new render has to be done.
         const initialAppSectionsExtra = this.currentAppSectionsExtra;
         const firstInitialAppSectionExtra = [...initialAppSectionsExtra].shift();
-        const initialAppId =
-            firstInitialAppSectionExtra?.appID;
+        const initialAppId = firstInitialAppSectionExtra?.appID;
 
         // Restore (needed to get offset widths)
         const sections = [
@@ -231,8 +235,7 @@ export class NavBar extends Component {
 
         // ------- Final rendering -------
         const firstCurrentAppSectionExtra = [...this.currentAppSectionsExtra].shift();
-        const currentAppId =
-            firstCurrentAppSectionExtra?.appID;
+        const currentAppId = firstCurrentAppSectionExtra?.appID;
         if (
             initialAppSectionsExtra.length === this.currentAppSectionsExtra.length &&
             initialAppId === currentAppId

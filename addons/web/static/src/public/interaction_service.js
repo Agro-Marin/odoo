@@ -89,12 +89,15 @@ class InteractionService {
      */
     _trackProm(prom) {
         this.proms.push(prom);
-        prom.then(() => {
-            const index = this.proms.indexOf(prom);
-            if (index !== -1) {
-                this.proms.splice(index, 1);
-            }
-        }, () => {});
+        prom.then(
+            () => {
+                const index = this.proms.indexOf(prom);
+                if (index !== -1) {
+                    this.proms.splice(index, 1);
+                }
+            },
+            () => {},
+        );
     }
 
     /**

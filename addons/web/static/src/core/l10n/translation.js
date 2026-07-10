@@ -309,11 +309,13 @@ export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");
 
 const _STATE_KEY = "__odoo_l10n_state__";
 /** @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }} */
-const _state = (/** @type {any} */ (globalThis)[_STATE_KEY] ??= {
-    translatedTerms: { [translationLoaded]: false },
-    translatedTermsGlobal: Object.create(null),
-    translationIsReady: new Deferred(),
-});
+const _state = /** @type {any} */ (
+    globalThis[_STATE_KEY] ??= {
+        translatedTerms: { [translationLoaded]: false },
+        translatedTermsGlobal: Object.create(null),
+        translationIsReady: new Deferred(),
+    }
+);
 
 /** @type {Record<string | symbol, any>} */
 export const translatedTerms = _state.translatedTerms;

@@ -293,9 +293,7 @@ test(`debug-mode dep validator: warns when a service is added with a missing dep
         await tick();
     });
     expect(warns.length).toBe(1);
-    expect(warns[0][0]).toMatch(
-        /Service "orphan" declares missing dependencies/,
-    );
+    expect(warns[0][0]).toMatch(/Service "orphan" declares missing dependencies/);
     expect(warns[0][0]).toMatch(/never-registered/);
 });
 

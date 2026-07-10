@@ -5,11 +5,11 @@
 
 import { Component } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
+import { useCallbackRecorder } from "@web/core/action_hook";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Record } from "@web/model/record";
-import { useCallbackRecorder } from "@web/core/action_hook";
 import { FormRenderer } from "@web/views/form/form_renderer";
 
 /** Popover with a mini form and optional time range picker for quick-creating records in calendar/gantt views. */

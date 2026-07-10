@@ -137,5 +137,3 @@ describe("effect", () => {
         expect.verifySteps([]);
     });
 });
-
-

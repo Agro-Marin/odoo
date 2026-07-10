@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import {
     after,
     before,
@@ -12,6 +11,7 @@ import {
     mockWebSocket,
     registerDebugInfo,
 } from "@odoo/hoot";
+import { luxon } from "@web/core/l10n/luxon";
 import { makeErrorFromResponse, rpc, RPCError } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
 import { ensureArray, isIterable } from "@web/core/utils/collections/arrays";
@@ -1193,10 +1193,10 @@ export class MockServer {
                             if (!this._missingComputes.has(key)) {
                                 this._missingComputes.add(key);
                                 console.debug(
-                                    `[asset.mockserver] dropping compute "${computeName}" on `
-                                    + `${model._name}.${fieldName}: method not reachable from `
-                                    + `${model.constructor?.name} prototype chain (likely `
-                                    + `cross-test field merge)`,
+                                    `[asset.mockserver] dropping compute "${computeName}" on ` +
+                                        `${model._name}.${fieldName}: method not reachable from ` +
+                                        `${model.constructor?.name} prototype chain (likely ` +
+                                        `cross-test field merge)`,
                                 );
                             }
                             continue;

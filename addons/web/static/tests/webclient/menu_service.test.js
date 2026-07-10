@@ -253,7 +253,11 @@ test(`cold boot: a null parse-time preload refetches menus (no blank client)`, a
     await makeMockEnv();
     // getApps() dereferences menusData.root — it throws if the cold boot left
     // it undefined (the blank-webclient bug).
-    expect(getService("menu").getApps().map((app) => app.name)).toEqual(["App1"]);
+    expect(
+        getService("menu")
+            .getApps()
+            .map((app) => app.name),
+    ).toEqual(["App1"]);
 });
 
 test.tags("desktop");
@@ -271,5 +275,9 @@ test(`cold boot: falls back to stored menus when preload is null and refetch fai
         throw new Error("load_menus unavailable");
     });
     await makeMockEnv();
-    expect(getService("menu").getApps().map((app) => app.name)).toEqual(["StoredApp"]);
+    expect(
+        getService("menu")
+            .getApps()
+            .map((app) => app.name),
+    ).toEqual(["StoredApp"]);
 });

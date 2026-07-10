@@ -511,11 +511,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 case "shift+arrowdown": {
                     if (expandCheckboxes(record, "down")) {
-                        const move = self.findFocusMove(
-                            cell,
-                            cellIsInGroupRow,
-                            "down",
-                        );
+                        const move = self.findFocusMove(cell, cellIsInGroupRow, "down");
                         if (move && "pending" in move) {
                             return true;
                         }
@@ -525,11 +521,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                 }
                 case "shift+arrowup": {
                     if (expandCheckboxes(record, "up")) {
-                        const move = self.findFocusMove(
-                            cell,
-                            cellIsInGroupRow,
-                            "up",
-                        );
+                        const move = self.findFocusMove(cell, cellIsInGroupRow, "up");
                         if (move && "pending" in move) {
                             return true;
                         }

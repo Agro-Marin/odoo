@@ -3,6 +3,8 @@
 
 /** @module @web/core/py_js/py_interpreter - AST-walking interpreter for Python expressions used in domains and QWeb */
 
+import { ASTType } from "./ast_type.js";
+import { bindArgs } from "./py_args.js";
 import {
     BUILTINS,
     EvaluationError,
@@ -18,9 +20,7 @@ import {
     PyTime,
     PyTimeDelta,
 } from "./py_date.js";
-import { bindArgs } from "./py_args.js";
 import { PY_DICT, toPyDict } from "./py_utils.js";
-import { ASTType } from "./ast_type.js";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -444,9 +444,7 @@ function pyStringFormat(fmt, value) {
                 arg = value?.[mapKey];
             } else {
                 if (i >= values.length) {
-                    throw new EvaluationError(
-                        "not enough arguments for format string",
-                    );
+                    throw new EvaluationError("not enough arguments for format string");
                 }
                 arg = values[i++];
             }
@@ -618,7 +616,9 @@ function _applyBinaryOp(ast, recurse) {
                     // Python: td / td → float ratio.
                     const divisor = right.toMicroseconds();
                     if (divisor === 0) {
-                        throw new EvaluationError("ZeroDivisionError: division by zero");
+                        throw new EvaluationError(
+                            "ZeroDivisionError: division by zero",
+                        );
                     }
                     return left.toMicroseconds() / divisor;
                 }
@@ -807,137 +807,139 @@ export function evaluate(ast, context = {}) {
             throw new EvaluationError("Maximum expression depth exceeded");
         }
         try {
-        switch (ast.type) {
-            case ASTType.Number:
-            case ASTType.String:
-                return ast.value;
-            case ASTType.Name: {
-                const name = ast.value;
-                if (name === "context" && !callerProvidesContext) {
-                    if (!pyContext) {
-                        pyContext = toPyDict(context);
+            switch (ast.type) {
+                case ASTType.Number:
+                case ASTType.String:
+                    return ast.value;
+                case ASTType.Name: {
+                    const name = ast.value;
+                    if (name === "context" && !callerProvidesContext) {
+                        if (!pyContext) {
+                            pyContext = toPyDict(context);
+                        }
+                        return pyContext;
                     }
-                    return pyContext;
-                }
-                if (Object.hasOwn(context, name)) {
-                    return context[name];
-                } else if (name in BUILTINS) {
-                    return (/** @type {Record<string, any>} */ (BUILTINS))[name];
-                } else {
-                    throw new EvaluationError(`Name '${name}' is not defined`);
-                }
-            }
-            case ASTType.None:
-                return null;
-            case ASTType.Boolean:
-                return ast.value;
-            case ASTType.UnaryOperator:
-                return _applyUnaryOp(ast, _evaluate);
-            case ASTType.BinaryOperator:
-                return _applyBinaryOp(ast, _evaluate);
-            case ASTType.BooleanOperator: {
-                const left = _evaluate(ast.left);
-                if (ast.op === "and") {
-                    return isTrue(left) ? _evaluate(ast.right) : left;
-                } else {
-                    return isTrue(left) ? left : _evaluate(ast.right);
-                }
-            }
-            case ASTType.List:
-            case ASTType.Tuple:
-                return ast.value.map(_evaluate);
-            case ASTType.Dictionary: {
-                /** @type {Record<string, any>} */
-                const dict = {};
-                for (const key of Object.keys(ast.value || {})) {
-                    // defineProperty: keeps a literal '__proto__' key as a
-                    // plain OWN entry (matching the parser side) while the
-                    // dict stays a regular Object for downstream consumers
-                    // (OWL props validation, deepCopy, ...).
-                    Object.defineProperty(dict, key, {
-                        value: _evaluate(ast.value[key]),
-                        writable: true,
-                        enumerable: true,
-                        configurable: true,
-                    });
-                }
-                dicts.add(dict);
-                return dict;
-            }
-            case ASTType.FunctionCall: {
-                const fnValue = _evaluate(ast.fn);
-                const args = ast.args.map(_evaluate);
-                /** @type {Record<string, any>} */
-                const kwargs = {};
-                for (const kwarg of Object.keys(ast.kwargs || {})) {
-                    kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
-                }
-                if (
-                    fnValue === PyDate ||
-                    fnValue === PyDateTime ||
-                    fnValue === PyTime ||
-                    fnValue === PyRelativeDelta ||
-                    fnValue === PyTimeDelta
-                ) {
-                    return fnValue.create(...args, kwargs);
-                }
-                return fnValue(...args, kwargs);
-            }
-            case ASTType.Lookup: {
-                const dict = _evaluate(ast.target);
-                const key = _evaluate(ast.key);
-                if (BLOCKED_PROPERTIES.has(key)) {
-                    throw new EvaluationError(`Access to '${key}' is forbidden`);
-                }
-                if (
-                    typeof key === "number" &&
-                    key < 0 &&
-                    (typeof dict === "string" || Array.isArray(dict))
-                ) {
-                    // Python negative indexing (``lst[-1]`` → last element). JS
-                    // bracket access returns undefined for negative indices, so
-                    // use ``.at`` which counts from the end.
-                    return dict.at(key);
-                }
-                return dict[key];
-            }
-            case ASTType.If: {
-                if (isTrue(_evaluate(ast.condition))) {
-                    return _evaluate(ast.ifTrue);
-                } else {
-                    return _evaluate(ast.ifFalse);
-                }
-            }
-            case ASTType.ObjLookup: {
-                let left = _evaluate(ast.obj);
-                let result;
-                if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
-                    // this is a dictionary => need to apply dict methods
-                    result = (/** @type {Record<string, any>} */ (DICT))[ast.key];
-                } else if (typeof left === "string") {
-                    result = (/** @type {Record<string, any>} */ (STRING))[ast.key];
-                } else if (left instanceof Set) {
-                    result = (/** @type {Record<string, any>} */ (SET))[ast.key];
-                } else if (ast.key === "get" && typeof left === "object") {
-                    result = (/** @type {Record<string, any>} */ (DICT))[ast.key];
-                    left = toPyDict(left);
-                } else {
-                    if (BLOCKED_PROPERTIES.has(ast.key)) {
-                        throw new EvaluationError(`Access to '${ast.key}' is forbidden`);
-                    }
-                    result = left[ast.key];
-                }
-                if (typeof result === "function") {
-                    if (!isConstructor(result)) {
-                        const bound = result.bind(left);
-                        bound[unboundFn] = result;
-                        return bound;
+                    if (Object.hasOwn(context, name)) {
+                        return context[name];
+                    } else if (name in BUILTINS) {
+                        return /** @type {Record<string, any>} */ (BUILTINS)[name];
+                    } else {
+                        throw new EvaluationError(`Name '${name}' is not defined`);
                     }
                 }
-                return result;
+                case ASTType.None:
+                    return null;
+                case ASTType.Boolean:
+                    return ast.value;
+                case ASTType.UnaryOperator:
+                    return _applyUnaryOp(ast, _evaluate);
+                case ASTType.BinaryOperator:
+                    return _applyBinaryOp(ast, _evaluate);
+                case ASTType.BooleanOperator: {
+                    const left = _evaluate(ast.left);
+                    if (ast.op === "and") {
+                        return isTrue(left) ? _evaluate(ast.right) : left;
+                    } else {
+                        return isTrue(left) ? left : _evaluate(ast.right);
+                    }
+                }
+                case ASTType.List:
+                case ASTType.Tuple:
+                    return ast.value.map(_evaluate);
+                case ASTType.Dictionary: {
+                    /** @type {Record<string, any>} */
+                    const dict = {};
+                    for (const key of Object.keys(ast.value || {})) {
+                        // defineProperty: keeps a literal '__proto__' key as a
+                        // plain OWN entry (matching the parser side) while the
+                        // dict stays a regular Object for downstream consumers
+                        // (OWL props validation, deepCopy, ...).
+                        Object.defineProperty(dict, key, {
+                            value: _evaluate(ast.value[key]),
+                            writable: true,
+                            enumerable: true,
+                            configurable: true,
+                        });
+                    }
+                    dicts.add(dict);
+                    return dict;
+                }
+                case ASTType.FunctionCall: {
+                    const fnValue = _evaluate(ast.fn);
+                    const args = ast.args.map(_evaluate);
+                    /** @type {Record<string, any>} */
+                    const kwargs = {};
+                    for (const kwarg of Object.keys(ast.kwargs || {})) {
+                        kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
+                    }
+                    if (
+                        fnValue === PyDate ||
+                        fnValue === PyDateTime ||
+                        fnValue === PyTime ||
+                        fnValue === PyRelativeDelta ||
+                        fnValue === PyTimeDelta
+                    ) {
+                        return fnValue.create(...args, kwargs);
+                    }
+                    return fnValue(...args, kwargs);
+                }
+                case ASTType.Lookup: {
+                    const dict = _evaluate(ast.target);
+                    const key = _evaluate(ast.key);
+                    if (BLOCKED_PROPERTIES.has(key)) {
+                        throw new EvaluationError(`Access to '${key}' is forbidden`);
+                    }
+                    if (
+                        typeof key === "number" &&
+                        key < 0 &&
+                        (typeof dict === "string" || Array.isArray(dict))
+                    ) {
+                        // Python negative indexing (``lst[-1]`` → last element). JS
+                        // bracket access returns undefined for negative indices, so
+                        // use ``.at`` which counts from the end.
+                        return dict.at(key);
+                    }
+                    return dict[key];
+                }
+                case ASTType.If: {
+                    if (isTrue(_evaluate(ast.condition))) {
+                        return _evaluate(ast.ifTrue);
+                    } else {
+                        return _evaluate(ast.ifFalse);
+                    }
+                }
+                case ASTType.ObjLookup: {
+                    let left = _evaluate(ast.obj);
+                    let result;
+                    if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
+                        // this is a dictionary => need to apply dict methods
+                        result = /** @type {Record<string, any>} */ (DICT)[ast.key];
+                    } else if (typeof left === "string") {
+                        result = /** @type {Record<string, any>} */ (STRING)[ast.key];
+                    } else if (left instanceof Set) {
+                        result = /** @type {Record<string, any>} */ (SET)[ast.key];
+                    } else if (ast.key === "get" && typeof left === "object") {
+                        result = /** @type {Record<string, any>} */ (DICT)[ast.key];
+                        left = toPyDict(left);
+                    } else {
+                        if (BLOCKED_PROPERTIES.has(ast.key)) {
+                            throw new EvaluationError(
+                                `Access to '${ast.key}' is forbidden`,
+                            );
+                        }
+                        result = left[ast.key];
+                    }
+                    if (typeof result === "function") {
+                        if (!isConstructor(result)) {
+                            const bound = result.bind(left);
+                            bound[unboundFn] = result;
+                            return bound;
+                        }
+                    }
+                    return result;
+                }
             }
-        }
-        throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
+            throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
         } finally {
             evalDepth--;
         }

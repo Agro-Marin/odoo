@@ -2,8 +2,8 @@
 
 import { after, expect, getFixture, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-import publicWidget from "@web/legacy/js/public/public_widget";
 import { renderToString } from "@web/core/utils/render";
+import publicWidget from "@web/legacy/js/public/public_widget";
 
 // Hoot port of the former QUnit suite `tests/legacy/public/public_widget_tests.js`.
 // `publicWidget.Widget` (src/legacy/js/public/public_widget.js) is still
@@ -19,7 +19,9 @@ function useWidget(widget) {
 
 /** @param {EventTarget} el */
 function click(el) {
-    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    el.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, view: window }),
+    );
 }
 
 test("proxy (String)", () => {
@@ -94,13 +96,19 @@ test("renderElement, no template, default", () => {
 
     widget.renderElement();
 
-    expect(widget.el).not.toBe(undefined, { message: "should have generated a root element" });
+    expect(widget.el).not.toBe(undefined, {
+        message: "should have generated a root element",
+    });
     expect(widget.$el).toBe(widget.el, { message: "should provide $el alias" });
-    expect(widget.el.nodeName).toBe("DIV", { message: "should have generated the default element" });
+    expect(widget.el.nodeName).toBe("DIV", {
+        message: "should have generated the default element",
+    });
     expect(widget.el.attributes.length).toBe(0, {
         message: "should not have generated any attribute",
     });
-    expect(widget.el.innerHTML).toBe("", { message: "should not have generated any content" });
+    expect(widget.el.innerHTML).toBe("", {
+        message: "should not have generated any content",
+    });
 });
 
 test("no template, custom tag", () => {
@@ -115,18 +123,24 @@ test("no template, @id", () => {
     const widget = useWidget(new (Widget.extend({ id: "foo" }))());
     widget.renderElement();
 
-    expect(widget.el.attributes.length).toBe(1, { message: "should have one attribute" });
+    expect(widget.el.attributes.length).toBe(1, {
+        message: "should have one attribute",
+    });
     expect(widget.el.getAttribute("id")).toBe("foo", {
         message: "should have generated the id attribute",
     });
-    expect(widget.el.id).toBe("foo", { message: "should also be available via property" });
+    expect(widget.el.id).toBe("foo", {
+        message: "should also be available via property",
+    });
 });
 
 test("no template, @className", () => {
     const widget = useWidget(new (Widget.extend({ className: "oe_some_class" }))());
     widget.renderElement();
 
-    expect(widget.el.className).toBe("oe_some_class", { message: "should have the right property" });
+    expect(widget.el.className).toBe("oe_some_class", {
+        message: "should have the right property",
+    });
     expect(widget.el.getAttribute("class")).toBe("oe_some_class", {
         message: "should have the right attribute",
     });
@@ -142,7 +156,7 @@ test("no template, bunch of attributes", () => {
                 clark: "gable",
                 spoiler: "snape kills dumbledore",
             },
-        }))()
+        }))(),
     );
     widget.renderElement();
 
@@ -164,10 +178,12 @@ test("template", () => {
                 <input/>
                 <t t-esc="counter"/>
             </li>
-        </ol>`
+        </ol>`,
     );
 
-    const widget = useWidget(new (Widget.extend({ template: "test.public.widget.template.1" }))());
+    const widget = useWidget(
+        new (Widget.extend({ template: "test.public.widget.template.1" }))(),
+    );
     widget.renderElement();
 
     expect(widget.el.nodeName).toBe("OL");
@@ -179,9 +195,11 @@ test("repeated rendering", async () => {
     const fixture = getFixture();
     renderToString.app.addTemplate(
         "test.public.widget.template.2",
-        `<p><t t-esc="widget.value"/></p>`
+        `<p><t t-esc="widget.value"/></p>`,
     );
-    const widget = useWidget(new (Widget.extend({ template: "test.public.widget.template.2" }))());
+    const widget = useWidget(
+        new (Widget.extend({ template: "test.public.widget.template.2" }))(),
+    );
     widget.value = 42;
 
     await widget.appendTo(fixture);
@@ -205,7 +223,7 @@ test("event delegation", async () => {
                 <input/>
                 <t t-esc="counter"/>
             </li>
-        </ol>`
+        </ol>`,
     );
 
     const a = [];
@@ -215,7 +233,9 @@ test("event delegation", async () => {
             events: {
                 click() {
                     a[0] = true;
-                    expect(this).toBe(widget, { message: "should trigger events in widget" });
+                    expect(this).toBe(widget, {
+                        message: "should trigger events in widget",
+                    });
                 },
                 "click li.class-3": "class3",
                 "change input"() {
@@ -225,7 +245,7 @@ test("event delegation", async () => {
             class3() {
                 a[1] = true;
             },
-        }))()
+        }))(),
     );
     widget.renderElement();
 
@@ -249,7 +269,7 @@ test("undelegate", async () => {
                 <input/>
                 <t t-esc="counter"/>
             </li>
-        </ol>`
+        </ol>`,
     );
 
     let clicked = false;
@@ -263,7 +283,7 @@ test("undelegate", async () => {
                     clicked = true;
                 },
             },
-        }))()
+        }))(),
     );
     widget.renderElement();
     widget.el.addEventListener("click", (ev) => {
@@ -279,8 +299,12 @@ test("undelegate", async () => {
     clicked = newclicked = false;
     widget._undelegateEvents();
     click(widget.el.querySelector("li"));
-    expect(clicked).toBe(false, { message: "undelegate should unbind events delegated" });
-    expect(newclicked).toBe(true, { message: "undelegate should only unbind events it created" });
+    expect(clicked).toBe(false, {
+        message: "undelegate should unbind events delegated",
+    });
+    expect(newclicked).toBe(true, {
+        message: "undelegate should only unbind events it created",
+    });
 });
 
 test("start is not called when widget is destroyed", async () => {

@@ -88,7 +88,8 @@ export const checkTooltip = (view, { title, lines }, index, datasetIndex = null)
  * @param {"asc" | "desc"} direction
  */
 export const clickSort = (direction) => {
-    const iconClass = direction === "asc" ? "fa-arrow-down-short-wide" : "fa-arrow-down-wide-short";
+    const iconClass =
+        direction === "asc" ? "fa-arrow-down-short-wide" : "fa-arrow-down-wide-short";
     return contains(`.${iconClass}`).click();
 };
 

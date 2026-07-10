@@ -5,11 +5,10 @@
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-
-import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ImageUrlField extends Component {
     static template = "web.ImageUrlField";

@@ -100,8 +100,14 @@ function addRecord(list, resId) {
         _virtualId: null,
         activeFields: {},
         data: { id: resId },
-        _applyChanges(changes) { Object.assign(this.data, changes); },
-        _applyValues(values) { if (values) Object.assign(this.data, values); },
+        _applyChanges(changes) {
+            Object.assign(this.data, changes);
+        },
+        _applyValues(values) {
+            if (values) {
+                Object.assign(this.data, values);
+            }
+        },
         _parseServerValues: (changes) => changes,
     };
     list._cache[resId] = record;
@@ -184,7 +190,10 @@ describe("applyCommands — DELETE", () => {
         addRecord(list, 2);
         addRecord(list, 3);
 
-        applyCommands(list, [[DELETE, 1], [DELETE, 3]]);
+        applyCommands(list, [
+            [DELETE, 1],
+            [DELETE, 3],
+        ]);
 
         expect(list.records.length).toBe(1);
         expect(list.records[0].resId).toBe(2);
@@ -290,7 +299,10 @@ describe("applyCommands — LINK", () => {
         addRecord(list, 15);
 
         // DELETE 15 then LINK 15 in same batch
-        applyCommands(list, [[DELETE, 15], [LINK, 15]]);
+        applyCommands(list, [
+            [DELETE, 15],
+            [LINK, 15],
+        ]);
 
         // After DELETE, 15 is in removedIds; then LINK sees it's NOT in
         // _currentIds (was just removed), so it adds it back.
@@ -322,7 +334,9 @@ describe("applyCommands — UPDATE", () => {
 
         applyCommands(list, [[UPDATE, 99, { name: "Ghost" }]]);
 
-        expect(list._unknownRecordCommands[99]).toEqual([[UPDATE, 99, { name: "Ghost" }]]);
+        expect(list._unknownRecordCommands[99]).toEqual([
+            [UPDATE, 99, { name: "Ghost" }],
+        ]);
     });
 
     test("emits UPDATE command in _commands", () => {
@@ -405,9 +419,12 @@ describe("applyCommands — command log integrity", () => {
         // Simulate a prior CREATE already in _commands
         list._commands = [[CREATE, "virtual_1"]];
         const fakeVirtual = {
-            resId: false, _virtualId: "virtual_1",
-            activeFields: {}, data: {},
-            _applyChanges() {}, _parseServerValues: (v) => v,
+            resId: false,
+            _virtualId: "virtual_1",
+            activeFields: {},
+            data: {},
+            _applyChanges() {},
+            _parseServerValues: (v) => v,
         };
         list.records.push(fakeVirtual);
         list._currentIds.push("virtual_1");
@@ -429,7 +446,11 @@ describe("applyCommands — command log integrity", () => {
         addRecord(list, 4);
 
         // Apply DELETE for records 2, 3, and 4 — should emit in same order
-        applyCommands(list, [[DELETE, 2], [DELETE, 3], [DELETE, 4]]);
+        applyCommands(list, [
+            [DELETE, 2],
+            [DELETE, 3],
+            [DELETE, 4],
+        ]);
 
         const deletedIds = list._commands.map((c) => c[1]);
         expect(deletedIds).toEqual([2, 3, 4]);
@@ -458,7 +479,11 @@ describe("applyCommands — record loading", () => {
         });
 
         // LINK without data (command[2]) pushes the records to recordsToLoad
-        await applyCommands(list, [[LINK, 1], [LINK, 2], [LINK, 3]]);
+        await applyCommands(list, [
+            [LINK, 1],
+            [LINK, 2],
+            [LINK, 3],
+        ]);
 
         // Surviving records got their own values
         expect(list._cache[1].data).toEqual({ id: 1, name: "One" });

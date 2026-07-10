@@ -18,8 +18,7 @@ function makeFakeRecord({ dirty = false, changes = {} } = {}) {
         dirty,
         resModel: "test.model",
         resId: 42,
-        _assertChangeSetInvariant:
-            RelationalRecord.prototype._assertChangeSetInvariant,
+        _assertChangeSetInvariant: RelationalRecord.prototype._assertChangeSetInvariant,
     };
 }
 

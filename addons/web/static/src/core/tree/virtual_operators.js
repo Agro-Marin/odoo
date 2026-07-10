@@ -403,7 +403,11 @@ function introduceBetweenOperators(tree, options = {}) {
             ["integer", "float", "monetary"].includes(fieldType) &&
             isSimplePath(path)
         ) {
-            return condition(path, "between", normalizeValue(/** @type {any} */ ([value1, value2])));
+            return condition(
+                path,
+                "between",
+                normalizeValue(/** @type {any} */ ([value1, value2])),
+            );
         }
     }
     return operate(
@@ -457,7 +461,11 @@ function _eliminateAnyOperator(c) {
         !condValue.negate &&
         ["between", "in range"].includes(/** @type {string} */ (condValue.operator))
     ) {
-        return condition(`${path}.${condValue.path}`, condValue.operator, condValue.value);
+        return condition(
+            `${path}.${condValue.path}`,
+            condValue.operator,
+            condValue.value,
+        );
     }
 }
 

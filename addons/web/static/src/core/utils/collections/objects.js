@@ -26,7 +26,9 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
         // ``Object.hasOwn`` guards against different key SETS with the same key
         // COUNT: without it, ``{ a: undefined }`` and ``{ b: undefined }`` compared
         // equal (``o2[key]`` is ``undefined`` for a missing key).
-        obj1Keys.every((key) => Object.hasOwn(o2, key) && comparisonFn(o1[key], o2[key]))
+        obj1Keys.every(
+            (key) => Object.hasOwn(o2, key) && comparisonFn(o1[key], o2[key]),
+        )
     );
 }
 
@@ -143,7 +145,8 @@ function _deepEqual(a, b, seen) {
     }
     return aKeys.every(
         (key) =>
-            Object.prototype.hasOwnProperty.call(b, key) && _deepEqual(a[key], b[key], seen),
+            Object.prototype.hasOwnProperty.call(b, key) &&
+            _deepEqual(a[key], b[key], seen),
     );
 }
 

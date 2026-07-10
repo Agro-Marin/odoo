@@ -5,7 +5,6 @@
 
 /** @odoo-module native */
 import { IrUiViewCodeEditor } from "@web/components/ir_ui_view_code_editor/code_editor";
-
 import { registerField } from "@web/fields/_registry";
 import { AceField, aceField } from "@web/fields/specialized/ace/ace_field";
 

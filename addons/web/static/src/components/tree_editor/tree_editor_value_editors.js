@@ -5,12 +5,6 @@
 
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import {
-    connector,
-    Expression,
-    formatValue,
-    isTree,
-} from "@web/core/tree/condition_tree";
-import {
     DomainSelectorAutocomplete,
     DomainSelectorSingleAutocomplete,
 } from "@web/components/tree_editor/tree_editor_autocomplete";
@@ -21,8 +15,8 @@ import {
     Range,
     Select,
 } from "@web/components/tree_editor/tree_editor_components";
-import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { Domain } from "@web/core/domain";
+import { getFieldCodec } from "@web/core/field_codec";
 import {
     deserializeDate,
     deserializeDateTime,
@@ -32,8 +26,14 @@ import {
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import {
+    connector,
+    Expression,
+    formatValue,
+    isTree,
+} from "@web/core/tree/condition_tree";
+import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { unique } from "@web/core/utils/collections/arrays";
-import { getFieldCodec } from "@web/core/field_codec";
 /**
  * @typedef {Object} ValueEditorInfo
  * @property {import("@odoo/owl").ComponentConstructor | null} component

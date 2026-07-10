@@ -120,6 +120,7 @@ test("steps from the nearest range value despite float imprecision", async () =>
     await contains("button.o_field_float_toggle").click();
 
     expect("button.o_field_float_toggle").toHaveText("0.60", {
-        message: "must advance to the entry after the nearest one (0.3 -> 0.6), not reset to 0.00",
+        message:
+            "must advance to the entry after the nearest one (0.3 -> 0.6), not reset to 0.00",
     });
 });

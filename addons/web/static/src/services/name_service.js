@@ -152,29 +152,35 @@ export const nameService = {
                             specification,
                             context: { active_test: false },
                         })
-                        .then((/** @type {{ records: { id: number, display_name: string }[] }} */ { records }) => {
-                            const displayNames = Object.fromEntries(
-                                records.map((rec) => [rec.id, rec.display_name]),
-                            );
-                            for (const { resId, deferred } of batch) {
-                                if (resId in displayNames) {
-                                    deferred.resolve(displayNames[resId]);
-                                } else {
-                                    // Missing/inaccessible is NOT a durable
-                                    // result: resolve the pending callers but
-                                    // evict the entry so a later lookup re-fetches.
-                                    // The record may become readable after a
-                                    // company switch / ACL change that does not
-                                    // fire ACTION_MANAGER:UPDATE (e.g.
-                                    // recoverFromSaveError activates a company
-                                    // with reload:false); a cached sentinel would
-                                    // otherwise blank the name for the rest of the
-                                    // session.
-                                    deferred.resolve(ERROR_INACCESSIBLE_OR_MISSING);
-                                    evict(resModel, resId, deferred);
+                        .then(
+                            (
+                                /** @type {{ records: { id: number, display_name: string }[] }} */ {
+                                    records,
+                                },
+                            ) => {
+                                const displayNames = Object.fromEntries(
+                                    records.map((rec) => [rec.id, rec.display_name]),
+                                );
+                                for (const { resId, deferred } of batch) {
+                                    if (resId in displayNames) {
+                                        deferred.resolve(displayNames[resId]);
+                                    } else {
+                                        // Missing/inaccessible is NOT a durable
+                                        // result: resolve the pending callers but
+                                        // evict the entry so a later lookup re-fetches.
+                                        // The record may become readable after a
+                                        // company switch / ACL change that does not
+                                        // fire ACTION_MANAGER:UPDATE (e.g.
+                                        // recoverFromSaveError activates a company
+                                        // with reload:false); a cached sentinel would
+                                        // otherwise blank the name for the rest of the
+                                        // session.
+                                        deferred.resolve(ERROR_INACCESSIBLE_OR_MISSING);
+                                        evict(resModel, resId, deferred);
+                                    }
                                 }
-                            }
-                        })
+                            },
+                        )
                         .catch((/** @type {unknown} */ error) => {
                             for (const { resId, deferred } of batch) {
                                 deferred.reject(error);

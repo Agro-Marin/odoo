@@ -317,7 +317,10 @@ export const commandService = {
                         group.length > 1 &&
                         group.some((c) => c.identifier !== command.identifier)
                     ) {
-                        return { ...command, name: `${command.name} (${command.identifier})` };
+                        return {
+                            ...command,
+                            name: `${command.name} (${command.identifier})`,
+                        };
                     }
                     return command;
                 });

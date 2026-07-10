@@ -1,10 +1,10 @@
 // @ts-check
 
 import { Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
+import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { RPCCache } from "@web/core/network/rpc_cache";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
-import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
 
 // rpc_cache asserts against `instance.mockIndexedDB.<table>.<key>` —
 // the in-memory store provided by the prototype mock below.  Scoped via
@@ -1234,20 +1234,28 @@ test("__version: hasChanged=false when both sides carry the same version", async
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     // First call writes the cached value with __version=v1.
-    await rpcCache.read("t", "kv1", () => Promise.resolve({
-        values: [{ id: 1 }, { id: 2 }],
-        __version: "abc",
-    }));
+    await rpcCache.read("t", "kv1", () =>
+        Promise.resolve({
+            values: [{ id: 1 }, { id: 2 }],
+            __version: "abc",
+        }),
+    );
     // Second call (update:always) returns SAME __version even though we
     // intentionally vary an interior field — payload contract is "version
     // is authoritative".
-    await rpcCache.read("t", "kv1", () => Promise.resolve({
-        values: [{ id: 1 }, { id: 2 }, { id: 999 }],  // would diff via jsonEqual!
-        __version: "abc",                              // …but version says equal
-    }), {
-        update: "always",
-        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
-    });
+    await rpcCache.read(
+        "t",
+        "kv1",
+        () =>
+            Promise.resolve({
+                values: [{ id: 1 }, { id: 2 }, { id: 999 }], // would diff via jsonEqual!
+                __version: "abc", // …but version says equal
+            }),
+        {
+            update: "always",
+            callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+        },
+    );
     expect.verifySteps(["changed=false"]);
 });
 
@@ -1257,17 +1265,25 @@ test("__version: hasChanged=true when versions differ", async () => {
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    await rpcCache.read("t", "kv2", () => Promise.resolve({
-        values: [{ id: 1 }],
-        __version: "old",
-    }));
-    await rpcCache.read("t", "kv2", () => Promise.resolve({
-        values: [{ id: 1 }],
-        __version: "new",
-    }), {
-        update: "always",
-        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
-    });
+    await rpcCache.read("t", "kv2", () =>
+        Promise.resolve({
+            values: [{ id: 1 }],
+            __version: "old",
+        }),
+    );
+    await rpcCache.read(
+        "t",
+        "kv2",
+        () =>
+            Promise.resolve({
+                values: [{ id: 1 }],
+                __version: "new",
+            }),
+        {
+            update: "always",
+            callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+        },
+    );
     expect.verifySteps(["changed=true"]);
 });
 
@@ -1278,21 +1294,29 @@ test("__version: fallback to jsonEqual when one side lacks the field", async () 
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     // Legacy cached value WITHOUT __version (pre-migration state).
-    await rpcCache.read("t", "kv3", () => Promise.resolve({
-        values: [{ id: 1 }],
-    }));
+    await rpcCache.read("t", "kv3", () =>
+        Promise.resolve({
+            values: [{ id: 1 }],
+        }),
+    );
     // New response carries __version — but old side doesn't, so we fall back
     // to deep-compare.  Contents are identical except for the new __version
     // key, so jsonEqual returns false ⇒ hasChanged=true (the new field counts
     // as a real diff on this transitional call).  Next refresh will be on
     // the version fast path.
-    await rpcCache.read("t", "kv3", () => Promise.resolve({
-        values: [{ id: 1 }],
-        __version: "v1",
-    }), {
-        update: "always",
-        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
-    });
+    await rpcCache.read(
+        "t",
+        "kv3",
+        () =>
+            Promise.resolve({
+                values: [{ id: 1 }],
+                __version: "v1",
+            }),
+        {
+            update: "always",
+            callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+        },
+    );
     expect.verifySteps(["changed=true"]);
 });
 
@@ -1313,12 +1337,18 @@ test("shape fast-path: list with different length → changed without jsonEqual"
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     await rpcCache.read("t", "kshape1", () => Promise.resolve([{ id: 1 }]));
-    await rpcCache.read("t", "kshape1", () => Promise.resolve(
-        [{ id: 1 }, { id: 2 }],  // length 1 → 2: shape disqualifier fires
-    ), {
-        update: "always",
-        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
-    });
+    await rpcCache.read(
+        "t",
+        "kshape1",
+        () =>
+            Promise.resolve(
+                [{ id: 1 }, { id: 2 }], // length 1 → 2: shape disqualifier fires
+            ),
+        {
+            update: "always",
+            callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+        },
+    );
     expect.verifySteps(["changed=true"]);
 });
 
@@ -1329,9 +1359,7 @@ test("shape fast-path: same length identical content → falls through to jsonEq
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     await rpcCache.read("t", "kshape2", () => Promise.resolve([{ id: 1 }, { id: 2 }]));
-    await rpcCache.read("t", "kshape2", () => Promise.resolve(
-        [{ id: 1 }, { id: 2 }],
-    ), {
+    await rpcCache.read("t", "kshape2", () => Promise.resolve([{ id: 1 }, { id: 2 }]), {
         update: "always",
         callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
     });
@@ -1345,12 +1373,18 @@ test("shape fast-path: same length different content → falls through to jsonEq
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     await rpcCache.read("t", "kshape3", () => Promise.resolve([{ id: 1 }, { id: 2 }]));
-    await rpcCache.read("t", "kshape3", () => Promise.resolve(
-        [{ id: 1 }, { id: 99 }],  // same length, different id: jsonEqual must catch it
-    ), {
-        update: "always",
-        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
-    });
+    await rpcCache.read(
+        "t",
+        "kshape3",
+        () =>
+            Promise.resolve(
+                [{ id: 1 }, { id: 99 }], // same length, different id: jsonEqual must catch it
+            ),
+        {
+            update: "always",
+            callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+        },
+    );
     expect.verifySteps(["changed=true"]);
 });
 

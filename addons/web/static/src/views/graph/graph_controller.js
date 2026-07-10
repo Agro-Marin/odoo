@@ -4,8 +4,8 @@
 /** @module @web/views/graph/graph_controller - Controller wiring GraphModel to GraphRenderer with search bar and sample data support */
 
 import { Component, useRef, useState } from "@odoo/owl";
-import { useModelWithSampleData } from "@web/model/model";
 import { useSetupAction } from "@web/core/action_hook";
+import { useModelWithSampleData } from "@web/model/model";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";

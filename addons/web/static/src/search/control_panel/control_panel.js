@@ -11,6 +11,7 @@ import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
 import { browser } from "@web/core/browser/browser";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { SearchModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
@@ -22,7 +23,6 @@ import {
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useCommand } from "@web/services/commands/command_hook";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 const STICKY_CLASS = "o_mobile_sticky";
 

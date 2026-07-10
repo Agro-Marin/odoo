@@ -67,7 +67,10 @@ export function findUnsetRequiredFields(
             case "monetary":
                 continue;
             case "html":
-                if (isRequired(fieldName) && (!data[fieldName] || data[fieldName].length === 0)) {
+                if (
+                    isRequired(fieldName) &&
+                    (!data[fieldName] || data[fieldName].length === 0)
+                ) {
                     unsetRequiredFields.add(fieldName);
                 }
                 break;
@@ -213,8 +216,7 @@ export function checkValidity(
             }
             const field = record.fields[fieldName];
             const isX2many =
-                field &&
-                (field.type === "one2many" || field.type === "many2many");
+                field && (field.type === "one2many" || field.type === "many2many");
             if (scopedFields && !scopedFields.has(fieldName) && !isX2many) {
                 continue;
             }
@@ -302,7 +304,10 @@ export async function setInvalidField(record, fieldName) {
     // of invalid-field notifications in multi-edit (a single invalid commit
     // would surface two notifications). If an async veto consumer is ever
     // added, revisit both this call and that ordering together.
-    const canProceed = record.model.hooks.lifecycle.onWillSetInvalidField(record, fieldName);
+    const canProceed = record.model.hooks.lifecycle.onWillSetInvalidField(
+        record,
+        fieldName,
+    );
     if (canProceed === false) {
         return;
     }

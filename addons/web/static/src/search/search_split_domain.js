@@ -10,8 +10,8 @@
  * preserving subclass polymorphism for all internal method calls.
  */
 
-import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { makeContext } from "@web/core/context";
+import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { withNotificationsBlocked } from "@web/search/search_query_mutations";
 /** SearchModel widened so this delegate module can read instance state
  * set across SearchModel's many methods. */
@@ -88,7 +88,8 @@ export async function splitAndAddDomain(searchModel, domain, groupId) {
         let queryItemIndex;
         if (group) {
             const firstActiveItem = group.activeItems[0];
-            const firstSearchItem = searchModel.searchItems[firstActiveItem.searchItemId];
+            const firstSearchItem =
+                searchModel.searchItems[firstActiveItem.searchItemId];
             queryItemIndex = searchModel.query.findIndex(
                 (queryElem) => queryElem.searchItemId === firstActiveItem.searchItemId,
             );

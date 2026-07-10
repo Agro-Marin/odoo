@@ -8,6 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { DefaultCommandItem } from "@web/services/commands/command_palette";
+
 import { computeAppsAndMenuItems } from "./menu_helpers.js";
 
 /** Command palette item renderer that shows the app icon next to the label. */
@@ -52,8 +53,7 @@ commandProviderRegistry.add("menu", {
                     },
                     category: "menu_items",
                     name: `${menu.parents} / ${menu.label}`,
-                    href:
-                        menu.href || `#menu_id=${menu.id}&action_id=${menu.actionID}`,
+                    href: menu.href || `#menu_id=${menu.id}&action_id=${menu.actionID}`,
                 });
             });
         }

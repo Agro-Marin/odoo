@@ -7,6 +7,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+
 import { FieldWidgetsDialog } from "./field_widgets_dialog.js";
 
 /**

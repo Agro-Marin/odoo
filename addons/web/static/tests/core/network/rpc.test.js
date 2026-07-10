@@ -136,10 +136,13 @@ test("trigger a ServerOverloadError when response carries a non-JSON content-typ
     // OperationalError traceback).  Caught by content-type sniff BEFORE
     // attempting JSON parse — the more specific ``ServerOverloadError``
     // is thrown so retry logic can apply a longer backoff floor.
-    mockFetch(() => new Response("<html>pool full</html>", {
-        status: 500,
-        headers: { "Content-Type": "text/html" },
-    }));
+    mockFetch(
+        () =>
+            new Response("<html>pool full</html>", {
+                status: 500,
+                headers: { "Content-Type": "text/html" },
+            }),
+    );
 
     await expect(rpc("/test/")).rejects.toThrow(ServerOverloadError);
 });
@@ -148,10 +151,13 @@ test("ServerOverloadError is also a ConnectionLostError (backward compatibility)
     // Existing callers catching ``instanceof ConnectionLostError`` must
     // continue to match the subclass — this contract is load-bearing for
     // every component that currently shows the connection-lost UX.
-    mockFetch(() => new Response("<html/>", {
-        status: 500,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-    }));
+    mockFetch(
+        () =>
+            new Response("<html/>", {
+                status: 500,
+                headers: { "Content-Type": "text/html; charset=utf-8" },
+            }),
+    );
 
     await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
 });
@@ -160,10 +166,13 @@ test("trigger a ConnectionLostError when response says JSON but body is unparsea
     // Content-Type advertises JSON, but the body is truncated / malformed.
     // No evidence of server-side error page; treat as transient connectivity
     // failure with the default backoff (no overload floor).
-    mockFetch(() => new Response("<h...", {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-    }));
+    mockFetch(
+        () =>
+            new Response("<h...", {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+            }),
+    );
 
     await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
 });
@@ -359,7 +368,9 @@ test("Dedup: differing settings do not leak silent to a non-silent caller", asyn
         return { result: true };
     });
     const requestSilentFlags = [];
-    onRpcRequest(({ detail }) => requestSilentFlags.push(Boolean(detail.settings.silent)));
+    onRpcRequest(({ detail }) =>
+        requestSilentFlags.push(Boolean(detail.settings.silent)),
+    );
 
     const pSilent = rpc("/test/", {}, { dedup: true, silent: true });
     const pLoud = rpc("/test/", {}, { dedup: true });

@@ -3,8 +3,6 @@
 import { after, beforeEach, expect, test } from "@odoo/hoot";
 import { click, edit, pointerDown, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { registry } from "@web/core/registry";
-import { htmlField as webHtmlFallback } from "@web/fields/basic/html/html_field";
 import {
     clickSave,
     contains,
@@ -15,6 +13,8 @@ import {
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+import { htmlField as webHtmlFallback } from "@web/fields/basic/html/html_field";
 
 // These tests verify the textarea fallback shipped by ``web`` for ``html``
 // columns. When ``html_editor`` is installed (the default in the unit-test
@@ -24,7 +24,9 @@ import {
 // rich editor remain unaffected.
 beforeEach(() => {
     const fieldsRegistry = registry.category("fields");
-    const previous = fieldsRegistry.contains("html") ? fieldsRegistry.get("html") : null;
+    const previous = fieldsRegistry.contains("html")
+        ? fieldsRegistry.get("html")
+        : null;
     fieldsRegistry.add("html", webHtmlFallback);
     after(() => {
         if (previous) {

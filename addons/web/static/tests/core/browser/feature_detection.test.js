@@ -4,6 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import {
+    hasTouch,
     isAndroid,
     isAndroidApp,
     isBrowserChrome,
@@ -15,7 +16,6 @@ import {
     isMacOS,
     isMobileOS,
     isOtherMobileOS,
-    hasTouch,
     maxTouchPoints,
 } from "@web/core/browser/feature_detection";
 
@@ -316,12 +316,16 @@ describe("hasTouch", () => {
 
 describe("maxTouchPoints", () => {
     test("returns navigator.maxTouchPoints", () => {
-        patchWithCleanup(browser, { navigator: { ...browser.navigator, maxTouchPoints: 5 } });
+        patchWithCleanup(browser, {
+            navigator: { ...browser.navigator, maxTouchPoints: 5 },
+        });
         expect(maxTouchPoints()).toBe(5);
     });
 
     test("returns 0 when not available", () => {
-        patchWithCleanup(browser, { navigator: { ...browser.navigator, maxTouchPoints: 0 } });
+        patchWithCleanup(browser, {
+            navigator: { ...browser.navigator, maxTouchPoints: 0 },
+        });
         expect(maxTouchPoints()).toBe(0);
     });
 });

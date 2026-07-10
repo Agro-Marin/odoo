@@ -3,17 +3,11 @@
 
 /** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, pie, and scatter charts with tooltips and legends */
 
-import {
-    Component,
-    onWillStart,
-    onWillUnmount,
-    useEffect,
-    useRef,
-} from "@odoo/owl";
+import { Component, onWillStart, onWillUnmount, useEffect, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/l10n/translation";
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";
@@ -138,7 +132,12 @@ export class GraphRenderer extends Component {
             maxWidth: getMaxWidth(this.chart.chartArea),
             measure: measures[measure].string,
             mode: this.model.metaData.mode,
-            tooltipItems: buildTooltipItems(data, metaData, tooltipModel, this.model.lineOverlayDataset),
+            tooltipItems: buildTooltipItems(
+                data,
+                metaData,
+                tooltipModel,
+                this.model.lineOverlayDataset,
+            ),
         });
         const template = createElementWithContent("template", content);
         const tooltip = /** @type {HTMLElement} */ (
@@ -212,7 +211,11 @@ export class GraphRenderer extends Component {
      * @returns {Object}
      */
     getBarChartData() {
-        return styleBarChartData(this.model.data, this.model.metaData, this.model.lineOverlayDataset);
+        return styleBarChartData(
+            this.model.data,
+            this.model.metaData,
+            this.model.lineOverlayDataset,
+        );
     }
 
     /**

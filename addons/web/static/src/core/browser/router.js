@@ -93,7 +93,10 @@ function computeNextState(values, replace) {
     return sanitizeSearch(nextState);
 }
 
-function sanitize(/** @type {Record<string, any>} */ obj, /** @type {any} */ valueToRemove) {
+function sanitize(
+    /** @type {Record<string, any>} */ obj,
+    /** @type {any} */ valueToRemove,
+) {
     return Object.fromEntries(
         Object.entries(obj)
             .filter(([, v]) => v !== valueToRemove)
@@ -163,7 +166,9 @@ export function startUrl() {
 function stateToUrl(state) {
     let path = "";
     const keysToOmit = new Set(_hiddenKeysFromUrl);
-    const actionStack = (state.actionStack || [state]).map((/** @type {Record<string, any>} */ a) => ({ ...a }));
+    const actionStack = (state.actionStack || [state]).map(
+        (/** @type {Record<string, any>} */ a) => ({ ...a }),
+    );
     if (actionStack.at(-1)?.action !== "menu") {
         for (const [prevAct, currentAct] of slidingWindow(actionStack, 2).reverse()) {
             const {
@@ -252,7 +257,9 @@ function urlToState(/** @type {URL} */ urlObj) {
             if (part.startsWith("action-")) {
                 // numeric id or xml_id
                 const actionId = part.slice(7);
-                action.action = isNumeric(actionId) ? Number.parseInt(actionId, 10) : actionId;
+                action.action = isNumeric(actionId)
+                    ? Number.parseInt(actionId, 10)
+                    : actionId;
             } else if (part.startsWith("m-")) {
                 action.model = part.slice(2);
             } else if (part.includes(".")) {
@@ -337,7 +344,9 @@ browser.addEventListener("popstate", (ev) => {
         browser.history.replaceState({ nextState: state }, "", browser.location.href);
         return;
     }
-    state = ev.state?.nextState || router.urlToState(new URL(/** @type {any} */ (browser.location)));
+    state =
+        ev.state?.nextState ||
+        router.urlToState(new URL(/** @type {any} */ (browser.location)));
     // Some client actions want to handle loading their own state. This is a ugly hack to allow not
     // reloading the webclient's state when they manipulate history.
     if (!ev.state?.skipRouteChange && !router.skipLoad) {

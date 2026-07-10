@@ -8,8 +8,8 @@
 /** @typedef {import("../py_js/ast_type.js").ASTFunctionCall} ASTFunctionCall */
 /** @typedef {import("../py_js/ast_type.js").ASTUnaryOperator} ASTUnaryOperator */
 
-import { COMPARATORS, TERM_OPERATORS_NEGATION_EXTENDED } from "./operators.js";
 import { ASTType } from "../py_js/ast_type.js";
+import { COMPARATORS, TERM_OPERATORS_NEGATION_EXTENDED } from "./operators.js";
 
 /**
  * @param {AST} ast
@@ -47,7 +47,11 @@ export function not(ast) {
     if (ast.type === ASTType.BinaryOperator && COMPARATORS.includes(ast.op)) {
         return { ...ast, op: TERM_OPERATORS_NEGATION_EXTENDED[ast.op] }; // do not use this if ast is within a domain context!
     }
-    return { type: ASTType.UnaryOperator, op: "not", right: isBool(ast) ? ast.args[0] : ast };
+    return {
+        type: ASTType.UnaryOperator,
+        op: "not",
+        right: isBool(ast) ? ast.args[0] : ast,
+    };
 }
 
 /**

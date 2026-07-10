@@ -310,7 +310,10 @@ export const tooltipService = {
         });
 
         return {
-            add(/** @type {HTMLElement} */ el, /** @type {Record<string, any>} */ params) {
+            add(
+                /** @type {HTMLElement} */ el,
+                /** @type {Record<string, any>} */ params,
+            ) {
                 elementsWithTooltips.set(el, params);
                 return () => {
                     elementsWithTooltips.delete(el);

@@ -5,10 +5,9 @@
 
 import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
-
-import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { registerField } from "@web/fields/_registry";
 import { formatChar } from "@web/fields/formatters";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";

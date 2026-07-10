@@ -7,17 +7,17 @@ import { Component, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
-import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
 import { Domain, InvalidDomainError } from "@web/core/domain";
 import { ModelEvent } from "@web/core/events";
-import { KeepLast } from "@web/core/utils/concurrency";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { registerField } from "@web/fields/_registry";
+import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class DomainField extends Component {
     static template = "web.DomainField";
@@ -80,25 +80,29 @@ export class DomainField extends Component {
             }
         });
 
-        useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, async (ev) => {
-            if (this.debugDomain) {
-                const props = this.props;
-                const handleChanges = async () => {
-                    await props.record.update({
-                        [props.name]: this.debugDomain,
-                    });
-                    const isValid = await this.quickValidityCheck(props);
-                    if (isValid) {
-                        this.debugDomain = null; // will allow the count to be loaded if needed
-                    } else {
-                        this.state.isValid = false;
-                        this.state.recordCount = 0;
-                        props.record.setInvalidField(props.name);
-                    }
-                };
-                ev.detail.proms.push(handleChanges());
-            }
-        });
+        useBus(
+            this.props.record.model.bus,
+            ModelEvent.NEED_LOCAL_CHANGES,
+            async (ev) => {
+                if (this.debugDomain) {
+                    const props = this.props;
+                    const handleChanges = async () => {
+                        await props.record.update({
+                            [props.name]: this.debugDomain,
+                        });
+                        const isValid = await this.quickValidityCheck(props);
+                        if (isValid) {
+                            this.debugDomain = null; // will allow the count to be loaded if needed
+                        } else {
+                            this.state.isValid = false;
+                            this.state.recordCount = 0;
+                            props.record.setInvalidField(props.name);
+                        }
+                    };
+                    ev.detail.proms.push(handleChanges());
+                }
+            },
+        );
     }
 
     allowExpressions(props) {

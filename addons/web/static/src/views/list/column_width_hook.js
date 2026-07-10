@@ -58,7 +58,6 @@ import { localization } from "@web/core/l10n/localization";
 import { useDebounced } from "@web/core/utils/timing";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
 
-
 const DEFAULT_MIN_WIDTH = 80;
 const SELECTOR_WIDTH = 20;
 const OPEN_FORM_VIEW_BUTTON_WIDTH = 54;

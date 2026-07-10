@@ -82,25 +82,57 @@ const browserImpl = {
  * ``browser.location.<property>`` sees identical live values as before.
  */
 const locationFacade = {
-    get href() { return window.location.href; },
-    set href(value) { window.location.href = value; },
-    get origin() { return window.location.origin; },
-    get host() { return window.location.host; },
-    get hostname() { return window.location.hostname; },
-    get pathname() { return window.location.pathname; },
-    get port() { return window.location.port; },
-    get protocol() { return window.location.protocol; },
-    get search() { return window.location.search; },
-    set search(value) { window.location.search = value; },
-    get hash() { return window.location.hash; },
-    set hash(value) { window.location.hash = value; },
+    get href() {
+        return window.location.href;
+    },
+    set href(value) {
+        window.location.href = value;
+    },
+    get origin() {
+        return window.location.origin;
+    },
+    get host() {
+        return window.location.host;
+    },
+    get hostname() {
+        return window.location.hostname;
+    },
+    get pathname() {
+        return window.location.pathname;
+    },
+    get port() {
+        return window.location.port;
+    },
+    get protocol() {
+        return window.location.protocol;
+    },
+    get search() {
+        return window.location.search;
+    },
+    set search(value) {
+        window.location.search = value;
+    },
+    get hash() {
+        return window.location.hash;
+    },
+    set hash(value) {
+        window.location.hash = value;
+    },
     // The legacy ``reload(true)`` force-reload signature is no longer in the
     // TS DOM lib (Firefox dropped it in 2019; Chrome never standardised it),
     // so the spread + extra args is dead surface.  Forward without args.
-    reload() { return window.location.reload(); },
-    assign(/** @type {string | URL} */ url) { return window.location.assign(url); },
-    replace(/** @type {string | URL} */ url) { return window.location.replace(url); },
-    toString() { return window.location.toString(); },
+    reload() {
+        return window.location.reload();
+    },
+    assign(/** @type {string | URL} */ url) {
+        return window.location.assign(url);
+    },
+    replace(/** @type {string | URL} */ url) {
+        return window.location.replace(url);
+    },
+    toString() {
+        return window.location.toString();
+    },
 };
 
 Object.defineProperty(browserImpl, "location", {

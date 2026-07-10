@@ -28,7 +28,8 @@ import { WebClient } from "@web/webclient/webclient";
 // The clickbot logs a detected errored RPC as a free-text prefix + JSON.stringify of
 // the runtime error object. Key insertion order of that object is an internal detail,
 // so step assertions must compare the payload by structure, not by serialized key order.
-const RPC_ERROR_MARKER = "A RPC in error was detected, maybe it's related to the error dialog : ";
+const RPC_ERROR_MARKER =
+    "A RPC in error was detected, maybe it's related to the error dialog : ";
 
 /**
  * Re-serialize a JSON string with every object's keys sorted recursively (arrays keep
@@ -41,7 +42,11 @@ const RPC_ERROR_MARKER = "A RPC in error was detected, maybe it's related to the
 function canonicalJson(jsonString) {
     return JSON.stringify(JSON.parse(jsonString), (key, value) =>
         value && typeof value === "object" && !Array.isArray(value)
-            ? Object.fromEntries(Object.keys(value).sort().map((k) => [k, value[k]]))
+            ? Object.fromEntries(
+                  Object.keys(value)
+                      .sort()
+                      .map((k) => [k, value[k]]),
+              )
             : value,
     );
 }
@@ -472,7 +477,9 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                 msg = msg.toString().replaceAll(/"id":\d+,/g, `"id":null,`);
                 if (msg.startsWith(RPC_ERROR_MARKER)) {
                     // Compare the error payload structurally, not by runtime key order.
-                    msg = RPC_ERROR_MARKER + canonicalJson(msg.slice(RPC_ERROR_MARKER.length));
+                    msg =
+                        RPC_ERROR_MARKER +
+                        canonicalJson(msg.slice(RPC_ERROR_MARKER.length));
                 }
                 expect.step(msg);
                 clickEverywhereDef.resolve();

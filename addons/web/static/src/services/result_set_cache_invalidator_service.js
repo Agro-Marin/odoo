@@ -3,8 +3,8 @@
 
 /** @module @web/services/result_set_cache_invalidator_service - Bridges `RPC:RESPONSE` for record-removing methods into a scoped `CLEAR-CACHES` event */
 
-import { rpcBus } from "@web/core/network/rpc";
 import { RpcEvent } from "@web/core/events";
+import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
 /**

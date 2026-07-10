@@ -25,7 +25,8 @@ export class Notification extends Component {
         type: {
             type: String,
             optional: true,
-            validate: (/** @type {any} */ t) => ["warning", "danger", "success", "info"].includes(t),
+            validate: (/** @type {any} */ t) =>
+                ["warning", "danger", "success", "info"].includes(t),
         },
         title: {
             type: [String, Boolean, { toString: Function }],
@@ -50,7 +51,8 @@ export class Notification extends Component {
         close: { type: Function },
     };
     static defaultProps = {
-        buttons: /** @type {{ name: string, icon?: string, primary?: boolean, onClick: Function }[]} */ ([]),
+        buttons:
+            /** @type {{ name: string, icon?: string, primary?: boolean, onClick: Function }[]} */ ([]),
         className: "",
         type: "warning",
         autocloseDelay: AUTOCLOSE_DELAY,

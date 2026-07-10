@@ -1,6 +1,5 @@
 // @ts-check
 
-import { isVisible } from "@web/core/utils/dom/ui";
 import { registerCleanup } from "@web/../tests/helpers/cleanup";
 import {
     click as webClick,
@@ -8,6 +7,7 @@ import {
     makeDeferred,
     triggerEvents as webTriggerEvents,
 } from "@web/../tests/helpers/utils";
+import { isVisible } from "@web/core/utils/dom/ui";
 
 /**
  * Create a fake object 'dataTransfer', linked to some files,
@@ -252,7 +252,7 @@ class Contains {
             hasUsedContainsPositively = true;
         } else if (!hasUsedContainsPositively) {
             throw new Error(
-                `Starting a test with "contains" of count 0 for selector "${this.selector}" is useless because it might immediately resolve. Start the test by checking that an expected element actually exists.`
+                `Starting a test with "contains" of count 0 for selector "${this.selector}" is useless because it might immediately resolve. Start the test by checking that an expected element actually exists.`,
             );
         }
         /** @type {string} */
@@ -278,7 +278,7 @@ class Contains {
         if (!this.runOnce("immediately")) {
             this.timer = setTimeout(
                 () => this.runOnce("Timeout of 5 seconds", { crashOnFail: true }),
-                5000
+                5000,
             );
             this.observer = new MutationObserver((mutations) => {
                 try {
@@ -425,8 +425,12 @@ class Contains {
             el.focus();
             if (this.options.insertText.replace) {
                 el.value = "";
-                el.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Backspace" }));
-                el.dispatchEvent(new window.KeyboardEvent("keyup", { key: "Backspace" }));
+                el.dispatchEvent(
+                    new window.KeyboardEvent("keydown", { key: "Backspace" }),
+                );
+                el.dispatchEvent(
+                    new window.KeyboardEvent("keyup", { key: "Backspace" }),
+                );
                 el.dispatchEvent(new window.InputEvent("input"));
             }
             for (const char of this.options.insertText.content) {
@@ -452,7 +456,9 @@ class Contains {
         if (this.options.setScroll !== undefined) {
             message = `${message} and set scroll to "${this.options.setScroll}"`;
             el.scrollTop =
-                this.options.setScroll === "bottom" ? el.scrollHeight : this.options.setScroll;
+                this.options.setScroll === "bottom"
+                    ? el.scrollHeight
+                    : this.options.setScroll;
         }
         if (this.options.triggerEvents) {
             message = `${message} and triggered "${this.options.triggerEvents.join(", ")}" events`;
@@ -493,13 +499,14 @@ class Contains {
                 (this.options.value === undefined || el.value === this.options.value) &&
                 (this.options.scroll === undefined ||
                     (this.options.scroll === "bottom"
-                        ? Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <= 1
+                        ? Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <=
+                          1
                         : Math.abs(el.scrollTop - this.options.scroll) <= 1));
             if (condition && this.options.text !== undefined) {
                 if (
                     el.textContent.trim() !== this.options.text &&
                     [...el.querySelectorAll("*")].every(
-                        (el) => el.textContent.trim() !== this.options.text
+                        (el) => el.textContent.trim() !== this.options.text,
                     )
                 ) {
                     condition = false;
@@ -507,7 +514,10 @@ class Contains {
             }
             if (condition && this.options.contains) {
                 for (const param of this.options.contains) {
-                    const childContains = new Contains(param[0], { ...param[1], target: el });
+                    const childContains = new Contains(param[0], {
+                        ...param[1],
+                        target: el,
+                    });
                     if (
                         !childContains.runOnce(`as child of el ${currentIndex + 1})`, {
                             executeOnSuccess: false,
@@ -533,7 +543,10 @@ class Contains {
                 })?.[0];
                 if (
                     !afterEl ||
-                    !(el.compareDocumentPosition(afterEl) & Node.DOCUMENT_POSITION_PRECEDING)
+                    !(
+                        el.compareDocumentPosition(afterEl) &
+                        Node.DOCUMENT_POSITION_PRECEDING
+                    )
                 ) {
                     condition = false;
                 }
@@ -549,7 +562,10 @@ class Contains {
                 })?.[0];
                 if (
                     !beforeEl ||
-                    !(el.compareDocumentPosition(beforeEl) & Node.DOCUMENT_POSITION_FOLLOWING)
+                    !(
+                        el.compareDocumentPosition(beforeEl) &
+                        Node.DOCUMENT_POSITION_FOLLOWING
+                    )
                 ) {
                     condition = false;
                 }
@@ -586,7 +602,9 @@ class Contains {
                 ...this.options.parent[1],
                 target: this.options.target,
             });
-            return this.parentContains.runOnce(`as parent`, { executeOnSuccess: false })?.[0];
+            return this.parentContains.runOnce(`as parent`, {
+                executeOnSuccess: false,
+            })?.[0];
         }
         return this.options.target;
     }
@@ -603,4 +621,3 @@ class Contains {
 export async function contains(selector, options) {
     await new Contains(selector, options).run();
 }
-

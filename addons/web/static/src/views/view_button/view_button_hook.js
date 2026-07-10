@@ -142,29 +142,35 @@ export function useViewButtons(ref, options = {}) {
             }
 
             if (clickParams.confirm) {
-                return executeButtonCallback(/** @type {HTMLElement} */ (getEl()), async () => {
-                    await new Promise((resolve) => {
-                        const dialogProps = {
-                            ...(clickParams["confirm-title"] && {
-                                title: clickParams["confirm-title"],
-                            }),
-                            ...(clickParams["confirm-label"] && {
-                                confirmLabel: clickParams["confirm-label"],
-                            }),
-                            ...(clickParams["cancel-label"] && {
-                                cancelLabel: clickParams["cancel-label"],
-                            }),
-                            body: clickParams.confirm,
-                            confirm: () => execute(),
-                            cancel: () => {},
-                        };
-                        dialog.add(ConfirmationDialog, dialogProps, {
-                            onClose: /** @type {any} */ (resolve),
+                return executeButtonCallback(
+                    /** @type {HTMLElement} */ (getEl()),
+                    async () => {
+                        await new Promise((resolve) => {
+                            const dialogProps = {
+                                ...(clickParams["confirm-title"] && {
+                                    title: clickParams["confirm-title"],
+                                }),
+                                ...(clickParams["confirm-label"] && {
+                                    confirmLabel: clickParams["confirm-label"],
+                                }),
+                                ...(clickParams["cancel-label"] && {
+                                    cancelLabel: clickParams["cancel-label"],
+                                }),
+                                body: clickParams.confirm,
+                                confirm: () => execute(),
+                                cancel: () => {},
+                            };
+                            dialog.add(ConfirmationDialog, dialogProps, {
+                                onClose: /** @type {any} */ (resolve),
+                            });
                         });
-                    });
-                });
+                    },
+                );
             } else {
-                return executeButtonCallback(/** @type {HTMLElement} */ (getEl()), execute);
+                return executeButtonCallback(
+                    /** @type {HTMLElement} */ (getEl()),
+                    execute,
+                );
             }
         },
     });

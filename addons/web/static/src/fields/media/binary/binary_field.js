@@ -6,10 +6,9 @@
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
-
-import { registerField } from "@web/fields/_registry";
 import { isBinarySize, toBase64Length } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

@@ -124,7 +124,10 @@ describe("toggleCategoryValue", () => {
 
 describe("toggleFilterValues", () => {
     test("toggles checked state of given value IDs", () => {
-        const filter = makeFilter(1, [[10, false], [20, true]]);
+        const filter = makeFilter(1, [
+            [10, false],
+            [20, true],
+        ]);
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
@@ -135,7 +138,11 @@ describe("toggleFilterValues", () => {
     });
 
     test("forceTo=true sets all values to checked", () => {
-        const filter = makeFilter(1, [[1, false], [2, false], [3, true]]);
+        const filter = makeFilter(1, [
+            [1, false],
+            [2, false],
+            [3, true],
+        ]);
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
@@ -147,7 +154,10 @@ describe("toggleFilterValues", () => {
     });
 
     test("forceTo=false clears all values", () => {
-        const filter = makeFilter(1, [[1, true], [2, true]]);
+        const filter = makeFilter(1, [
+            [1, true],
+            [2, true],
+        ]);
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
@@ -184,7 +194,10 @@ describe("clearSections", () => {
     });
 
     test("unchecks all filter values", () => {
-        const filter = makeFilter(2, [[10, true], [20, true]]);
+        const filter = makeFilter(2, [
+            [10, true],
+            [20, true],
+        ]);
         const sections = new Map([[2, filter]]);
         const model = makeSearchModel(sections);
 
@@ -197,7 +210,10 @@ describe("clearSections", () => {
     test("clears multiple sections in one call", () => {
         const cat = makeCategory(1, { activeValueId: 5 });
         const filter = makeFilter(2, [[1, true]]);
-        const sections = new Map([[1, cat], [2, filter]]);
+        const sections = new Map([
+            [1, cat],
+            [2, filter],
+        ]);
         const model = makeSearchModel(sections);
 
         clearSections(model, [1, 2]);
@@ -442,7 +458,10 @@ describe("createFilterTree", () => {
         const model = makeSearchModel(sections);
 
         createFilterTree(model, 1, {
-            values: [{ id: 10, display_name: "Tag A" }, { id: 20, display_name: "Tag B" }],
+            values: [
+                { id: 10, display_name: "Tag A" },
+                { id: 20, display_name: "Tag B" },
+            ],
         });
 
         expect(filter.values.get(10).checked).toBe(true);

@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { RGBA_REGEX, rgbToHex, rgbaToHex } from "@web/core/utils/format/colors";
+import { RGBA_REGEX, rgbaToHex, rgbToHex } from "@web/core/utils/format/colors";
 
 describe.current.tags("headless");
 

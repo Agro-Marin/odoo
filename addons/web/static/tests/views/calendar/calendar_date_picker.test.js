@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
@@ -14,6 +13,7 @@ import {
     mountView,
     preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
 
 describe.current.tags("desktop");

@@ -4,8 +4,8 @@
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_privilege_field - Boolean/selection field for privilege toggles within the dynamically generated access rights form */
 
 import { Component } from "@odoo/owl";
-import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
 import { registerField } from "@web/fields/_registry";
+import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
 import { SelectionField } from "@web/fields/selection/selection/selection_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -53,9 +53,10 @@ class ResUserGroupIdsPrivilegeField extends Component {
         if (!value) {
             return false;
         }
-        const gid = this.type === "selection"
-            ? value
-            : this.env.resUserGroupsInfo.booleanFieldToGroupId[this.props.name];
+        const gid =
+            this.type === "selection"
+                ? value
+                : this.env.resUserGroupsInfo.booleanFieldToGroupId[this.props.name];
         return this.groups[gid] || false;
     }
 
@@ -168,7 +169,9 @@ class ResUserGroupIdsPrivilegeField extends Component {
         // on an undefined group anyway.  The info button is ``invisible``
         // in this state via CSS, but tests and edge timings can still reach
         // the handler; refuse the open here instead of crashing downstream.
-        const groupId = (this.group && this.group.id) || (this.impliedGroup && this.impliedGroup.id);
+        const groupId =
+            (this.group && this.group.id) ||
+            (this.impliedGroup && this.impliedGroup.id);
         if (!groupId) {
             return;
         }

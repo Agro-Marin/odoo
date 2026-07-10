@@ -203,7 +203,10 @@ export class Macro {
             const abortController = new AbortController();
             this.abortController = abortController;
             const executeStep = async () => {
-                const trigger = await waitForTrigger(step.trigger, abortController.signal);
+                const trigger = await waitForTrigger(
+                    step.trigger,
+                    abortController.signal,
+                );
                 const result = await performAction(trigger, step.action);
                 await this.onStep({ step, trigger, index: this.currentIndex });
                 return result;

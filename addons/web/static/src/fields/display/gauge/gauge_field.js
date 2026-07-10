@@ -4,9 +4,8 @@
 /** @module @web/fields/display/gauge/gauge_field - Chart.js doughnut gauge visualization for numeric fields */
 
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
-import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/l10n/translation";
-
+import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registerField } from "@web/fields/_registry";
 import { formatFloat } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -156,7 +155,8 @@ export const gaugeField = {
     ],
     extractProps: ({ options }) => ({
         maxValueField: options.max_field,
-        maxValue: options.max_value === undefined ? undefined : Number(options.max_value),
+        maxValue:
+            options.max_value === undefined ? undefined : Number(options.max_value),
         title: options.title,
     }),
 };

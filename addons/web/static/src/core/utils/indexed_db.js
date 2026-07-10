@@ -338,7 +338,12 @@ export class IndexedDB {
         });
     }
 
-    async _write(/** @type {IDBDatabase} */ db, /** @type {string} */ table, /** @type {string} */ key, /** @type {any} */ record) {
+    async _write(
+        /** @type {IDBDatabase} */ db,
+        /** @type {string} */ table,
+        /** @type {string} */ key,
+        /** @type {any} */ record,
+    ) {
         return new Promise((resolve, reject) => {
             // AAB: do we care about write performance?
             // Relaxed durability improves the write performances
@@ -360,7 +365,10 @@ export class IndexedDB {
         });
     }
 
-    async _invalidate(/** @type {IDBDatabase} */ db, /** @type {string[] | null} */ tables) {
+    async _invalidate(
+        /** @type {IDBDatabase} */ db,
+        /** @type {string[] | null} */ tables,
+    ) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
@@ -395,7 +403,11 @@ export class IndexedDB {
         });
     }
 
-    async _read(/** @type {IDBDatabase} */ db, /** @type {string} */ table, /** @type {string} */ key) {
+    async _read(
+        /** @type {IDBDatabase} */ db,
+        /** @type {string} */ table,
+        /** @type {string} */ key,
+    ) {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(table, "readonly");
             const objectStore = transaction.objectStore(table);
@@ -405,7 +417,11 @@ export class IndexedDB {
         });
     }
 
-    async _invalidateByModel(/** @type {IDBDatabase} */ db, /** @type {string[]} */ tables, /** @type {string} */ model) {
+    async _invalidateByModel(
+        /** @type {IDBDatabase} */ db,
+        /** @type {string[]} */ tables,
+        /** @type {string} */ model,
+    ) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
@@ -445,7 +461,11 @@ export class IndexedDB {
         });
     }
 
-    async _invalidateWhere(/** @type {IDBDatabase} */ db, /** @type {string[]} */ tables, /** @type {(key: string) => boolean} */ predicate) {
+    async _invalidateWhere(
+        /** @type {IDBDatabase} */ db,
+        /** @type {string[]} */ tables,
+        /** @type {(key: string) => boolean} */ predicate,
+    ) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,

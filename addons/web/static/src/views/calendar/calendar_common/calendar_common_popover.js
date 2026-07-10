@@ -56,13 +56,13 @@ export class CalendarCommonPopover extends Component {
                 // former blanket preventDefault suppressed that.
                 const onCalendar = e.target.closest(".o_calendar_widget, .fc-popover");
                 const onSourceEvent = e.target.closest(
-                    `.fc-event[data-event-id="${this.props.record.id}"]`
+                    `.fc-event[data-event-id="${this.props.record.id}"]`,
                 );
                 if (onCalendar && !onSourceEvent) {
                     e.preventDefault();
                 }
             },
-            { capture: true }
+            { capture: true },
         );
 
         this.computeDateTimeAndDuration();

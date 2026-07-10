@@ -22,8 +22,8 @@
  * Module under test: model/relational_model/record_lifecycle.js
  */
 
-import { markRaw } from "@odoo/owl";
 import { describe, expect, test } from "@odoo/hoot";
+import { markRaw } from "@odoo/owl";
 import {
     archive,
     deleteRecord,
@@ -109,8 +109,7 @@ function makeRecord({
             hooks: {
                 ui: {
                     onDisplayArchiveAction:
-                        onDisplayArchiveAction ??
-                        ((_action, reload) => reload()),
+                        onDisplayArchiveAction ?? ((_action, reload) => reload()),
                 },
                 lifecycle: {},
             },

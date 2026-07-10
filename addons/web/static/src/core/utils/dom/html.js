@@ -83,15 +83,19 @@ export function highlightText(query, text, classes) {
             `(?<!&[^;]{0,5})(${escapeRegExp(/** @type {string} */ (htmlEscape(match)))})(?=(?:[^>]*<[^<]*>)*[^<>]*$)`,
             "ig",
         );
-        result = htmlReplace(result, regex, (/** @type {string} */ _, /** @type {any} */ match) => {
-            /**
-             * markup: text is a Markup object (either escaped inside htmlReplace or
-             * flagged safe), `match` is directly coming from this value,
-             * and the regex doesn't do anything crazy to unescape it.
-             */
-            match = markup(match);
-            return markup`<span class="${classes}">${match}</span>`;
-        });
+        result = htmlReplace(
+            result,
+            regex,
+            (/** @type {string} */ _, /** @type {any} */ match) => {
+                /**
+                 * markup: text is a Markup object (either escaped inside htmlReplace or
+                 * flagged safe), `match` is directly coming from this value,
+                 * and the regex doesn't do anything crazy to unescape it.
+                 */
+                match = markup(match);
+                return markup`<span class="${classes}">${match}</span>`;
+            },
+        );
     }
     return result;
 }
@@ -259,11 +263,16 @@ export function odoomark(text) {
         // Larger spacing
         ["\t", markup`<span style="margin-left: 2em"></span>`],
         // Bold
-        [/\*\*(.+?)\*\*/g, (/** @type {string} */ _, /** @type {string} */ content) => markup(`<b>${content}</b>`)],
+        [
+            /\*\*(.+?)\*\*/g,
+            (/** @type {string} */ _, /** @type {string} */ content) =>
+                markup(`<b>${content}</b>`),
+        ],
         // Muted
         [
             /--(.+?)--/g,
-            (/** @type {string} */ _, /** @type {string} */ content) => markup(`<span class="text-muted">${content}</span>`),
+            (/** @type {string} */ _, /** @type {string} */ content) =>
+                markup(`<span class="text-muted">${content}</span>`),
         ],
         // Badge
         [

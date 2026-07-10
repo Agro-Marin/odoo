@@ -22,11 +22,11 @@ import {
     toggleSearchBarMenu,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
-import { useSetupAction } from "@web/core/action_hook";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { WebClient } from "@web/webclient/webclient";

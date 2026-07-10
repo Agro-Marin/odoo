@@ -21,7 +21,10 @@ import { pick } from "@web/core/utils/collections/objects";
 import { delay } from "@web/core/utils/concurrency";
 
 import { CropOverlay } from "./crop_overlay.js";
-import { buildZXingBarcodeDetector, isVideoElementReady } from "./ZXingBarcodeDetector.js";
+import {
+    buildZXingBarcodeDetector,
+    isVideoElementReady,
+} from "./ZXingBarcodeDetector.js";
 
 export class BarcodeVideoScanner extends Component {
     static template = "web.BarcodeVideoScanner";
@@ -216,7 +219,10 @@ export class BarcodeVideoScanner extends Component {
             this.scanPaused = true;
             this.detectorTimeout = browser.setTimeout(() => {
                 this.scanPaused = false;
-                this.detectorTimeout = browser.setTimeout(this.detectCode.bind(this), 100);
+                this.detectorTimeout = browser.setTimeout(
+                    this.detectCode.bind(this),
+                    100,
+                );
             }, this.props.delayBetweenScan);
         }
         this.props.onResult(barcode);
@@ -245,7 +251,9 @@ export class BarcodeVideoScanner extends Component {
             inputElement.value = settings.zoom;
             inputElement.classList.add("align-self-end", "m-5", "z-1");
             inputElement.addEventListener("input", async (event) => {
-                await track?.applyConstraints({ advanced: [{ zoom: inputElement.value }] });
+                await track?.applyConstraints({
+                    advanced: [{ zoom: inputElement.value }],
+                });
             });
             this.videoPreviewRef.el.parentElement.appendChild(inputElement);
         }

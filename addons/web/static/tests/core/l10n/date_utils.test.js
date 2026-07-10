@@ -1,8 +1,8 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { luxon } from "@web/core/l10n/luxon";
 import { isInRange } from "@web/core/l10n/date_utils";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 
@@ -32,8 +32,12 @@ describe("isInRange", () => {
             DateTime.fromISO("2024-01-01T10:20:00Z"),
             DateTime.fromISO("2024-01-01T10:40:00Z"),
         ];
-        expect(isInRange([DateTime.fromISO("2024-01-01T10:30:00Z"), null], range)).toBe(true);
-        expect(isInRange([null, DateTime.fromISO("2024-01-01T12:00:00Z")], range)).toBe(false);
+        expect(isInRange([DateTime.fromISO("2024-01-01T10:30:00Z"), null], range)).toBe(
+            true,
+        );
+        expect(isInRange([null, DateTime.fromISO("2024-01-01T12:00:00Z")], range)).toBe(
+            false,
+        );
     });
 
     test("sorts a mixed-offset array chronologically, not by ISO string", () => {
@@ -43,7 +47,9 @@ describe("isInRange", () => {
         // `.sort()` (by string) would order them backwards and misjudge the
         // range; a numeric sort keys on the true instant.
         const earlier = DateTime.fromISO("2024-01-01T10:00:00", { zone: "UTC" });
-        const later = DateTime.fromISO("2024-01-01T11:00:00", { zone: "UTC" }).setZone("UTC-10");
+        const later = DateTime.fromISO("2024-01-01T11:00:00", { zone: "UTC" }).setZone(
+            "UTC-10",
+        );
         const insideRange = [
             DateTime.fromISO("2024-01-01T10:20:00Z"),
             DateTime.fromISO("2024-01-01T10:40:00Z"),

@@ -194,7 +194,9 @@ describe("FormSaveCoordinator — errorMode", () => {
         const { coordinator } = makeContext({
             save: async ({ onError } = {}) => {
                 onErrorPassedToSave = onError;
-                if (!onError) throw fakeError;
+                if (!onError) {
+                    throw fakeError;
+                }
                 return await onError(fakeError, {
                     discard: () => {},
                     retry: () => true,
@@ -236,15 +238,14 @@ describe("FormSaveCoordinator — errorMode", () => {
         let dialogCalls = 0;
         const connectionError = new Error("Connection lost"); // no ``.data``
         const { coordinator } = makeContext({
-            save: async ({ onError } = {}) => {
+            save: async ({ onError } = {}) =>
                 // Mirror record_save.js: the raised error is routed
                 // through the caller-provided onError callback; a throw
                 // from the callback propagates out of ``record.save()``.
-                return await onError(connectionError, {
+                await onError(connectionError, {
                     discard: () => {},
                     retry: () => true,
-                });
-            },
+                }),
             hooks: {
                 onSaveError: async () => {
                     dialogCalls++;
@@ -312,7 +313,9 @@ describe("FormSaveCoordinator — multi-company recovery", () => {
         const accessError = new Error("AccessError with suggested_company");
         const { coordinator } = makeContext({
             save: async ({ onError } = {}) => {
-                if (!onError) throw accessError;
+                if (!onError) {
+                    throw accessError;
+                }
                 return await onError(accessError, {
                     discard: () => {},
                     retry: () => {
@@ -605,8 +608,7 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         let call = 0;
         const fakeError = new Error("stale-failure");
         const { coordinator } = makeContext({
-            save: () =>
-                ++call === 1 ? Promise.reject(fakeError) : secondPromise,
+            save: () => (++call === 1 ? Promise.reject(fakeError) : secondPromise),
         });
 
         const firstSave = coordinator.requestSave({ errorMode: "silent" });

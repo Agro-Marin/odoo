@@ -430,8 +430,9 @@ export class Registry extends EventBus {
 // with duplicate ``add("ui", …)`` calls.  ``Registry.add`` is silently
 // idempotent on duplicate keys — see the comment above.
 /** @type {Registry<import("registries").GlobalRegistry>} */
-export const registry = (/** @type {Record<string, any>} */ (globalThis).__odooRegistry__ ??=
-    new Registry());
+export const registry = /** @type {Record<string, any>} */ (
+    globalThis.__odooRegistry__ ??= new Registry()
+);
 
 // ---------------------------------------------------------------------------
 // Registry hook (merged from registry_hook.js)
@@ -454,7 +455,9 @@ export const registry = (/** @type {Record<string, any>} */ (globalThis).__odooR
  */
 export function useRegistry(registry) {
     const state = useState({ entries: [...registry.getEntries()] });
-    const listener = (/** @type {{ detail: { key: string, operation: string } }} */ { detail }) => {
+    const listener = (
+        /** @type {{ detail: { key: string, operation: string } }} */ { detail },
+    ) => {
         const index = state.entries.findIndex(([k]) => k === detail.key);
         if (detail.operation === "add") {
             const newEntries = registry.getEntries();

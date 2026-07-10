@@ -65,7 +65,8 @@ export class CalendarArchParser {
         const eventLimit = xmlDoc.hasAttribute("event_limit")
             ? evaluateExpr(xmlDoc.getAttribute("event_limit"))
             : 5;
-        const formViewId = Number.parseInt(xmlDoc.getAttribute("form_view_id"), 10) || false;
+        const formViewId =
+            Number.parseInt(xmlDoc.getAttribute("form_view_id"), 10) || false;
         const hasEditDialog = exprToBoolean(xmlDoc.getAttribute("event_open_popup"));
         const isDateHidden = exprToBoolean(xmlDoc.getAttribute("hide_date"));
         const isTimeHidden = exprToBoolean(xmlDoc.getAttribute("hide_time"));

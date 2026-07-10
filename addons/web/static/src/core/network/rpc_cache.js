@@ -81,12 +81,12 @@ function payloadChanged(fromCacheValue, result) {
         return false;
     }
     if (
-        fromCacheValue
-        && result
-        && typeof fromCacheValue === "object"
-        && typeof result === "object"
-        && fromCacheValue[VERSION_FIELD] != null
-        && result[VERSION_FIELD] != null
+        fromCacheValue &&
+        result &&
+        typeof fromCacheValue === "object" &&
+        typeof result === "object" &&
+        fromCacheValue[VERSION_FIELD] != null &&
+        result[VERSION_FIELD] != null
     ) {
         return fromCacheValue[VERSION_FIELD] !== result[VERSION_FIELD];
     }
@@ -96,7 +96,9 @@ function payloadChanged(fromCacheValue, result) {
     return !deepEqual(fromCacheValue, result);
 }
 
-function validateSettings(/** @type {{ type: string, update: string }} */ { type, update }) {
+function validateSettings(
+    /** @type {{ type: string, update: string }} */ { type, update },
+) {
     if (!["ram", "disk"].includes(type)) {
         throw new Error(`Invalid "type" settings provided to RPCCache: ${type}`);
     }
@@ -144,7 +146,11 @@ class Crypto {
         this._ready = window.crypto.subtle
             .importKey(
                 "raw",
-                new Uint8Array(secret.match(/../g).map((/** @type {string} */ h) => Number.parseInt(h, 16))).buffer,
+                new Uint8Array(
+                    secret
+                        .match(/../g)
+                        .map((/** @type {string} */ h) => Number.parseInt(h, 16)),
+                ).buffer,
                 CRYPTO_ALGO,
                 false,
                 ["encrypt", "decrypt"],
@@ -172,7 +178,12 @@ class Crypto {
         return { ciphertext, iv };
     }
 
-    async decrypt(/** @type {{ ciphertext: BufferSource, iv: BufferSource }} */ { ciphertext, iv }) {
+    async decrypt(
+        /** @type {{ ciphertext: BufferSource, iv: BufferSource }} */ {
+            ciphertext,
+            iv,
+        },
+    ) {
         await this._ready;
         const decrypted = await window.crypto.subtle.decrypt(
             {
@@ -479,8 +490,8 @@ export class RPCCache {
                                 .encrypt(result)
                                 .then((encryptedResult) => {
                                     if (
-                                        request.invalidated
-                                        || generation !== this.diskGenerationOf(table)
+                                        request.invalidated ||
+                                        generation !== this.diskGenerationOf(table)
                                     ) {
                                         // Invalidated between RPC resolution and
                                         // encryption end: skip the persist.  RAM

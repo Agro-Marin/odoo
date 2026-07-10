@@ -23,10 +23,10 @@ import {
 import { loadBundle } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t, appTranslateFn } from "@web/core/l10n/translation";
+import { normalize } from "@web/core/l10n/utils";
 import { getTemplate } from "@web/core/templates";
 import { Deferred } from "@web/core/utils/concurrency";
 import { markEventHandled } from "@web/core/utils/dom/events";
-import { normalize } from "@web/core/l10n/utils";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";

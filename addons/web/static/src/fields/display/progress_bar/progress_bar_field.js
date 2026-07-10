@@ -4,9 +4,9 @@
 /** @module @web/fields/display/progress_bar/progress_bar_field - Editable progress bar displaying current/max numeric values */
 
 import { Component, useRef, useState } from "@odoo/owl";
+import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
-import { getFieldCodec } from "@web/core/field_codec";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { parseFloat } from "@web/fields/parsers";
@@ -42,7 +42,11 @@ export class ProgressBarField extends Component {
         useNumpadDecimal();
         this.root = useRef("numpadDecimal");
 
-        const { currentValueField, maxValueField: maxValueFieldProp, name } = this.props;
+        const {
+            currentValueField,
+            maxValueField: maxValueFieldProp,
+            name,
+        } = this.props;
         this.currentValueField = currentValueField ? currentValueField : name;
         if (maxValueFieldProp) {
             this.maxValueField = maxValueFieldProp;
@@ -74,7 +78,10 @@ export class ProgressBarField extends Component {
     }
     /** @returns {boolean} Whether maxValueField is a fixed number (percentage mode) rather than a field name. */
     get isPercentage() {
-        return !this.props.maxValueField || !isNaN(/** @type {number} */ (this.props.maxValueField));
+        return (
+            !this.props.maxValueField ||
+            !isNaN(/** @type {number} */ (this.props.maxValueField))
+        );
     }
 
     /** @returns {number} Current progress value from the record, defaulting to 0. */

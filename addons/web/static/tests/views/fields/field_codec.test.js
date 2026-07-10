@@ -1,13 +1,14 @@
 // @ts-check
 
-import { beforeEach, expect, test } from "@odoo/hoot";
-import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import { registry } from "@web/core/registry";
 import "@web/fields/formatters";
 import "@web/fields/parsers";
 import "@web/model/relational_model/field_values"; // registers deserializers
 import "@web/model/relational_model/record_value_transforms"; // registers serializers
+
+import { beforeEach, expect, test } from "@odoo/hoot";
+import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { getFieldCodec, hasFieldCodec } from "@web/core/field_codec";
+import { registry } from "@web/core/registry";
 
 beforeEach(makeMockEnv);
 
@@ -99,7 +100,12 @@ test("serialize/deserialize are transport conversion shared with the model layer
     expect(m2o.serialize({ id: 5, display_name: "Partner X" })).toBe(5);
 
     const ref = getFieldCodec("reference");
-    expect(ref.deserialize({ id: { id: 7, model: "res.users" }, display_name: "U" }, { type: "reference" })).toEqual({
+    expect(
+        ref.deserialize(
+            { id: { id: 7, model: "res.users" }, display_name: "U" },
+            { type: "reference" },
+        ),
+    ).toEqual({
         resId: 7,
         resModel: "res.users",
         displayName: "U",

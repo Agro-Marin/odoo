@@ -11,12 +11,12 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { Domain } from "@web/core/domain";
 import { SearchModelEvent } from "@web/core/events";
+import { getFieldCodec } from "@web/core/field_codec";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
-import { getFieldCodec } from "@web/core/field_codec";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { useNavigation } from "@web/services/navigation/navigation";
 
@@ -550,7 +550,8 @@ export class SearchBar extends Component {
                         this.env.searchModel.search() /** @todo keep this thing ?*/,
                 },
                 arrowdown: {
-                    callback: () => this.env.searchModel.trigger(SearchModelEvent.FOCUS_VIEW),
+                    callback: () =>
+                        this.env.searchModel.trigger(SearchModelEvent.FOCUS_VIEW),
                 },
                 backspace: {
                     bypassEditableProtection: true,

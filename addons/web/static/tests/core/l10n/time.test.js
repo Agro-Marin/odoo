@@ -1,9 +1,9 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { defineParams, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 import { parseTime } from "@web/core/l10n/time";
 
 const { Settings } = luxon;

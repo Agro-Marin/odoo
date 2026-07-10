@@ -4,6 +4,7 @@
 /** @module @web/views/calendar/calendar_controller - Calendar view orchestrator: date navigation, event CRUD, quick-create, and multi-selection */
 
 import { Component, reactive, useState } from "@odoo/owl";
+import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { ModelEvent } from "@web/core/events";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
@@ -11,7 +12,6 @@ import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { useModelWithSampleData } from "@web/model/model";
-import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";
@@ -98,7 +98,9 @@ export class CalendarController extends Component {
         this.displayDialog = useUniqueDialog();
 
         /** @type {any} */
-        this.model = useState(useModelWithSampleData(this.props.Model, this.modelParams));
+        this.model = useState(
+            useModelWithSampleData(this.props.Model, this.modelParams),
+        );
 
         useSetupAction({
             getLocalState: () => this.model.exportedState,
@@ -112,8 +114,9 @@ export class CalendarController extends Component {
         // Plain "is the stored value the string 'false'?" handles null,
         // "true", "false", boolean false (test mocks), and "undefined"
         // (pollution) without surprises.
-        const storedWeekendVisible =
-            browser.localStorage.getItem("calendar.isWeekendVisible");
+        const storedWeekendVisible = browser.localStorage.getItem(
+            "calendar.isWeekendVisible",
+        );
         const sessionShowSidebar =
             browser.sessionStorage.getItem("calendar.showSideBar");
         this.state = useState({

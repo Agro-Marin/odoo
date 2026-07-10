@@ -265,12 +265,7 @@ test("non-removing RPC:RESPONSE does not emit CLEAR-CACHES (D3 guard)", () => {
     try {
         // Cover every UPDATE_METHODS entry that is NOT a result-set remover.
         // Source of truth: ``orm_service.js`` ``UPDATE_METHODS`` constant.
-        for (const method of [
-            "write",
-            "create",
-            "web_save",
-            "web_save_multi",
-        ]) {
+        for (const method of ["write", "create", "web_save", "web_save_multi"]) {
             rpcBus.trigger("RPC:RESPONSE", {
                 data: { params: { method, model: "res.partner" } },
             });
@@ -405,8 +400,18 @@ function seedTwoModels(cache) {
     // without the 4th arg makes ``modelIndex`` empty and the per-model
     // invalidation becomes a no-op — the assertion would then mistakenly
     // pass under buggy code and fail under correct code.
-    cache.ramCache.write("web_search_read", partnerKey, { records: [{ id: 1 }] }, "res.partner");
-    cache.ramCache.write("web_search_read", userKey, { records: [{ id: 7 }] }, "res.users");
+    cache.ramCache.write(
+        "web_search_read",
+        partnerKey,
+        { records: [{ id: 1 }] },
+        "res.partner",
+    );
+    cache.ramCache.write(
+        "web_search_read",
+        userKey,
+        { records: [{ id: 7 }] },
+        "res.users",
+    );
     return { partnerKey, userKey };
 }
 

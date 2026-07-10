@@ -3,13 +3,7 @@
 
 /** @module @web/services/navigation/navigation - Keyboard arrow-key navigation hook for selectable item lists */
 
-import {
-    onWillDestroy,
-    reactive,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { onWillDestroy, reactive, useEffect, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
@@ -120,7 +114,8 @@ export class Navigator {
     items = [];
 
     /**@private @type {Array<() => void>}*/ _hotkeyRemoves = [];
-    /**@private @type {import("@web/services/hotkeys/hotkey_service").HotkeyService}*/ _hotkeyService = undefined;
+    /**@private @type {import("@web/services/hotkeys/hotkey_service").HotkeyService}*/ _hotkeyService =
+        undefined;
 
     /**
      * @param {NavigationOptions} options
@@ -131,8 +126,8 @@ export class Navigator {
         // Per-instance (not module-level): stacked navigators (e.g. nested
         // overlays) must not cancel each other's pending focus.
         /**@private*/
-        this._throttledFocus = throttleForAnimation(
-            (/** @type {HTMLElement} */ el) => el?.focus(),
+        this._throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) =>
+            el?.focus(),
         );
         // OWL-reactive view of the navigator's active state. Components
         // can subscribe through `useNavigatorActive(navigator, el)` and
@@ -162,7 +157,11 @@ export class Navigator {
         /**@private*/
         this._options = deepMerge(
             {
-                isNavigationAvailable: (/** @type {{ navigator: Navigator, target: HTMLElement }} */ { target }) =>
+                isNavigationAvailable: (
+                    /** @type {{ navigator: Navigator, target: HTMLElement }} */ {
+                        target,
+                    },
+                ) =>
                     this.contains(target) &&
                     (this.isFocused || this._options.virtualFocus),
                 shouldFocusChildInput: true,
@@ -189,7 +188,11 @@ export class Navigator {
                         bypassEditableProtection: true,
                     },
                     enter: {
-                        isAvailable: (/** @type {{ navigator: Navigator, target: HTMLElement }} */ { navigator }) => Boolean(navigator.activeItem),
+                        isAvailable: (
+                            /** @type {{ navigator: Navigator, target: HTMLElement }} */ {
+                                navigator,
+                            },
+                        ) => Boolean(navigator.activeItem),
                         callback: () => {
                             const item = this.activeItem || this.items[0];
                             item?.select();
@@ -223,7 +226,7 @@ export class Navigator {
     /**@type {NavigationItem | null}*/
     get activeItem() {
         const idx = this.state.activeItemIndex;
-        return idx >= 0 ? this.items[idx] ?? null : null;
+        return idx >= 0 ? (this.items[idx] ?? null) : null;
     }
     set activeItem(item) {
         // Store the element rather than the NavigationItem wrapper so
@@ -302,10 +305,9 @@ export class Navigator {
         }
 
         if (didUpdate) {
-            const activeItemIndex =
-                oldActiveItem?.el.isConnected
-                    ? this.items.findIndex((item) => item.el === oldActiveItem.el)
-                    : -1;
+            const activeItemIndex = oldActiveItem?.el.isConnected
+                ? this.items.findIndex((item) => item.el === oldActiveItem.el)
+                : -1;
             const focusedElementIndex = this.items.findIndex(
                 (item) => item.el === document.activeElement,
             );
@@ -518,7 +520,9 @@ export function useNavigation(containerRef, options = {}) {
     const newOptions = { ...options };
     if (!newOptions.getItems) {
         newOptions.getItems = () =>
-            /** @type {any} */ (containerRef).el?.querySelectorAll(":scope .o-navigable") ?? [];
+            /** @type {any} */ (containerRef).el?.querySelectorAll(
+                ":scope .o-navigable",
+            ) ?? [];
     }
 
     const hotkeyService = useService("hotkey");

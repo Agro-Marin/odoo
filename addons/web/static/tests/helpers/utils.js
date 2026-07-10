@@ -1,18 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
-import { getTemplate } from "@web/core/templates";
-import { browser } from "@web/core/browser/browser";
-import { isMacOS } from "@web/core/browser/feature_detection";
-import { download } from "@web/core/network/download";
-import { getPopoverForTarget } from "@web/ui/popover/popover";
-import { Deferred } from "@web/core/utils/concurrency";
-import { patch } from "@web/core/utils/patch";
-import { isVisible } from "@web/core/utils/dom/ui";
-import { _t } from "@web/core/l10n/translation";
-import { registerCleanup } from "./cleanup.js";
-import { customDirectives, globalValues } from "@web/env";
-
 import {
     App,
     onError,
@@ -27,6 +14,19 @@ import {
     onWillUpdateProps,
     useComponent,
 } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
+import { isMacOS } from "@web/core/browser/feature_detection";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/l10n/translation";
+import { download } from "@web/core/network/download";
+import { getTemplate } from "@web/core/templates";
+import { Deferred } from "@web/core/utils/concurrency";
+import { isVisible } from "@web/core/utils/dom/ui";
+import { patch } from "@web/core/utils/patch";
+import { customDirectives, globalValues } from "@web/env";
+import { getPopoverForTarget } from "@web/ui/popover/popover";
+
+import { registerCleanup } from "./cleanup.js";
 
 /**
  * @typedef {keyof HTMLElementEventMap | keyof WindowEventMap} EventType
@@ -70,7 +70,6 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
 
     var timeInterval = actualDate.getTime() - fakeDate.getTime();
 
-    // eslint-disable-next-line no-global-assign
     window.Date = (function (NativeDate) {
         function Date(Y, M, D, h, m, s, ms) {
             var length = arguments.length;
@@ -81,22 +80,22 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
                         ? // We explicitly pass it through parse:
                           new NativeDate(Date.parse(Y))
                         : // We have to manually make calls depending on argument
-                        // length here
-                        length >= 7
-                        ? new NativeDate(Y, M, D, h, m, s, ms)
-                        : length >= 6
-                        ? new NativeDate(Y, M, D, h, m, s)
-                        : length >= 5
-                        ? new NativeDate(Y, M, D, h, m)
-                        : length >= 4
-                        ? new NativeDate(Y, M, D, h)
-                        : length >= 3
-                        ? new NativeDate(Y, M, D)
-                        : length >= 2
-                        ? new NativeDate(Y, M)
-                        : length >= 1
-                        ? new NativeDate(Y)
-                        : new NativeDate();
+                          // length here
+                          length >= 7
+                          ? new NativeDate(Y, M, D, h, m, s, ms)
+                          : length >= 6
+                            ? new NativeDate(Y, M, D, h, m, s)
+                            : length >= 5
+                              ? new NativeDate(Y, M, D, h, m)
+                              : length >= 4
+                                ? new NativeDate(Y, M, D, h)
+                                : length >= 3
+                                  ? new NativeDate(Y, M, D)
+                                  : length >= 2
+                                    ? new NativeDate(Y, M)
+                                    : length >= 1
+                                      ? new NativeDate(Y)
+                                      : new NativeDate();
                 // Prevent mixups with unfixed Date object
                 date.constructor = Date;
                 return date;
@@ -144,7 +143,9 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
  *                          -120 => UTC-2
  */
 export function patchTimeZone(offset) {
-    patchWithCleanup(luxon.Settings, { defaultZone: luxon.FixedOffsetZone.instance(offset) });
+    patchWithCleanup(luxon.Settings, {
+        defaultZone: luxon.FixedOffsetZone.instance(offset),
+    });
 }
 
 /**
@@ -183,7 +184,9 @@ export function findElement(el, selector) {
             throw new Error(`No element found (selector: ${selector})`);
         }
         if (els.length > 1) {
-            throw new Error(`Found ${els.length} elements, instead of 1 (selector: ${selector})`);
+            throw new Error(
+                `Found ${els.length} elements, instead of 1 (selector: ${selector})`,
+            );
         }
         target = els[0];
     }
@@ -362,7 +365,7 @@ export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
         throw new Error(
             `Cannot trigger event${eventType ? ` "${eventType}"` : ""}${
                 selector ? ` (with selector "${selector}")` : ""
-            }: ${errors.join(" and ")}`
+            }: ${errors.join(" and ")}`,
         );
     }
 
@@ -386,7 +389,9 @@ export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
  */
 export function triggerEvents(el, selector, eventDefs, options = {}) {
     const events = [...eventDefs].map((eventDef) => {
-        const [eventType, eventInit] = Array.isArray(eventDef) ? eventDef : [eventDef, {}];
+        const [eventType, eventInit] = Array.isArray(eventDef)
+            ? eventDef
+            : [eventDef, {}];
         return triggerEvent(el, selector, eventType, eventInit, options);
     });
     if (options.sync) {
@@ -412,7 +417,7 @@ export function triggerEvents(el, selector, eventDefs, options = {}) {
 export async function triggerScroll(
     target,
     coordinates = { left: null, top: null },
-    canPropagate = true
+    canPropagate = true,
 ) {
     const isScrollable =
         (target.scrollHeight > target.clientHeight && target.clientHeight > 0) ||
@@ -453,7 +458,11 @@ export async function triggerScroll(
 export function click(
     el,
     selector,
-    { mouseEventInit = {}, skipDisabledCheck = false, skipVisibilityCheck = false } = {}
+    {
+        mouseEventInit = {},
+        skipDisabledCheck = false,
+        skipVisibilityCheck = false,
+    } = {},
 ) {
     if (!skipDisabledCheck && el.disabled) {
         throw new Error("Can't click on a disabled button");
@@ -470,28 +479,28 @@ export function click(
             "mouseup",
             ["click", mouseEventInit],
         ],
-        { skipVisibilityCheck }
+        { skipVisibilityCheck },
     );
 }
 
 export function clickCreate(htmlElement) {
     if (
         htmlElement.querySelectorAll(
-            ".o_control_panel_main_buttons .o_form_button_create"
+            ".o_control_panel_main_buttons .o_form_button_create",
         ).length
     ) {
         return click(
             htmlElement,
-            ".o_control_panel_main_buttons .o_form_button_create"
+            ".o_control_panel_main_buttons .o_form_button_create",
         );
     } else if (
         htmlElement.querySelectorAll(
-            ".o_control_panel_main_buttons .o_list_button_create"
+            ".o_control_panel_main_buttons .o_list_button_create",
         ).length
     ) {
         return click(
             htmlElement,
-            ".o_control_panel_main_buttons .o_list_button_create"
+            ".o_control_panel_main_buttons .o_list_button_create",
         );
     } else {
         throw new Error("No edit button found to be clicked.");
@@ -515,7 +524,9 @@ export async function clickSave(htmlElement) {
     }
     const listSaveButtons = htmlElement.querySelectorAll(".o_list_button_save");
     if (listSaveButtons.length) {
-        return listSaveButtons.length >= 2 ? click(listSaveButtons[1]) : click(listSaveButtons[0]);
+        return listSaveButtons.length >= 2
+            ? click(listSaveButtons[1])
+            : click(listSaveButtons[0]);
     } else {
         throw new Error("No save button found to be clicked.");
     }
@@ -527,12 +538,16 @@ export async function clickDiscard(htmlElement) {
     }
     if (htmlElement.querySelectorAll(".o_form_button_cancel").length) {
         return click(htmlElement, ".o_form_button_cancel");
-    } else if ([...htmlElement.querySelectorAll(".o_list_button_discard")].find(
-        (el) => el.offsetWidth > 0 || el.offsetHeight > 0
-    )) {
-        return click([...htmlElement.querySelectorAll(".o_list_button_discard")].find(
-            (el) => el.offsetWidth > 0 || el.offsetHeight > 0
-        ));
+    } else if (
+        [...htmlElement.querySelectorAll(".o_list_button_discard")].find(
+            (el) => el.offsetWidth > 0 || el.offsetHeight > 0,
+        )
+    ) {
+        return click(
+            [...htmlElement.querySelectorAll(".o_list_button_discard")].find(
+                (el) => el.offsetWidth > 0 || el.offsetHeight > 0,
+            ),
+        );
     } else {
         throw new Error("No discard button found to be clicked.");
     }
@@ -550,8 +565,12 @@ export async function clickDiscard(htmlElement) {
 export async function mouseEnter(el, selector, coordinates) {
     const target = el.querySelector(selector) || el;
     const atPos = coordinates || {
-        clientX: target.getBoundingClientRect().left + target.getBoundingClientRect().width / 2,
-        clientY: target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2,
+        clientX:
+            target.getBoundingClientRect().left +
+            target.getBoundingClientRect().width / 2,
+        clientY:
+            target.getBoundingClientRect().top +
+            target.getBoundingClientRect().height / 2,
     };
     return triggerEvents(target, null, ["pointerenter", "mouseenter"], atPos);
 }
@@ -570,12 +589,21 @@ export async function mouseLeave(el, selector) {
 export async function editInput(el, selector, value) {
     const input = findElement(el, selector);
     if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
-        throw new Error("Only 'input' and 'textarea' elements can be edited with 'editInput'.");
+        throw new Error(
+            "Only 'input' and 'textarea' elements can be edited with 'editInput'.",
+        );
     }
     if (
-        !["text", "textarea", "email", "search", "color", "number", "file", "tel"].includes(
-            input.type
-        )
+        ![
+            "text",
+            "textarea",
+            "email",
+            "search",
+            "color",
+            "number",
+            "file",
+            "tel",
+        ].includes(input.type)
     ) {
         throw new Error(`Type "${input.type}" not supported by 'editInput'.`);
     }
@@ -586,7 +614,9 @@ export async function editInput(el, selector, value) {
         const dataTransfer = new DataTransfer();
         for (const file of files) {
             if (!(file instanceof File)) {
-                throw new Error(`File input value should be one or several File objects.`);
+                throw new Error(
+                    `File input value should be one or several File objects.`,
+                );
             }
             dataTransfer.items.add(file);
         }
@@ -617,7 +647,9 @@ export function editSelect(el, selector, value) {
 export async function editSelectMenu(el, selector, value) {
     const dropdown = el.querySelector(selector);
     await click(dropdown.querySelector(".dropdown-toggle"));
-    for (const item of Array.from(el.querySelectorAll(".o_select_menu_menu .dropdown-item"))) {
+    for (const item of Array.from(
+        el.querySelectorAll(".o_select_menu_menu .dropdown-item"),
+    )) {
         if (item.textContent === value) {
             return click(item);
         }
@@ -631,7 +663,11 @@ export async function editSelectMenu(el, selector, value) {
  * @param {boolean} addOverlayModParts
  * @param {KeyboardEventInit} eventAttrs
  */
-export async function triggerHotkey(hotkey, addOverlayModParts = false, eventAttrs = {}) {
+export async function triggerHotkey(
+    hotkey,
+    addOverlayModParts = false,
+    eventAttrs = {},
+) {
     eventAttrs.key = hotkey.split("+").pop();
 
     if (/shift/i.test(hotkey)) {
@@ -665,7 +701,7 @@ export async function triggerHotkey(hotkey, addOverlayModParts = false, eventAtt
             ["keydown", eventAttrs],
             ["keyup", eventAttrs],
         ],
-        { skipVisibilityCheck: true }
+        { skipVisibilityCheck: true },
     );
 
     return { keydownEvent, keyupEvent };
@@ -682,9 +718,7 @@ for (const propName of Object.keys(window.console)) {
 
 export function mockSendBeacon(mock) {
     patchWithCleanup(navigator, {
-        sendBeacon: (url, blob) => {
-            return mock(url, blob) !== false;
-        },
+        sendBeacon: (url, blob) => mock(url, blob) !== false,
     });
 }
 
@@ -907,12 +941,12 @@ export async function dragAndDrop(from, to, position) {
  * @param {Element | string} from
  */
 export async function drag(from, pointerType = "mouse") {
-    const assertIsDragging = (fn, endDrag) => {
-        return {
+    const assertIsDragging = (fn, endDrag) =>
+        ({
             async [fn.name](...args) {
                 if (dragEndReason) {
                     throw new Error(
-                        `Cannot execute drag helper '${fn.name}': drag sequence has been ended by '${dragEndReason}'.`
+                        `Cannot execute drag helper '${fn.name}': drag sequence has been ended by '${dragEndReason}'.`,
                     );
                 }
                 await fn(...args);
@@ -920,8 +954,7 @@ export async function drag(from, pointerType = "mouse") {
                     dragEndReason = fn.name;
                 }
             },
-        }[fn.name];
-    };
+        })[fn.name];
 
     const cancel = assertIsDragging(async function cancel() {
         await triggerEvent(window, null, "keydown", { key: "Escape" });
@@ -995,7 +1028,10 @@ export async function drag(from, pointerType = "mouse") {
         targetPosition = getTargetPosition(position);
 
         // Move, enter and drop the element on the target
-        await triggerEvent(source, null, "pointermove", { ...targetPosition, button: -1 });
+        await triggerEvent(source, null, "pointermove", {
+            ...targetPosition,
+            button: -1,
+        });
 
         // "pointerenter" is fired on every parent of `target` that do not contain
         // `from` (typically: different parent lists).
@@ -1047,7 +1083,9 @@ export function getDropdownMenu(target, togglerSelector) {
         el = el.querySelector(".o-dropdown");
     }
     if (!el) {
-        throw new Error(`getDropdownMenu: Could not find element "${togglerSelector}".`);
+        throw new Error(
+            `getDropdownMenu: Could not find element "${togglerSelector}".`,
+        );
     }
     return getPopoverForTarget(el);
 }
@@ -1060,7 +1098,9 @@ export async function clickDropdown(target, fieldName) {
 }
 
 export async function clickOpenedDropdownItem(target, fieldName, itemContent) {
-    const dropdowns = target.querySelectorAll(`[name='${fieldName}'] .dropdown .dropdown-menu`);
+    const dropdowns = target.querySelectorAll(
+        `[name='${fieldName}'] .dropdown .dropdown-menu`,
+    );
     if (dropdowns.length === 0) {
         throw new Error(`No dropdown found for field ${fieldName}`);
     } else if (dropdowns.length > 1) {
@@ -1093,7 +1133,7 @@ export async function clickOpenM2ODropdown(el, fieldName, selector) {
     const matches = el.querySelectorAll(m2oSelector);
     if (matches.length !== 1) {
         throw new Error(
-            `cannot open m2o: selector ${selector} has been found ${matches.length} instead of 1`
+            `cannot open m2o: selector ${selector} has been found ${matches.length} instead of 1`,
         );
     }
 
@@ -1111,7 +1151,7 @@ export async function clickM2OHighlightedItem(el, fieldName, selector) {
     const matches = el.querySelectorAll(m2oSelector);
     if (matches.length !== 1) {
         throw new Error(
-            `cannot open m2o: selector ${selector} has been found ${matches.length} instead of 1`
+            `cannot open m2o: selector ${selector} has been found ${matches.length} instead of 1`,
         );
     }
     // clicking on an li (no matter which one), will select the focussed one
@@ -1120,7 +1160,11 @@ export async function clickM2OHighlightedItem(el, fieldName, selector) {
 
 // X2Many
 export async function addRow(target, selector) {
-    await click(target.querySelector(`${selector ? selector : ""} .o_field_x2many_list_row_add a`));
+    await click(
+        target.querySelector(
+            `${selector ? selector : ""} .o_field_x2many_list_row_add a`,
+        ),
+    );
 }
 
 export async function removeRow(target, index) {

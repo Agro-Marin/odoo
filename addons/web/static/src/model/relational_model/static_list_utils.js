@@ -30,7 +30,11 @@ function compareFieldValues(v1, v2, fieldType) {
     if (fieldType === "many2one") {
         v1 = v1 ? v1.display_name : "";
         v2 = v2 ? v2.display_name : "";
-    } else if (fieldType === "integer" || fieldType === "float" || fieldType === "monetary") {
+    } else if (
+        fieldType === "integer" ||
+        fieldType === "float" ||
+        fieldType === "monetary"
+    ) {
         v1 = v1 ?? 0;
         v2 = v2 ?? 0;
     } else {

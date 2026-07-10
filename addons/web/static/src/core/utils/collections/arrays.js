@@ -287,5 +287,5 @@ export function rotate(i, arr, inc = 1) {
     }
     // JS % preserves sign of dividend — double-mod ensures non-negative result
     // even when (i + inc) is more negative than arr.length.
-    return ((i + inc) % arr.length + arr.length) % arr.length;
+    return (((i + inc) % arr.length) + arr.length) % arr.length;
 }

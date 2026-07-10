@@ -4,7 +4,6 @@
 /** @module @web/fields/basic/float_time/float_time_field - Time duration input that stores hours as a float (e.g. 1.5 = 1h30) */
 
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { formatFloatTime } from "@web/fields/formatters";
 import { parseFloatTime } from "@web/fields/parsers";

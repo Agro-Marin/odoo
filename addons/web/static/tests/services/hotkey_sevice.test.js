@@ -11,9 +11,9 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { hotkeyService } from "@web/services/hotkeys/hotkey_service";
 import { useActiveElement } from "@web/ui/block/ui_service";
 
@@ -150,7 +150,9 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
 
     // UIOwnershipTakerComponent should be there and it should be the ui active element
     expect("main .owner").toHaveCount(1);
-    expect(queryOne("main .owner")).toBe(/** @type {any} */ (getService("ui").activeElement));
+    expect(queryOne("main .owner")).toBe(
+        /** @type {any} */ (getService("ui").activeElement),
+    );
 
     // div must only have [accesskey] attribute
     expect("main div").toHaveCount(1);

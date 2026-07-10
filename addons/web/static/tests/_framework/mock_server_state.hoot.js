@@ -2,9 +2,9 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-import { luxon } from "@web/core/l10n/luxon";
 import { after, before, beforeEach, createJobScopedGetter } from "@odoo/hoot";
 import { validateType } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 
 // Read but DO NOT delete: ``@web/session`` reads the same global and
 // either consumer deleting first would give the other one ``{}`` (the

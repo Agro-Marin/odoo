@@ -1,7 +1,6 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { FloatFactorField } from "@web/fields/basic/float_factor/float_factor_field";
 import {
     clickSave,
     contains,
@@ -13,6 +12,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { FloatFactorField } from "@web/fields/basic/float_factor/float_factor_field";
 
 class Partner extends models.Model {
     qux = fields.Float();

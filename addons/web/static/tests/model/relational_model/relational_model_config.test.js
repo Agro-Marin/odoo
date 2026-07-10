@@ -26,11 +26,10 @@ describe("RelationalModel._patchConfig", () => {
             mode: "readonly",
             resId: false,
         };
-        const result = RelationalModel.prototype._patchConfig.call(
-            null,
-            config,
-            { mode: "edit", resId: 42 },
-        );
+        const result = RelationalModel.prototype._patchConfig.call(null, config, {
+            mode: "edit",
+            resId: 42,
+        });
         // The patched values MUST be readable in the very next statement
         // (call sites do not await).
         expect(config.mode).toBe("edit");

@@ -160,11 +160,19 @@ const HEX3_REGEX = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
 function parseHex(hex) {
     let m = HEX6_REGEX.exec(hex);
     if (m) {
-        return [Number.parseInt(m[1], 16), Number.parseInt(m[2], 16), Number.parseInt(m[3], 16)];
+        return [
+            Number.parseInt(m[1], 16),
+            Number.parseInt(m[2], 16),
+            Number.parseInt(m[3], 16),
+        ];
     }
     m = HEX3_REGEX.exec(hex);
     if (m) {
-        return [Number.parseInt(m[1] + m[1], 16), Number.parseInt(m[2] + m[2], 16), Number.parseInt(m[3] + m[3], 16)];
+        return [
+            Number.parseInt(m[1] + m[1], 16),
+            Number.parseInt(m[2] + m[2], 16),
+            Number.parseInt(m[3] + m[3], 16),
+        ];
     }
     return null;
 }

@@ -21,8 +21,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { sort } from "@web/model/relational_model/static_list_sort";
 import { StaticList } from "@web/model/relational_model/static_list";
+import { sort } from "@web/model/relational_model/static_list_sort";
 
 // ---------------------------------------------------------------------------
 // extendRecord — config.fields identity

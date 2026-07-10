@@ -6,10 +6,10 @@
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 
+import { ASTType } from "./py_js/ast_type.js";
 import { evaluate, formatAST, parseExpr } from "./py_js/py.js";
 import { EvaluationError } from "./py_js/py_builtin.js";
 import { toPyValue } from "./py_js/py_utils.js";
-import { ASTType } from "./py_js/ast_type.js";
 
 /**
  * AST node — a discriminated union keyed on the literal ``type`` tag (see
@@ -382,7 +382,9 @@ function normalizeDomainAST(domain, op = "&") {
             /* Tuple contains at least one Tuple and optionally string */
             if (
                 !value.some((e) => e.type === ASTType.Tuple) ||
-                !value.every((e) => e.type === ASTType.Tuple || e.type === ASTType.String)
+                !value.every(
+                    (e) => e.type === ASTType.Tuple || e.type === ASTType.String,
+                )
             ) {
                 throw new InvalidDomainError("Invalid domain AST");
             }
@@ -496,7 +498,11 @@ function matchCondition(record, condition) {
             if (!parent || typeof parent !== "object") {
                 // Falsy or primitive — can't traverse deeper. Resolve to false,
                 // matching Odoo server behavior for empty relational fields.
-                return matchCondition({ [restField]: false }, [restField, operator, value]);
+                return matchCondition({ [restField]: false }, [
+                    restField,
+                    operator,
+                    value,
+                ]);
             }
             return matchCondition(parent, [restField, operator, value]);
         }
@@ -612,10 +618,14 @@ function makeOperators(record) {
     const match = matchCondition.bind(null, record);
     return {
         "!": (/** @type {Condition | boolean} */ x) => !match(x),
-        "&": (/** @type {Condition | boolean} */ a, /** @type {Condition | boolean} */ b) =>
-            match(a) && match(b),
-        "|": (/** @type {Condition | boolean} */ a, /** @type {Condition | boolean} */ b) =>
-            match(a) || match(b),
+        "&": (
+            /** @type {Condition | boolean} */ a,
+            /** @type {Condition | boolean} */ b,
+        ) => match(a) && match(b),
+        "|": (
+            /** @type {Condition | boolean} */ a,
+            /** @type {Condition | boolean} */ b,
+        ) => match(a) || match(b),
     };
 }
 

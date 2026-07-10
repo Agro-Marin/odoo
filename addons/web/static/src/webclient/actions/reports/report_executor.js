@@ -72,7 +72,10 @@ export async function executeReportAction(action, options, am) {
         if (result) {
             const { onClose } = options;
             if (action.close_on_report_download) {
-                return am.doAction({ type: "ir.actions.act_window_close" }, { onClose });
+                return am.doAction(
+                    { type: "ir.actions.act_window_close" },
+                    { onClose },
+                );
             } else if (onClose) {
                 onClose();
             }

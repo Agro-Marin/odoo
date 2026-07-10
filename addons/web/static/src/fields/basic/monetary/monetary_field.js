@@ -7,7 +7,6 @@ import { useEffect } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
-
 import { registerField } from "@web/fields/_registry";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { formatMonetary } from "@web/fields/formatters";

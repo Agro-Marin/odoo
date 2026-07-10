@@ -32,6 +32,7 @@
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
+
 import { parseServerValue } from "./field_values.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -82,7 +83,10 @@ registry
             for (const key of ["value", "default"]) {
                 let val;
                 if (property.type === "many2one") {
-                    val = property[key] && [property[key].id, property[key].display_name];
+                    val = property[key] && [
+                        property[key].id,
+                        property[key].display_name,
+                    ];
                 } else if (
                     (property.type === "date" || property.type === "datetime") &&
                     typeof property[key] === "string"
@@ -275,8 +279,7 @@ export function parseServerValues(
                 );
             const listValue = /** @type {any[]} */ (value);
             // value can be a list of records or a list of commands (new record)
-            const valueIsCommandList =
-                listValue.length && Array.isArray(listValue[0]);
+            const valueIsCommandList = listValue.length && Array.isArray(listValue[0]);
             if (!staticList) {
                 let data = valueIsCommandList ? [] : listValue;
                 if (data.length && typeof data[0] === "number") {

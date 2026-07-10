@@ -5,6 +5,7 @@
 
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
+import { getFieldCodec } from "@web/core/field_codec";
 import {
     deserializeDateTime,
     serializeDate,
@@ -17,7 +18,6 @@ import { groupBy } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { useDebounced } from "@web/core/utils/timing";
-import { getFieldCodec } from "@web/core/field_codec";
 import { Model } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
 import { user } from "@web/services/user";
@@ -339,7 +339,9 @@ export class CalendarModel extends Model {
             // Nothing matched (e.g. no filter checked): tell the user instead
             // of silently clearing their selection.
             this.notification.add(
-                _t("Activate at least one record in the side panel to assign the new events to."),
+                _t(
+                    "Activate at least one record in the side panel to assign the new events to.",
+                ),
                 { type: "warning" },
             );
         }

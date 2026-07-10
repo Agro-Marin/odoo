@@ -11,13 +11,13 @@
  * Receives the StaticList instance as first argument (delegation pattern).
  */
 
-import { x2ManyCommands } from "./commands.js";
 import {
     absorbUnlinkIntoSet,
     isUpdateRedundant,
     shouldEmitDelete,
     shouldEmitUnlink,
 } from "./command_builder.js";
+import { x2ManyCommands } from "./commands.js";
 import { getId } from "./field_context.js";
 
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
@@ -109,8 +109,7 @@ export function applyCommands(
                                 list.fields[fieldName].type,
                             )
                         ) {
-                            const invisible =
-                                record.activeFields[fieldName]?.invisible;
+                            const invisible = record.activeFields[fieldName]?.invisible;
                             if (
                                 invisible === "True" ||
                                 invisible === "1" ||
@@ -119,9 +118,7 @@ export function applyCommands(
                                 if (!(command[1] in list._unknownRecordCommands)) {
                                     list._unknownRecordCommands[command[1]] = [];
                                 }
-                                list._unknownRecordCommands[command[1]].push(
-                                    command,
-                                );
+                                list._unknownRecordCommands[command[1]].push(command);
                                 continue;
                             }
                         }
@@ -166,10 +163,7 @@ export function applyCommands(
                         id: command[1],
                     });
                 }
-                if (
-                    currentIdsSet.has(record.resId) &&
-                    !removedIds[record.resId]
-                ) {
+                if (currentIdsSet.has(record.resId) && !removedIds[record.resId]) {
                     break;
                 }
                 if (
@@ -231,10 +225,7 @@ export function applyCommands(
     if (nbMissingRecords > 0) {
         const lastRecordIndex = list.limit + list.offset;
         const firstRecordIndex = lastRecordIndex - nbMissingRecords;
-        const nextRecordIds = list._currentIds.slice(
-            firstRecordIndex,
-            lastRecordIndex,
-        );
+        const nextRecordIds = list._currentIds.slice(firstRecordIndex, lastRecordIndex);
         for (const id of list._getResIdsToLoad(nextRecordIds)) {
             const record = list._createRecordDatapoint(
                 { id },

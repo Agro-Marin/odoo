@@ -388,7 +388,9 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
     // (``specToModuleUrl("@web/foo")`` === "/web/static/src/foo.js").
     expect(imports["@web/foo"].startsWith("data:")).toBe(true);
     expect(imports["/web/static/src/foo.js"]).toBe(imports["@web/foo"]);
-    const fooSrc = decodeURIComponent(imports["@web/foo"].slice("data:text/javascript,".length));
+    const fooSrc = decodeURIComponent(
+        imports["@web/foo"].slice("data:text/javascript,".length),
+    );
     expect(fooSrc.includes('odoo.loader.modules.get("@web/foo")')).toBe(true);
     expect(fooSrc.includes("export const bar = _m?.bar;")).toBe(true);
 

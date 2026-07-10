@@ -16,6 +16,7 @@ import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { unique } from "@web/core/utils/collections/arrays";
+
 import { x2ManyCommands } from "./commands.js";
 
 const granularityToInterval = {
@@ -89,10 +90,16 @@ deserializers
                   // Shallow-clone to avoid mutating the server response object
                   property = { ...property };
                   if (property.value !== undefined) {
-                      property.value = parseServerValue(property, property.value ?? false);
+                      property.value = parseServerValue(
+                          property,
+                          property.value ?? false,
+                      );
                   }
                   if (property.default !== undefined) {
-                      property.default = parseServerValue(property, property.default ?? false);
+                      property.default = parseServerValue(
+                          property,
+                          property.default ?? false,
+                      );
                   }
                   return property;
               })

@@ -158,7 +158,9 @@ export class ListRecordRow extends Component {
      */
     get record() {
         const props = this.props;
-        const flat = props.renderer.gridState?.findRowByRecordId(String(props.record.id));
+        const flat = props.renderer.gridState?.findRowByRecordId(
+            String(props.record.id),
+        );
         return flat?.record ?? props.record;
     }
 
@@ -172,7 +174,9 @@ export class ListRecordRow extends Component {
         if (renderer.virt?.isActive) {
             return undefined;
         }
-        const flat = renderer.gridState?.findRowByRecordId(String(this.props.record.id));
+        const flat = renderer.gridState?.findRowByRecordId(
+            String(this.props.record.id),
+        );
         return flat?.parentGroup ?? undefined;
     }
 
@@ -273,7 +277,11 @@ export class ListRecordRow extends Component {
             }
         }
         let evalContext = record.evalContextWithVirtualIds;
-        for (let depth = 0; evalContext && typeof evalContext === "object" && depth < 5; depth++) {
+        for (
+            let depth = 0;
+            evalContext && typeof evalContext === "object" && depth < 5;
+            depth++
+        ) {
             for (const key in evalContext) {
                 if (key !== "parent") {
                     void evalContext[key];

@@ -14,10 +14,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import {
-    useService,
-    useServiceProtectMethodHandling,
-} from "@web/core/utils/hooks";
+import { useService, useServiceProtectMethodHandling } from "@web/core/utils/hooks";
 
 /**
  * @param {string} resModel

@@ -6,7 +6,6 @@
 import { formatDateTime } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import {
     SelectionField,
@@ -66,7 +65,9 @@ export class TimezoneMismatchField extends SelectionField {
                 );
                 const sign = offset[1] === "-" ? -1 : 1;
                 const userOffset =
-                    sign * (Number.parseInt(offset[2], 10) * 60 + Number.parseInt(offset[3], 10));
+                    sign *
+                    (Number.parseInt(offset[2], 10) * 60 +
+                        Number.parseInt(offset[3], 10));
                 const browserOffset = -new Date().getTimezoneOffset();
                 // UTC time of the user's selected timezone.
                 // E.g.

@@ -6,7 +6,6 @@
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { _t } from "@web/core/l10n/translation";
-
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

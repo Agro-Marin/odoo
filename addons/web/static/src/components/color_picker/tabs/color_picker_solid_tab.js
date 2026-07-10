@@ -35,5 +35,5 @@ registry.category("color_picker_tabs").add(
     // (Tab moves Solid -> Custom -> Gradient) starts on it. Custom registers at
     // the default sequence (50); pin Solid below it so ordering no longer
     // depends on module evaluation order (which the ESM bundling reshuffled).
-    { sequence: 40 }
+    { sequence: 40 },
 );

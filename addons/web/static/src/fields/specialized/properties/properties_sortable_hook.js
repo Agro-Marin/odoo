@@ -106,9 +106,7 @@ export function usePropertiesSortable(options) {
                     to = null;
                     moveBefore = false;
                 } else {
-                    to = group.elements.length
-                        ? group.elements.at(-1).name
-                        : groupName;
+                    to = group.elements.length ? group.elements.at(-1).name : groupName;
                 }
             }
             await onPropertyMoveTo(from, to, moveBefore);

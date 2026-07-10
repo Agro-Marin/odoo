@@ -2,7 +2,14 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import { cloneTree, condition, connector, expression } from "@web/core/tree/condition_tree";
+import { Domain } from "@web/core/domain";
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import {
+    cloneTree,
+    condition,
+    connector,
+    expression,
+} from "@web/core/tree/condition_tree";
 import { constructDomainFromTree } from "@web/core/tree/construct_domain_from_tree";
 import { constructExpressionFromTree } from "@web/core/tree/construct_expression_from_tree";
 import { constructTreeFromDomain } from "@web/core/tree/construct_tree_from_domain";
@@ -10,8 +17,6 @@ import { constructTreeFromExpression } from "@web/core/tree/construct_tree_from_
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
 import { treeFromExpression } from "@web/core/tree/tree_from_expression";
-import { Domain } from "@web/core/domain";
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
 
 function expressionFromDomain(domain, options) {
     const tree = constructTreeFromDomain(domain);
@@ -601,9 +606,12 @@ test("ternary-shaped subtree nested in a connector keeps its parentheses", () =>
         for (const b of [false, true]) {
             for (const y of [false, true]) {
                 const ctx = { a, b, x: false, y };
-                expect(evaluateBooleanExpr(expr, ctx)).toBe(evaluateBooleanExpr(src, ctx), {
-                    message: `ctx: ${JSON.stringify(ctx)} — expr: ${expr}`,
-                });
+                expect(evaluateBooleanExpr(expr, ctx)).toBe(
+                    evaluateBooleanExpr(src, ctx),
+                    {
+                        message: `ctx: ${JSON.stringify(ctx)} — expr: ${expr}`,
+                    },
+                );
             }
         }
     }

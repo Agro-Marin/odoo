@@ -16,9 +16,9 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { CallbackRecorder } from "@web/core/action_hook";
 import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
-import { CallbackRecorder } from "@web/core/action_hook";
 import { View } from "@web/views/view";
 
 const viewRegistry = registry.category("views");

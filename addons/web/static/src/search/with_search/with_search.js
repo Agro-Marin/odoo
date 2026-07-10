@@ -4,8 +4,8 @@
 /** @module @web/search/with_search/with_search - Wrapper component that creates a SearchModel and injects it into the sub-environment */
 
 import { Component, onWillStart, onWillUpdateProps, toRaw, useSubEnv } from "@odoo/owl";
-import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
+import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
@@ -84,7 +84,11 @@ export class WithSearch extends Component {
             : null;
         useSubEnv({ searchModel: this.searchModel, searchPanelState });
 
-        useBus(this.searchModel, SearchModelEvent.UPDATE, /** @type {any} */ (this.render));
+        useBus(
+            this.searchModel,
+            SearchModelEvent.UPDATE,
+            /** @type {any} */ (this.render),
+        );
         useSetupAction({
             getGlobalState: () => ({
                 searchModel: JSON.stringify(this.searchModel.exportState()),

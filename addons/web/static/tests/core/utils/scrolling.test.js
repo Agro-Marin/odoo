@@ -20,9 +20,7 @@ function makeScrollable() {
         </div>
     `;
     return {
-        scrollable: /** @type {HTMLElement} */ (
-            fixture.querySelector("#scrollable")
-        ),
+        scrollable: /** @type {HTMLElement} */ (fixture.querySelector("#scrollable")),
         target: /** @type {HTMLElement} */ (fixture.querySelector("#target")),
     };
 }

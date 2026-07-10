@@ -37,11 +37,11 @@ import {
     validateSearch,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
-import { useSetupAction } from "@web/core/action_hook";
 import { listView } from "@web/views/list/list_view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { clearUncommittedChanges } from "@web/webclient/actions/action_service";

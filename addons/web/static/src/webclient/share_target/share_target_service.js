@@ -54,7 +54,10 @@ export const shareTargetService = {
                         clientReadyListener,
                     );
                 };
-                env.bus.addEventListener(AppEvent.WEB_CLIENT_READY, clientReadyListener);
+                env.bus.addEventListener(
+                    AppEvent.WEB_CLIENT_READY,
+                    clientReadyListener,
+                );
             }
         }
         return {

@@ -1,6 +1,5 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { expect, test } from "@odoo/hoot";
 import {
     click,
@@ -25,6 +24,7 @@ import {
     pagerNext,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import { getOrigin } from "@web/core/utils/urls";
 
 const { DateTime } = luxon;
@@ -135,10 +135,14 @@ test("ImageField is correctly rendered", async () => {
     expect(".o_field_image .o_clear_file_button").toHaveCount(1, {
         message: "the image can be deleted",
     });
-    expect("input.o_input_file").toHaveAttribute("accept", "image/*,dummy/allowAndroidCamera", {
-        message:
-            'the default value for the attribute "accept" on the "image" widget must be "image/*"',
-    });
+    expect("input.o_input_file").toHaveAttribute(
+        "accept",
+        "image/*,dummy/allowAndroidCamera",
+        {
+            message:
+                'the default value for the attribute "accept" on the "image" widget must be "image/*"',
+        },
+    );
 });
 
 test("ImageField with img_class option", async () => {
@@ -543,9 +547,13 @@ test("ImageField: option accepted_file_extensions", async () => {
         `,
     });
     // The view must be in edit mode
-    expect("input.o_input_file").toHaveAttribute("accept", ".png,.jpeg,dummy/allowAndroidCamera", {
-        message: "the input should have the correct ``accept`` attribute",
-    });
+    expect("input.o_input_file").toHaveAttribute(
+        "accept",
+        ".png,.jpeg,dummy/allowAndroidCamera",
+        {
+            message: "the input should have the correct ``accept`` attribute",
+        },
+    );
 });
 
 test("ImageField: set 0 width/height in the size option", async () => {

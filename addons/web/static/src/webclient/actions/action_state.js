@@ -160,7 +160,9 @@ export function getActionParams(state) {
         if (state.resId || state.view_type === "form") {
             if (!lastAction.id && lastAction.res_model === state.model) {
                 actionRequest = lastAction;
-                options.props = { resId: state.resId === "new" ? undefined : state.resId };
+                options.props = {
+                    resId: state.resId === "new" ? undefined : state.resId,
+                };
                 if (state.view_id) {
                     actionRequest.views = [[state.view_id, "form"]];
                 }

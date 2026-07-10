@@ -6,8 +6,8 @@ import {
     makeMockEnv,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { rpcBus } from "@web/core/network/rpc";
 import { RpcEvent } from "@web/core/events";
+import { rpcBus } from "@web/core/network/rpc";
 import { SLOW_RPC_CONFIG } from "@web/services/slow_rpc_service";
 
 describe.current.tags("headless");
@@ -72,9 +72,7 @@ test("notifies when RPC exceeds threshold", async () => {
     fireRequest(1);
     await advanceTime(150);
 
-    expect.verifySteps([
-        "add:This is taking longer than usual…|sticky=true",
-    ]);
+    expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
 });
 
 test("dismisses notification on response after threshold", async () => {

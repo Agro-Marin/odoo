@@ -1,7 +1,7 @@
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
 import { after, onTimeZoneChange } from "@odoo/hoot";
+import { luxon } from "@web/core/l10n/luxon";
 import { patch } from "@web/core/utils/patch";
 
 const { FixedOffsetZone, IANAZone, Settings } = luxon;

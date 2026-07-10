@@ -18,8 +18,8 @@ import {
     toggleSearchBarMenu,
     validateSearch,
 } from "@web/../tests/web_test_helpers";
-import { rpcBus } from "@web/core/network/rpc";
 import { useSetupAction } from "@web/core/action_hook";
+import { rpcBus } from "@web/core/network/rpc";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 

@@ -10,12 +10,12 @@ import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
-import { registerField } from "@web/fields/_registry";
 import { symmetricalDifference } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { getFieldDomain } from "@web/model/relational_model/utils";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { getFieldDomain } from "@web/model/relational_model/utils";
 
 import { useSelectCreate } from "../many2x_autocomplete.js";
 import { useActiveActions } from "../relational_active_actions.js";
@@ -30,9 +30,15 @@ export class X2ManyField extends Component {
     static get components() {
         return {
             Pager,
-            KanbanRenderer: views.contains("kanban") ? views.get("kanban").Renderer : undefined,
-            ListRenderer: views.contains("list") ? views.get("list").Renderer : undefined,
-            ViewButton: shared.contains("ViewButton") ? shared.get("ViewButton") : undefined,
+            KanbanRenderer: views.contains("kanban")
+                ? views.get("kanban").Renderer
+                : undefined,
+            ListRenderer: views.contains("list")
+                ? views.get("list").Renderer
+                : undefined,
+            ViewButton: shared.contains("ViewButton")
+                ? shared.get("ViewButton")
+                : undefined,
         };
     }
     static props = {
@@ -169,9 +175,7 @@ export class X2ManyField extends Component {
     /** @returns {boolean} */
     get displayControlPanelButtons() {
         return (
-            this.props.viewMode === "kanban" &&
-            this.canCreate &&
-            this.controls.length
+            this.props.viewMode === "kanban" && this.canCreate && this.controls.length
         );
     }
 
@@ -368,7 +372,10 @@ export class X2ManyField extends Component {
             if (editedRecord) {
                 const proms = [];
                 this.list.model.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-                await Promise.all([...proms, /** @type {any} */ (editedRecord)._updatePromise]);
+                await Promise.all([
+                    ...proms,
+                    /** @type {any} */ (editedRecord)._updatePromise,
+                ]);
                 await this.list.leaveEditMode({ canAbandon: false });
             }
             if (!this.list.editedRecord) {

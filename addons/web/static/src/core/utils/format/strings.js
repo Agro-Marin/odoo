@@ -268,9 +268,13 @@ export function sprintf(str, ...substitutions) {
         }
         // Pad substitutions to match the number of %s placeholders so that
         // excess %s tokens produce empty strings instead of literal "undefined".
-        const padded = substitutions.length >= raw.length - 1
-            ? substitutions
-            : [...substitutions, ...Array(raw.length - 1 - substitutions.length).fill("")];
+        const padded =
+            substitutions.length >= raw.length - 1
+                ? substitutions
+                : [
+                      ...substitutions,
+                      ...Array(raw.length - 1 - substitutions.length).fill(""),
+                  ];
         return String.raw({ raw }, ...padded);
     }
 }

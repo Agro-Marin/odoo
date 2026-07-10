@@ -134,9 +134,7 @@ class CompanySelector {
         // Disallowed companies (e.g. ancestors only shown for the tree
         // structure) can never be activated: selecting them would render
         // their checkbox checked and show Confirm for a no-op switch.
-        const allowedCompanyIds = companyIds.filter((id) =>
-            this._isCompanyAllowed(id),
-        );
+        const allowedCompanyIds = companyIds.filter((id) => this._isCompanyAllowed(id));
         const anySelected = allowedCompanyIds.some((id) =>
             this.selectedCompaniesIds.includes(id),
         );
@@ -304,7 +302,10 @@ export class SwitchCompanyMenu extends Component {
                         return;
                     }
                     if (navItem.el.classList.contains("o_switch_company_item")) {
-                        const companyId = Number.parseInt(navItem.el.dataset.companyId, 10);
+                        const companyId = Number.parseInt(
+                            navItem.el.dataset.companyId,
+                            10,
+                        );
                         this.companySelector.switchCompany("toggle", companyId);
                     }
                 },
@@ -314,7 +315,10 @@ export class SwitchCompanyMenu extends Component {
                         return;
                     }
                     if (navItem.el.classList.contains("o_switch_company_item")) {
-                        const companyId = Number.parseInt(navItem.el.dataset.companyId, 10);
+                        const companyId = Number.parseInt(
+                            navItem.el.dataset.companyId,
+                            10,
+                        );
                         this.companySelector.switchCompany("loginto", companyId);
                         this.dropdown.close();
                     } else {

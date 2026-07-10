@@ -1627,7 +1627,7 @@ describe(`new urls`, () => {
                     [666, "form"],
                 ],
                 context: {},
-            })
+            }),
         );
 
         defineActions([

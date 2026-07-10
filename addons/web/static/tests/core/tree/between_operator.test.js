@@ -2,11 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import {
-    condition,
-    connector,
-    expression,
-} from "@web/core/tree/condition_tree";
+import { condition, connector, expression } from "@web/core/tree/condition_tree";
 import {
     eliminateVirtualOperators,
     introduceVirtualOperators,

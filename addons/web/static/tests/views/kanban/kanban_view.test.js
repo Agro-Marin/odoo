@@ -94,13 +94,13 @@ import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { SampleServer } from "@web/model/sample_server";
 import { currencies } from "@web/services/currency";
 import { user } from "@web/services/user";
+import { AnimatedNumber } from "@web/views/kanban/animated_number";
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRecord } from "@web/views/kanban/kanban_record";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { ViewButton } from "@web/views/view_button/view_button";
-import { AnimatedNumber } from "@web/views/kanban/animated_number";
 import { WebClient } from "@web/webclient/webclient";
 
 const { IrAttachment } = webModels;
@@ -4487,9 +4487,12 @@ test("priority field should not be editable when missing access rights", async (
     });
     // Try to fill one star in the priority field of the first record
     await contains(".o_kanban_record:first-child .o_priority_star:first-child").click();
-    expect(".o_kanban_record:first-child .o_priority .fa-regular.fa-star").toHaveCount(2, {
-        message: "first record should still contain 2 empty stars",
-    });
+    expect(".o_kanban_record:first-child .o_priority .fa-regular.fa-star").toHaveCount(
+        2,
+        {
+            message: "first record should still contain 2 empty stars",
+        },
+    );
 });
 
 test("Do not open record when clicking on `a` with `href`", async () => {

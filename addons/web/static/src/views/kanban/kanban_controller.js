@@ -5,13 +5,13 @@
 
 import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useSetupAction } from "@web/core/action_hook";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model/utils";
-import { useSetupAction } from "@web/core/action_hook";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";

@@ -88,10 +88,12 @@ export const useNestedSortable = /** @type {any} */ (
             },
 
             // Set the parameters.
-            onComputeParams(/** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
-                ctx,
-                params,
-            }) {
+            onComputeParams(
+                /** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
+                    ctx,
+                    params,
+                },
+            ) {
                 // Group selector
                 ctx.groupSelector = params.groups || null;
                 if (ctx.groupSelector) {
@@ -118,10 +120,12 @@ export const useNestedSortable = /** @type {any} */ (
 
             // Set the current group and create the placeholder row that will take the
             // place of the moving row.
-            onWillStartDrag(/** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
-                ctx,
-                addCleanup,
-            }) {
+            onWillStartDrag(
+                /** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
+                    ctx,
+                    addCleanup,
+                },
+            ) {
                 if (ctx.groupSelector) {
                     ctx.currentGroup = ctx.current.element.closest(ctx.groupSelector);
                     if (!ctx.connectGroups) {
@@ -153,10 +157,12 @@ export const useNestedSortable = /** @type {any} */ (
             // Make the placeholder take the place of the moving row, and add style on
             // different elements to provide feedback that there is an ongoing dragging
             // sequence.
-            onDragStart(/** @type {{ ctx: Record<string, any>, addStyle: Function }} */ {
-                ctx,
-                addStyle,
-            }) {
+            onDragStart(
+                /** @type {{ ctx: Record<string, any>, addStyle: Function }} */ {
+                    ctx,
+                    addStyle,
+                },
+            ) {
                 // Horizontal position which will be used to detect row changes when moving vertically, so that
                 // we do not need to be on the row to trigger row changes (only the vertical position matters).
                 // Nested rows are shorter than "root" rows, and do not start at the same horizontal position.
@@ -226,10 +232,12 @@ export const useNestedSortable = /** @type {any} */ (
             },
             // Check if the cursor moved enough to trigger a move. If it did, move the
             // placeholder accordingly.
-            onDrag(/** @type {{ ctx: Record<string, any>, callHandler: Function }} */ {
-                ctx,
-                callHandler,
-            }) {
+            onDrag(
+                /** @type {{ ctx: Record<string, any>, callHandler: Function }} */ {
+                    ctx,
+                    callHandler,
+                },
+            ) {
                 const onMove = (/** @type {Record<string, any>} */ prevPos) => {
                     if (!ctx.isAllowed(ctx.current, ctx.elementSelector)) {
                         ctx.current.placeHolder.classList.add("d-none");

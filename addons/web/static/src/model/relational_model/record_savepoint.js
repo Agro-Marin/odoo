@@ -83,8 +83,7 @@ export function restoreFromSavePoint(record) {
     record._textValues = markRaw({ ...savePoint.textValues });
     record._invalidFields = new Set(savePoint.invalidFields);
     record.dirty =
-        Object.keys(record._changes).length > 0 ||
-        record._invalidFields.size > 0;
+        Object.keys(record._changes).length > 0 || record._invalidFields.size > 0;
     record._savePoint = undefined;
 }
 

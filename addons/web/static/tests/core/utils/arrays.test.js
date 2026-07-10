@@ -440,7 +440,9 @@ describe("isIterable", () => {
     });
 
     test("custom iterables are recognized", () => {
-        const iterable = { [Symbol.iterator]: () => ({ next: () => ({ done: true }) }) };
+        const iterable = {
+            [Symbol.iterator]: () => ({ next: () => ({ done: true }) }),
+        };
         expect(isIterable(iterable)).toBe(true);
     });
 });

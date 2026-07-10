@@ -273,14 +273,20 @@ export class FormCompiler extends ViewCompiler {
                 if (
                     /** @type {any} */ (child).attributes?.name?.value !== "button_box"
                 ) {
-                    append(form, this.compileNode(/** @type {Element} */ (child), params));
+                    append(
+                        form,
+                        this.compileNode(/** @type {Element} */ (child), params),
+                    );
                 }
             }
             form.classList.add("o_form_nosheet");
         } else {
             let compiledList = [];
             for (const child of el.childNodes) {
-                const compiled = this.compileNode(/** @type {Element} */ (child), params);
+                const compiled = this.compileNode(
+                    /** @type {Element} */ (child),
+                    params,
+                );
                 if (getTag(child, true) === "sheet") {
                     append(form, compiled);
                     /** @type {Element} */ (compiled).prepend(...compiledList);
@@ -372,11 +378,17 @@ export class FormCompiler extends ViewCompiler {
             }
 
             if (getTag(child, true) === "separator") {
-                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols") || "2", 10);
+                itemSpan = Number.parseInt(
+                    formGroup.getAttribute("maxCols") || "2",
+                    10,
+                );
             }
 
             if (child.matches("div[class='clearfix']:empty")) {
-                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols") || "2", 10);
+                itemSpan = Number.parseInt(
+                    formGroup.getAttribute("maxCols") || "2",
+                    10,
+                );
             }
 
             let slotContent;
@@ -717,7 +729,10 @@ export class FormCompiler extends ViewCompiler {
                 }
                 append(setting, fieldSlot);
             } else {
-                append(setting, this.compileNode(/** @type {Element} */ (child), params));
+                append(
+                    setting,
+                    this.compileNode(/** @type {Element} */ (child), params),
+                );
             }
         });
         setting.setAttribute("string", string);

@@ -50,7 +50,9 @@ describe("shallowEqual", () => {
         // ``undefined`` value.
         expect(shallowEqual({ a: undefined }, { b: undefined })).toBe(false);
         expect(shallowEqual({ a: undefined }, { a: undefined })).toBe(true);
-        expect(shallowEqual({ a: undefined, b: 1 }, { b: 1, c: undefined })).toBe(false);
+        expect(shallowEqual({ a: undefined, b: 1 }, { b: 1, c: undefined })).toBe(
+            false,
+        );
     });
 
     test("custom comparison function", () => {
@@ -104,9 +106,15 @@ test("deepEqual", () => {
     // Object elements: matched-element accounting — two elements of one set
     // must not both "consume" the same element of the other, and the
     // relation must be symmetric.
-    expect(deepEqual(new Set([{ x: 1 }, { x: 1 }]), new Set([{ x: 1 }, { y: 2 }]))).toBe(false);
-    expect(deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ x: 1 }, { x: 1 }]))).toBe(false);
-    expect(deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ y: 2 }, { x: 1 }]))).toBe(true);
+    expect(
+        deepEqual(new Set([{ x: 1 }, { x: 1 }]), new Set([{ x: 1 }, { y: 2 }])),
+    ).toBe(false);
+    expect(
+        deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ x: 1 }, { x: 1 }])),
+    ).toBe(false);
+    expect(
+        deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ y: 2 }, { x: 1 }])),
+    ).toBe(true);
 
     // cycle-safe (must not stack-overflow)
     const a = { x: 1 };
@@ -180,7 +188,11 @@ test("deepCopy", () => {
         nested: { flag: true },
     });
     const reactiveCopy = deepCopy(reactiveObj);
-    expect(reactiveCopy).toEqual({ ids: [1, 2, 3], name: "test", nested: { flag: true } });
+    expect(reactiveCopy).toEqual({
+        ids: [1, 2, 3],
+        name: "test",
+        nested: { flag: true },
+    });
     expect(reactiveCopy).not.toBe(reactiveObj);
     expect(reactiveCopy.ids).not.toBe(reactiveObj.ids);
 
@@ -188,7 +200,10 @@ test("deepCopy", () => {
     // array (Many2many field IDs wrapped by OWL reactivity).
     const context = { default_tag_ids: reactive([4, 5, 6]), default_name: "subtask" };
     const contextCopy = deepCopy(context);
-    expect(contextCopy).toEqual({ default_tag_ids: [4, 5, 6], default_name: "subtask" });
+    expect(contextCopy).toEqual({
+        default_tag_ids: [4, 5, 6],
+        default_name: "subtask",
+    });
     expect(contextCopy.default_tag_ids).not.toBe(context.default_tag_ids);
 });
 

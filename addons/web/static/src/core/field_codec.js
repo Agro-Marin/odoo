@@ -82,7 +82,8 @@ const TEXT_TYPES = new Set(["char", "text", "html"]);
  * Last-resort formatter for unknown types: render as a string.
  * @param {unknown} value
  */
-const formatUnknown = (value) => (value == null || value === false ? "" : String(value));
+const formatUnknown = (value) =>
+    value == null || value === false ? "" : String(value);
 
 /**
  * Per-type codec cache. The cached object holds only stable closures that read

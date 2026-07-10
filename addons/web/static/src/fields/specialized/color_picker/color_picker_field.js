@@ -5,7 +5,6 @@
 
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
-
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
