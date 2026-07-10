@@ -125,7 +125,7 @@
         <field name="model">stock.move.line</field>
         <field name="arch" type="xml">
             <list string="Move Lines" create="0" default_order="id desc"
-                action="action_open_reference" type="object" duplicate="0">
+                action="action_view_reference" type="object" duplicate="0">
                 <field name="location_usage" column_invisible="True" />
                 <field name="location_dest_usage" column_invisible="True" />
                 <field name="date" />
@@ -169,7 +169,7 @@
         <field name="model">stock.move.line</field>
         <field name="priority">25</field>
         <field name="arch" type="xml">
-            <list string="Move Lines" create="0" default_order="date" action="action_open_reference"
+            <list string="Move Lines" create="0" default_order="date" action="action_view_reference"
                 type="object">
                 <field name="date_planned" />
                 <field name="picking_id" />

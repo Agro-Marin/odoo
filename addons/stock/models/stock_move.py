@@ -103,79 +103,6 @@ class StockMove(models.Model):
         help="In case of outgoing flow, validate the transfer before this date to allow to deliver at promised date to the customer.\n\
         In case of incoming flow, validate the transfer before this date in order to have these products in stock at the date promised by the supplier",
     )
-    product_id = fields.Many2one(
-        comodel_name="product.product",
-        string="Product",
-        required=True,
-        check_company=True,
-        domain="[('type', '=', 'consu')]",
-        index=True,
-    )
-    has_tracking = fields.Selection(
-        related="product_id.tracking",
-        string="Product with Tracking",
-    )
-    is_storable = fields.Boolean(
-        related="product_id.is_storable",
-    )
-    product_category_id = fields.Many2one(
-        related="product_id.categ_id",
-        comodel_name="product.category",
-        string="Product Category",
-    )
-    product_tmpl_id = fields.Many2one(
-        comodel_name="product.template",
-        string="Product Template",
-        related="product_id.product_tmpl_id",
-        store=True,
-    )
-    never_product_template_attribute_value_ids = fields.Many2many(
-        "product.template.attribute.value",
-        "template_attribute_value_stock_move_rel",
-        "move_id",
-        "template_attribute_value_id",
-        string="Never attribute Values",
-    )
-    allowed_uom_ids = fields.Many2many(
-        comodel_name="uom.uom",
-        compute="_compute_allowed_uom_ids",
-    )
-    product_uom_id = fields.Many2one(
-        comodel_name="uom.uom",
-        string="Unit",
-        required=True,
-        compute="_compute_product_uom_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        domain="[('id', 'in', allowed_uom_ids)]",
-    )
-    description_picking_manual = fields.Text(readonly=True)
-    description_picking = fields.Text(
-        string="Description Of Picking",
-        compute="_compute_description_picking",
-        inverse="_inverse_description_picking",
-        compute_sudo=True,
-    )
-    product_uom_qty = fields.Float(
-        string="Demand",
-        digits="Product Unit",
-        default=0,
-        required=True,
-        help="This is the quantity of product that is planned to be moved."
-        "Lowering this quantity does not generate a backorder."
-        "Changing this quantity on assigned moves affects "
-        "the product reservation, and should be done with care.",
-    )
-    product_qty = fields.Float(
-        string="Real Quantity",
-        digits=0,
-        compute="_compute_product_qty",
-        compute_sudo=True,
-        store=True,
-        inverse="_inverse_product_qty",
-        help="Quantity in the default UoM of the product",
-    )
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Source Location",
@@ -220,24 +147,6 @@ class StockMove(models.Model):
         help="The operation brings the products to the intermediate location."
         "But this operation is part of a chain of operations targeting the final location.",
     )
-    move_dest_ids = fields.Many2many(
-        "stock.move",
-        "stock_move_move_rel",
-        "move_orig_id",
-        "move_dest_id",
-        "Destination Moves",
-        copy=False,
-        help="Optional: next stock move when chaining them",
-    )
-    move_orig_ids = fields.Many2many(
-        "stock.move",
-        "stock_move_move_rel",
-        "move_dest_id",
-        "move_orig_id",
-        "Original Move",
-        copy=False,
-        help="Optional: previous stock move when chaining them",
-    )
     procure_method = fields.Selection(
         selection=[
             ("make_to_stock", "Default: Take From Stock"),
@@ -273,15 +182,97 @@ class StockMove(models.Model):
         "* Available: The product of the stock move is reserved.\n"
         "* Done: The product has been transferred and the transfer has been confirmed.",
     )
-    picked = fields.Boolean(
-        string="Picked",
-        compute="_compute_picked",
-        inverse="_inverse_picked",
+
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        string="Product",
+        required=True,
+        check_company=True,
+        domain="[('type', '=', 'consu')]",
+        index=True,
+    )
+    has_tracking = fields.Selection(
+        related="product_id.tracking",
+        string="Product with Tracking",
+    )
+    is_storable = fields.Boolean(
+        related="product_id.is_storable",
+    )
+    product_category_id = fields.Many2one(
+        related="product_id.categ_id",
+        comodel_name="product.category",
+        string="Product Category",
+    )
+    product_tmpl_id = fields.Many2one(
+        related="product_id.product_tmpl_id",
+        comodel_name="product.template",
+        string="Product Template",
         store=True,
+    )
+    never_product_template_attribute_value_ids = fields.Many2many(
+        "product.template.attribute.value",
+        "template_attribute_value_stock_move_rel",
+        "move_id",
+        "template_attribute_value_id",
+        string="Never attribute Values",
+    )
+    allowed_uom_ids = fields.Many2many(
+        comodel_name="uom.uom",
+        compute="_compute_allowed_uom_ids",
+    )
+    product_uom_id = fields.Many2one(
+        comodel_name="uom.uom",
+        string="Unit",
+        required=True,
+        compute="_compute_product_uom_id",
+        store=True,
+        precompute=True,
         readonly=False,
+        domain="[('id', 'in', allowed_uom_ids)]",
+    )
+    product_uom_qty = fields.Float(
+        string="Demand",
+        digits="Product Unit",
+        default=0,
+        required=True,
+        help="This is the quantity of product that is planned to be moved."
+        "Lowering this quantity does not generate a backorder."
+        "Changing this quantity on assigned moves affects "
+        "the product reservation, and should be done with care.",
+    )
+    product_qty = fields.Float(
+        string="Real Quantity",
+        digits=0,
+        compute="_compute_product_qty",
+        compute_sudo=True,
+        store=True,
+        inverse="_inverse_product_qty",
+        help="Quantity in the default UoM of the product",
+    )
+    description_picking_manual = fields.Text(readonly=True)
+    description_picking = fields.Text(
+        string="Description Of Picking",
+        compute="_compute_description_picking",
+        inverse="_inverse_description_picking",
+        compute_sudo=True,
+    )
+    move_orig_ids = fields.Many2many(
+        "stock.move",
+        "stock_move_move_rel",
+        "move_dest_id",
+        "move_orig_id",
+        "Original Move",
         copy=False,
-        default=False,
-        help="This checkbox is just indicative, it doesn't validate or generate any product moves.",
+        help="Optional: previous stock move when chaining them",
+    )
+    move_dest_ids = fields.Many2many(
+        "stock.move",
+        "stock_move_move_rel",
+        "move_orig_id",
+        "move_dest_id",
+        "Destination Moves",
+        copy=False,
+        help="Optional: next stock move when chaining them",
     )
 
     # used to record the product cost set by the user during a picking confirmation (when costing
@@ -354,15 +345,20 @@ class StockMove(models.Model):
         "Destination route",
         help="Preferred route",
     )
-    has_lines_without_result_package = fields.Boolean(
-        compute="_compute_has_lines_without_result_package",
-    )
     quantity = fields.Float(
         string="Quantity",
         digits="Product Unit",
         compute="_compute_quantity",
         store=True,
         inverse="_inverse_quantity",
+    )
+    reference = fields.Char(
+        string="Reference",
+        compute="_compute_reference",
+        store=True,
+    )
+    has_lines_without_result_package = fields.Boolean(
+        compute="_compute_has_lines_without_result_package",
     )
     show_details_visible = fields.Boolean(
         string="Details Visible",
@@ -371,6 +367,16 @@ class StockMove(models.Model):
     additional = fields.Boolean(
         string="Whether the move was added after the picking's confirmation",
         default=False,
+    )
+    picked = fields.Boolean(
+        string="Picked",
+        compute="_compute_picked",
+        inverse="_inverse_picked",
+        store=True,
+        readonly=False,
+        copy=False,
+        default=False,
+        help="This checkbox is just indicative, it doesn't validate or generate any product moves.",
     )
     is_locked = fields.Boolean(
         compute="_compute_is_locked",
@@ -387,11 +393,6 @@ class StockMove(models.Model):
     is_quantity_done_editable = fields.Boolean(
         string="Is quantity done editable",
         compute="_compute_is_quantity_done_editable",
-    )
-    reference = fields.Char(
-        string="Reference",
-        compute="_compute_reference",
-        store=True,
     )
     move_lines_count = fields.Integer(compute="_compute_move_lines_count")
     display_assign_serial = fields.Boolean(compute="_compute_display_assign_serial")
@@ -435,9 +436,9 @@ class StockMove(models.Model):
         precompute=True,
         store=True,
     )
-    packaging_uom_qty = fields.Float(
+    quantity_packaging_uom = fields.Float(
         string="Packaging Quantity",
-        compute="_compute_packaging_uom_qty",
+        compute="_compute_quantity_packaging_uom",
         store=True,
         help="Quantity in the packaging unit",
     )
@@ -1226,15 +1227,15 @@ class StockMove(models.Model):
             move.packaging_uom_id = move.product_uom_id
 
     @api.depends("product_uom_qty", "packaging_uom_id")
-    def _compute_packaging_uom_qty(self):
+    def _compute_quantity_packaging_uom(self):
         for move in self:
             if move.packaging_uom_id:
-                move.packaging_uom_qty = move.product_uom_id._compute_quantity(
+                move.quantity_packaging_uom = move.product_uom_id._compute_quantity(
                     move.product_uom_qty,
                     move.packaging_uom_id,
                 )
             else:
-                move.packaging_uom_qty = 0.0
+                move.quantity_packaging_uom = 0.0
 
     @api.depends(
         "has_tracking",
@@ -2112,7 +2113,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             )
         return moves
 
-    def action_open_reference(self):
+    def action_view_reference(self):
         """Open the form view of the move's reference document, if one exists, otherwise open form view of self"""
         self.ensure_one()
         if not self.is_inventory and self.location_dest_usage == "inventory":
