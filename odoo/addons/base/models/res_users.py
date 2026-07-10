@@ -298,7 +298,11 @@ class ResUsers(models.Model):
 
     @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
-        """Return ``self``'s group ids (as a tuple)."""
+        """Return ``self``'s effective (implied) group ids as a tuple.
+
+        These are ``all_group_ids`` (the transitive closure), not the direct
+        ``group_ids`` field.
+        """
         self.ensure_one()
         # with_context({}): an @ormcache('self.id') result must not depend on
         # the context (active_test, lang, ...)

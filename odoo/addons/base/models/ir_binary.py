@@ -201,9 +201,10 @@ class IrBinary(models.AbstractModel):
         When the record is missing or inaccessible, ``placeholder`` is served
         instead (defaulting to
         :meth:`~odoo.models.BaseModel._get_placeholder_filename`, ultimately
-        ``web/static/img/placeholder.png``). When ``width``, ``height``,
-        ``crop`` or ``quality`` are given the image is post-processed and its
-        ETag updated accordingly (see :func:`odoo.tools.image.image_process`).
+        ``web/static/img/placeholder.png``). When ``width``, ``height`` or
+        ``crop`` is given the image is post-processed (at the requested
+        ``quality``) and its ETag updated accordingly (see
+        :func:`odoo.tools.image.image_process`).
 
         :param str | None placeholder: image path served when the record image
             is missing or inaccessible.

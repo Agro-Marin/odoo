@@ -281,7 +281,7 @@ class ResGroups(models.Model):
                 )
 
         # Invalidate caches before updating groups, since the recomputation of
-        # field 'share' depends on method has_group().
+        # res.users field 'share' depends on all_group_ids (cache-backed).
         if self.ids:
             self.env["ir.model.access"].call_cache_clearing_methods()
 

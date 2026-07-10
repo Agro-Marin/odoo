@@ -1997,7 +1997,7 @@ class IrQweb(models.AbstractModel):
                 metafile.encode("utf-8"),
                 mimetype="application/json",
             )
-        # Source-map sidecar — esbuild's ``--sourcemap=external`` appends
+        # Source-map sidecar — esbuild's ``--sourcemap=linked`` appends
         # ``//# sourceMappingURL=<basename>.map`` to the bundle, so the browser
         # fetches this URL only when devtools is open. The ``.esm.js`` →
         # ``.esm.js.map`` name matches esbuild's default, so the directive
@@ -2021,7 +2021,7 @@ class IrQweb(models.AbstractModel):
     ) -> None:
         """Persist a sibling file next to an ESM bundle attachment.
 
-        Used for metafiles today; extensible to source maps or other
+        Used for metafiles and source-map sidecars; extensible to other
         analysis side-channels.  Idempotent: reuses the existing
         attachment when the URL already maps to one.
         """

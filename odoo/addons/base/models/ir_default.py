@@ -34,14 +34,14 @@ class IrDefault(models.Model):
         string="User",
         ondelete="cascade",
         index=True,
-        help="If set, action binding only applies for this user.",
+        help="If set, this default only applies for this user.",
     )
     company_id = fields.Many2one(
         "res.company",
         string="Company",
         ondelete="cascade",
         index=True,
-        help="If set, action binding only applies for this company",
+        help="If set, this default only applies for this company",
     )
     condition = fields.Char(
         "Condition",
@@ -198,7 +198,7 @@ class IrDefault(models.Model):
         condition: str | bool = False,
     ) -> bool:
         """Set the default value for a field, replacing any entry for the same
-        (field, user, company) scope. Stored JSON-encoded.
+        (field, user, company, condition) scope. Stored JSON-encoded.
 
         :param model_name: technical name of the model owning the field
         :param field_name: name of the field to set a default for
