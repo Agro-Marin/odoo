@@ -751,8 +751,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         ``_closed`` is already set."""
         self.clear()
         self.postcommit.clear()
-        self.prerollback.run()
-        self._cnx.rollback()
+        try:
+            self.prerollback.run()
+        finally:
+            # Always issue the SQL ROLLBACK, even if a prerollback hook raised:
+            # skipping it would leave the aborted transaction open on the
+            # connection (public rollback() has no recovery path; _close does).
+            self._cnx.rollback()
         self._now = None
         self.postrollback.run()
 

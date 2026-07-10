@@ -32,6 +32,27 @@ from odoo.tools.embedded_sass_pb2 import (
 
 _logger = logging.getLogger(__name__)
 
+# Wall-clock ceiling for a single compile. Generous (large bundles are slow),
+# but bounded: without it a wedged dart-sass would block the stdin/stdout I/O
+# forever WHILE HOLDING the client lock, freezing every SCSS compile in the
+# process. On timeout the subprocess is killed so the blocked I/O fails, the
+# client reaps it, and the caller falls back to the CLI compiler.
+_COMPILE_TIMEOUT_S = 120.0
+
+
+def _kill_wedged_sass(proc: Popen) -> None:
+    """Kill a ``sass --embedded`` process that exceeded the compile deadline.
+
+    Runs on a watchdog thread; it only kills the specific captured process and
+    never touches the client's shared state, so it cannot race ``_process``.
+    """
+    _logger.warning(
+        "sass --embedded compile exceeded %ss; killing the wedged process",
+        _COMPILE_TIMEOUT_S,
+    )
+    with contextlib.suppress(Exception):
+        proc.kill()
+
 
 class SassCompileError(Exception):
     """Raised when Sass compilation fails."""
@@ -134,7 +155,7 @@ def _supports_embedded(sass_path: str) -> bool:
             stderr=subprocess.STDOUT,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return False
     if proc.returncode != 0:
         return False
@@ -219,8 +240,12 @@ class SassEmbeddedCompiler:
 
     def _start(self) -> None:
         """Spawn the ``sass --embedded`` subprocess."""
-        if self._started:
+        # Also restart when the process died since last use (e.g. killed by the
+        # compile watchdog, or crashed between compiles): a dead process must not
+        # be reused or every subsequent compile would fail on a broken pipe.
+        if self._started and self._process is not None and self._process.poll() is None:
             return
+        self._started = False
 
         sass_path = self._sass_path
         if sass_path is None:
@@ -345,6 +370,14 @@ class SassEmbeddedCompiler:
             self._compilation_id += 1
             compilation_id = self._compilation_id
 
+            # Watchdog: kill the subprocess if this compile blocks past the
+            # deadline (see _COMPILE_TIMEOUT_S), so a wedged dart-sass cannot
+            # hold self._lock — and thus every other SCSS compile — forever.
+            watchdog = threading.Timer(
+                _COMPILE_TIMEOUT_S, _kill_wedged_sass, (self._process,)
+            )
+            watchdog.daemon = True
+            watchdog.start()
             try:
                 return self._do_compile(
                     compilation_id,
@@ -360,13 +393,16 @@ class SassEmbeddedCompiler:
             except SassCompileError:
                 raise
             except Exception:
-                # Process crashed mid-communication — close to reap the zombie
-                # process, then re-raise so the caller can react (the embedded
-                # → CLI fallback in ``SassStylesheetAsset.compile`` handles a
-                # transient embedded-protocol failure; a missing binary raises
+                # Process crashed or was killed by the watchdog mid-communication
+                # — close to reap the zombie process, then re-raise so the caller
+                # can react (the embedded → CLI fallback in
+                # ``SassStylesheetAsset.compile`` handles a transient
+                # embedded-protocol failure; a missing binary raises
                 # ``SassNotFoundError`` from ``_start`` and never reaches here).
                 self.close()
                 raise
+            finally:
+                watchdog.cancel()
 
     def _do_compile(
         self,

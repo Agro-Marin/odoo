@@ -19,7 +19,6 @@ from odoo.libs.numbers.float_utils import (
 )
 from odoo.libs.parse_version import parse_version
 from odoo.libs.set_expression import SetDefinitions, SetExpressionError
-from odoo.libs.web import urls
 
 from .cache import ormcache, ormcache_context
 from .config import config
@@ -57,7 +56,6 @@ from .misc import (
     DotDict,
     LastOrderedSet,
     OrderedSet,
-    Reverse,
     babel_locale_parse,
     clean_context,
     consteq,

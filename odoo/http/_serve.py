@@ -252,6 +252,11 @@ class _RequestServeMixin:
                     # at EOF); rewind them so the RW retry re-reads the body
                     # instead of an empty upload (as ``retrying`` does).
                     self._rewind_input_files(exc)
+                    # The aborted RO attempt may have mutated the in-memory
+                    # session (e.g. a handler that set session.uid/context before
+                    # its first write); re-fetch it so the RW replay starts from
+                    # persisted state, matching retrying()'s per-attempt refresh.
+                    self.session = self._get_session_and_dbname()[0]
                 except Exception as exc:
                     # ``_update_served_exception`` attaches ``error_response`` to
                     # ``exc``; the bare ``raise`` preserves the original traceback.
