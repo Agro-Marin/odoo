@@ -1,15 +1,8 @@
 // @ts-check
 
 /**
- * Pure unit tests for resequence.js.
- *
- * Tests the resequence() function with a mock ORM. No OWL, DOM, or server.
- *
- * The function re-orders records in-place and calls orm.webResequence()
- * to persist the new sequences. Tests verify:
- *  - records array is reordered in place
- *  - orm.webResequence is called with the correct resIds and offset
- *  - rollback occurs on ORM error
+ * Pure unit tests for resequence(): mock ORM, no OWL/DOM/server. Verifies
+ * in-place reordering, the webResequence payload, and rollback on error.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -18,9 +11,7 @@ import {
     resequence,
 } from "@web/model/relational_model/resequence";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Create a simple mock ORM that records the last webResequence call.
@@ -49,9 +40,7 @@ function makeRecords(specs) {
     return specs.map(([id, sequence]) => ({ id, sequence }));
 }
 
-// ---------------------------------------------------------------------------
 // Basic resequence — move forward
-// ---------------------------------------------------------------------------
 
 describe("resequence — move forward", () => {
     test("moves a record from index 0 to index 2", async () => {
@@ -71,9 +60,7 @@ describe("resequence — move forward", () => {
             targetId: 3, // move after record 3
         });
 
-        // Record 1 should now be at index 2
         expect(records[2].id).toBe(1);
-        // ORM was called
         expect(orm.calls.length).toBe(1);
         expect(orm.calls[0].model).toBe("product.product");
     });
@@ -95,14 +82,11 @@ describe("resequence — move forward", () => {
             targetId: null, // move to first position
         });
 
-        // Record 3 should now be at index 0
         expect(records[0].id).toBe(3);
     });
 });
 
-// ---------------------------------------------------------------------------
 // ORM call parameters
-// ---------------------------------------------------------------------------
 
 describe("resequence — ORM call parameters", () => {
     test("passes fieldName as field_name param", async () => {
@@ -142,8 +126,7 @@ describe("resequence — ORM call parameters", () => {
             targetId: null,
         });
 
-        // When moving to position 0, all 3 records are reordered.
-        // Minimum sequence is 5, so offset should be 5.
+        // Moving to position 0 reorders all 3 records; offset = min sequence = 5.
         expect(orm.calls[0].params.offset).toBe(5);
     });
 
@@ -169,9 +152,7 @@ describe("resequence — ORM call parameters", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Custom getSequence / getResId callbacks
-// ---------------------------------------------------------------------------
 
 describe("resequence — custom callbacks", () => {
     test("uses custom getSequence to read sequence", async () => {
@@ -219,9 +200,7 @@ describe("resequence — custom callbacks", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Rollback on error
-// ---------------------------------------------------------------------------
 
 describe("resequence — rollback on ORM error", () => {
     test("restores original order when ORM throws", async () => {
@@ -248,14 +227,11 @@ describe("resequence — rollback on ORM error", () => {
         }
 
         expect(thrown).toBe(true);
-        // Records restored to original order
         expect(records.map((r) => r.id)).toEqual(originalOrder);
     });
 });
 
-// ---------------------------------------------------------------------------
 // computeResequencePlan — shared pure plan (also consumed by static_list_sort)
-// ---------------------------------------------------------------------------
 
 describe("computeResequencePlan", () => {
     const getSequence = (r) => r.sequence;
@@ -376,9 +352,7 @@ describe("computeResequencePlan", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Descending order
-// ---------------------------------------------------------------------------
 
 describe("resequence — descending order", () => {
     test("asc=false reverses the sequence direction", async () => {

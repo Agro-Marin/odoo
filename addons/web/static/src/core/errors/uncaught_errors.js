@@ -6,16 +6,9 @@
 import { getErrorTechnicalName } from "./error_utils.js";
 
 /**
- * Uncaught Errors have 4 properties:
- * - name: technical name of the error (UncaughtError, ...)
- * - message: short user visible description of the issue ("Uncaught Cors Error")
- * - traceback: long description, possibly technical of the issue (such as a traceback)
- * - originalError: the error that was actually being caught. Note that it is not
- *      necessarily an error (for ex, if some code does throw "boom")
- */
-/**
  * Base class for all uncaught errors intercepted by the error service.
- * Has `traceback` and `originalError` properties populated by error handlers.
+ * Has `traceback` and `originalError` properties populated by error handlers
+ * (originalError isn't necessarily an Error instance, e.g. `throw "boom"`).
  */
 export class UncaughtError extends Error {
     /** @param {string} message */

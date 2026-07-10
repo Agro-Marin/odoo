@@ -17,10 +17,7 @@ import { constructExpressionFromTree } from "./construct_expression_from_tree.js
  */
 export function expressionFromTree(tree, options = {}) {
     const simplifiedTree = eliminateVirtualOperators(tree, options);
-    // ``constructExpressionFromTree`` is typed ``string | Error`` but
-    // production callers (expression_editor.js) and existing tests treat
-    // it as ``string`` — Error returns never surface in practice. Keep
-    // the narrowing here; widen the return type if a real Error path
-    // ever needs to be handled.
+    // Typed ``string | Error``, but Error never surfaces in practice; narrow
+    // here rather than widening callers' assumed ``string`` return type.
     return /** @type {string} */ (constructExpressionFromTree(simplifiedTree, options));
 }

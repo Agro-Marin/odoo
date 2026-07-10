@@ -26,23 +26,9 @@ registry
     );
 
 /**
- * Website Core
- *
- * This service handles the core interactions for the website codebase.
- * It will replace public root, publicroot instance, and all that stuff
- *
- * We have 2 kinds of interactions:
- * - simple interactions (subclasses of Interaction)
- * - components
- *
- * The Interaction class is designed to be a simple class that provides access
- * to the framework (env and services), and a minimalist declarative framework
- * that allows manipulating dom, attaching event handlers and updating it
- * properly. It does not depend on owl.
- *
- * The Component kind of interaction is used for more complicated interface needs.
- * It provides full access to Owl features, but is rendered browser side.
- *
+ * Two kinds of interactions: `Interaction` subclasses (owl-free, declarative
+ * DOM manipulation + event handlers) and Owl `Component` subclasses (full
+ * Owl access, for more complex UI needs).
  */
 
 class InteractionService {
@@ -120,10 +106,10 @@ class InteractionService {
                 warnIfNoStaticProps: this.env.debug,
                 translatableAttributes: ["data-tooltip"],
             };
-            // ``App`` is typed for ``ComponentConstructor`` as the first arg,
-            // but interactions use ``createRoot`` afterwards (each public
-            // interaction mounts under its own owl-root); the null root is
-            // intentional. Cast keeps the call type-clean.
+            // App is typed for ComponentConstructor as first arg, but each
+            // interaction mounts its own root via createRoot() afterwards —
+            // the null root here is intentional; the cast keeps the call
+            // type-clean.
             this.owlApp = new App(null, /** @type {any} */ (appConfig));
         }
         const root = /** @type {any} */ (this.owlApp).createRoot(C, {
@@ -339,9 +325,8 @@ class InteractionService {
     }
 
     /**
-     * @returns { Promise } returns a promise that is resolved when all current
-     * interactions are started. Note that it does not take into account possible
-     * future interactions.
+     * @returns { Promise } resolves once all current interactions are
+     * started; does not track future ones.
      */
     get isReady() {
         const proms = this.proms.slice();

@@ -336,9 +336,8 @@ describe("using selectors", () => {
             dynamicContent = {
                 ".me": {
                     "t-on-click": (ev) => {
-                        // ping-pong the ".me" marker between the two spans, so
-                        // every refresh removes one node's listener and adds the
-                        // other's.
+                        // Ping-pong the ".me" marker between the two spans, so each
+                        // refresh removes one node's listener and adds the other's.
                         ev.currentTarget.parentElement
                             .querySelectorAll("span")
                             .forEach((el) => el.classList.toggle("me"));
@@ -362,9 +361,8 @@ describe("using selectors", () => {
                 await click(el);
             }
         }
-        // At most one span matches ".me" at a time, so departed listeners must
-        // be pruned: `cleanups` stays near baseline instead of growing ~one per
-        // refresh (which is what the pre-fix append-only behaviour did).
+        // Departed listeners must be pruned: `cleanups` stays near baseline
+        // instead of growing ~1/refresh (pre-fix append-only behaviour).
         expect(colibri.cleanups.length).toBeLessThan(baseline + 3);
     });
 

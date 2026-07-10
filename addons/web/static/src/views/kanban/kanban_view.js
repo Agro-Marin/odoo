@@ -12,12 +12,9 @@ import { KanbanController } from "./kanban_controller.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
 
 /**
- * Kanban view descriptor registered in the "views" registry.
- *
- * Wires together the arch parser, controller, model, renderer, and compiler
- * that collectively implement the kanban view type. The `props` factory parses
- * the arch XML and merges the result into the component props passed to the
- * controller.
+ * Kanban view descriptor registered in the "views" registry. The `props`
+ * factory parses the arch XML and merges the result into the controller's
+ * component props.
  *
  * @type {{
  *   type: string,

@@ -11,12 +11,7 @@ import { Field, fieldVisualFeedback } from "@web/fields/field";
 import { Operation } from "@web/model/relational_model/operation";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/**
- * Confirmation dialog shown before applying multi-record edits.
- *
- * Displays the number of affected records, the fields being changed, and
- * their new values. Lets the user confirm or cancel the bulk update.
- */
+/** Confirmation dialog for multi-record bulk edits: shows affected record count, changed fields, and new values. */
 export class ListConfirmationDialog extends Component {
     static template = "web.ListView.ConfirmationModal";
     static components = { Dialog, Field, TagsList };

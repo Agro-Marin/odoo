@@ -112,11 +112,10 @@ test("registerField with empty aliases array is a no-op beyond primary", () => {
 });
 
 test("aliases form does NOT bind a variant widget to alias keys", () => {
-    // Documents intentional limitation: when two widgets share a base but
-    // customize behaviour (e.g. many2ManyTagsField vs.
-    // many2ManyTagsFieldColorEditable), they MUST be registered with separate
-    // registerField calls. Chaining the variant via ``aliases`` would silently
-    // bind the alias key to the BASE widget — the opposite of the intent.
+    // Intentional limitation: widgets that share a base but customize
+    // behaviour (e.g. many2ManyTagsField vs. many2ManyTagsFieldColorEditable)
+    // must be registered with separate registerField calls — chaining the
+    // variant via ``aliases`` would silently bind the alias key to the BASE.
     const base = _sentinelWidget("base");
     const variant = _sentinelWidget("variant");
     const baseKey = `${SENTINEL_PREFIX}base`;
@@ -129,9 +128,8 @@ test("aliases form does NOT bind a variant widget to alias keys", () => {
             },
             base,
         );
-        // The variant key now (incorrectly, for this hypothetical caller) points to BASE.
-        // We assert the helper's actual behaviour so callers know what they get if they
-        // misuse aliases for variant registration.
+        // Pins down the actual (mis-)behaviour so callers know what to expect
+        // if they misuse aliases for variant registration.
         expect(fieldsRegistry.get(variantKey)).toBe(base);
         expect(fieldsRegistry.get(variantKey)).not.toBe(variant);
     } finally {
@@ -140,7 +138,6 @@ test("aliases form does NOT bind a variant widget to alias keys", () => {
     }
 });
 
-// ---------------------------------------------------------------------------
 // Fields registry validation schema (installed by @web/fields/field)
 //
 // The schema QUARANTINES failing entries in production (see
@@ -149,13 +146,10 @@ test("aliases form does NOT bind a variant widget to alias keys", () => {
 // registrations are rejected, and every real-world declaration pattern found
 // in community / enterprise / agromarin is accepted.
 //
-// The Hoot harness patches ``Registry.prototype.add`` to force ``force:
-// true`` (module_set.hoot.js) so fixture overrides work, but validation runs
-// BEFORE the force shortcut, so ``add`` still validates. The tests
-// nevertheless use a fresh raw ``Registry`` seeded with the production
-// schema object, so they cannot pollute the live shared fields registry
-// with sentinel keys or depend on its contents.
-// ---------------------------------------------------------------------------
+// Hoot patches ``Registry.prototype.add`` to force ``force: true``
+// (module_set.hoot.js), but validation runs BEFORE that shortcut, so ``add``
+// still validates. Tests use a fresh raw ``Registry`` seeded with the
+// production schema object so they can't pollute the live fields registry.
 
 /** @returns {Registry<any>} a raw registry validating with the REAL fields schema */
 function _makeSchemaRegistry() {

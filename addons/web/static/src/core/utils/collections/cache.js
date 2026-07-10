@@ -60,11 +60,8 @@ export class Cache {
         if (this.getKey) {
             key = this.getKey(...path);
         } else {
-            // Without `getKey`, each path segment becomes an object property
-            // key via string coercion. Non-primitive segments all collapse to
-            // the same string ("[object Object]", or a function's source), so
-            // distinct objects would silently share one cache slot. Fail fast
-            // instead — such callers must supply a `getKey` (e.g. JSON.stringify).
+            // Fail fast on non-primitive segments here (see assertPrimitiveSegment)
+            // instead of letting them silently collide once coerced to object keys.
             for (const segment of path) {
                 assertPrimitiveSegment(segment);
             }

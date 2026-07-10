@@ -41,16 +41,14 @@ export class PropertyTags extends Component {
         id: { type: String, optional: true },
         selectedTags: {}, // Tags value visible in the tags list
         tags: {}, // Tags definition visible in the dropdown
-        // Define the behavior of the delete button on the tags, either
-        // "value" or "tags". If "value", the delete button will unselect
-        // the value, if "tags" the value will be removed from the definition.
+        // Behavior of the tag delete button: "value" unselects the value,
+        // "tags" removes it from the definition.
         deleteAction: { type: String },
         readonly: { type: Boolean, optional: true },
         canChangeTags: { type: Boolean, optional: true },
         // Select a new value
         onValueChange: { type: Function, optional: true },
-        // Change the tags definition (can also receive a second
-        // argument to update the current selected value)
+        // Change the tags definition (may pass a 2nd arg to also update selection)
         onTagsChange: { type: Function, optional: true },
     };
     setup() {
@@ -68,8 +66,7 @@ export class PropertyTags extends Component {
      * -------------------------------------------------------- */
 
     /**
-     * Return true if we should display the badges or just the tag label.
-     *
+     * Whether to display badges vs. just the tag label.
      * @returns {array}
      */
     get displayBadge() {
@@ -79,8 +76,7 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Return the list containing tags values and actions for the TagsList component.
-     *
+     * Tags values and actions for the TagsList component.
      * @returns {array}
      */
     get tagListItems() {
@@ -117,10 +113,8 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Return the current selected tags.
-     * Make a deep copy to not make change on the original object
-     * and to be able to discard change.
-     *
+     * Current selected tags, deep-copied so callers can mutate/discard
+     * without touching the original.
      * @returns {array}
      */
     get selectedTags() {
@@ -128,10 +122,8 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Return the current tags that can be selected.
-     * Make a deep copy to not make change on the original object
-     * and to be able to discard change.
-     *
+     * Current selectable tags, deep-copied so callers can mutate/discard
+     * without touching the original.
      * @returns {array}
      */
     get availableTags() {
@@ -140,7 +132,6 @@ export class PropertyTags extends Component {
 
     /**
      * Options available in the autocomplete component.
-     *
      * @returns {array}
      */
     get autocompleteSources() {
@@ -197,12 +188,9 @@ export class PropertyTags extends Component {
      * -------------------------------------------------------- */
 
     /**
-     * Add one value in the current tag list values.
-     *
-     * @param {string | object} tagValue
-     *      Either
-     *      - {toCreate: true, value: label}, to create a new value
-     *      - value, to select an existing value
+     * Add one value to the current tag list values.
+     * @param {string | object} tagValue Either {toCreate: true, value: label} to
+     *      create a new value, or an existing value to select it.
      */
     onOptionSelected(tagValue) {
         const selectedTags = this.selectedTags;
@@ -211,9 +199,7 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Ask to create a new tag that will be added in
-     * the definition and automatically selected.
-     *
+     * Create a new tag, add it to the definition, and select it.
      * @param {string} newLabel
      */
     async onTagCreate(newLabel) {
@@ -247,14 +233,9 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Click on the delete button on the tag pill.
-     * The behavior is defined by the prop "deleteAction".
-     *
-     * If we use the component for the tag configuration, clicking on "delete"
-     * will remove the tags from the available tags. If we use the component
-     * the tag selection, it will unselect the tag.
-     *
-     * @param {string} deleteTag, ID of the tag to delete
+     * Delete-button handler for a tag pill; behavior depends on "deleteAction":
+     * unselect the value, or remove it from the available tags.
+     * @param {string} deleteTag ID of the tag to delete
      */
     onTagDelete(deleteTag) {
         if (this.props.deleteAction === "value") {
@@ -272,8 +253,7 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Click on a tag pill, open the color popover if we can change the tag definition.
-     *
+     * Click on a tag pill; open the color popover if the tag definition is editable.
      * @param {Event} event
      * @param {string} tagId
      * @param {integer} tagColor
@@ -291,8 +271,7 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Ask to change the color of a tag.
-     *
+     * Change the color of a tag.
      * @param {integer} colorIndex
      * @param {object} currentTag
      */
@@ -301,13 +280,11 @@ export class PropertyTags extends Component {
         availableTags.find((tag) => tag[0] === currentTag.id)[2] = colorIndex;
         this.props.onTagsChange(availableTags);
 
-        // close the color popover
         this.popover.close();
     }
 
     /**
-     * Delete tags by pressing backspace.
-     *
+     * Delete a tag by index (backspace navigation).
      * @param {integer} index
      */
     deleteTagByIndex(index) {

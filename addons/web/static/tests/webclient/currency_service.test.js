@@ -65,10 +65,8 @@ test("do not reload webclient when updating a res.currency, but there is an erro
 });
 
 test("a failed background currency reload does not raise an unhandled rejection", async () => {
-    // The reload triggered by a res.currency mutation is fire-and-forget. If
-    // `get_all_currencies` rejects, the failure must be swallowed (logged via
-    // console.warn) rather than bubbling up as an unhandled rejection that Hoot
-    // would fail the test on (and that the user would see as an error dialog).
+    // The reload is fire-and-forget: a rejected `get_all_currencies` must be
+    // swallowed (via console.warn), not left as an unhandled rejection.
     patchWithCleanup(console, {
         warn: () => expect.step("warn"),
     });

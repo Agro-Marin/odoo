@@ -434,7 +434,7 @@ describe("useService", () => {
 
 describe("useSpellCheck", () => {
     test("ref is on the textarea", async () => {
-        // To understand correctly the test, refer to the MDN documentation of spellcheck.
+        // See MDN docs on the spellcheck attribute vs property behavior.
         class MyComponent extends Component {
             static props = ["*"];
             static template = xml`<div><textarea t-ref="spellcheck" class="textArea"/></div>`;
@@ -448,7 +448,6 @@ describe("useSpellCheck", () => {
         expect(".textArea").toHaveProperty("spellcheck", true);
         expect(".textArea").not.toHaveAttribute("spellcheck");
 
-        // Focus textarea
         await click(".textArea");
         expect(".textArea").toBeFocused();
 
@@ -458,7 +457,6 @@ describe("useSpellCheck", () => {
         expect(".textArea").toHaveProperty("spellcheck", false);
         expect(".textArea").toHaveAttribute("spellcheck", "false");
 
-        // Focus textarea
         await click(".textArea");
 
         expect(".textArea").toHaveProperty("spellcheck", true);
@@ -486,7 +484,6 @@ describe("useSpellCheck", () => {
         // Click out to trigger blur
         await click(getFixture());
 
-        // Once these assertions pass, it means that the hook is working.
         expect(".textArea").toHaveProperty("spellcheck", false);
         expect(".textArea").toHaveAttribute("spellcheck", "false");
     });
@@ -511,11 +508,9 @@ describe("useSpellCheck", () => {
         expect(".textArea").not.toHaveAttribute("spellcheck");
         expect(".editableDiv").not.toHaveAttribute("spellcheck");
 
-        // Focus textarea
         await click(".textArea");
         expect(".textArea").toBeFocused();
 
-        // Focus editable div
         await click(".editableDiv");
         expect(".editableDiv").toBeFocused();
 
@@ -527,7 +522,6 @@ describe("useSpellCheck", () => {
         expect(".textArea").toHaveAttribute("spellcheck", "false");
         expect(".editableDiv").toHaveAttribute("spellcheck", "false");
 
-        // Focus textarea
         await click(".textArea");
 
         expect(".textArea").toHaveProperty("spellcheck", true);
@@ -535,7 +529,6 @@ describe("useSpellCheck", () => {
         expect(".editableDiv").toHaveProperty("spellcheck", false);
         expect(".editableDiv").toHaveAttribute("spellcheck", "false");
 
-        // Focus editable div
         await click(".editableDiv");
 
         expect(".textArea").toHaveProperty("spellcheck", false);
@@ -564,11 +557,9 @@ describe("useSpellCheck", () => {
         expect(".textArea").not.toHaveAttribute("spellcheck");
         expect(".editableDiv").toHaveAttribute("spellcheck", "false");
 
-        // Focus textarea
         await click(".textArea");
         expect(".textArea").toBeFocused();
 
-        // Focus editable div
         await click(".editableDiv");
         expect(".editableDiv").toBeFocused();
 
@@ -580,7 +571,6 @@ describe("useSpellCheck", () => {
         expect(".editableDiv").toHaveProperty("spellcheck", false);
         expect(".editableDiv").toHaveAttribute("spellcheck", "false");
 
-        // Focus textarea
         await click(".textArea");
 
         expect(".textArea").toHaveProperty("spellcheck", true);
@@ -588,7 +578,6 @@ describe("useSpellCheck", () => {
         expect(".editableDiv").toHaveProperty("spellcheck", false);
         expect(".editableDiv").toHaveAttribute("spellcheck", "false");
 
-        // Focus editable div
         await click(".editableDiv");
 
         expect(".textArea").toHaveProperty("spellcheck", false);

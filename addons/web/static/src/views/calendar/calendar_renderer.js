@@ -8,7 +8,6 @@ import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 
 import { CalendarCommonRenderer } from "./calendar_common/calendar_common_renderer.js";
 import { CalendarYearRenderer } from "./calendar_year/calendar_year_renderer.js";
-/** Top-level calendar renderer that delegates to scale-specific sub-renderers. */
 export class CalendarRenderer extends Component {
     static template = "web.CalendarRenderer";
     static components = {

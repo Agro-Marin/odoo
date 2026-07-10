@@ -197,11 +197,9 @@ test("clicking quickly on breadcrumbs...", async () => {
     await contains(".o_kanban_record").click();
     await getService("action").doAction(8);
 
-    // now, the next read operations will be promise (this is the read
-    // operation for the form view reload)
+    // block the form view reload's read
     def = new Deferred();
-    // click on the breadcrumbs for the form view, then on the kanban view
-    // before the form view is fully reloaded
+    // click the form breadcrumb, then the kanban one, before reload completes
     await contains(queryAll(".o_control_panel .breadcrumb-item")[1]).click();
     await contains(".o_control_panel .breadcrumb-item").click();
 
@@ -335,14 +333,10 @@ test("execute a new action while handling a call_button", async () => {
 
 test.tags("desktop");
 test("execute a new action while switching to another controller", async () => {
-    // This test's bottom line is that a doAction always has priority
-    // over a switch controller (clicking on a record row to go to form view).
-    // In general, the last actionManager's operation has priority because we want
-    // to allow the user to make mistakes, or to rapidly reconsider her next action.
-    // Here we assert that the actionManager's RPC are in order, but a 'read' operation
-    // is expected, with the current implementation, to take place when switching to the form view.
-    // Ultimately the form view's 'read' is superfluous, but can happen at any point of the flow,
-    // except at the very end, which should always be the final action's list's 'search_read'.
+    // doAction always has priority over a switch controller (clicking a row to
+    // open the form view): the last actionManager operation wins. The form's
+    // 'read' is superfluous but can land anywhere except after the final
+    // action's 'search_read'.
     let def;
     stepAllNetworkCalls();
     onRpc("web_read", () => def);
@@ -796,9 +790,9 @@ test("local state, global state, and race conditions", async () => {
 
     await toggleSearchBarMenu();
     expect(isItemSelected("Foo")).toBe(true);
-    // this test is not able to detect that getGlobalState is put on the right place:
-    // currentController.action.globalState contains in any case the search state
-    // of the first instantiated toy view.
+    // Limitation: can't detect getGlobalState placement here, since
+    // currentController.action.globalState always holds the first toy view's
+    // search state regardless.
 
     expect.verifySteps([
         "no state", // setup first view instantiated

@@ -40,12 +40,8 @@ export class DropdownPopover extends Component {
 
     setup() {
         onRendered(() => {
-            // Note that the Dropdown component and the DropdownPopover component
-            // are not in the same context.
-            // So when the Dropdown component is re-rendered, the DropdownPopover
-            // component must also re-render itself.
-            // This is why we subscribe to this reactive, which is changed when
-            // the Dropdown component is re-rendered.
+            // Dropdown and DropdownPopover are separate contexts; subscribe to
+            // this reactive so we re-render whenever Dropdown does.
             this.props.refresher.token;
         });
 

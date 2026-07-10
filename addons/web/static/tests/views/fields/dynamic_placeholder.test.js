@@ -133,7 +133,6 @@ test("dynamic placeholder properties", async () => {
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:contains('Properties')",
     ).toHaveCount(1);
 
-    // select the properties
     await contains(
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:contains('Properties') + .o_model_field_selector_popover_item_relation",
     ).click();
@@ -144,7 +143,6 @@ test("dynamic placeholder properties", async () => {
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:contains('prop 2 (xphone)')",
     ).toHaveCount(1);
 
-    // select the many2one property
     await contains(
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:contains('prop 2 (xphone)') + .o_model_field_selector_popover_item_relation",
     ).click();
@@ -152,12 +150,10 @@ test("dynamic placeholder properties", async () => {
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:contains('Created on')",
     ).toHaveCount(1);
 
-    // select the product name
     await contains(
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:contains('Product Name')",
     ).click();
 
-    // click on insert
     await contains(".o_model_field_selector_popover button:contains('Insert')").click();
 
     const value = document.querySelector(".o_field_placeholder").value.trim();

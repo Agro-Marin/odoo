@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/percent_pie/percent_pie_field - Pie chart visualization showing a percentage value */
-
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";

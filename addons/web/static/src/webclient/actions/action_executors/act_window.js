@@ -14,14 +14,10 @@ import { findView } from "../action_views.js";
 /** @import { ActWindowAction } from "@web/webclient/actions/action_service" */
 
 /**
- * Execute an action of type ``ir.actions.act_window``.
- *
- * Loads the target view (respecting ``options.viewType`` and mobile
- * fallback), builds the controller via the action manager's
- * ``_makeController`` / ``_getViewInfo`` factories, and renders it through
- * ``_updateUI``.  The ``newStack`` lazy-controller branch handles the case
- * where the URL state requested a multi-record breadcrumb but the resolved
- * action doesn't actually have one (drop the lazy crumb in that case).
+ * Execute an action of type ``ir.actions.act_window``: resolve the view,
+ * build the controller, and render it. If ``options.newStack`` ends in a lazy
+ * controller but the action has no multi-record view to promote it into, the
+ * lazy crumb is dropped.
  *
  * @param {ActWindowAction} action
  * @param {{

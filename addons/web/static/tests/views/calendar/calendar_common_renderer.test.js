@@ -39,16 +39,11 @@ async function start(props = {}, target) {
 
 preloadFullCalendar();
 beforeEach(() => {
-    // Upstream uses ``"UTC+1"``, but Luxon turns that into a
-    // ``FixedOffsetZone`` whose name (``"UTC+1"``) is rejected by
-    // ``new Intl.DateTimeFormat({ timeZone })`` — FullCalendar reads
-    // ``zone.name`` and fails to mount. ``"Africa/Algiers"`` is the
-    // canonical IANA zone that stays UTC+1 year-round (no DST since
-    // 1981): it satisfies both FullCalendar's IANA-name requirement and
-    // the millisecond assertions in this file, which assume
-    // ``DEFAULT_DATE`` resolves to start-of-day at UTC+1 regardless of
-    // month. ``Europe/Brussels`` would switch to UTC+2 (CEST) in July
-    // and break ``record.start.valueOf()`` comparisons by one hour.
+    // "UTC+1" makes Luxon produce a FixedOffsetZone name that
+    // Intl.DateTimeFormat rejects, breaking FullCalendar's mount. Use
+    // "Africa/Algiers" (UTC+1 year-round, no DST) instead of e.g.
+    // Europe/Brussels, which would be UTC+2 (CEST) in July and break the
+    // millisecond assertions below by an hour.
     luxon.Settings.defaultZone = "Africa/Algiers";
 });
 
@@ -74,11 +69,8 @@ test(`Month: mount a CalendarCommonRenderer`, async () => {
 
 test(`Day: check week number`, async () => {
     await start({ model: { ...FAKE_MODEL, scale: "day" } });
-    // v7's timegrid week label is split between the outer cell
-    // (carrying our injected ``fc-week-number`` class via
-    // ``weekNumberHeaderClass``) and an inner generic ``<div>`` — both
-    // inherit the ``aria-label="Week N"`` attribute.  The visible /
-    // tested element is the outer ``.fc-week-number``.
+    // The visible/tested element is the outer ``.fc-week-number`` cell
+    // (carrying our injected class); an inner generic div shares its label.
     expect(`.fc-week-number`).toHaveCount(1);
     expect(`.fc-week-number`).toHaveText(/(Week )?28/);
 });
@@ -182,13 +174,10 @@ test(`Day: automatically scroll to 6am`, async () => {
     // ``requestAnimationFrame``. Flush one RAF so the auto-scroll
     // lands before we assert position.
     await animationFrame();
-    // v7 hashes class names, but ``viewDidMount`` in
-    // ``calendar_common_renderer.js`` re-injects ``fc-scroller`` /
-    // ``fc-scroller-liquid-y`` on the vertical time-grid scroller.
-    // After auto-scroll, the 6am slot lane sits at the top of THAT
-    // scroller — not at the top of the outer ``.fc-timeGridDay-view``,
-    // which in v7 wraps the scroller plus a column header row above
-    // it (and an optional all-day strip).
+    // v7 hashes class names, but ``viewDidMount`` re-injects
+    // ``fc-scroller-liquid-y`` on the vertical time-grid scroller; after
+    // auto-scroll the 6am slot sits at the top of THAT scroller, not of the
+    // outer ``.fc-timeGridDay-view`` (which also wraps a header row).
     const scrollerY = queryRect(`.fc-scroller-liquid-y`).y;
     const slotY = queryRect(`[data-time="06:00:00"]:eq(0)`).y;
     expect(Math.abs(slotY - scrollerY)).toBeLessThan(2);
@@ -256,11 +245,9 @@ test(`o_past_event: an all-day event on its last day today is not styled past`, 
 
 test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowed`, async () => {
     const renderer = await start();
-    // Build Dates with native local-tz setters. isSelectionAllowed and
-    // FullCalendar's select payload compare via local Date methods
-    // (toDateString / getHours), so the wall-clock components must be set in
-    // the runtime-local zone — a bare ``new Date(y, m, d, h)`` is interpreted
-    // as UTC by Hoot's MockDate and would drift under a non-UTC runtime.
+    // Build Dates with native local-tz setters: isSelectionAllowed compares via
+    // local Date methods, but a bare ``new Date(y, m, d, h)`` is interpreted as
+    // UTC by Hoot's MockDate and would drift under a non-UTC runtime.
     const atLocal = (year, monthIndex, day, hour) => {
         const d = new Date();
         d.setFullYear(year, monthIndex, day);

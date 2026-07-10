@@ -27,8 +27,8 @@ describe("class", () => {
         bus.trigger("change");
         expect(obj.counter).toBe(2);
         expect.verifySteps([
-            // The mutation in the event handler was missed by the reactivity, this is because
-            // the `this` in the event handler is captured during construction and is not reactive
+            // Empty: `this` in the event handler is captured non-reactively at
+            // construction, so the mutation is missed.
         ]);
     });
 

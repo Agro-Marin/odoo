@@ -3,10 +3,6 @@
 
 /** @module @web/webclient/actions/action_state - URL state serialization/deserialization for the action service (router integration) */
 
-/**
- * URL state serialization and deserialization for the action service.
- */
-
 import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { PATH_KEYS } from "@web/core/browser/router";

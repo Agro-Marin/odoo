@@ -82,8 +82,7 @@ test("BinaryField is correctly rendered (readonly)", async () => {
         message: "the filename field should have the file name as value",
     });
 
-    // Testing the download button in the field
-    // We must avoid the browser to download the file effectively
+    // Prevent the browser from actually downloading the file.
     const deferred = new Deferred();
     const downloadOnClick = (ev) => {
         const target = ev.target;
@@ -147,8 +146,7 @@ test("BinaryField is correctly rendered", async () => {
         message: "the filename field should have the file name as value",
     });
 
-    // Testing the download button in the field
-    // We must avoid the browser to download the file effectively
+    // Prevent the browser from actually downloading the file.
     const deferred = new Deferred();
     const downloadOnClick = (ev) => {
         const target = ev.target;

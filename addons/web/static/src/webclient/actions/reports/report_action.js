@@ -11,15 +11,8 @@ import { getDefaultConfig } from "@web/views/view";
 import { useEnrichWithActionLinks } from "@web/webclient/actions/reports/report_hook";
 
 /**
- * Most of the time reports are printed as pdfs.
- * However, reports have 3 possible actions: pdf, text and HTML.
- * This file is the HTML action.
- * The HTML action is a client action (with control panel) rendering the template in an iframe.
- * If not defined as the default action, the HTML is the fallback to pdf.
- *
- * It has a button to print the report.
- * It uses a feature to automatically create links to other odoo pages if the selector [res-id][res-model][view-type]
- * is detected.
+ * HTML client action for reports (falls back to pdf when not the default action).
+ * Auto-links elements matching the [res-id][res-model][view-type] selector.
  */
 export class ReportAction extends Component {
     static components = { Layout };

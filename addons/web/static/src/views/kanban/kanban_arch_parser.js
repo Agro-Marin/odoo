@@ -151,7 +151,6 @@ export class KanbanArchParser {
                 }
                 return false;
             }
-            // Case: field node
             if (node.tagName === "field") {
                 // In kanban, we display many2many fields as tags by default
                 const widget = node.getAttribute("widget");

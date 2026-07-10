@@ -2,11 +2,9 @@
 /** @odoo-module native */
 
 /**
- * Bootstrap library extensions and fixes.
- *
- * Uses the official ESM bundle (bootstrap.esm.js) which includes all
- * 12 components and auto-init for data-bs-* attributes.  The namespace
- * import ensures esbuild preserves the full bundle with no tree-shaking.
+ * Bootstrap library extensions and fixes, built on the official ESM bundle
+ * (all 12 components, auto-init for data-bs-*). Namespace import keeps
+ * esbuild from tree-shaking the bundle.
  */
 
 import * as Bootstrap from "@web/../lib/bootstrap/bootstrap.esm.js";
@@ -33,14 +31,10 @@ export const {
 } = Bootstrap;
 
 /**
- * Review Bootstrap Sanitization: leave it enabled by default but extend it to
- * accept more common tag names like tables and buttons, and common attributes
- * such as style or data-. If a specific tooltip or popover must accept custom
- * tags or attributes, they must be supplied through the whitelist BS
- * parameter explicitely.
- *
- * We cannot disable sanitization because bootstrap uses tooltip/popover
- * DOM attributes in an "unsafe" way.
+ * Keep Bootstrap sanitization enabled (needed because Bootstrap uses
+ * tooltip/popover DOM attributes in an "unsafe" way) but extend the allow
+ * list with common tags (tables, buttons) and attributes (style, data-*).
+ * Per-instance custom tags/attributes go through the whitelist BS param.
  */
 const bsSanitizeAllowList = Tooltip.Default.allowList;
 
@@ -91,8 +85,6 @@ const bootstrapShowFunction = Tooltip.prototype.show;
  * @returns {*} The original show() return value, or 0 if suppressed.
  */
 Tooltip.prototype.show = function () {
-    // Overwrite bootstrap tooltip method to prevent showing 2 tooltip at the
-    // same time
     document.querySelectorAll(".tooltip").forEach((el) => el.remove());
     const errorsToIgnore = ["Please use show on visible elements"];
     try {

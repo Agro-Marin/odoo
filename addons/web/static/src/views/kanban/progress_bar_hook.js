@@ -144,10 +144,9 @@ class ProgressBarState {
                 };
             });
             bars.push({
-                // Clamp to >= 0: when ``_pbCounts`` is stale relative to a freshly
-                // reloaded (smaller) ``group.count`` -- e.g. during a slow
-                // ``read_progress_bar`` after a filter toggle -- the naive remainder
-                // goes negative, which is nonsensical and would corrupt ``total``.
+                // Clamp to >= 0: a stale _pbCounts vs. a fresher (smaller)
+                // group.count — e.g. mid slow read_progress_bar after a
+                // filter toggle — can make the naive remainder negative.
                 count: Math.max(
                     0,
                     group.count - bars.map((r) => r.count).reduce((a, b) => a + b, 0),
@@ -171,8 +170,8 @@ class ProgressBarState {
                 }
 
                 if (this._aggregateFields.length) {
-                    //recompute the aggregates is not necessary
-                    //the formatted_read_group was already done with the correct domain (containing the applied filter)
+                    // No need to recompute: formatted_read_group already ran
+                    // with the correct (filtered) domain.
                     this.activeBars[group.serverValue].aggregates = _findGroup(
                         this._aggregateValues,
                         group.groupByField,
@@ -187,13 +186,10 @@ class ProgressBarState {
                     return self.activeBars[group.serverValue]?.value || null;
                 },
                 bars,
-                // Width denominator for the segments: the sum of the bar counts, NOT
-                // the live ``group.count``. In a consistent state the two are equal
-                // (the "Other" bar absorbs the remainder), but using the bar sum keeps
-                // the rendered widths coherent with the bar counts during the window
-                // where records have reloaded but ``read_progress_bar`` has not yet
-                // resolved -- otherwise a stale count over a smaller denominator
-                // overflows each bar to its ``maxWidth`` cap.
+                // Width denominator: sum of bar counts, not live group.count
+                // — equal in steady state, but keeps widths coherent while
+                // records reload before read_progress_bar resolves (else a
+                // stale count over a smaller denominator overflows maxWidth).
                 total: bars.reduce((sum, bar) => sum + bar.count, 0),
                 isReady: true,
             };
@@ -306,11 +302,9 @@ class ProgressBarState {
      * @returns {Promise<void>}
      */
     async _updateAggregateGroup(group, bars, activeBar) {
-        // Same stale-response protocol as the other three aggregate fetchers
-        // (_updateAggregates / _updateAggregatesForGroups / loadProgressBar):
-        // rapid saves/drags issue concurrent RPCs whose responses can land
-        // out of order — a superseded response must not overwrite
-        // activeBar.aggregates last.
+        // Same stale-response protocol as the other aggregate fetchers
+        // (_updateAggregates/_updateAggregatesForGroups/loadProgressBar):
+        // a superseded RPC response must not overwrite activeBar.aggregates.
         const epoch = ++this._aggEpoch;
         const filterDomain = _createFilterDomain(
             this.progressAttributes.fieldName,
@@ -384,9 +378,8 @@ class ProgressBarState {
                 this.activeBars[emptyGroup.serverValue] &&
                 emptyGroup.list.count === 0
             ) {
-                // Fire-and-forget: selectBar awaits applyFilter RPCs, so a rejection
-                // would surface as an unhandled rejection -- catch it like the two
-                // refreshes above.
+                // Fire-and-forget: selectBar awaits applyFilter RPCs, so
+                // catch rejections like the two refreshes above.
                 this.selectBar(emptyGroup.id, { value: null }).catch((error) =>
                     console.error(error),
                 );
@@ -634,14 +627,11 @@ class ProgressBarState {
     }
 
     /**
-     * Re-sync every visible group's bar counts and snapshot ``total`` from the current
-     * ``_pbCounts``, mutating the cached bar objects in place.
-     *
-     * Mutating in place (rather than discarding ``_groupsInfo``) preserves each
-     * group's progress-bar object identity and active-bar/filter state, so this is
-     * safe to call after a (re)load to reconcile bars that an intermediate render may
-     * have produced from a half-loaded epoch (one of read_progress_bar / web_read_group
-     * resolved but not the other).
+     * Re-sync every visible group's bar counts and snapshot ``total`` from
+     * ``_pbCounts``, mutating cached bar objects in place (not discarding
+     * ``_groupsInfo``) to preserve object identity and active-bar/filter
+     * state — safe to call after a (re)load to fix bars rendered from a
+     * half-loaded epoch (only one of read_progress_bar/web_read_group resolved).
      */
     _refreshBars() {
         if (this._pbCounts === null) {
@@ -678,13 +668,11 @@ class ProgressBarState {
      */
     async loadProgressBar({ context, domain, groupBy, resModel }) {
         if (groupBy.length) {
-            // Participate in the _pbEpoch protocol (like _updateProgressBar and
-            // _reconcileMove): bump on entry and re-check after the RPC. This makes
-            // an in-flight _updateProgressBar from a previous domain fail the epoch
-            // check when its result comes back after this (re)load, so the
-            // group-datapoint-id string comparison in _updateProgressBar is
-            // defense-in-depth rather than the only fence -- and a stale
-            // loadProgressBar cannot clobber a fresher one either.
+            // Participate in the _pbEpoch protocol (like _updateProgressBar/
+            // _reconcileMove): bump on entry, re-check after the RPC. This
+            // fails an in-flight stale _updateProgressBar's epoch check when
+            // it resolves after this (re)load, and a stale loadProgressBar
+            // can't clobber a fresher one either.
             const epoch = ++this._pbEpoch;
             const { colors, fieldName: field, help } = this.progressAttributes;
             const res = await this.model.orm.call(resModel, "read_progress_bar", [], {
@@ -734,11 +722,10 @@ class ProgressBarState {
     }
 
     /**
-     * We must be able to match groups returned by the read_progress_bar call with groups previously
-     * returned by formatted_read_group. When grouped on date(time) fields, the key of each group is the
-     * displayName of the period (e.g. "W8 2024"). When grouped on boolean fields, it's "True" and
-     * "False". For falsy values (e.g. unset many2one), it's "False". In all other cases, it's the
-     * group's value (e.g. the id for a many2one).
+     * Match groups from read_progress_bar with those from formatted_read_group.
+     * Grouped on date(time) fields: displayName of the period (e.g. "W8 2024").
+     * Boolean fields: "True"/"False". Falsy (e.g. unset many2one): "False".
+     * Otherwise: the group's value (e.g. id for a many2one).
      *
      * @param {Group} group
      * @return string
@@ -788,13 +775,11 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
         await onRootLoaded(root);
         progressBarState._pruneGroupsInfo();
         if (model.isReady) {
-            // On a reload, the groups are now loaded; once read_progress_bar also
-            // resolves, re-sync the bars so their segments/total reflect the same epoch
-            // as the freshly loaded groups. A render taken while only one of the two
-            // RPCs had resolved (e.g. a slow read_progress_bar after a filter toggle,
-            // or a slow web_read_group after archiving) otherwise leaves stale counts.
-            // On the first load this branch is skipped, so the progressbar loads async
-            // and the view paints asap.
+            // On reload, groups are loaded; once read_progress_bar also
+            // resolves, re-sync bars to the same epoch as the fresh groups —
+            // otherwise a render taken mid-way (only one of the two RPCs
+            // resolved) leaves stale counts. Skipped on first load so the
+            // view paints asap while the progress bar loads async.
             return prom.then(() => progressBarState._refreshBars());
         }
     };

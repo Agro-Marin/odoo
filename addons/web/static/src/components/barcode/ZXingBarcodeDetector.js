@@ -27,10 +27,7 @@ export function buildZXingBarcodeDetector(ZXing) {
     const allSupportedFormats = Array.from(ZXingFormats.keys());
 
     /**
-     * ZXingBarcodeDetector class
-     *
-     * BarcodeDetector-like polyfill class using ZXing library.
-     * API follows the Shape Detection Web API (specifically Barcode Detection).
+     * Implements the Shape Detection Web API's BarcodeDetector interface.
      */
     class ZXingBarcodeDetector {
         /**

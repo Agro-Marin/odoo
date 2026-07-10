@@ -15,10 +15,8 @@ import { MainComponentsContainer } from "@web/components/main_components_contain
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 
 /**
- * This utils mounts the Component and the MainComponentContainer
- * inside the same App (unlike the default `mountWithCleanup`), this
- * ensures refs and useEffects that target elements inside the menu
- * still work properly.
+ * Mounts the Component and MainComponentContainer in the same App (unlike
+ * `mountWithCleanup`) so refs/useEffects targeting elements inside the menu work.
  */
 async function mountSingleApp(ComponentClass, props) {
     class TestComponent extends Component {
@@ -72,9 +70,7 @@ async function open() {
     await click(".o_select_menu_toggler");
     await animationFrame();
     if (getMockEnv().isSmall) {
-        // In BottomSheet, the search input is not focused by default.
-        // For the following tests, it's easier to expect a focused
-        // input for any display of SelectMenu.
+        // BottomSheet doesn't focus the search input by default; force it for consistency.
         await contains(".o_select_menu_input").click();
     }
     await animationFrame();
@@ -956,8 +952,7 @@ test("Props onInput is executed when the search changes", async () => {
                 expect.step("call with empty search");
                 return;
             }
-            // This test adds items from the list of choices given by the parent.
-            // It can be used as a reference to fetch and load content dynamically to the SelectMenu
+            // Reference for fetching/loading choices dynamically from the parent.
             this.state.choices = [
                 { label: "Hello", value: "hello" },
                 { label: "Coucou", value: "hello2" },
@@ -1079,7 +1074,6 @@ test("SelectMenu group items only after being opened", async () => {
         }
 
         onInput(searchString) {
-            // options have been filtered when typing on the search input",
             if (searchString === "option d") {
                 this.state.choices = [{ label: "Option C", value: "optionC" }];
                 this.state.groups = [
@@ -1150,7 +1144,7 @@ test("search value is cleared when reopening the menu", async () => {
     await editInput("a");
     expect.verifySteps(["search=a"]);
 
-    // opening the menu should clear the search input, and trigger onInput with an empty string and update the awaitprops
+    // Reopening clears the search input and triggers onInput with an empty string.
     await press("escape");
     await animationFrame();
     await open();

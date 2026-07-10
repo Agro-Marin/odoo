@@ -39,13 +39,9 @@ export const computeReportMeasures = (
         }
     }
 
-    // add active measures to the measure list.  This is very rarely
-    // necessary, but it can be useful if one is working with a
-    // functional field non stored, but in a model with an overridden
-    // read_group method.  In this case, the pivot view could work, and
-    // the measure should be allowed.  However, be careful if you define
-    // a measure in your pivot view: non stored functional fields will
-    // probably not work (their aggregate will always be 0).
+    // Include active measures not already listed: rarely needed, but supports
+    // a non-stored functional field with an overridden read_group. Such
+    // fields' aggregate will otherwise always be 0.
     for (const measure of activeMeasures) {
         if (!measures[measure]) {
             measures[measure] = fields[measure];
@@ -102,16 +98,8 @@ export function computeAggregatedValue(values, aggregator) {
 }
 
 /**
- * In the preview implementation of reporting views, the virtual field used to
- * display the number of records was named __count__, whereas __count is
- * actually the one used in xml. So basically, activating a filter specifying
- * __count as measures crashed. Unfortunately, as __count__ was used in the JS,
- * all filters saved as favorite at that time were saved with __count__, and
- * not __count. So in order the make them still work with the new
- * implementation, we handle both __count__ and __count.
- *
- * This function replaces occurences of '__count__' by '__count' in the given
- * element(s).
+ * Normalize legacy '__count__' (old preview-implementation name) to
+ * '__count' so favorites saved before the rename still work.
  *
  * @param {any | any[]} [measure]
  * @returns {any}

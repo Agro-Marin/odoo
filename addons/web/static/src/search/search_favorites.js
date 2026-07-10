@@ -44,14 +44,12 @@ export function irFilterToFavorite(irFilter) {
         isInvalid = true;
         sort = [];
     }
-    // Validate the stored domain up front: facet building does
-    // Domain.or([...favorite.domain]) which throws on an unparseable domain,
-    // and that throw can happen inside a notifications-blocked window and poison
-    // the whole search model. Marking the favorite invalid keeps it inert
-    // (toggleSearchItem bails on isInvalid items) instead.
-    // An empty/falsy stored domain is a valid match-all filter (ir.filters keeps
-    // `domain: ""` for context-only favorites) and must NOT be validated —
-    // `new Domain("")` throws, which would wrongly disable such favorites.
+    // Validate the stored domain up front: Domain.or([...favorite.domain]) in
+    // facet building throws on an unparseable domain inside a notifications-
+    // blocked window, poisoning the whole search model — mark invalid instead
+    // (toggleSearchItem then skips it). Skip empty/falsy domains though: they're
+    // a valid match-all (ir.filters uses domain: "" for context-only favorites)
+    // and `new Domain("")` itself throws.
     if (irFilter.domain) {
         try {
             new Domain(irFilter.domain);

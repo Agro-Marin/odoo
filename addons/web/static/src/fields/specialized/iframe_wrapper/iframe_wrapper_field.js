@@ -19,16 +19,10 @@ export class IframeWrapperField extends Component {
 
         useEffect(
             (value) => {
-                /**
-                 * The document.write is not recommended. It is better to manipulate the DOM through $.appendChild and
-                 * others. In our case though, we deal with an iframe without src attribute and with metadata to put in
-                 * head tag. If we use the usual dom methods, the iframe is automatically created with its document
-                 * component containing html > head & body. Therefore, if we want to make it work that way, we would
-                 * need to receive each piece at a time to  append it to this document (with this.record.data and extra
-                 * model fields or with an rpc). It also cause other difficulties getting attribute on the most parent
-                 * nodes, parsing to HTML complex elements, etc.
-                 * Therefore, document.write makes it much more trivial in our situation.
-                 */
+                // document.write over DOM methods: this iframe has no src, so the
+                // usual appendChild approach would need head/body metadata fed in
+                // piece by piece (extra record data or RPCs); write() sets the
+                // full document in one call.
                 const iframeDoc = /** @type {HTMLIFrameElement} */ (this.iframeRef.el)
                     .contentDocument;
                 iframeDoc.open();

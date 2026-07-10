@@ -36,11 +36,7 @@ function fireResponse(id) {
     );
 }
 
-/**
- * Patch the notification service so we can step-assert add/close
- * order without rendering anything.  Returns the patched ``add`` so
- * callers can spy on individual messages if they want.
- */
+/** Patch the notification service to step-assert add/close order without rendering. */
 function patchNotification() {
     const notification = getService("notification");
     patchWithCleanup(notification, {

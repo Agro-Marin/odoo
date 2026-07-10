@@ -64,9 +64,8 @@ export class BarcodeVideoScanner extends Component {
 
         onWillStart(async () => {
             let DetectorClass;
-            // Use Barcode Detection API if available.
-            // As support is still bleeding edge (mainly Chrome on Android),
-            // also provides a fallback using ZXing library.
+            // Use the Barcode Detection API if available; fall back to
+            // ZXing (support is still bleeding edge, mainly Chrome/Android).
             if ("BarcodeDetector" in window) {
                 DetectorClass = BarcodeDetector;
             } else {

@@ -1,25 +1,14 @@
 // @ts-check
 
 /**
- * Pure unit tests for record_lifecycle.js.
+ * Pure unit tests for record_lifecycle.js — archive(), unarchive(), deleteRecord(),
+ * duplicateRecord() extracted from RelationalRecord (see
+ * workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
  *
- * Tests the four lifecycle helpers — archive(), unarchive(), deleteRecord(),
- * duplicateRecord() — extracted from RelationalRecord in Phase 1 of the
- * model-layer decomposition plan
- * (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
- *
- * Mutex serialization (Invariant I4) is enforced by the class-method
- * wrappers in record.js, not by the helpers themselves. These tests
- * call the helpers directly with a hand-rolled mock record, so they
- * bypass the mutex entirely — that is correct: the helpers' contract
+ * Mutex serialization (Invariant I4) is enforced by the class-method wrappers in
+ * record.js, not by these helpers — tests call the helpers directly with a
+ * hand-rolled mock record, bypassing the mutex on purpose: the helpers' contract
  * is "assume you run under the mutex; do not re-enter it".
- *
- * Mock-object pattern matches record_save.test.js: minimal shape
- * supplied per test, hooks default to no-ops, ORM defaults to
- * successful responses. Tests that need to observe a specific
- * interaction stub the relevant method to capture its arguments.
- *
- * Module under test: model/relational_model/record_lifecycle.js
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -31,9 +20,7 @@ import {
     unarchive,
 } from "@web/model/relational_model/record_lifecycle";
 
-// ---------------------------------------------------------------------------
 // Mock factory
-// ---------------------------------------------------------------------------
 
 /**
  * Builds the minimal record mock shape required by the lifecycle helpers.
@@ -42,8 +29,6 @@ import {
  *  - resId=1, resIds=[1] (single-record case)
  *  - context={}, model.orm methods return success
  *  - hooks.ui.onDisplayArchiveAction returns whatever the caller passes
- *
- * Override-able fields document the parameters each test cares about.
  *
  * @param {Object} [opts]
  * @param {number|false} [opts.resId=1]
@@ -118,9 +103,7 @@ function makeRecord({
     return record;
 }
 
-// ---------------------------------------------------------------------------
 // archive() / unarchive() — ORM method routing
-// ---------------------------------------------------------------------------
 
 describe("archive / unarchive ORM method routing", () => {
     test("archive() calls orm.call with 'action_archive'", async () => {
@@ -165,9 +148,7 @@ describe("archive / unarchive ORM method routing", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // archive() — hook routing
-// ---------------------------------------------------------------------------
 
 describe("archive hook routing", () => {
     test("server action result is forwarded to hooks.ui.onDisplayArchiveAction", async () => {
@@ -198,9 +179,7 @@ describe("archive hook routing", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // deleteRecord() — veto + navigation + state-reset paths
-// ---------------------------------------------------------------------------
 
 describe("deleteRecord veto", () => {
     test("returns false when orm.unlink returns falsy and does not mutate state", async () => {
@@ -292,9 +271,7 @@ describe("deleteRecord state reset (last record)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // duplicateRecord() — copy + resIds insertion + navigation
-// ---------------------------------------------------------------------------
 
 describe("duplicateRecord", () => {
     test("calls orm.call with 'copy' passing [[resId]]", async () => {

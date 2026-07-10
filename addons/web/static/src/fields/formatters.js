@@ -23,9 +23,7 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { extractDigits } from "@web/fields/field_utils";
 import { formatCurrency } from "@web/services/currency";
 
-// -----------------------------------------------------------------------------
 // Helpers
-// -----------------------------------------------------------------------------
 
 /**
  * @param {number} value
@@ -43,9 +41,7 @@ function humanSize(value) {
     );
 }
 
-// -----------------------------------------------------------------------------
 // Exports
-// -----------------------------------------------------------------------------
 
 /**
  * @param {string} [value] base64 representation of the binary
@@ -65,14 +61,10 @@ export function formatBinary(value) {
 }
 
 /**
- * Read-only rendering of a boolean value as a disabled checkbox.
- *
- * The output depends only on ``value``, so the two possible markup fragments are
- * built once and reused — previously every call allocated a fresh ``markup``
- * template and bumped a module-global counter that grew unbounded for the page
- * lifetime (this runs once per read-only boolean cell per render). The former
- * per-instance ``id``/``for`` pairing served no purpose here: the input is
- * ``disabled`` and the label is empty, so nothing focuses or references it.
+ * Read-only rendering of a boolean value as a disabled checkbox. The two
+ * possible markup fragments are built once and reused (avoids a per-call
+ * allocation); no id/for pairing is needed since the input is disabled and
+ * the label is empty.
  *
  * @param {boolean} value
  * @returns {any}
@@ -211,8 +203,7 @@ export function formatFloatTime(value, options = {}) {
 
     let hour = Math.floor(value);
     const milliSecLeft = Math.round(value * 3600000) - hour * 3600000;
-    // Although looking quite overkill, the following lines ensures that we do
-    // not have float issues while still considering that 59s is 00:00.
+    // Avoids float rounding issues while treating 59s as 00:00.
     let min = milliSecLeft / 60000;
     if (options.displaySeconds) {
         min = Math.floor(min);
@@ -327,8 +318,7 @@ export function formatX2many(value) {
  * @returns {string}
  */
 export function formatMonetary(value, options = {}) {
-    // Monetary fields want to display nothing when the value is unset.
-    // You wouldn't want a value of 0 euro if nothing has been provided.
+    // Display nothing when unset; a value of 0 would be misleading here.
     if (value === false) {
         return "";
     }
@@ -436,8 +426,7 @@ export function formatText(value) {
 }
 
 /**
- * Returns the value.
- * Note that, this function is added to be coherent with the rest of the formatters.
+ * Returns the value, kept for symmetry with the rest of the formatters.
  *
  * @param {any} value
  * @returns {any}
@@ -479,10 +468,9 @@ registry
     .add("selection", formatSelection)
     .add("text", formatText);
 
-// Every formatter must be a callable. The optional ``.extractOptions``
-// static is duck-typed by callers (form/list arch parsers) and not
-// enforced here. Predicate runs against the existing entries above and
-// against any third-party additions; in debug mode a bad registration
-// throws, in production it is downgraded to a ``console.warn`` so a
-// single mis-shaped entry does not crash the page.
+// Every formatter must be a callable (the optional ``.extractOptions``
+// static is duck-typed by callers and not enforced here). Runs against
+// existing entries and any third-party additions; in debug mode a bad
+// registration throws, in production it's a ``console.warn`` so a single
+// mis-shaped entry doesn't crash the page.
 registry.category("formatters").addValidation((v) => typeof v === "function");

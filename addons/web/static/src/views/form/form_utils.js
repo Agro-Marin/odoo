@@ -4,11 +4,8 @@
 /** @module @web/views/form/form_utils - Utility functions for form views (sub-view loading, discard hooks, toolbar setup) */
 
 /**
- * Extracted utility functions for form views.
- *
- * These are standalone functions (not class methods) that were co-located
- * in form_controller.js. Moved here to reduce file complexity while
- * preserving the original public API via re-exports.
+ * Extracted from form_controller.js to reduce file complexity; public API
+ * preserved via re-exports.
  */
 
 import { onMounted, onWillUnmount } from "@odoo/owl";
@@ -22,11 +19,7 @@ import { isX2Many } from "@web/views/view_utils";
 const viewRegistry = registry.category("views");
 
 /**
- * Load sub-views for x2many fields that need them.
- *
- * Iterates over field nodes, identifies visible x2many fields whose
- * component requires a sub-view, and fetches the appropriate list or
- * kanban view definition from the server.
+ * Fetch the list/kanban sub-view arch for each x2many field that needs one.
  *
  * @param {Object} fieldNodes - field node descriptors from the arch
  * @param {Object} fields - field definitions
@@ -76,19 +69,14 @@ export async function loadSubViews(
             const field = fields[fieldInfo.name];
             const viewType = fieldInfo.viewMode;
 
-            // extract *_view_ref keys from field context, to fetch the adequate view
             const fieldContext = {};
-            // Accept both quote styles and any word-char key prefix: the
-            // filtering loop below strips every `*_view_ref` key from the
-            // merged context, so a spelling this regex missed (e.g. a
-            // double-quoted `"list_view_ref"`) was LOST entirely — stripped
-            // but never forwarded.
+            // Matches both quote styles; any *_view_ref key spelling missed here is
+            // silently dropped by the filter below instead of forwarded.
             const regex = /['"](\w+_view_ref)['"] *: *['"](.*?)['"]/g;
             let matches;
             while ((matches = regex.exec(fieldInfo.context)) !== null) {
                 fieldContext[matches[1]] = matches[2];
             }
-            // filter out *_view_ref keys from general context
             const refinedContext = {};
             for (const key of Object.keys(context)) {
                 if (!key.includes("_view_ref")) {
@@ -120,10 +108,8 @@ export async function loadSubViews(
 }
 
 /**
- * Hook to register/unregister a form-in-dialog with the page-level
- * ``form_dialog_stack`` service so the parent ``FormController`` can
- * suppress auto-save (in ``beforeVisibilityChange``) while a child
- * form-in-dialog is open.
+ * Registers/unregisters a form-in-dialog with `form_dialog_stack` so the parent
+ * FormController can suppress auto-save while a child form-in-dialog is open.
  */
 export function useFormViewInDialog() {
     const formDialogStack = useService("form_dialog_stack");
@@ -131,11 +117,9 @@ export function useFormViewInDialog() {
     onWillUnmount(() => formDialogStack.pop());
 }
 
-// Register shared utilities for lower layers via registry indirection
 const sharedComponents = registry.category("shared_components");
-// Despite the name, entries are utility functions (`loadSubViews`,
-// `useFormViewInDialog`) used to break import cycles between view layers,
-// not Component classes — both are typeof-function so the predicate covers both.
+// Despite the name, entries are utility functions used to break import cycles
+// between view layers, not Component classes — hence the typeof-function check.
 sharedComponents.addValidation((entry) => typeof entry === "function");
 sharedComponents.add("loadSubViews", loadSubViews);
 sharedComponents.add("useFormViewInDialog", useFormViewInDialog);

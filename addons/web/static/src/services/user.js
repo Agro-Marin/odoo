@@ -69,7 +69,6 @@ function getCookieCompanyIds() {
  * @returns {UserObject} the user singleton with identity, companies, and access APIs
  */
 export function _makeUser(session) {
-    // Retrieve user-related information from the session
     const {
         home_action_id: homeActionId,
         is_admin: isAdmin,
@@ -102,17 +101,16 @@ export function _makeUser(session) {
             // Narrow out the `undefined` from `.find` (TS 5.5+ infers the predicate).
             .filter((c) => c !== undefined);
         if (!activeCompanies.length) {
-            // Fall back to the default company, or the first allowed company if
-            // the default is undefined (e.g. session current_company not found
-            // in the allowed list). Guard against both being absent so the
-            // subsequent .map((c) => c.id) never receives undefined elements.
+            // Fall back to the default company, or the first allowed one if
+            // default is undefined (e.g. current_company not in the allowed
+            // list). Guard against both being absent so the subsequent
+            // .map((c) => c.id) never receives undefined elements.
             const fallback = defaultCompany || allowedCompanies[0];
             activeCompanies = fallback ? [fallback] : [];
         }
-        // Sort companies, except for the first one which has a different status, as the order of
-        // the others doesn't matter, and we want to reduce the entropy of the `allowed_company_ids`
-        // key in the context. This is important for the caches, as the stringified context is
-        // always present in the rpc cache keys.
+        // Sort all but the first company (whose status differs) to reduce
+        // entropy of allowed_company_ids — the stringified context is part
+        // of every rpc cache key.
         if (activeCompanies.length) {
             activeCompanies = [
                 activeCompanies[0],
@@ -120,7 +118,6 @@ export function _makeUser(session) {
             ];
         }
 
-        // update browser data
         cookie.set("cids", activeCompanies.map((c) => c.id).join("-"));
         Object.assign(context, {
             allowed_company_ids: activeCompanies.map((c) => c.id),
@@ -310,8 +307,8 @@ export function _makeUser(session) {
             // must not drop the other defaults.
             { includeChildCompanies = true, reload = true } = {},
         ) {
-            // Fall back to the current primary company when no ids are given.
-            // Guard activeCompanies[0] against the (degenerate) no-company case.
+            // Fall back to the current primary company when no ids are given
+            // (guard against the degenerate no-company case).
             const newCompanyIds = companyIds.length
                 ? companyIds
                 : activeCompanies[0]
@@ -390,13 +387,10 @@ export const setLastConnectedUsers = (users) => {
 // list that the first evaluation just populated.
 if (!session._quick_login_processed) {
     if (!session.quick_login) {
-        // Only remove if the key actually exists — module-body removeItem
-        // fires on EVERY page load, and the resulting unconditional call
-        // leaks a storage I/O step into tests that patch
-        // ``localStorage.removeItem`` for verification (e.g. clickbot's
-        // ``only one app`` sees stray ``savedState: null`` steps that
-        // don't match its expected sequence). Real localStorage no-ops on
-        // missing keys, but test-time patches log the call.
+        // Only remove if the key exists — an unconditional call fires on
+        // every page load and leaks a storage I/O step into tests that patch
+        // localStorage.removeItem (real localStorage no-ops on missing keys,
+        // but patched versions log the call).
         if (browser.localStorage.getItem(LAST_CONNECTED_USER_KEY) !== null) {
             browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
         }

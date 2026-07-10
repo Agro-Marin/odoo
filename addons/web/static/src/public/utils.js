@@ -59,8 +59,7 @@ export function makeAsyncHandler(fct) {
     }
     return function () {
         if (_isLocked()) {
-            // If a previous call to this handler is still pending, ignore
-            // the new call.
+            // A previous call to this handler is still pending; ignore this one.
             return;
         }
 
@@ -92,9 +91,8 @@ export function makeAsyncHandler(fct) {
  *      re-enabled.
  */
 export function makeButtonHandler(fct) {
-    // Fallback: if the final handler is not bound to a button, at least
-    // make it an async handler (also handles the case where some events
-    // might ignore the disabled state of the button).
+    // Fallback: always make it an async handler too, in case the handler
+    // isn't bound to a button or an event ignores the disabled state.
     fct = makeAsyncHandler(fct);
 
     return function (ev) {
@@ -105,10 +103,8 @@ export function makeButtonHandler(fct) {
             return handlerResult;
         }
 
-        // Disable the button for the duration of the handler's action
-        // or at least for the duration of the click debounce. This makes
-        // a 'real' debounce creation useless. Also, during the debouncing
-        // part, the button is disabled without any visual effect.
+        // Disable the button for the duration of the handler's action, or at
+        // least the click debounce (no visual effect during the debounce).
         buttonEl.classList.add("pe-none");
         let showDebouncedLoading = false;
         const addLoadingIfPending = () => {

@@ -1,15 +1,9 @@
 // @ts-check
 
 /**
- * Pure unit tests for record_preprocessors.js.
- *
- * All exported functions accept a RelationalRecord-shaped plain object —
- * no OWL component, no DOM, no mock server.
- *
- * The only OWL import is markup() from @odoo/owl, available in the Hoot
- * browser environment without mounting a component.
- *
- * Module under test: model/relational_model/record_preprocessors.js
+ * Pure unit tests for record_preprocessors.js — functions take a
+ * RelationalRecord-shaped plain object, no OWL component/DOM/mock server.
+ * markup() is the only OWL import needed, and works without mounting.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -25,9 +19,7 @@ import {
     preprocessX2manyChanges,
 } from "@web/model/relational_model/record_preprocessors";
 
-// ---------------------------------------------------------------------------
 // Mock factory
-// ---------------------------------------------------------------------------
 
 /**
  * Builds a minimal record mock. Only includes the properties each tested
@@ -67,9 +59,7 @@ function makeRecord({
     };
 }
 
-// ---------------------------------------------------------------------------
 // completeMany2OneValue — 4 branches
-// ---------------------------------------------------------------------------
 
 describe("completeMany2OneValue", () => {
     test("returns false when value has no id and no display_name", async () => {
@@ -145,9 +135,7 @@ describe("completeMany2OneValue", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // preprocessMany2oneChanges — falsy value, missing activeField, normal path
-// ---------------------------------------------------------------------------
 
 describe("preprocessMany2oneChanges", () => {
     test("sets falsy many2one change to false", async () => {
@@ -186,9 +174,7 @@ describe("preprocessMany2oneChanges", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // preprocessMany2OneReferenceChanges — falsy and integer branches
-// ---------------------------------------------------------------------------
 
 describe("preprocessMany2OneReferenceChanges", () => {
     test("sets falsy many2one_reference change to false", async () => {
@@ -219,9 +205,7 @@ describe("preprocessMany2OneReferenceChanges", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // preprocessReferenceChanges — falsy and object branches
-// ---------------------------------------------------------------------------
 
 describe("preprocessReferenceChanges", () => {
     test("sets falsy reference change to false", async () => {
@@ -239,8 +223,7 @@ describe("preprocessReferenceChanges", () => {
             fields: { ref_field: { type: "reference", context: {} } },
             activeFields: { ref_field: { context: "{}", related: null } },
         });
-        // When both id and display_name are present, completeMany2OneValue returns the
-        // value unchanged — no ORM calls needed.
+        // Both present → completeMany2OneValue returns the value unchanged, no ORM calls.
         const changes = {
             ref_field: { resId: 5, displayName: "Acme", resModel: "res.partner" },
         };
@@ -253,9 +236,7 @@ describe("preprocessReferenceChanges", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // preprocessX2manyChanges — SET command vs other commands
-// ---------------------------------------------------------------------------
 
 describe("preprocessX2manyChanges", () => {
     test("SET command calls list._replaceWith with the new ids array", async () => {
@@ -298,9 +279,7 @@ describe("preprocessX2manyChanges", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // preprocessPropertiesChanges — properties type and relatedPropertyField
-// ---------------------------------------------------------------------------
 
 describe("preprocessPropertiesChanges", () => {
     test("properties field calls _processProperties and merges result into changes", () => {
@@ -362,9 +341,7 @@ describe("preprocessPropertiesChanges", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // preprocessHtmlChanges — markup wrapping vs false passthrough
-// ---------------------------------------------------------------------------
 
 describe("preprocessHtmlChanges", () => {
     test("wraps html field string value with markup()", () => {

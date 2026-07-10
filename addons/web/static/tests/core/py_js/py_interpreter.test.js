@@ -538,9 +538,7 @@ describe("sets", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Tests for audit improvements (builtins, security, operators, cache)
-// ---------------------------------------------------------------------------
 
 describe("builtins — len", () => {
     test("len of list", () => {
@@ -711,12 +709,9 @@ describe("security — blocked properties", () => {
 
 describe("security — recursion depth limit", () => {
     test("deeply nested expression throws", () => {
-        // Parenthesized expressions are flattened by the parser, so
-        // ((((1)))) → AST {type:0, value:1} with no nesting.
-        // Ternaries short-circuit on True, never recursing deeply.
-        // Use chained `and` which produces a left-recursive AST tree:
-        // (((True and True) and True) and ... and 1) — each level
-        // requires evaluating its left subtree first, reaching MAX_EVAL_DEPTH.
+        // Parens are flattened by the parser and ternaries short-circuit on True,
+        // so neither recurses deeply. Chained `and` builds a left-recursive AST
+        // that must evaluate each left subtree first, reaching MAX_EVAL_DEPTH.
         const depth = 150;
         const expr = "True and ".repeat(depth) + "1";
         expect(() => evaluateExpr(expr)).toThrow(/depth/i);

@@ -43,7 +43,6 @@ export class OuterGroup extends Group {
         const nbCols = this.props.maxCols;
         const colSize = Math.max(1, Math.round(12 / nbCols));
 
-        // Dispatch items across table rows
         const items = super
             .getItems()
             .filter(([k, v]) => !("isVisible" in v) || v.isVisible);

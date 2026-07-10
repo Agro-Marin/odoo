@@ -78,7 +78,6 @@ test("one cache, invalidate", async () => {
 
     const indexedDB = new IndexedDB(CACHE_NAME, 1);
 
-    // populate the table
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable", "test2", "value for 'test2'");
     expect(await indexedDB.read("mytable", "test")).toBe("value for 'test'");
@@ -98,7 +97,6 @@ test("one cache, invalidate multi-tables", async () => {
 
     const indexedDB = new IndexedDB(CACHE_NAME, 1);
 
-    // populate the table
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable", "test2", "value for 'test2'");
     await indexedDB.write("mytable2", "test", "value for 'test'");
@@ -124,7 +122,6 @@ test("one cache, invalidate all tables", async () => {
 
     const indexedDB = new IndexedDB(CACHE_NAME, 1);
 
-    // populate the table
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable2", "test2", "value for 'test2'");
     expect(await indexedDB.read("mytable", "test")).toBe("value for 'test'");
@@ -181,7 +178,6 @@ test("invalidate non existing and existing table", async () => {
 
     const indexedDB = new IndexedDB(CACHE_NAME, 1);
 
-    // populate the table
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable", "test2", "value for 'test2'");
     expect(await indexedDB.read("mytable", "test")).toBe("value for 'test'");
@@ -203,7 +199,6 @@ test("two caches, invalidate", async () => {
     const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
     const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
 
-    // populate the table
     await indexedDB1.write("mytable", "test", "value for 'test'");
     await indexedDB1.write("mytable", "test2", "value for 'test2'");
     expect(await indexedDB1.read("mytable", "test")).toBe("value for 'test'");
@@ -227,7 +222,6 @@ test("two caches, new DB version", async () => {
     await ensureDbIsAbsent();
 
     const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
-    // populate the table
     await indexedDB1.write("mytable", "test", "value for 'test'");
     await indexedDB1.write("mytable", "test2", "value for 'test2'");
     expect(await indexedDB1.read("mytable", "test")).toBe("value for 'test'");
@@ -235,7 +229,6 @@ test("two caches, new DB version", async () => {
 
     // simulate a new page, with a new version number for the given databases
     const indexedDB2 = new IndexedDB(CACHE_NAME, 2);
-    // await new Promise((r) => setTimeout(r, 1));
     // DB should not contain tables !
     await indexedDB2.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
@@ -288,13 +281,11 @@ test("several caches, several tables", async () => {
     await ensureDbIsAbsent();
 });
 
-// Regression: ``_invalidateWhere`` previously called ``transaction.commit()``
-// synchronously after opening the cursor, which moved the transaction to its
-// committing state before ``cursor.continue()`` could queue the next request,
-// raising ``TransactionInactiveError: Failed to execute 'continue' on
-// 'IDBCursor': The transaction has finished``. Hit in production by
-// ``rpc_cache.invalidateByModel`` whenever an ``ir.filters`` favorite was
-// touched. These tests exercise the real IDB cursor against the real class.
+// Regression: ``_invalidateWhere`` called ``transaction.commit()`` synchronously
+// after opening the cursor, finishing the transaction before ``cursor.continue()``
+// could queue the next request (``TransactionInactiveError``). Hit in production
+// via ``rpc_cache.invalidateByModel`` on ``ir.filters`` favorites; these tests use
+// the real IDB cursor, not a mock.
 test("invalidateWhere, deletes only matching keys", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();

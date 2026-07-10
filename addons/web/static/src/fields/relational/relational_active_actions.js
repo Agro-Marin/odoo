@@ -54,7 +54,6 @@ export function useActiveActions({
         });
         const evalAction = (actionName) => evals[actionName](evalContext);
 
-        // We need to take care of tags "control" and "create" to set create stuff
         result.create = !readonly && evalAction("create");
         result.createEdit = !readonly && result.create && crudOptions.createEdit; // always a boolean
         /** @type {any} */ (result).edit = crudOptions.edit; // always a boolean
@@ -76,7 +75,6 @@ export function useActiveActions({
     const props = useComponent().props;
     const isMany2Many = fieldType === "many2many";
 
-    // Define eval functions
     const evals = {};
     for (const actionName of STANDARD_ACTIVE_ACTIONS) {
         /** @type {(evalContext?: any) => boolean} */
@@ -96,7 +94,6 @@ export function useActiveActions({
         }
     }
 
-    // Compute active actions
     const activeActions = compute(getEvalParams(props));
     onWillUpdateProps(
         /** @type {any} */ (

@@ -89,13 +89,10 @@ export class SettingsFormController extends formView.Controller {
         ) {
             return this._confirmSave();
         } else {
-            // Route through the save coordinator so its observable
-            // ``status`` reflects settings saves too.  ``rethrow``
-            // preserves the historical semantics of the bare
-            // ``model.root.save()`` this replaces: errors propagate to
-            // ``useViewButtons``' executeButtonCallback (which surfaces
-            // the server-error UX), and the boolean result is returned
-            // as-is to gate the button action.
+            // Route through the save coordinator so its observable ``status``
+            // reflects settings saves too. ``rethrow`` preserves the historical
+            // semantics of the bare ``model.root.save()`` this replaces: errors
+            // propagate to ``useViewButtons``' executeButtonCallback.
             return this.saveCoordinator.requestSave({ errorMode: "rethrow" });
         }
     }
@@ -175,16 +172,14 @@ export class SettingsFormController extends formView.Controller {
             this.dialogService.add(SettingsConfirmationDialog, {
                 body: _t("Would you like to save your changes?"),
                 confirm: async () => {
-                    // Whether the save succeeds or the server rejects it, the
-                    // button's action is never run here: on success
+                    // The button's action never runs here: on success
                     // res.config.settings.execute triggers a reload; on failure
                     // we stay on the form. Either way ``_continue`` is false.
                     //
-                    // The try/finally is essential: SettingsConfirmationDialog
-                    // (a ConfirmationDialog) closes and RETHROWS when this
-                    // callback throws, so without settling in ``finally`` the
-                    // outer Promise — and every ``beforeLeave`` awaiting it —
-                    // would hang forever, blocking all navigation until reload.
+                    // try/finally is essential: SettingsConfirmationDialog closes
+                    // and RETHROWS when this callback throws, so without settling
+                    // in ``finally`` the outer Promise — and every ``beforeLeave``
+                    // awaiting it — would hang forever, blocking navigation.
                     _continue = false;
                     try {
                         await this.save();
@@ -193,12 +188,11 @@ export class SettingsFormController extends formView.Controller {
                     }
                 },
                 cancel: async () => {
-                    // Discard the pending edits, then persist the reverted
-                    // values so the button's action executes against a saved
-                    // record — via the coordinator so ``status`` stays accurate.
-                    // As above, always resolve() so a server-side failure during
-                    // the discard-then-save can't leave the promise pending; on
-                    // failure ``_continue`` stays false and we remain on the form.
+                    // Discard the pending edits, then persist the reverted values
+                    // via the coordinator so the button's action runs against a
+                    // saved record and ``status`` stays accurate. As above, always
+                    // resolve() so a discard-then-save failure can't hang the
+                    // promise; on failure ``_continue`` stays false.
                     _continue = false;
                     try {
                         await this.saveCoordinator.requestDiscard();

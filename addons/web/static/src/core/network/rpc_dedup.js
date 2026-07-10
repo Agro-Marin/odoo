@@ -4,19 +4,10 @@
 /** @module @web/core/network/rpc_dedup - Stable key builder for RPC dedup/cache (buildKey) */
 
 /**
- * JSON-stringify with object keys serialized in sorted order at every depth.
- *
- * ``JSON.stringify`` preserves insertion order, so two semantically identical
- * params objects assembled by different call sites (most commonly a
- * ``context`` built in a different key order) would produce different keys —
- * a silent dedup/cache miss. Sorting keys makes the key a function of the
- * VALUE, not of how the object was built.
- *
- * Mirrors ``JSON.stringify`` semantics for the RPC payload domain: honors
- * ``toJSON()``, omits object entries whose serialization is undefined
- * (undefined/function values), and encodes such array slots as ``null``.
- * RPC params are plain JSON-serializable data by contract, so cycles and
- * BigInt are programming errors and intentionally not special-cased.
+ * JSON.stringify with keys sorted at every depth, so two semantically
+ * identical params objects (e.g. a ``context`` built in a different key
+ * order) hash the same instead of causing a silent dedup/cache miss.
+ * Honors ``toJSON()``; cycles/BigInt are programming errors, not special-cased.
  *
  * @param {any} value
  * @returns {string | undefined}

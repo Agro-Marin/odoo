@@ -133,9 +133,6 @@ export class NameAndSignature extends Component {
         }
     }
 
-    /**
-     * Clear the signature field.
-     */
     clear() {
         this.signaturePad.clear();
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
@@ -322,7 +319,6 @@ export class NameAndSignature extends Component {
     }
 
     resizeSignature() {
-        // recompute size based on the current width
         const width = this.signatureRef.el.clientWidth;
         const height = Math.trunc(width / this.props.displaySignatureRatio);
 
@@ -355,15 +351,12 @@ export class NameAndSignature extends Component {
         this.clear();
 
         if (this.state.signMode === "auto") {
-            // draw based on name
             this.drawCurrentName();
         }
         this.props.onSignatureChange(this.state.signMode);
     }
 
     /**
-     * Returns whether the drawing area is currently empty.
-     *
      * @returns {boolean} Whether the drawing area is currently empty.
      */
     get isSignatureEmpty() {

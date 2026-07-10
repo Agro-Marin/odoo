@@ -109,11 +109,7 @@ class ResConfigInviteUsers extends Component {
         }
     }
 
-    /**
-     * Send invitation for valid and unique email addresses
-     *
-     * @private
-     */
+    /** Send invitation for valid and unique email addresses. @private */
     async sendInvite() {
         try {
             this.validate();

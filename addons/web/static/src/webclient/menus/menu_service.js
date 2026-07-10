@@ -19,12 +19,9 @@ const loadMenusUrl = `/web/webclient/load_menus`;
  */
 export const menuService = {
     dependencies: ["action"],
-    // ``selectMenu`` (clicks a menu item → ``action.doAction``) and
-    // ``reload`` (fetches the menu tree from the server) are both
-    // async on the returned interface.  Listing them wires
-    // destroy-protection at ``useService("menu")`` time so a navbar /
-    // burger-menu / hotkey component that unmounts mid-call doesn't
-    // resume into destroyed state when the menu / action resolves.
+    // selectMenu/reload are async: destroy-protection at useService("menu")
+    // keeps a navbar/burger-menu/hotkey component from resuming into a
+    // destroyed state if it unmounts mid-call.
     async: ["selectMenu", "reload"],
     async start(env) {
         let currentAppId;
@@ -85,11 +82,10 @@ export const menuService = {
                 } else if (
                     browser.localStorage.getItem("webclient_menus_hash") !== null
                 ) {
-                    // No hash available (e.g. mocked route): drop any stale
-                    // one so the next boot fetches the full payload. Only
-                    // touch the storage when a hash is actually stored, so
-                    // environments that never stored one (tests spying on
-                    // localStorage) don't observe a spurious removeItem.
+                    // No hash (e.g. mocked route): drop any stale one so the next
+                    // boot fetches the full payload. Only touch storage when a
+                    // hash was actually stored, to avoid a spurious removeItem
+                    // in tests that spy on localStorage.
                     browser.localStorage.removeItem("webclient_menus_hash");
                 }
             } catch (error) {
@@ -114,16 +110,16 @@ export const menuService = {
                             menusData = res.menus;
                             env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                         } else if (res.hash && res.hash !== storedMenusHash) {
-                            // Same payload but the hash is new (e.g. first boot
-                            // after upgrading to the conditional-fetch server):
-                            // persist it so the next boot gets a 304.
+                            // Same payload but hash changed (e.g. first boot after
+                            // upgrading to the conditional-fetch server): persist
+                            // so the next boot gets a 304.
                             persistMenus(res.menus, res.hash);
                         }
                     }
                 })
-                // Background revalidation only: the stale menus are already on
-                // screen, so a failed refetch is not worth surfacing to the
-                // user — but log it so a persistent failure is diagnosable.
+                // Background revalidation only: stale menus are already on
+                // screen, so a failed refetch isn't worth surfacing — but log
+                // it so a persistent failure is diagnosable.
                 .catch((error) => {
                     console.warn("Background menu revalidation failed", error);
                 });
@@ -138,12 +134,9 @@ export const menuService = {
                 res = null;
             }
             if (!res || !res.menus) {
-                // The preload was unusable: ``odoo.loadMenusPromise`` can
-                // resolve ``null`` when the server computed a 304 against a
-                // stale/mismatched localStorage copy, which would otherwise
-                // leave ``menusData`` undefined and blank the webclient.
-                // Refetch the full payload unconditionally (no cached hash →
-                // never a 304).
+                // The preload can resolve null on a 304 against a stale/mismatched
+                // localStorage copy, leaving menusData undefined and blanking the
+                // webclient. Refetch unconditionally (no cached hash → never a 304).
                 try {
                     res = await fetchMenus(true);
                 } catch {
@@ -154,9 +147,7 @@ export const menuService = {
                 menusData = res.menus;
                 persistMenus(res.menus, res.hash);
             } else if (storedMenus) {
-                // Last resort: a stale (version-mismatched) stored copy is
-                // still better than a blank client. Serve it rather than
-                // leaving ``menusData`` undefined.
+                // Last resort: a stale, version-mismatched copy beats a blank client.
                 menusData = JSON.parse(storedMenus);
             }
         }
@@ -212,14 +203,12 @@ export const menuService = {
             },
             setCurrentMenu,
             async reload() {
-                // Explicit reload (e.g. after app install): don't send the
-                // cached hash — a change is expected, always take the full
-                // payload.
+                // Explicit reload (e.g. after app install): skip the cached hash,
+                // a change is expected, always take the full payload.
                 const res = await fetchMenus(true);
                 if (res && res.menus) {
                     menusData = res.menus;
-                    // Persist so the next boot doesn't serve stale menus from
-                    // localStorage.
+                    // Persist so the next boot doesn't serve stale menus from localStorage.
                     persistMenus(res.menus, res.hash);
                 }
                 env.bus.trigger(AppEvent.MENUS_APP_CHANGED);

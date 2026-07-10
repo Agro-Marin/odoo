@@ -10,7 +10,6 @@ import { Setting } from "@web/views/form/setting/setting";
 import { FormLabelHighlightText } from "@web/views/settings/highlight_text/form_label_highlight_text";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
 
-/** Setting variant that supports search-based visibility filtering and URL hash highlighting. */
 export class SearchableSetting extends Setting {
     static template = "web.SearchableSetting";
     static components = {
@@ -59,9 +58,8 @@ export class SearchableSetting extends Setting {
     }
 
     /**
-     * Whether this setting should be visible given the current search query.
-     * Returns true when there is no search, when "show all" is active, or
-     * when any label text matches the search term.
+     * Whether this setting matches the current search, or true if there is
+     * no search or "show all" is active.
      * @returns {boolean}
      */
     visible() {

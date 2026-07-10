@@ -95,29 +95,12 @@ function findNormalizedMatch(
 }
 
 /**
- * Splits the source into an array of codepoints. This avoids processing
- * unpaired surrogates, which could lead to unexpected results.
- *
- * "𝔖"[0];              // "\ud835" ← unpaired surrogate!!
- * Array.from("𝔖")[0];  // "𝔖"
- *
- * "𝔖".split("");   // Array [ "\ud835", "\udd16" ]
- * Array.from("𝔖"); // Array [ "𝔖" ]
- *
- * "𝔖".split("").map((c) => c.normalize("NFKC")).join("");      // "𝔖"
- * Array.from("𝔖").map((c) => c.normalize("NFKC")).join("");    // "S"
- *
- * Each codepoint is then normalized individually (instead of calling
- * normalize directly on the source string) because the matchers must
- * return start/end indexes in the *original*, unnormalized string, but
- * strings can grow in length during normalization, which would alter the
- * indexes. Even if the length of the individual elements grows, the
- * length of the containing array remains the same.
- *
- * normalizedSrc can contain empty strings if the source is an NFD string,
- * corresponding to diacritics that have been stripped off. They must be
- * taken into account in the flattened length calculation to get the
- * indexes right, hence Math.max(x.length, 1).
+ * Splits the source into codepoints via `Array.from` (not `.split("")`,
+ * which breaks unpaired surrogates like "𝔖"). Each codepoint is normalized
+ * individually rather than normalizing the whole string, so array indexes
+ * stay aligned with the *original* string even though normalization can
+ * change string length. `normalizedSrc` may contain empty entries for
+ * stripped NFD diacritics, hence `Math.max(x.length, 1)` below.
  *
  * @param {string} src
  */

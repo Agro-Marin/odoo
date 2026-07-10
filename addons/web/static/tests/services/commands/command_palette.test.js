@@ -986,7 +986,6 @@ test("keyboard navigation scroll", async () => {
     });
 
     const isVisible = (el) => {
-        // Returns the visibility of the element in the scrollable element
         const elementRect = queryOne(el).getBoundingClientRect();
         const scrollableRect = queryOne(
             ".o_command_palette_listbox",
@@ -998,7 +997,6 @@ test("keyboard navigation scroll", async () => {
     };
 
     const getFocusedCommandBorderState = () => {
-        // Returns the state of the element in relation to the borders
         const elementRect = queryOne(".o_command.focused").getBoundingClientRect();
         const scrollableRect = queryOne(
             ".o_command_palette_listbox",
@@ -1010,10 +1008,8 @@ test("keyboard navigation scroll", async () => {
     };
 
     await animationFrame();
-    // The listbox height is set to be lower than the list of commands
-    // to assure the command palette is scrollable. The palette is only able to
-    // display three rows of commands so we are sure we always have one row
-    // element out of bounds
+    // Listbox height is set below the full list height so the palette is
+    // scrollable but still shows exactly one row out of bounds.
     queryAll(".o_command").forEach((e) => (e.style.height = "50px"));
     queryOne(".o_command_palette_listbox").style.maxHeight = "150px";
     queryOne(".o_command_category").style.padding = "0";
@@ -1195,7 +1191,6 @@ test("command palette dialog can be rendered and closed on outside click", async
     await animationFrame();
     expect(".o_command_palette").toHaveCount(1);
 
-    // Close on outside click
     await contains(getFixture()).click();
     await animationFrame();
     expect(".o_command_palette").toHaveCount(0);
@@ -1461,8 +1456,7 @@ test("remove namespace with backspace", async () => {
     await runAllTimers();
     expect(".o_command_palette .o_namespace").toHaveText("@");
 
-    // Does not remove the namespace if the backspace is repeatedly applied.
-    // You don't want to remove the namespace by pressing the "backspace" key
+    // Repeated backspace should not remove the namespace.
     await press("backspace", { repeat: true });
     expect(".o_command_palette .o_namespace").toHaveText("@");
 });
@@ -1540,19 +1534,16 @@ test("checks that href is correctly used", async () => {
     await click(".o_command_palette_search input");
     await edit("@");
     await runAllTimers();
-    // Check that command has link inside it
     expect(".o_command_palette .o_command:eq(0) a").toHaveAttribute(
         "href",
         "https://www.odoo.com",
     );
-    // Check that we get url when doing ctrl+enter on a command having a link inside it
+    // ctrl+enter on a linked command opens its href
     await press("control+enter");
     await animationFrame();
     expect.verifySteps(["https://www.odoo.com"]);
-    // Check that command has no link inside it
     expect(".o_command_palette .o_command:eq(1) a").not.toHaveAttribute("href");
-    // Check that clicking on a command having a link inside it triggers the command action
-    // instead of redirecting to the href (last step because it closes the command palette).
+    // Clicking a linked command triggers its action, not the href (last: closes the palette)
     await contains(".o_command_palette .o_command:eq(0)").click();
     expect.verifySteps(["command_with_link_clicked"]);
 });

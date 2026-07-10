@@ -477,10 +477,9 @@ export class SearchBar extends Component {
                 this.state.query !== label &&
                 !item.isChild
             ) {
-                // The query (the search input) changed but it hasn't been reflected yet in the
-                // items (a rendering is scheduled but hasn't been applied to the DOM yet), so select
-                // the item but use the current query. Typical usecase is when scanning a barcode,
-                // as the keystrokes are closer than when a user uses a regular keyboard.
+                // The query changed but the items haven't re-rendered yet, so select the
+                // item but use the current query (e.g. when scanning a barcode: keystrokes
+                // arrive faster than a rendering cycle).
                 label = this.state.query;
                 try {
                     value = parseValue(this.state.query.trim(), fieldType);

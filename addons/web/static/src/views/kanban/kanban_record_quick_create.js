@@ -104,8 +104,8 @@ export class KanbanQuickCreateController extends Component {
         });
         // Close on outside click
         useExternalListener(window, "mousedown", (/** @type {Event} */ ev) => {
-            // This target is kept in order to impeach close on outside click behavior if the click
-            // has been initiated from the quickcreate root element (mouse selection in an input...)
+            // Kept to prevent closing when a click starts inside the quickcreate
+            // root (e.g. text selection in an input) but ends outside it.
             this.mousedownTarget = ev.target;
         });
         useExternalListener(
@@ -195,12 +195,10 @@ export class KanbanQuickCreateController extends Component {
                 }
             }
         } finally {
-            // Exception-safe reset: a non-RPCError escaping the save (e.g.
-            // ConnectionLostError rethrown by showFormDialogInError) must not
-            // leave `disabled` latched — cancel()/Escape/outside-click are
-            // all gated on it, which would zombify the quick-create card.
-            // On "edit" success the flag intentionally stays set: the card is
-            // about to be closed by onValidate.
+            // Exception-safe reset: an error escaping save (e.g. ConnectionLostError
+            // rethrown by showFormDialogInError) must not leave `disabled` latched,
+            // since cancel()/Escape/outside-click all gate on it. On "edit" success
+            // it stays set intentionally — the card is about to close via onValidate.
             if (!resId || mode === "add") {
                 this.state.disabled = false;
             }

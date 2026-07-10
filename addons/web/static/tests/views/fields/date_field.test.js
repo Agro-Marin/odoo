@@ -126,7 +126,6 @@ test("open datepicker on Control+Enter", async () => {
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    //edit the input and open the datepicker again with ctrl+enter
     await contains(".o_field_date .o_input").click();
     await edit("09/01/1997");
     await press(["ctrl", "enter"]);
@@ -157,7 +156,6 @@ test("toggle datepicker far in the future", async () => {
     await contains(".o_field_date button").click();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // focus another field
     await fieldInput("char_field").click();
     expect(".o_datetime_picker").toHaveCount(0);
 });
@@ -213,12 +211,10 @@ test("date field in form view (with positive time zone offset)", async () => {
 
     expect(".o_field_date").toHaveText("Feb 3, 2017");
 
-    // open datepicker and select another value
     await contains(".o_field_date button").click();
     expect(".o_datetime_picker").toHaveCount(1);
     expect(".o_date_item_cell.o_selected").toHaveCount(1);
 
-    // select 22 Feb 2017
     await zoomOut();
     await zoomOut();
     await contains(getPickerCell("2017")).click();
@@ -341,7 +337,6 @@ test("date field in editable list view", async () => {
     expect(".o_field_date button").toHaveCount(1);
     expect(".o_field_date button").toHaveText("Feb 3, 2017");
 
-    // open datepicker and select another value
     await contains(".o_field_date button").click();
     expect(".o_datetime_picker").toHaveCount(1);
     await zoomOut();
@@ -467,14 +462,12 @@ test("allow to use compute dates (+5d for instance)", async () => {
     await fieldInput("date").edit("+5d");
     expect(".o_field_date").toHaveText("Feb 20");
 
-    // Discard and do it again
     await contains(".o_form_button_cancel").click();
     expect(".o_field_date").toHaveText("Sep 15, 2019");
     await contains(".o_field_date button").click();
     await fieldInput("date").edit("+5d");
     expect(".o_field_date").toHaveText("Feb 20");
 
-    // Save and do it again
     await clickSave();
     expect(".o_field_date").toHaveText("Feb 20");
     await contains(".o_field_date button").click();

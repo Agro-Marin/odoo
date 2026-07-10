@@ -3,10 +3,6 @@
 
 /** @module @web/services/scss_error_display - Detects SCSS compilation errors in stylesheets and shows a sticky notification */
 
-/**
- * Service that detects SCSS compilation errors embedded in stylesheets and
- * displays a sticky notification to warn administrators.
- */
 import { browser } from "@web/core/browser/browser";
 import { _t, translationIsReady } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -34,10 +30,8 @@ export const scssErrorNotificationService = {
             for (const asset of assets) {
                 let cssRules;
                 try {
-                    // The filter above isn't enough to protect against CORS errors when reading
-                    // the cssRules property. Indeed, it seems that if the protocol is http, reading
-                    // that property can also trigger a CORS error, even if the origin is the same.
-                    // Anyway, we never want this line to crash, so we protect it.
+                    // The filter above isn't enough: CORS can still block reading cssRules
+                    // (e.g. same origin but http protocol), so never let this line crash.
                     // See opw 3746910.
                     cssRules = asset.cssRules;
                 } catch {

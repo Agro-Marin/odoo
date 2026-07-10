@@ -2,12 +2,9 @@
 /** @odoo-module native */
 
 /**
- * Pivot table layout helpers.
- *
- * Transforms the in-memory pivot data structures (group trees,
- * measurements) into row/column arrays suitable for rendering
- * an HTML table: header rows with col-group hierarchy and span
- * calculations, and body rows with cell values and indentation.
+ * Turns in-memory pivot data (group trees, measurements) into row/column
+ * arrays for rendering an HTML table: header rows with col-group hierarchy
+ * and spans, body rows with cell values and indentation.
  *
  * @module pivot_table
  */
@@ -23,8 +20,7 @@ import {
 } from "./pivot_measurements.js";
 
 /**
- * Returns the list of header rows of the pivot table: the col group rows
- * (depending on the col groupbys), the measures row.
+ * Header rows of the pivot table: the col group rows (per col groupby), then the measures row.
  *
  * @param {Object} data
  * @param {Object} metaData
@@ -100,7 +96,7 @@ export function getTableHeaders(data, metaData) {
 }
 
 /**
- * Returns the list of body rows of the pivot table for a given tree.
+ * Body rows of the pivot table for a given tree.
  *
  * @param {Object} tree
  * @param {Object[]} columns

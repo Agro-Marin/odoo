@@ -156,10 +156,8 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
     await p2;
     await animationFrame();
 
-    // The superseded first call is abandoned (its KeepLast-wrapped promise never
-    // settles), so it never reaches the draw step — this is what prevents rapid
-    // successive calls from producing superimposed "ghost" renders. Only the
-    // most recent call completes.
+    // The superseded call is abandoned (KeepLast never resolves it), preventing
+    // overlapping draws from producing "ghost" renders.
     expect(secondResolved).toBe(true);
     expect(firstResolved).toBe(false);
     void p1;

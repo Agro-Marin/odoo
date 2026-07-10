@@ -97,14 +97,9 @@ function serializeGroupDateValue(range, field) {
 }
 
 /**
- * Sample server class
- *
- * Represents a static instance of the server used when a RPC call sends
- * empty values/groups while the attribute 'sample' is set to true on the
- * view.
- *
- * This server will generate fake data and send them in the adequate format
- * according to the route/method used in the RPC.
+ * Static server that generates fake data, in the RPC's expected format, when
+ * a call returns empty values/groups while the view's 'sample' attribute is
+ * set to true.
  */
 export class SampleServer {
     /**

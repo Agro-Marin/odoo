@@ -4,20 +4,18 @@
 /** @module @web/core/py_js/token_type - Canonical lexer token type tags + token typedefs */
 
 /**
- * Numeric discriminant for every lexer {@link Token} — the single source of
- * truth shared by the tokenizer (which emits these) and the parser (which
- * dispatches on them).
+ * Numeric discriminant for every lexer {@link Token}, shared by the tokenizer
+ * (emits) and the parser (dispatches on).
  *
- * Distinct vocabulary from {@link import("./ast_type").ASTType}: the lexer and
- * the AST overlap numerically but mean different things (token ``3`` = Name,
- * AST ``3`` = None). Keeping them as two named enums is precisely what stops a
- * reader — or a refactor — from confusing ``case TokenType.Number`` (dispatch
- * on input) with ``{type: ASTType.Number}`` (build output) in ``py_parser``.
+ * Distinct from {@link import("./ast_type").ASTType}: token and AST numbers
+ * overlap but mean different things (token ``3`` = Name, AST ``3`` = None) —
+ * two named enums stop dispatch (``case TokenType.Number``) from being
+ * confused with output construction (``{type: ASTType.Number}``).
  *
- * Each member is pinned to its literal type (a per-member type annotation)
- * rather than ``@enum {number}`` / ``Object.freeze`` — both of the latter widen
- * to ``number`` across a module import and break the literal-discriminant
- * narrowing of {@link Token}. See {@link ASTType} for the full rationale.
+ * Each member is pinned to its literal type rather than ``@enum {number}`` /
+ * ``Object.freeze``, which would widen to ``number`` across a module import
+ * and break the literal-discriminant narrowing of {@link Token}. See
+ * {@link ASTType} for the full rationale.
  */
 export const TokenType = {
     /** @type {0} */ Number: 0,

@@ -44,11 +44,9 @@ class ToyControllerImp extends ToyController {
     }
 }
 
-// Re-register on every test: ``before`` (suite-once) is wiped by the
-// global registry cleanup ``afterEach``, which restores from a snapshot
-// taken at the previous test's ``beforeEach`` — that snapshot doesn't
-// include this suite's ``before`` additions, so toy/toy_imp would be
-// gone for every test after the first.
+// Re-register on every test: the global registry ``afterEach`` restores a
+// snapshot from the previous test's ``beforeEach``, which predates this
+// suite's ``before`` additions — toy/toy_imp would vanish after test 1.
 beforeEach(() => {
     patchWithCleanup(serverState.view_info, {
         toy: { multi_record: true, display_name: "Toy", icon: "fab fa-android" },
@@ -96,9 +94,7 @@ class Animal extends models.Model {
 
 defineModels([Animal]);
 
-////////////////////////////////////////////////////////////////////////////
 // get_views
-////////////////////////////////////////////////////////////////////////////
 
 test("simple rendering", async function () {
     expect.assertions(9);
@@ -716,9 +712,7 @@ test("can click on action-bound links -- 3", async () => {
     await animationFrame();
 });
 
-////////////////////////////////////////////////////////////////////////////
 // js_class
-////////////////////////////////////////////////////////////////////////////
 
 test("rendering with given jsClass", async function () {
     expect.assertions(4);
@@ -832,9 +826,7 @@ test("rendering with given arch attribute 'js_class' and given jsClass", async f
     expect(".o_toy_view.toy_imp").toHaveCount(1);
 });
 
-////////////////////////////////////////////////////////////////////////////
 // props validation
-////////////////////////////////////////////////////////////////////////////
 
 test("'resModel' must be passed as prop", async function () {
     const props = {};
@@ -900,9 +892,7 @@ test("'searchViewFields' cannot be passed as prop alone", async function () {
     ]);
 });
 
-////////////////////////////////////////////////////////////////////////////
 // props
-////////////////////////////////////////////////////////////////////////////
 
 test("search query props are passed as props to concrete view (default search arch)", async function () {
     expect.assertions(4);
@@ -1180,9 +1170,7 @@ test("callback recorders are moved from props to subenv", async () => {
     await mountWithCleanup(View, { props });
 });
 
-////////////////////////////////////////////////////////////////////////////
 // update props
-////////////////////////////////////////////////////////////////////////////
 
 test("react to prop 'domain' changes", async function () {
     expect.assertions(2);
@@ -1220,9 +1208,7 @@ test("react to prop 'domain' changes", async function () {
     await animationFrame();
 });
 
-////////////////////////////////////////////////////////////////////////////
 // cache
-////////////////////////////////////////////////////////////////////////////
 
 test("Cache: refresh with debug mode", async () => {
     const env = await makeMockEnv();

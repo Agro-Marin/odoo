@@ -48,21 +48,15 @@ const ControllerComponentTemplate = xml`<t t-component="Component" t-props="comp
 
 /**
  * Build the ControllerComponent class bound to a given {@link ActionManager}.
+ * Factory pattern because each ActionManager needs lifecycle hooks that
+ * read/write *its* instance state — this is the only sibling module that
+ * writes action-manager state (committing the new stack on mount, swapping
+ * ``dialog`` to ``nextDialog`` for ``target === "new"``).
  *
- * The factory pattern is required because OWL Component classes can't
- * close over service-internal state at the module level — each
- * ActionManager needs a class whose lifecycle hooks read and write *its*
- * instance state, not some other instance's.  This is the *only* sibling
- * module that *writes* the action manager's state (committing the new
- * stack on mount, swapping ``dialog`` to ``nextDialog`` when
- * ``target === "new"``); every other extracted module only reads.
- *
- * Identity stability: ActionManager calls this exactly once in its
- * constructor; the returned class identity is stable across every
- * subsequent ``ACTION_MANAGER:UPDATE`` so OWL's reconciler patches the
- * existing component instance rather than tearing down and remounting.
- * Calling this factory inside a per-render function would silently break
- * SPA navigation continuity.
+ * ActionManager calls this once in its constructor; the returned class
+ * identity must stay stable across every ``ACTION_MANAGER:UPDATE`` so OWL's
+ * reconciler patches the existing instance instead of remounting — calling
+ * this per-render would break SPA navigation continuity.
  *
  * @param {ActionManager} am
  * @returns the bound ControllerComponent class
@@ -117,14 +111,12 @@ export function makeControllerComponent(am) {
         onError(error) {
             const { controller, action, reject, removeDialogRef } = this.props._context;
             if (controller.isMounted) {
-                // The error occurred on the controller which is already in
-                // the DOM, so simply show the error.
+                // Controller is already in the DOM — just surface the error.
                 Promise.reject(error);
                 return;
             }
             if (!controller.isMounted && status(this) === "mounted") {
-                // The error occurred during an onMounted hook of one of the
-                // child components.
+                // Error happened during a child component's onMounted hook.
                 am.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
                     id: am._nextId(),
                     Component: BlankComponent,
@@ -143,30 +135,24 @@ export function makeControllerComponent(am) {
                 removeDialogRef.current?.();
                 return;
             }
-            // Fresh read on each access (not a snapshot) — direct property
-            // access on the action manager gives the latest value just as
-            // the pre-class getter shim ``ctx.getControllerStack()`` did.
             const index = am.controllerStack.findIndex(
                 (ct) => ct.jsId === controller.jsId,
             );
             if (index > 0) {
-                // The error occurred while rendering an existing controller,
-                // so go back to the previous controller from the current
-                // faulty one.  This occurs when clicking on a breadcrumb.
+                // Error on an existing controller (e.g. breadcrumb click) —
+                // go back to the previous one.
                 return am.restore(am.controllerStack[index - 1].jsId);
             }
             if (index === 0) {
-                // No previous controller to restore, so do nothing but
-                // display the error.
+                // No previous controller to restore; just display the error.
                 return;
             }
             const lastController = am.controllerStack.at(-1);
             if (lastController) {
                 if (lastController.jsId !== controller.jsId) {
-                    // The error occurred while rendering a new controller,
-                    // so go back to the last non-faulty controller (the
-                    // error will still surface to the caller because the
-                    // promise was rejected above).
+                    // Error while rendering a new controller — go back to the
+                    // last non-faulty one (the promise reject above still
+                    // surfaces the error to the caller).
                     return am.restore(lastController.jsId);
                 }
             } else {
@@ -177,17 +163,14 @@ export function makeControllerComponent(am) {
         onMounted() {
             const { controller, action, nextStack, resolve } = this.props._context;
             if (action.target === "new") {
-                // Remove the previous committed dialog (if any): this
-                // mounted dialog replaces it. The synchronous head of the
-                // removal chain (dialog service onRemove → am._removeDialog)
-                // nulls ``am.dialog`` before the next line runs, and fires
-                // no user callback because ``_dispatchTargetNew`` already
-                // transferred the previous dialog's ``onClose`` to
-                // ``am.nextDialog``.
+                // Remove the previously committed dialog (if any) — this
+                // mounted dialog replaces it. The removal chain synchronously
+                // nulls am.dialog and fires no user callback, since
+                // _dispatchTargetNew already moved onClose to am.nextDialog.
                 am.dialog?.remove();
-                // Commit the new dialog and clear the pending slot so the
-                // two never alias — ``_dispatchTargetNew`` only removes a
-                // still-pending (never mounted) ``nextDialog``.
+                // Commit the new dialog and clear the pending slot so the two
+                // never alias (_dispatchTargetNew only removes a still-pending,
+                // never-mounted nextDialog).
                 am.dialog = am.nextDialog;
                 am.nextDialog = null;
             } else {

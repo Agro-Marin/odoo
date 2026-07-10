@@ -3,7 +3,6 @@
 
 /** @module @web/views/settings/widgets/user_invite_service - Service that fetches and caches pending user invitation data from /base_setup/data */
 
-/** Service that fetches pending user invitation data from /base_setup/data. */
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 export const userInviteService = {

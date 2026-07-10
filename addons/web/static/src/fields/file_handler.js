@@ -72,9 +72,8 @@ export class FileUploader extends Component {
                     size: file.size,
                     type: file.type,
                     data: data.split(",")[1],
-                    // Ownership of the object URL is transferred to the
-                    // `onUploaded` consumer, which is responsible for revoking
-                    // it (see PdfViewerField, currently its only consumer).
+                    // Ownership transfers to the `onUploaded` consumer, which
+                    // must revoke it (see PdfViewerField, its only consumer).
                     objectUrl:
                         file.type === "application/pdf"
                             ? URL.createObjectURL(file)
@@ -91,9 +90,8 @@ export class FileUploader extends Component {
     }
 
     /**
-     * The `allowedMIMETypes` props can restrict the file types users are guided to select.
-     * However, the `acceptedFileExtensions` attribute doesn't enforce strict validation;
-     * it only suggests file types for browsers.
+     * `allowedMIMETypes` restricts selectable types; `acceptedFileExtensions`
+     * is only a browser hint and isn't enforced.
      *
      * @param {File} file
      * @returns Whether the upload file's type is in the whitelist (`allowedMIMETypes`).
@@ -104,9 +102,8 @@ export class FileUploader extends Component {
                 .split(",")
                 .map((type) => type.trim())
                 .filter(Boolean);
-            // Exact match against the parsed whitelist. An empty `file.type`
-            // (browser could not detect the MIME type) is rejected rather than
-            // slipping through a substring match.
+            // Exact match against the whitelist; an empty `file.type` (MIME
+            // undetected) is rejected rather than slipping through.
             if (!file.type || !allowed.includes(file.type)) {
                 this.notification.add(
                     _t(

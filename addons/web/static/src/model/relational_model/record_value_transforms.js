@@ -7,27 +7,15 @@
  * Value transformation functions for Record data.
  *
  * Most helpers (``formatServerValue``, ``getDefaultValues``,
- * ``getTextValues``, ``computeDataContext``) are pure — they depend
- * only on their arguments, making them independently testable.
+ * ``getTextValues``, ``computeDataContext``) are pure and independently
+ * testable.
  *
- * ``parseServerValues`` (added Phase 3) takes the RelationalRecord as
- * its first argument because it needs to call back into ``record``-
- * level protected methods that own per-instance state:
- *
- *   - ``record._createStaticListDatapoint(...)`` — constructor that
- *     reads ``record.model.Class.StaticList``
- *   - ``record._processProperties(...)`` — mutates
- *     ``record.fields`` and ``record.activeFields`` with the dynamic
- *     properties schema returned by the server
- *
- * Following the established convention (see ``record_lifecycle.js``,
- * ``record_validator.js``), the helper accesses these via ``record._X``
- * directly rather than via explicit callback parameters. The plan
- * (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md
- * §6 Phase 3) initially proposed a ``createStaticList`` callback
- * parameter; the implementation follows Phase 1's convention for
- * cross-phase consistency. Tests provide stubs by setting the methods
- * directly on the mock record.
+ * ``parseServerValues`` takes the RelationalRecord as its first argument
+ * because it must call back into ``record``-owned protected methods that
+ * hold per-instance state (``_createStaticListDatapoint``,
+ * ``_processProperties``), accessed directly as ``record._X`` per the
+ * convention in ``record_lifecycle.js`` / ``record_validator.js``. Tests
+ * stub these by setting them on a mock record.
  */
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
@@ -216,33 +204,26 @@ export function computeDataContext(data, fields, textValues, resId) {
  * Parse a bag of server values into JS-shaped record values.
  *
  * Dispatch by field type:
- *   - **x2many** (``one2many`` / ``many2many``): build or reuse a
- *     StaticList datapoint via ``record._createStaticListDatapoint``.
- *     The server may send either a list of record objects
- *     (``[{id, name, ...}, ...]``), a list of bare ids
- *     (``[1, 2, 3]`` — converted to ``[{id: 1}, ...]``), or a list of
- *     x2many commands (``[[4, 1, 0], ...]`` — detected by inspecting
- *     element 0). Command lists go through
- *     ``staticList._applyInitialCommands`` (new list) or
- *     ``._applyCommands`` (existing list passed via ``currentValues``).
- *   - **properties**: delegate to ``parseServerValue`` for the value
- *     itself, then call ``record._processProperties`` to splice the
- *     dynamic property definitions into ``record.fields`` /
- *     ``record.activeFields`` and return the per-property values that
- *     get merged into the parsed bag.
- *   - **scalar / m2o / reference / date / etc.**: delegate to
- *     ``parseServerValue(field, value)`` (from ``field_values.js``).
+ *   - **x2many**: build or reuse a StaticList via
+ *     ``record._createStaticListDatapoint``. The server value may be a
+ *     list of record objects (``[{id, name, ...}, ...]``), a list of
+ *     bare ids (``[1, 2, 3]`` — converted to ``[{id: 1}, ...]``), or a
+ *     list of x2many commands (``[[4, 1, 0], ...]``, detected via
+ *     element 0) — applied through ``staticList._applyInitialCommands``
+ *     (new list) or ``._applyCommands`` (existing, via ``currentValues``).
+ *   - **properties**: parse via ``parseServerValue``, then
+ *     ``record._processProperties`` splices the dynamic definitions
+ *     into ``record.fields`` / ``activeFields`` and returns per-property
+ *     values merged into the result.
+ *   - **other**: delegate to ``parseServerValue(field, value)``.
  *
  * Skips fields not declared in ``record.activeFields`` (the server may
  * send more fields than the view subscribes to — e.g. the
  * ``definition_record`` companion of a properties field).
  *
- * Invariant I7 preservation:
- * The helper RETURNS a plain object; it does not assign to
- * ``record._values``. The four call sites in record.js (at lines for
- * ``_setData`` x2, ``_applyChanges``, ``_applyValues``) each handle
- * the assignment and ``markRaw`` wrapping themselves, preserving the
- * three-layer state contract (``_values`` server-truth /
+ * Returns a plain object without assigning ``record._values`` — the
+ * call sites in record.js own that assignment/``markRaw`` wrapping, to
+ * preserve the three-layer state contract (``_values`` server-truth /
  * ``_changes`` user-edits / ``data`` merged).
  *
  * @param {RelationalRecord} record
@@ -285,10 +266,9 @@ export function parseServerValues(
                 if (data.length && typeof data[0] === "number") {
                     data = data.map((resId) => ({ id: resId }));
                 }
-                // ``data`` is either an array of plain ids that we just
-                // mapped to ``{id}`` objects, an empty array (command
-                // list path), or pre-shaped record objects from the
-                // server. All three satisfy the consumer's shape.
+                // ``data`` is either plain ids (mapped to ``{id}``), an
+                // empty array (command-list path), or pre-shaped server
+                // records — all valid shapes for the constructor.
                 staticList = record._createStaticListDatapoint(
                     /** @type {Array<{id: number, [key: string]: any}>} */ (data),
                     fieldName,

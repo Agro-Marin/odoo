@@ -106,7 +106,6 @@ test("widget many2many_binary", async () => {
     expect("input.o_input_file").toHaveAttribute("accept", "image/*");
     expect.verifySteps(["/web/dataset/call_kw/turtle/web_read"]);
 
-    // Set and trigger the change of a file for the input
     await contains(".o_file_input_trigger").click();
     await setInputFiles(
         new File(["fake_file"], "fake_file.tiff", { type: "text/plain" }),
@@ -125,7 +124,6 @@ test("widget many2many_binary", async () => {
         { message: "preview displays the right mimetype" },
     );
 
-    // delete the attachment
     await contains(
         "div.o_field_widget .oe_fileupload .o_attachment .o_attachment_delete",
     ).click();
@@ -186,7 +184,6 @@ test("widget many2many_binary displays notification on error", async () => {
         "div.o_field_widget .oe_fileupload .o_attachment .o_attachment_delete",
     ).toHaveCount(1);
 
-    // Set and trigger the import of 2 files in the input
     await contains(".o_file_input_trigger").click();
     await setInputFiles([
         new File(["good_file"], "good_file.txt", { type: "text/plain" }),
@@ -242,7 +239,6 @@ test("widget many2many_binary keeps valid files uploaded after an errored one", 
         resId: 1,
     });
 
-    // Upload [bad, good] — bad first.
     await contains(".o_file_input_trigger").click();
     await setInputFiles([
         new File(["bad_file"], "bad_file.txt", { type: "text/plain" }),
@@ -299,7 +295,6 @@ test("widget many2many_binary image MIME type preview", async () => {
         "div.o_field_widget .oe_fileupload .o_attachment .o_attachment_delete",
     ).toHaveCount(1);
 
-    // Set and trigger the import of a png image in the input
     await contains(".o_file_input_trigger").click();
     await setInputFiles(new File([imageData], "fake_image.png", { type: "image/png" }));
     await animationFrame();

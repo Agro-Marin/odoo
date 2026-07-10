@@ -76,10 +76,9 @@ export class Time {
         const rounded = Math.round(this.minute / rounding) * rounding;
         if (rounded >= 60) {
             if (this.hour >= 23) {
-                // Rounding up would spill past midnight. Incrementing the hour
-                // here would wrap to 00:00 of the SAME day, sending a datetime
-                // consumer back ~24h. Round DOWN to the last valid slot of the
-                // day instead (e.g. 23:58 -> 23:55 with rounding 5).
+                // Rounding up would spill past midnight and wrap to 00:00 the
+                // same day (~24h back). Round down to the last valid slot
+                // instead (e.g. 23:58 -> 23:55 with rounding 5).
                 this.minute = Math.floor(59 / rounding) * rounding;
             } else {
                 this.hour = this.hour + 1;
@@ -112,8 +111,7 @@ export class Time {
     }
 
     /**
-     * Returns the formatted value of the time, with 24 of 12 hours
-     * format and with or without meridiems depending on the current
+     * Format the time in 24h or 12h (with meridiem) per the current
      * localization time format.
      *
      * @param {boolean} [showSeconds=false]

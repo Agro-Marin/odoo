@@ -149,9 +149,8 @@ test("SelectionField, edition and on many2one field", async () => {
 });
 
 test("unset selection field with 0 as key", async () => {
-    // The server doesn't make a distinction between false value (the field
-    // is unset), and selection 0, as in that case the value it returns is
-    // false. So the client must convert false to value 0 if it exists.
+    // The server can't distinguish "unset" from selection value 0 — both
+    // return false — so the client must convert false to 0 when it exists.
     Partner._fields.selection = fields.Selection({
         selection: [
             [0, "Value O"],
@@ -175,10 +174,8 @@ test("unset selection field with 0 as key", async () => {
 });
 
 test("unset selection field with string keys", async () => {
-    // The server doesn't make a distinction between false value (the field
-    // is unset), and selection 0, as in that case the value it returns is
-    // false. So the client must convert false to value 0 if it exists. In
-    // this test, it doesn't exist as keys are strings.
+    // Same false/0 ambiguity as above, but here the keys are strings, so
+    // value 0 doesn't exist and unset must stay empty.
     Partner._fields.selection = fields.Selection({
         selection: [
             ["0", "Value O"],

@@ -106,11 +106,8 @@ export class X2ManyField extends Component {
         });
 
         this.addInLine = useAddInlineRecord({
-            // ``useAddInlineRecord`` always calls ``addNew`` with a single
-            // params object (``{ context, mode, position }``). The previous
-            // ``...args`` rest passthrough was over-general — the spread
-            // can't be type-checked against StaticList.addNewRecord's
-            // single-argument signature.
+            // Single params object (not ...args): needed for type-checking
+            // against StaticList.addNewRecord's single-argument signature.
             addNew: (params) => this.list.addNewRecord(params),
         });
 
@@ -222,11 +219,10 @@ export class X2ManyField extends Component {
                         initialLimit === limit &&
                         initialLimit === this.list.limit + 1
                     ) {
-                        // Unselecting the edited record might have abandonned it. If the page
-                        // size was reached before that record was created, the limit was temporarily
-                        // increased to keep that new record in the current page, and abandonning it
-                        // decreased this limit back to it's initial value, so we keep this into
-                        // account in the offset/limit update we're about to do.
+                        // Unselecting the edited record may have abandoned it. If the page
+                        // size was reached before it was created, the limit was temporarily
+                        // bumped to keep it on the current page; abandoning it reverts the
+                        // limit, so account for that in this offset/limit update.
                         offset -= 1;
                         limit -= 1;
                     }
@@ -299,11 +295,9 @@ export class X2ManyField extends Component {
     async switchToForm(record, options) {
         let resId;
         if (record.isNew) {
-            // In the case of a new record, you don't have access to the id from the start, to get it we need to:
-            // - Finds the record's index using its _virtualId.
-            // - Saves the record and compares resIds before and after to detect new records.
-            // - If the record was created, it determines its final resId by matching the index.
-            // - Opens the form view for the correct record.
+            // New records have no resId until saved: locate the record's index
+            // among pending CREATE commands, save, then diff resIds before/after
+            // to find the id newly assigned at that index.
             const createCommands = this.list._commands.filter(
                 ([command]) => command === x2ManyCommands.CREATE,
             );

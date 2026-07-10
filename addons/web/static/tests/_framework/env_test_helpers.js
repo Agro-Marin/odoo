@@ -96,12 +96,9 @@ export function getService(name) {
  */
 export async function makeMockEnv(partialEnv, options) {
     if (currentEnv && !options?.makeNew) {
-        // The previous test's ``after()`` cleanup didn't flip
-        // ``currentEnv`` back to null — typically because that test
-        // failed at setup before the cleanup registration ran.
-        // Reset instead of throwing so the next test can start
-        // cleanly; otherwise this single dangling reference
-        // cascades into every subsequent test failing the same way.
+        // Previous test's after() cleanup didn't run (e.g. failed before
+        // registering it). Reset instead of throwing so this dangling
+        // reference doesn't cascade into every subsequent test.
         currentEnv = null;
     }
 
@@ -120,20 +117,11 @@ export async function makeMockEnv(partialEnv, options) {
         after(() => {
             currentEnv = null;
 
-            // Ideally: should be done in a patch of the localization service, but this
-            // is less intrusive for now.
-            //
-            // Clear the cached translation values so the next test starts
-            // with a fresh slate, but KEEP ``[translationLoaded] = true``.
-            // ``setupTestEnvironment`` sets the flag once at bundle load
-            // and any subsequent ``_t(...)`` call expects it to remain
-            // truthy — without this, every test after the first one
-            // throws "Cannot translate string: translations have not
-            // been loaded" the moment a plugin builds a template that
-            // contains a lazy ``_t(…)`` substitution (e.g. the
-            // html_editor ``movenode_plugin``'s ``setMovableElement``
-            // tooltip), which manifested as the 12 checklist failures
-            // and other html_editor regressions.
+            // Ideally this belongs in a patch of the localization service, but this is
+            // less intrusive for now. Clear cached translations for the next test but
+            // KEEP [translationLoaded] = true: setupTestEnvironment sets it once at
+            // bundle load and lazy _t(...) calls (e.g. html_editor's movenode_plugin
+            // tooltip) expect it to stay truthy, or every test after the first throws.
             if (translatedTerms[translationLoaded]) {
                 for (const key in translatedTerms) {
                     delete translatedTerms[key];
@@ -146,14 +134,10 @@ export async function makeMockEnv(partialEnv, options) {
         });
     }
 
-    // Drop the per-env UPDATE listener that startServices installs on the
-    // singleton service registry. Registered BEFORE the ``await
-    // startServices(env)`` call so that even if startServices throws
-    // (e.g. tests that assert a crashing service factory rejects
-    // makeMockEnv), the cleanup still runs at end-of-test. startServices
-    // assigns ``env.disposeServiceRegistryListener`` before the await
-    // that can throw, so the optional-call here resolves to a real
-    // dispose function in every reachable failure mode.
+    // Drop the per-env UPDATE listener startServices installs on the singleton
+    // service registry. Registered before the await so cleanup still runs even
+    // if startServices throws (it assigns disposeServiceRegistryListener before
+    // the point where it can reject).
     after(() => env.disposeServiceRegistryListener?.());
 
     await startServices(env);

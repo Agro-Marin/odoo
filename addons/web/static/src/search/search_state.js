@@ -3,18 +3,7 @@
 
 /** @module @web/search/search_state - State serialization, shared constants, and section helpers for SearchModel */
 
-/**
- * State serialization, shared constants, and pure utility functions
- * for SearchModel.
- *
- * Handles export/import of SearchModel state (Map ↔ Array conversion),
- * search-default extraction from global context, and constants shared
- * across multiple search modules.
- */
-
-// ---------------------------------------------------------------------------
 // Shared constants
-// ---------------------------------------------------------------------------
 
 /** Sentinel for the default-groupBy facet (not a real groupId). */
 export const SPECIAL = Symbol("special");
@@ -22,9 +11,7 @@ export const SPECIAL = Symbol("special");
 export const FAVORITE_PRIVATE_GROUP = 1;
 export const FAVORITE_SHARED_GROUP = 2;
 
-// ---------------------------------------------------------------------------
 // Section helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Whether a search-panel section has displayable values.
@@ -47,9 +34,7 @@ export function hasValues(section) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // State serialization
-// ---------------------------------------------------------------------------
 
 /**
  * Serialize a Map to an array of [key, shallowCopy(value)] pairs.
@@ -135,9 +120,7 @@ export function execute(op, source, target) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Search defaults
-// ---------------------------------------------------------------------------
 
 /**
  * Extract `search_default_*` and `searchpanel_default_*` keys from a

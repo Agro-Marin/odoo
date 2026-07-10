@@ -335,9 +335,8 @@ test("save on closing tab/browser", async () => {
     expect.verifySteps(["sendBeacon"]);
     expect(event.defaultPrevented).toBe(false);
 
-    // With all changes saved, the save/discard buttons should now be invisible.
-    // While it typically doesn't matter when leaving a page, an urgent save may get triggered
-    // by a user action that remains on the page, e.g. opening a VoIP client (see opw 4308954).
+    // Save/discard buttons should now be invisible; an urgent save can still be triggered
+    // without leaving the page, e.g. opening a VoIP client (see opw 4308954).
     await animationFrame();
     expect(`.o_form_status_indicator_buttons:not(.invisible)`).toHaveCount(0);
 });
@@ -631,8 +630,7 @@ test("save on closing tab/browser (pending change)", async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // edit 'expertise' but do not focusout -> the model isn't aware of the change
-    // until the 'beforeunload' event is triggered
+    // edit without focusout -> model unaware of the change until 'beforeunload' triggers it
     await contains(`.o_field_widget[name="expertise"] input`).edit("test", {
         confirm: false,
     });
@@ -699,8 +697,7 @@ test("save on closing tab/browser (onchanges + pending change)", async () => {
         confirm: "blur",
     });
 
-    // edit 'expertise' but do not focusout -> the model isn't aware of the change
-    // until the 'beforeunload' event is triggered
+    // edit without focusout -> model unaware of the change until 'beforeunload' triggers it
     await contains(`.o_field_widget[name="expertise"] input`).edit("test", {
         confirm: false,
     });
@@ -726,8 +723,7 @@ test("save on closing tab/browser (invalid pending change)", async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // edit 'expertise' but do not focusout -> the model isn't aware of the change
-    // until the 'beforeunload' event is triggered
+    // edit without focusout -> model unaware of the change until 'beforeunload' triggers it
     await contains(`.o_field_widget[name="age"] input`).edit("invalid value", {
         confirm: false,
     });

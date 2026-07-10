@@ -1,19 +1,10 @@
 // @ts-check
 
-/**
- * Pure unit tests for field_spec.js.
- *
- * Tests getFieldsSpec which builds the server fetch specification
- * from active fields. No OWL or DOM needed.
- */
+/** Tests getFieldsSpec: builds the server fetch spec from active fields. No OWL/DOM needed. */
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { getFieldsSpec } from "@web/model/relational_model/field_spec";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /** Build minimal activeFields from a list of [name, options] pairs. */
 function makeActiveFields(defs) {
@@ -24,9 +15,7 @@ function makeActiveFields(defs) {
     return activeFields;
 }
 
-// ---------------------------------------------------------------------------
 // Scalar fields
-// ---------------------------------------------------------------------------
 
 describe("getFieldsSpec — scalar fields", () => {
     test("char field produces empty spec object", () => {
@@ -58,9 +47,7 @@ describe("getFieldsSpec — scalar fields", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // many2one / reference
-// ---------------------------------------------------------------------------
 
 describe("getFieldsSpec — many2one", () => {
     test("includes display_name in fields", () => {
@@ -104,9 +91,7 @@ describe("getFieldsSpec — reference", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // x2many
-// ---------------------------------------------------------------------------
 
 describe("getFieldsSpec — one2many / many2many", () => {
     test("empty spec when no related defined", () => {
@@ -181,9 +166,7 @@ describe("getFieldsSpec — one2many / many2many", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // properties
-// ---------------------------------------------------------------------------
 
 describe("getFieldsSpec — properties", () => {
     test("adds display_name to definition_record field spec", () => {

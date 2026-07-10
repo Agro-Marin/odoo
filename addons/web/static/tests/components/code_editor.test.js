@@ -53,17 +53,12 @@ function getFakeAceEditor() {
 }
 
 /*
-A custom implementation to dispatch keyboard events for ace specifically
-It is very naive and simple, and could extended
-
-FIXME: Specificities of Ace 1.32.3
--- Ace heavily relies on KeyboardEvent.keyCode, so hoot's helpers
-    cannot be used for this simple test.
--- Ace still relies on the keypress event
--- The textarea has no size in ace, it is a "hidden" input and a part of Ace's internals
-    hoot's helpers won't focus it naturally
--- The same Ace considers that if "Win" is not part of the useragent's string, we are in a MAC environment
-    So, instead of patching the useragent, we send to ace what it wants. (ie: Command + metaKey: true)
+FIXME: Ace 1.32.3 quirks require this naive custom keyboard-event dispatcher
+instead of hoot's helpers:
+-- Ace relies on KeyboardEvent.keyCode and on the keypress event.
+-- The textarea is a hidden input internal to Ace, so hoot's helpers can't focus it.
+-- Ace assumes a UA without "Win" means macOS, so we send it metaKey directly
+    instead of patching the useragent.
 */
 function dispatchKeyboardEvents(el, tupleArray) {
     for (const [evType, eventInit] of tupleArray) {
@@ -178,9 +173,8 @@ test("Default value correctly set and updates", async () => {
             this.onChange = debounce(this.onChange.bind(this));
         }
         onChange(value) {
-            // Changing the value of the textarea manualy triggers an Ace "remove" event
-            // of the whole text (the value is thus empty), then an "add" event with the
-            // actual value, this isn't ideal but we ignore the remove.
+            // Manual textarea edits fire an Ace "remove" event (empty value) then
+            // an "add" event with the actual value; ignore the remove.
             if (value.length <= 0) {
                 return;
             }
@@ -194,9 +188,8 @@ test("Default value correctly set and updates", async () => {
     const codeEditor = await mountWithCleanup(Parent);
     expect(getDomValue()).toBe(textA);
 
-    // Disable XML autocompletion for xml end tag.
-    // Necessary because the contains().edit() helpers triggers as if it was
-    // a real user interaction.
+    // Disable XML end-tag autocompletion, since contains().edit() triggers
+    // as if it were a real user interaction.
     const ace_editor = window.ace.edit(queryOne(".ace_editor"));
     ace_editor.setBehavioursEnabled(false);
 

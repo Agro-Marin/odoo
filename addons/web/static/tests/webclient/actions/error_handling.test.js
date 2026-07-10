@@ -151,13 +151,8 @@ test("connection lost when opening form view from kanban", async () => {
         throw new Error(); // simulate a ConnectionLost error
     });
     await contains(".o_kanban_record").click();
-    // Wait one animation frame so the notification service's reactive
-    // ``notifications`` mutation propagates through OWL and the
-    // ``.o_notification`` element lands in the DOM before we assert on
-    // it.  The sibling test ``connection lost when coming back to
-    // kanban from form`` already does this; this test was missing the
-    // tick — the notification was being added (handler logs confirm)
-    // but the synchronous expect ran before render completed.
+    // Wait a tick for the notification service's reactive mutation to
+    // propagate through OWL before asserting on `.o_notification`.
     await animationFrame();
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_notification").toHaveCount(1);
@@ -187,13 +182,9 @@ test("connection lost when coming back to kanban from form", async () => {
     expect.errors(1);
 
     let offline = false;
-    // ``/mail/data`` and ``/mail/action`` are mail's init_messaging
-    // and discuss-action RPCs that ``WebClient.setup`` fires for every
-    // backend mount.  They are infrastructure-level (same status as
-    // ``/web/webclient/translations``, which this test already filters)
-    // and not part of the kanban→form→back navigation sequence under
-    // test.  ``stepAllNetworkCalls`` filters them via the same
-    // ``STEP_TRACKER_BOILERPLATE_ROUTES`` set; mirror that filter here.
+    // `/mail/data` and `/mail/action` are init_messaging/discuss-action RPCs
+    // fired on every backend mount — infrastructure noise, not part of the
+    // navigation sequence under test. Filter them like stepAllNetworkCalls does.
     const BOILERPLATE = new Set([
         "/web/webclient/translations",
         "/mail/data",
@@ -284,8 +275,7 @@ test("error on onMounted", async () => {
         setup() {
             super.setup();
             onMounted(() => {
-                // If a onMounted hook is faulty, the rest of the onMounted will not be executed
-                // leading to inconsistent views.
+                // A faulty onMounted hook prevents the rest of onMounted from running.
                 throw new Error("Never Executed code");
             });
         },

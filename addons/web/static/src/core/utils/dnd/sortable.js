@@ -27,8 +27,7 @@ import {
  * @property {number} [delay] delay before starting a sequence after a "pointerdown".
  * @property {number} [touchDelay] same as "delay", but specific to touch environments.
  * @property {string | (() => string)} [groups] defines parent groups of sortable
- *  elements. This allows to add `onGroupEnter` and `onGroupLeave` callbacks to
- *  work on group elements during the dragging sequence.
+ *  elements, enabling `onGroupEnter`/`onGroupLeave` callbacks.
  * @property {string | (() => string)} [handle] additional selector for when the
  *  dragging sequence must be initiated when dragging on a certain part of the element.
  * @property {string | (() => string)} [ignore] selector targetting elements that
@@ -58,10 +57,8 @@ import {
  *  is specified): will be called when the cursor leaves another group element.
  * @property {(params: SortableHandlerParams) => any} [onDragEnd]
  *  called when the dragging sequence ends, regardless of the reason.
- * @property {(params: DropParams) => any} [onDrop] called when the dragging sequence
- *  ends on a pointerup action AND the dragged element has been moved elsewhere.
- *  The callback will be given an object with any useful element regarding the new
- *  position of the dragged element (@see DropParams ).
+ * @property {(params: DropParams) => any} [onDrop] called on pointerup when the
+ *  dragged element has moved elsewhere (@see DropParams).
  */
 
 /**
@@ -374,17 +371,16 @@ const hookParams = {
             }
         };
 
-        // A single delegated "pointerover"/"pointerout" listener pair replaces
-        // the previous per-element and per-group "pointerenter"/"pointerleave"
-        // listeners, which required O(N) listener additions and O(N) inline
-        // "pointer-events: auto" style writes on every drag start (and as many
-        // removals/restores on drop). `addListener` restores pointer events on
-        // the whole ref subtree through a single container-level style, needed
-        // since the body is "pe-none" during the drag sequence.
+        // A single delegated "pointerover"/"pointerout" pair replaces the
+        // previous per-element/per-group "pointerenter"/"pointerleave"
+        // listeners, avoiding O(N) listener additions and O(N) inline
+        // "pointer-events: auto" writes per drag start. `addListener`
+        // restores pointer events on the whole ref subtree via one
+        // container-level style, needed since the body is "pe-none" during
+        // the drag sequence.
         addListener(ref.el, "pointerover", onPointerOver);
         addListener(ref.el, "pointerout", onPointerOut);
 
-        // Placeholder is initially added right after the current element.
         current.element.after(current.placeHolder);
 
         return pick(current, "element", "group");

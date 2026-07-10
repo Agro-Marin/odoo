@@ -27,9 +27,7 @@ export class SignatureDialog extends Component {
         });
     }
 
-    /**
-     * Upload the signature image when confirm.
-     */
+    /** Upload the signature image on confirm. */
     async onClickConfirm() {
         await this.props.uploadSignature({
             name: this.signature.name,

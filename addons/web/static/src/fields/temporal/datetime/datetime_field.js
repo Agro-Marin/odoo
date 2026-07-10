@@ -275,13 +275,9 @@ export class DateTimeField extends Component {
     //-------------------------------------------------------------------------
 
     /**
-     * Focus handler for date/time display buttons.
-     *
-     * Converting to edit mode (showing an input and opening the picker) is the
-     * intended behaviour when the user focuses a button interactively.  When the
-     * button receives programmatic focus right after the picker closes we must
-     * NOT re-open the picker, so the useEffect in setup() sets
-     * `this._suppressNextFocus = true` before calling `element.focus()`.
+     * Focus handler for date/time display buttons: switches to edit mode.
+     * Skipped when useEffect just set `_suppressNextFocus` after the picker
+     * closed, to avoid immediately reopening it.
      *
      * @param {FocusEvent} ev
      */
@@ -296,16 +292,10 @@ export class DateTimeField extends Component {
     }
 
     /**
-     * Click handler for date/time display buttons.
-     *
-     * When the button was programmatically focused by useEffect (after the
-     * picker closed), a subsequent user click does NOT re-fire the `focus`
-     * event, so `onDateButtonFocus` would never run.  This handler covers that
-     * case by unconditionally switching to edit mode on click.
-     *
-     * Setting `activeInput` to the same value is idempotent in OWL's reactive
-     * system, so there is no harm when both this handler and `onDateButtonFocus`
-     * fire for an initially-unfocused button.
+     * Click handler for date/time display buttons. Needed because a click
+     * after useEffect's programmatic focus doesn't re-fire `focus`, so
+     * `onDateButtonFocus` wouldn't run; setting `activeInput` twice is
+     * idempotent, so overlap with that handler is harmless.
      *
      * @param {MouseEvent} ev
      */
@@ -420,10 +410,8 @@ export class DateTimeField extends Component {
     }
 
     /**
-     * The given props are used to compute the current value and compare it to
-     * the state handled by the datetime hook.
-     *
-     * @param {boolean} [isDirty]
+     * @param {boolean} [isDirty] Explicit override; otherwise computed from
+     *  the record value vs. the datetime hook's state.
      */
     triggerIsDirty(isDirty) {
         this.props.record.model.bus.trigger(

@@ -16,35 +16,21 @@ import { getGroupLabels, getGroupValues } from "./pivot_value_utils.js";
 /**
  * @typedef {object} PivotAggregateDeps
  * @property {(sortedColumn: any, config: any) => void} sortRows
- *   Renderer-supplied row sort. Called as the final step when
- *   ``metaData.sortedColumn`` is set so the row tree is re-sorted
- *   after new measurements land. Kept on the model so subclasses
- *   that override ``_sortRows`` continue to win.
+ *   Renderer-supplied row sort, called after new measurements land when
+ *   `metaData.sortedColumn` is set. Kept on the model so subclass overrides
+ *   of `_sortRows` still apply.
  */
 
 /**
- * Fold ``groupSubdivisions`` into the pivot's in-memory ``data`` tree.
+ * Fold `groupSubdivisions` into the pivot's in-memory `data` tree: concatenates
+ * row/col values+labels with the parent group's coordinates, inserts the node
+ * into `rowGroupTree`/`colGroupTree` only for the single-axis case (dual-axis
+ * cells share an existing branch and are never double-inserted), and writes
+ * measurements/currencyIds/counts/groupDomains keyed by (rowValues, colValues).
+ * A missing `__domain` maps to `Domain.FALSE` so clicking that cell opens an
+ * empty list instead of erroring server-side.
  *
- * For each sub-group of each subdivision the function:
- *
- *   1. Concatenates the row / col values + labels with the parent
- *      ``group``'s coordinates so leaf keys are fully qualified.
- *   2. Inserts the resulting node into ``rowGroupTree`` /
- *      ``colGroupTree`` when only one axis is set (the other axis's
- *      branch is shared across sub-groups, so we never double-insert).
- *   3. Writes the (rowValues, colValues)-keyed entries into
- *      ``measurements``, ``currencyIds``, ``counts`` and
- *      ``groupDomains``. A missing ``__domain`` on the sub-group
- *      maps to ``Domain.FALSE`` so a click on the corresponding cell
- *      opens an empty list rather than producing a server-side
- *      "domain undefined" trace.
- *
- * Pure data transformation aside from ``deps.sortRows`` which is the
- * one renderer hook this stage needs (sorted-column display has to
- * re-rank after measurements land).
- *
- * The function MUTATES ``config.data`` — same contract as the
- * original ``PivotModel._prepareData`` method.
+ * MUTATES `config.data` — same contract as the original `PivotModel._prepareData`.
  *
  * @param {{ rowValues: any[]; colValues: any[] }} group
  * @param {Array<{ subGroups: any[]; rowGroupBy: any; colGroupBy: any }>} groupSubdivisions
@@ -66,8 +52,7 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
         groupColLabels = findGroup(data.colGroupTree, groupColValues).root.labels;
     }
 
-    // Compute the measure specs once for the whole pass rather than per
-    // sub-group.
+    // Compute measure specs once for the whole pass, not per sub-group.
     const measureSpecs = getMeasureSpecs(config);
 
     groupSubdivisions.forEach((groupSubdivision) => {
@@ -108,10 +93,8 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
                 ),
             ];
 
-            // Avoid double-inserting the leaf: when both axes are non-empty
-            // the cell sits inside an existing row × column branch and
-            // gets keyed below; only the single-axis cases need a new
-            // tree node.
+            // Both axes non-empty: the cell sits in an existing branch and is
+            // keyed below; only single-axis cases need a new tree node.
             if (!colValues.length && rowValues.length) {
                 addGroup(data.rowGroupTree, rowLabels, rowValues);
             }

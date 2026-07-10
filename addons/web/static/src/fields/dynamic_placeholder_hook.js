@@ -63,8 +63,8 @@ export function useDynamicPlaceholder(elementRef) {
     };
 
     /**
-     * Open a Model Field Selector which can select fields to create a dynamic
-     * placeholder string in the Input with or without a default text value.
+     * Open a Model Field Selector to build a dynamic placeholder string,
+     * with or without a default value.
      *
      * @public
      * @param {Object} opts

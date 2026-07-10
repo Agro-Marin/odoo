@@ -14,11 +14,9 @@ export class Login extends Interaction {
     };
 
     /**
-     * Prevents the user from crazy clicking:
-     * Gives the button a loading effect if preventDefault was not already
-     * called and modifies the preventDefault function of the event so that the
-     * loading effect is removed if preventDefault() is called in a following
-     * customization.
+     * Applies a loading effect on submit (guards against double-clicks),
+     * unless preventDefault() was already called. Wraps preventDefault so a
+     * later call removes the effect again.
      *
      * @param {Event} ev
      */

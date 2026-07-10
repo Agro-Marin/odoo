@@ -325,8 +325,6 @@ export function pick(object, ...properties) {
 export function deepMerge(target, extension) {
     if (!isObject(target) && !isObject(extension)) {
         // Neither side is a plain object — nothing to merge.
-        // Follow "extension wins" semantics: return extension as-is,
-        // falling back to target only when extension is undefined.
         return extension !== undefined ? extension : target;
     }
 

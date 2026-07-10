@@ -169,10 +169,7 @@ export const tooltipService = {
         }
 
         /**
-         * Checks whether there is a tooltip registered on the element, and
-         * if there is, creates a timeout to open the corresponding tooltip
-         * after a delay.
-         *
+         * If a tooltip is registered on the element, schedule it to open after a delay.
          * @param {HTMLElement} el
          */
         function openElementsTooltip(el) {
@@ -212,10 +209,7 @@ export const tooltipService = {
         }
 
         /**
-         * Checks whether there is a tooltip registered on the event target, and
-         * if there is, creates a timeout to open the corresponding tooltip
-         * after a delay.
-         *
+         * Schedule opening a tooltip registered on the event target, if any.
          * @param {MouseEvent} ev a "mouseenter" event
          */
         function onMouseenter(ev) {
@@ -223,8 +217,7 @@ export const tooltipService = {
         }
 
         /**
-         * Check whether there is a tooltip registered on the event target, and if there is,
-         * cleanup it.
+         * Clean up any tooltip registered on the event target.
          * @param {MouseEvent} ev a "click" event
          */
         function onClick(ev) {
@@ -239,15 +232,11 @@ export const tooltipService = {
                 target &&
                 !target.contains(/** @type {Node} */ (ev.target))
             ) {
-                // A tooltip is pending (scheduled, not yet shown) and the
-                // click landed outside its target: cancel it. With a real
-                // pointer this never triggers — moving the mouse off the
-                // target fires "mouseleave" (handled above) before any click
-                // elsewhere can happen. It matters for synthetic pointers
-                // (tours, tests): they don't dispatch "mouseleave" when the
-                // hovered element goes away (e.g. a popover closed by this
-                // very click), which would otherwise let the stale tooltip
-                // open after the click.
+                // A tooltip is pending and the click landed outside its target: cancel
+                // it. A real pointer never hits this (mouseleave fires first), but
+                // synthetic pointers (tours, tests) skip mouseleave when the hovered
+                // element disappears (e.g. a popover this click just closed), which
+                // would otherwise let a stale tooltip open after the click.
                 cleanup();
             }
         }
@@ -258,10 +247,7 @@ export const tooltipService = {
             }
         }
         /**
-         * Checks whether there is a tooltip registered on the event target, and
-         * if there is, creates a timeout to open the corresponding tooltip
-         * after a delay.
-         *
+         * Schedule opening a tooltip registered on the event target, if any.
          * @param {TouchEvent} ev a "touchstart" event
          */
         function onTouchStart(ev) {
@@ -298,11 +284,11 @@ export const tooltipService = {
                 document.body.addEventListener("touchcancel", onTouchEnd);
             }
 
-            // Listen (using event delegation) to "mouseenter" events to open the tooltip if any
+            // Delegate "mouseenter" to open tooltips
             document.body.addEventListener("mouseenter", onMouseenter, {
                 capture: true,
             });
-            // Listen (using event delegation) to "mouseleave" events to close the tooltip if any
+            // Delegate "mouseleave" to close tooltips
             document.body.addEventListener("mouseleave", cleanupTooltip, {
                 capture: true,
             });

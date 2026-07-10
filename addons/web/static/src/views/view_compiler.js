@@ -368,11 +368,9 @@ export class ViewCompiler {
             if (BUTTON_CLICK_PARAMS.includes(name)) {
                 clickParams[name] = value;
             } else if (name === "disabled") {
-                // ViewButton.disabled is a Boolean prop. View-arch buttons carry an
-                // HTML-style string ("disabled", "1", ...), so coerce it to a boolean
-                // literal at compile time — preserving the historical truthiness where
-                // an empty value means "not disabled" — instead of forwarding the raw
-                // string (which fails the prop's Boolean validation).
+                // ViewButton.disabled is a Boolean prop; view-arch buttons carry an
+                // HTML-style string ("disabled", "1", ...). Coerce to a boolean literal
+                // here, preserving the historical truthiness where empty means "not disabled".
                 button.setAttribute("disabled", value ? "true" : "false");
             } else if (BUTTON_STRING_PROPS.includes(name)) {
                 button.setAttribute(name, toStringExpression(value));
@@ -514,20 +512,13 @@ function getCompilerClassKey(ViewCompiler) {
 /**
  * Compile view arch templates and register them with OWL.
  *
- * Each template is keyed by
- * `${ViewCompiler.name}/${stringify(params)}/${arch.outerHTML}` (with newlines
- * collapsed to spaces) — a string that is both the compiler-cache key
- * AND the name registered in OWL's globalTemplates via App.registerTemplate.
- * The params discriminator prevents different compilations of the same arch
- * (e.g. form_controller passes `{ isSubView: true }`) from colliding on one
- * cached template.
- * The key must be single-line because Owl embeds it in a `//` JS comment during
- * code generation; real newlines in the name would break the comment and cause
- * a syntax error. Using arch content as the OWL template name ensures that
- * re-registering the same arch after a cache reset overwrites the same
- * globalTemplates slot instead of accumulating new entries, which eliminates
- * the memory leak that occurred when the auto-incrementing xml`` tag helper
- * was used.
+ * Each template is keyed by `${ViewCompiler.name}/${stringify(params)}/${arch.outerHTML}`
+ * (newlines collapsed to spaces) — both the compiler-cache key and the name registered in
+ * OWL's globalTemplates. The params discriminator keeps different compilations of the same
+ * arch (e.g. form_controller's `{ isSubView: true }`) from colliding on one cached template.
+ * The key must stay single-line since Owl embeds it in a `//` comment during code generation.
+ * Using arch content as the template name means re-registering after a cache reset overwrites
+ * the same slot instead of leaking new globalTemplates entries.
  *
  * @param {typeof ViewCompiler} ViewCompiler
  * @param {Record<string, Element>} templates
@@ -556,9 +547,8 @@ export function useViewCompiler(ViewCompiler, templates, params) {
         if (!templateCache[key]) {
             compiler = compiler || new ViewCompiler(templates);
             const compiledOuterHTML = compiler.compile(tname, params).outerHTML;
-            // Register with a deterministic name: same arch always maps to the
-            // same globalTemplates slot, so clearing templateCache and
-            // re-compiling overwrites rather than accumulates OWL entries.
+            // Deterministic name: same arch always maps to the same globalTemplates
+            // slot, so re-registering after a cache reset overwrites rather than accumulates.
             /** @type {any} */ (App).registerTemplate(key, compiledOuterHTML);
             templateCache[key] = key;
         }

@@ -45,8 +45,6 @@ import { unique } from "@web/core/utils/collections/arrays";
  * @property {(value: any, disambiguate?: boolean) => string} [stringify]
  */
 
-// ============================================================================
-
 const formatters = registry.category("formatters");
 
 /**
@@ -202,8 +200,6 @@ function isLitteralObject(value) {
     return typeof value === "object" && !Array.isArray(value) && value !== null;
 }
 
-// ============================================================================
-
 /**
  * @param {Object} fieldDef - field definition (may be empty)
  * @param {string} operator
@@ -331,11 +327,9 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             const formatType = type === "integer" ? "integer" : "float";
             const typeFormatter = formatters.get(formatType, null);
             const formatter = (value) => {
-                // Only run the numeric formatter on actual numbers. Dynamic
-                // values (an ``Expression`` such as ``uid``/``today``) must
-                // render as their raw expression text; coercing them through
-                // the number formatter blanks them out (crashing the domain
-                // editor's display of dynamic filters).
+                // Only format actual numbers: dynamic values (an ``Expression``
+                // like ``uid``/``today``) must keep their raw expression text,
+                // or the domain editor's display of dynamic filters blanks out.
                 if (typeFormatter && typeof value === "number") {
                     try {
                         return String(typeFormatter(value));
@@ -355,9 +349,9 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                 }),
                 isSupported: () => true,
                 defaultValue: () => 1,
-                // Keep committed numbers, dynamic values (an ``Expression``
-                // such as ``uid``) and parsable leftover strings when the
-                // operator changes; only unusable values are reset.
+                // Keep committed numbers, dynamic values (e.g. an ``Expression``
+                // like ``uid``) and parsable leftover strings across operator
+                // changes; reset only unusable values.
                 shouldResetValue: (value) =>
                     typeof value !== "number" &&
                     !(value instanceof Expression) &&
@@ -458,9 +452,8 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
         }
     }
 
-    // Global default for visualization mainly. It is there to visualize what
-    // has been produced in the debug textarea (in o_domain_selector_debug_container)
-    // It is hardly useful to produce a string in general.
+    // Fallback used mainly to visualize what's been produced in the debug
+    // textarea (o_domain_selector_debug_container); rarely useful otherwise.
     return {
         component: Input,
         extractProps: ({ value, update }) => ({

@@ -26,22 +26,19 @@ export class IndexedDB {
         this._tables = new Set([VERSION_TABLE]);
         /**
          * Cached open connection, reused across operations instead of
-         * opening (and closing) a fresh one per read/write/invalidate.
-         * Dropped when a schema upgrade is needed (new table), when
-         * another context requests a version change, or when the browser
-         * closes the connection.
+         * reopening per read/write/invalidate. Dropped on a schema upgrade
+         * (new table), a version-change request from another context, or
+         * when the browser closes the connection.
          *
          * @type {IDBDatabase | null}
          */
         this._db = null;
         this.mutex = new Mutex();
-        // The returned promise is intentionally not awaited (the constructor
-        // can't be async), but it must still be observed: ``_checkVersion`` ->
-        // ``_execute`` calls ``indexedDB.open`` synchronously, which THROWS in
-        // private-browsing / storage-disabled contexts.  Without this catch
-        // that throw surfaces as an unhandled promise rejection.  Swallow it
-        // here — subsequent read/write/invalidate calls each open their own
-        // connection and degrade gracefully (their ``onerror`` arm resolves).
+        // Constructor can't be async, so this promise isn't awaited — but it
+        // must be observed: ``_checkVersion`` -> ``_execute`` opens the DB
+        // synchronously, which throws in private-browsing/storage-disabled
+        // contexts. Swallow it; subsequent calls open their own connection
+        // and degrade gracefully via their ``onerror`` arm.
         this.mutex.exec(() => this._checkVersion(version)).catch(() => {});
     }
 
@@ -100,22 +97,14 @@ export class IndexedDB {
     }
 
     /**
-     * Selectively delete entries from one or more tables.  Iterates each
-     * table's keys with an ``openKeyCursor`` and deletes only those for
-     * which ``predicate(key)`` returns ``true``.
-     *
-     * Used by the RPC cache to honour model-scoped ``CLEAR-CACHES``
-     * signals on the disk cache without over-invalidating unrelated
-     * models.  The cursor scan is O(N) per table but avoids the
-     * "blow away everything on any unlink" footgun of plain
-     * :meth:`invalidate`.
-     *
-     * Predicate errors are swallowed (a malformed key is treated as
-     * non-matching and left in place) so a single bad entry can't
-     * abort the entire invalidation pass.
+     * Deletes entries from one or more tables via ``openKeyCursor``, keeping
+     * only those for which ``predicate(key)`` is falsy. Used by the RPC
+     * cache to scope ``CLEAR-CACHES`` invalidation without over-invalidating
+     * unrelated models; O(N) per table. Predicate errors are swallowed
+     * (entry kept) so one bad key can't abort the whole pass.
      *
      * @deprecated Production callers migrated to {@link invalidateByModel};
-     *   kept because its regression tests document a transaction-commit
+     *   kept for its regression tests covering a transaction-commit
      *   subtlety (no explicit ``commit()`` while cursors are pending).
      *
      * @param {string[]} tables
@@ -131,22 +120,13 @@ export class IndexedDB {
     }
 
     /**
-     * Delete entries whose stored value carries ``model === <model>``.
-     *
-     * Faster path than :meth:`invalidateWhere` for the canonical
-     * "invalidate one Odoo model's cached responses" case: the predicate
-     * is a fixed object-property check, so the cursor never has to invoke
-     * a caller-supplied function or JSON.parse the key.  ``openCursor`` is
-     * used (vs ``openKeyCursor``) because the discriminator lives on the
-     * stored value (``cursor.value.model``); this trades a little extra
-     * I/O for value reads against eliminating per-key parse cost — net
-     * win for typical entry sizes.
-     *
-     * Entries written without a ``model`` property are silently kept
-     * (correct — they are not model-scoped). This includes pre-existing
-     * entries written by older code before the model-on-value migration;
-     * they remain accessible to ``invalidate(table)`` but cannot be
-     * surgically scoped to a model.
+     * Deletes entries whose stored value has ``model === <model>``. Faster
+     * than :meth:`invalidateWhere` for this common case: the predicate is a
+     * fixed property check, and ``openCursor`` (not ``openKeyCursor``) is
+     * used since the discriminator lives on the value — extra I/O but no
+     * per-key parsing. Entries without a ``model`` property (e.g. written
+     * before this migration) are silently kept; they stay reachable via
+     * ``invalidate(table)`` but can't be scoped to a model.
      *
      * @param {string[]} tables
      * @param {string} model - Odoo model name, e.g. ``"res.partner"``
@@ -438,12 +418,8 @@ export class IndexedDB {
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {
                 const objectStore = transaction.objectStore(table);
-                // ``openCursor`` (not ``openKeyCursor``) so we can read
-                // ``cursor.value.model``. The value is materialised but
-                // the per-step cost — object property access — beats the
-                // predicate cost of the prior ``invalidateWhere`` path
-                // which JSON.parsed each key.  Old entries without a
-                // ``model`` property are silently kept.
+                // ``openCursor`` reads ``cursor.value.model`` (see docblock
+                // above); entries without ``model`` are kept as-is.
                 const request = objectStore.openCursor();
                 request.onsuccess = (event) => {
                     const cursor = /** @type {IDBCursorWithValue | null} */ (
@@ -480,21 +456,16 @@ export class IndexedDB {
             const transaction = db.transaction(targetTables, "readwrite", {
                 durability: "relaxed",
             });
-            // ``oncomplete`` is the canonical resolve signal: it fires
-            // after every queued request (cursor continuations and the
-            // store ``delete(key)`` writes below) has landed durably.
-            // Wire it before opening cursors so the handlers exist when
-            // the transaction enters its terminal state.
+            // ``oncomplete`` fires only once every queued request (cursor
+            // continuations, ``delete(key)`` writes) has landed; wired
+            // before opening cursors so the handlers exist when it fires.
             transaction.oncomplete = () => resolve(undefined);
             transaction.onerror = () => reject(transaction.error);
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {
-                // Keep a reference to the store: ``openKeyCursor`` returns
-                // an ``IDBCursor`` (key-only) which cannot call its own
-                // ``.delete()`` — that method is reserved for value
-                // cursors from ``openCursor``. Deleting through the
-                // object store by explicit key is both spec-compliant
-                // and cheaper (we never materialise the value).
+                // Keep a store reference: ``openKeyCursor`` yields a
+                // key-only ``IDBCursor`` with no ``.delete()`` (reserved for
+                // value cursors), so delete via the store by explicit key.
                 const objectStore = transaction.objectStore(table);
                 const request = objectStore.openKeyCursor();
                 request.onsuccess = (event) => {
@@ -502,9 +473,8 @@ export class IndexedDB {
                         /** @type {IDBRequest} */ (event.target).result
                     );
                     if (!cursor) {
-                        // Cursor exhausted for this table; nothing more
-                        // to queue. The transaction auto-commits once
-                        // every table's cursor reaches this branch.
+                        // Exhausted; the transaction auto-commits once every
+                        // table's cursor reaches this branch.
                         return;
                     }
                     let shouldDelete = false;
@@ -519,12 +489,11 @@ export class IndexedDB {
                     cursor.continue();
                 };
             }
-            // No explicit ``transaction.commit()``: cursor iteration
-            // queues one ``continue()`` per onsuccess tick, and calling
-            // ``commit()`` while requests are still pending moves the
-            // transaction to the committing state, causing the next
-            // ``cursor.continue()`` to raise ``TransactionInactiveError``.
-            // The transaction auto-commits when every cursor exhausts.
+            // No explicit ``commit()``: cursor iteration queues one
+            // ``continue()`` per tick, and committing while requests are
+            // pending would make the next ``continue()`` raise
+            // ``TransactionInactiveError``. Auto-commits once every cursor
+            // exhausts.
         });
     }
 }

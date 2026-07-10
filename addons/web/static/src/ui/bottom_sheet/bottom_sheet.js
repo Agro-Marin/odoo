@@ -3,11 +3,6 @@
 
 /** @module @web/ui/bottom_sheet/bottom_sheet - Mobile-friendly slide-up panel with drag-to-dismiss and snap points */
 
-/**
- * BottomSheet
- *
- * @class
- */
 import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getViewportDimensions, useViewportChange } from "@web/core/utils/dom/dvu";
@@ -69,7 +64,6 @@ export class BottomSheet extends Component {
         this.sheetRef = useRef("sheet");
         this.sheetBodyRef = useRef("ref");
 
-        // Create throttled version for onScroll
         this.throttledOnScroll = useThrottleForAnimation(this.onScroll.bind(this));
 
         // Adapt dimensions when mobile virtual-keyboards or browsers bars toggle
@@ -79,12 +73,10 @@ export class BottomSheet extends Component {
             }
         });
 
-        // Handle "ESC" key press.
         useHotkey("escape", () => this.slideOut());
 
-        // Handle mobile "back" gesture and "back" navigation button.
-        // Push a history state when the BottomSheet opens, intercept the browser's
-        // history events, prevents navigation by pushing another state and closes the sheet.
+        // Intercept the mobile "back" gesture/button: push a history state on open,
+        // then on popstate push another state and close (traps back-navigation).
         // TODO: this history entry leaks when the sheet is closed by other means
         // than "back" (it is never popped), leaving a stale entry on the stack.
         browser.history.pushState({ bottomSheet: true }, "");
@@ -109,28 +101,17 @@ export class BottomSheet extends Component {
         });
     }
 
-    /**
-     * Main initialization method for the sheet
-     * Sets up measurements, snap points, and event handlers
-     */
+    /** Sets up measurements, dimensions, position, and event handlers for the sheet. */
     initializeSheet() {
         if (!this.containerRef.el || !this.scrollRailRef.el || !this.sheetRef.el) {
             return;
         }
 
-        // Step 1: Take measurements
         this.measureDimensions();
-
-        // Step 2: Apply Dimensions
         this.applyDimensions();
-
-        // Step 3: Set initial position
         this.positionSheet();
-
-        // Step 4: Setup event handlers after everything has been properly resized and positioned
+        // Set up event handlers only after sizing/positioning is complete.
         this.setupEventHandlers();
-
-        // Step 5: Mark as ready
         this.state.isPositionedReady = true;
 
         if (this.prefersReducedMotion) {
@@ -153,36 +134,22 @@ export class BottomSheet extends Component {
         }
     }
 
-    /**
-     * Updates dimensions when viewport changes
-     * Recalculates measurements and snap points while preserving extended state
-     */
+    /** Recalculates dimensions on viewport change, preserving extended state. */
     updateDimensions() {
-        // Temporarily disable snapping during update
         this.state.isSnappingEnabled = false;
 
-        // Update measurements with new viewport dimensions
         this.measureDimensions();
         this.applyDimensions();
 
-        // // Update scroll position
         const scrollTop = this.scrollRailRef.el.scrollTop;
-
-        // Update progress value
         this.updateProgressValue(scrollTop);
 
-        // Re-enable snapping after dimensions are updated
         this.state.isSnappingEnabled = true;
     }
 
-    /**
-     * Takes measurements of viewport and sheet dimensions
-     * Calculates natural height and other key measurements
-     */
+    /** Measures viewport/sheet dimensions, including natural height. */
     measureDimensions() {
         const viewportHeight = getViewportDimensions().height;
-
-        // Calculate heights based on percentages
         const maxHeightPx = (this.maxHeightPercent / 100) * viewportHeight;
 
         // Reset any previously set constraints to measure natural height
@@ -193,7 +160,6 @@ export class BottomSheet extends Component {
         const naturalHeight = sheet.offsetHeight;
         const initialHeightPx = Math.min(naturalHeight, maxHeightPx);
 
-        // Store all measurements
         this.measurements = {
             viewportHeight,
             naturalHeight,
@@ -203,20 +169,15 @@ export class BottomSheet extends Component {
         };
     }
 
-    /**
-     * Applies calculated dimensions to the DOM elements
-     * Sets CSS variables and styles based on measurements and snap points
-     */
+    /** Sets CSS custom properties (heights) on the scroll rail from current measurements. */
     applyDimensions() {
         const rail = this.scrollRailRef.el;
 
-        // Convert heights to dvh percentages for CSS variables
         const heightPercent = Math.min(
             (this.measurements.initialHeight / this.measurements.viewportHeight) * 100,
             this.maxHeightPercent,
         );
 
-        // Set CSS variables for heights
         rail.style.setProperty("--sheet-height", `${heightPercent}dvh`);
         rail.style.setProperty(
             "--sheet-max-height",
@@ -228,59 +189,42 @@ export class BottomSheet extends Component {
         );
     }
 
-    /**
-     * Sets the initial position of the sheet
-     * Configures initial scroll position and overflow behavior
-     */
+    /** Sets initial scroll position and content overflow behavior. */
     positionSheet() {
         const scrollRail = this.scrollRailRef.el;
         const bodyContent = this.sheetBodyRef.el;
 
         const scrollValue = this.measurements.maxHeight;
 
-        // Configure body content overflow
         if (bodyContent) {
             bodyContent.style.overflowY = "auto";
         }
 
-        // Set scroll position
         scrollRail.scrollTop = scrollValue || 0;
         scrollRail.style.containerType = "scroll-state size";
     }
 
-    /**
-     * Sets up event handlers for scroll and touch events
-     */
+    /** Registers the scroll listener on the rail. */
     setupEventHandlers() {
         const scrollRail = this.scrollRailRef.el;
-
-        // Add scroll event listener
         scrollRail.addEventListener("scroll", this.throttledOnScroll);
     }
 
-    /**
-     * Handles scroll events on the rail element
-     * Updates progress, handles position snapping, and triggers dismissal
-     */
+    /** Updates progress and dismisses the sheet once scroll falls below the threshold. */
     onScroll() {
         if (!this.scrollRailRef.el) {
             return;
         }
 
         const scrollTop = this.scrollRailRef.el.scrollTop;
-
-        // Update progress value for visual effects
         this.updateProgressValue(scrollTop);
 
-        // Check for dismissal condition
         if (scrollTop < this.measurements.dismissThreshold) {
             this.slideOut();
         }
     }
 
     /**
-     * Calculates and updates the progress value based on scroll position
-     *
      * @param {number} scrollTop - Current scroll position
      */
     updateProgressValue(scrollTop) {

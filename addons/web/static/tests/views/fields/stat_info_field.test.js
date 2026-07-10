@@ -21,9 +21,7 @@ class Partner extends models.Model {
 defineModels([Partner]);
 
 test("StatInfoField formats decimal precision", async () => {
-    // sometimes the round method can return numbers such as 14.000001
-    // when asked to round a number to 2 decimals, as such is the behaviour of floats.
-    // we check that even in that eventuality, only two decimals are displayed
+    // Rounding floats can yield artifacts like 14.000001; verify only two decimals show.
     await mountView({
         type: "form",
         resModel: "partner",

@@ -39,9 +39,6 @@ export const CANCEL_GLOBAL_CLICK = [
     "[data-bs-toggle]",
 ].join(",");
 
-/**
- * Returns the index of a color determined by a given record.
- */
 function getColorIndex(value) {
     if (typeof value === "number") {
         return Math.round(value) % COLORS.length;
@@ -99,16 +96,10 @@ function getValue(record, fieldName) {
 }
 
 /**
- * Returns a lazily formatted version of a record, for use in the card
- * template's rendering context.
- *
- * The returned object exposes, for `id` and each active field, an entry with
- * `value` (formatted) and `raw_value` accessors — the historical rendering
- * contract of kanban-like card templates. Values are computed on access from
- * the record's current data instead of being eagerly formatted for every
- * fetched field: templates typically only read a few fields, and reading
- * through the record's reactive `data` in the render path subscribes the
- * component to exactly the accessed fields.
+ * Returns a lazily formatted version of a record for the card template's
+ * rendering context: `id` and each active field expose `value`/`raw_value`
+ * accessors computed on read rather than eagerly, so only accessed fields
+ * are formatted and reactively subscribed.
  *
  * @param {any} record
  * @returns {any}
@@ -184,10 +175,8 @@ export function getImageSrcFromRecordInfo(record, model, field, idOrIds, placeho
         const type = fileTypeMagicWordMap[fieldVal[0]];
         return `data:image/${type};base64,${fieldVal}`;
     } else if (placeholder && (!model || !field || !id || !fieldVal)) {
-        // Placeholder if either the model, field, id or value is missing or null.
         return placeholder;
     } else {
-        // Else: fetches the image related to the given id.
         const unique = isCurrentRecord && record.data.write_date;
         return imageUrl(model, id, field, { unique });
     }
@@ -263,13 +252,11 @@ export class KanbanRecord extends Component {
                 this.formattedRecord = getFormattedRecord(nextProps.record);
             }
         });
-        // Mount across a microtask boundary — previously an implicit effect
-        // of the (now removed) record-observer hook's async onWillStart.
-        // Without it, a card created by a render fiber that a concurrent
-        // state write is about to supersede would execute its first render
-        // on the discarded fiber (wasted formatting work, and a render-count
-        // change pinned by the kanban test suite); the boundary defers that
-        // first render to the settled fiber.
+        // Mount across a microtask boundary (previously an implicit effect
+        // of the removed record-observer hook's async onWillStart): without
+        // it, a card on a fiber about to be superseded would render on the
+        // discarded fiber, wasting work and breaking a render-count assert
+        // pinned by the kanban test suite.
         onWillStart(() => Promise.resolve());
         this.rootRef = useRef("root");
         this.hasTouch = hasTouch();
@@ -463,10 +450,8 @@ export class KanbanRecord extends Component {
     }
 
     /**
-     * Returns the card template's rendering context.
-     *
-     * Note: the keys answer to outdated standards but should not be altered for
-     * the sake of compatibility.
+     * Returns the card template's rendering context. The keys follow
+     * outdated conventions but must not be changed, for compatibility.
      *
      * @returns {Object}
      */

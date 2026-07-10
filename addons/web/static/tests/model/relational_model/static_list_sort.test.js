@@ -12,9 +12,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { sort, sortBy } from "@web/model/relational_model/static_list_sort";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Minimal StaticList mock for sort/sortBy tests.
@@ -45,9 +43,7 @@ function makeList(overrides = {}) {
     return list;
 }
 
-// ---------------------------------------------------------------------------
 // sort — empty orderBy (early return)
-// ---------------------------------------------------------------------------
 
 describe("sort — empty orderBy", () => {
     test("returns currentIds unchanged when orderBy is empty", async () => {
@@ -72,16 +68,13 @@ describe("sort — empty orderBy", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // sort — non-empty orderBy with all records in cache
-// ---------------------------------------------------------------------------
 
 describe("sort — with cached records", () => {
     test("sorts records by field and calls _load with sorted IDs", async () => {
         const list = makeList({
             fields: { name: { type: "char" } },
         });
-        // Pre-populate cache with records
         list._cache = {
             1: { resId: 1, _virtualId: null, data: { name: "Zebra" } },
             2: { resId: 2, _virtualId: null, data: { name: "Apple" } },
@@ -124,9 +117,7 @@ describe("sort — with cached records", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // sortBy — direction cycling
-// ---------------------------------------------------------------------------
 
 describe("sortBy — direction cycling", () => {
     test("new field sorts ascending", async () => {
@@ -172,11 +163,7 @@ describe("sortBy — direction cycling", () => {
 
         await sortBy(list, "name");
 
-        // After desc → reset to id asc (early return, no sort needed)
-        // sort([{name:"id",asc:true}]) with empty cache would just early-exit if orderBy not empty
-        // Actually it would try to sort by id. Let me check _currentIds — it's empty.
-        // With currentIds=[] and orderBy=[{name:"id",asc:true}], allRecords=[]
-        // sorted=[], _load({orderBy, nextCurrentIds:[]})
+        // After desc → resets to id asc; cache is empty so sort() yields [].
         expect(list._loadCalls.length).toBe(1);
         expect(list._loadCalls[0].orderBy).toEqual([{ name: "id", asc: true }]);
     });

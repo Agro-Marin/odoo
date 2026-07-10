@@ -42,22 +42,18 @@ export const nameService = {
         /** @type {Record<string, Record<string, import("@web/core/utils/concurrency").Deferred>>} */
         let cache = Object.create(null);
         /**
-         * Pending fetches per model. Each entry carries its own Deferred so
-         * that the flush closure can settle callers without going through
-         * `cache`: `clearCache` may swap the cache while a batch is in
-         * flight, and callers joining the batch after the swap hold
-         * Deferreds from the NEW cache while the flush closure captured the
-         * OLD one — resolving through the mapping would then miss them
-         * (leaving them pending forever) and TypeError on the missing keys.
+         * Pending fetches per model, each entry owning its Deferred (not read
+         * through `cache`): `clearCache` may swap the cache mid-flight, and this
+         * decoupling ensures post-swap joiners are still settled by the
+         * in-flight batch instead of orphaned.
          * @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>}
          */
         const batches = Object.create(null);
 
         /**
-         * Invalidate the entire display name cache (called on action manager
-         * updates). In-flight batches are left untouched: their entries own
-         * their Deferreds, so pre-clear callers still settle, while the
-         * swapped cache guarantees post-clear callers re-fetch.
+         * Invalidate the display name cache (on action manager updates).
+         * In-flight batches are untouched: their Deferreds settle pre-clear
+         * callers, while the swapped cache forces post-clear callers to re-fetch.
          */
         function clearCache() {
             cache = Object.create(null);
@@ -84,10 +80,9 @@ export const nameService = {
         function addDisplayNames(resModel, displayNames) {
             const mapping = getMapping(resModel);
             for (const resId of Object.keys(displayNames)) {
-                // Reuse an existing Deferred (it may be in-flight, captured in a
-                // concurrent loadDisplayNames caller's `proms`): replacing it would
-                // leave that caller awaiting a Deferred nobody resolves. Resolving
-                // is idempotent, so an already-settled entry keeps its value.
+                // Reuse an existing (possibly in-flight) Deferred instead of
+                // replacing it — a concurrent loadDisplayNames caller may be
+                // awaiting it; resolving is idempotent so this is safe.
                 if (!(resId in mapping)) {
                     mapping[resId] = new Deferred();
                 }
@@ -165,16 +160,12 @@ export const nameService = {
                                     if (resId in displayNames) {
                                         deferred.resolve(displayNames[resId]);
                                     } else {
-                                        // Missing/inaccessible is NOT a durable
-                                        // result: resolve the pending callers but
-                                        // evict the entry so a later lookup re-fetches.
-                                        // The record may become readable after a
-                                        // company switch / ACL change that does not
-                                        // fire ACTION_MANAGER:UPDATE (e.g.
-                                        // recoverFromSaveError activates a company
-                                        // with reload:false); a cached sentinel would
-                                        // otherwise blank the name for the rest of the
-                                        // session.
+                                        // Missing/inaccessible isn't durable: resolve
+                                        // pending callers but evict the entry so a later
+                                        // lookup re-fetches — the record may become
+                                        // readable after an ACL/company change that
+                                        // doesn't fire ACTION_MANAGER:UPDATE (e.g.
+                                        // recoverFromSaveError with reload:false).
                                         deferred.resolve(ERROR_INACCESSIBLE_OR_MISSING);
                                         evict(resModel, resId, deferred);
                                     }
@@ -189,11 +180,9 @@ export const nameService = {
                         });
                 }
             }
-            // ``proms``/``names`` are aligned to ``unique(resIds)`` (see the loop
-            // above), so build the id→name map from the SAME deduped order, then
-            // project back onto the caller's ``resIds`` (which may contain dups).
-            // Zipping ``names`` against the raw ``resIds`` would truncate to the
-            // shorter array and mis-assign names whenever an id repeats.
+            // proms/names align to unique(resIds); build id→name from that deduped
+            // order then project onto resIds (may contain dups) — zipping names
+            // against raw resIds would truncate/mis-assign on repeated ids.
             const names = await Promise.all(proms);
             const namesById = Object.fromEntries(zip(unique(resIds), names));
             return Object.fromEntries(resIds.map((resId) => [resId, namesById[resId]]));

@@ -1,22 +1,17 @@
 // @ts-check
 
 /**
- * Pure unit tests for record_properties.js.
- *
- * Tests the processProperties() helper extracted in Phase 4 of the
- * model-layer decomposition plan
- * (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
+ * Pure unit tests for processProperties() (extracted in Phase 4 of the
+ * model-layer decomposition plan;
+ * workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
  *
  * The helper splices per-property definitions into ``record.fields`` /
- * ``record.activeFields`` and shapes the per-property values by type
- * (m2m → StaticList, m2o → value or "No Access" placeholder, scalars
- * → pass-through). Tests use a hand-rolled mock record exposing only
- * the surface the helper reads:
- *   - record.fields, record.activeFields (mutable plain objects)
- *   - record._createStaticListDatapoint(data, fieldName)
+ * ``record.activeFields`` and shapes per-property values by type (m2m →
+ * StaticList, m2o → value or "No Access" placeholder, scalars → pass-through).
+ * The mock record exposes only what the helper reads: fields, activeFields,
+ * _createStaticListDatapoint(data, fieldName).
  *
- * Integration coverage of properties through the form view remains in
- * tests/views/fields/properties_field.test.js (~104 KB Hoot suite).
+ * Integration coverage: tests/views/fields/properties_field.test.js.
  *
  * Module under test: model/relational_model/record_properties.js
  */
@@ -24,9 +19,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { processProperties } from "@web/model/relational_model/record_properties";
 
-// ---------------------------------------------------------------------------
 // Mock factory
-// ---------------------------------------------------------------------------
 
 /**
  * Build a minimal record mock for processProperties tests.
@@ -58,9 +51,7 @@ function makePropertyRecord({
     return record;
 }
 
-// ---------------------------------------------------------------------------
 // processProperties — empty input and schema splice basics
-// ---------------------------------------------------------------------------
 
 describe("processProperties — empty input and splice basics", () => {
     test("returns empty object when properties array is empty", () => {
@@ -97,9 +88,7 @@ describe("processProperties — empty input and splice basics", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // processProperties — sortable flag dispatch
-// ---------------------------------------------------------------------------
 
 describe("processProperties — sortable flag", () => {
     test("sortable=false for relational and tag types", () => {
@@ -137,9 +126,7 @@ describe("processProperties — sortable flag", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // processProperties — relation back-pointer
-// ---------------------------------------------------------------------------
 
 describe("processProperties — relatedPropertyField back-pointer", () => {
     test("field.relatedPropertyField names the parent field (no id/displayName here)", () => {
@@ -174,9 +161,7 @@ describe("processProperties — relatedPropertyField back-pointer", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // processProperties — per-type value shaping
-// ---------------------------------------------------------------------------
 
 describe("processProperties — scalar value shaping", () => {
     test("scalar with defined value passes through", () => {
@@ -336,9 +321,7 @@ describe("processProperties — many2many value shaping", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // processProperties — hasCurrentValues schema-rewrite toggle
-// ---------------------------------------------------------------------------
 
 describe("processProperties — schema-rewrite gating by hasCurrentValues", () => {
     test("no currentValues + field already exists: schema is NOT overwritten", () => {
@@ -385,9 +368,7 @@ describe("processProperties — schema-rewrite gating by hasCurrentValues", () =
     });
 });
 
-// ---------------------------------------------------------------------------
 // processProperties — combined return shape
-// ---------------------------------------------------------------------------
 
 describe("processProperties — combined return", () => {
     test("returns a flat bag keyed by composite name across mixed property types", () => {

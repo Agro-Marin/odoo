@@ -107,9 +107,8 @@ function getTestComponent(virtualGridParams) {
 beforeEach(async () => {
     patchWithCleanup(localization, { direction: "ltr" });
 
-    // In this test suite, we trick the hook by setting the window size to the size
-    // of the scrollable, so that it is a measurable size and this suite can run
-    // in a window of any size.
+    // Set the window size to the scrollable's, so it has a measurable size
+    // regardless of the actual test window size.
     await resize({ height: CONTAINER_HEIGHT, width: CONTAINER_WIDTH });
 });
 
@@ -312,9 +311,8 @@ test("when scrolling to the bottom right then updating to smaller rows and colum
 });
 
 test("horizontal scroll in RTL", async () => {
-    // Please note that if you debug this test, the applied style of elements
-    // is not adapted to RTL. The test is still valid because we only want to
-    // assert the returned indexes of the virtual grid.
+    // Applied styles aren't adapted to RTL when debugging — still valid since
+    // we only assert the returned indexes, not layout.
     patchWithCleanup(localization, { direction: "rtl" });
     const comp = await mountWithCleanup(getTestComponent());
     expect(comp.virtualGrid.columnsIndexes).toEqual([0, 19]);

@@ -7,9 +7,7 @@ import { useEnv, useState } from "@odoo/owl";
 import { DROPDOWN_NESTING } from "@web/components/dropdown/_behaviours/dropdown_nesting";
 import { SignalStore } from "@web/core/utils/reactive";
 /**
- * Represents the state of a dropdown.
- * In order to use it, pass the state instance to the dropdown component, i.e.:
- *  <Dropdown state="dropdownState" ...>...</Dropdown>
+ * State of a dropdown; pass the instance to `<Dropdown state="dropdownState">`.
  * @param {{ onOpen?: Function, onClose?: Function }} [callbacks]
  */
 export class DropdownState extends SignalStore {
@@ -38,10 +36,7 @@ export function useDropdownState({ onOpen, onClose } = /** @type {any} */ ({})) 
     return useState(new DropdownState({ onOpen, onClose }));
 }
 
-/**
- * Can be used by components to have some control
- * how and when a wrapping dropdown should close.
- */
+/** Lets a component control how and when a wrapping dropdown closes. */
 export function useDropdownCloser() {
     const env = useEnv();
     const dropdown = /** @type {any} */ (env)[DROPDOWN_NESTING];

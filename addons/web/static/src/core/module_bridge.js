@@ -6,18 +6,16 @@
 /**
  * Canonical JS-side builder for "bridge" modules: tiny ES modules that
  * re-export a specifier's namespace from the live ``odoo.loader.modules``
- * map, preserving singleton identity when a bundle is loaded into a foreign
- * document (iframe) whose bare imports must resolve to the already-evaluated
+ * map, preserving singleton identity when a bundle loads into a foreign
+ * document (iframe) whose bare imports must resolve to already-evaluated
  * instances.
  *
- * This is the RUNTIME counterpart of the BUILD-TIME generator
- * ``_bridge_shim_source`` in ``odoo/tools/assets/esm_graph.py``.  The two
- * MUST emit the same shape so a server-built bridge attachment
- * (``/web/assets/esm/bridges/<hash>.js``) and a client-built ``data:`` bridge
- * are interchangeable — ``@web/core/assets.loadESMBundle`` (cross-doc) relies
- * on that to reuse server bridges where they exist and fall back to runtime
- * ``data:`` bridges only for modules the server could not statically predict.
- * Keep this format in sync with the Python generator.
+ * RUNTIME counterpart of the BUILD-TIME generator ``_bridge_shim_source``
+ * in ``odoo/tools/assets/esm_graph.py`` — the two MUST emit the same shape
+ * so server-built and client-built bridges are interchangeable
+ * (``@web/core/assets.loadESMBundle`` reuses server bridges where they
+ * exist, falling back to runtime ``data:`` bridges otherwise). Keep in
+ * sync with the Python generator.
  */
 
 // Identifier names that can appear as ``export const <name>``.  Non-identifier

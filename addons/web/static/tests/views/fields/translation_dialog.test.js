@@ -1,14 +1,9 @@
 // @ts-check
 
 /**
- * Integration tests for the TranslationDialog component.
- *
- * Covers: translate button presence, dialog open/close lifecycle, per-language
- * row rendering, save payload (update_field_translations), and the user's
- * current-language pre-fill behaviour. All tests exercise the dialog via a
- * translatable char field in a form view.
- *
- * Module under test: fields/translation_dialog.js
+ * Integration tests for fields/translation_dialog.js: translate button
+ * presence, dialog open/close, per-language row rendering, save payload
+ * (update_field_translations), and current-language pre-fill.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -24,10 +19,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 
-// ---------------------------------------------------------------------------
 // Shared model definitions
-// ---------------------------------------------------------------------------
-
 class Partner extends models.Model {
     _name = "res.partner";
     _inherit = [];
@@ -40,10 +32,7 @@ class Partner extends models.Model {
 
 defineModels([Partner]);
 
-// ---------------------------------------------------------------------------
 // Helper: standard two-language mock setup
-// ---------------------------------------------------------------------------
-
 function setupTranslationMocks({ translations = null, type = "char" } = {}) {
     onRpc("res.lang", "get_installed", () => [
         ["en_US", "English"],
@@ -59,10 +48,7 @@ function setupTranslationMocks({ translations = null, type = "char" } = {}) {
     ]);
 }
 
-// ---------------------------------------------------------------------------
 // Translate button presence
-// ---------------------------------------------------------------------------
-
 describe("translate button", () => {
     test("translate button appears on a translatable char field when multiLang is on", async () => {
         Partner._fields.name.translate = true;
@@ -98,10 +84,7 @@ describe("translate button", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Dialog open / close
-// ---------------------------------------------------------------------------
-
 describe("dialog open / close", () => {
     test("clicking the translate button opens TranslationDialog with correct title", async () => {
         Partner._fields.name.translate = true;
@@ -156,10 +139,7 @@ describe("dialog open / close", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Language rows
-// ---------------------------------------------------------------------------
-
 describe("language rows", () => {
     test("dialog renders one input row per installed language", async () => {
         Partner._fields.name.translate = true;
@@ -178,7 +158,6 @@ describe("language rows", () => {
         await contains("[name=name] input").click();
         await contains(".o_field_char .btn.o_field_translate").click();
 
-        // Two languages → two translation rows
         expect(".modal .o_translation_dialog .translation").toHaveCount(2);
 
         const inputs = queryAll(".modal .o_translation_dialog .translation input");
@@ -202,7 +181,6 @@ describe("language rows", () => {
             arch: `<form><field name="name"/></form>`,
         });
 
-        // Change the field value in the form before opening translation dialog
         await fieldInput("name").edit("modified english");
 
         // Re-focus the input so the translate button becomes visible (CSS: focus-within)
@@ -219,10 +197,7 @@ describe("language rows", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Save payload
-// ---------------------------------------------------------------------------
-
 describe("save payload", () => {
     test("saving changed translations calls update_field_translations with correct args", async () => {
         Partner._fields.name.translate = true;
@@ -235,7 +210,6 @@ describe("save payload", () => {
             // args: [resIds, fieldName, translations]
             expect(args[0]).toEqual([1]);
             expect(args[1]).toBe("name");
-            // French value was edited to "nouveau"
             expect(args[2].fr_BE).toBe("nouveau");
             expect.step("update_field_translations");
             return true;
@@ -252,11 +226,9 @@ describe("save payload", () => {
         await contains(".o_field_char .btn.o_field_translate").click();
 
         const inputs = queryAll(".modal .o_translation_dialog .translation input");
-        // Find and edit the French row (value "yop français")
         const frInput = inputs.find((el) => el.value === "yop français");
         await contains(frInput).edit("nouveau");
 
-        // Click the Save (primary) button in the dialog footer
         await contains(".modal footer .btn-primary").click();
 
         expect.verifySteps(["update_field_translations"]);

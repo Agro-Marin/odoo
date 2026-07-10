@@ -1,30 +1,16 @@
 // @ts-check
 
 /**
- * Pure unit tests for record_savepoint.js.
+ * Tests addSavePoint() / restoreFromSavePoint() — the snapshot/restore logic
+ * for discarded sub-flows (sub-form dialogs over x2many children, extended-
+ * field reloads in static lists).
  *
- * Tests addSavePoint() and restoreFromSavePoint() — the snapshot/restore
- * logic that supports discarded sub-flows (sub-form dialogs over x2many
- * children, extended-field reloads in static lists, etc.).
- *
- * Uses plain mock objects (delegation pattern, mirrors record_save.test.js).
- * OWL's markRaw() works in the Hoot browser environment without mounting
- * a component.
- *
- * Invariants under test (mirror the doc block on ``RelationalRecord.dirty``
- * in record.js):
- *
- *   - Invariant 1: ``_update()`` populates ``_changes`` and ``dirty=true``.
- *     A snapshot taken at this point must round-trip ``_changes``.
- *   - Invariant 2: ``setInvalidField()`` adds to ``_invalidFields`` with
- *     no ``_changes`` mutation.  A snapshot taken at this point must
- *     round-trip ``_invalidFields`` so dirty correctly stays true after
- *     restore.  This is the case the previous implementation got wrong
- *     ("ghost dirty" — see commit log of the introducing change).
- *   - Mixed: both populated simultaneously.
- *   - Clean: neither populated; after restore, ``dirty`` MUST be false.
- *
- * Module under test: model/relational_model/record_savepoint.js
+ * Invariants mirror the doc block on ``RelationalRecord.dirty`` in record.js:
+ *   - Invariant 1: a snapshot of populated ``_changes`` must round-trip it.
+ *   - Invariant 2: a snapshot of populated ``_invalidFields`` (no ``_changes``)
+ *     must round-trip it so ``dirty`` stays true after restore — the case the
+ *     previous implementation got wrong ("ghost dirty").
+ *   - Mixed and clean states are also covered.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -35,9 +21,7 @@ import {
     restoreFromSavePoint,
 } from "@web/model/relational_model/record_savepoint";
 
-// ---------------------------------------------------------------------------
 // Mock factory
-// ---------------------------------------------------------------------------
 
 /**
  * Builds the minimal record mock shape required by addSavePoint() and
@@ -79,9 +63,7 @@ function makeRecord({
     };
 }
 
-// ---------------------------------------------------------------------------
 // addSavePoint
-// ---------------------------------------------------------------------------
 
 describe("addSavePoint", () => {
     test("snapshots _changes, _textValues, _invalidFields", () => {
@@ -160,9 +142,7 @@ describe("addSavePoint", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // restoreFromSavePoint — Invariant 1 (committed changes)
-// ---------------------------------------------------------------------------
 
 describe("restoreFromSavePoint — Invariant 1 (committed _changes)", () => {
     test("round-trips _changes and derives dirty=true", () => {
@@ -183,18 +163,14 @@ describe("restoreFromSavePoint — Invariant 1 (committed _changes)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // restoreFromSavePoint — Invariant 2 (invalid input only)
-// ---------------------------------------------------------------------------
 
 describe("restoreFromSavePoint — Invariant 2 (invalid input only)", () => {
     test("round-trips _invalidFields and derives dirty=true with empty _changes", () => {
-        // This is the case the previous implementation got wrong: the
-        // snapshot stored ``dirty: true`` independently and after restore
-        // the post-discard ``_invalidFields.clear()`` wiped the source of
-        // truth, producing dirty=true with no actual issues.  Fixing the
-        // snapshot to carry _invalidFields lets dirty be derived
-        // correctly from ``_changes`` ∪ ``_invalidFields``.
+        // Previously the snapshot stored ``dirty: true`` independently, and
+        // post-discard ``_invalidFields.clear()`` wiped the source of truth,
+        // leaving dirty=true with no actual issues. Now dirty derives from
+        // ``_changes`` ∪ ``_invalidFields``, which this restores correctly.
         const rec = makeRecord({
             invalidFields: ["age"],
             dirty: true,
@@ -227,9 +203,7 @@ describe("restoreFromSavePoint — Invariant 2 (invalid input only)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // restoreFromSavePoint — mixed and clean
-// ---------------------------------------------------------------------------
 
 describe("restoreFromSavePoint — mixed state", () => {
     test("both _changes and _invalidFields populated → dirty=true", () => {
@@ -254,10 +228,8 @@ describe("restoreFromSavePoint — mixed state", () => {
 
 describe("restoreFromSavePoint — clean state", () => {
     test("no _changes and no _invalidFields → dirty=false (no ghost dirty)", () => {
-        // Pre-fix regression target: snapshotting a clean record then
-        // (somehow) ending up with dirty=true at restore time would
-        // produce ghost dirty.  With dirty derived from _changes ∪
-        // _invalidFields, a clean snapshot ALWAYS restores to clean.
+        // Pre-fix regression target: a clean snapshot must ALWAYS restore to
+        // clean now that dirty derives from _changes ∪ _invalidFields.
         const rec = makeRecord({ dirty: false });
         addSavePoint(rec);
 
@@ -273,9 +245,7 @@ describe("restoreFromSavePoint — clean state", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // restoreFromSavePoint — _savePoint single-use semantics
-// ---------------------------------------------------------------------------
 
 describe("restoreFromSavePoint — single-use semantics", () => {
     test("consumes the savepoint after restore", () => {
@@ -286,9 +256,7 @@ describe("restoreFromSavePoint — single-use semantics", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // restoreFromSavePoint — _textValues
-// ---------------------------------------------------------------------------
 
 describe("restoreFromSavePoint — _textValues", () => {
     test("round-trips _textValues independently of _changes", () => {
@@ -310,7 +278,6 @@ describe("restoreFromSavePoint — _textValues", () => {
     });
 });
 
-// ===========================================================================
 // discard — added in Phase 5 of the model-layer decomposition
 // (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
 //
@@ -326,7 +293,6 @@ describe("restoreFromSavePoint — _textValues", () => {
 //     so the rebuild reads consistent child state.
 //   - Closes the invalid-fields notification and resets the closer.
 //   - Calls _restoreActiveFields at the end of the discard sequence.
-// ===========================================================================
 
 /**
  * Build a record mock for discard tests. Provides the wider surface
@@ -352,13 +318,11 @@ function makeDiscardRecord({
     savePoint = null,
     fields = null,
 } = {}) {
-    // Auto-populate fields with a safe "char" default for every key in
-    // ``changes`` and ``values``. The real RelationalRecord guarantees
-    // ``record.fields[fieldName]`` is defined for every active field; the
-    // helper reads ``record.fields[fieldName].type`` in the x2many child
-    // cascade and would throw on ``undefined.type``. Individual tests
-    // override by passing an explicit ``fields`` (e.g. the x2many cascade
-    // tests pass ``{ line_ids: { type: "one2many" } }``).
+    // Auto-populate fields with a "char" default for every key in ``changes``/
+    // ``values``, mirroring RelationalRecord's guarantee that
+    // ``record.fields[fieldName]`` is always defined — the x2many cascade
+    // reads ``.type`` and would throw on ``undefined.type`` otherwise. Tests
+    // needing x2many/m2o types pass an explicit ``fields``.
     /** @type {any} */
     const autoFields = fields ?? {};
     if (!fields) {
@@ -398,9 +362,7 @@ function makeDiscardRecord({
     return rec;
 }
 
-// ---------------------------------------------------------------------------
 // discard — no savepoint path (I3 + invalidFields wipe + textValues reset)
-// ---------------------------------------------------------------------------
 
 describe("discard — no savepoint (clear to server truth)", () => {
     test("calls _clearChanges so _changes={} and dirty=false (Invariant I3)", () => {
@@ -443,9 +405,7 @@ describe("discard — no savepoint (clear to server truth)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // discard — savepoint path (I8 — restored state survives)
-// ---------------------------------------------------------------------------
 
 describe("discard — savepoint path (restore snapshot)", () => {
     test("calls restoreFromSavePoint: _changes/_textValues/_invalidFields back to snapshot", () => {
@@ -515,9 +475,7 @@ describe("discard — savepoint path (restore snapshot)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // discard — common post-branch behavior
-// ---------------------------------------------------------------------------
 
 describe("discard — common post-branch behavior", () => {
     test("re-runs _checkValidity when !isNew", () => {
@@ -578,9 +536,7 @@ describe("discard — common post-branch behavior", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // discard — x2many child cascade
-// ---------------------------------------------------------------------------
 
 describe("discard — x2many child._discard() cascade", () => {
     test("calls _discard on each x2many StaticList in _changes BEFORE the parent's main logic", () => {

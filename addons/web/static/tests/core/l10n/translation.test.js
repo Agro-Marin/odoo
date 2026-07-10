@@ -36,11 +36,9 @@ let id = 0;
 
 const frenchTerms = { Hello: "Bonjour" };
 class TestComponent extends Component {
-    // For performance reasons, HOOT caches the compiled templates
-    // (with the terms already translated).
-    // In this test suite, since the translations are being tested,
-    // we need that each template to be unique (to avoid using a cached template).
-    // To do this, we create a unique empty node in each template.
+    // HOOT caches compiled templates with terms already translated; since this
+    // suite varies translations per test, give each template a unique empty
+    // node so it isn't served from that cache.
     static get template() {
         return xml`${this._template}<div id="${id++}"/>`;
     }
@@ -321,7 +319,7 @@ test("[cold boot] fetch failure falls back to usable localization defaults", asy
     expect(localization.grouping).toEqual([3, 0]);
     expect(localization.direction).toBe("ltr");
     expect(localization.weekStart).toBe(7);
-    // Terms simply stay untranslated.
+    // Terms stay untranslated.
     expect(translatedTerms[translationLoaded]).toBe(true);
     expect(_t("Hello")).toBe("Hello");
 });
@@ -390,8 +388,7 @@ test("[cache] update the cache if hash are different - template", async () => {
 
     component.render();
     await animationFrame();
-    // The value hasn't been updated with the new translation, this is because owl caches the translated templates for performance reasons.
-    // This is a known limitation.
+    // Not updated: owl caches translated templates for performance — a known limitation.
     expect("#main").toHaveText("Different Bonjour");
 });
 

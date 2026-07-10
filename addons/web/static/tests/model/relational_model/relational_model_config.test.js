@@ -1,18 +1,11 @@
 // @ts-check
 
 /**
- * Tests for the config-patching API of RelationalModel
- * (relational_model.js).
+ * Tests for the config-patching API of RelationalModel.
  *
- * ``_patchConfig`` was split out of the historical ``_updateConfig`` so
- * that its synchrony is a CONTRACT rather than an accident: 20+ call
- * sites (mode switches, resId commits after save, limit/offset
- * bookkeeping, group fold state, ...) read the patched config in the
- * very next statement, without awaiting. These tests pin that contract.
- *
- * ``_patchConfig`` deliberately uses no model state (no ``this``), so it
- * is exercised here directly on the prototype without building a full
- * model/env.
+ * ``_patchConfig`` must stay synchronous: 20+ call sites read the patched
+ * config in the very next statement without awaiting. Exercised directly
+ * on the prototype (no ``this``) without building a full model/env.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -39,10 +32,8 @@ describe("RelationalModel._patchConfig", () => {
     });
 
     test("is not an async function (guard against reintroducing await)", () => {
-        // If someone turns _patchConfig into an async function (or makes it
-        // return a promise), every non-awaiting call site breaks silently:
-        // the config write moves to a later microtask. Fail loudly here
-        // instead.
+        // Guard against turning this async: every non-awaiting call site
+        // would break silently as the config write moves to a later microtask.
         expect(RelationalModel.prototype._patchConfig.constructor.name).toBe(
             "Function",
         );

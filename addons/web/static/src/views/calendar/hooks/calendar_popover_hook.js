@@ -8,8 +8,6 @@ import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 /**
- * OWL hook that manages calendar event popovers with responsive behavior.
- *
  * On desktop, opens a positioned popover anchored to the event element.
  * On mobile, opens a full dialog instead. Prevents FullCalendar's own
  * popover from closing while the custom popover is open.

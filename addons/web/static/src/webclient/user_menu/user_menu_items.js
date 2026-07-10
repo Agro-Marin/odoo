@@ -130,9 +130,7 @@ function installPWAItem(env) {
         currentApp &&
         ["barcode", "field-service", "shop-floor"].includes(currentApp.actionPath)
     ) {
-        // While the feature could work with all apps, we have decided to only
-        // support the installation of the apps contained in this list
-        // The list can grow in the future, by simply adding their path
+        // Deliberately restricted to these apps for now; grow the list by adding paths.
         description = _t("Install %s", currentApp.name);
         callback = () => {
             window.open(

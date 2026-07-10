@@ -135,7 +135,6 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
         resId: 1,
     });
 
-    // Get all inputs
     const floatFactorField = queryFirst(".o_field_float_factor input");
     const floatInput = queryFirst(".o_field_float input");
     const integerInput = queryFirst(".o_field_integer input");

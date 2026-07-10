@@ -491,17 +491,12 @@ test("translation-context: wrappers around texts do not affect xpaths (1)", asyn
     `);
 });
 
-// ---------------------------------------------------------------------------
 // TemplateRegistry class — scoped-instance contract
-// ---------------------------------------------------------------------------
 //
-// The module-level functions delegate to a singleton anchored on
-// ``globalThis.__odooTemplates__`` (see the rationale in templates.js).
-// Tests below verify the *class* contract directly: instantiating a
-// fresh ``TemplateRegistry`` gives a fully isolated template scope.
-// This unlocks future use cases like embedded apps that want to ship
-// with their own template registry rather than mutating the page's
-// shared one.
+// Module-level functions delegate to a singleton anchored on
+// ``globalThis.__odooTemplates__`` (see templates.js). These tests verify the
+// *class* contract: a fresh ``TemplateRegistry`` gives a fully isolated scope,
+// for future embedded-app use cases that want their own registry.
 
 test("TemplateRegistry: fresh instance has independent state from singleton", () => {
     const scoped = new TemplateRegistry();
@@ -515,11 +510,9 @@ test("TemplateRegistry: fresh instance has independent state from singleton", ()
 });
 
 test("TemplateRegistry: module-level wrappers see the canonical singleton", () => {
-    // The exported ``templates`` object IS the one the wrappers delegate
-    // to. This is a load-bearing contract — ``boot/start.js`` passes
-    // ``getTemplate`` as a detached function reference to OWL's App
-    // constructor, so the wrapper must close over ``templates`` rather
-    // than rely on a ``this`` binding.
+    // ``templates`` IS the singleton the wrappers delegate to — load-bearing,
+    // since boot/start.js passes ``getTemplate`` as a detached function
+    // reference to OWL's App constructor, so it can't rely on `this`.
     const unreg = registerTemplate(
         "tr-canon-1",
         "/canon_addon",

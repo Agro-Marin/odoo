@@ -17,33 +17,27 @@ import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
  * model?: string;
  * }} RPCCacheSettings
  *
- * ``model`` is the Odoo model name (e.g. ``"res.partner"``) the request
- * targets. When supplied, the entry joins a per-table model→keys reverse
- * index so ``invalidateByModel`` runs in O(1) instead of scanning + parsing
- * every key. Callers pass ``params.model`` from the JSON-RPC payload.
+ * ``model`` (e.g. ``"res.partner"``) joins the entry to a per-table
+ * model→keys reverse index, making ``invalidateByModel`` O(1) instead of
+ * scanning + parsing every key.
  */
 
 /**
- * Server-emitted content-hash field that the cache uses to skip the deep
- * compare on stale-while-revalidate refreshes (``update: "always"`` consumers).
- * Endpoints that opt in inject this field into their dict return value; the
- * cache compares versions in O(1) instead of deep-serializing both payloads.
+ * Server-emitted content-hash field: opted-in endpoints inject it into their
+ * response so ``payloadChanged`` can compare versions in O(1) instead of
+ * deep-serializing both payloads on ``update: "always"`` refreshes.
  *
- * See ``addons/core/addons/web/models/web_search_panel.py`` for the canonical
+ * See ``addons/core/addons/web/models/web_search_panel.py`` for the
  * server-side stamping pattern (sha256 of canonical JSON).
  */
 const VERSION_FIELD = "__version";
 
 /**
- * O(1) structural disqualifier: ``true`` when the two payloads cannot
- * possibly be equal because their top-level shape differs (array vs
- * object, different lengths, different key counts).  ``false`` means
- * "shape matches — caller must run the full compare to know".
- *
- * Catches the common "row appended / row removed" case in
- * list-returning cached endpoints (``web_read``, template dropdowns,
- * m2o special data) without serializing.  Benchmark: ~400× faster than
- * a full deep compare on a 200-record list when length differs by one.
+ * O(1) structural disqualifier: ``true`` when the payloads' top-level shape
+ * differs (array vs object, different lengths/key counts), so callers can
+ * skip a full compare. ``false`` only means "shape matches, compare further".
+ * ~400× faster than a full deep compare on a 200-record list that differs
+ * by one row.
  */
 function shapeDiffers(/** @type {any} */ a, /** @type {any} */ b) {
     if (Array.isArray(a)) {
@@ -60,17 +54,11 @@ function shapeDiffers(/** @type {any} */ a, /** @type {any} */ b) {
 
 /**
  * Determine whether two cached payloads differ, layered cheap → expensive:
- *
- *   1. Reference equality (``===``).
- *   2. Version-hash compare when both sides carry ``__version`` (Plan C —
- *      endpoints opted in via the ``versioned`` decorator).
- *   3. Structural shape disqualifier (``Array.length`` / ``Object.keys.length``).
- *   4. Full order-independent deep compare via ``deepEqual``. (A previous
- *      ``JSON.stringify`` byte-compare was key-order-fragile: the server can
- *      emit dict keys in a different insertion order across two runs of the
- *      same query — the reason ``__version`` hashing uses ``sort_keys=True`` —
- *      which made it report a spurious change and needlessly re-deliver +
- *      re-persist identical payloads on every refresh.)
+ * reference equality, then ``__version`` hash compare (if both sides have
+ * one), then a shape disqualifier, then a full ``deepEqual``. A prior
+ * ``JSON.stringify`` byte-compare was key-order-fragile — the server can
+ * emit dict keys in different insertion order across runs — causing
+ * spurious "changed" reports and needless re-delivery/re-persist.
  *
  * @param {any} fromCacheValue prior cached value (may be null/undefined)
  * @param {any} result freshly-fetched server value
@@ -108,11 +96,9 @@ function validateSettings(
 }
 
 /**
- * Recursively freeze a value in place.  Idempotent: on an already-frozen
- * root the function short-circuits at O(1) thanks to the
- * ``Object.isFrozen`` guard (we always freeze leaves before the root, so a
- * frozen root implies a fully-frozen subtree).  Returns the same reference
- * for convenience in expressions.
+ * Recursively freeze a value in place. Idempotent: an already-frozen root
+ * short-circuits at O(1) via ``Object.isFrozen`` (leaves are always frozen
+ * before the root, so a frozen root implies a fully-frozen subtree).
  *
  * @template T
  * @param {T} value
@@ -120,11 +106,9 @@ function validateSettings(
  */
 function deepFreeze(value) {
     if (value && typeof value === "object" && !Object.isFrozen(value)) {
-        // TS narrows ``value`` to ``object`` after the typeof check but
-        // ``object`` is not string-indexable. Cast to a string-indexed
-        // record so the recursion typechecks; runtime behaviour is
-        // unchanged because ``Object.keys`` already returned the
-        // string keys we walk here.
+        // TS narrows ``value`` to ``object``, which isn't string-indexable;
+        // cast to a string-indexed record so the recursion typechecks
+        // (runtime behavior is unchanged).
         const indexable = /** @type {Record<string, unknown>} */ (value);
         for (const key of Object.keys(indexable)) {
             deepFreeze(indexable[key]);
@@ -200,18 +184,14 @@ class Crypto {
 class RamCache {
     constructor() {
         this.ram = Object.create(null);
-        // Per-table reverse index: model → Set<key>.  Maintained by
-        // ``write``/``delete``/``invalidate`` so ``invalidateByModel`` is
-        // O(1) lookup + O(matched) delete instead of O(table size) with
-        // a ``JSON.parse(key)`` per entry.  Benchmark on a 1000-entry
-        // table: ~2,000× faster.  Mirrors ``this.ram`` lifecycle exactly
-        // (same tables exist on both sides).
+        // Per-table reverse index: model → Set<key>, kept in sync by
+        // write/delete/invalidate so invalidateByModel is O(1) lookup +
+        // O(matched) delete instead of O(table size) (~2,000× faster on a
+        // 1000-entry table).
         this.modelIndex = Object.create(null);
-        // Per-table flat map of key → model so ``delete(table, key)`` can
-        // find which Set to remove the key from without the caller
-        // re-supplying the model.  Stored separately from the value (vs
-        // a wrapper object on ``ram[table][key]``) because ``read`` is on
-        // the hot path and must not pay a property-access tax.
+        // Per-table key → model map, so delete(table, key) finds which Set
+        // to remove from without the caller re-supplying the model. Kept
+        // off the hot read() path to avoid a property-access tax.
         this.keyModel = Object.create(null);
     }
 
@@ -220,9 +200,8 @@ class RamCache {
      * @param {string} key
      * @param {any} value
      * @param {string} [model] Odoo model name for index-based invalidation.
-     *   Omit for entries that are not model-scoped (session_info,
-     *   /web/action/load, etc.) — they will be invisible to
-     *   ``invalidateByModel`` (correct: those use ``invalidate(table)``).
+     *   Omit for non-model-scoped entries (session_info, /web/action/load);
+     *   they stay invisible to ``invalidateByModel`` by design.
      */
     write(table, key, value, model) {
         if (!(table in this.ram)) {
@@ -230,11 +209,9 @@ class RamCache {
             this.modelIndex[table] = new Map();
             this.keyModel[table] = Object.create(null);
         }
-        // Track previous model so an overwrite of the same key with a
-        // different model (rare but possible — same URL, different
-        // params.model) cleans up the old index entry.  Prune the old
-        // model→Set when it becomes empty so ``modelIndex[t].has(m)``
-        // reports ``false`` instead of a stale empty Set sticking around.
+        // Track previous model so overwriting the same key with a different
+        // model (rare, but possible) cleans up the old index entry, pruning
+        // the model→Set when it becomes empty.
         const prevModel = this.keyModel[table][key];
         if (prevModel && prevModel !== model) {
             const prevSet = this.modelIndex[table].get(prevModel);
@@ -303,15 +280,10 @@ class RamCache {
     }
 
     /**
-     * Remove only cache entries whose RPC params reference a specific Odoo model.
-     * Uses the per-table model→keys reverse index, so cost is O(1) for the
-     * lookup plus O(matched) for the actual deletes — independent of how
-     * many other models' entries live in the same table.
-     *
-     * Entries written without a ``model`` argument to ``write()`` are
-     * invisible to this method (correct — they are not model-scoped).
-     * The old JSON.parse-each-key behaviour is gone; malformed keys
-     * never enter the index in the first place.
+     * Remove cache entries whose RPC params reference a specific Odoo model,
+     * via the per-table model→keys reverse index: O(1) lookup + O(matched)
+     * deletes, independent of table size. Entries written without a
+     * ``model`` (to ``write()``) are correctly invisible here.
      *
      * @param {string[]} tables
      * @param {string} model - Odoo model name, e.g. "res.partner"
@@ -345,19 +317,14 @@ export class RPCCache {
         this.ramCache = new RamCache();
         /** @type {Record<string, { callbacks: Function[], invalidated: boolean }>} */
         this.pendingRequests = {};
-        // Monotonic invalidation generations guarding the async disk-write
-        // chain (see ``read``).  ``invalidate``/``invalidateByModel`` can no
-        // longer flag a request once ``onFulfilled`` removed it from
-        // ``pendingRequests``, yet the encrypt→IDB-write chain is still in
-        // flight at that point: the IDB clear is queued on the mutex FIRST
-        // and the write would land AFTER it, durably persisting
-        // pre-invalidation data (served as truth on the next reload for
-        // ``update: "once"`` consumers such as get_views).  The write chain
-        // snapshots the table's generation when the result arrives and skips
-        // the persist when an invalidation bumped it in between.  Per-table
-        // (plus a global counter for the full-cache nuke, where the affected
-        // table set is unknown) so an invalidation of one table never
-        // discards a concurrent, still-valid write of an unrelated table.
+        // Monotonic invalidation generations guard the async disk-write
+        // chain (see ``read``): once a request leaves ``pendingRequests``,
+        // invalidation can no longer flag it, yet its encrypt→IDB-write may
+        // still land after an IDB clear and persist stale data. The write
+        // snapshots the generation on arrival and skips persisting if it
+        // bumped meanwhile. Per-table, plus a global counter for full
+        // nukes, so invalidating one table doesn't discard another's
+        // concurrent write.
         /** @type {Record<string, number>} */
         this.diskGenerations = Object.create(null);
         this.globalDiskGeneration = 0;
@@ -365,11 +332,10 @@ export class RPCCache {
     }
 
     /**
-     * Current invalidation generation for ``table``.  Monotonically
-     * increasing: the sum of the global counter (bumped by full-cache
-     * invalidation) and the per-table counter (bumped by table- or
+     * Current invalidation generation for ``table``: the global counter
+     * (full-cache invalidation) plus the per-table counter (table- or
      * model-scoped invalidation), so a snapshot compares unequal iff either
-     * counter moved since it was taken.
+     * moved since it was taken.
      *
      * @param {string} table
      * @returns {number}
@@ -433,12 +399,10 @@ export class RPCCache {
 
         let ramValue = this.ramCache.read(table, key);
 
-        // Pick the value-shaping pass once.  Immutable callers receive the
-        // shared cached reference (deep-frozen on first delivery; subsequent
-        // ``deepFreeze`` calls O(1) thanks to the ``Object.isFrozen`` guard)
-        // so any caller mutation throws synchronously.  The default
-        // ``deepCopy`` clones via ``structuredClone``, which is 100×+ slower
-        // per call for typical record payloads.
+        // Immutable callers get the shared cached reference (deep-frozen on
+        // first delivery; later ``deepFreeze`` calls are O(1)) so a caller
+        // mutation throws synchronously. Default ``deepCopy`` clones via
+        // ``structuredClone``, 100×+ slower per call for typical payloads.
         const shape = immutable ? deepFreeze : deepCopy;
 
         const requestKey = `${table}/${key}`;
@@ -454,7 +418,6 @@ export class RPCCache {
             const request = { callbacks: [callback], invalidated: false };
             this.pendingRequests[requestKey] = request;
 
-            // execute the fallback and write the result in the caches
             const prom = new Promise((resolve, reject) => {
                 const fromCache = new Deferred();
                 /** @type {any} */
@@ -467,24 +430,20 @@ export class RPCCache {
                     const hasChanged =
                         hasCacheValue && payloadChanged(fromCacheValue, result);
                     // Cache bookkeeping runs BEFORE subscriber callbacks so a
-                    // throwing callback can never leave the key wedged (a dead
-                    // entry in ``pendingRequests`` that every future read
-                    // would join, killing all `update: "always"` refreshes).
+                    // throwing callback can't wedge the key (leave a dead
+                    // ``pendingRequests`` entry that swallows future refreshes).
                     if (!request.invalidated) {
-                        // (When invalidated mid-flight, `invalidate`/
-                        // `invalidateByModel` already removed the entry and
-                        // the caches: don't persist stale data.)
+                        // If invalidated mid-flight, invalidate()/
+                        // invalidateByModel() already cleared the caches.
                         delete this.pendingRequests[requestKey];
-                        // update the ram and optionally the disk caches with the latest data
                         this.ramCache.write(table, key, Promise.resolve(result), model);
                         if (type === "disk") {
-                            // Snapshot the invalidation generation NOW: the
-                            // request is no longer in ``pendingRequests``, so
-                            // an invalidation arriving during the async
-                            // encrypt below can't flag it — the generation
-                            // compare is what keeps its stale payload out of
-                            // IndexedDB (the clear is queued on the mutex
-                            // first; an unguarded write would land after it).
+                            // Snapshot the generation NOW: the request just
+                            // left ``pendingRequests``, so a concurrent
+                            // invalidation can't flag it — comparing
+                            // generations keeps stale payloads out of
+                            // IndexedDB (the clear is queued first, so an
+                            // unguarded write would land after it).
                             const generation = this.diskGenerationOf(table);
                             this.crypto
                                 .encrypt(result)
@@ -498,12 +457,11 @@ export class RPCCache {
                                         // was already cleared synchronously.
                                         return;
                                     }
-                                    // Store model plaintext alongside the
+                                    // Store model in plaintext alongside the
                                     // ciphertext so ``invalidateByModel`` can
-                                    // filter on it without decrypting every
-                                    // entry.  Model names are not secret
-                                    // (they appear in the URL) so plaintext
-                                    // here is fine.
+                                    // filter without decrypting every entry —
+                                    // model names aren't secret (they're
+                                    // already in the URL).
                                     const stored = model
                                         ? { ...encryptedResult, model }
                                         : encryptedResult;
@@ -523,11 +481,10 @@ export class RPCCache {
                                 });
                         }
                     }
-                    // Always notify pending callbacks — subscribers explicitly
-                    // requested server data via `update: "always"`. The RPC result
-                    // is fresh regardless of whether the cache was invalidated.
-                    // Each callback is guarded: one throwing subscriber must not
-                    // starve the others nor escape as an unhandled rejection.
+                    // Always notify pending callbacks: they explicitly asked
+                    // for fresh data via `update: "always"`, regardless of
+                    // cache invalidation. Each callback is guarded so one
+                    // throwing subscriber can't starve the others.
                     for (const cb of request.callbacks) {
                         try {
                             cb(shape(result), hasChanged);
@@ -542,16 +499,14 @@ export class RPCCache {
                     if (!request.invalidated) {
                         delete this.pendingRequests[requestKey];
                         if (!hasCacheValue) {
-                            this.ramCache.delete(table, key); // remove rejected prom from ram cache
+                            this.ramCache.delete(table, key);
                         }
                     }
                     if (hasCacheValue) {
-                        // Promise was already fulfilled with cached value — the
-                        // caller already got its data, so don't reject.  But if
-                        // the failure is a ConnectionLostError we must still
-                        // surface it so the global error service (which listens on
-                        // "unhandledrejection") can show the connection-lost
-                        // notification to the user.
+                        // Caller already got cached data, so don't reject —
+                        // except a ConnectionLostError, which must still
+                        // surface via "unhandledrejection" so the global
+                        // error service can notify the user.
                         if (error instanceof ConnectionLostError) {
                             Promise.reject(error);
                         } else {
@@ -561,19 +516,16 @@ export class RPCCache {
                     }
                     reject(error);
                 };
-                // Speed up the request by using the caches.  Attach the
-                // cache-read .then BEFORE the fallback handler so the
-                // microtask draining `fromCacheValue = value` runs before
-                // `onFulfilled`.  Otherwise — when both promises are
-                // pre-resolved (typical mocked-RPC test, but also any
-                // sufficiently fast cache hit) — `onFulfilled` would
-                // observe `hasCacheValue === false` and short-circuit
-                // `hasChanged` to false, silently masking real refreshes.
+                // Attach the cache-read .then BEFORE the fallback handler so
+                // `fromCacheValue` is set before `onFulfilled` runs.
+                // Otherwise, when both promises are pre-resolved (mocked-RPC
+                // tests, fast cache hits), `onFulfilled` would see
+                // `hasCacheValue === false` and mask real refreshes by
+                // short-circuiting `hasChanged` to false.
                 if (ramValue) {
-                    // ramValue is always already resolved here, as it can't be pending (otherwise
-                    // we would have early returned because of `pendingRequests`) and it would have
-                    // been removed from the ram cache if it had been rejected
-                    // => no need to define a `catch` callback.
+                    // ramValue is always resolved here (pending would have
+                    // early-returned via `pendingRequests`; a rejection
+                    // would have removed it) — no `catch` needed.
                     ramValue.then((/** @type {any} */ value) => {
                         resolve(value);
                         fromCacheValue = value;
@@ -646,37 +598,29 @@ export class RPCCache {
     /**
      * Selectively remove cache entries for a specific Odoo model.
      *
-     * - RAM cache: O(1) lookup via per-table model→keys reverse index
-     *   maintained by ``RamCache.write/delete/invalidate``. No JSON.parse
-     *   per entry; entries written without a ``model`` argument are
-     *   correctly invisible (they were never model-scoped).
-     * - IndexedDB: ``invalidateByModel`` uses ``openCursor`` and checks
-     *   ``cursor.value.model`` — the property is stored plaintext
-     *   alongside the encrypted ciphertext (model names appear in the
-     *   request URL, so plaintext exposes nothing new).
-     * - In-flight requests: the few currently pending RPCs are scanned;
-     *   parse cost here is negligible (typically 0–3 entries).
-     *
-     * Pre-2026-05 the RAM side parsed every key and the IDB side wiped
-     * the whole table; both replaced here.
+     * - RAM: O(1) lookup via the per-table model→keys reverse index
+     *   maintained by ``RamCache.write/delete/invalidate``; entries written
+     *   without a ``model`` are correctly invisible (never model-scoped).
+     * - IndexedDB: ``openCursor`` + check ``cursor.value.model``, stored
+     *   plaintext alongside the ciphertext (model names already appear in
+     *   the request URL, so this exposes nothing new).
+     * - In-flight requests: the handful of pending RPCs are scanned; parse
+     *   cost is negligible (typically 0–3 entries).
      *
      * @param {string[]} tables
      * @param {string} model - Odoo model name, e.g. "res.partner"
      */
     invalidateByModel(tables, model) {
         // Conservative: bumps the whole table's generation even though the
-        // signal is model-scoped, so a concurrent disk write for another
-        // model in the same table may be skipped too.  The cost is a cache
-        // miss on next reload — never stale data — and it avoids threading
-        // the model through the generation bookkeeping.
+        // signal is model-scoped, so an unrelated concurrent write may be
+        // skipped too — costing a cache miss next reload, never stale data.
         this.bumpDiskGeneration(tables);
         this.ramCache.invalidateByModel(tables, model);
         this.indexedDB.invalidateByModel(tables, model);
         // Cancel in-flight requests whose key includes this model.
-        // requestKey format is "${table}/${JSON.stringify({url, params})}" —
-        // slice past the first "/" to recover the JSON portion. The set
-        // is tiny in practice (concurrent RPCs against the same model
-        // are rare), so per-key parsing here is acceptable.
+        // requestKey is "${table}/${JSON.stringify({url, params})}"; slice
+        // past the first "/" to recover the JSON. The set is tiny in
+        // practice, so per-key parsing here is acceptable.
         for (const requestKey of Object.keys(this.pendingRequests)) {
             const jsonPart = requestKey.slice(requestKey.indexOf("/") + 1);
             try {

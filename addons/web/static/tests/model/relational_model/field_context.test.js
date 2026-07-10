@@ -15,10 +15,6 @@ import {
     isRelational,
 } from "@web/model/relational_model/field_context";
 
-// ---------------------------------------------------------------------------
-// getId
-// ---------------------------------------------------------------------------
-
 describe("getId", () => {
     test("returns unique string IDs on successive calls", () => {
         const id1 = getId();
@@ -44,10 +40,6 @@ describe("getId", () => {
         expect(numAfter).toBe(numBefore + 1);
     });
 });
-
-// ---------------------------------------------------------------------------
-// isRelational
-// ---------------------------------------------------------------------------
 
 describe("isRelational", () => {
     test("returns true for many2one", () => {
@@ -75,10 +67,6 @@ describe("isRelational", () => {
         expect(isRelational(undefined)).toBe(undefined);
     });
 });
-
-// ---------------------------------------------------------------------------
-// getBasicEvalContext
-// ---------------------------------------------------------------------------
 
 describe("getBasicEvalContext", () => {
     test("extracts uid and allowed_company_ids from config context", () => {

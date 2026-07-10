@@ -7,14 +7,12 @@ import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/** Dialog prompting the user to upgrade to Odoo Enterprise. */
 export class UpgradeDialog extends Component {
     static template = "web.UpgradeDialog";
     static components = { Dialog };
     static props = {
         close: Function,
     };
-    /** Initialize ORM service. */
     setup() {
         this.orm = useService("orm");
     }

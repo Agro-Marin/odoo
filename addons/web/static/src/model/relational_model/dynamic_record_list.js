@@ -26,9 +26,7 @@ export class DynamicRecordList extends DynamicList {
         this._selectDomain(this.isDomainSelected);
     }
 
-    // -------------------------------------------------------------------------
     // Getter
-    // -------------------------------------------------------------------------
 
     get records() {
         return this._records;
@@ -38,9 +36,7 @@ export class DynamicRecordList extends DynamicList {
         return this.count > 0;
     }
 
-    // -------------------------------------------------------------------------
     // Public
-    // -------------------------------------------------------------------------
 
     /**
      * @param {number} resId
@@ -68,9 +64,8 @@ export class DynamicRecordList extends DynamicList {
     }
 
     /**
-     * Performs a search_count with the current domain to set the count. This is
-     * useful as web_search_read limits the count for performance reasons, so it
-     * might sometimes be less than the real number of records matching the domain.
+     * search_count with the current domain, since web_search_read caps the
+     * count for performance and may undercount the real total.
      **/
     async fetchCount() {
         this.count = await this.model._updateCount(this.config);
@@ -107,9 +102,7 @@ export class DynamicRecordList extends DynamicList {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Protected
-    // -------------------------------------------------------------------------
 
     async _addNewRecord(atFirstPosition) {
         const values = await this.model._loadNewRecord(

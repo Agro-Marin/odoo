@@ -3,7 +3,6 @@
 
 /** @module @web/webclient/session_service - Service that lazy-loads additional session info after the web client is ready */
 
-/** Service that lazy-loads session info after the web client is ready. */
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { deepCopy } from "@web/core/utils/collections/objects";

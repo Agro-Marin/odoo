@@ -4,10 +4,8 @@
 /** @module @web/webclient/actions/action_info_builders - Builds props, config, and state for client action and view controllers */
 
 /**
- * Builders for action and view controller info objects.
- *
- * Extracted from action_service.js to reduce file size and isolate the logic
- * that builds props/config/state for controllers in the action manager.
+ * Extracted from action_service.js to reduce file size and isolate the
+ * props/config/state building logic for action-manager controllers.
  */
 
 import { shallowEqual } from "@web/core/utils/collections/objects";
@@ -148,7 +146,6 @@ export function buildViewInfo(view, action, views, props = {}, am) {
         viewProps.activateFavorite = false;
     }
 
-    // view specific
     if (!viewProps.resId) {
         viewProps.resId = action.res_id ?? false;
     }

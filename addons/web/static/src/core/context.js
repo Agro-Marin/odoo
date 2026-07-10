@@ -44,9 +44,8 @@ export function makeContext(contexts, initialEvaluationContext) {
 }
 
 /**
- * Extract a partial list of variable names found in the AST.
- * Note that it is not complete. It is used as an heuristic to avoid
- * evaluating expressions that we know for sure will fail.
+ * Extract a partial list of variable names found in the AST — incomplete by
+ * design, used as a heuristic to skip expressions known to fail evaluation.
  *
  * @param {AST} ast
  * @returns {string[]}
@@ -68,8 +67,8 @@ function getPartialNames(ast) {
 }
 
 /**
- * Allow to evaluate a context with an incomplete evaluation context. The evaluated context only
- * contains keys whose values are static or can be evaluated with the given evaluation context.
+ * Evaluate a context with an incomplete evaluation context, keeping only
+ * keys whose values are static or evaluable with the given context.
  *
  * @param {string} _context
  * @param {Context} [evaluationContext={}]

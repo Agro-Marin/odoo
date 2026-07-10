@@ -355,9 +355,8 @@ test("ImageField is correctly replaced when given an incorrect value", async () 
         },
     );
 
-    // As GET requests can't occur in tests, we must generate an error
-    // on the img element to check whether the data-src is replaced with
-    // a placeholder, here knowing that the GET request would fail
+    // GET requests can't occur in tests, so manually fire an error on the
+    // img element to verify data-src falls back to the placeholder.
     manuallyDispatchProgrammaticEvent(queryFirst('div[name="document"] img'), "error");
     await animationFrame();
 
@@ -412,9 +411,8 @@ test("ImageField preview is updated when an image is uploaded", async () => {
         "data:image/png;base64,coucou==",
         { message: "the image should have the initial src" },
     );
-    // Whitebox: replace the event target before the event is handled by the field so that we can modify
-    // the files that it will take into account. This relies on the fact that it reads the files from
-    // event.target and not from a direct reference to the input element.
+    // Whitebox: swap the event target before the field handles it, since
+    // it reads files from event.target rather than the input element.
     await click(".o_select_file_button");
     await setInputFiles(imageFile);
     // It can take some time to encode the data as a base64 url
@@ -927,16 +925,13 @@ test("unique in url does not change on record change if reload option is set to 
 
 test("convert image to webp", async () => {
     onRpc("ir.attachment", "create_unique", ({ args }) => {
-        // This RPC call is done two times - once for storing webp and once for storing jpeg
-        // This handles first RPC call to store webp
+        // Called twice: once storing webp, once storing jpeg.
         if (!args[0][0].res_id) {
-            // Here we check the image data we pass and generated data.
-            // Also we check the file type
             expect(args[0][0].datas).not.toBe(imageData);
             expect(args[0][0].mimetype).toBe("image/webp");
             return [1];
         }
-        // This handles second RPC call to store jpeg
+        // Second call: jpeg.
         expect(args[0][0].datas).not.toBe(imageData);
         expect(args[0][0].mimetype).toBe("image/jpeg");
         return true;

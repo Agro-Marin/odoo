@@ -213,10 +213,8 @@ function urlToState(/** @type {URL} */ urlObj) {
     const state = parseSearchQuery(search);
 
     // ** url-retrocompatibility **
-    // If the url contains a hash, it can be for two motives:
-    // 1. It is an anchor link, in that case, we ignore it, as it will not have a keys/values format
-    //    the sanitizeHash function will remove it from the hash object.
-    // 2. It has one or more keys/values, in that case, we merge it with the search.
+    // A hash is either an anchor link (no key/value format, dropped by sanitizeHash)
+    // or legacy key/value data, which gets merged into the search.
     if (pathname === "/web") {
         const sanitizedHash = sanitizeHash(parseHash(hash));
         // Old urls used "id", it is now resId for clarity. Remap to the new name.
@@ -300,10 +298,9 @@ let pushTimeout;
 let pushArgs;
 
 /**
- * Fresh, empty aggregation bucket for the debounced push/replace.
- * `mode` starts at the weakest intent ("replace"); a "push" call upgrades it so
- * that an intended new history entry is never silently downgraded when several
- * pushState/replaceState calls are batched into a single history operation.
+ * Fresh aggregation bucket for debounced push/replace. `mode` starts at the
+ * weakest intent ("replace"); a "push" call upgrades it so batched calls never
+ * silently downgrade an intended new history entry.
  * @returns {{ replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace" }}
  */
 function makePushArgs() {
@@ -318,9 +315,8 @@ export function startRouter() {
     state = router.urlToState(url);
     // ** url-retrocompatibility **
     if (browser.location.pathname === "/web") {
-        // Change the url of the current history entry to the canonical url.
-        // This change should be done only at the first load, and not when clicking on old style internal urls.
-        // Or when clicking back/forward on the browser.
+        // Change the url of the current history entry to the canonical url,
+        // only at first load (not for old-style link clicks or back/forward).
         browser.history.replaceState(browser.history.state, "", url.href);
     }
     pushTimeout = null;
@@ -421,15 +417,13 @@ function makeDebouncedPush(mode) {
         const nextState = computeNextState(pushArgs.state, pushArgs.replace);
         const url = browser.location.origin + router.stateToUrl(nextState);
         if (!compareUrls(url + browser.location.hash, browser.location.href)) {
-            // If the route changed: pushes or replaces browser state.
-            // The effective mode comes from the aggregation bucket (not the
-            // closure `mode`): batched pushState/replaceState calls share one
-            // history operation, and a "push" intent must win over "replace".
+            // Route changed: push or replace using the mode from the aggregation
+            // bucket (not the closure `mode`) — batched calls share one history
+            // operation, and a "push" intent must win over "replace".
             if (pushArgs.mode === "push") {
-                // Because doPush is delayed, the history entry will have the wrong name.
-                // We set the document title to what it was at the time of the pushState
-                // call, then push, which generates the history entry with the right title
-                // then restore the title to what it's supposed to be
+                // doPush is delayed, so the pushState call would otherwise create
+                // the history entry under the wrong (current) title: restore the
+                // title as it was at call time, push, then reset it.
                 const originalTitle = document.title;
                 document.title = pushArgs.title;
                 browser.history.pushState({ nextState }, "", url);

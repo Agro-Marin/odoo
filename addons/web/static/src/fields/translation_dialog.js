@@ -29,9 +29,8 @@ export class TranslationDialog extends Component {
         this.title = _t("Translate: %s", this.props.fieldName);
 
         this.user = user;
-        // Terms carry python-format lang codes ("es_MX") while user.lang is
-        // BCP-47 ("es-MX") — the template's current-language highlight must
-        // compare in the same format.
+        // Terms carry python-format lang codes ("es_MX") while user.lang is BCP-47
+        // ("es-MX") — the template's current-language highlight needs matching formats.
         this.userPyLang = jsToPyLocale(user.lang);
         this.orm = useService("orm");
 
@@ -55,9 +54,7 @@ export class TranslationDialog extends Component {
                     langName: relatedLanguage[1],
                     value: term.value || "",
                 };
-                // we set the translation value coming from the database, except for the language
-                // the user is currently utilizing. Then we set the translation value coming
-                // from the value of the field in the form
+                // Use the form's live value instead of the DB value for the user's own language.
                 if (
                     term.lang === this.userPyLang &&
                     !this.showSource &&
@@ -72,9 +69,7 @@ export class TranslationDialog extends Component {
         });
     }
 
-    /**
-     * Load the translation terms for the installed languages, for the current model and res_id
-     */
+    /** Load translation terms for the installed languages, for this record. */
     async loadTranslations() {
         return this.orm.call(this.props.resModel, "get_field_translations", [
             [this.props.resId],
@@ -82,9 +77,6 @@ export class TranslationDialog extends Component {
         ]);
     }
 
-    /**
-     * Save all the terms that have been updated
-     */
     async onSave() {
         const translations = {};
 

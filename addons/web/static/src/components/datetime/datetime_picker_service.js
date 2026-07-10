@@ -451,12 +451,9 @@ export const datetimePickerService = {
                             pickerProps.focusedDateIndex === 0 ||
                             (value[0] && value[1] && value[1] < value[0])
                         ) {
-                            // If selecting either:
-                            // - the first value
-                            // - OR a second value before the first:
-                            // Then:
-                            // - Set the DATE (year + month + day) of all values
-                            // to the one that has been selected.
+                            // Selecting the first value, or a second value before the
+                            // first: sync the DATE (year/month/day) of all values to
+                            // the one just selected.
                             const { year, month, day } =
                                 value[pickerProps.focusedDateIndex];
                             for (let i = 0; i < value.length; i++) {
@@ -465,8 +462,8 @@ export const datetimePickerService = {
                             }
                             pickerProps.focusedDateIndex = 1;
                         } else {
-                            // If selecting the second value after the first:
-                            // - simply toggle the focus index
+                            // Selecting the second value after the first: toggle
+                            // the focus index.
                             pickerProps.focusedDateIndex =
                                 pickerProps.focusedDateIndex === 1 ? 0 : 1;
                         }
@@ -606,11 +603,9 @@ export const datetimePickerService = {
                 let targetRef = null;
 
                 if (params.useOwlHooks) {
-                    // Registered here (during `create()`, hence before any
-                    // onWillDestroy the caller/hook adds afterwards) so the
-                    // guard is already set when a popover is torn down as part
-                    // of the same destroy phase. OWL runs willDestroy callbacks
-                    // in registration order.
+                    // Registered before any onWillDestroy the caller adds, so the
+                    // guard is set when a popover from the same destroy phase runs
+                    // its close handler (OWL runs willDestroy in registration order).
                     onWillDestroy(() => {
                         destroyed = true;
                     });
@@ -641,8 +636,8 @@ export const datetimePickerService = {
 
                     useEffect(enable, getInputs);
 
-                    // Note: this `onPatched` callback must be called after the `useEffect` since
-                    // the effect may change input values that will be selected by the patch callback.
+                    // Must be registered after `useEffect`: the effect may change
+                    // input values that this patch callback then selects.
                     onPatched(function focusIfNeeded() {
                         if (isOpen() && shouldFocus) {
                             focusActiveInput();

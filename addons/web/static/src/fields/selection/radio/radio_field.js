@@ -31,10 +31,8 @@ export class RadioField extends SelectionLikeField {
     };
 
     setup() {
-        // Reuses type detection and the `name_search`-backed special data from
-        // `SelectionLikeField` (shared with badge/selection). `name_search` is
-        // bounded by the ORM's default limit, unlike the previous unbounded
-        // `web_search_read` this field used to issue.
+        // Reuses SelectionLikeField's name_search-backed data, bounded by the
+        // ORM's default limit (unlike the previous unbounded web_search_read).
         super.setup();
         this.id = `radio_field_${nextId++}`;
     }

@@ -22,10 +22,8 @@ chromeMetaTag.setAttribute("content", "nointentdetection");
 document.head.appendChild(chromeMetaTag);
 
 /**
- * Function to start a webclient.
- * It is used both in community and enterprise in main.js.
- * It's meant to be webclient flexible so we can have a subclass of
- * webclient in enterprise with added features.
+ * Starts a webclient. Used by both community and enterprise (main.js), so
+ * enterprise can pass a Webclient subclass with added features.
  *
  * @param {Component} Webclient
  */

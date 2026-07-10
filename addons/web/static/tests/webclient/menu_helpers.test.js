@@ -20,22 +20,18 @@ test("reorderApps sorts apps by the given custom order", () => {
 });
 
 test("reorderApps keeps the original relative order of apps absent from the order", () => {
-    // "a" and "c" are not in the custom order: they must keep their original
-    // relative order (a before c) deterministically — not the unspecified
-    // order the old `apps.indexOf` inside the comparator produced.
+    // "a" and "c" aren't in the custom order, so they must keep their original
+    // relative order deterministically — not the unspecified order the old
+    // `apps.indexOf` inside the comparator produced.
     const apps = makeApps(["a", "b", "c", "d"]);
     reorderApps(apps, ["d", "b"]);
-    // Not-found apps (original order a, c) come first; found apps follow the
-    // custom order (d, b).
     expect(xmlids(apps)).toEqual(["a", "c", "d", "b"]);
 });
 
 test("reorderApps: a newly installed app does not scramble the customized order", () => {
-    // Customized home menu: the user reordered their apps to [e3, e1, e2].
-    // "new" is a freshly installed app absent from that saved config.
+    // "new" is freshly installed and absent from the saved custom order; the
+    // configured apps (e3, e1, e2) must keep their exact order regardless.
     const apps = makeApps(["e1", "e2", "e3", "new"]);
     reorderApps(apps, ["e3", "e1", "e2"]);
-    // The configured apps keep their EXACT custom order (e3, e1, e2); the new
-    // app lands deterministically and cannot shuffle the configured ones.
     expect(xmlids(apps)).toEqual(["new", "e3", "e1", "e2"]);
 });

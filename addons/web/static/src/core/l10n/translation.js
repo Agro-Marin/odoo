@@ -102,18 +102,11 @@ export function _t(source, ...substitutions) {
 }
 
 // ── Plural-aware form selector ───────────────────────────────────────────
-//
-// Each form is expected to be a translated string (typically a `_t(...)`
-// result), with its own substitutions baked in. `_pl` only chooses which
-// form to return for the given count under the current locale's CLDR
-// plural rules; it does NOT translate or substitute.  This means each
-// form participates in normal `_t` extraction and lookup independently —
-// translators see "1 record" and "%s records" as separate msgids.  Real
-// gettext-style msgid_plural support (one msgid + N msgstr[N]) needs
-// matching extractor work in core/odoo/tools/translate.py and is tracked
-// as follow-up; the present helper covers the common one/other case
-// (en, es, fr, …) and degrades gracefully on richer-plural locales by
-// falling back to "other" when the matched category is not provided.
+// Each form must already be translated (typically via `_t`); `_pl` only picks
+// which form to return for `count` per CLDR plural rules — it does NOT
+// translate. Real gettext msgid_plural support needs extractor work in
+// core/odoo/tools/translate.py (tracked as follow-up); this helper covers the
+// common one/other case and falls back to "other" for unprovided categories.
 
 /** @type {Map<string, Intl.PluralRules>} */
 const _pluralRulesCache = new Map();
@@ -122,10 +115,8 @@ const _pluralRulesCache = new Map();
  * Pick the right singular/plural form for `count` under the current
  * locale's CLDR plural rules.
  *
- * Pre-condition: `localization.code` must be populated (the Proxy in
- * `@web/core/l10n/localization` throws otherwise).  Practically this
- * means the consumer must run after `localization_service` has started —
- * the same constraint that `_t()` carries via `translatedTerms`.
+ * Requires `localization.code` to be populated — i.e. must run after
+ * `localization_service` has started, the same constraint `_t()` has.
  *
  * @example
  * _pl(count, {
@@ -143,16 +134,9 @@ const _pluralRulesCache = new Map();
  * @returns {T}
  */
 export function _pl(count, forms) {
-    // ``localization.code`` is the Python locale form (``en_US``) — the
-    // ``localization`` service runs ``jsToPyLocale(navigator.language)``
-    // before populating it.  ``Intl.PluralRules`` requires the BCP-47
-    // form (``en-US``); calling ``new Intl.PluralRules("en_US")`` throws
-    // ``RangeError: Invalid language tag: en_US`` and bubbles out
-    // through ``onWillStart`` as an ``OwlError`` that fails any
-    // component using ``_pl`` (formatX2many is a notable caller —
-    // every ``"x records"`` aggregate row in a list view triggers it).
-    // Underscore-to-hyphen substitution is the round-trip back to
-    // BCP-47 and is what ``Intl.PluralRules`` actually accepts.
+    // ``localization.code`` is the Python-locale form (``en_US``); ``Intl.PluralRules``
+    // requires BCP-47 (``en-US``) and throws ``RangeError`` otherwise, which would fail
+    // every caller (e.g. formatX2many's "x records" aggregate rows) — hence the conversion.
     const code = localization.code.replace(/_/g, "-");
     let rules = _pluralRulesCache.get(code);
     if (!rules) {
@@ -164,12 +148,9 @@ export function _pl(count, forms) {
 }
 
 /**
- * This is a wrapper for _t that the transpiler injects in its place
- * to provide the knowledge of the module from which it was called.
- *
- * Providing the context of the module is useful to avoid conflicting
- * translations, e.g. "table" has a different meaning depending on the module:
- * the table of a restaurant (POS module) vs. a spreadsheet table.
+ * Wrapper for _t that the transpiler injects to attach the calling module's
+ * context — avoids conflicting translations for the same term across
+ * modules (e.g. "table": restaurant vs. spreadsheet).
  *
  * @param {string} source The term to translate
  * @param {string} [moduleName] The name of the module, used as a context key to
@@ -278,31 +259,15 @@ export class TranslatedString extends String {
 }
 
 // ── Cross-bundle singleton state ─────────────────────────────────────────
-//
-// Translation state MUST be a single object shared by every ESM bundle in
-// the document.  Native ESM gives each bundle its own copy of the module's
-// top-level bindings (one ``translatedTerms`` per bundle, one
-// ``translationIsReady`` per bundle, etc.).  When ``translation.js`` is
-// loaded by both ``web.assets_web`` (parent) and ``web.assets_tests`` (test
-// satellite) — as is the case any time ``--test-enable`` is on — the
-// ``localization`` service running in the parent flips ITS copy of
-// ``translatedTerms[translationLoaded] = true`` and resolves ITS copy of
-// ``translationIsReady``, leaving the satellite's copies still in their
-// initial state.  ``_t(...)`` calls inside satellite-bundled code (notably
-// tour ``steps()`` functions in test_main_flows / test_orm) then check the
-// satellite's still-``false`` flag and throw
-// ``"Cannot translate string: translations have not been loaded"`` —
-// failing tour tests that worked correctly on upstream's amd-style loader.
-//
-// Routing the three pieces of state through ``globalThis`` makes them a
-// genuine process-wide singleton: any bundle that imports them ends up
-// with the same object reference, so a write by one bundle is visible to
-// every other bundle's reads.
-//
-// ``Symbol.for(...)`` (registry symbol) is the symbol counterpart: it is
-// the same value regardless of which realm or module instance creates it,
-// so ``translatedTerms[translationLoaded]`` reads and writes always agree
-// on the key even across bundle boundaries.
+// Native ESM gives each bundle (e.g. ``web.assets_web`` vs. the
+// ``web.assets_tests`` satellite loaded whenever ``--test-enable`` is on) its
+// own copy of this module's top-level bindings. Without routing through
+// ``globalThis``, the ``localization`` service flips ``translatedTerms`` /
+// resolves ``translationIsReady`` only in the parent bundle's copy, leaving
+// the satellite's copy permanently "not loaded" — so ``_t(...)`` calls in
+// satellite-bundled tour ``steps()`` throw and fail tests that pass on
+// upstream's amd-style loader. ``Symbol.for(...)`` is the matching trick for
+// the lookup key itself: it resolves to the same symbol across realms/bundles.
 
 /** @type {symbol} */
 export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");

@@ -7,21 +7,12 @@ import { onRendered } from "@odoo/owl";
 
 /**
  * Increment a global counter every time the calling component renders.
- * Counters are read via ``globalThis.__renderStats()`` (snapshot of all
- * label → count pairs) and reset via ``globalThis.__renderReset()``.
+ * Read via ``globalThis.__renderStats()``, reset via ``__renderReset()``.
+ * Gated by ``globalThis.__renderTrace`` (set truthy in DevTools) so the hook
+ * is a no-op by default — used for Tier 1.1 perf audits of render counts.
  *
- * Gated by ``globalThis.__renderTrace``: when falsy (default), the hook
- * captures no data and pays only an ``onRendered`` registration. Set the
- * flag in DevTools (``__renderTrace = true``) before reproducing a
- * scenario, then read stats with ``__renderStats()``.
- *
- * Intended for Tier 1.1 perf audits — quantifying how many component
- * renders fire per user action so that ``t-memo`` adoption decisions
- * can be grounded in measurement rather than intuition.
- *
- * @param {string} label  Stable identifier for the counter. Use the
- *  component's class or template name so reads are unambiguous across
- *  a session — e.g. ``"list.ListRenderer"``, ``"fields.CharField"``.
+ * @param {string} label  Identifier for the counter, e.g. component/template
+ *  name (``"list.ListRenderer"``) so reads stay unambiguous across a session.
  */
 export function useRenderCounter(label) {
     onRendered(() => {

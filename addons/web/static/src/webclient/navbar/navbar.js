@@ -86,8 +86,7 @@ export class NavBar extends Component {
             );
         });
 
-        // We don't want to adapt every time we are patched
-        // rather, we adapt only when menus or systrays have changed.
+        // Adapt only when menus or systrays changed, not on every patch.
         useEffect(
             () => {
                 this.adapt();
@@ -106,7 +105,6 @@ export class NavBar extends Component {
      * @param {Object} item - the systray item that errored
      */
     handleItemError(error, item) {
-        // remove the faulty component
         item.isDisplayed = () => false;
         // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
         // through the unhandledrejection handler → UncaughtPromiseError dialog.
@@ -157,24 +155,21 @@ export class NavBar extends Component {
     set systrayItems(_) {}
 
     /**
-     * Adapt will check the available width for the app sections to get displayed.
-     * If not enough space is available, it will replace by a "more" menu
-     * the least amount of app sections needed trying to fit the width.
+     * Compute the available width for app sections; if they overflow, move
+     * the minimum needed sections into a "more" menu.
      *
-     * NB: To compute the widths of the actual app sections, a render needs to be done upfront.
-     *     By the end of this method another render may occur depending on the adaptation result.
+     * NB: requires an upfront render to measure section widths, and may
+     * trigger another render afterward depending on the outcome.
      */
     async adapt() {
         if (!this.root.el) {
             /** @todo do we still need this check? */
-            // currently, the promise returned by 'render' is resolved at the end of
-            // the rendering even if the component has been destroyed meanwhile, so we
-            // may get here and have this.el unset
+            // 'render' resolves after the render finishes even if the
+            // component was destroyed meanwhile, so this.el may be unset.
             return;
         }
 
         // ------- Initialize -------
-        // Get the sectionsMenu
         const sectionsMenu = this.appSubMenus.el;
         if (!sectionsMenu) {
             // No need to continue adaptations if there is no sections menu.
@@ -196,8 +191,7 @@ export class NavBar extends Component {
         this.currentAppSectionsExtra = [];
 
         // ------- Check overflowing sections -------
-        // use getBoundingClientRect to get unrounded values for width in order to avoid rounding problem
-        // with offsetWidth.
+        // getBoundingClientRect (not offsetWidth) avoids rounding errors.
         const sectionsAvailableWidth = getBoundingClientRect.call(sectionsMenu).width;
         const sectionsTotalWidth = sections.reduce(
             (sum, s) => sum + getBoundingClientRect.call(s).width,

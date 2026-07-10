@@ -7,10 +7,7 @@ import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
-/**
- * Top-level settings page with app tabs, swipe navigation, and scroll position memory.
- * Handles URL hash-based tab selection and anchor scrolling.
- */
+/** Also remembers scroll position per tab across switches. */
 export class SettingsPage extends Component {
     static template = "web.SettingsPage";
     static components = { ActionSwiper };

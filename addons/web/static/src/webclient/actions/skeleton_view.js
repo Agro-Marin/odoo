@@ -5,12 +5,7 @@
 
 import { Component, onMounted } from "@odoo/owl";
 
-/**
- * Skeleton loading placeholder shown during view transitions.
- *
- * Replaces the blank white screen during clearBreadcrumbs navigation
- * with shimmer placeholders that match the target view's layout structure.
- */
+/** Replaces the blank screen during clearBreadcrumbs navigation with a shimmer matching the target view's layout. */
 export class SkeletonView extends Component {
     static template = "web.SkeletonView";
     static props = {
@@ -20,7 +15,6 @@ export class SkeletonView extends Component {
         "*": true,
     };
 
-    /** Initialize pre-built arrays for template loops and register onMounted callback. */
     setup() {
         // Pre-built arrays for t-foreach loops (OWL templates lack range())
         /** @type {number[]} */

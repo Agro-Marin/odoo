@@ -17,9 +17,7 @@ onTimeZoneChange((tz) => {
     patchWithCleanup(Settings, { defaultZone });
 });
 
-//-----------------------------------------------------------------------------
 // Exports
-//-----------------------------------------------------------------------------
 
 /** @type {typeof patch} */
 export function patchWithCleanup(obj, patchValue) {

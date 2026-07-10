@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/datetime/datetime_picker_popover - Popover wrapper that hosts a DateTimePicker with keyboard dismiss support */
-
 import { Component } from "@odoo/owl";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
@@ -26,9 +24,7 @@ export class DateTimePickerPopover extends Component {
 
     static template = "web.DateTimePickerPopover";
 
-    //-------------------------------------------------------------------------
     // Lifecycle
-    //-------------------------------------------------------------------------
 
     setup() {
         useHotkey("enter", () => this.props.close());

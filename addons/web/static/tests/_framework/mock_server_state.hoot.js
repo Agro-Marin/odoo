@@ -25,7 +25,6 @@ const applyDefaults = () => {
 };
 
 const notifySubscribers = () => {
-    // Apply new state to all subscribers
     for (const [target, callback] of subscriptions) {
         const descriptors = Object.getOwnPropertyDescriptors(callback(serverState));
         Object.defineProperties(target, descriptors);

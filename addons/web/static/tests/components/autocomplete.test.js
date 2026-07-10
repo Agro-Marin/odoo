@@ -384,7 +384,7 @@ test("press enter on autocomplete with empty source", async () => {
     expect(".o-autocomplete input").toHaveValue("");
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
 
-    // click inside the input and press "enter", because why not
+    // click inside the input and press "enter"
     await contains(".o-autocomplete input").click();
     await runAllTimers();
     await contains(".o-autocomplete input").press("Enter");

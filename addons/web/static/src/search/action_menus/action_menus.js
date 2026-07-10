@@ -16,13 +16,7 @@ export const STATIC_ACTIONS_GROUP_NUMBER = 1;
 export const ACTIONS_GROUP_NUMBER = 100;
 
 /**
- * Action menus (or Action/Print bar, previously called 'Sidebar')
- *
- * The side bar is the group of dropdown menus located on the left side of the
- * control panel. Its role is to display a list of items depending on the view
- * type and selected records and to execute a set of actions on active records.
- * It is made out of 2 dropdown: Print and Action.
- *
+ * Action/Print bar: dropdowns for executing server actions on selected records.
  * @extends Component
  */
 export class ActionMenus extends Component {
@@ -68,9 +62,7 @@ export class ActionMenus extends Component {
         });
     }
 
-    //---------------------------------------------------------------------
     // Private
-    //---------------------------------------------------------------------
 
     /**
      * Transform raw action items into display-ready objects.
@@ -98,9 +90,7 @@ export class ActionMenus extends Component {
         });
     }
 
-    //---------------------------------------------------------------------
     // Handlers
-    //---------------------------------------------------------------------
 
     /**
      * Execute an ir.actions.* action with the current selection context.
@@ -133,11 +123,7 @@ export class ActionMenus extends Component {
     }
 
     /**
-     * Handler used to determine which way must be used to execute a selected
-     * action: it will be either:
-     * - a callback (function given by the view controller);
-     * - an action ID (string);
-     * - an URL (string).
+     * Dispatch a selected item to its callback, action, or URL.
      * @private
      * @param {Object} item
      */

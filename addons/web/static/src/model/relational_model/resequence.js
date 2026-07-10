@@ -12,10 +12,10 @@
  * {@link resequence} below and by StaticList's in-memory resequencing
  * (static_list_sort.js).
  *
- * The plan minimizes writes: if the sequence values are strictly monotonic,
- * only the records between the source and target positions are rewritten.
- * Otherwise (duplicates, gaps in the wrong direction, or records with no
- * sequence value at all), every record is rewritten (``reorderAll``).
+ * Minimizes writes: if sequence values are strictly monotonic, only records
+ * between the source and target positions are rewritten. Otherwise
+ * (duplicates, wrong-direction gaps, or a missing sequence value), every
+ * record is rewritten (``reorderAll``).
  *
  * @param {Object} params
  * @param {Array<{id: number | string}>} params.records - Records in their
@@ -52,7 +52,6 @@ export function computeResequencePlan({
         toIndex = fromIndex > targetIndex ? targetIndex + 1 : targetIndex;
     }
 
-    // Determine which records need to be modified
     const firstIndex = Math.min(fromIndex, toIndex);
     const lastIndex = Math.max(fromIndex, toIndex) + 1;
     // A record with no handle value (undefined) must force a full reorder:
@@ -75,12 +74,10 @@ export function computeResequencePlan({
         }
     }
 
-    // Perform the move on a copy of the list
     const reordered = [...records];
     const [record] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, record);
 
-    // Create the list of records to modify
     let toReorder = reordered;
     if (!reorderAll) {
         toReorder = toReorder
@@ -157,7 +154,6 @@ export async function resequence({
 
     const resIds = toReorder.map((d) => getResId(d)).filter((id) => id && !isNaN(id));
 
-    // Try to write new sequences on the affected records/groups
     try {
         return await orm.webResequence(resModel, resIds, {
             field_name: fieldName,

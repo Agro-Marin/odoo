@@ -9,8 +9,6 @@ import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { UPDATE_METHODS } from "@web/services/orm_service";
 
-// reload the page if changes are being done to `res.company`
-
 export const reloadCompanyService = {
     dependencies: ["action"],
     /**

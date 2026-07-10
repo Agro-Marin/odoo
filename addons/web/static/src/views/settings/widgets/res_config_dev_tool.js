@@ -11,11 +11,6 @@ import { Setting } from "@web/views/form/setting/setting";
 import { SettingsBlock } from "@web/views/settings/settings/settings_block";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
-/**
- * Widget in the settings that handles the "Developer Tools" section.
- * Can be used to enable/disable the debug modes.
- * Can be used to load the demo data.
- */
 export class ResConfigDevTool extends Component {
     static template = "res_config_dev_tool";
     static components = {
@@ -26,7 +21,6 @@ export class ResConfigDevTool extends Component {
         ...standardWidgetProps,
     };
 
-    /** Initialize debug state flags and load demo data status. */
     setup() {
         /** @type {boolean} */
         this.isDebug = Boolean(odoo.debug);

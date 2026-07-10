@@ -132,11 +132,9 @@ export class PivotRenderer extends Component {
         }
     }
     /**
-     * Get the formatted value of the cell.
-     *
      * @private
      * @param {Object} cell
-     * @returns {string} Formatted value
+     * @returns {string}
      */
     getFormattedValue(cell) {
         const { codec, formatType, baseOptions } = this.measureFormatters.get(
@@ -221,9 +219,7 @@ export class PivotRenderer extends Component {
         return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
     }
 
-    //----------------------------------------------------------------------
     // Handlers
-    //----------------------------------------------------------------------
 
     /**
      * Handle the adding of a custom groupby (inside the view, not the searchview).
@@ -240,8 +236,6 @@ export class PivotRenderer extends Component {
     }
 
     /**
-     * Handle the selection of a groupby dropdown item.
-     *
      * @param {Object} param0
      * @param {number} param0.itemId
      * @param {number} [param0.optionId]
@@ -255,8 +249,6 @@ export class PivotRenderer extends Component {
         });
     }
     /**
-     * Handle a click on a header cell.
-     *
      * @param {PointerEvent} ev
      * @param {Object} cell
      * @param {boolean} isXAxis
@@ -283,8 +275,6 @@ export class PivotRenderer extends Component {
         }
     }
     /**
-     * Handle a click on a measure cell.
-     *
      * @param {Object} cell
      */
     onMeasureClick(cell) {
@@ -309,9 +299,6 @@ export class PivotRenderer extends Component {
             .querySelectorAll(`td:nth-child(${index + 1})`)
             .forEach((elt) => elt.classList.add("o_cell_hover"));
     }
-    /**
-     * Remove the hover on the columns.
-     */
     onMouseLeave() {
         this.tableRef.el
             .querySelectorAll(".o_cell_hover")
@@ -341,15 +328,9 @@ export class PivotRenderer extends Component {
             },
         });
     }
-    /**
-     * Expands all groups
-     */
     onExpandButtonClicked() {
         this.model.expandAll();
     }
-    /**
-     * Flips axis
-     */
     onFlipButtonClicked() {
         this.model.flip();
     }

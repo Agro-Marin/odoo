@@ -65,24 +65,17 @@ setupTestEnvironment();
 // that would destroy the test runner page mid-suite.
 patchBrowserLocation();
 
-// Hoot exposes the runner instance via ``__debug__``.  We use it to
-// push/pop the suiteStack manually around each test-file import so that
-// top-level ``test()`` and ``describe.current.tags(...)`` calls in
-// legacy-style test files (no surrounding ``describe()``) execute
-// inside a parent suite — restoring the per-file wrapping that the
-// pre-ESM ``describeDrySuite`` helper used to provide.
+// Hoot exposes the runner via ``__debug__`` so we can push/pop the
+// suiteStack around each test-file import — see ``_importInFileSuite``.
 const _runner = /** @type {any} */ (__debug__);
 
 /**
- * Convert a test specifier into the suite name HOOT's id-filter expects.
- *
- * ``@bus/../tests/foo/bar.test`` → ``@bus/foo/bar``.  This matches the
- * pre-ESM convention used by ``getSuitePath`` in the old
- * ``describeDrySuite`` helper, and is what ``WebSuite._run_hoot``
- * hashes into the ``&id=`` URL parameter.  Keeping the ``@<addon>``
- * prefix is critical — without it, ``hash("@web/core")`` doesn't match
- * the synthetic suite ``web/core/...`` and HOOT refuses to run any
- * tests filtered by that id.
+ * Convert a test specifier into the suite name HOOT's id-filter expects:
+ * ``@bus/../tests/foo/bar.test`` → ``@bus/foo/bar`` (matches the pre-ESM
+ * ``getSuitePath``/``describeDrySuite`` convention that ``WebSuite._run_hoot``
+ * hashes into the ``&id=`` param). Keeping the ``@<addon>`` prefix is
+ * critical — without it ``hash("@web/core")`` won't match the synthetic
+ * suite ``web/core/...`` and HOOT refuses to run any filtered tests.
  *
  * @param {string} specifier
  * @returns {string}
@@ -174,16 +167,11 @@ export async function loadAndStart(testSpecifiers) {
         .map((r, i) => ({ result: r, specifier: testSpecifiers[i] }))
         .filter(({ result }) => result.status === "rejected");
     if (failed.length) {
-        // Group by error message so a single underlying bug (e.g. a
-        // missing export) doesn't appear as 300 distinct lines in the
-        // server log.  The grouped view is the actionable summary; the
-        // full list is emitted under it for completeness.
-        // Group by message; keep one representative reason per group
-        // (the first occurrence) so we have a real call site to chase
-        // when N specifiers fail with the same underlying bug.  Capture
-        // *everything* about the reason: message, type, stack, and any
-        // nested ``cause`` chain — the underlying bug might be wrapped
-        // inside a HootError or similar.
+        // Group failures by error message (not by specifier) so a single
+        // underlying bug doesn't appear as 300 near-identical log lines;
+        // keep the first occurrence's full reason (message, type, stack,
+        // cause chain — it may be wrapped, e.g. in a HootError) as the
+        // actionable summary, with the full specifier list beneath it.
         const grouped = new Map();
         for (const { result, specifier } of failed) {
             const reason = result.reason;

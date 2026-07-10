@@ -74,10 +74,10 @@ export class ListArchParser {
     /**
      * Parse a `<field>` node into a field descriptor.
      *
-     * @param {Element} node - the `<field>` element
-     * @param {Record<string, any>} models - model metadata
-     * @param {string} modelName - current model name
-     * @returns {any} parsed field info
+     * @param {Element} node
+     * @param {Record<string, any>} models
+     * @param {string} modelName
+     * @returns {any}
      */
     parseFieldNode(node, models, modelName) {
         return parseFieldNode(node, models, modelName, "list");
@@ -86,10 +86,10 @@ export class ListArchParser {
     /**
      * Parse a `<widget>` node into a widget descriptor.
      *
-     * @param {Element} node - the `<widget>` element
-     * @param {Record<string, any>} [_models] - model metadata (unused, kept for API symmetry)
-     * @param {string} [_modelName] - current model name (unused)
-     * @returns {any} parsed widget info
+     * @param {Element} node
+     * @param {Record<string, any>} [_models] - unused, kept for API symmetry
+     * @param {string} [_modelName] - unused
+     * @returns {any}
      */
     parseWidgetNode(node, _models, _modelName) {
         return Widget.parseWidgetNode(node);
@@ -98,8 +98,8 @@ export class ListArchParser {
     /**
      * Extract button metadata from a `<button>` element.
      *
-     * @param {Element} node - the `<button>` element
-     * @returns {any} button descriptor
+     * @param {Element} node
+     * @returns {any}
      */
     processButton(node) {
         return processButton(node);

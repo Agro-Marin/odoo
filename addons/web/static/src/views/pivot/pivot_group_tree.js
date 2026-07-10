@@ -5,9 +5,7 @@
 
 import { sortBy } from "@web/core/utils/collections/arrays";
 /**
- * Add labels/values in the provided groupTree. A new leaf is created in
- * the groupTree with a root object corresponding to the group with given
- * labels/values.
+ * Add labels/values to groupTree, creating a new leaf for the group.
  *
  * @param {Object} groupTree
  * @param {string[]} labels

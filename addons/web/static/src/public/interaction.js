@@ -9,48 +9,37 @@ import { debounce, throttleForAnimation } from "@web/core/utils/timing";
 import { INITIAL_VALUE, SKIP_IMPLICIT_UPDATE } from "./colibri.js";
 import { makeAsyncHandler, makeButtonHandler } from "./utils.js";
 /**
- * This is the base class to describe interactions. The Interaction class
- * provides a good integration with the web framework (env/services), a well
- * specified lifecycle, some dynamic content, and a few helper functions
- * designed to accomplish common tasks, such as adding dom listeners or waiting
- * for some tasks to complete.
+ * Base class for interactions: web-framework integration (env/services), a
+ * defined lifecycle, dynamic content, and helpers for common tasks like
+ * adding DOM listeners or waiting on async work.
  *
- * Note that even though interactions are not destroyed in the standard workflow
- * (a user visiting the website), there are still some cases where it happens:
- * for example, when someone switch the website in "edit" mode. This means that
- * interactions should gracefully clean up after themselves.
+ * Interactions aren't destroyed in the standard workflow (visiting the
+ * website), but can be (e.g. switching to "edit" mode) — clean up after
+ * yourself.
  */
 
 export class Interaction {
     /**
-     * This static property describes the set of html element targeted by this
-     * interaction. An instance will be created for each match when the website
-     * framework is initialized.
+     * CSS selector for the html elements targeted by this interaction. An
+     * instance is created for each match when the website framework starts.
      *
      * @type {string}
      */
     static selector = "";
 
     /**
-     * The `selectorHas` attribute, if defined, allows to filter elements found
-     * through the `selector` attribute by only considering those which contain
-     * at least an element which matches this `selectorHas` selector.
-     *
-     * Note that this is the equivalent of setting up a `selector` using the
-     * `:has` pseudo-selector but that pseudo-selector is known to not be fully
-     * supported in all browsers. To prevent useless crashes, using this
-     * `selectorHas` attribute should be preferred.
+     * Filters elements matched by `selector` to those containing at least
+     * one element matching `selectorHas`. Equivalent to the `:has()`
+     * pseudo-selector, used instead because `:has` support is inconsistent
+     * across browsers.
      *
      * @type {string}
      */
     static selectorHas = "";
 
     /**
-     * Similar to `selectorHas` but equivalent to the `:not(:has(...)))`
-     * pseudo-selectors combination.
-     *
-     * Note that both `selectorHas` and `selectorNotHas` can be used
-     * simultaneously.
+     * Similar to `selectorHas` but equivalent to `:not(:has(...))`. Can be
+     * combined with `selectorHas`.
      *
      * @type {string}
      */
@@ -62,9 +51,8 @@ export class Interaction {
     static INITIAL_VALUE = INITIAL_VALUE;
 
     /**
-     * Note that a dynamic selector is allowed to return a falsy value, for ex
-     * the result of a querySelector. In that case, the directive will simply be
-     * ignored.
+     * A dynamic selector may return a falsy value (e.g. a missed
+     * querySelector); the directive is then simply ignored.
      *
      * @type {Object.<string, Function>}
      */
@@ -107,8 +95,7 @@ export class Interaction {
      * t-att-* and t-out directives also accept `Interaction.INITIAL_VALUE`,
      * which resets them to the value they had before the interaction's start.
      *
-     * Note that this is not owl! It is similar, to make it easy to learn, but
-     * it is different, the syntax and semantics are somewhat different.
+     * This is not owl! Similar syntax for familiarity, but semantics differ.
      *
      * @type {Object}
      */
@@ -168,9 +155,9 @@ export class Interaction {
     start() {}
 
     /**
-     * All side effects done should be cleaned up here. Note that like all
-     * other lifecycle methods, it is not necessary to call the super.destroy
-     * method (unless you inherit from a concrete subclass).
+     * All side effects done should be cleaned up here. As with other
+     * lifecycle methods, calling super.destroy is unnecessary unless you
+     * inherit from a concrete subclass.
      */
     destroy() {}
 
@@ -179,11 +166,9 @@ export class Interaction {
     // -------------------------------------------------------------------------
 
     /**
-     * This method applies the dynamic content description to the dom. So, if
-     * a dynamic attribute has been defined with a t-att-, it will be done
-     * synchronously by this method. Note that updateContent is already being
-     * called after each event handler, and by most other helpers, so this is
-     * not common to need to call it in practice.
+     * Applies the dynamic content description to the dom synchronously (e.g.
+     * dynamic attributes defined with t-att-). Already called after each
+     * event handler and by most other helpers, so rarely needed directly.
      */
     updateContent() {
         this.__colibri__.updateContent();

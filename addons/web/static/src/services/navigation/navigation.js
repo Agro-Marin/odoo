@@ -129,22 +129,11 @@ export class Navigator {
         this._throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) =>
             el?.focus(),
         );
-        // OWL-reactive view of the navigator's active state. Components
-        // can subscribe through `useNavigatorActive(navigator, el)` and
-        // declaratively bind the focus class via `t-att-class` rather
-        // than depend on the imperative `classList.add/remove` in
-        // ``NavigationItem``. That decoupling fixes the long-standing
-        // race where an OWL re-render of the consumer wipes the focus
-        // class added by the navigator (manual writes through
-        // `target.classList` are invisible to OWL's vdom diff, so when
-        // a parent re-render rewrites the ``class`` attribute via
-        // ``t-att-class``, the navigator-applied ``focus`` is lost).
-        //
-        // The imperative writes are still performed below for backward
-        // compatibility with non-OWL consumers (CSS-only ``.focus``
-        // styles, e.g. legacy search-bar entries) and so existing tests
-        // that query ``.focus`` directly keep working.  Reactive state
-        // and imperative class stay in lockstep through the setters.
+        // Reactive state lets OWL consumers (via useNavigatorActive) bind the
+        // focus class declaratively (`t-att-class`), fixing races where a
+        // parent re-render wipes the imperative `classList` write below.
+        // Imperative writes stay for backward compat with non-OWL/CSS-only
+        // consumers; both are kept in lockstep through the setters.
         this.state = reactive({
             /**@type {number}*/
             activeItemIndex: -1,
@@ -327,12 +316,10 @@ export class Navigator {
             if (this._options.shouldFocusFirstItem) {
                 this.items[0]?.setActive();
             }
-            // Wake any subscribers that derive from the items list (e.g.
-            // an OWL component using `useNavigatorActive` whose el was
-            // just added or removed).  Reactive primitive properties
-            // notify only when reassigned, so we use a monotonic counter
-            // rather than re-assigning `this.items` (which would force a
-            // re-render even when membership didn't change).
+            // Wake subscribers deriving from the items list (e.g.
+            // useNavigatorActive) via a monotonic counter, since reactive
+            // primitives only notify on reassignment and reassigning
+            // `this.items` would force unnecessary re-renders.
             this.state.itemsRevision++;
         }
     }
@@ -413,12 +400,9 @@ export class Navigator {
     }
 
     /**
-     * True when ``el`` is the currently-active navigable item.
-     *
-     * Reads through the reactive `state` so callers wrapped in
-     * `useState(navigator.state)` will re-render when the active item
-     * changes.  Used internally by {@link useNavigatorActive} — most
-     * consumers should not need to call this directly.
+     * True when ``el`` is the currently-active navigable item. Reads through
+     * the reactive `state` so callers wrapped in `useState(navigator.state)`
+     * re-render on change. Used internally by {@link useNavigatorActive}.
      *
      * @param {HTMLElement | undefined | null} el
      * @returns {boolean}
@@ -438,10 +422,9 @@ export class Navigator {
             );
             this.items[index].setActive(shouldFocus);
         } else {
-            // Route through _setActiveItem so the transition is consistent
-            // (setInactive on the previous item + a single index-change path).
-            // Prior implementations mutated ``activeItemIndex`` directly here,
-            // causing a "stuck on item 1" keyboard-navigation bug.
+            // Route through _setActiveItem for a consistent transition
+            // (setInactive + single index-change path). Direct mutation of
+            // ``activeItemIndex`` here previously caused a "stuck on item 1" bug.
             this._setActiveItem(-1);
         }
     }
@@ -529,10 +512,9 @@ export function useNavigation(containerRef, options = {}) {
     const navigator = new Navigator(newOptions, hotkeyService);
     const observer = new MutationObserver(() => navigator.update());
 
-    // The window focus listener is scoped to the container's lifetime
-    // (dropdown open), like the hotkey registrations: a closed dropdown
-    // must not contribute a capture listener to every focus event —
-    // list/kanban pages mount one Navigator per card menu.
+    // Scoped to the container's lifetime (dropdown open), like the hotkey
+    // registrations: list/kanban pages mount one Navigator per card menu, so
+    // a closed dropdown must not leave a capture listener on every focus event.
     const onFocus = (/** @type {FocusEvent} */ { target }) =>
         navigator._checkFocus(/** @type {any} */ (target));
     useEffect(
@@ -563,12 +545,11 @@ export function useNavigation(containerRef, options = {}) {
 /**
  * Subscribe an OWL component to a navigator's active-item state.
  *
- * Returns an object whose ``isActive`` getter is OWL-reactive: any
- * template that reads it re-renders when ``elGetter()`` becomes the
- * navigator's active element or stops being it.  Use this when the
- * focus styling has to be co-managed by OWL (``t-att-class``) — the
- * declarative path survives parent re-renders that would otherwise
- * wipe the imperative ``classList.add("focus")`` performed by
+ * Returns an object whose ``isActive`` getter is OWL-reactive: any template
+ * reading it re-renders when ``elGetter()`` becomes (or stops being) the
+ * navigator's active element. Use when focus styling must be co-managed by
+ * OWL (``t-att-class``) — the declarative path survives parent re-renders
+ * that would otherwise wipe the imperative ``classList.add("focus")`` in
  * {@link NavigationItem.setActive}.
  *
  * Example — DropdownItem template:
@@ -581,9 +562,8 @@ export function useNavigation(containerRef, options = {}) {
  * this.nav = useNavigatorActive(this.env.navigation, () => this.itemRef.el);
  * ```
  *
- * The hook is opt-in.  Consumers that don't call it continue to rely
- * on the imperative class management in ``NavigationItem`` exactly as
- * before — this refactor is additive.
+ * Opt-in: consumers that skip it keep relying on ``NavigationItem``'s
+ * imperative class management — this refactor is additive.
  *
  * @param {Navigator | undefined} navigator
  * @param {() => HTMLElement | null | undefined} elGetter
@@ -599,19 +579,15 @@ export function useNavigatorActive(navigator, elGetter) {
     const state = useState(navigator.state);
     return {
         get isActive() {
-            // Read both ``activeItemEl`` (changes on every active-item
-            // transition) and ``itemsRevision`` (changes when items[] is
-            // rebuilt — covers the edge case where the same DOM element
-            // is removed and re-added).  Both reads register the
-            // subscription with OWL's reactive proxy.
+            // Read both ``activeItemEl`` (changes each transition) and
+            // ``itemsRevision`` (changes when items[] rebuilds, e.g. same
+            // element removed/re-added) to register with OWL's reactive proxy.
             void state.itemsRevision;
             const activeEl = state.activeItemEl;
-            // Short-circuit when no item is active.  Without this, the
-            // first render (before any item is selected) would compute
-            // ``null === null`` as TRUE for every consumer and apply
-            // the focus class to every item simultaneously — a render-
-            // order surprise that also makes the OWL diff resolve to
-            // the wrong active item on the next state change.
+            // Short-circuit when no item is active — otherwise the first
+            // render (before any selection) would compute ``null === null``
+            // as true for every consumer, applying focus to all items and
+            // desyncing the OWL diff from the true active item.
             if (activeEl === null || activeEl === undefined) {
                 return false;
             }

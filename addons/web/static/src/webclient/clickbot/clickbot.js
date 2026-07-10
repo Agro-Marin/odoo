@@ -80,9 +80,8 @@ function onRPCRequest({ detail }) {
 }
 
 function onRPCResponse({ detail }) {
-    // Defensive: malformed events (null detail, missing data) can be
-    // dispatched to the global rpcBus by tests or synthetic fires. The
-    // clickbot subscriber should not surface those as exceptions.
+    // Defensive: malformed events (null detail, missing data) can reach the
+    // global rpcBus from tests/synthetic fires; don't surface those as exceptions.
     if (!detail?.data) {
         return;
     }
@@ -214,9 +213,8 @@ async function ensureHomeMenu() {
     if (!homeMenu) {
         let menuToggle = document.querySelector("nav.o_main_navbar > a.o_menu_toggle");
         if (!menuToggle) {
-            // In the Barcode application, there is no navbar. So you have to click
-            // on the o_stock_barcode_home_menu button which is the equivalent
-            // of the o_menu_toggle button in the navbar.
+            // The Barcode app has no navbar; o_stock_barcode_home_menu is the
+            // equivalent of o_menu_toggle there.
             menuToggle = document.querySelector(".o_stock_barcode_home_menu");
         }
         await triggerClick(menuToggle, "home menu toggle button");
@@ -253,7 +251,7 @@ async function getNextMenu() {
     }
     let menuToggle = menuToggles[state.menuIndex];
     if (menuToggle.classList.contains("dropdown-toggle")) {
-        // the current menu is a dropdown toggler -> open it and pick a menu inside the dropdown
+        // Dropdown toggler: open it and pick a menu inside the dropdown
         let dropdownMenu = getPopoverForTarget(/** @type {HTMLElement} */ (menuToggle));
         if (!dropdownMenu) {
             await triggerClick(menuToggle, "menu toggler");
@@ -266,15 +264,12 @@ async function getNextMenu() {
         const items = dropdownMenu.querySelectorAll(".dropdown-item");
         menuToggle = items[state.subMenuIndex];
         if (state.subMenuIndex === items.length - 1) {
-            // this is the last item, so go to the next menu
             state.menuIndex++;
             state.subMenuIndex = 0;
         } else {
-            // this isn't the last item, so increment the index inside this dropdown
             state.subMenuIndex++;
         }
     } else {
-        // the current menu isn't a dropdown, so go to the next menu
         state.menuIndex++;
     }
     return menuToggle;
@@ -301,16 +296,12 @@ async function getNextApp() {
     return appName;
 }
 
-/**
- * Test Studio
- * Click on the Studio systray item to enter Studio, and simply leave it once loaded.
- */
+/** Enter Studio via its systray icon, then immediately leave it. */
 async function testStudio() {
     const studioIcon = document.querySelector(STUDIO_SYSTRAY_ICON_SELECTOR);
     if (!studioIcon) {
         return;
     }
-    // Open the filter menu dropdown
     await triggerClick(studioIcon, "entering studio");
     await waitForCondition(() => document.querySelector(".o_in_studio"));
     await triggerClick(document.querySelector(".o_web_studio_leave"), "leaving studio");
@@ -320,10 +311,7 @@ async function testStudio() {
     state.studioCount++;
 }
 
-/**
- * Test filters
- * Click on each filter in the control pannel
- */
+/** Click each filter in the control panel. */
 async function testFilters() {
     if (state.light === true) {
         return;
@@ -334,17 +322,15 @@ async function testFilters() {
     if (!searchBarMenu) {
         return;
     }
-    // Open the search bar menu dropdown
     await triggerClick(searchBarMenu, "search bar menu dropdown");
     const filterMenuButton = document.querySelector(
         ".o_dropdown_container.o_filter_menu",
     );
-    // Is there a filter menu in the search bar
     if (!filterMenuButton) {
         return;
     }
 
-    // Avoid the "Custom Filter" menu item (it don't have the class .o_menu_item)
+    // Avoid the "Custom Filter" menu item (it doesn't have the class .o_menu_item)
     const simpleFilterSel =
         ".o_filter_menu > .dropdown-item.o_menu_item:not(.o_add_custom_filter)";
     const dateFilterSel = ".o_filter_menu > .o_accordion";
@@ -354,16 +340,13 @@ async function testFilters() {
     browser.console.log(`Testing ${filterMenuItems.length} filters`);
     state.testedFilters += filterMenuItems.length;
     for (const filter of filterMenuItems) {
-        // Date filters
         if (filter.classList.contains("o_accordion")) {
-            // If a fitler has options, it will simply unfold and show all options.
+            // Date filter: unfold its options, then click the first one.
             await triggerClick(
                 filter.querySelector(".o_accordion_toggle"),
                 `filter "${/** @type {HTMLElement} */ (filter).innerText.trim()}"`,
             );
 
-            // If a fitler has options, it will simply unfold and show all options.
-            // We then click on the first one.
             const firstOption = filter.querySelector(
                 ".o_accordion > .o_accordion_values > .dropdown-item",
             );
@@ -385,9 +368,7 @@ async function testFilters() {
 }
 
 /**
- * Orchestrate the test of views
- * This function finds the buttons that permit to switch views and orchestrate
- * the click on each of them
+ * Click each view-switch button in turn.
  * @returns {Promise}
  */
 async function testViews() {
@@ -422,12 +403,9 @@ async function testViews() {
 }
 
 /**
- * Test a menu item by:
- *  1 - clikcing on the menuItem
- *  2 - Orchestrate the view switch
- *
- *  @param {Element} element the menu item
- *  @returns {Promise}
+ * Click a menu item, then orchestrate the view switch.
+ * @param {Element} element the menu item
+ * @returns {Promise}
  */
 async function testMenuItem(element) {
     const el = /** @type {HTMLElement} */ (element);
@@ -470,11 +448,8 @@ async function testMenuItem(element) {
 }
 
 /**
- * Test an "App" menu item by orchestrating the following actions:
- *  1 - clicking on its menuItem
- *  2 - clicking on each view
- *  3 - clicking on each menu
- *  3.1  - clicking on each view
+ * Click an app's menu item, then each of its views, then each of its menus
+ * (and their views).
  * @returns {Promise}
  */
 async function testApp() {

@@ -3,19 +3,9 @@
 
 /** @module @web/core/utils/dnd/draggable_hook_builder_utils - Stateless helpers, constants, and DOM utilities for the draggable hook builder */
 
-/**
- * Pure utilities, constants, and factories for the draggable hook builder.
- *
- * CSS name conversion, event helpers, parameter schema, element attribute
- * save/restore, cleanup lifecycle, and DOM manipulation helpers — all
- * stateless (or self-contained) and independently testable.
- */
-
 import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scrolling";
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 export const DRAGGABLE_CLASS = "o_draggable";
 export const DRAGGED_CLASS = "o_dragged";
@@ -52,9 +42,7 @@ export const LEFT_CLICK = 0;
 export const MANDATORY_PARAMS = ["ref"];
 export const WHITE_LISTED_KEYS = ["Alt", "Control", "Meta", "Shift"];
 
-// ---------------------------------------------------------------------------
 // Pure functions
-// ---------------------------------------------------------------------------
 
 /**
  * Transforms a camelCased string to return its kebab-cased version.
@@ -80,16 +68,9 @@ export function getReturnValue(valueOrFn) {
 }
 
 /**
- * Returns the first scrollable parent of the given element (recursively), or null
- * if none is found. A 'scrollable' element is defined by 2 things:
- *
- * - for either in width or in height: the 'scroll' value is larger than the 'client'
- * value;
- *
- * - its computed 'overflow' property is set to either "auto" or "scroll"
- *
- * If both of these assertions are true, it means that the element can effectively
- * be scrolled on at least one axis.
+ * Returns the first scrollable parent of the given element (recursively), or null.
+ * 'Scrollable' means scroll size exceeds client size on some axis AND the computed
+ * overflow is "auto" or "scroll".
  * @param {HTMLElement} el
  * @returns {(HTMLElement | null)[]}
  */
@@ -128,14 +109,11 @@ export function toFunction(value) {
     return typeof value === "function" ? /** @type {() => T} */ (value) : () => value;
 }
 
-// ---------------------------------------------------------------------------
 // Element attribute cache & save/restore
-// ---------------------------------------------------------------------------
 
 /**
- * Cache containing the elements in which an attribute has been modified by a hook.
- * It is global since multiple draggable hooks can interact with the same elements.
- * Uses WeakSet so that elements removed from the DOM can be garbage-collected.
+ * Elements whose attribute a hook has modified. Global since multiple draggable
+ * hooks can share elements; WeakSet lets removed elements be garbage-collected.
  * @type {Record<string, WeakSet<HTMLElement>>}
  */
 const elCache = {};
@@ -174,9 +152,7 @@ export function saveAttribute(el, attribute) {
     return restoreAttribute;
 }
 
-// ---------------------------------------------------------------------------
 // Factory functions
-// ---------------------------------------------------------------------------
 
 /**
  * Create a cleanup lifecycle manager.

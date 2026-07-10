@@ -3,14 +3,6 @@
 
 /** @module @web/search/search_enrichment - Pure search-item enrichment producing activated copies with period/interval metadata */
 
-/**
- * Pure search-item enrichment for SearchModel.
- *
- * Takes a search item and query state, returns an enriched copy with
- * activation status, period options, interval options, or autocomplete
- * values attached — without mutating any state.
- */
-
 import { getPeriodOptions } from "./utils/dates.js";
 
 /**
@@ -30,9 +22,7 @@ function enrichOptions(options, selectedIds) {
 
 /**
  * Return an enriched copy of `searchItem` with activation status and
- * type-specific metadata (options, autocomplete values).
- *
- * Returns `null` if the item should be hidden.
+ * type-specific metadata (options, autocomplete values), or `null` if hidden.
  *
  * @param {Object} searchItem
  * @param {Object[]} query - current query elements

@@ -6,12 +6,9 @@
 import { useEffect } from "@odoo/owl";
 
 /**
- * This is used on text inputs or textareas to automatically resize it based on its
- * content each time it is updated. It takes the reference of the element as
- * parameter and some options. Do note that it may introduce mild performance issues
- * since it will force a reflow of the layout each time the element is updated.
- * Do also note that it only works with textareas that are nested as only child
- * of some parent div (like in the text_field component).
+ * Auto-resizes an input/textarea to fit its content on each update. Forces a
+ * layout reflow on every update (mild perf cost). Textareas must be the sole
+ * child of their parent div (see text_field).
  *
  * @param {{ el: HTMLInputElement | HTMLTextAreaElement | null }} ref
  * @param {{ ignoreIfEmpty?: boolean, onResize?: (el: HTMLInputElement | HTMLTextAreaElement, options: object) => void, offset?: number, minimumHeight?: number }} [options]
@@ -73,11 +70,10 @@ export function useAutoresize(ref, options = {}) {
 }
 
 /**
- * Measure text width using a hidden span element appended to the input's parent.
- * This gives consistent results across element types (input vs span/div) because
- * the measurement span inherits all CSS context (font-variant-numeric, etc.) from
- * the same DOM tree. Input scrollWidth can differ from span text rendering by ~10px
- * in Chromium, causing visual jumping when toggling between readonly and edit mode.
+ * Measure text width via a hidden span in the input's parent, so it inherits
+ * the same CSS context (font-variant-numeric, etc.) as the input. Input
+ * scrollWidth can differ ~10px from span width in Chromium, causing visual
+ * jumps between readonly/edit mode.
  *
  * @param {HTMLInputElement} input
  * @returns {number} the text width in pixels
@@ -88,8 +84,7 @@ function measureTextWidth(input) {
     span.style.visibility = "hidden";
     span.style.whiteSpace = "nowrap";
     span.textContent = input.value;
-    // Append to parent so the span inherits all CSS context (font, font-variant-numeric,
-    // letter-spacing, etc.) from the same DOM tree as the input and its readonly counterpart.
+    // Append to parent so it inherits the input's CSS context.
     const container = input.parentNode || document.body;
     container.appendChild(span);
     // Use offsetWidth (not getBoundingClientRect) to match how browser computes
@@ -107,15 +102,13 @@ function resizeInput(input, options) {
     // This mesures the maximum width of the input which can get from the flex layout.
     input.style.width = "100%";
     const maxWidth = input.clientWidth;
-    // Minimum width of the input
     input.style.width = "10px";
     if (input.value === "" && input.placeholder !== "") {
         input.style.width = "auto";
         return;
     }
-    // Use span-based measurement for consistent text width across element types.
-    // Input scrollWidth can differ from span/block text rendering width by ~10px
-    // in Chromium, causing visual jumping when toggling between readonly and edit.
+    // Span-based measurement keeps text width consistent with the readonly
+    // counterpart (see measureTextWidth).
     const textWidth = measureTextWidth(input);
     const width = textWidth + (options?.offset || 0);
     if (width > maxWidth) {

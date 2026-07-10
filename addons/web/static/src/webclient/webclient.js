@@ -120,7 +120,6 @@ export class WebClient extends Component {
         const storedMenuId = Number(browser.sessionStorage.getItem("menu_id"));
         const firstAction = router.current.actionStack?.[0]?.action;
         if (!menuId && firstAction) {
-            // Find all menus that match this action
             const matchingMenus = this.menuService
                 .getAll()
                 .filter(
@@ -128,7 +127,6 @@ export class WebClient extends Component {
                 );
 
             if (matchingMenus.length) {
-                // Use sessionStorage context to determine the correct menu
                 menuId = matchingMenus.find((m) => m.appID === storedMenuId)?.appID;
                 if (!menuId) {
                     menuId = matchingMenus[0]?.appID;
@@ -143,7 +141,6 @@ export class WebClient extends Component {
         // ** url-retrocompatibility **
         // when there is only menu_id in url
         if (!stateLoaded && menuId) {
-            // Determines the current actionId based on the current menu
             const menu = this.menuService.getAll().find((m) => menuId === m.id);
             const actionId = menu?.actionID;
             if (actionId) {
@@ -156,18 +153,15 @@ export class WebClient extends Component {
 
         // Setting the menu based on the action after it was loaded (eg when the action in url is an xmlid)
         if (stateLoaded && !menuId) {
-            // Determines the current menu based on the current action
             const currentController = this.actionService.currentController;
             const actionId = currentController?.action.id;
             menuId = this.menuService
                 .getAll()
                 .find((m) => m.actionID === actionId)?.appID;
             if (!menuId) {
-                // Setting the menu based on the session storage if no other menu was found
                 menuId = storedMenuId;
             }
             if (menuId) {
-                // Sets the menu according to the current action
                 this.menuService.setCurrentMenu(menuId);
             }
         }
@@ -194,7 +188,6 @@ export class WebClient extends Component {
 
     /** Navigate to the first root menu app as a fallback. */
     _loadDefaultApp() {
-        // Selects the first root menu if any
         const root = this.menuService.getMenu("root");
         const firstApp = root.children[0];
         if (firstApp) {

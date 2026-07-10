@@ -44,19 +44,9 @@ function checkOrderByCountStatus(searchModel) {
 
 /**
  * Run `fn` with search-model notifications blocked, restoring the previous
- * `blockNotification` state afterwards — even if `fn` throws.
- *
- * A raw `blockNotification = true; …; blockNotification = false` window has two
- * failure modes this guards against:
- *   - a throw inside the window (e.g. the `facets` getter hitting a favorite
- *     whose stored domain doesn't parse) would leave the flag stuck `true`,
- *     silencing every subsequent `_notify()` until a full reload;
- *   - hardcoding `false` on exit would prematurely unblock when the window is
- *     nested inside another blocked window (e.g. splitAndAddDomain calling
- *     createNewGroupBy). Restoring the captured value keeps nesting correct.
- *
- * Sibling helpers in this search layer (notably search_split_domain.js, which
- * open-codes the same try/finally) should adopt this helper too.
+ * `blockNotification` state afterwards — even if `fn` throws, and even when
+ * nested inside another blocked window (e.g. splitAndAddDomain → createNewGroupBy).
+ * search_split_domain.js open-codes the same try/finally and should adopt this too.
  *
  * @param {SearchModel} searchModel
  * @param {() => void} fn - synchronous callback run inside the blocked window
@@ -325,13 +315,10 @@ export function toggleDateFilter(searchModel, searchItemId, generatorId) {
         return;
     }
     let generatorIds = generatorId ? [generatorId] : searchItem.defaultGeneratorIds;
-    // defaultGeneratorIds come unvalidated from arch/context strings
-    // (`default_period="..."`, `search_default_x="..."`). An unknown id used
-    // to slip into the query and silently produce an ACTIVE filter with an
-    // empty facet and a match-all domain — drop it loudly instead. Skip the
-    // check when the item carries no optionsParams (nothing to validate
-    // against — getPeriodOptions destructures it): e.g. a directly-toggled
-    // explicit generatorId, or a bare searchItem in unit tests.
+    // defaultGeneratorIds are unvalidated arch/context strings; an unknown id
+    // used to silently produce an ACTIVE filter with an empty facet and a
+    // match-all domain, so drop it loudly instead. Skip validation when there's
+    // no optionsParams to check against (e.g. explicit generatorId, unit tests).
     if (searchItem.optionsParams) {
         const knownOptions = getPeriodOptions(
             searchModel.referenceMoment,

@@ -1,14 +1,10 @@
 // @ts-check
 
 /**
- * Pure unit tests for static_list_command_engine.js.
- *
- * Tests the applyCommands function which applies x2many ORM commands
- * (CREATE/UPDATE/DELETE/UNLINK/LINK) to a StaticList-shaped object.
- *
- * Uses a plain mock object — no OWL, no DOM, no mock server.
- * The function uses a delegation pattern and mutates its first argument,
- * so all assertions are on the mutated list state.
+ * Unit tests for applyCommands (static_list_command_engine.js): applies x2many
+ * ORM commands (CREATE/UPDATE/DELETE/UNLINK/LINK) to a StaticList-shaped mock —
+ * no OWL/DOM/mock server. It mutates its first argument, so assertions read
+ * the mutated list state.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -176,10 +172,8 @@ describe("applyCommands — DELETE", () => {
         const list = makeList();
         addRecord(list, 1);
 
-        // DELETE id that is not in records/currentIds
         applyCommands(list, [[DELETE, 999]]);
 
-        // Record 1 untouched
         expect(list.records.length).toBe(1);
         expect(list._currentIds).toEqual([1]);
     });
@@ -287,7 +281,6 @@ describe("applyCommands — LINK", () => {
         addRecord(list, 5);
         const initialCount = list.count;
 
-        // Try to LINK an already-present record
         applyCommands(list, [[LINK, 5]]);
 
         expect(list.count).toBe(initialCount);
@@ -298,7 +291,6 @@ describe("applyCommands — LINK", () => {
         const list = makeList();
         addRecord(list, 15);
 
-        // DELETE 15 then LINK 15 in same batch
         applyCommands(list, [
             [DELETE, 15],
             [LINK, 15],
@@ -355,7 +347,6 @@ describe("applyCommands — UPDATE", () => {
         addRecord(list, 40);
         list.fields = { name: { type: "char" } };
 
-        // Two UPDATE commands for the same record in the same batch
         applyCommands(list, [
             [UPDATE, 40, { name: "First" }],
             [UPDATE, 40, { name: "Second" }],
@@ -380,7 +371,6 @@ describe("applyCommands — CREATE", () => {
         expect(list.records.length).toBe(1);
         expect(list.records[0].resId).toBe(false); // virtual record has no server id
         expect(list.count).toBe(1);
-        // _currentIds should contain the virtual ID
         expect(list._currentIds.length).toBe(1);
         expect(typeof list._currentIds[0]).toBe("string"); // virtual_N
     });

@@ -16,11 +16,9 @@ import { computeModelOptions } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 /**
- * Controller for the graph view.
- *
- * Wires the GraphModel (with sample data support) to the GraphRenderer
- * inside a Layout shell with search bar integration. Persists graph-specific
- * context (measure, mode, groupBy, order, stacked, cumulated) for favorites.
+ * Wires the GraphModel (with sample data support) to the GraphRenderer inside
+ * a Layout shell with search bar integration; persists graph-specific context
+ * (measure, mode, groupBy, order, stacked, cumulated) for favorites.
  */
 export class GraphController extends Component {
     static template = "web.GraphView";
@@ -33,7 +31,6 @@ export class GraphController extends Component {
         buttonTemplate: String,
     };
 
-    /** Initialize the graph model, action hooks, and search bar toggler. */
     /** @type {any} */
     model;
 
@@ -59,13 +56,8 @@ export class GraphController extends Component {
         return /** @type {any} */ (computeModelOptions(this.env, this.props.display));
     }
 
-    /**
-     * Build the graph-specific context for persistence in favorites.
-     *
-     * @returns {Object}
-     */
+    /** @returns {Object} graph-specific context for persistence in favorites */
     getContext() {
-        // expand context object? change keys?
         const { measure, groupBy, mode } = this.model.metaData;
         const context = {
             graph_measure: measure,

@@ -90,8 +90,7 @@ test("Barcode scanner crop overlay", async () => {
         message: `The detected barcode (${firstValueScanned}) should be the same as generated (${firstBarcodeValue})`,
     });
 
-    // Do another scan barcode to the test position of the overlay saved in the locale storage
-    // Reset all values for the second test
+    // Second scan: verify the crop overlay position persisted in local storage
     barcodeToGenerate = secondBarcodeValue;
     videoReady = new Deferred();
 

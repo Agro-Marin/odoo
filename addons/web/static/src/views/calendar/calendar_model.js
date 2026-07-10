@@ -254,8 +254,6 @@ export class CalendarModel extends Model {
         return _t("Undefined");
     }
 
-    //--------------------------------------------------------------------------
-
     async createFilter(fieldName, filterValue) {
         const info = this.meta.filtersInfo[fieldName];
         if (!info || !info.writeFieldName || !info.writeResModel) {
@@ -287,9 +285,8 @@ export class CalendarModel extends Model {
     }
 
     /**
-     * Create multi records of the specify dates and values.
-     * Optionally time range can be specified to set the start and end time.
-     * Also, if there is a filter section, the first filter section will be chosen as additional value for the record.
+     * Create records for the given dates. If there is a filter section, the
+     * first filter section's values are added to each record.
      *
      * @param {Object} multiCreateData
      * @param {any[]} dates array of Date
@@ -423,16 +420,13 @@ export class CalendarModel extends Model {
                 context: this.meta.context,
             });
         } finally {
-            // Reload even when the write is rejected (server constraint,
-            // access error, ...): drag/drop and resize handlers have already
-            // let FullCalendar render the event at its new slot, and only a
-            // reload re-syncs the UI with the server state. The rejection
-            // still propagates so the standard error dialog is shown.
+            // Reload even on failure: drag/drop and resize already rendered the
+            // event client-side, so only a reload re-syncs with server state.
+            // The rejection still propagates for the standard error dialog.
             await this.load();
         }
     }
 
-    //--------------------------------------------------------------------------
     getAllDayDates(start, end) {
         return [start.set({ hours: 7 }), end.set({ hours: 19 })];
     }
@@ -452,7 +446,6 @@ export class CalendarModel extends Model {
         let end = partialRecord.end;
 
         if (!end || !end.isValid) {
-            // Set end date if not existing
             if (partialRecord.isAllDay) {
                 end = start;
             } else {
@@ -612,8 +605,6 @@ export class CalendarModel extends Model {
         return computeCalendarRange(scale, date, firstDayOfWeek, this.monthOverflow);
     }
 
-    //--------------------------------------------------------------------------
-
     /**
      * @param {string} fieldName
      * @param {Object} [data=this.data]
@@ -669,8 +660,6 @@ export class CalendarModel extends Model {
         );
     }
 
-    //--------------------------------------------------------------------------
-
     /**
      * @protected
      */
@@ -689,8 +678,6 @@ export class CalendarModel extends Model {
             .filter((entry) => entry[1])
             .map((entry) => entry[0]);
     }
-
-    //--------------------------------------------------------------------------
 
     /**
      * @protected
@@ -737,7 +724,6 @@ export class CalendarModel extends Model {
             colorIndex: record.colorIndex,
         };
     }
-    //--------------------------------------------------------------------------
 
     /**
      * @protected

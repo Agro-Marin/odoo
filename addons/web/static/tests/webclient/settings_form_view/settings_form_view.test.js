@@ -914,9 +914,8 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
     await click(".o_field_boolean input");
     await animationFrame();
 
-    // forceLeave must bypass the unsaved-changes dialog: the base
-    // FormController.beforeLeave early-returns on forceLeave, and the settings
-    // override now honours the same option instead of dropping it.
+    // forceLeave must bypass the unsaved-changes dialog: FormController.beforeLeave
+    // early-returns on it, and the settings override now honours it too.
     await getService("action").doAction(4, { forceLeave: true });
     await animationFrame();
 
@@ -929,10 +928,8 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
 });
 
 test("settings views settle beforeLeave even when the Discard save fails", async () => {
-    // Repro of the pending-forever hang: choosing Discard while the follow-up
-    // create fails server-side must still settle _confirmSave (via the
-    // try/finally resolve) so beforeLeave resolves and navigation isn't
-    // blocked forever.
+    // Repro of the pending-forever hang: Discard with a server-side create failure
+    // must still settle _confirmSave (try/finally resolve) so beforeLeave resolves.
     expect.errors(1);
     defineActions([
         {
@@ -1463,7 +1460,7 @@ test("click on save button which throws an error", async () => {
     await animationFrame();
     await click(".o_form_button_save");
     await animationFrame();
-    // error are caught asynchronously, so we have to wait for an extra animationFrame, for the error dialog to be mounted
+    // errors are caught asynchronously; wait an extra frame for the error dialog to mount
     await animationFrame();
     expect.verifyErrors(["RPC_ERROR"]);
     expect(".o_error_dialog").toHaveCount(1);
@@ -1559,10 +1556,7 @@ test("clicking a button with dirty settings -- discard", async () => {
     });
     expect.verifySteps(["get_views", "onchange"]);
 
-    // Initial State:
-    // The first checkbox "bar" is checked.
-    // Two tags on the many2many : xphone and xpad.
-    // The colors are 1 and 3 (the onchange is correctly apply)
+    // Initial state: "bar" checked, two tags (xphone, xpad) with onchange-applied colors 1 and 3
     expect(".o_field_boolean[name='bar'] input").toBeChecked();
     expect(queryAllTexts`.o_field_tags .o_tag`).toEqual(["xphone", "xpad"]);
     expect(".o_tag_color_1").toHaveCount(1);
@@ -1739,7 +1733,7 @@ test("settings view shows a message if there are changes even if the save failed
 test.tags("desktop");
 test("execute action from settings view with several actions in the breadcrumb", async () => {
     onRpc("has_group", () => true);
-    // This commit fixes a race condition, that's why we artificially slow down a read rpc
+    // Fixes a race condition: artificially slow down a read rpc
     expect.assertions(4);
 
     defineActions([
@@ -2334,8 +2328,7 @@ test("BinaryField is correctly rendered in Settings form view", async () => {
         message: "the filename field should have the file name as value",
     });
 
-    // Testing the download button in the field
-    // We must avoid the browser to download the file effectively
+    // Intercept the download click to avoid an actual browser download
     const def = new Deferred();
     const onDownloadClick = (ev) => {
         if (ev.target.tagName === "A" && "download" in ev.target.attributes) {

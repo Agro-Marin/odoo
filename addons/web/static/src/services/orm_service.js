@@ -9,8 +9,7 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
 /**
- * This ORM service is the standard way to interact with the ORM in python from
- * the javascript codebase.
+ * Standard way to interact with the Python ORM from the javascript codebase.
  */
 
 // -----------------------------------------------------------------------------
@@ -100,24 +99,17 @@ export class ORM {
 
     /**
      * Opt-in: identical concurrent (url, params) share a single in-flight
-     * promise.  Useful for non-cached idempotent reads fired by multiple
-     * components on the same record — e.g., a form and its sidebar both
-     * issuing ``orm.read("res.partner", [42])`` during a mount cascade.
+     * promise. Useful for non-cached idempotent reads fired by multiple
+     * components on the same record (e.g. a form and its sidebar both
+     * reading the same partner during a mount cascade).
      *
-     * Composition note: ``cache({type:"disk"|"ram"})`` already has its
-     * own stampede prevention (``RPCCache.pendingRequests``), so chaining
-     * ``.dedup`` onto a cached path is redundant — the cache layer is
-     * doing the work.  Apply ``.dedup`` to **uncached** reads where
-     * concurrent duplicate fires would otherwise hit the network.
+     * Redundant on top of ``cache({type:"disk"|"ram"})``, which already dedupes via
+     * ``RPCCache.pendingRequests`` — apply ``.dedup`` to uncached reads only.
+     * Abort is shared: aborting one caller's promise cancels the underlying
+     * fetch and rejects every other caller with ``ConnectionAbortedError``;
+     * don't opt in if you need independent abort lifecycles.
      *
-     * Abort semantics are intentionally shared: if any caller aborts the
-     * returned promise, the underlying fetch is canceled and every other
-     * caller observing the same promise rejects with
-     * ``ConnectionAbortedError``.  Callers that need independent abort
-     * lifecycles must not opt in.
-     *
-     * Never apply to writes — write payloads with the same (url, params)
-     * are still distinct invocations from the caller's perspective.
+     * Never apply to writes — identical payloads are still distinct calls.
      *
      * @returns {ORM}
      */
@@ -126,23 +118,20 @@ export class ORM {
     }
 
     /**
-     * Apply opt-in exponential-backoff retry to subsequent calls.  Use
-     * for idempotent reads that benefit from resilience to transient
-     * failures (proxy hiccup, pool exhaustion, brief network blip):
+     * Opt-in exponential-backoff retry, for idempotent reads that benefit
+     * from resilience to transient failures (proxy hiccup, pool exhaustion,
+     * brief network blip):
      *
      *     orm.retry(1).webSearchRead("res.partner", domain, {});
      *     orm.retry({ retries: 3, baseMs: 100 }).read(...);
      *
-     * Caller is responsible for ensuring the call is safe to retry:
-     * never apply to writes (create/write/unlink/web_save/...) — a
-     * partial server-side mutation could be re-applied.
+     * Caller must ensure the call is safe to retry — never apply to writes
+     * (create/write/unlink/web_save/...), which could re-apply a partial
+     * server-side mutation.
      *
      * @param {number | { retries?: number, baseMs?: number, maxMs?: number }} [options=1]
-     *   Default 1 matches the documented boot-path budget in CONVENTIONS.md
-     *   (caps user-perceived delay on persistent outage at one backoff
-     *   interval ~200ms).  Higher budgets compound into multi-second hangs
-     *   visible as "the app feels frozen"; tune upward only for background
-     *   paths the user does not see directly.
+     *   Default matches the boot-path budget in CONVENTIONS.md (~200ms, one
+     *   backoff interval); raise only for background paths the user can't see.
      * @returns {ORM}
      */
     retry(options = 1) {
@@ -454,9 +443,7 @@ export class ORM {
 }
 
 /**
- * Note:
- *
- * To hide RPC errors, use the following API:
+ * To hide RPC errors:
  *
  * this.orm = useService('orm');
  * ...

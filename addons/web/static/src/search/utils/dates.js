@@ -69,9 +69,7 @@ export const BACKEND_INTERVAL_OPTIONS = {
     hour: { description: _t("Hour"), id: "hour" },
 };
 
-//-------------------------------------------------------------------------
 // Functions
-//-------------------------------------------------------------------------
 
 /**
  * Constructs the string representation of a domain and its description. The

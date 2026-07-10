@@ -67,11 +67,9 @@ export function debounce(func, delay, options) {
 
     /** @type {any} */
     let lastSelf;
-    // Deferreds of the calls waiting for the trailing execution. Every debounced
-    // call (i.e. not run on the leading edge) is queued here so the trailing
-    // execution settles them all: superseded calls resolve/reject with the
-    // trailing result instead of hanging forever, and a thrown or rejected func
-    // propagates to every awaiter (so `await debounced()` and `.catch()` work).
+    // Deferreds of calls not run on the leading edge; the trailing execution
+    // settles them all, so a thrown/rejected func propagates to every awaiter
+    // (so `await debounced()` and `.catch()` work) instead of hanging forever.
     /** @type {{ resolve: Function, reject: Function }[]} */
     let pending = [];
 
@@ -128,11 +126,10 @@ export function debounce(func, delay, options) {
                             execute(lastSelf, lastArgs, awaiters);
                             lastArgs = null;
                         } else {
-                            // Leading-only mode: calls queued while the timer
-                            // was armed will never run. Settle them with
-                            // `undefined` (same semantics as cancel()) and
-                            // drop the stale args so cancel(true) can't
-                            // replay them later.
+                            // Leading-only mode: calls queued while the timer was
+                            // armed will never run. Settle them with `undefined`
+                            // (same semantics as cancel()) and drop the stale args
+                            // so cancel(true) can't replay them later.
                             const awaiters = pending;
                             pending = [];
                             lastArgs = null;
@@ -240,11 +237,9 @@ export function throttleForAnimation(func) {
                         Promise.resolve(func.apply(this, args)).then(resolve);
                     } else {
                         if (lastCall) {
-                            // Settle the superseded intermediate call with
-                            // `undefined` (same contract as cancel() below and
-                            // as debounce's superseded awaiters) — dropping
-                            // its resolver would leave any `await
-                            // throttled(...)` hanging forever.
+                            // Settle the superseded call with `undefined` (same
+                            // contract as cancel() and debounce's superseded
+                            // awaiters) — else `await throttled(...)` hangs forever.
                             lastCall.resolve(undefined);
                         }
                         lastCall = { args, resolve };
@@ -256,9 +251,8 @@ export function throttleForAnimation(func) {
             cancel() {
                 browser.cancelAnimationFrame(handle);
                 if (lastCall) {
-                    // Settle the dropped trailing call with `undefined` (same
-                    // contract as debounce().cancel()) so a caller awaiting it
-                    // (e.g. around unmount) does not hang forever.
+                    // Settle the dropped call with `undefined` (same contract as
+                    // debounce().cancel()) so an awaiter doesn't hang forever.
                     lastCall.resolve(undefined);
                     lastCall = null;
                 }

@@ -162,9 +162,8 @@ export function convertHslToRgb(h, s, l) {
     return false;
 }
 /**
- * Converts RGBA color components to a normalized CSS color: if the opacity
- * is invalid or equal to 100, a hex color excluding opacity is returned;
- * otherwise a hex color including opacity component is returned.
+ * Converts RGBA components to a normalized CSS color: hex without opacity if
+ * opacity is invalid or 100, hex with opacity otherwise.
  *
  * @static
  * @param {number} r - [0, 255]
@@ -263,11 +262,8 @@ export function convertCSSColorToRgba(cssColor = "") {
     // Note: however, if ever implemented be careful of 'white'/'black' which
     // actually are color names for our color system...
 
-    // Check if cssColor is a color() functional notation allowing colorspace
-    // with implicit sRGB.
-    // "<color()>" allows to define a color specification in a formalized
-    // manner. It starts with the "color(" keyword, specifies color space
-    // parameters, and optionally includes an alpha value for transparency.
+    // Check for the color() functional notation (implicit sRGB colorspace),
+    // e.g. color(srgb 1 0 0 / 0.5).
     if (/color\(.+\)/.test(cssColor)) {
         const canvasEl = document.createElement("canvas");
         canvasEl.height = 1;
@@ -367,11 +363,9 @@ export function standardizeGradient(gradient) {
 export const RGBA_REGEX = /\d+(?:\.\d+)?/g;
 
 /**
- * Takes a color (rgb, rgba or hex) and returns its hex representation. If the
- * color is given in rgba, the background color of the node whose color we're
- * converting is used in conjunction with the alpha to compute the resulting
- * color (using the formula: `alpha*color + (1 - alpha)*background` for each
- * channel).
+ * Converts a color (rgb, rgba or hex) to hex. For rgba, blends with the
+ * node's background color using `alpha*color + (1 - alpha)*background`
+ * per channel.
  *
  * @param {string} rgb
  * @param {HTMLElement} [node]
@@ -383,15 +377,12 @@ export function rgbToHex(rgb = "", node = null) {
     } else if (rgb.startsWith("rgba")) {
         const values = rgb.match(RGBA_REGEX) || [];
         const alpha = Number.parseFloat(values.pop());
-        // Retrieve the background color.
         /** @type {number[]} */
         let bgRgbValues = [];
         if (node) {
             let bgColor = getComputedStyle(node).backgroundColor;
             if (bgColor.startsWith("rgba")) {
-                // The background color is itself rgba so we need to compute
-                // the resulting color using the background color of its
-                // parent.
+                // Background itself has alpha: recurse using the parent's background.
                 bgColor = rgbToHex(bgColor, node.parentElement);
             }
             if (bgColor?.startsWith("#")) {
@@ -429,10 +420,8 @@ export function rgbToHex(rgb = "", node = null) {
 }
 
 /**
- * Converts an RGBA or RGB color string to a hexadecimal color string.
- * - If the input color is already in hex format, it returns the hex string directly.
- * - If the input color is in rgba format, it converts it to a hex string, including the alpha value.
- * - If the input color is in rgb format, it converts it to a hex string (with no alpha).
+ * Converts an RGBA/RGB/hex color string to hex, preserving alpha only when
+ * the input was rgba.
  *
  * @param {string} rgba - The color string to convert (can be in RGBA, RGB, or hex format).
  * @returns {string} - The resulting color in hex format (including alpha if applicable).
@@ -456,10 +445,9 @@ export function rgbaToHex(rgba = "") {
 }
 
 /**
- * Blends an RGBA color with the background color of a given DOM node.
- * - If the input color is not RGBA, it is converted to hex.
- * - If the node has an RGBA background, the function recursively blends it with its parent's background.
- * - If no valid background is found, it defaults to white (#FFFFFF).
+ * Blends an RGBA color with node's (and ancestors') background color;
+ * non-RGBA input converts straight to hex; defaults to white (#FFFFFF) if
+ * no background is found.
  *
  * @param {string} color - The RGBA color to blend.
  * @param {HTMLElement|null} node - The DOM node to get the background color from.
@@ -474,9 +462,7 @@ export function blendColors(color, node) {
         let bgColor = getComputedStyle(node).backgroundColor;
 
         if (bgColor.startsWith("rgba")) {
-            // The background color is itself rgba so we need to compute
-            // the resulting color using the background color of its
-            // parent.
+            // Background itself has alpha: recurse using the parent's background.
             bgColor = blendColors(bgColor, node.parentElement);
         }
         if (bgColor.startsWith("#")) {

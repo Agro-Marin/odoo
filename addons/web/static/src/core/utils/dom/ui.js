@@ -115,9 +115,7 @@ export function touching(elements, targetRect) {
     });
 }
 
-// -----------------------------------------------------------------------------
 // Get Tabable Elements
-// -----------------------------------------------------------------------------
 // TODISCUSS:
 //  - leave the following in this file ?
 //  - redefine this selector in tests env with ":not(#qunit *)" ?
@@ -164,11 +162,9 @@ export function getTabableElements(container = document.body) {
     const elements = /** @type {HTMLElement[]} */ ([
         ...container.querySelectorAll(TABABLE_SELECTORS.join(",")),
     ]).filter(
-        // `el.tabIndex < 0` catches elements that are non-tabable at the
-        // property level even when the `:not([tabindex="-1"])` attribute guard
-        // did not (e.g. an anchor whose href was removed): they would otherwise
-        // survive in a negative-key group and become a `.focus()`-noop dead
-        // spot for keyboard navigation.
+        // `el.tabIndex < 0` catches elements the `:not([tabindex="-1"])` attribute
+        // guard misses (e.g. an anchor whose href was removed) — otherwise they'd
+        // survive in a negative-key group as a `.focus()`-noop dead spot.
         (el) => el.tabIndex >= 0 && isVisible(el) && !el.closest("[inert]"),
     );
     // Object.groupBy is typed Partial<Record<…>>, but it only creates a key
@@ -211,8 +207,8 @@ export function getPreviousTabableElement(container = document.body) {
  *         initial state
  */
 export function addLoadingEffect(btnEl) {
-    // Note that pe-none is used alongside "disabled" so that the behavior is
-    // the same on links not using the "btn" class -> pointer-events disabled.
+    // pe-none is used alongside "disabled" so the behavior is the same on
+    // links not using the "btn" class -> pointer-events disabled.
     btnEl.classList.add("o_btn_loading", "disabled", "pe-none");
     btnEl.disabled = true;
     const loaderEl = document.createElement("span");

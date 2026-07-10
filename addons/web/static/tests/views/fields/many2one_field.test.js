@@ -1809,11 +1809,8 @@ test("many2one inside one2many form view, with domain", async () => {
 });
 
 test("list in form: quick create then add a new line directly", async () => {
-    // required many2one inside a one2many list: directly after quick creating
-    // a new many2one value (before the name_create returns), click on add an item:
-    // at this moment, the many2one has still no value, and as it is required,
-    // the row is discarded if a saveLine is requested. However, it should
-    // wait for the name_create to return before trying to save the line.
+    // Required m2o in o2m: quick-creating a value then adding a new item before
+    // name_create resolves must not drop the row; saveLine should wait for it.
     expect.assertions(8);
     Partner._onChanges = {
         trululu: () => {},
@@ -1900,9 +1897,8 @@ test("list in form: create with one2many with many2one", async () => {
 });
 
 test("list in form: create with one2many with many2one (version 2)", async () => {
-    // This test simulates the exact same scenario as the previous one,
-    // except that the value for the many2one is explicitely set to false,
-    // which is stupid, but this happens, so we have to handle it
+    // Same scenario as above but the many2one is explicitly set to false, which
+    // happens in practice and must be handled.
     Partner._fields.p = fields.One2many({
         string: "one2many field",
         relation: "partner",
@@ -1935,10 +1931,8 @@ test("list in form: create with one2many with many2one (version 2)", async () =>
 });
 
 test("item not dropped on discard with empty required field (default_get)", async () => {
-    // This test simulates discarding a record that has been created with
-    // one of its required field that is empty. When we discard the changes
-    // on this empty field, it should not assume that this record should be
-    // abandonned, since it has been added (even though it is a new record).
+    // Discarding an empty required field on a record added by default_get should
+    // not abandon the record just because it's new.
     Partner._fields.p = fields.One2many({
         string: "one2many field",
         relation: "partner",
@@ -2050,11 +2044,8 @@ test("list in form: show name of many2one fields in multi-page (default_get)", a
 });
 
 test("list in form: item not dropped on discard with empty required field (onchange in default_get)", async () => {
-    // variant of the test "list in form: discard newly added element with
-    // empty required field (default_get)", in which the `default_get`
-    // performs an `onchange` at the same time. This `onchange` may create
-    // some records, which should not be abandoned on discard, similarly
-    // to records created directly by `default_get`
+    // Variant where default_get triggers an onchange that creates records;
+    // those should not be abandoned on discard either.
     Partner._fields.product_id = fields.Many2one({
         string: "Product",
         relation: "product",
@@ -2099,11 +2090,8 @@ test("list in form: item not dropped on discard with empty required field (oncha
 });
 
 test("list in form: item not dropped on discard with empty required field (onchange on list after default_get)", async () => {
-    // discarding a record from an `onchange` in a `default_get` should not
-    // abandon the record. This should not be the case for following
-    // `onchange`, except if an onchange make some changes on the list:
-    // in particular, if an onchange make changes on the list such that
-    // a record is added, this record should not be dropped on discard
+    // A record added to the list by a later onchange (not the default_get one)
+    // should likewise not be dropped on discard.
     Partner._onChanges = {
         product_id: (obj) => {
             if (obj.product_id === 37) {
@@ -2152,9 +2140,8 @@ test("list in form: item not dropped on discard with empty required field (oncha
 });
 
 test('item dropped on discard with empty required field with "Add an item" (invalid on "ADD")', async () => {
-    // when a record in a list is added with "Add an item", it should
-    // always be dropped on discard if some required field are empty
-    // at the record creation.
+    // A record added via "Add an item" should always be dropped on discard if a
+    // required field is still empty at creation time.
     await mountView({
         type: "form",
         resModel: "partner",
@@ -2184,11 +2171,8 @@ test('item dropped on discard with empty required field with "Add an item" (inva
 });
 
 test('item not dropped on discard with empty required field with "Add an item" (invalid on "UPDATE")', async () => {
-    // when a record in a list is added with "Add an item", it should
-    // be temporarily added to the list when it is valid (e.g. required
-    // fields are non-empty). If the record is updated so that the required
-    // field is empty, and it is discarded, then the record should not be
-    // dropped.
+    // A record added via "Add an item" while valid, then made invalid and
+    // discarded, should not be dropped (unlike an invalid record on creation).
     await mountView({
         type: "form",
         resModel: "partner",
@@ -3423,9 +3407,8 @@ test("many2one: domain updated by an onchange", async () => {
 });
 
 test("search more in many2one: no text in input", async () => {
-    // when the user clicks on 'Search more...' in a many2one dropdown, and there is no text
-    // in the input (i.e. no value to search on), we bypass the web_name_search that is meant to
-    // return a list of preselected ids to filter on in the list view (opened in a dialog)
+    // With no text to search on, 'Search more...' bypasses the web_name_search
+    // that would otherwise preselect ids to filter the list view dialog.
     expect.assertions(2);
 
     for (let i = 0; i < 8; i++) {
@@ -3469,10 +3452,8 @@ test("search more in many2one: no text in input", async () => {
 });
 
 test("search more in many2one: text in input", async () => {
-    // when the user clicks on 'Search more...' in a many2one dropdown, and there is some
-    // text in the input, we perform a web_name_search to get a (limited) list of preselected
-    // ids and we add a dynamic filter (with those ids) to the search view in the dialog, so
-    // that the user can remove this filter to bypass the limit
+    // With text in the input, 'Search more...' performs a web_name_search to get a
+    // limited list of preselected ids and adds them as a removable filter in the dialog.
     expect.assertions(5);
 
     for (let i = 0; i < 8; i++) {

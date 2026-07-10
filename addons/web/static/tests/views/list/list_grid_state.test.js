@@ -5,9 +5,7 @@ import { ListGridState } from "@web/views/list/list_grid_state";
 
 describe.current.tags("headless");
 
-// ---------------------------------------------------------------------------
 // Mock helpers
-// ---------------------------------------------------------------------------
 
 function mockRecord(id) {
     return { id: String(id), resId: id, selected: false };
@@ -59,9 +57,7 @@ function makeGridState(options = {}) {
     });
 }
 
-// ---------------------------------------------------------------------------
 // Flat row materialization
-// ---------------------------------------------------------------------------
 
 describe("flat row materialization", () => {
     test("ungrouped: 5 records produce 5 flat rows of type 'record'", () => {
@@ -142,18 +138,14 @@ describe("flat row materialization", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // moveFocus
-// ---------------------------------------------------------------------------
 
 describe("moveFocus", () => {
     test("up/down ungrouped: correct index arithmetic", () => {
         const gs = makeGridState();
-        // Move down from row 0, col 1
         const down = gs.moveFocus(0, 1, "down");
         expect(down).toEqual({ rowIndex: 1, colIndex: 1 });
 
-        // Move up from row 2, col 2
         const up = gs.moveFocus(2, 2, "up");
         expect(up).toEqual({ rowIndex: 1, colIndex: 2 });
     });
@@ -171,11 +163,9 @@ describe("moveFocus", () => {
         const gs = makeGridState({ list });
 
         // flatRows: [group(0), record(1), record(2)]
-        // Start at record row 1, col 2, move up to group header row 0
         const up = gs.moveFocus(1, 2, "up");
         expect(up).toEqual({ rowIndex: 0, colIndex: 0 }); // group is single-cell
 
-        // Now move back down from group header to record
         const down = gs.moveFocus(0, 0, "down");
         expect(down).toEqual({ rowIndex: 1, colIndex: 2 }); // restores lastColIndex
     });
@@ -188,7 +178,6 @@ describe("moveFocus", () => {
         const left = gs.moveFocus(0, 1, "left");
         expect(left).toEqual({ rowIndex: 0, colIndex: 0 });
 
-        // At boundary
         expect(gs.moveFocus(0, 0, "left")).toBe(null);
         expect(gs.moveFocus(0, 2, "right")).toBe(null);
     });
@@ -211,15 +200,12 @@ describe("moveFocus", () => {
         });
         // 3 field columns + 3 extra = 6
         expect(gs.colCount).toBe(6);
-        // Can move right to col 5
         expect(gs.moveFocus(0, 4, "right")).toEqual({ rowIndex: 0, colIndex: 5 });
         expect(gs.moveFocus(0, 5, "right")).toBe(null);
     });
 });
 
-// ---------------------------------------------------------------------------
 // findNextEditableCell
-// ---------------------------------------------------------------------------
 
 describe("findNextEditableCell", () => {
     test("skips readonly columns", () => {
@@ -271,15 +257,12 @@ describe("findNextEditableCell", () => {
     test("with selectors: column indices are offset by 1", () => {
         const gs = makeGridState({ hasSelectors: true });
         // With selectors, field columns start at index 1
-        // findNextEditableCell from col 1 (name) should find col 2 (email)
         const next = gs.findNextEditableCell(0, 1, true);
         expect(next).toEqual({ rowIndex: 0, colIndex: 2 });
     });
 });
 
-// ---------------------------------------------------------------------------
 // isCellEditable
-// ---------------------------------------------------------------------------
 
 describe("isCellEditable", () => {
     test("returns true for editable field cells", () => {
@@ -306,9 +289,7 @@ describe("isCellEditable", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Reverse lookup
-// ---------------------------------------------------------------------------
 
 describe("reverse lookup", () => {
     test("findRowByRecordId returns correct flat row", () => {
@@ -351,9 +332,7 @@ describe("reverse lookup", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Rebuild after structural change
-// ---------------------------------------------------------------------------
 
 describe("rebuild", () => {
     test("rebuild after group toggle changes row count", () => {
@@ -365,7 +344,6 @@ describe("rebuild", () => {
         // Open: group header + 2 records + add-line = 4
         expect(gs.rowCount).toBe(4);
 
-        // Simulate folding
         group.isFolded = true;
         gs.rebuild();
 
@@ -392,7 +370,6 @@ describe("rebuild", () => {
         const before = gs.findRowByRecordId("2");
         expect(before.globalIndex).toBe(2);
 
-        // Add a record and rebuild
         records.push(mockRecord(4));
         gs.rebuild();
 

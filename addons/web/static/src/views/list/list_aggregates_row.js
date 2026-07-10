@@ -76,23 +76,18 @@ export class ListAggregatesRow extends Component {
             getOptionalActiveFields: () => this.props.optionalActiveFields,
         });
 
-        // Per-render memoization for `columns` / `aggregates`.
+        // Per-render memoization for `columns` / `aggregates`: the template reads
+        // `aggregates[col.name]` ~4x per column and `columns` via both colspan
+        // helpers, so an unmemoized getter recomputes the O(nCols × records)
+        // `computeAggregates()` up to `4·nCols + 2` times per render — O(nCols² ×
+        // records) on every cell edit/selection/sort. Caching per render collapses
+        // that to one computation.
         //
-        // The template reads `aggregates[col.name]` ~4× per aggregate column
-        // (t-if, data-tooltip, t-esc, multiCurrency sup) and reads `columns`
-        // via both colspan helpers, so a plain getter recomputes
-        // `computeAggregates()` / `processAllColumns()` `4·nCols + 2` times per
-        // render (measured: 18 for 4 aggregate columns). `computeAggregates`
-        // is unmemoized and O(nCols × records), which makes the footer
-        // O(nCols² × records) on *every* list re-render (cell edit, selection,
-        // sort). Caching per render collapses that to one computation.
-        //
-        // Reactive correctness is preserved: the FIRST read still happens
-        // during template evaluation, inside OWL's tracking scope, so the
-        // subscriptions to `list.records` / `record.data` / `record.selected`
-        // are established exactly as before; a dependency change triggers a new
-        // render, which bumps `_renderId` and forces recomputation. `onWillRender`
-        // only reads a plain counter, so it adds no reactive dependency.
+        // Reactive correctness holds: the first read per render still happens
+        // during template evaluation inside OWL's tracking scope, so subscriptions
+        // to `list.records`/`record.data`/`record.selected` are established as
+        // before; `onWillRender` only bumps a plain counter (`_renderId`), adding
+        // no reactive dependency of its own.
         this._renderId = 0;
         this._columnsCache = { renderId: -1, value: null };
         this._aggregatesCache = { renderId: -1, value: null };
@@ -101,9 +96,7 @@ export class ListAggregatesRow extends Component {
         });
     }
 
-    // -------------------------------------------------------------------------
     // Column helpers (memoized per render — see setup())
-    // -------------------------------------------------------------------------
 
     /** @returns {any[]} All columns including expanded property fields. */
     get allColumns() {
@@ -153,9 +146,7 @@ export class ListAggregatesRow extends Component {
         return this.props.list.fields;
     }
 
-    // -------------------------------------------------------------------------
     // Layout helpers
-    // -------------------------------------------------------------------------
 
     /** @returns {any[]} Columns that have aggregate values to display. */
     getAggregateColumns() {
@@ -176,9 +167,7 @@ export class ListAggregatesRow extends Component {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Group creation input handlers
-    // -------------------------------------------------------------------------
 
     /**
      * Handle keydown in the group creation input. Enter confirms, Escape cancels.
@@ -203,9 +192,7 @@ export class ListAggregatesRow extends Component {
         this.props.onGroupInputConfirm(value);
     }
 
-    // -------------------------------------------------------------------------
     // Multi-currency popover
-    // -------------------------------------------------------------------------
 
     /**
      * Open the multi-currency breakdown popover for a monetary aggregate cell.

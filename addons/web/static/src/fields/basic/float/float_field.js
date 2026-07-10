@@ -41,12 +41,10 @@ export class FloatField extends NumericInputFieldBase {
     parse(value) {
         if (this.props.inputType === "number") {
             const parsed = Number(value);
-            // A type=number input can still yield NaN (programmatic/garbage
-            // value) or ±Infinity ("1e999" is accepted input text). Fall back
-            // to the locale parser so it throws a ParseError and the field is
-            // flagged invalid, instead of persisting NaN/Infinity (Infinity
-            // JSON-serializes to null, silently unsetting the field).
-            // (Number("") === 0, so empty input still resolves to 0 as before.)
+            // type=number can yield NaN or ±Infinity ("1e999" is valid input text);
+            // fall back to the locale parser so invalid input raises ParseError
+            // instead of silently persisting NaN/Infinity (which JSON-serializes
+            // to null). Empty input still resolves to 0 via Number("") === 0.
             return Number.isFinite(parsed)
                 ? parsed
                 : parseFloat(value, { allowOperation: true });
@@ -62,10 +60,9 @@ export class FloatField extends NumericInputFieldBase {
      */
     get formattedValue() {
         if (this.props.inputType === "number" && !this.props.readonly) {
-            // A `<input type="number">` cannot hold a locale-formatted string
-            // (e.g. "0,00" in a comma-decimal locale makes the browser blank
-            // the field), so emit the raw number. `false` (unset) becomes ""
-            // while `0` is preserved rather than falling through to formatFloat.
+            // <input type="number"> can't hold a locale-formatted string (e.g.
+            // "0,00" blanks the field in comma-decimal locales), so emit the
+            // raw number instead. `false` (unset) becomes "", `0` is preserved.
             return this.value === false ? "" : this.value;
         }
         if (!this.props.formatNumber) {

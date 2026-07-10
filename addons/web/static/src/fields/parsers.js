@@ -9,7 +9,6 @@ import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 // Helpers
-// -----------------------------------------------------------------------------
 /**
  * @param {string} expr
  * @param {object} [context]
@@ -62,7 +61,6 @@ const getMonetaryStartRegex = memoizeRegex(
 const WHITESPACE_THOUSANDS_SEP_REGEX = /\s+/g;
 
 function evaluateMathematicalExpression(expr, context = {}) {
-    // remove extra space
     const val = expr.replaceAll(" ", "");
     let safeEvalString = "";
     for (const part of val.split(/([-+*/()^])/g)) {
@@ -123,9 +121,7 @@ function parseNumber(value, options = /** @type {any} */ ({})) {
     return Number(value);
 }
 
-// -----------------------------------------------------------------------------
 // Exports
-// -----------------------------------------------------------------------------
 
 class InvalidNumberError extends Error {}
 

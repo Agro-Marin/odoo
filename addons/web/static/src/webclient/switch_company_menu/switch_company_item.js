@@ -7,7 +7,6 @@ import { Component, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { user } from "@web/services/user";
 
-/** Single company row in the switch-company dropdown (checkbox + log-into). */
 export class SwitchCompanyItem extends Component {
     static template = "web.SwitchCompanyItem";
     static components = { DropdownItem, SwitchCompanyItem };
@@ -16,7 +15,6 @@ export class SwitchCompanyItem extends Component {
         level: { type: Number },
     };
 
-    /** Initialize reactive company selector state from env. */
     setup() {
         this.companySelector = useState(this.env.companySelector);
     }

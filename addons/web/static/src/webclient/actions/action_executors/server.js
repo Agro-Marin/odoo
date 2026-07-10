@@ -12,13 +12,9 @@ import { user } from "@web/services/user";
 /** @import { ServerAction } from "@web/webclient/actions/action_service" */
 
 /**
- * Execute an action of type ``ir.actions.server``.
- *
- * Fires ``/web/action/run`` with the action id + merged context, gated by
- * ``am.keepLast`` so the latest server-action click wins if multiple are
- * in flight.  Defaults a null response to ``act_window_close`` so the
- * caller's promise chain still terminates cleanly.  Forwards the
- * originating ``action.path`` down to the next action for URL stability.
+ * Execute an ``ir.actions.server`` action via ``/web/action/run``, gated by
+ * ``am.keepLast`` so only the latest click wins. Defaults a null response to
+ * ``act_window_close``, and forwards ``action.path`` for URL stability.
  *
  * @param {ServerAction} action
  * @param {object} options

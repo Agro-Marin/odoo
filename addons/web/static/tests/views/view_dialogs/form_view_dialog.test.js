@@ -167,10 +167,9 @@ test("Form dialog and subview with _view_ref contexts", async () => {
 
     Instrument._records = [{ id: 1, name: "Tromblon", badassery: [1] }];
     Partner._records[0].instrument = 1;
-    // This is an old test, written before "get_views" (formerly "load_views") automatically
-    // inlines x2many subviews. As the purpose of this test is to assert that the js fetches
-    // the correct sub view when it is not inline (which can still happen in nested form views),
-    // we bypass the inline mecanism of "get_views" by setting widget="many2many" on the field.
+    // Predates get_views' automatic x2many subview inlining. We bypass the inlining via
+    // widget="many2many" to assert the correct subview is fetched when not inline
+    // (still possible in nested form views).
     Instrument._views.form = /* xml */ `
         <form>
             <field name="name"/>
@@ -539,9 +538,8 @@ test("close dialog with escape after modifying a field with onchange (no blur)",
 
     await mountWithCleanup(WebClient);
 
-    // must focus something else than body before opening the form view dialog, such that the ui
-    // service has something to focus on dialog close, which will then blur the input and fire the
-    // change event
+    // Focus something other than body first: on dialog close the ui service needs
+    // something to refocus, which blurs the input and fires the change event.
     await contains(".o_navbar_apps_menu button").focus();
     expect(".o_navbar_apps_menu button").toBeFocused();
 

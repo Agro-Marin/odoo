@@ -13,10 +13,7 @@ const ORDERS = ["ASC", "DESC", "asc", "desc", null];
 /** Parser for `<graph>` view architecture definitions. */
 export class GraphArchParser {
     /**
-     * Parse a graph arch XML node into a structured descriptor.
-     *
-     * Extracts chart mode, stacking/cumulation flags, ordering, title,
-     * measures and groupBy definitions from `<graph>` and `<field>` elements.
+     * Parse a `<graph>` arch element into a structured descriptor.
      *
      * @param {Element} arch - the root `<graph>` XML element
      * @param {Object} [fields={}] - field definitions keyed by field name

@@ -3,18 +3,12 @@
 
 /** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
 
-// The DB manager page is served as a tiny static QWeb shell with its own
-// hand-rolled import map (see ``database_manager.qweb.html``): only
-// ``bootstrap`` and ``@popperjs/core`` are exposed, not the full
-// ``@web/libs/bootstrap`` wrapper (which transitively pulls in
-// ``@web/core/utils/dom/scrolling`` and a tree of web-client utilities
-// that would require rebuilding the whole esbuild ``web.assets_web``
-// bundle here).  Importing the vendored ESM file directly keeps the
-// page self-contained and avoids a "Failed to resolve module specifier"
-// at module-link time — which previously dropped every click handler on
-// the page silently, leaving the Backup / Duplicate / Delete / Restore
-// / Create buttons dead because nothing ever attached a listener to
-// ``.o_database_action``.
+// The DB manager page's own import map (``database_manager.qweb.html``)
+// exposes only ``bootstrap``/``@popperjs/core``, not the full
+// ``@web/libs/bootstrap`` wrapper (which would pull in the whole
+// ``web.assets_web`` bundle). Importing the wrapper here previously caused
+// an unresolved module specifier that silently dropped every click handler
+// on the page (Backup/Duplicate/Delete/Restore/Create all dead).
 // @ts-ignore — bootstrap is exposed at runtime by the asset bundle, but its types are not part of this fork's npm tree
 import { Modal } from "bootstrap";
 

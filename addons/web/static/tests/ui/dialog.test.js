@@ -54,10 +54,8 @@ test("dialog has aria-modal and aria-labelledby pointing at title", async () => 
     const modal = queryOne(".o_dialog [role=dialog]");
     expect(modal.getAttribute("aria-modal")).toBe("true");
     const labelledById = modal.getAttribute("aria-labelledby");
-    // HOOT doesn't ship a ``toBeTruthy`` matcher (only toBe/toEqual/
-    // toMatch/toThrow on raw values + the *element* matchers via
-    // ``@odoo/hoot-dom``); ``toMatch(/.+/)`` is the idiomatic "non-empty
-    // string" assertion.
+    // HOOT has no ``toBeTruthy`` matcher; ``toMatch(/.+/)`` is the idiomatic
+    // "non-empty string" assertion.
     expect(labelledById).toMatch(/.+/);
     const titleEl = queryOne("#" + labelledById);
     expect(titleEl).toHaveClass("modal-title");
@@ -74,13 +72,9 @@ test("dialog without title has no aria-labelledby", async () => {
     await mountWithCleanup(Parent);
     const modal = queryOne(".o_dialog [role=dialog]");
     expect(modal.getAttribute("aria-modal")).toBe("true");
-    // No title is set on the Dialog (the default Dialog title="Odoo" via
-    // default props is also a string but check that aria-labelledby
-    // either points nowhere meaningful or is absent — props.title is the
-    // gate at the template level: when default-string-truthy, the
-    // attribute IS present; when the prop is explicitly falsy, it is
-    // not. Cover both cases by asserting the attribute either matches a
-    // visible title element or is missing.
+    // props.title gates the attribute at the template level: default title
+    // makes it present, an explicitly falsy title makes it absent. Cover
+    // both cases.
     const labelledById = modal.getAttribute("aria-labelledby");
     if (labelledById !== null) {
         // Default Odoo title path — verify the linkage still resolves.

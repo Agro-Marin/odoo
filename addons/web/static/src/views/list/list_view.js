@@ -11,18 +11,12 @@ import { ListController } from "./list_controller.js";
 import { ListRenderer } from "./list_renderer.js";
 
 /**
- * View descriptor for the list (tree) view type.
+ * View descriptor for the list (tree) view type, registered under "list".
  *
- * Registered in the "views" registry under the key "list". Wires together the
- * controller, renderer, arch parser, and relational model that make up the
- * standard list view.
- *
- * Type annotation intentionally omitted: ``ViewRegistryEntry`` in the
- * ambient declaration types ``Controller``/``Renderer`` as
- * ``ComponentConstructor`` which OWL component class types don't currently
- * satisfy (documented OWL adapter case — see ``JSDOC_TYPE_TIGHTENING.md``).
- * Sibling view files (kanban/form/graph/calendar/pivot) follow the same
- * untyped-export convention.
+ * Type annotation intentionally omitted: ``ViewRegistryEntry`` types
+ * ``Controller``/``Renderer`` as ``ComponentConstructor``, which OWL class
+ * types don't currently satisfy (see ``JSDOC_TYPE_TIGHTENING.md``). Sibling
+ * view files follow the same untyped-export convention.
  */
 export const listView = {
     type: "list",

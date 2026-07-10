@@ -24,10 +24,8 @@ function useEarlyExternalListener(target, eventName, handler, eventParams) {
 }
 
 /**
- * Will trigger the callback when the window is clicked, giving
- * the clicked element as parameter.
- *
- * This also handles the case where an iframe is clicked.
+ * Trigger the callback with the clicked element when the window is clicked,
+ * including from within an iframe.
  *
  * @param {Popover} popover
  * @param {(node?: Node) => any} callback

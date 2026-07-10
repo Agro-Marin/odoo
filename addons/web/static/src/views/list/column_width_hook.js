@@ -11,49 +11,18 @@ import {
     useEffect,
     useExternalListener,
 } from "@odoo/owl";
-// This file defines a hook that encapsulates the column width logic of the list view. This logic
-// aims at optimizing the available space between columns and, once computed, at freezing the table
-// to ensure that the columns don't flicker. This hook is meant to be used by the ListRenderer only,
-// it isn't a generic hook that can be used in various contexts.
+// Encapsulates the list view's column width logic: computes optimal widths once, then freezes
+// them so columns don't flicker on user interaction. ListRenderer-only, not a generic hook.
 //
-// Widths computation specs
-// ------------------------
+// Widths: field types and arch `width=` attributes hardcode a column's width; numeric fields
+// size to fit up to 1 billion; other columns get a min width only, no max. Starting widths come
+// from a uniform split (empty table) or the browser's natural layout (table has records), then
+// min/max are enforced and columns are expanded/shrunk to fill 100% (overflow falls back to a
+// horizontal scrollbar).
 //
-// For some field types, we harcode the column width because we know the required space to display
-// values for that type (e.g. a Date field always requires the same space). A width can also be
-// hardcoded in the arch (`width="60px"`). In those cases, the column has a fixed width that we
-// enforce. Note that the column width will be the given width + the cell's left and right paddings.
-// Numeric fields don't technically have a fixed width, but rather a range: we always want enough
-// space s.t. `1 million` would fit, and we consider that we don't need more space than `1 billion`
-// would require to fit. Depending on the field type (integer, float, monetary), we determine the
-// necessary width to display those numbers.
-// The other columns have an hardcoded min width, that we always want to guarantee, but they have no
-// max width.
-//
-// There're two cases. In both of them, we need to compute a starting point for the widths:
-//   - there's no data in the table: we force all columns with hardcoded widths to those widths and
-//     uniformly distribute the remaining space among the other columns.
-//   - there're records in the table, we let the browser compute ideal widths based on the content
-//     of the table.
-// Once this is done, we ensure that each column complies with their min and max widths. It may
-// happen that some columns are too narrow (because their content is small, and there're a lot of
-// columns), so we expand them to their minimal width. It may also happen that some columns are too
-// wide (if they have a max width), so we shrink them.
-// Once this is done, we must ensure that the sum of the column widths still fills 100% of the
-// table. That means that we might have to expand/narrow columns, again. It may happen that the
-// table has too many columns s.t. they can't fit within the 100% by complying the the rules, it's
-// fine, an horizontal scrollbar will be displayed in that case.
-//
-// Freeze logic
-// ------------
-//
-// Once optimal widths have been computed, we want the table to be frozen s.t. columns don't resize
-// upon user interaction, like inline edition, adding or removing a record... The computed widths
-// are thus stored, and re-applied at each rendering. There're exceptions though. If the columns
-// change (e.g. optional column toggled), if the window is resized, if we remove a filter or open
-// a group s.t. the list contains records for the first time, we forget the computed widths and
-// start over.
-// Hardcoded widths
+// Freeze: computed widths are cached and reapplied on every render, and only recomputed when
+// the column set changes, the window resizes, or the table gains its first records (e.g. a
+// filter is removed).
 import { localization } from "@web/core/l10n/localization";
 import { useDebounced } from "@web/core/utils/timing";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
@@ -85,7 +54,6 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
         _columnWidths = headers.map(() => allowedWidth / headers.length);
     } else {
         // Table contains records => let the browser compute ideal widths
-        // Set table layout auto and remove inline style
         table.style.tableLayout = "auto";
         headers.forEach((th) => {
             th.style.width = null;
@@ -448,9 +416,8 @@ export function useMagicColumnWidths(tableRef, getState) {
 
             cleanup();
 
-            // We remove the focus to make sure that the there is no focus inside
-            // the tr.  If that is the case, there is some css to darken the whole
-            // thead, and it looks quite weird with the small css hover effect.
+            // Blur to avoid leaving focus inside the header row: CSS darkens the whole
+            // thead on focus, which looks odd combined with the hover effect.
             /** @type {HTMLElement} */ (document.activeElement).blur();
         };
         // We have to listen to several events to properly stop the resizing function. Those are:
@@ -475,12 +442,10 @@ export function useMagicColumnWidths(tableRef, getState) {
         useEffect(forceColumnWidths);
         // Forget computed widths (and potential manual column resize) on window resize
         useExternalListener(window, "resize", unsetWidths);
-        // Listen to width changes on the parent node of the table, to recompute ideal widths
-        // Note: we compute the widths once, directly, and once after parent width stabilization.
-        // The first call is only necessary to avoid an annoying flickering when opening form views
-        // with an x2many list and a chatter (when it is displayed below the form) as it may happen
-        // that the display of chatter messages introduces a vertical scrollbar, thus reducing the
-        // available width.
+        // Recompute widths on parent resize. Called once immediately (avoids flicker when
+        // opening a form with an x2many list + chatter below it, since chatter messages can
+        // introduce a vertical scrollbar that shrinks the available width) and once more after
+        // the parent width stabilizes.
         const component = useComponent();
         const debouncedForceColumnWidths = useDebounced(
             () => {

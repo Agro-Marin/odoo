@@ -14,14 +14,10 @@ import { getAggregateSpecifications, getGroupServerValue } from "./field_values.
 
 /**
  * Walk the cached ``config.groups`` tree and emit the ``opening_info``
- * descriptor the server uses to decide which groups to expand inline
- * and how many records to fetch per group. Each entry mirrors a
- * client-side group's last known limit / offset / folded state so a
- * second call returns the same shape the user is currently looking
- * at.
- *
- * Recursive: nested groups produce a nested ``groups: [...]`` array
- * so multi-level groupbys round-trip cleanly.
+ * descriptor the server uses to decide which groups to expand and how many
+ * records to fetch per group, mirroring each group's last known
+ * limit/offset/folded state. Recursive: nested groups produce nested
+ * ``groups: [...]`` arrays.
  *
  * @param {Record<string, any>} groups
  * @returns {Array<Record<string, any>>}
@@ -50,24 +46,18 @@ function buildOpeningInfo(groups) {
 /**
  * @typedef {object} WebReadGroupBuilderDeps
  * @property {Record<string, { activeFields: Record<string, any>; fields: Record<string, any> }>} groupByInfo
- *   Per-groupBy override map. When present for a groupBy axis the
- *   nested record is read via the override's spec instead of the
- *   parent config's. ``RelationalModel.groupByInfo`` is the canonical
- *   source.
- * @property {number} initialLimit Per-group record limit applied
- *   server-side via ``unfold_read_default_limit``. Maps to
- *   ``RelationalModel.initialLimit``.
+ *   Per-groupBy override map; when set for an axis, its nested record is
+ *   read via the override's spec instead of the parent config's.
+ * @property {number} initialLimit Per-group record limit sent server-side
+ *   as ``unfold_read_default_limit``.
  */
 
 /**
  * Assemble the ``aggregates`` array and ``kwargs`` dict for a
- * ``web_read_group`` RPC.  The caller — typically
- * ``RelationalModel._webReadGroup`` — pipes the result straight into
+ * ``web_read_group`` RPC, piped by the caller into
  * ``orm.webReadGroup(model, domain, groupBy, aggregates, params)``.
- *
- * Pure function: no I/O, no instance state read directly. ``config``
- * supplies every per-call value; ``deps`` injects the two model-level
- * properties this assembly depends on.
+ * Pure function: ``config`` supplies every per-call value, ``deps`` injects
+ * the two model-level properties this assembly depends on.
  *
  * @param {RelationalModelConfig} config
  * @param {WebReadGroupBuilderDeps} deps

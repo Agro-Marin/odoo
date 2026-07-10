@@ -51,14 +51,9 @@ export function useEmojiPicker(
 }
 
 /**
- * Precomputed, normalized fuzzy-search candidate strings per emoji.
- *
- * ``fuzzyLookup`` normalizes every candidate string on every call; over the
- * ~8.7k emojis × ~4 strings each, rebuilding the candidate arrays per lookup
- * dominated the search cost. The emoji objects are module-level singletons
- * (``getEmojis()`` caches its parse), so the candidate arrays can be built
- * once. ``normalize`` is idempotent, so pre-normalizing here changes neither
- * scores nor result ordering.
+ * Precomputed, normalized fuzzy-search candidate strings per emoji. Rebuilding
+ * these on every lookup dominated search cost over ~8.7k emojis; the emoji
+ * objects are singletons, so build once here instead.
  *
  * @type {WeakMap<Emoji, string[]>}
  */
@@ -141,11 +136,9 @@ export class EmojiPicker extends Component {
     static props = [...PICKER_PROPS, "class?", "initialSearchTerm?"];
     static template = "web.EmojiPicker";
 
-    // Class fields declared with @type so strictNullChecks treats them
-    // as initialized.  Real assignment happens in setup() / onWillStart
-    // / onMounted; lifecycle ordering guarantees they are non-undefined
-    // at every observable access site (each lifecycle hook bails early
-    // if `this.emojis` hasn't loaded yet).
+    // Declared with @type (not assigned) so strictNullChecks treats them as
+    // initialized; setup()/onWillStart/onMounted assign them, and lifecycle
+    // ordering guarantees they're non-undefined at every access site.
     /** @type {{el: HTMLElement | null}} */
     gridRef;
     /** @type {{el: HTMLElement | null}} */
@@ -434,9 +427,8 @@ export class EmojiPicker extends Component {
     }
 
     /**
-     * Builds the representation of the emoji picker (a 2D matrix of emojis)
-     * from the current DOM state. This is necessary to handle keyboard
-     * navigation of the emoji picker.
+     * Builds a 2D matrix of emoji indices from the current DOM, used for
+     * keyboard navigation.
      */
     updateEmojiPickerRepr() {
         if (!this.emojis.length) {
@@ -560,11 +552,9 @@ export class EmojiPicker extends Component {
 
     computeEmojis() {
         const recentEmojis = this.recentEmojis;
-        // The fuzzy search runs over ~8.7k emojis; without a cache it would
-        // re-run on EVERY render, including per-emoji hover renders
-        // (state.hoveredEmoji writes). Cache the result keyed on everything
-        // it depends on: the search term and (when searching) the recent
-        // emojis excluded from the results.
+        // Fuzzy search over ~8.7k emojis is costly; without caching it would
+        // re-run on every render, including hover renders. Key the cache on
+        // everything it depends on: search term and excluded recent emojis.
         const cacheKey = this.searchTerm
             ? `${this.searchTerm}\x00${recentEmojis.map((e) => e.codepoints).join(",")}`
             : "";

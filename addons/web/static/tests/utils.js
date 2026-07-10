@@ -262,11 +262,9 @@ class Contains {
     }
 
     /**
-     * Starts this contains check, either immediately resolving if there is a
-     * match, or registering appropriate listeners and waiting until there is a
-     * match or a timeout (resolving or rejecting respectively).
-     *
-     * Success or failure messages will be logged to the console as well.
+     * Starts this contains check: resolves immediately on a match, otherwise
+     * registers listeners and waits for a match or a timeout. Logs
+     * success/failure messages to the console.
      *
      * @returns {Promise}
      */
@@ -302,10 +300,9 @@ class Contains {
     }
 
     /**
-     * Runs this contains check once, immediately returning the result (or
-     * undefined), and possibly resolving or rejecting the main promise
-     * (and printing to the console) depending on options.
-     * If undefined is returned it means the check was not successful.
+     * Runs this contains check once, returning the matched elements or
+     * undefined if unsuccessful. May resolve/reject the main promise and
+     * log to the console depending on options.
      *
      * @param {string} whenMessage
      * @param {Object} [options={}]
@@ -409,10 +406,8 @@ class Contains {
             }
             el.files = dataTransfer.files;
             /**
-             * Changing files programatically is not supposed to trigger the event but
-             * it does in Chrome versions before 73 (which is on runbot), so in that
-             * case there is no need to make a manual dispatch, because it would lead to
-             * the files being added twice.
+             * Programmatic file changes shouldn't trigger "change", but do in Chrome
+             * <73 (used on runbot) — skip the manual dispatch there to avoid duplicates.
              */
             const versionRaw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
             const chromeVersion = versionRaw ? parseInt(versionRaw[2], 10) : false;

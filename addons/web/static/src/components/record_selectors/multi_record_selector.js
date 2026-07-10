@@ -41,11 +41,10 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Placeholder should be empty if there is at least one tag. We cannot use
-     * the default behavior of the input placeholder because even if there is
-     * a tag, the input is still empty.
+     * Empty when at least one tag exists — the input itself stays empty even
+     * with tags, so the native placeholder attribute can't be relied on.
+     * @returns {string | undefined}
      */
-    /** @returns {string | undefined} input placeholder, empty when tags exist */
     get placeholder() {
         return this.props.resIds.length ? "" : this.props.placeholder;
     }

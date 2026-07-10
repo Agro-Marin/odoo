@@ -48,13 +48,7 @@ function useUniqueDialog() {
     };
 }
 
-/**
- * Main controller for the calendar view.
- *
- * Orchestrates the model, renderer, side panel, search bar, and scale selector.
- * Handles record CRUD operations (create, edit, delete) including quick-create
- * dialogs, multi-selection for batch operations, and navigation between dates/scales.
- */
+/** Orchestrates the model, renderer, side panel, search bar, and scale selector. */
 export class CalendarController extends Component {
     static components = {
         MobileFilterPanel: CalendarMobileFilterPanel,
@@ -106,14 +100,9 @@ export class CalendarController extends Component {
             getLocalState: () => this.model.exportedState,
         });
 
-        // Both flags are boolean-only and persisted via String(value) below
-        // (or by Storage's implicit toString on legacy writes). Reading them
-        // back as JSON is brittle: if storage ever holds the literal string
-        // "undefined" (e.g. from a stray setItem(key, undefined) anywhere
-        // in the codebase) JSON.parse throws and breaks the calendar mount.
-        // Plain "is the stored value the string 'false'?" handles null,
-        // "true", "false", boolean false (test mocks), and "undefined"
-        // (pollution) without surprises.
+        // Both flags are boolean-only, persisted via String(value). Reading back with
+        // JSON.parse is brittle (a stray "undefined" string throws), so just check
+        // whether the stored value is the string "false".
         const storedWeekendVisible = browser.localStorage.getItem(
             "calendar.isWeekendVisible",
         );
@@ -404,8 +393,7 @@ export class CalendarController extends Component {
             },
             confirmLabel: _t("Delete"),
             cancel: () => {
-                // `ConfirmationDialog` needs this prop to display the cancel
-                // button but we do nothing on cancel.
+                // `ConfirmationDialog` needs this prop to show the cancel button.
             },
             cancelLabel: _t("No, keep it"),
         };
@@ -474,13 +462,9 @@ export class CalendarController extends Component {
                 break;
         }
         await this.model.load({ date });
-        // ``load`` triggers an OWL patch which routes through
-        // ``useFullCalendar.onPatched`` and calls ``gotoDate(targetDate)``.
-        // v7's ``gotoDate`` resets the timegrid scroll position back to the
-        // ``scrollTime`` default, so a ``SCROLL_TO_CURRENT_HOUR`` bus event
-        // fired BEFORE the load is clobbered by the time the patch lands.
-        // Trigger AFTER load so the renderer's listener runs after the
-        // gotoDate reset.
+        // ``load`` triggers an OWL patch that calls FullCalendar's ``gotoDate``, which
+        // resets the timegrid scroll to ``scrollTime`` — clobbering an event fired before
+        // load. Trigger AFTER load so the renderer's listener runs after the reset.
         if (scrollToCurrentHour) {
             this.model.bus.trigger(ModelEvent.SCROLL_TO_CURRENT_HOUR, false);
         }

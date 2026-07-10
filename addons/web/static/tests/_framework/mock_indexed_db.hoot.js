@@ -70,11 +70,7 @@ export function mockIndexedDBForTests() {
                 this.mockIndexedDB = {};
             }
         };
-        // Mirror the production ``invalidateWhere``: iterate each table's
-        // keys and delete those for which the predicate returns true.
-        // Mock operates on the in-memory ``mockIndexedDB`` object so the
-        // test assertions on ``instance.mockIndexedDB.<table>.<key>`` keep
-        // working without a real cursor.
+        // Mirrors production: delete keys per table where predicate returns true.
         proto.invalidateWhere = async function (tables, predicate) {
             this.mockIndexedDB ??= {};
             const tableList = typeof tables === "string" ? [tables] : tables;
@@ -95,12 +91,8 @@ export function mockIndexedDBForTests() {
                 }
             }
         };
-        // Mirror the production ``invalidateByModel``: walk values and
-        // delete entries whose stored value carries ``model === <model>``.
-        // Values written without a model property are skipped (correct —
-        // they are not model-scoped).  Test assertions on
-        // ``instance.mockIndexedDB.<table>`` see the same shape as
-        // production code.
+        // Mirrors production: delete entries whose value carries model === <model>;
+        // entries without a model property are skipped (not model-scoped).
         proto.invalidateByModel = async function (tables, model) {
             this.mockIndexedDB ??= {};
             const tableList = typeof tables === "string" ? [tables] : tables;

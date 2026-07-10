@@ -6,7 +6,6 @@
  * Regression guards for the list view row virtualization.
  *
  * V1 — stable row keys
- * --------------------
  * Virtualized rows must be keyed by stable identity (record id), not by
  * `flatRow.globalIndex`: inserting a row above (editable="top" New) shifts
  * every following globalIndex, and positional keys would tear down and
@@ -15,12 +14,10 @@
  * survives the insertion.
  *
  * V2 — spacer/threshold behavior
- * ------------------------------
  * Above the activation threshold only a slice of rows is rendered, with a
  * spacer row absorbing the remaining height.
  *
  * V3/V4/V5 — keyboard navigation × virtualization
- * -----------------------------------------------
  * When an arrow key targets a row that exists but is virtualized out of the
  * DOM, the nav hook arms a pending focus (resolved after the next patch) and
  * must consume the event: the "grid boundary" fallbacks (focus the search

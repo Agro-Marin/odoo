@@ -4,16 +4,11 @@
 /** @module @web/model/relational_model/commands - x2many ORM command constants and factory functions */
 
 /**
- * One2many and Many2many fields expect a special command to manipulate the
- * relation they implement.
- *
- * Internally, each command is a 3-elements tuple where the first element is a
- * mandatory integer that identifies the command, the second element is either
- * the related record id to apply the command on (commands update, delete,
- * unlink and link) either 0 (commands create, clear and set), the third
- * element is either the ``values`` to write on the record (commands create
- * and update) either the new ``ids`` list of related records (command set),
- * either 0 (commands delete, unlink, link, and clear).
+ * One2many/Many2many fields use a 3-element command tuple to describe a
+ * mutation on the relation: [command, id_or_0, values_or_ids_or_0].
+ * - id_or_0: record id for update/delete/unlink/link, else 0 (create/clear/set)
+ * - values_or_ids_or_0: values to write (create/update), new ids list (set),
+ *   else 0 (delete/unlink/link/clear)
  */
 export const x2ManyCommands = {
     // (0, virtualID | false, { values })

@@ -194,10 +194,8 @@ export function preloadBundle(bundleName) {
 }
 
 /**
- * Preload Chart.js (+ its luxon date adapter) once before a suite, the way
- * `preloadBundle("web.chartjs_lib")` used to — except the libs are now real ES
- * modules pulled through the import map by `loadChartJS`, not a classic-script
- * bundle that assigned `window.Chart`.
+ * Preload Chart.js (+ luxon adapter) once before a suite. Uses `loadChartJS`
+ * (real ESM via import map) instead of the old `window.Chart`-assigning bundle.
  */
 export function preloadChartJS() {
     before(async function preloadChartJS() {
@@ -206,9 +204,8 @@ export function preloadChartJS() {
 }
 
 /**
- * Preload FullCalendar (+ locales, skeleton CSS) once before a suite, the way
- * `preloadBundle("web.fullcalendar_lib")` used to — now via the `loadFullCalendar`
- * ESM loader instead of a classic-script bundle assigning `window.FullCalendar`.
+ * Preload FullCalendar (+ locales, skeleton CSS) once before a suite, via the
+ * `loadFullCalendar` ESM loader (replaces the old `window.FullCalendar` bundle).
  */
 export function preloadFullCalendar() {
     before(async function preloadFullCalendar() {
@@ -266,27 +263,22 @@ setDefaultMockModels({ IrHttp });
 
 // Default mock for the mail bootstrap routes.
 //
-// The mail store_service (``mail/static/src/core/common/store_service.js``)
-// eagerly fires ``/mail/data`` (or ``/mail/action``) on WebClient mount to
-// pre-seed its in-memory store. Core unit tests that mount WebClient or
-// CommandPalette without importing ``mail_test_helpers`` then hit
-// ``Unimplemented server route`` and Hoot counts the resulting RPC_ERROR as
-// an "unverified error" — failing the test for a side-effect that has
-// nothing to do with what it's asserting.
+// mail's store_service eagerly fires ``/mail/data`` (or ``/mail/action``) on
+// WebClient mount to pre-seed its store. Core tests that mount WebClient or
+// CommandPalette without ``mail_test_helpers`` then hit "Unimplemented server
+// route", which Hoot counts as an unverified RPC_ERROR — failing tests for a
+// side-effect unrelated to what they assert.
 //
-// Registering an empty handler via ``setDefaultMockRoute`` makes the routes
-// "known" so the bootstrap returns nothing and produces no error. Mail
-// tests can still register their own handler via ``onRpc(...)``; the later
-// per-test registration shadows this default because ``_defineParams`` is
-// ``mode: "add"`` in ``onRpc``.
+// An empty ``setDefaultMockRoute`` handler makes the routes "known" so the
+// bootstrap no-ops. Mail tests can still override via ``onRpc(...)``, which
+// shadows this default (``_defineParams`` is ``mode: "add"``).
 //
-// ``onRpc`` at module load would NOT work here — it wraps the registration
-// in ``before(...)`` which is suite-scoped and silently no-ops outside a
-// describe block. ``setDefaultMockRoute`` folds the handler into the
-// runner-level params snapshot in ``getCurrentParams``, which IS picked up
-// when each job starts.
+// ``onRpc`` at module load does NOT work here: it registers inside
+// ``before(...)``, which is suite-scoped and no-ops outside a ``describe``
+// block. ``setDefaultMockRoute`` instead folds into the runner-level params
+// snapshot (``getCurrentParams``), picked up at the start of every job.
 //
-// We mock both routes because the choice between them is controlled at
-// runtime by ``store_service.fetchReadonly`` and tests don't pin it.
+// Both routes are mocked because ``store_service.fetchReadonly`` decides
+// which one to call at runtime, and tests don't pin it.
 setDefaultMockRoute("/mail/data", () => ({}));
 setDefaultMockRoute("/mail/action", () => ({}));

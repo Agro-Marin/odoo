@@ -99,16 +99,13 @@ test("ProgressBarField: value should update in edit mode when typing in input", 
         message: "Initial value should be correct",
     });
     await click(".o_progressbar_value .o_input");
-    // wait for apply dom change
     await animationFrame();
     await edit("69", { confirm: "enter" });
     expect(".o_progressbar_value .o_input").toHaveValue("69", {
         message: "New value should be different after focusing out of the field",
     });
-    // wait for apply dom change
     await animationFrame();
     await clickSave();
-    // wait for rpc
     await animationFrame();
     expect(".o_progressbar_value .o_input").toHaveValue("69", {
         message: "New value is still displayed after save",

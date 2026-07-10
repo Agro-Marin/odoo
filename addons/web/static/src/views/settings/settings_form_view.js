@@ -24,24 +24,21 @@ class SettingRecord extends formView.Model.Record {
         ) {
             dirty = this.dirty;
             if (this.dirty) {
-                // Settings exemption to the base (dirty, _changes) invariant:
-                // a header-field edit on an already-dirty record runs the
+                // Settings exemption to the base (dirty, _changes) invariant: a
+                // header-field edit on an already-dirty record runs the
                 // confirm/discard flow and only *then* applies or reverts
                 // ``changes``.
                 //
-                // This MUST stay fire-and-forget (return undefined, do not
-                // await the flow here). ``update()`` awaits ``_update()`` inside
-                // ``model.mutex.exec`` (see record.js), and the confirm flow
-                // itself re-enters that same mutex via
-                // ``saveCoordinator.requestDiscard()/requestSave()`` — so
-                // returning/awaiting this promise would deadlock the mutex (the
-                // "edit header field" Save/Discard paths hang). Releasing the
-                // mutex first, then running the flow detached, is required.
+                // MUST stay fire-and-forget: ``update()`` awaits ``_update()``
+                // inside ``model.mutex.exec`` (record.js), and the confirm flow
+                // re-enters that same mutex via
+                // ``saveCoordinator.requestDiscard()/requestSave()`` —
+                // returning/awaiting this promise would deadlock it (the "edit
+                // header field" Save/Discard paths hang).
                 //
-                // The only correctness improvement here over the original is the
-                // ``.catch``: the detached promise's rejections were previously
-                // unhandled; log them instead so a server-side failure in the
-                // flow can't surface as an uncaught rejection.
+                // ``.catch`` logs rejections that were previously unhandled, so
+                // a server-side failure here can't surface as an uncaught
+                // rejection.
                 /** @type {any} */ (
                     async () => {
                         const isDiscard = await /** @type {any} */ (

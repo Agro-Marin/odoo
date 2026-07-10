@@ -91,14 +91,9 @@ export function exprToBoolean(str, trueIfEmpty = false) {
 }
 
 /**
- * Generate a hash, also known as a 'digest', for the given string.
- * This algorithm is based on the Java hashString method
- * (see: https://docs.oracle.com/javase/7/docs/api/java/lang/String.html#hashCode()).
- * Please note that this hash function is non-cryptographic and does not exhibit collision resistance.
- *
- * If a cryptographic hash function is required, the digest() function of the SubtleCrypto
- * interface makes various hash functions available:
- * https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest
+ * Generate a non-cryptographic hash (Java `String.hashCode()`-based) for the
+ * given string(s). Not collision-resistant; use SubtleCrypto.digest() if a
+ * cryptographic hash is needed.
  *
  * @param {...string} strings
  * @returns {string}
@@ -119,20 +114,10 @@ export function hashCode(...strings) {
 const _HEX_8 = 16 ** 8;
 
 /**
- * Intersperses ``separator`` in ``str`` at the positions indicated by
- * ``indices``.
- *
- * ``indices`` is an array of relative offsets (from the previous insertion
- * position, starting from the end of the string) at which to insert
- * ``separator``.
- *
- * There are two special values:
- *
- * ``-1``
- *   indicates the insertion should end now
- * ``0``
- *   indicates that the previous section pattern should be repeated (until all
- *   of ``str`` is consumed)
+ * Intersperses ``separator`` in ``str`` at positions given by ``indices``,
+ * relative offsets from the previous insertion point (starting at the end
+ * of the string). Special values: ``-1`` stops insertion; ``0`` repeats the
+ * previous section until ``str`` is consumed.
  *
  * @param {string} str
  * @param {number[]} indices

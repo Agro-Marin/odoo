@@ -34,8 +34,6 @@ const QUICK_CREATE_FIELD_TYPES = [
     "many2many",
 ];
 
-// -----------------------------------------------------------------------------
-
 /**
  * Main controller for the kanban view, extending MultiRecordController.
  *
@@ -131,28 +129,12 @@ export class KanbanController extends MultiRecordController {
 
         // --- Quick create ---
         //
-        // Why the side-effecting setter (Pattern 4) here despite the
-        // STATE_MANAGEMENT.md discouragement:
-        //
-        // Opening a quick-create while sample data is visible MUST
-        // clear the samples synchronously, on the same microtask as
-        // the ``groupId`` mutation.  An ``onMounted`` / ``useEffect``
-        // approach defers the cleanup by 1-2 render frames, producing
-        // a visible flicker (sample records still painted while the
-        // quick-create form mounts) and breaking integration tests
-        // that assert ``.o_kanban_record`` is gone the moment
-        // ``quickCreateKanbanRecord()`` resolves.
-        //
-        // The previous attempt to migrate this to ``useEffect``
-        // (commit 19fb5d01bb81) was reverted because the deferred
-        // timing breaks 3 sample-data integration tests in
-        // ``kanban_view.test.js`` ("empty grouped kanban with sample
-        // data and click quick create" and siblings).  The setter is
-        // the canonical exception to Pattern 4: when downstream
-        // observers contractually require synchronous side-effect
-        // visibility, useEffect's queued semantics are wrong.
-        //
-        // STATE_MANAGEMENT.md §Pattern 4 documents this exception.
+        // Side-effecting setter (Pattern 4, STATE_MANAGEMENT.md): opening a
+        // quick-create while sample data is visible must clear the samples
+        // synchronously with the ``groupId`` mutation, or sample records
+        // still paint while the form mounts. A useEffect-based migration
+        // (commit 19fb5d01bb81) was reverted because the deferred timing
+        // broke 3 sample-data integration tests in kanban_view.test.js.
         const self = this;
         this.quickCreateState = reactive(
             /** @type {any} */ ({
@@ -267,9 +249,7 @@ export class KanbanController extends MultiRecordController {
         });
     }
 
-    // -------------------------------------------------------------------------
     // Getters
-    // -------------------------------------------------------------------------
 
     /**
      * Configuration object passed to the RelationalModel constructor.
@@ -379,9 +359,7 @@ export class KanbanController extends MultiRecordController {
         return this.isQuickCreateField(list.groupByField);
     }
 
-    // -------------------------------------------------------------------------
     // Methods
-    // -------------------------------------------------------------------------
 
     /** @returns {Object[]} Field definitions eligible for data export (excludes properties). */
     getExportableFields() {

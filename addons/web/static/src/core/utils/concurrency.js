@@ -156,12 +156,9 @@ export class Mutex {
 }
 
 /**
- * Race is a class designed to manage concurrency problems inspired by
- * Promise.race(), except that it is dynamic in the sense that promises can be
- * added anytime to a Race instance. When a promise is added, it returns another
- * promise which resolves as soon as a promise, among all added promises, is
- * resolved. The race is thus over. From that point, a new race will begin the
- * next time a promise will be added.
+ * Like Promise.race(), but dynamic: promises can be added to a Race at any
+ * time, and each add() returns a promise that resolves as soon as any promise
+ * in the race settles. Once settled, the next add() starts a new race.
  *
  * @template T
  */

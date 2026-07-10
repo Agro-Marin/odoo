@@ -17,7 +17,7 @@ import { x2ManyCommands } from "@web/model/relational_model/commands";
 /**
  * This widget is only used for the 'group_ids' field of the 'res.users'
  * form view or the 'implied_ids' field of the 'res.groups' form view,
- * in order to vizualize and configure access rights.
+ * in order to visualize and configure access rights.
  */
 const viewRegistry = registry.category("views");
 
@@ -105,7 +105,7 @@ class ResUserGroupIdsField extends Component {
             };
             booleanFieldToGroupId[privilege.groupFieldName] = privilege.groupId;
         }
-        this.fields = deepCopy(this._fields); // dynamically modifed before each rendering w.r.t. to current groups
+        this.fields = deepCopy(this._fields); // dynamically modified before each rendering w.r.t. current groups
 
         // Generate archInfo to provide to the FormRenderer
         const models = { main: { fields: this._fields } };
@@ -119,11 +119,10 @@ class ResUserGroupIdsField extends Component {
         const { ArchParser } = viewRegistry.get("form");
         this.archInfo = new ArchParser().parse(parseXML(arch), models, "main");
 
-        // Generate information to share through the env with "res_user_group_ids_privilege" widgets
-        //  - `booleanFieldToGroupId` maps generated boolean field names to their group id
-        //  - `privileges` is an object mapping all privilege ids to their description
-        //  - `groups` is an object mapping all group ids to their description, which is based on
-        //     the current selected groups
+        // Information shared via env with "res_user_group_ids_privilege" widgets:
+        //  - `booleanFieldToGroupId`: generated boolean field name -> group id
+        //  - `privileges`: privilege id -> description
+        //  - `groups`: group id -> description (computed from currently selected groups)
         this.info = {
             booleanFieldToGroupId,
             groups: {},
@@ -135,10 +134,10 @@ class ResUserGroupIdsField extends Component {
         onWillRender(() => {
             // Generate groups information based on current ids, i.e.
             //  - `id`, `name`, `privilege_id`, `comment` are kept as in the static definition
-            //  - `selected` is true iff the group is explicitely selected (!= implied)
-            //  - `impliedByIds` only contain *selected* group ids that imply the given group
+            //  - `selected` is true iff the group is explicitly selected (!= implied)
+            //  - `impliedByIds` only contains *selected* group ids that imply the given group
             //  - `disjointIds` is only set for *selected* or *implied* groups
-            //  - `implyIds` doesn't contain itself, because it's useless and easier later
+            //  - `implyIds` excludes itself (redundant, simplifies later use)
             const selectedIds = new Set(
                 this.props.record.data[this.props.name].currentIds,
             );
@@ -294,7 +293,7 @@ class ResUserGroupIdsField extends Component {
                     this.fields[fieldName].type === "selection" && gid,
             )
             .map(([_, gid]) => gid);
-        // Keep shadowed groups, except if an higher level group has been set, in which case they
+        // Keep shadowed groups, except if a higher level group has been set, in which case they
         // are not shadowed anymore
         const { groups, privileges } = this.info;
         const shadowedGroupIds = this.shadowedGroupIds.filter(

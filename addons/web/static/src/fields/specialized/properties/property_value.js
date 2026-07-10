@@ -37,18 +37,9 @@ import { PropertyTags } from "./property_tags.js";
 import { PropertyText } from "./property_text.js";
 
 /**
- * Represent one property value.
- * Supports many types and instantiates the appropriate component for it.
- * - Text
- * - Integer
- * - Boolean
- * - Selection
- * - Datetime & Date
- * - Many2one
- * - Many2many
- * - Monetary
- * - Tags
- * - ...
+ * Renders the appropriate editor for a property value based on its type
+ * (text, integer, boolean, selection, date(time), many2one, many2many,
+ * monetary, tags, ...).
  */
 export class PropertyValue extends Component {
     static template = "web.PropertyValue";
@@ -134,8 +125,7 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Return the value of the current property,
-     * that will be used by the sub-components.
+     * Value of the current property, shaped for the sub-components.
      *
      * @returns {object}
      */
@@ -306,15 +296,12 @@ export class PropertyValue extends Component {
         } else if (["many2one", "many2many"].includes(this.props.type)) {
             newValue = newValue[0];
             if (newValue && newValue.id && newValue.display_name === undefined) {
-                // The "Search more" option in the Many2XAutocomplete component
-                // only return the record ID, and not the name. But we need to name
-                // in the component props to be able to display it.
-                // Make a RPC call to resolve the display name of the record.
+                // "Search more" only returns the record ID, not the name —
+                // resolve the display name via RPC so it can be shown.
                 newValue = await this._nameGet(newValue.id);
             }
 
             if (this.props.type === "many2many" && newValue) {
-                // add the record in the current many2many list
                 const currentValue = this.props.value || [];
                 const recordId = newValue.id;
                 const exists = currentValue.find((rec) => rec[0] === recordId);

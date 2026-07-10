@@ -32,12 +32,10 @@ export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"]; // typ
 
 /**
  * Per-type server→client value deserializers, keyed by field type.
- *
- * This is the single source for "how a server value becomes a client value",
- * shared with the value codec (``@web/core/field_codec``): the codec's
- * ``deserialize`` reads this same registry, so model and UI can never diverge.
- * Each entry is ``(value, field) => clientValue``; types with no entry pass
- * the value through unchanged (see {@link parseServerValue}).
+ * Single source shared with the value codec (``@web/core/field_codec``), whose
+ * ``deserialize`` reads this same registry, so model and UI never diverge.
+ * Entry signature: ``(value, field) => clientValue``; types with no entry pass
+ * through unchanged (see {@link parseServerValue}).
  */
 const deserializers = registry.category("deserializers");
 deserializers
@@ -208,9 +206,8 @@ function getAggregatesFromGroupData(groupData, fields) {
 function getDisplayNameFromGroupData(field, rawValue) {
     switch (field.type) {
         case "selection": {
-            // A falsy raw value has no entry in the selection map; fall back to
-            // the falsy label like every other field type instead of returning
-            // ``undefined``.
+            // A falsy raw value has no selection-map entry; fall back to the
+            // falsy label like other field types instead of returning ``undefined``.
             return rawValue
                 ? Object.fromEntries(field.selection)[rawValue]
                 : field.falsy_value_label || _t("None");
@@ -280,14 +277,10 @@ function getValueFromGroupData(field, rawValue) {
 }
 
 /**
- * Onchanges sometimes return update commands for records we don't know (e.g. if
- * they are on a page we haven't loaded yet). We may actually never load them.
- * When this happens, we must still be able to send back those commands to the
- * server when saving. However, we can't send the commands exactly as we received
- * them, since the values they contain have been "unity read". The purpose of this
- * function is to transform field values from the unity format to the format
- * expected by the server for a write.
- * For instance, for a many2one: { id: 3, display_name: "Marc" } => 3.
+ * Onchanges may reference records we never loaded (e.g. a page not yet fetched);
+ * we still must resend their update commands on save, translated from "unity
+ * read" format to the server write format (e.g. many2one
+ * { id: 3, display_name: "Marc" } => 3).
  * @param {Record<string, unknown>} values
  * @param {Record<string, object>} fields
  * @param {Record<string, object>} activeFields
@@ -334,10 +327,10 @@ export function fromUnityToServerValues(
                             }),
                         ];
                     }
-                    // Strip server-enriched record data from LINK commands.
-                    // Onchange responses include cached data as the third element
-                    // (e.g. [4, id, {display_name: ...}]) to avoid extra reads,
-                    // but this must not be sent back on save.
+                    // Strip server-enriched record data from LINK commands: onchange
+                    // responses include cached data as element 3 (e.g.
+                    // [4, id, {display_name: ...}]) to avoid extra reads, but it
+                    // must not be sent back on save.
                     if (c[0] === LINK && c[2] && typeof c[2] === "object") {
                         return [LINK, c[1], false];
                     }

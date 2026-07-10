@@ -6,36 +6,14 @@
 /**
  * View-arch parsing for `<field>` nodes.
  *
- * Extracted from {@link Field} (the rendering component at
- * `@web/fields/field`) so the parser is grep-able as a stand-alone
- * concern: arch parsing is a view-layer responsibility, not a component
- * concern. The pre-extraction shape — a `static parseFieldNode` on the
- * rendering Component — coupled three orthogonal responsibilities
- * (XML→fieldInfo translation, registry lookups, render-time setup) on
- * one class.
+ * Extracted from {@link Field} (`@web/fields/field`) so arch parsing —
+ * a view-layer concern — isn't coupled to the rendering component's registry
+ * lookups and render-time setup.
  *
- * The function recursively dispatches to view-type ArchParsers
+ * Recursively dispatches to view-type ArchParsers
  * (`registry.category("views").get(viewType).ArchParser`) for x2many
- * sub-views; living under `@web/views/` makes that a same-layer
- * reference instead of a back-edge from fields → views.
- *
- * Callers (12 across the fork as of the extraction PR):
- *
- *   Core arch parsers (4):
- *     - views/form/form_arch_parser
- *     - views/list/list_arch_parser (2 callsites: direct + internal wrapper)
- *     - views/kanban/kanban_arch_parser
- *     - views/calendar/calendar_arch_parser
- *
- *   Other core consumers (3):
- *     - web_hierarchy/hierarchy_arch_parser
- *     - mail/activity/activity_arch_parser
- *
- *   Tests (1):
- *     - tests/views/calendar/calendar_test_helpers
- *
- *   Agromarin (1):
- *     - agromarin/geoengine/geoengine_arch_parser
+ * sub-views; living under `@web/views/` makes that a same-layer reference
+ * instead of a back-edge from fields → views.
  */
 
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -116,7 +94,6 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         } else if (name === "force_save") {
             fieldInfo.forceSave = exprToBoolean(value);
         } else if (name.startsWith("decoration-")) {
-            // prepare field decorations
             fieldInfo.decorations[name.replace("decoration-", "")] = value;
         } else if (!name.startsWith("t-att")) {
             // all other (non dynamic) attributes

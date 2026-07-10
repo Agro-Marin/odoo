@@ -9,9 +9,7 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { makeDraggableHook as nativeMakeDraggableHook } from "./draggable_hook_builder.js";
 
 /**
- * Set of default `makeDraggableHook` setup hooks that makes use of Owl lifecycle
- * and reactivity hooks to properly set up, update and tear down the elements and
- * listeners added by the draggable hook builder.
+ * `makeDraggableHook` setup hooks wired to Owl's lifecycle and reactivity.
  *
  * @see {nativeMakeDraggableHook}
  * @type {typeof nativeMakeDraggableHook}

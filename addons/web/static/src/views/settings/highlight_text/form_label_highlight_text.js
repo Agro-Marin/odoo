@@ -8,11 +8,9 @@ import { upgradeBooleanField } from "@web/views/settings/fields/upgrade_boolean_
 
 import { HighlightText } from "./highlight_text.js";
 
-/** FormLabel variant with search-term highlighting and enterprise upgrade badge. */
 export class FormLabelHighlightText extends FormLabel {
     static template = "web.FormLabelHighlightText";
     static components = { HighlightText };
-    /** Set up highlighting and detect enterprise upgrade badge requirement. */
     setup() {
         super.setup();
         /** @type {boolean} */

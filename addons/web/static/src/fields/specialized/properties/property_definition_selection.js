@@ -66,15 +66,11 @@ export class PropertyDefinitionSelection extends Component {
         });
     }
 
-    /* --------------------------------------------------------
-     * Public methods / Getters
-     * -------------------------------------------------------- */
+    /* Public methods / Getters */
 
     /**
-     * Return the current available options.
-     *
-     * Make a deep copy to not change original object to be able to restore
-     * the old props if we discard the editing of the forma view.
+     * Current available options, deep-copied so we can restore the
+     * original props if form-view editing is discarded.
      *
      * @returns {array}
      */
@@ -96,13 +92,8 @@ export class PropertyDefinitionSelection extends Component {
         return options;
     }
 
-    /* --------------------------------------------------------
-     * Event handlers
-     * -------------------------------------------------------- */
+    /* Event handlers */
 
-    /**
-     * Add a new empty selection option.
-     */
     onOptionCreate(index) {
         this.state.newOption = {
             index: index,
@@ -147,12 +138,11 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Loose focus on an option, should cancel the newly
-     * created option if we didn't write on it.
+     * Lose focus on an option: cancel the newly created option if we
+     * didn't write anything in it.
      *
-     * The attribute `_ignoreBlur` can be set if we don't want to remove
-     * the option if it's empty (and it will re-gain the focus at the
-     * next `useEffect` call).
+     * `_ignoreBlur` can be set to keep an empty option alive across a blur
+     * (it regains focus on the next `useEffect`).
      *
      * @param {FocusEvent} event
      * @param {number} optionIndex
@@ -160,7 +150,7 @@ export class PropertyDefinitionSelection extends Component {
     onOptionBlur(event, optionIndex) {
         const target = /** @type {HTMLInputElement} */ (event.target);
         if (target.value && target.value.length) {
-            // losing the focus on an non-empty option should have no effect
+            // losing the focus on a non-empty option should have no effect
             return;
         } else if (this._ignoreBlur) {
             this._ignoreBlur = false;
@@ -248,7 +238,7 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Move an option after an other one.
+     * Move an option after another one.
      *
      * @param {string} movedOption - the option to move
      * @param {string} destinationOption - the target option
@@ -266,10 +256,9 @@ export class PropertyDefinitionSelection extends Component {
             (option) => option[0] === movedOption,
         );
         if (destinationOptionIndex < movedOptionIndex) {
-            // the first splice operation won't change the index (and we except it to decrease it)
-            // for example if we have [A, B, C], and we move C such that it becomes [A, C, B]
-            // destinationOption is A and the destination index is 0, but we need the index to be 1
-            // (if the destination is after the moved option, the first splice will fix it for us)
+            // Splicing out movedOption first shifts later indices down by one, so when the
+            // destination comes after the moved element we need +1 to land in the right spot
+            // (e.g. [A,B,C] -> move C after A => destinationIndex 0 becomes 1).
             destinationOptionIndex++;
         }
 
@@ -302,7 +291,7 @@ export class PropertyDefinitionSelection extends Component {
                 (option) => option[0] === this.state.newOption.name,
             );
             if (!options[newOptionIndex][1]?.length) {
-                // if there's an empty option, fix it's index in the state
+                // if there's an empty option, fix its index in the state
                 // and do not propagate it in the props
                 this.state.newOption = {
                     ...this.state.newOption,

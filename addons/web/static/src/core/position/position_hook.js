@@ -60,7 +60,6 @@ export function usePosition(refName, getTarget, options = {}) {
     const update = () => {
         const targetEl = getTarget();
         if (!ref.el || !targetEl?.isConnected || lock) {
-            // No compute needed
             return;
         }
         const repositionOptions = omit(options, "onPositioned");
@@ -68,7 +67,7 @@ export function usePosition(refName, getTarget, options = {}) {
             repositionOptions.position = lastPosition;
         }
         const solution = reposition(ref.el, targetEl, repositionOptions);
-        lastPosition = `${solution.direction}-${solution.variant}`; // memorize last position
+        lastPosition = `${solution.direction}-${solution.variant}`;
         options.onPositioned?.(ref.el, solution);
     };
 
@@ -95,7 +94,6 @@ export function usePosition(refName, getTarget, options = {}) {
 
     const throttledUpdate = useThrottleForAnimation(() => bus.trigger("update"));
     useEffect(() => {
-        // Reposition
         bus.trigger("update");
 
         if (isTopmost) {

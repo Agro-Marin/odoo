@@ -38,11 +38,9 @@ export class CalendarYearRenderer extends Component {
         this.months = Info.months();
         this.fcs = {};
         for (const month of this.months) {
-            // Pass a GETTER so v7 sees fresh options on every patch.  The
-            // year view's per-month options carry ``initialDate`` /
-            // ``events`` callbacks that depend on model state — capturing
-            // the object once would strand the calendars on the first-mount
-            // values when the user navigates between years.
+            // Pass a GETTER so v7 sees fresh options on every patch: the options
+            // carry model-dependent callbacks, so capturing them once would strand
+            // calendars on first-mount values when navigating between years.
             this.fcs[month] = useFullCalendar(`fullCalendar-${month}`, () =>
                 this.getOptionsForMonth(month),
             );
@@ -56,13 +54,9 @@ export class CalendarYearRenderer extends Component {
             this.updateSize();
         });
 
-        // v6's ``windowResize`` calendar option auto-fired the
-        // ``onWindowResize`` callback for each FC instance on a window
-        // resize event.  v7 dropped this option (it uses internal
-        // ResizeObserver only), so re-create the per-instance fan-out
-        // by listening directly on ``window`` and invoking the
-        // component method once per mini calendar.  Tests that patch
-        // ``onWindowResize`` count the expected 12 invocations.
+        // v7 dropped v6's ``windowResize`` option (ResizeObserver only); re-create
+        // the per-instance fan-out by listening on ``window`` directly and invoking
+        // once per mini calendar. Tests count the expected 12 invocations.
         useExternalListener(window, "resize", () => {
             for (let i = 0; i < this.months.length; i++) {
                 this.onWindowResize();
@@ -72,9 +66,8 @@ export class CalendarYearRenderer extends Component {
 
     get options() {
         return {
-            // v7 hashed the v6 ``fc-day-*`` state classes; re-inject the
-            // v6 names tests and CSS still target.  See
-            // ``dayCellClassNames`` for the per-state mapping.
+            // v7 hashed the v6 ``fc-day-*`` state classes; re-inject the v6 names
+            // tests and CSS still target (see ``dayCellClassNames``).
             class: "fc",
             viewClass: ({ view }) =>
                 view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
@@ -85,9 +78,8 @@ export class CalendarYearRenderer extends Component {
             dayHeaderClass: dayHeaderClassNames,
             // Year view uses ``display: "background"`` for events.
             backgroundEventClass: "fc-bg-event",
-            // v7 toolbar splits into ``toolbarSectionClass`` elements;
-            // re-inject v6's ``fc-toolbar-chunk`` so tests targeting the
-            // 12-month mini calendars' titles continue to work.
+            // v7 toolbar splits into ``toolbarSectionClass`` elements; re-inject
+            // v6's ``fc-toolbar-chunk`` so tests targeting mini-calendar titles work.
             toolbarClass: "fc-toolbar",
             toolbarSectionClass: "fc-toolbar-chunk",
             toolbarTitleClass: "fc-toolbar-title",
@@ -104,13 +96,11 @@ export class CalendarYearRenderer extends Component {
             editable: this.props.model.canEdit,
             dayMaxEventRows: this.props.model.eventLimit,
             eventDidMount: this.onEventDidMount,
-            // Year view exclusively uses ``display: "background"`` for
-            // events (see ``convertRecordToEvent``), and v7 routes those
-            // through ``backgroundEventDidMount`` instead of the regular
-            // ``eventDidMount``.  Without this wire-up, ``data-event-id``
-            // and the ``o_event*`` modifier classes never land on the
-            // background event elements and tests selecting by event id
-            // (``.fc-bg-event[data-event-id="N"]``) find 0 elements.
+            // Year view events use ``display: "background"`` (see
+            // ``convertRecordToEvent``), routed by v7 through
+            // ``backgroundEventDidMount`` instead of ``eventDidMount``. Without this,
+            // ``data-event-id``/``o_event*`` classes never land and id-based test
+            // selectors find 0 elements.
             backgroundEventDidMount: this.onEventDidMount,
             eventResizableFromStart: true,
             events: (_, successCb) => successCb(this.mapRecordsToEvents()),
@@ -136,10 +126,8 @@ export class CalendarYearRenderer extends Component {
             viewDidMount: this.viewDidMount,
             weekends: this.props.isWeekendVisible,
             fixedWeekCount: false,
-            // Same rationale as ``calendar_common_renderer``: re-inject the
-            // v6 ``fc-highlight`` class on date-range selection overlays so
-            // tests and CSS targeting ``.fc-highlight`` continue to work
-            // under FC v7.
+            // Same rationale as ``calendar_common_renderer``: re-inject v6's
+            // ``fc-highlight`` class so tests/CSS targeting it work under FC v7.
             highlightClass: "fc-highlight",
         };
     }
@@ -151,10 +139,9 @@ export class CalendarYearRenderer extends Component {
     }
 
     viewDidMount({ el, view, options }) {
-        // v7 dropped ``view.calendar.currentData.options`` — the same
-        // calendar options now arrive directly as the ``options`` field
-        // of the didMount payload (see ``fullcalendar.esm.js:5358``
-        // for the actual ``didMount({ ...renderProps, el })`` call).
+        // v7 dropped ``view.calendar.currentData.options``; the same options now
+        // arrive as the ``options`` field of the didMount payload
+        // (``fullcalendar.esm.js:5358``).
         if (!options) {
             return; // v6-shape fallback or unexpected payload
         }
@@ -164,10 +151,8 @@ export class CalendarYearRenderer extends Component {
         if (showWeek && weekColumn) {
             makeWeekColumn(/** @type {any} */ ({ el, weekText }));
         }
-        // Same scroller-class re-injection as
-        // ``CalendarCommonRenderer.viewDidMount``. Year view doesn't
-        // auto-scroll like timegrid, but downstream selectors and CSS
-        // still target ``.fc-scroller`` (see ``calendar_renderer.scss``).
+        // Same scroller-class re-injection as ``CalendarCommonRenderer.viewDidMount``:
+        // downstream CSS still targets ``.fc-scroller`` (see calendar_renderer.scss).
         // Hashes are resolved at runtime so they survive FC library bumps.
         const scrollerClass = fcInternalClassName("internalScroller");
         const liquidClass = fcInternalClassName("liquid");
@@ -191,10 +176,9 @@ export class CalendarYearRenderer extends Component {
         };
     }
     getDateWithMonth(month) {
-        // Strip the offset (see formatFcInitialDate): this value is the actual
-        // per-month anchor that getOptionsForMonth feeds to FC as initialDate,
-        // and an offset-bearing ISO lands on the previous day in fixed-offset
-        // /marker zones, shifting the whole mini month.
+        // Strip the offset (see formatFcInitialDate): this is the per-month anchor
+        // fed to FC as initialDate; an offset-bearing ISO would land on the previous
+        // day in fixed-offset/marker zones, shifting the whole mini month.
         return formatFcInitialDate(
             this.props.model.date.set({ month: this.months.indexOf(month) + 1 }),
         );
@@ -258,10 +242,9 @@ export class CalendarYearRenderer extends Component {
         }
     }
     /**
-     * v7 ``dayCellClass`` generator (year view).  Combines base v6
-     * day-cell hooks with ``o_calendar_disabled`` for unusual days.
-     * Declarative classes survive v7 re-renders, unlike imperative
-     * additions in ``dayCellDidMount``.
+     * v7 ``dayCellClass`` generator: combines base v6 day-cell hooks with
+     * ``o_calendar_disabled`` for unusual days. Declarative so classes survive
+     * v7 re-renders (unlike imperative additions in ``dayCellDidMount``).
      */
     dayCellClass(info) {
         const base = dayCellClassNames(info);
@@ -298,9 +281,8 @@ export class CalendarYearRenderer extends Component {
     }
     onDayCellDidMount(info) {
         const classes = this.getDayCellClassNames(info);
-        // v7's renderProps shape varies between cell contexts;
-        // ``info.el`` may be absent on some payloads.  Guard so a bad
-        // payload doesn't take down the mount.
+        // v7's renderProps shape varies between cell contexts; ``info.el`` may be
+        // absent on some payloads, so guard against a bad payload taking down the mount.
         if (classes.length && info.el) {
             info.el.classList.add(...classes);
         }

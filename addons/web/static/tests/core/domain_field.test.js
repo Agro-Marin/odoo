@@ -64,8 +64,7 @@ function replaceNotificationService() {
 }
 
 test("The domain editor should not crash the view when given a dynamic filter (allow_expressions=False)", async function () {
-    // dynamic filters (containing variables, such as uid, parent or today)
-    // are handled by the domain editor
+    // dynamic filters (variables like uid, parent, today) are handled by the domain editor
     Partner._records[0].foo = `[("int", "=", uid)]`;
 
     replaceNotificationService();
@@ -149,15 +148,11 @@ test("The domain editor should not crash the view when given a dynamic filter ( 
 
     await clearNotSupported();
 
-    // Change the date in the datepicker
     await contains(".o_datetime_input").click();
-    // Select a date in the datepicker
     await contains(getPickerCell("15")).click();
-    // Close the datepicker
     await contains(document.body).click();
     await contains(".o_form_button_cancel").click();
 
-    // Open the datepicker again
     expect(getCurrentValue()).toBe("context_today()");
 });
 
@@ -181,25 +176,20 @@ test("basic domain field usage is ok", async function () {
     // As the domain is empty, there should be a button to add a new rule
     expect(SELECTORS.addNewRule).toHaveCount(1);
 
-    // Clicking on the button should add the [["id", "=", "1"]] domain, so
-    // there should be a field selector in the DOM
+    // Clicking the button adds the [["id", "=", "1"]] domain, revealing a field selector.
     await addNewRule();
     expect(".o_model_field_selector").toHaveCount(1, {
         message: "there should be a field selector",
     });
 
-    // Focusing the field selector input should open the field selector
-    // popover
     await contains(".o_model_field_selector").click();
     expect(".o_model_field_selector_popover").toHaveCount(1);
     expect(".o_model_field_selector_popover_search input").toHaveCount(1);
 
-    // The popover should contain the list of partner.type fields and so
-    // there should be the "Color index" field
+    // partner.type's fields include "Color index"
     expect(".o_model_field_selector_popover_item_name:first").toHaveText("Color index");
 
-    // Clicking on this field should close the popover, then changing the
-    // associated value should reveal one matched record
+    // Selecting the field closes the popover; setting color=2 should match one record.
     await contains(".o_model_field_selector_popover_item_name").click();
 
     await editValue(2);
@@ -208,8 +198,7 @@ test("basic domain field usage is ok", async function () {
         message: "changing color value to 2 should reveal only one record",
     });
 
-    // Saving the form view should show a readonly domain containing the
-    // "color" field
+    // Saving should show a readonly domain containing the "color" field
     await contains(".o_form_button_save").click();
     expect(getCurrentPath()).toBe("Color index");
 });
@@ -264,20 +253,17 @@ test("domain field is correctly reset on every view change", async function () {
             </form>`,
     });
 
-    // As the domain = to [["id", "=", 1]] there should be a field
-    // selector to change this
+    // Domain is [["id", "=", 1]] so there should be a field selector to change it
     expect(".o_field_domain .o_model_field_selector").toHaveCount(1, {
         message: "there should be a field selector",
     });
 
-    // Focusing its input should open the field selector popover
     await contains(".o_model_field_selector").click();
     expect(".o_model_field_selector_popover").toHaveCount(1, {
         message: "field selector popover should be visible",
     });
 
-    // As the value of the "bar" field is "product", the field selector
-    // popover should contain the list of "product" fields
+    // "bar" is "product", so the popover should list "product" fields
     expect(".o_model_field_selector_popover_item").toHaveCount(7, {
         message: "field selector popover should contain only one non-default field",
     });
@@ -285,10 +271,8 @@ test("domain field is correctly reset on every view change", async function () {
         message: "field selector popover should contain 'Product Team' field",
     });
 
-    // Now change the value of the "bar" field to "partner.type"
     await contains(".o_field_widget[name='bar'] input").edit("partner.type");
 
-    // Refocusing the field selector input should open the popover again
     await contains(".o_model_field_selector").click();
     expect(".o_model_field_selector_popover").toHaveCount(1, {
         message: "field selector popover should be visible",
@@ -393,15 +377,13 @@ test("basic domain field: show the selection", async function () {
         message: "selection should contain 2 records",
     });
 
-    // open the selection
     await contains(".o_domain_show_selection_button").click();
     expect(".modal .o_list_view .o_data_row").toHaveCount(2, {
         message: "should have open a list view with 2 records in a dialog",
     });
 
-    // click on a record -> should not open the record
-    // we don't actually check that it doesn't open the record because even
-    // if it tries to, it will crash as we don't define an arch in this test
+    // Clicking a record should not open it; not asserted directly, but if it
+    // tried to it would crash since this test defines no arch.
     await contains(
         ".modal .o_list_view .o_data_row .o_data_cell[data-tooltip='gold']",
     ).click();
@@ -584,7 +566,6 @@ test("domain field: reload count by clicking on the refresh button", async funct
     // the count should not be re-computed when editing with the textarea
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
 
-    // click on the refresh button
     await contains(".o_refresh_count").click();
     expect(".o_domain_show_selection_button").toHaveText("1 record(s)");
     expect.verifySteps([[["id", "<", 40]]]);
@@ -843,7 +824,6 @@ test("domain field: edit through selector (dynamic content)", async function () 
     expect.verifySteps(["search_count"]);
     expect(SELECTORS.debugArea).toHaveValue(rawDomain);
 
-    // Save
     await contains(".o_form_button_save").click();
     expect.verifySteps(["web_save", "search_count"]);
     expect(SELECTORS.debugArea).toHaveValue(rawDomain);
@@ -1082,26 +1062,20 @@ test("domain field can be foldable", async function () {
     // Unfold the domain
     await contains(".o_field_domain > div > div").click();
 
-    // There should be a button to add a new rule
     expect(SELECTORS.addNewRule).toHaveCount(1);
 
-    // Clicking on the button should add the [["id", "=", "1"]] domain, so
-    // there should be a field selector in the DOM
+    // Clicking the button adds the [["id", "=", "1"]] domain, revealing a field selector.
     await addNewRule();
     expect(".o_model_field_selector").toHaveCount(1);
 
-    // Focusing the field selector input should open the field selector
-    // popover
     await contains(".o_model_field_selector").click();
     expect(".o_model_field_selector_popover").toHaveCount(1);
     expect(".o_model_field_selector_popover_search input").toHaveCount(1);
 
-    // The popover should contain the list of partner.type fields and so
-    // there should be the "Color index" field
+    // partner.type's fields include "Color index"
     expect(".o_model_field_selector_popover_item_name:first").toHaveText("Color index");
 
-    // Clicking on this field should close the popover, then changing the
-    // associated value should reveal one matched record
+    // Selecting the field closes the popover; setting color=2 should match one record.
     await contains(".o_model_field_selector_popover_item_name").click();
 
     await editValue(2);
@@ -1110,8 +1084,7 @@ test("domain field can be foldable", async function () {
         message: "changing color value to 2 should reveal only one record",
     });
 
-    // Saving the form view should show a readonly domain containing the
-    // "color" field
+    // Saving should show a readonly domain containing the "color" field
     await contains(".o_form_button_save").click();
     expect(getCurrentPath()).toBe("Color index");
 
@@ -1153,7 +1126,6 @@ test("add condition in empty foldable domain", async function () {
     // As the domain is empty, the "Add condition" button should now be available
     expect(".o_domain_add_first_node_button").toHaveCount(1);
 
-    // Click on "Add condition"
     await contains(".o_domain_add_first_node_button").click();
     // Domain is now unfolded with the default condition
     expect(".o_model_field_selector").toHaveCount(1);

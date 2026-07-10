@@ -22,9 +22,7 @@ import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { save } from "@web/model/relational_model/record_save";
 
-// ---------------------------------------------------------------------------
 // Mock factory
-// ---------------------------------------------------------------------------
 
 /**
  * Builds the minimal record mock shape required by save().
@@ -108,9 +106,7 @@ function makeRecord({
     };
 }
 
-// ---------------------------------------------------------------------------
 // nextId on new record — throws immediately
-// ---------------------------------------------------------------------------
 
 describe("nextId on new record", () => {
     test("throws when nextId is supplied for a new (unsaved) record", async () => {
@@ -126,9 +122,7 @@ describe("nextId on new record", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Validity guard — returns false without calling webSave
-// ---------------------------------------------------------------------------
 
 describe("validity guard", () => {
     test("returns false when _checkValidity fails", async () => {
@@ -147,16 +141,14 @@ describe("validity guard", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // No-changes short-circuit — returns true without calling webSave
-// ---------------------------------------------------------------------------
 
 describe("no-changes short-circuit", () => {
     test("returns true and skips webSave when an existing record has no changes", async () => {
         let webSaveCalled = false;
         const rec = makeRecord({
             resId: 1,
-            changes: {}, // empty — no changes
+            changes: {},
             webSave: async () => {
                 webSaveCalled = true;
                 return [{ id: 1 }];
@@ -170,15 +162,13 @@ describe("no-changes short-circuit", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Creation path — webSave is called with empty ids array
-// ---------------------------------------------------------------------------
 
 describe("creation path", () => {
     test("calls webSave with [] ids for a new record and returns true", async () => {
         const savedIds = [];
         const rec = makeRecord({
-            resId: false, // new record
+            resId: false,
             resIds: [],
             changes: { name: "New Partner" },
             webSave: async (model, ids, vals) => {
@@ -193,9 +183,7 @@ describe("creation path", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Update path — webSave is called with [resId]
-// ---------------------------------------------------------------------------
 
 describe("update path", () => {
     test("calls webSave with [resId] for an existing record and returns true", async () => {
@@ -214,9 +202,7 @@ describe("update path", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // onError callback — called with error and action helpers
-// ---------------------------------------------------------------------------
 
 describe("onError callback", () => {
     test("calls onError with the thrown error and discard/retry helpers", async () => {
@@ -249,9 +235,7 @@ describe("onError callback", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // FetchRecordError — thrown when webSave returns empty with reload:true
-// ---------------------------------------------------------------------------
 
 describe("FetchRecordError on empty reload response", () => {
     test("throws FetchRecordError when webSave returns [] and reload is true", async () => {
@@ -261,7 +245,7 @@ describe("FetchRecordError on empty reload response", () => {
         const rec = makeRecord({
             resId: 1,
             changes: { name: "updated" },
-            webSave: async () => [], // empty response
+            webSave: async () => [],
         });
 
         let caughtError = null;
@@ -277,7 +261,6 @@ describe("FetchRecordError on empty reload response", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Urgent save (sendBeacon path) — must mirror the normal-save path's
 // field-scoped optimistic locking so the server can reject a genuine
 // concurrent edit even when the save was initiated by sendBeacon on tab
@@ -291,7 +274,6 @@ describe("FetchRecordError on empty reload response", () => {
 // (last_write_date). The latter was the pre-2026-06 design, replaced by
 // commits "field-scoped optimistic locking in web_save" and "exclude
 // jsonb-backed fields from web_save optimistic locking".
-// ---------------------------------------------------------------------------
 
 describe("urgent save (sendBeacon path)", () => {
     test("sends comparable changed fields as kwargs.known_values baseline", async () => {

@@ -106,7 +106,6 @@ test("many sublevels in app menu items", async () => {
 
 test.tags("desktop");
 test("data-menu-xmlid attribute on AppsMenu items", async () => {
-    // Replace all default menus and setting new one
     defineMenus([
         {
             id: 1,
@@ -120,7 +119,6 @@ test("data-menu-xmlid attribute on AppsMenu items", async () => {
     ]);
     await mountWithCleanup(NavBar);
 
-    // check apps
     await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
     expect(queryAllAttributes(".o-dropdown--menu a", "data-menu-xmlid")).toEqual(
         ["wowl", null],
@@ -130,17 +128,14 @@ test("data-menu-xmlid attribute on AppsMenu items", async () => {
         },
     );
 
-    // check menus
     getService("menu").setCurrentMenu(1);
     await animationFrame();
     expect(".o_menu_sections .dropdown-item[data-menu-xmlid=menu_3]").toHaveCount(1);
 
-    // check sub menus toggler
     expect(
         ".o_menu_sections button.dropdown-toggle[data-menu-xmlid=menu_4]",
     ).toHaveCount(1);
 
-    // check sub menus
     await contains(".o_menu_sections .dropdown-toggle").click();
     expect(".o-dropdown--menu .dropdown-item[data-menu-xmlid=menu_5]").toHaveCount(1);
 });
@@ -148,14 +143,12 @@ test("data-menu-xmlid attribute on AppsMenu items", async () => {
 test.tags("desktop");
 test("navbar can display current active app", async () => {
     await mountWithCleanup(NavBar);
-    // Open apps menu
     await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
     expect(".o-dropdown--menu .dropdown-item:not(.focus)").toHaveCount(1, {
         message:
             "should not show the current active app as the menus service has not loaded an app yet",
     });
 
-    // Activate an app
     getService("menu").setCurrentMenu(1);
     await animationFrame();
     expect(".o-dropdown--menu .dropdown-item.focus").toHaveCount(1, {
@@ -274,7 +267,6 @@ test("can adapt with 'more' menu sections behavior", async () => {
     const env = await makeMockEnv();
     Object.defineProperty(env, "isSmall", { get: () => false });
 
-    // Set menu and mount
     getService("menu").setCurrentMenu(1);
     await mountWithCleanup(MyNavbar);
 
@@ -283,7 +275,6 @@ test("can adapt with 'more' menu sections behavior", async () => {
     });
     expect(".o_menu_sections_more").toHaveCount(0);
 
-    // Force minimal width
     await resize({ width: 0 });
     await waitNavbarAdaptation();
 
@@ -291,7 +282,6 @@ test("can adapt with 'more' menu sections behavior", async () => {
         message: "no menu section should be displayed",
     });
 
-    // Reset to full width
     await resize({ width: 1366 });
     await waitNavbarAdaptation();
 
@@ -371,7 +361,6 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
             "during adapt, render not triggered as the navbar has no app sub menus",
     });
 
-    // Set menu
     getService("menu").setCurrentMenu(1);
     await animationFrame();
 
@@ -385,7 +374,6 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
             "during adapt, render triggered as the navbar does not have enough space for app sub menus",
     });
 
-    // Force small width
     await resize({ width: 240 });
     await waitNavbarAdaptation();
 
@@ -398,7 +386,6 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
             "during adapt, render not triggered as the more menu dropdown is STILL the same",
     });
 
-    // Reset to full width
     await resize({ width: 1366 });
     await waitNavbarAdaptation();
 
@@ -462,11 +449,9 @@ test("'more' menu sections properly updated on app change", async () => {
     const env = await makeMockEnv();
     Object.defineProperty(env, "isSmall", { get: () => false });
 
-    // Set menu and mount
     getService("menu").setCurrentMenu(1);
     await mountWithCleanup(NavBar);
 
-    // Force minimal width
     await resize({ width: 0 });
     await waitNavbarAdaptation();
     expect(".o_menu_sections > *:not(.d-none)").toHaveCount(1, {
@@ -476,7 +461,6 @@ test("'more' menu sections properly updated on app change", async () => {
         message: "the displayed menu section should be the 'more' menu",
     });
 
-    // Open the more menu
     await contains(".o_menu_sections_more .dropdown-toggle").click();
     expect(queryAllTexts(".dropdown-menu > *")).toEqual(
         [
@@ -489,14 +473,11 @@ test("'more' menu sections properly updated on app change", async () => {
         ],
         { message: "'more' menu should contain first app sections" },
     );
-    // Close the more menu
     await contains(".o_menu_sections_more .dropdown-toggle").click();
 
-    // Set App2 menu
     getService("menu").setCurrentMenu(2);
     await animationFrame();
 
-    // Open the more menu
     await contains(".o_menu_sections_more .dropdown-toggle").click();
     expect(queryAllTexts(".dropdown-menu > *")).toEqual(
         [
@@ -557,7 +538,6 @@ test("Do not execute adapt when navbar is destroyed", async () => {
 
     await makeMockEnv();
 
-    // Set menu and mount
     getService("menu").setCurrentMenu(1);
     const navbar = await mountWithCleanup(MyNavbar);
     expect.verifySteps(["adapt NavBar"]);

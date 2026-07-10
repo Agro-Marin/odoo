@@ -3,16 +3,7 @@
 
 /** @module @web/model/relational_model/static_list_utils - Sorting comparators, record duplication, and sort-direction cycling for StaticList */
 
-/**
- * Pure utility functions for StaticList.
- *
- * Sorting comparators, record data copying for duplication, and
- * sort-direction cycling — all stateless and independently testable.
- */
-
-// ---------------------------------------------------------------------------
 // Sorting
-// ---------------------------------------------------------------------------
 
 /**
  * Compare two field values for ordering purposes.
@@ -122,9 +113,7 @@ export function computeNextOrderBy(
     return orderBy;
 }
 
-// ---------------------------------------------------------------------------
 // Record copying
-// ---------------------------------------------------------------------------
 
 /**
  * Extract copyable data from a record for duplication.

@@ -51,7 +51,6 @@ export function getColor(key) {
         return colorMap.get(key);
     }
 
-    // check if the key is a css color
     if (typeof key === "string" && CSS_COLOR_REGEX.test(key)) {
         colorMap.set(key, key);
     } else if (typeof key === "number") {

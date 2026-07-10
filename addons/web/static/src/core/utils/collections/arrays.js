@@ -105,13 +105,8 @@ export function isIterable(value) {
 }
 
 /**
- * Returns an object holding different groups defined by a given criterion
- * or a default one. Each group is a subset of the original given list.
- * The given criterion can either be:
- * - a string: a property name on the list elements which value will be the
- * group name,
- * - a function: a handler that will return the group name from a given
- * element.
+ * Group elements of ``iterable`` by a criterion — a property name (string)
+ * or a function returning the group key — into a ``{ groupKey: T[] }`` map.
  *
  * @template T
  * @template {string | number | symbol} K
@@ -127,11 +122,8 @@ export function groupBy(iterable, criterion) {
 }
 
 /**
- * Return a shallow copy of a given array sorted by a given criterion or a default one.
- * The given criterion can either be:
- * - a string: a property name on the array elements returning the sortable primitive
- * - a function: a handler that will return the sortable primitive from a given element.
- * The default order is ascending ('asc'). It can be modified by setting the extra param 'order' to 'desc'.
+ * Shallow copy of ``iterable``, sorted by a criterion (property name or a
+ * key-extractor function), ascending by default.
  *
  * @template T
  * @template {string | number | symbol} K

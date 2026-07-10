@@ -35,10 +35,7 @@ function processValue(value) {
     return data;
 }
 
-/**
- * This widget is intended to be used on Text fields. It will provide Ace Editor
- * for display XML and Python profiling.
- */
+/** Text-field widget displaying QWeb XML/Python profiling data in an Ace editor. */
 export class ProfilingQwebView extends Component {
     static template = "web.ProfilingQwebView";
     static components = { MenuItem };
@@ -137,8 +134,7 @@ export class ProfilingQwebView extends Component {
     }
 
     /**
-     * Starts the ace library on the given DOM element. This initializes the
-     * ace editor in readonly mode.
+     * Starts the ace library on the given DOM element, in readonly mode.
      *
      * @private
      * @param {Node} node - the DOM element the ace library must initialize on
@@ -187,7 +183,6 @@ export class ProfilingQwebView extends Component {
             const parent = arch.at(-1);
             let xpath = parent.xpath;
             if (node.classList.contains("ace_end-tag-close")) {
-                // Close tag.
                 let previous = node;
                 while (
                     (previous = /** @type {any} */ (previous.previousElementSibling))
@@ -202,14 +197,12 @@ export class ProfilingQwebView extends Component {
                     arch.pop();
                 }
             } else if (node.classList.contains("ace_end-tag-open")) {
-                // Auto close tag.
                 const tag = node.nextElementSibling?.textContent;
                 if (parent.tag === tag) {
                     // can be different when scroll because ace does not display the previous lines.
                     arch.pop();
                 }
             } else if (node.classList.contains("ace_qweb")) {
-                // QWeb attribute.
                 const directive = node.textContent;
                 parent.directive.push({
                     el: node,
@@ -235,7 +228,6 @@ export class ProfilingQwebView extends Component {
                     this._renderHover(delay, query, node);
                 }
             } else if (node.classList.contains("ace_tag-open")) {
-                // Open tag.
                 const nodeTagName = node.nextElementSibling;
                 const aceLine = nodeTagName.parentNode;
                 const index = [...aceLine.parentNode.children].indexOf(

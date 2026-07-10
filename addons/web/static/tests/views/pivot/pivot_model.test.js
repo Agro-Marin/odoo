@@ -33,9 +33,7 @@ import {
     getGroupValues,
 } from "@web/views/pivot/pivot_value_utils";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Build a minimal group tree node.
@@ -55,9 +53,7 @@ function makeConfig(fields = {}, extraData = {}) {
     };
 }
 
-// ---------------------------------------------------------------------------
 // addGroup
-// ---------------------------------------------------------------------------
 
 describe("addGroup — tree mutation", () => {
     test("adds a first-level group to an empty tree", () => {
@@ -104,9 +100,7 @@ describe("addGroup — tree mutation", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // findGroup
-// ---------------------------------------------------------------------------
 
 describe("findGroup — tree lookup", () => {
     test("finds a first-level group by value", () => {
@@ -141,9 +135,7 @@ describe("findGroup — tree lookup", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getTreeHeight
-// ---------------------------------------------------------------------------
 
 describe("getTreeHeight — depth computation", () => {
     test("single root with no children has height 1", () => {
@@ -176,9 +168,7 @@ describe("getTreeHeight — depth computation", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getLeafCounts
-// ---------------------------------------------------------------------------
 
 describe("getLeafCounts — leaf node counting", () => {
     test("a node with no children has leaf count 1", () => {
@@ -215,9 +205,7 @@ describe("getLeafCounts — leaf node counting", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // hasData
-// ---------------------------------------------------------------------------
 
 describe("hasData — table non-emptiness", () => {
     test("returns true when the total cell count is positive", () => {
@@ -233,9 +221,7 @@ describe("hasData — table non-emptiness", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // pruneTree
-// ---------------------------------------------------------------------------
 
 describe("pruneTree — collapse to oldTree shape", () => {
     test("clears all children when oldTree is a leaf", () => {
@@ -284,9 +270,7 @@ describe("pruneTree — collapse to oldTree shape", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // sortTree
-// ---------------------------------------------------------------------------
 
 describe("sortTree — key ordering", () => {
     test("sets sortedKeys in ascending order", () => {
@@ -325,9 +309,7 @@ describe("sortTree — key ordering", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getGroupValues — value sanitization
-// ---------------------------------------------------------------------------
 
 describe("getGroupValues — value extraction", () => {
     const fields = {
@@ -366,9 +348,7 @@ describe("getGroupValues — value extraction", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getGroupBySpecs — deduplication and normalization
-// ---------------------------------------------------------------------------
 
 describe("getGroupBySpecs — spec building", () => {
     const fields = {
@@ -402,9 +382,7 @@ describe("getGroupBySpecs — spec building", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getGroupDomain — domain lookup from data
-// ---------------------------------------------------------------------------
 
 describe("getGroupDomain — domain retrieval", () => {
     test("returns the domain for a given row/col group pair", () => {
@@ -427,9 +405,7 @@ describe("getGroupDomain — domain retrieval", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getMeasureSpecs — measure spec building
-// ---------------------------------------------------------------------------
 
 describe("getMeasureSpecs — aggregator normalization", () => {
     test("__count passes through unchanged", () => {
@@ -485,9 +461,7 @@ describe("getMeasureSpecs — aggregator normalization", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // computeExportedTableWidth — Excel export column count
-// ---------------------------------------------------------------------------
 
 describe("computeExportedTableWidth — exported column count", () => {
     // The XLSX controller writes 1 title column, then measureCount value
@@ -522,9 +496,7 @@ describe("computeExportedTableWidth — exported column count", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // PivotModel.getTableWidth — export guard width from the column group tree
-// ---------------------------------------------------------------------------
 
 describe("PivotModel.getTableWidth — export guard width", () => {
     /**

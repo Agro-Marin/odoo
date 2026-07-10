@@ -165,11 +165,9 @@ export class ListRenderer extends Component {
 
     setup() {
         useRenderCounter("list.ListRenderer");
-        // Stable reference to the component instance itself: template
-        // expressions run against a per-render sub-context object
-        // (``Object.create(component)``), so ``this`` inside methods called
-        // from the template is NOT identity-stable across renders. Row
-        // skipping requires the ``renderer`` prop to be stable.
+        // Stable reference: template expressions run against a per-render
+        // sub-context, so ``this`` isn't identity-stable across renders —
+        // row skipping requires the ``renderer`` prop to stay stable.
         this._rendererInstance = this;
         this.actionService = useService("action");
         this.uiService = useService("ui");
@@ -199,13 +197,10 @@ export class ListRenderer extends Component {
         });
 
         /**
-         * When resizing columns, it's possible that the pointer is not above the resize
-         * handle (by some few pixel difference). During this scenario, click event
-         * will be triggered on the column title which will reorder the column.
-         * Column resize that triggers a reorder is not a good UX and we prevent this
-         * using the following state variables: `resizing` and `preventReorder` which
-         * are set during the column's click (onClickSortColumn), pointerup
-         * (onColumnTitleMouseUp) and onStartResize events.
+         * If the pointer is a few pixels off the resize handle, a click can
+         * fire on the column title and reorder it right after a resize — bad
+         * UX we prevent via `resizing`/`preventReorder`, set in
+         * onClickSortColumn, onColumnTitleMouseUp, and onStartResize.
          */
         this.preventReorder = false;
 
@@ -277,9 +272,8 @@ export class ListRenderer extends Component {
             getProps: () => this.props,
             getOptionalActiveFields: () => this.optionalActiveFields,
         });
-        // User-Timing instrumentation is dev-only: in production these marks
-        // would run on every render and accumulate unbounded entries in the
-        // performance buffer (which nothing ever clears).
+        // User-Timing instrumentation is dev-only — in production these
+        // marks would run every render and accumulate unbounded (nothing ever clears them).
         const mark = odoo.debug ? (name) => performance.mark(name) : () => {};
         const measure = odoo.debug
             ? (name, start) => performance.measure(name, start)
@@ -304,10 +298,9 @@ export class ListRenderer extends Component {
             this.debugOpenView = this.opt.debugOpenView;
 
             mark("list:getActiveColumns:start");
-            // Keep the columns array identity-stable across renders when its
-            // content is unchanged: it is passed to each ListRecordRow as a
-            // prop, and referential stability is what lets OWL skip unchanged
-            // rows on renderer re-renders.
+            // Keep the columns array identity-stable when unchanged: it's
+            // passed to each ListRecordRow as a prop, and referential
+            // stability is what lets OWL skip unchanged rows on re-render.
             this.columns = this._toStableColumns(this.getActiveColumns());
             measure("list:getActiveColumns", "list:getActiveColumns:start");
 
@@ -336,13 +329,11 @@ export class ListRenderer extends Component {
         this.resequencePromise = Promise.resolve();
         useSortable({
             enable: () => this.canResequenceRows,
-            // Params
             ref: this.rootRef,
             elements: ".o_row_draggable",
             handle: ".o_handle_cell",
             cursor: "grabbing",
             placeholderClasses: ["d-table-row"],
-            // Hooks
             onDragStart: (params) => {
                 const { element } = params;
                 dataRowId = element.dataset.id;
@@ -509,27 +500,21 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Row component class used by the rows template. Derived per renderer
-     * class so sub-component resolution inside the row body goes through this
-     * renderer's ``static components`` (as the historical ``t-call`` did).
+     * Row component class for the rows template, derived per renderer class
+     * so sub-component resolution uses this renderer's ``static components``
+     * (as the historical ``t-call`` did).
      */
     get rowComponent() {
         return getRowComponentClass(/** @type {any} */ (this.constructor));
     }
 
     /**
-     * Props for one ``ListRecordRow``.
-     *
-     * Every value must be referentially stable across renders for unchanged
-     * rows — that is what lets OWL skip them. The renderer's own props are
-     * spread in so ``props.X`` expressions in record-row templates (including
-     * subclass extensions: ``props.readonly``, ``props.subsections``,
-     * ``props.archInfo``…) keep resolving inside the row component.
-     *
-     * Scalar keys (``editedRecord``, ``canResequence``, ``canSelectRecord``,
-     * ``hasSelectors``, ``rowIndex``…) are computed here — with virtual
-     * dispatch through subclass getters — and double as invalidation
-     * channels: when one changes, the affected rows re-render.
+     * Props for one ``ListRecordRow``. Every value must be referentially
+     * stable across renders for unchanged rows (what lets OWL skip them).
+     * The renderer's props are spread in so template ``props.X`` expressions
+     * (including subclass ones) keep resolving; the scalar keys below are
+     * computed per render and double as invalidation channels for affected
+     * rows.
      *
      * @param {RelationalRecord} record
      * @param {Group | undefined} group
@@ -577,11 +562,10 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Called by ``ListRecordRow`` at the start of each row render. When a row
-     * re-renders WITHOUT a full renderer render (its own record changed), the
-     * per-render ``_readonlyCache`` may hold stale entries for that record —
-     * drop them so the styling helpers recompute. The first row render after
-     * a full renderer render is skipped (the cache was just recreated empty).
+     * Called by ``ListRecordRow`` at the start of each row render, to evict
+     * stale ``_readonlyCache`` entries when a row re-renders without a full
+     * renderer render. Skipped on the first row render after a full render,
+     * since the cache was just recreated empty.
      *
      * @param {string} recordId
      */
@@ -747,7 +731,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     *
      * @param {RelationalRecord} _record
      */
     getColumns(_record) {
@@ -976,11 +959,9 @@ export class ListRenderer extends Component {
         }
 
         if (futureRecord) {
-            // The validate-save below may reload/resort the record set (an
-            // onchange-triggered x2many reload, onRecordSaved hooks): re-
-            // resolve the target by id afterwards instead of entering edition
-            // on a detached datapoint (same staleness handling as
-            // onCellClicked's post-resequence lookup).
+            // Saving below may reload/resort the record set, so re-resolve
+            // the target by id afterward instead of editing a detached
+            // datapoint (same pattern as onCellClicked's post-resequence lookup).
             const futureRecordId = futureRecord.id;
             list.leaveEditMode({ validate: true }).then((canProceed) => {
                 if (canProceed) {
@@ -1108,14 +1089,12 @@ export class ListRenderer extends Component {
             /** @type {HTMLElement} */ (this.tableRef.el).contains(target) &&
             target.closest(".o_data_row")
         ) {
-            // ignore clicks inside the table that are originating from a record row
-            // as they are handled directly by the renderer.
+            // Clicks originating from a record row are handled by the renderer.
             return;
         }
         if (this.activeElement !== this.uiService.activeElement) {
             return;
         }
-        // DateTime picker
         if (target.closest(".o_datetime_picker")) {
             return;
         }
@@ -1134,10 +1113,9 @@ export class ListRenderer extends Component {
      * @param {Column} column
      */
     makeTooltip(column) {
-        // Memoized per column id: the tooltip info only depends on the arch,
-        // the field definition and the debug flag — all stable for the
-        // renderer's lifetime except the debug flag (invalidates the cache)
-        // and property columns, whose definitions can change at runtime.
+        // Memoized per column id: tooltip info is stable for the renderer's
+        // lifetime except for the debug flag (invalidates the cache) and
+        // property columns, whose definitions can change at runtime.
         if (this.tooltipInfoDebug !== this.isDebugMode) {
             this.tooltipInfoDebug = this.isDebugMode;
             this.tooltipInfoByColumn = {};
@@ -1149,10 +1127,9 @@ export class ListRenderer extends Component {
             viewMode: "list",
             resModel: this.props.list.resModel,
             field: this.fields[column.name],
-            // ``Column`` carries a ``widget`` (via ``optionalFields`` parsing)
-            // plus list-specific layout fields not declared on
-            // ``FieldInfo``. The downstream tooltip only reads the
-            // ``FieldInfo``-shaped subset.
+            // ``Column`` carries a ``widget`` plus list-specific layout
+            // fields not declared on ``FieldInfo``; the tooltip only reads
+            // the ``FieldInfo``-shaped subset.
             fieldInfo: /** @type {any} */ (column),
         });
         this.tooltipInfoByColumn[column.id] = tooltipInfo;
@@ -1203,27 +1180,18 @@ export class ListRenderer extends Component {
     }
 }
 
-// Apply the cohort mixins.  Methods land on ``ListRenderer.prototype``
-// so subclasses' ``super.<method>(...)`` continue to resolve to the
-// canonical implementations.  See each module for rationale.
+// Apply the cohort mixins onto ``ListRenderer.prototype`` so subclasses'
+// ``super.<method>(...)`` keeps resolving to the canonical implementations
+// (see each mixin module for its own rationale).
 //
-// Two subtleties of the install path:
-//
-//   - ``Object.assign`` would invoke each getter on the source object
-//     at install time (where ``this.props`` is undefined) and copy the
-//     resulting value, not the getter itself.  Descriptor copying via
-//     ``Object.getOwnPropertyDescriptors`` preserves getters/setters as
-//     descriptors so the resolution happens at access time on the
-//     real instance.
-//
-//   - Object-literal property descriptors are ``enumerable: true`` by
-//     default, but class methods/getters are ``enumerable: false``.
-//     The OWL renderer's reactivity-capture path iterates enumerable
-//     own properties; if our getters are enumerable, OWL tries to
-//     ``capture[k] = obj[k]`` for each one, which throws on getter-only
-//     properties.  Forcing ``enumerable: false`` per descriptor matches
-//     the original class-getter behavior so OWL doesn't see them in
-//     enumeration loops.
+// Descriptor copying (not ``Object.assign``) is required for two reasons:
+// ``Object.assign`` would invoke each getter at install time (where
+// ``this.props`` is undefined) and copy the resulting value rather than the
+// getter itself; and object-literal descriptors default to
+// ``enumerable: true`` while class getters are ``enumerable: false`` — OWL's
+// reactivity-capture path iterates enumerable own properties and would throw
+// reading a getter-only property during capture, so we force
+// ``enumerable: false`` to match class-getter semantics.
 function installListRendererMixin(mixin) {
     const descriptors = Object.getOwnPropertyDescriptors(mixin);
     for (const key of Object.keys(descriptors)) {

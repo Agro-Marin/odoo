@@ -77,12 +77,10 @@ export async function getCurrencyRates() {
                 }
             },
         },
-        // Cold-cache currency-rate fetch breaks monetary formatting
-        // across every screen, so survive a single transient blip
-        // (proxy hiccup, brief 503).  read() is idempotent; cache
-        // already accepts slight staleness.  Retry budget is small
-        // (1) so the user-perceived delay on persistent outage is
-        // capped at one backoff interval (~200ms).
+        // Survive one transient blip (proxy hiccup, brief 503): a cold-cache miss
+        // here breaks monetary formatting everywhere. read() is idempotent and the
+        // cache already tolerates staleness, so retry=1 caps the added delay at
+        // one backoff interval (~200ms) without masking a persistent outage.
         retry: 1,
     });
     Object.assign(rates, recordsToRates(records));

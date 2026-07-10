@@ -402,33 +402,25 @@ const mockServers = new WeakMap();
 const seenModels = new WeakSet();
 
 /**
- * Routing-infrastructure mock models: the minimal set the HTTP layer needs to
- * answer infrastructure routes (e.g. `/web/image/<model>/<id>/<field>` calls
- * `ir.http.binary_content`). Tests that don't define these but render
- * components which fetch images would hit
- * `Cannot find a definition for model "ir.http"` and cascade into
- * HootTimingError waiting for elements that never render.
+ * Routing-infrastructure mock models the HTTP layer needs for infra routes
+ * (e.g. `/web/image/...` → `ir.http.binary_content`); missing ones cascade
+ * into `Cannot find a definition for model "ir.http"` / HootTimingError.
  *
- * Only models with **no user-visible records** belong here. Adding things
- * like `res.users` or `res.partner` would leak record presence into tests
- * that assert against a known-empty registry (search-panel categories,
- * webclient menus, etc.) and silently change their semantics.
+ * Only models with **no user-visible records** belong here — e.g. adding
+ * `res.users` would leak record presence into tests asserting an empty registry.
  *
  * @type {ModelConstructor[]}
  */
 let _defaultMockModels = [];
 
 /**
- * Routing-infrastructure default route handlers. Same architectural role as
- * `_defaultMockModels` (see above) but for HTTP routes that every test
- * inherits. Use for cross-cutting routes that production code fires from
- * widely-mounted components (e.g. mail's ``/mail/data`` bootstrap from the
- * store_service), where every test would otherwise have to re-mock them.
+ * Default route handlers every test inherits (same role as
+ * `_defaultMockModels` but for HTTP routes) — for cross-cutting routes fired
+ * by widely-mounted components (e.g. mail's `/mail/data` bootstrap).
  *
- * Each entry is the argument list normally passed to ``onRpc(...)`` — i.e.
- * ``[routeOrMatcher, handler, options?]`` — and is folded into the params
- * snapshot in ``getCurrentParams`` so it's available before the first
- * ``before()`` callback fires.
+ * Each entry is the argument list passed to `onRpc(...)` —
+ * `[routeOrMatcher, handler, options?]` — folded into the params snapshot in
+ * `getCurrentParams` so it's available before the first `before()` fires.
  *
  * @type {any[][]}
  */
@@ -635,20 +627,10 @@ export class MockServer {
 
         registerDebugInfo("mock server", this);
 
-        // Add RPC cache.
-        //
-        // The RPCCache instance is per-test (recreated below), but its
-        // underlying IndexedDB is keyed by ``dbName=mockRpc`` and
-        // persists across tests in the same headless-browser session.
-        // Without explicit invalidation, ``web_search_read`` (and any
-        // other cached read) results from earlier tests bleed into
-        // later tests — bypassing ``onRpc`` mocks that return a
-        // ``Deferred()`` to control loading state, since the cache
-        // returns the stale value before the deferred ever fires.
-        // Tests like "click on New while list is loading" and "list
-        // views make their control panel available directly" depend on
-        // the cache being cold, so invalidate it on every test
-        // cleanup before the next test instantiates a fresh cache.
+        // RPC cache: IndexedDB (``dbName=mockRpc``) persists across tests in
+        // the same browser session, so stale reads would bleed into later
+        // tests and bypass ``onRpc`` mocks using ``Deferred()`` for loading
+        // state — invalidate it after each test so the next one starts cold.
         const rpcCache = new RPCCache("mockRpc", 1, "23aeb0ff5d46cfa8aa44163720d871ac");
         rpc.setCache(rpcCache);
         after(async () => {
@@ -943,13 +925,8 @@ export class MockServer {
             }
         }
 
-        // We have several scenarios at this point:
-        //
-        // - either the request is considered to be a JSON-RPC:
-        //  -> the response is formatted accordingly (i.e. { error, result })
-        //
-        // - in other cases:
-        //  -> the response is returned or thrown as-is.
+        // If the request is JSON-RPC, format the response as { error, result };
+        // otherwise return/throw it as-is.
         if (jsonRpcParams) {
             if (error) {
                 if (error instanceof RPCError) {
@@ -1076,18 +1053,11 @@ export class MockServer {
                 for (const fieldName in existingModel._fields) {
                     model._fields[fieldName] ??= existingModel._fields[fieldName];
                 }
-                // Chain the two registrations via the prototype graph so that
-                // methods defined on the earlier registration remain reachable
-                // from the later one.
-                //
-                // Guard against cycles.  ``Object.setPrototypeOf(X, Y)`` throws
-                // "Cyclic __proto__ value" when ``X`` is reachable from ``Y``
-                // (i.e. setting the prototype would close a loop).  We walk
-                // ``existingModel``'s prototype chain looking for
-                // ``modelProto``; if it's already there, the two objects are
-                // already linked (possibly from a previous configure pass that
-                // reused the same ``defineModel`` instance) and no new link
-                // is needed.
+                // Chain registrations via the prototype graph so methods on the
+                // earlier registration stay reachable from the later one. Guard
+                // against cycles: ``Object.setPrototypeOf`` throws "Cyclic
+                // __proto__ value" if the two are already linked (e.g. a
+                // previous configure pass reused the same class).
                 const modelProto = Object.getPrototypeOf(model);
                 let wouldCycle =
                     modelProto === existingModel || existingModel === model;
@@ -1173,21 +1143,13 @@ export class MockServer {
                         const computeName = computeFn;
                         computeFn = /** @type {any} */ (model)[computeName];
                         if (typeof computeFn !== "function") {
-                            // The compute field was defined on a different
-                            // test's model class and merged here via
-                            // ``_fields[x] ??= existingModel._fields[x]``.
-                            // The method lives on the other class's
-                            // prototype but may not be reachable from this
-                            // instance's prototype chain.  Rather than
-                            // throwing and aborting the entire test setup,
-                            // treat the field as non-computed — it will
-                            // behave like a plain stored field, which is
-                            // the expected fallback for unrelated tests
-                            // that don't exercise the compute.
-                            //
-                            // Emit a one-shot debug log per (model, field)
-                            // so cross-test field leakage remains visible
-                            // without spamming the console.
+                            // The compute may live on another test's model class,
+                            // merged in via ``_fields[x] ??= existingModel._fields[x]``,
+                            // and be unreachable from this instance's prototype
+                            // chain. Rather than aborting test setup, fall back to
+                            // a plain stored field and emit a one-shot debug log
+                            // per (model, field) so cross-test leakage stays
+                            // visible without spamming the console.
                             this._missingComputes ??= new Set();
                             const key = `${model._name}.${fieldName}:${computeName}`;
                             if (!this._missingComputes.has(key)) {
@@ -1660,26 +1622,20 @@ export function onRpc(...args) {
 }
 
 /**
- * Boilerplate steps fired automatically by shared infrastructure that
- * should NOT count toward a test's strict-step assertions. Two flavors:
+ * Steps fired automatically by shared infrastructure that should NOT count
+ * toward a test's strict-step assertions.
  *
- * - ``METHODS`` — ORM call_kw method names (matched from R_DATASET_ROUTE's
- *   captured ``<step>`` group). ``lazy_session_info`` is fired by
- *   ``profiling_service`` after WebClient mount in debug mode
- *   (fork-local; commit ``77e466310ab``).
+ * - ``METHODS``: ORM call_kw method names. ``lazy_session_info`` is fired by
+ *   ``profiling_service`` after WebClient mount in debug mode (fork-local;
+ *   commit ``77e466310ab``).
+ * - ``ROUTES``: full pathnames not matched by the dataset/webclient regexes.
+ *   ``/mail/data`` and ``/mail/action`` fire on every WebClient mount from
+ *   ``mail/store_service``; a default empty mock keeps them from erroring,
+ *   but ``stepAllNetworkCalls`` would still capture and pollute pre-existing
+ *   assertions.
  *
- * - ``ROUTES`` — full pathnames not matched by the dataset or webclient
- *   regexes. ``/mail/data`` and ``/mail/action`` are fired by
- *   ``mail/store_service`` on every WebClient mount; they used to error
- *   out as ``Unimplemented server route`` until ``web_test_helpers.js``
- *   registered a default empty mock — but ``stepAllNetworkCalls`` still
- *   captures the call and pollutes pre-existing assertions that predate
- *   the mail bootstrap.
- *
- * Updating every affected test individually would leak fork-/mail-
- * specific boilerplate into every assertion — keep the boilerplate hidden
- * at the tracker level instead. Tests that genuinely want to assert on
- * one of these can still register a more specific ``onRpc`` handler.
+ * Kept hidden at the tracker level rather than touching every affected
+ * test; register a more specific ``onRpc`` handler to assert on these.
  */
 const STEP_TRACKER_BOILERPLATE_METHODS = new Set(["lazy_session_info"]);
 const STEP_TRACKER_BOILERPLATE_ROUTES = new Set(["/mail/data", "/mail/action"]);

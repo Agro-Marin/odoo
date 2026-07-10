@@ -33,12 +33,10 @@ const SPECIAL_TYPES = [
 ];
 
 /**
- * Template compiler for kanban card and menu templates.
- *
- * Extends ViewCompiler with kanban-specific compilation rules: action buttons
- * (open, delete, set_cover, archive, url) are wired to `triggerAction()`,
- * fields without a widget render as plain `<span>` elements, images get
- * lazy-loading, and `t-call` directives resolve against compiled template refs.
+ * Template compiler for kanban card/menu templates: wires action buttons
+ * (open, delete, set_cover, archive, url) to `triggerAction()`, renders
+ * widget-less fields as `<span>`, lazy-loads images, and resolves `t-call`
+ * against compiled template refs.
  */
 export class KanbanCompiler extends ViewCompiler {
     setup() {
@@ -48,9 +46,7 @@ export class KanbanCompiler extends ViewCompiler {
         );
     }
 
-    //-----------------------------------------------------------------------------
     // Compilers
-    //-----------------------------------------------------------------------------
 
     /**
      * @override
@@ -124,11 +120,9 @@ export class KanbanCompiler extends ViewCompiler {
             compiled = super.compileField(el, params);
             const fieldId = el.getAttribute("field_id");
             compiled.setAttribute("id", `'${fieldId}_' + ${dataPointIdExpr}`);
-            // In x2many kanban, records can be edited in a dialog. The same record as the one of
-            // the kanban is used for the form view dialog, so its mode is switched to "edit", but
-            // we don't want to see it in edition in the background. For that reason, we force its
-            // fields to be readonly when the record is in edition, i.e. when it is opened in a form
-            // view dialog.
+            // x2many kanban records can be edited in a dialog using the same
+            // record; force fields readonly while it's in edition so the
+            // background kanban doesn't show it being edited.
             const readonlyAttr = compiled.getAttribute("readonly");
             if (readonlyAttr) {
                 compiled.setAttribute(

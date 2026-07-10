@@ -35,9 +35,8 @@ export class StaticList extends DataPoint {
         this._commands = [];
         this._initialCommands = [];
         /**
-         * Pending floating command-application work (see
-         * ``_trackCommandsPromise``). Null when no async ``_applyCommands``
-         * result is in flight.
+         * Pending ``_applyCommands`` result (see ``_trackCommandsPromise``);
+         * null when none is in flight.
          * @type {Promise<void> | null}
          */
         this._commandsPromise = null;
@@ -46,10 +45,8 @@ export class StaticList extends DataPoint {
         this._currentIds = [...this.resIds];
         this._needsReordering = false;
         this._tmpIncreaseLimit = 0;
-        // In kanban and non editable list views, x2many records can be opened in a form view in
-        // dialog, which may contain other fields than the kanban or list view. The next set keeps
-        // tracks of records we already opened in dialog and thus for which we already modified the
-        // config to add the form view's fields in activeFields.
+        // Records already opened in a form dialog (kanban / non-editable list),
+        // whose activeFields we've already extended with the dialog's fields.
         this._extendedRecords = new Set();
 
         /** @type {RelationalRecord[]} */
@@ -106,11 +103,9 @@ export class StaticList extends DataPoint {
     // -------------------------------------------------------------------------
 
     /**
-     * Adds a new record to an x2many relation. If params.record is given, adds
-     * given record (use case: after saving the form dialog in a, e.g., non
-     * editable x2many list). Otherwise, do an onchange to get the initial
-     * values and create a new Record (e.g. after clicking on Add a line in an
-     * editable x2many list).
+     * Adds a new record to an x2many relation: params.record if given (e.g.
+     * after saving a form dialog), otherwise a Record built via onchange
+     * (e.g. after "Add a line" in an editable list).
      *
      * @param {Object} params
      * @param {"top"|"bottom"} [params.position]
@@ -214,12 +209,10 @@ export class StaticList extends DataPoint {
     }
 
     /**
-     * This method is meant to be used in a very specific usecase: when an x2many record is viewed
-     * or edited through a form view dialog (e.g. x2many kanban or non editable list). In this case,
-     * the form typically contains different fields than the kanban or list, so we need to "extend"
-     * the fields and activeFields. If the record opened in a form view dialog already exists, we
-     * modify it's config to add the new fields. If it is a new record, we create it with the
-     * extended config.
+     * Used when an x2many record is viewed/edited through a form view dialog
+     * (e.g. x2many kanban or non-editable list), whose form typically has
+     * different fields than the kanban/list: "extend" fields and activeFields,
+     * patching an existing record's config or creating a new one with them.
      *
      * @param {Object} params
      * @param {Object} params.activeFields
@@ -255,13 +248,10 @@ export class StaticList extends DataPoint {
                     ...record.config,
                     ...params,
                     activeFields,
-                    // Keep the list's live, merged ``fields`` object (identity
-                    // === ``list.fields``). ``...params`` spreads in the caller's
-                    // ``params.fields`` snapshot, a DIFFERENT object that diverges
-                    // from ``list.fields`` as properties splice / applyCommands
-                    // mutate the two independently. ``this.fields`` was just
-                    // extended in place with ``params.fields`` above, so it is the
-                    // authoritative merged set.
+                    // Keep the list's live, merged ``fields`` object (identity ===
+                    // ``list.fields``), not the caller's ``params.fields`` snapshot,
+                    // which diverges from it over time as properties splice /
+                    // applyCommands mutate the two independently.
                     fields: this.fields,
                 };
 
@@ -273,16 +263,10 @@ export class StaticList extends DataPoint {
                     record._addSavePoint();
                     return record;
                 }
-                // case 1.2: the record is extended for the first time, and it now potentially has
-                // more fields than before (or x2many fields displayed differently)
-                // -> if it isn't a new record, load it to retrieve the values of new fields
-                // -> generate default values for new fields
-                // -> recursively update the config of the record and it's sub datapoints
-                // -> apply the loaded values in the case of a not new record
-                // -> store a savepoint
-                // These operations must be done in that specific order to ensure that the model is
-                // mutated only once (in a tick), and that datapoints have the correct config to
-                // handle field values they receive.
+                // case 1.2: extended for the first time, possibly with more fields.
+                // Load values for existing records, apply defaults, update config
+                // recursively, then save — in that order, so the model mutates once
+                // per tick and datapoints have the right config when receiving values.
                 let data = {};
                 if (!record.isNew) {
                     const evalContext = Object.assign(
@@ -325,8 +309,7 @@ export class StaticList extends DataPoint {
                 }
                 record._addSavePoint();
             } else {
-                // case 2: the record is a new record
-                // -> simply create one with the extended config
+                // case 2: new record — create it with the extended config
                 record = await this._createNewRecordDatapoint({
                     activeFields,
                     context: params.context,
@@ -436,10 +419,9 @@ export class StaticList extends DataPoint {
     }
 
     /**
-     * This method is meant to be called when a record, which has previously been extended to be
-     * displayed in a form view dialog (see @extendRecord) is saved. In this case, we may need to
-     * add this record to the list (if it is a new one), and to notify the parent record of the
-     * update. We may also want to sort the list.
+     * Called when a record previously extended for a form view dialog (see
+     * extendRecord) is saved: adds it to the list if new, notifies the parent,
+     * and re-sorts if needed.
      *
      * @param {RelationalRecord} record
      */
@@ -491,10 +473,9 @@ export class StaticList extends DataPoint {
     }
 
     /**
-     * Temporarily increase the page limit by ``n`` extra row slots, e.g. when
-     * records are added to an already full page. The cumulative increase is
-     * tracked in ``_tmpIncreaseLimit`` so ``_discard`` can restore the
-     * original limit.
+     * Temporarily increase the page limit by ``n`` extra row slots (e.g. when
+     * adding to an already-full page). Tracked in ``_tmpIncreaseLimit`` so
+     * ``_discard`` can restore the original limit.
      *
      * @param {number} n
      */
@@ -550,19 +531,10 @@ export class StaticList extends DataPoint {
         }
         await this._addRecord(newRecord);
         await resequence(this, newRecord.id, this.records[index].id);
-        // ``resequence`` writes the handle-field sequence value via
-        // ``record._update(...)``, which (per Invariant 1 in record.js)
-        // sets ``dirty=true`` and populates ``_changes[handleField]``.
-        // From the user's perspective the new row was just inserted —
-        // they have not yet typed anything in it, so the per-record
-        // dirty signal should read false.  We deliberately do NOT call
-        // ``_clearChanges()`` here: the handle-field entry must remain
-        // in ``_changes`` so it ships with the parent's CREATE command
-        // on save.  This is the canonical "internal-plumbing reset":
-        // ``dirty`` and ``_changes`` legitimately diverge because they
-        // mean different things in this flow (visual modified-state vs
-        // commit log).  Discard tears down both via ``_clearChanges()``
-        // in ``record._discard``, so no information is lost downstream.
+        // resequence() sets dirty=true and _changes[handleField] via
+        // record._update() (Invariant 1, record.js). The user hasn't touched
+        // this new row, so force dirty=false, but keep _changes[handleField]
+        // so it still ships with the parent's CREATE command on save.
         newRecord.dirty = false;
         return newRecord;
     }
@@ -583,20 +555,12 @@ export class StaticList extends DataPoint {
     }
 
     /**
-     * Track the possibly-async result of an ``_applyCommands`` call whose
-     * caller cannot await it (the call chains are synchronous:
-     * ``record._setData`` → ``parseServerValues`` → ``_applyCommands``).
-     *
-     * The result — a promise when command application had to fetch record
-     * values from the server — is chained onto ``this._commandsPromise`` so
-     * that flows needing a stable list state (``record_save.save``,
-     * ``_discard``'s cache prune) can sequence after it. Rejections are
-     * routed to the established error surface: logged with the list context,
-     * then re-thrown in a microtask so the error service's
-     * ``unhandledrejection`` handler reports them — the same surface an
-     * awaited ``model._loadRecords`` rejection escaping the model mutex
-     * reaches. The tracked chain itself always resolves, so sequenced
-     * follow-ups (prune, save barrier) still run after a failure.
+     * Track a floating ``_applyCommands`` result the caller can't await (the
+     * call chain is synchronous: ``record._setData`` → ``parseServerValues``
+     * → ``_applyCommands``). Chains onto ``_commandsPromise`` so flows needing
+     * stable list state (save, discard's cache prune) can sequence after it;
+     * rejections are logged and re-thrown in a microtask so the error service
+     * still surfaces them, without breaking the chain for later followers.
      *
      * @param {Promise<void> | undefined} result
      */
@@ -695,17 +659,12 @@ export class StaticList extends DataPoint {
             cachedRecord &&
             (cachedRecord.dirty || Object.keys(cachedRecord._changes).length)
         ) {
-            // A cached datapoint that carries pending ``_changes`` must NOT be
-            // replaced by a fresh one: replacing it drops those changes AND the
-            // ORM commands ``serializeCommands`` derives from them (e.g. an
-            // onchange-mandated sub-record UPDATE queued via deferred-command
-            // replay — the empty UPDATE would then be dropped and never reach the
-            // server). This path is hit by a restricted-field reload: ``sort()``
-            // reloads a record with only the orderBy fields as activeFields when
-            // that record's activeFields lack the sort column. Merge the
-            // freshly-loaded values into the existing datapoint instead —
-            // ``_applyValues`` assigns the new server values while preserving
-            // ``_changes`` (and the record's fuller activeFields).
+            // A cached datapoint with pending ``_changes`` must not be replaced:
+            // that would drop those changes and the ORM commands
+            // ``serializeCommands`` derives from them. Hit by ``sort()``'s
+            // restricted-field reload (only orderBy fields as activeFields).
+            // Merge the fresh values in instead — ``_applyValues`` preserves
+            // ``_changes`` and the record's fuller activeFields.
             cachedRecord._applyValues(data);
             return cachedRecord;
         }
@@ -810,14 +769,11 @@ export class StaticList extends DataPoint {
         if (!this._savePoint) {
             this._trackCommandsPromise(this._applyCommands(this._initialCommands));
             if (this._commandsPromise) {
-                // A floating commands load (the initial-commands one above,
-                // or an earlier one) is still mutating records/_cache:
-                // sequence the prune after it settles, otherwise it could
-                // evict entries the load is about to fill or that its
-                // deferred-commands replay re-references. The tracked
-                // promise never rejects (see _trackCommandsPromise), and
-                // the prune re-reads _currentIds at execution time, so
-                // running it late is safe.
+                // A floating commands load is still mutating records/_cache, so
+                // sequence the prune after it settles — otherwise it could evict
+                // entries the load is about to (re)fill. Safe: the tracked
+                // promise never rejects (see _trackCommandsPromise) and prune
+                // re-reads _currentIds at execution time.
                 this._commandsPromise.then(() => this._pruneCache());
             } else {
                 this._pruneCache();
@@ -974,33 +930,17 @@ export class StaticList extends DataPoint {
     }
 
     _updateContext(context) {
-        // This runs from the parent record's ``_setEvalContext`` for EVERY
-        // x2many field on EVERY committed parent edit. Recomputing the eval
-        // context of every cached sub-record is O(rows × fields) per keystroke
-        // and is wasted work when the field context did not actually change:
+        // Runs from the parent's ``_setEvalContext`` for EVERY x2many field on
+        // EVERY committed edit. Skipping when the field context is unchanged
+        // avoids an O(rows × fields) recompute per keystroke; safe because
+        // sub-records observe the parent LIVE via the ``parent`` getter
+        // (record.js), not through this recompute, and an unchanged recompute
+        // would produce identical values anyway (OWL drops the no-op render).
         //
-        //   - A sub-record's eval context derives from its OWN data (unchanged
-        //     here — its own edits trigger its own ``_setEvalContext``), the
-        //     list ``context`` (only relevant when it changes — guarded below),
-        //     and the parent record, which sub-records observe LIVE through the
-        //     ``parent`` getter on their eval context (record.js). Cross-record
-        //     modifiers (e.g. ``invisible="parent.state == 'done'"``) re-render
-        //     because the sub-record reads ``parent.evalContext`` during its own
-        //     render and the parent mutates that object in place — not because
-        //     of this recompute.
-        //   - When the field context is unchanged, a recompute produces
-        //     identical values, which OWL's same-value optimization drops with
-        //     no notification. So skipping it is behavior-preserving.
-        //
-        // Compare by VALUE, not reference: the base eval context always carries
-        // array-valued keys (e.g. ``allowed_company_ids``) that are freshly
-        // allocated on each ``getFieldContext`` call, so a strict ``!==`` would
-        // report a change every time and never skip. ``deepEqual`` over the
-        // handful of context keys is cheap (run once per x2many per edit, not
-        // per row).
-        // Compare over the UNION of old + new keys so a key that DISAPPEARED
-        // from the field context (not just changed value) is detected — iterating
-        // only the new keys missed removals.
+        // Compare by VALUE (``deepEqual``), not reference: ``getFieldContext()``
+        // always allocates fresh arrays (e.g. ``allowed_company_ids``), so
+        // ``!==`` would never skip. Compare over the UNION of old + new keys so
+        // a key that DISAPPEARED (not just changed) is still detected.
         let changed = false;
         const keys = new Set([...Object.keys(this.context), ...Object.keys(context)]);
         for (const key of keys) {

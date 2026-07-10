@@ -112,7 +112,6 @@ export class DynamicGroupList extends DynamicList {
     async moveRecord(dataRecordId, dataGroupId, refId, targetGroupId) {
         const targetGroup = this.groups.find((g) => g.id === targetGroupId);
         if (dataGroupId === targetGroupId) {
-            // move a record inside the same group
             await targetGroup.list._resequence(
                 targetGroup.list.records,
                 this.resModel,
@@ -122,7 +121,6 @@ export class DynamicGroupList extends DynamicList {
             return;
         }
 
-        // move record from a group to another group
         const sourceGroup = this.groups.find((g) => g.id === dataGroupId);
         const recordIndex = sourceGroup.list.records.findIndex(
             (r) => r.id === dataRecordId,
@@ -141,11 +139,9 @@ export class DynamicGroupList extends DynamicList {
 
         sourceGroup._removeRecords([record.id]);
         targetGroup._addRecord(record, refIndex + 1);
-        // step 2: update record value. The save is serialized on the model
-        // mutex by ``record.update`` itself (its own ``mutex.exec``), so two
-        // rapid drags queue their writes while the optimistic splices above
-        // stay synchronous — do NOT wrap the whole move in ``mutex.exec`` or
-        // the second drag's splice would be delayed behind the first save.
+        // step 2: update record value. record.update serializes the save on
+        // its own mutex — do NOT wrap this whole move in mutex.exec, or a
+        // second rapid drag's optimistic splice would queue behind the first.
         let value = targetGroup.value;
         if (targetGroup.groupByField.type === "many2one") {
             value = value
@@ -156,13 +152,9 @@ export class DynamicGroupList extends DynamicList {
         const revert = () => {
             targetGroup._removeRecords([record.id]);
             sourceGroup._addRecord(record, oldIndex);
-            // Move the datapoint back AND roll back the (unsaved) groupby-field
-            // change. Without the discard, the record kept the target column's
-            // value with dirty=true, so the reverted card rendered in its
-            // original column carrying the WRONG value. ``_discard`` restores
-            // the field and clears the dirty flag (called directly, mirroring
-            // record_save's onError discard — the ``record.update`` mutex has
-            // already been released here).
+            // Also discard the (unsaved) groupby-field change: otherwise the
+            // reverted card renders in its original column but keeps the
+            // target column's dirty value. Mirrors record_save's onError path.
             record._discard();
         };
         try {
@@ -256,16 +248,10 @@ export class DynamicGroupList extends DynamicList {
         }
         const lastGroup = this.groups.at(-1);
 
-        // Builds the same group-config shape as `postprocessReadGroup`
-        // (group_postprocessor.js) — NOT relational_model.js, which no longer
-        // carries this code after the model decomposition. The two are
-        // deliberately not merged: this path creates one *leaf* group from a
-        // user action (single-level groupBy, unconditional `initialLimit`, no
-        // nested `groups`/`extraDomain` handling), while postprocessReadGroup
-        // builds groups from a `web_read_group` response and must handle
-        // multi-level grouping, reload, and extra-domain AND-combination. A
-        // shared helper would have to re-introduce that nesting logic here for
-        // no real gain, so the small overlap is intentional duplication.
+        // Mirrors postprocessReadGroup's group-config shape; not merged since
+        // that path handles multi-level grouping from web_read_group responses
+        // while this creates one leaf group from a user action — the overlap
+        // is intentional duplication, not worth a shared helper.
         const commonConfig = {
             resModel: this.config.resModel,
             fields: this.config.fields,

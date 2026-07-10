@@ -17,9 +17,7 @@ import {
     patchActiveFields,
 } from "@web/model/relational_model/field_metadata";
 
-// ---------------------------------------------------------------------------
 // makeActiveField
-// ---------------------------------------------------------------------------
 
 describe("makeActiveField — defaults", () => {
     test("no args produces default field", () => {
@@ -70,9 +68,7 @@ describe("makeActiveField — optional fields", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // combineModifiers
-// ---------------------------------------------------------------------------
 
 describe("combineModifiers — AND", () => {
     test("False AND anything = False", () => {
@@ -136,9 +132,7 @@ describe("combineModifiers — invalid operator", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // patchActiveFields
-// ---------------------------------------------------------------------------
 
 describe("patchActiveFields", () => {
     test("invisible combines with AND", () => {
@@ -202,9 +196,7 @@ describe("patchActiveFields", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // createPropertyActiveField
-// ---------------------------------------------------------------------------
 
 describe("createPropertyActiveField", () => {
     test("creates basic active field for simple types", () => {
@@ -228,9 +220,7 @@ describe("createPropertyActiveField", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // addFieldDependencies
-// ---------------------------------------------------------------------------
 
 describe("addFieldDependencies", () => {
     test("adds new field to activeFields and fields", () => {

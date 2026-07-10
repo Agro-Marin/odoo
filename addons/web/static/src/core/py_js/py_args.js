@@ -6,11 +6,10 @@
 /**
  * Bind a call's positional (and trailing kwargs) arguments onto named keys.
  *
- * This is a pure runtime helper (no parser/AST dependency) used by the
- * interpreter and the ``PyDate``/``PyDateTime``/``PyTime``/``PyRelativeDelta``
- * constructors to resolve Python-style call signatures. It lives in its own
- * dependency-free module so those runtime value classes don't have to import
- * the parser (or ``py_utils``, which imports them back — a cycle).
+ * Pure runtime helper (no parser/AST dependency), used by the interpreter and
+ * the ``PyDate``/``PyDateTime``/``PyTime``/``PyRelativeDelta`` constructors.
+ * Kept dependency-free so those classes don't have to import the parser (or
+ * ``py_utils``, which imports them back — a cycle).
  *
  * @param {any[]} args
  * @param {string[]} spec

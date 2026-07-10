@@ -4,17 +4,10 @@
 /** @module @web/model/relational_model/record_lifecycle - Archive, unarchive, delete, and duplicate operations extracted from RelationalRecord */
 
 /**
- * Record lifecycle operations: archive/unarchive (via action_archive /
- * action_unarchive ORM methods), delete (unlink + resIds bookkeeping +
- * post-delete state reset), and duplicate (copy + resIds bookkeeping +
- * navigate to the new record in edit mode).
- *
- * All four helpers receive the RelationalRecord instance as the first
- * argument (delegation pattern). The mutex serialization contract
- * (Invariant I4) is preserved at the call site in record.js: every
- * class method that wraps these helpers calls them inside
- * ``this.model.mutex.exec(() => helper(this))``. The helpers themselves
- * assume they run under the mutex and do not re-enter it.
+ * Archive/unarchive, delete, and duplicate helpers, delegated the RelationalRecord
+ * instance as first argument. Callers must invoke them inside
+ * ``this.model.mutex.exec(() => helper(this))`` (Invariant I4) — the helpers
+ * assume the mutex and do not re-enter it.
  */
 
 import { markRaw } from "@odoo/owl";
@@ -23,20 +16,12 @@ import { modelLog } from "@web/core/utils/asset_log";
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Archive the record via the ``action_archive`` ORM method.
- *
- * The server may return an action descriptor (e.g. a confirmation
- * dialog asking the user to archive linked records); the
- * ``hooks.ui.onDisplayArchiveAction`` hook decides whether to display
- * it. The default hook bypasses the dialog and reloads the record.
- *
- * Must run under ``record.model.mutex`` (caller's responsibility — see
- * Invariant I4 in
- * ``workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md``).
+ * Archive via ``action_archive``. The server may return an action descriptor
+ * (e.g. a confirm dialog for linked records); ``hooks.ui.onDisplayArchiveAction``
+ * decides whether to show it — the default hook bypasses it and reloads.
  *
  * @param {RelationalRecord} record
- * @returns {Promise<any>} the result of the archive hook (typically a
- *  reload promise, but third-party hooks may return an action result)
+ * @returns {Promise<any>} archive hook result (usually a reload promise)
  */
 export async function archive(record) {
     modelLog("archive", record.resModel, record.resId);
@@ -81,24 +66,20 @@ async function toggleArchive(record, state) {
 /**
  * Unlink the record from the server and update the local resIds list.
  *
- * Behavior:
- * - If ``orm.unlink`` returns falsy (e.g. server-side veto), returns
- *   ``false`` without mutating local state.
- * - If the deleted record was not the last in ``resIds``, navigates to
- *   the next record (same index, or last if we were at the end).
- * - If it was the last, clears local state in place: resets ``_values``
- *   to defaults, clears ``_textValues`` and ``_changes``, rebuilds
- *   ``data``, and re-derives eval context. The record stays mounted
- *   with ``resId === false`` until the caller navigates away.
+ * - If ``orm.unlink`` returns falsy (server-side veto), returns ``false``
+ *   without mutating local state.
+ * - If the deleted record wasn't the last in ``resIds``, navigates to the
+ *   next record (same index, or last if we were at the end).
+ * - If it was the last, resets local state in place (``_values`` to
+ *   defaults, clears ``_textValues``/``_changes``, rebuilds ``data``,
+ *   re-derives eval context); record stays mounted with ``resId === false``
+ *   until the caller navigates away.
  *
- * Exported as ``deleteRecord`` because ``delete`` is a JavaScript
- * reserved word and cannot be used as a function name in ES modules.
- *
- * Must run under ``record.model.mutex`` (Invariant I4).
+ * Named ``deleteRecord`` since ``delete`` is a reserved word.
  *
  * @param {RelationalRecord} record
- * @returns {Promise<boolean | undefined>} ``false`` if unlink was vetoed,
- *  otherwise ``undefined`` after successful deletion + state reset / nav
+ * @returns {Promise<boolean | undefined>} ``false`` if vetoed, otherwise
+ *  ``undefined`` after deletion + state reset/nav
  */
 export async function deleteRecord(record) {
     modelLog("delete", record.resModel, record.resId);
@@ -130,21 +111,14 @@ export async function deleteRecord(record) {
 }
 
 /**
- * Duplicate the record via the ``copy`` ORM method and navigate to the
- * new record in edit mode.
+ * Duplicate the record via ``copy`` and navigate to the new record in edit mode.
  *
- * The new resId is inserted into ``resIds`` immediately after the
- * source record's position, so pager navigation from the duplicate
- * leads back to the original. The model's ``load`` triggers a full
- * reload of the duplicate so server-side ``copy`` overrides (e.g.
- * sequence regeneration, default fields) are visible.
+ * The new resId is inserted into ``resIds`` right after the source record's
+ * position, so pager navigation from the duplicate leads back to the original.
+ * ``load`` triggers a full reload so server-side ``copy`` overrides (e.g.
+ * sequence regeneration, defaults) are visible.
  *
- * Exported as ``duplicateRecord`` for symmetry with
- * {@link deleteRecord} (the verb collision rationale in the plan
- * applies primarily to ``delete``; ``duplicate`` follows the same
- * naming for import-site consistency).
- *
- * Must run under ``record.model.mutex`` (Invariant I4).
+ * Named ``duplicateRecord`` for naming consistency with {@link deleteRecord}.
  *
  * @param {RelationalRecord} record
  * @returns {Promise<void>}

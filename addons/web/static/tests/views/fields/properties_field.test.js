@@ -69,9 +69,7 @@ async function changeType(propertyType) {
     await animationFrame();
 }
 
-// -----------------------------------------
 // Separators tests utils
-// -----------------------------------------
 
 /**
  * @param {boolean[]} propertySpecs
@@ -285,9 +283,8 @@ class ResCurrency extends models.Model {
 defineModels([Partner, ResCompany, User, ResCurrency]);
 
 /**
- * If the current user can not write on the parent, he should not
- * be able to change the properties definition (but he should be able to
- * change the properties value).
+ * Without write access to the parent, the user can edit the properties
+ * values but not their definition.
  */
 test("properties: no access to parent", async () => {
     onRpc("has_access", () => false);
@@ -429,9 +426,6 @@ test("properties: access to parent", async () => {
     });
 });
 
-/**
- * Test the creation of a new property.
- */
 test("properties: add a new property", async () => {
     ResCompany._records[0].definitions.pop();
     ResCompany._records[0].definitions.pop();
@@ -630,9 +624,6 @@ test("properties: selection", async () => {
     expect(getOptionsValues()).toEqual(["New option", "", "C", "New option 2", "A"]);
 });
 
-/**
- * Test the float and the integer property.
- */
 test("properties: float and integer", async () => {
     onRpc("has_access", () => true);
 
@@ -703,9 +694,6 @@ test("properties: float and integer", async () => {
     await editValue("1,2,3,4,5,6.1,2,3", "0");
 });
 
-/**
- * Test the text property.
- */
 test("properties: text", async () => {
     onRpc("has_access", () => true);
 
@@ -751,9 +739,6 @@ test("properties: text", async () => {
     expect(".o_field_properties textarea").toHaveValue("text value");
 });
 
-/**
- * Test the properties re-arrangement
- */
 test.tags("desktop");
 test("properties: move properties", async () => {
     onRpc("has_access", () => true);
@@ -840,9 +825,6 @@ test("properties: move properties", async () => {
     );
 });
 
-/**
- * Test the properties tags
- */
 test("properties: tags", async () => {
     onRpc("has_access", () => true);
 
@@ -970,9 +952,6 @@ test("properties: tags", async () => {
     });
 });
 
-/**
- * Test the properties many2one
- */
 test.tags("desktop");
 test("properties: many2one", async () => {
     onRpc(({ method, model, args }) => {
@@ -1071,9 +1050,6 @@ test("properties: many2one", async () => {
     );
 });
 
-/**
- * Test the properties many2many
- */
 test.tags("desktop");
 test("properties: many2many", async () => {
     onRpc(({ method, model, args }) => {
@@ -1184,9 +1160,8 @@ test("properties: many2many", async () => {
 });
 
 /**
- * When the user creates a property field of type many2many, many2one, etc.
- * and changes the co-model of the field, the model loaded by the "Search more..."
- * modal should correspond to the selected model and should be updated dynamically.
+ * The model loaded by the "Search more..." modal must track the co-model
+ * selected for a many2one/many2many property, and update dynamically.
  */
 test.tags("desktop");
 test("properties: many2one 'Search more...' +  internal link save keeps data", async () => {
@@ -1382,10 +1357,8 @@ test("properties: date(time) property manipulations", async () => {
         resId: 5000,
         arch: /* xml */ `<form><field name="company_id"/><field name="properties"/></form>`,
     });
-    // ``has_group`` is now emitted by the properties field during mount
-    // to gate the "definition editor" affordance on a group membership
-    // check; other tests in this file already mock it (see line ~1836)
-    // but this one was written before the gate landed.
+    // has_group gates the definition-editor affordance; this test predates
+    // that check, unlike others in this file that already mock it.
     expect.verifySteps(["get_views", "web_read", "has_group"]);
 
     // check initial properties
@@ -1421,10 +1394,9 @@ test("properties: date(time) property manipulations", async () => {
 });
 
 /**
- * Changing the type or the model of a property must regenerate it's name.
- * (so if we change the type / model, all other property values on other records
- * are set to False).
- * Resetting the old model / type should reset the original name.
+ * Changing a property's type or model must regenerate its name (so other
+ * records' values for it are reset to False); reverting restores the
+ * original name.
  */
 test.tags("desktop");
 test("properties: name reset", async () => {
@@ -1573,9 +1545,6 @@ test("properties: name reset", async () => {
     );
 });
 
-/**
- * Check the behavior of the properties field in the kanban view.
- */
 test("properties: kanban view", async () => {
     await mountView({
         type: "kanban",
@@ -1819,9 +1788,6 @@ test("properties: kanban view without properties", async () => {
     expect(".o_kanban_record:eq(0)").toHaveText("Company 1\nfirst partner");
 });
 
-/**
- * Check that the properties are shown when switching view.
- */
 test.tags("desktop");
 test("properties: switch view on desktop", async () => {
     Partner._views[["kanban", 99]] = /* xml */ `<kanban>
@@ -2053,9 +2019,6 @@ test("properties: suffix", async () => {
     ).toHaveText("kg");
 });
 
-/**
- * check if property field popover closes when clicking on delete property icon.
- */
 test("properties: close property popover once clicked on delete icon", async () => {
     onRpc("has_access", () => true);
     await mountView({
@@ -2207,9 +2170,7 @@ test("properties: discard changes", async () => {
     expect(".o_property_field:first-child input").toHaveValue("char value");
 });
 
-// ---------------------------------------------------
 // Test the properties groups
-// ---------------------------------------------------
 
 test.tags("desktop");
 test("properties: separators layout", async () => {

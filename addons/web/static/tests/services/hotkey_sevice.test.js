@@ -51,10 +51,8 @@ test("should ignore when IME is composing", async () => {
 });
 
 test("hotkey handles wrongly formed KeyboardEvent", async () => {
-    // This test's aim is to assert that Chrome's autofill bug is handled.
-    // When filling a form with the autofill feature of Chrome, a keyboard event without any
-    // key set on it is triggered. This seems to be a bug on Chrome's side, since the spec
-    //doesn't mention that field may be unset. (https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key).
+    // Chrome's autofill can fire a KeyboardEvent with no `key` set, seemingly a Chrome bug
+    // since the spec doesn't say `key` may be unset (https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key).
     await makeMockEnv();
 
     const hotkey = getService("hotkey");
@@ -800,7 +798,6 @@ test("within iframes", async () => {
     await press("Enter");
     expect.verifySteps([]);
 
-    // Register the iframe to the hotkey service
     getService("hotkey").registerIframe(iframe);
     await press("Enter");
     expect.verifySteps(["called"]);
@@ -1064,10 +1061,8 @@ test("useHotkey can display an overlay over a DOM element ", async () => {
 });
 
 test("hotkey overlay badges respect the active element", async () => {
-    // A "behind" component registers a withOverlay hotkey, then a "front"
-    // component (its own UI active element, mimicking an open dialog) is mounted
-    // on top. The behind hotkey can no longer dispatch, so its overlay badge
-    // must not be shown while front is the active element.
+    // A "behind" component's withOverlay hotkey can no longer dispatch once a "front"
+    // component (mimicking an open dialog) becomes the UI active element, so its badge must hide.
     class Behind extends Component {
         static template = xml`<div><button class="behind-target">behind</button></div>`;
         static props = ["*"];

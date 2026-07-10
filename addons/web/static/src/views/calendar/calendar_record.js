@@ -5,10 +5,8 @@
 
 import { deserializeDate, deserializeDateTime } from "@web/core/l10n/dates";
 /**
- * Transform a raw ORM record into a normalized calendar event object.
- *
- * Handles date/datetime deserialization, all-day detection, duration
- * computation, color mapping, and showTime logic.
+ * Normalize a raw ORM record into a calendar event: date/datetime
+ * deserialization, all-day detection, duration, color, and showTime logic.
  *
  * @param {Record<string, any>} rawRecord - server record from ORM searchRead
  * @param {Object} options

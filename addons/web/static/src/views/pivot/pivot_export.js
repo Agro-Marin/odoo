@@ -62,7 +62,6 @@ export function formatPivotForExport(table, metaData) {
         headerRow.map(processHeader),
     );
 
-    // Process data rows
     const tableRows = table.rows.map((row) => ({
         title: row.title,
         indent: row.indent,

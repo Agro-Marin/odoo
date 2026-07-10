@@ -303,10 +303,7 @@ registerField(
     many2ManyTagsField,
 );
 
-/**
- * A specialization that allows to edit the color with the colorpicker.
- * Used in form view.
- */
+/** Specialization that allows editing the tag color via the colorpicker (form view). */
 export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
     static components = {
         ...super.components,

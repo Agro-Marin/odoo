@@ -150,9 +150,8 @@ describe("Sample data", () => {
         expect(selectionValues).toInclude(rec.type);
         // Relational fields
         expect(rec.currency.id).toBe(1);
-        // Currently we expect the currency name to be a latin string, which
-        // is not important; in most case we only need the ID. The following
-        // assertion can be removed if needed.
+        // The currency name being a latin string isn't important — we mostly
+        // need the ID. This assertion can be removed if needed.
         expect(SAMPLE_TEXTS).toInclude(rec.currency.display_name);
         expect(rec.manager_id.id).toBeOfType("number");
         expect(SAMPLE_PEOPLE).toInclude(rec.manager_id.display_name);
@@ -346,8 +345,8 @@ describe("RPC calls", () => {
             groupBy: ["name"],
             aggregates: ["age:max", "height:min"],
         });
-        // didn't crash, but we can't assert the aggregate values as they are non deterministic,
-        // and we don't really mind actually (max/min aren't even implemented, they behave as sum)
+        // Just checks it doesn't crash; the aggregate values are non-deterministic
+        // (max/min aren't even implemented — they behave as sum).
         expect(result.length).toEqual(5);
     });
 

@@ -9,9 +9,8 @@ import { RESULT_SET_REMOVING_METHODS } from "@web/services/result_set_cache_inva
 describe.current.tags("headless");
 
 /**
- * Fire a synthetic RPC:RESPONSE event matching the shape ``rpc.js``
- * dispatches in production, so the service runs end-to-end without a
- * real fetch.
+ * Fire a synthetic RPC:RESPONSE event matching the shape ``rpc.js`` dispatches,
+ * so the service runs end-to-end without a real fetch.
  *
  * @param {string} method
  * @param {string} [model]
@@ -25,11 +24,9 @@ function fireResponse(method, model = "res.partner") {
 }
 
 /**
- * Subscribe to CLEAR-CACHES emissions for the duration of one test.
- * Returns the captured detail payloads and a teardown that runs on test
- * cleanup automatically via the global hoot tear-down (subscription
- * lifetime ends when the test completes — rpcBus is a singleton, so we
- * remove the listener explicitly to keep tests isolated).
+ * Subscribe to CLEAR-CACHES emissions for one test. Returns the captured
+ * payloads and a stop() to unsubscribe — rpcBus is a singleton, so the
+ * listener must be removed explicitly to keep tests isolated.
  */
 function captureClearCaches() {
     /** @type {any[]} */

@@ -4,11 +4,10 @@
 /** @module @web/views/list/list_virtualization - Row virtualization hook rendering only visible rows plus buffer for large list views */
 
 /**
- * Row virtualization hook for the list view.
- *
- * Wraps `useVirtualGrid` and `ListGridState` to render only visible rows + buffer.
- * Activates automatically when flat row count exceeds threshold and drag-and-drop
- * is not active.  Below threshold, zero overhead — all rows render normally.
+ * Row virtualization hook for the list view. Wraps `useVirtualGrid` and
+ * `ListGridState` to render only visible rows + buffer. Activates
+ * automatically once flat row count exceeds threshold and drag-and-drop is
+ * not active; below threshold, zero overhead — all rows render normally.
  *
  * Usage in ListRenderer.setup():
  *
@@ -98,12 +97,10 @@ export function useListVirtualization({
         if (!el) {
             return;
         }
-        // Re-measure whenever a rendered row's height differs from the cached
-        // value, not just once: the density service (compact/comfortable) and
-        // browser zoom change row height at runtime, and a stale measurement
-        // desynced the spacer math and ensureRowVisible (keyboard nav scrolled
-        // to the wrong offset). One getBoundingClientRect on the first row per
-        // patch is negligible next to the virtualization's own layout reads.
+        // Re-measure on every patch, not just once: density (compact/comfortable)
+        // and browser zoom change row height at runtime, and a stale measurement
+        // desynced the spacer math and ensureRowVisible. Negligible cost next to
+        // the virtualization's own layout reads.
         const dataRow = el.querySelector(".o_data_row");
         if (dataRow) {
             const rowHeight =
@@ -153,8 +150,7 @@ export function useListVirtualization({
             }
             const targetTop = rowIndex > 0 ? cumHeights[rowIndex - 1] : 0;
             const containerHeight = rootRef.el.clientHeight;
-            // Center the target in the viewport
-            const scrollTo = Math.max(0, targetTop - containerHeight / 2);
+            const scrollTo = Math.max(0, targetTop - containerHeight / 2); // center in viewport
             rootRef.el.scrollTop = scrollTo;
         },
 
@@ -167,7 +163,6 @@ export function useListVirtualization({
             const flatRows = gridState.flatRows;
             const rowCount = flatRows.length;
 
-            // Deactivate when below threshold or when drag-and-drop is active
             if (rowCount <= threshold || canResequence()) {
                 active = false;
                 visible = [];
@@ -178,7 +173,6 @@ export function useListVirtualization({
 
             active = true;
 
-            // Build heights array
             const rowH = measuredRowHeight || DEFAULT_ROW_HEIGHT;
             const groupH = measuredGroupRowHeight || DEFAULT_GROUP_ROW_HEIGHT;
             heights = new Array(rowCount);
@@ -186,7 +180,6 @@ export function useListVirtualization({
                 heights[i] = flatRows[i].type === "group" ? groupH : rowH;
             }
 
-            // Feed heights to the virtual grid engine
             virtualGrid.setRowsHeights(heights);
 
             const indexes = virtualGrid.rowsIndexes;
@@ -201,7 +194,7 @@ export function useListVirtualization({
 
             let [start, end] = indexes;
 
-            // Ensure the edited record is within the visible range
+            // Keep the edited record within the visible range
             const editedRecord = getEditedRecord();
             if (editedRecord) {
                 const editedRow = gridState.findRowByRecordId(String(editedRecord.id));
@@ -216,13 +209,12 @@ export function useListVirtualization({
                 }
             }
 
-            // Clamp
             start = Math.max(0, start);
             end = Math.min(rowCount - 1, end);
 
             visible = flatRows.slice(start, end + 1);
 
-            // Compute cumulative heights for spacer sizing and ensureRowVisible
+            // Cumulative heights, used for spacer sizing and ensureRowVisible
             cumHeights = new Array(rowCount);
             let acc = 0;
             for (let i = 0; i < rowCount; i++) {

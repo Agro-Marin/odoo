@@ -8,9 +8,7 @@ import { useService } from "@web/core/utils/hooks";
 /** @import { CommandOptions } from "./command_service.js" */
 
 /**
- * This hook will subscribe/unsubscribe the given subscription
- * when the caller component will mount/unmount.
- *
+ * Subscribes on mount, unsubscribes on unmount.
  * @param {string} name
  * @param {()=>(void | import("@web/services/commands/command_palette").CommandPaletteConfig)} action
  * @param {CommandOptions} [options]

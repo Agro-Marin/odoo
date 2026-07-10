@@ -5,7 +5,6 @@
 
 import { Component } from "@odoo/owl";
 
-/** Dropdown item that lets the user pick a field to group by. */
 export class CustomGroupByItem extends Component {
     static template = "web.CustomGroupByItem";
     static props = {

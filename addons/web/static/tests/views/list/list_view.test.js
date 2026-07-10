@@ -10097,10 +10097,7 @@ test(`pressing SHIFT-TAB in editable list with several fields`, async () => {
 
 test.tags("desktop");
 test(`navigation with tab and readonly field (no modification)`, async () => {
-    // This test makes sure that if we have 2 cells in a row, the first in
-    // edit mode, and the second one readonly, then if we press TAB when the
-    // focus is on the first, then the focus skip the readonly cells and
-    // directly goes to the next line instead.
+    // Tab from an editable cell should skip a readonly cell and go to the next line.
     await mountView({
         resModel: "foo",
         type: "list",
@@ -10135,10 +10132,7 @@ test(`navigation with tab and readonly field (no modification)`, async () => {
 
 test.tags("desktop");
 test(`navigation with tab and readonly field (with modification)`, async () => {
-    // This test makes sure that if we have 2 cells in a row, the first in
-    // edit mode, and the second one readonly, then if we press TAB when the
-    // focus is on the first, then the focus skips the readonly cells and
-    // directly goes to the next line instead.
+    // Tab from an editable cell should skip a readonly cell and go to the next line.
     await mountView({
         resModel: "foo",
         type: "list",
@@ -10251,10 +10245,7 @@ test(`navigation with tab on a one2many list with create="0"`, async () => {
 
 test.tags("desktop");
 test(`edition, then navigation with tab (with a readonly field)`, async () => {
-    // This test makes sure that if we have 2 cells in a row, the first in
-    // edit mode, and the second one readonly, then if we edit and press TAB,
-    // (before debounce), the save operation is properly done (before
-    // selecting the next row)
+    // Editing then pressing TAB (before debounce) must save before selecting the next row.
     stepAllNetworkCalls();
 
     await mountView({
@@ -10287,10 +10278,8 @@ test(`edition, then navigation with tab (with a readonly field)`, async () => {
 });
 
 test(`edition, then navigation with tab (with a readonly field and onchange)`, async () => {
-    // This test makes sure that if we have a read-only cell in a row, in
-    // case the keyboard navigation move over it and there a unsaved changes
-    // (which will trigger an onchange), the focus of the next activable
-    // field will not crash
+    // Tab navigation over a readonly cell with unsaved changes (triggering an onchange)
+    // must not crash when focusing the next activable field.
     Bar._fields.o2m = fields.One2many({
         relation: "foo",
     });
@@ -13631,9 +13620,6 @@ test(`list with handle field, override default_get, bottom when inline`, async (
         "gnap",
     ]);
 
-    // click add a new line
-    // save the record
-    // check line is at the correct place
     await contains(`.o_list_button_add`).click();
     await contains(`[name=foo] input`).edit("ninja", { confirm: false });
     await contains(`.o_list_button_save`).click();
@@ -16384,10 +16370,8 @@ test(`Datetime in evaluation context works with datetime field`, async () => {
     mockDate("1997-01-09 12:00:00");
 
     /**
-     * Returns "1997-01-DD HH:MM:00" with D, H and M holding current UTC values
-     * from patched date + (deltaMinutes) minutes.
-     * This is done to allow testing from any timezone since UTC values are
-     * calculated with the offset of the current browser.
+     * Returns "1997-01-DD HH:MM:00" using current UTC values from patched date +
+     * deltaMinutes, so the test works regardless of the browser's timezone.
      */
     function dateStringDelta(deltaMinutes) {
         return luxon.DateTime.now()
@@ -16765,11 +16749,8 @@ test(`Auto save: save on closing tab/browser (onchanges)`, async () => {
 
 test.tags("desktop");
 test(`edition, then navigation with tab (with a readonly re-evaluated field and onchange)`, async () => {
-    // This test makes sure that if we have a cell in a row that will become
-    // read-only after editing another cell, in case the keyboard navigation
-    // move over it before it becomes read-only and there are unsaved changes
-    // (which will trigger an onchange), the focus of the next activable
-    // field will not crash
+    // Tab navigation over a cell that becomes readonly after editing another cell, with
+    // unsaved changes triggering an onchange, must not crash when focusing the next field.
     Bar._onChanges = {
         o2m() {},
     };

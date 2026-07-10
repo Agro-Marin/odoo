@@ -1,21 +1,16 @@
 // @ts-check
 
 /**
- * Unit tests for two StaticList datapoint-lifecycle correctness fixes:
+ * Tests two StaticList datapoint-lifecycle fixes:
+ *  - ``extendRecord`` keeps the extended record's ``config.fields`` identical to
+ *    the list's live ``fields`` object, not a caller/param snapshot, so mutations
+ *    don't diverge.
+ *  - ``_createRecordDatapoint`` merges into (never replaces) a cached datapoint
+ *    with pending ``_changes``, so a restricted-field reload (e.g. ``sort()``)
+ *    doesn't drop them.
  *
- *  - ``extendRecord`` must keep the extended record's ``config.fields`` pointing
- *    at the list's live, merged ``fields`` object (identity === ``list.fields``),
- *    not the caller's ``params.fields`` snapshot — otherwise the two diverge as
- *    properties splice / applyCommands mutate them independently.
- *
- *  - ``_createRecordDatapoint`` must NOT replace a cached datapoint that carries
- *    pending ``_changes`` (e.g. an onchange-mandated sub-record UPDATE queued via
- *    deferred-command replay). A restricted-field reload (``sort()`` loading only
- *    the orderBy fields) would otherwise drop those changes and the ORM command
- *    ``serializeCommands`` derives from them.
- *
- * Uses ``Object.create(StaticList.prototype)`` so the real methods run against a
- * hand-built state, mirroring static_list_pending_commands.test.js.
+ * Uses ``Object.create(StaticList.prototype)`` against a hand-built state,
+ * mirroring static_list_pending_commands.test.js.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -24,9 +19,7 @@ import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { StaticList } from "@web/model/relational_model/static_list";
 import { sort } from "@web/model/relational_model/static_list_sort";
 
-// ---------------------------------------------------------------------------
 // extendRecord — config.fields identity
-// ---------------------------------------------------------------------------
 
 describe("extendRecord fields identity", () => {
     test("keeps the extended record's config.fields === list.fields", async () => {
@@ -75,9 +68,7 @@ describe("extendRecord fields identity", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // _createRecordDatapoint — dirty datapoints are merged, not replaced
-// ---------------------------------------------------------------------------
 
 /** Minimal fake Record class for the clean-replacement path. */
 class FakeRecord {
@@ -159,9 +150,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // sort() — a dirty datapoint survives a restricted-field reload
-// ---------------------------------------------------------------------------
 
 describe("sort restricted-field reload preserves dirty datapoint", () => {
     test("dirty record keeps its _changes across a sort reload", async () => {

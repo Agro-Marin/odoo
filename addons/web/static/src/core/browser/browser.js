@@ -3,15 +3,6 @@
 
 /** @module @web/core/browser/browser - Patchable browser API facade (localStorage, fetch, setTimeout, etc.) for testability */
 
-/**
- * Browser
- *
- * This file exports an object containing common browser API. It may not look
- * incredibly useful, but it is very convenient when one needs to test code using
- * these methods. With this indirection, it is possible to patch the browser
- * object for a test.
- */
-
 /** @type {Storage} */
 let sessionStorage;
 /** @type {Storage} */
@@ -68,18 +59,11 @@ const browserImpl = {
 };
 
 /**
- * Mutable facade over ``window.location``.
- *
- * The real ``window.location`` exposes several non-configurable
- * properties (``reload``, ``assign``, ``replace``, ``href`` setter, …)
- * which makes monkey-patching it in tests impossible under modern
- * Chromium ("TypeError: Cannot redefine property: reload").
- *
- * This facade forwards reads to ``window.location`` through getters and
- * methods; tests that call ``patchWithCleanup(browser.location, {...})``
- * replace *own* properties on the facade, leaving the real
- * ``window.location`` untouched.  Production code that reads
- * ``browser.location.<property>`` sees identical live values as before.
+ * Mutable facade over ``window.location``. The real object has several
+ * non-configurable properties, making it unpatchable in tests under modern
+ * Chromium ("TypeError: Cannot redefine property: reload"). This forwards to
+ * the real location while letting ``patchWithCleanup(browser.location, {...})``
+ * override facade-owned properties without touching the real one.
  */
 const locationFacade = {
     get href() {
@@ -118,9 +102,8 @@ const locationFacade = {
     set hash(value) {
         window.location.hash = value;
     },
-    // The legacy ``reload(true)`` force-reload signature is no longer in the
-    // TS DOM lib (Firefox dropped it in 2019; Chrome never standardised it),
-    // so the spread + extra args is dead surface.  Forward without args.
+    // The legacy ``reload(true)`` force-reload signature is dead surface
+    // (Firefox dropped it in 2019; Chrome never standardised it). No args.
     reload() {
         return window.location.reload();
     },
@@ -136,9 +119,8 @@ const locationFacade = {
 };
 
 Object.defineProperty(browserImpl, "location", {
-    // Assigning a string to ``browser.location`` should still trigger
-    // a navigation, matching ``window.location = "..."`` semantics —
-    // the setter delegates to the real ``window.location``.
+    // Delegates to the real ``window.location`` so assigning a string still
+    // triggers navigation, matching ``window.location = "..."`` semantics.
     set(val) {
         window.location = val;
     },
@@ -158,20 +140,17 @@ Object.defineProperty(browserImpl, "innerWidth", {
 });
 
 /**
- * The runtime ``browser`` export: the object literal above plus the three
- * accessors installed via ``Object.defineProperty`` (``location``,
- * ``innerHeight``, ``innerWidth``), which type inference cannot see. The cast
- * re-attaches them so consumers reading ``browser.location.href`` etc. are
- * type-checked without changing the runtime object or its property descriptors.
+ * The runtime ``browser`` export: ``browserImpl`` plus the accessors installed
+ * via ``Object.defineProperty`` (``location``, ``innerHeight``, ``innerWidth``),
+ * which type inference can't see — the cast re-attaches them for type-checking
+ * without changing the runtime object.
  */
 export const browser =
     /** @type {typeof browserImpl & { location: typeof locationFacade, innerHeight: number, innerWidth: number }} */ (
         browserImpl
     );
 
-// -----------------------------------------------------------------------------
 // memory localStorage
-// -----------------------------------------------------------------------------
 
 /**
  * @returns {typeof window["localStorage"]}
@@ -179,13 +158,11 @@ export const browser =
 export function makeRAMLocalStorage() {
     /** @type {{[key: string]: string}} */
     let store = Object.create(null);
-    // NB: the real Web Storage API fires ``storage`` events only in OTHER
-    // documents sharing the origin — never in the window that performed the
-    // write. This in-memory fallback (used when window.localStorage is
-    // unavailable, e.g. Safari Private Browsing) is single-window by nature,
-    // so it must dispatch NO ``storage`` events at all; doing so on set/remove
-    // (but not clear) previously gave same-window listeners phantom
-    // cross-tab notifications the native API never produces.
+    // Real Storage fires ``storage`` events only in OTHER same-origin documents,
+    // never the writing window. This single-window in-memory fallback (used when
+    // window.localStorage is unavailable, e.g. Safari Private Browsing) must
+    // dispatch none at all — doing so on set/remove previously gave same-window
+    // listeners phantom cross-tab notifications the native API never produces.
     return {
         setItem(key, value) {
             store[key] = String(value);

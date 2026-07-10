@@ -68,14 +68,12 @@ export const fileUploadService = {
                 type: files.length === 1 ? files[0].type : undefined,
             });
             uploads[upload.id] = upload;
-            // Progress listener
             xhr.upload.addEventListener("progress", async (ev) => {
                 upload.progress = ev.total > 0 ? ev.loaded / ev.total : 0;
                 upload.loaded = ev.loaded;
                 upload.total = ev.total;
                 upload.state = "loading";
             });
-            // Load listener
             xhr.addEventListener("load", () => {
                 try {
                     handleResponse();
@@ -117,8 +115,7 @@ export const fileUploadService = {
                             }
                         }
                     }
-                    // Not sure what to do if the content is neither JSON nor HTML
-                    // Let's the call be successful then....
+                    // Unparseable body (neither JSON nor HTML): treat the call as successful.
                     if (error && content instanceof Document) {
                         errorMessage = content.body.textContent;
                     } else if (content instanceof Object) {
@@ -159,9 +156,8 @@ export const fileUploadService = {
                 }
                 bus.trigger(FileUploadEvent.ERROR, { upload });
             }
-            // Error listener. The XHR "error" event is a ProgressEvent with no
-            // ``.error`` property, so the old ``ev.error`` was always undefined —
-            // fall back to the default message explicitly.
+            // The XHR "error" event is a ProgressEvent with no ``.error`` property,
+            // so the old ``ev.error`` was always undefined — fall back explicitly.
             xhr.addEventListener("error", () => onError());
             // Abort listener, considered as error
             xhr.addEventListener("abort", async () => {

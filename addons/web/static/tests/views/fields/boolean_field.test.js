@@ -93,7 +93,6 @@ test("boolean field in editable list view", async () => {
         `tbody td:not(.o_list_record_selector) .o-checkbox input:checked`,
     ).toHaveCount(4);
 
-    // Edit a line
     const cell = `tr.o_data_row td:not(.o_list_record_selector):first`;
     expect(`${cell} .o-checkbox input:only`).toBeChecked();
     expect(`${cell} .o-checkbox input:only`).not.toBeEnabled();
@@ -124,7 +123,6 @@ test("boolean field in editable list view", async () => {
         `tbody td:not(.o_list_record_selector) .o-checkbox input:checked`,
     ).toHaveCount(3);
 
-    // Fake-check the checkbox
     await click(cell);
     await animationFrame();
     await click(`${cell} .o-checkbox`);

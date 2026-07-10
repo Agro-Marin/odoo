@@ -6,50 +6,38 @@
 import { registry } from "@web/core/registry";
 
 /**
- * Known top-level view prefixes used by view-specific widget variants.
+ * Top-level view prefixes used by view-specific widget variants: the five
+ * canonical view types, plus the settings-form pseudo-view
+ * ``base_settings`` (passed as ``viewType`` by the settings arch parser).
  *
- * Six prefixes are in active use across the fork (verified by grep of
- * ``registerField("<prefix>.<name>", ...)`` call sites as of 2026-05-25):
- * the five canonical view types — ``list``, ``form``, ``kanban``,
- * ``calendar``, ``hierarchy`` — plus the settings-form pseudo-view
- * ``base_settings``, which the ``settings`` view's arch parser passes as
- * its ``viewType`` argument when resolving radio / binary variants.
- *
- * Constraining the typed-API ``view`` field to this union catches typos
- * at IDE / tsc-noEmit time. Addons declaring a NEW view prefix should
- * either widen this union here or fall back to the legacy string form
- * (``registerField("myview.mywidget", ...)``).
+ * Constrains the typed-API ``view`` field so typos are caught at
+ * IDE/tsc-noEmit time. A new view prefix should widen this union or fall
+ * back to the legacy string form (``registerField("myview.mywidget", ...)``).
  *
  * @typedef {"list" | "form" | "kanban" | "calendar" | "hierarchy" | "base_settings"} FieldViewPrefix
  */
 
 /**
- * Typed spec for a field-widget registration. Use this object form
- * instead of a pre-composed string when a widget registers under a
- * view-prefixed key — typos in ``view`` become a compile-time error
- * via the {@link FieldViewPrefix} union.
+ * Typed spec for a field-widget registration. Use this object form instead
+ * of a pre-composed string when a widget registers under a view-prefixed
+ * key — typos in ``view`` become a compile-time error via the
+ * {@link FieldViewPrefix} union.
  *
  * - ``name`` is the widget identifier the view arch references via
- *   ``widget="<name>"`` (e.g. ``"many2one"``, ``"res_partner_many2one"``).
- *   It is NOT necessarily the field type — ``res_partner_many2one`` is a
- *   widget name, not a type. See ``getFieldFromRegistry`` for the
- *   widget-vs-type fallback logic at lookup time.
- *
+ *   ``widget="<name>"`` — NOT necessarily the field type (e.g.
+ *   ``res_partner_many2one`` is a widget name, not a type; see
+ *   ``getFieldFromRegistry`` for the widget-vs-type fallback).
  * - ``view`` is the optional view prefix; omitting it registers the
  *   default (view-agnostic) variant.
- *
- * - ``aliases`` is an optional list of additional keys that should map
- *   to the SAME widget object as the primary registration. Each entry
- *   may be a legacy string key (``"code"``) or a nested
- *   {@link FieldRegistrationSpec} (``{ name: "one2many", view: "calendar" }``).
- *   Use this ONLY when the same widget instance is the intended target
- *   for every key. For view-variant widgets that share a base but
- *   customize behaviour (e.g. ``many2ManyTagsField`` for kanban vs.
- *   ``many2ManyTagsFieldColorEditable`` for form), make a separate
- *   {@link registerField} call with the variant widget — chaining via
- *   ``aliases`` would silently bind the variant key to the base widget.
- *   Nested ``aliases`` on alias entries are ignored: aliases form a
- *   flat set, not a tree.
+ * - ``aliases`` maps additional keys to the SAME widget object as the
+ *   primary registration (string or nested {@link FieldRegistrationSpec},
+ *   e.g. ``{ name: "one2many", view: "calendar" }``).
+ *   Use only when every key targets the same widget instance — a
+ *   view-variant widget with different behaviour (e.g.
+ *   ``many2ManyTagsField`` vs. ``many2ManyTagsFieldColorEditable``) needs
+ *   its own {@link registerField} call, or it would silently bind to the
+ *   base widget. Aliases form a flat set: nested ``aliases`` on an alias
+ *   entry are ignored.
  *
  * @typedef {{
  *   name: string;
@@ -81,8 +69,7 @@ export function fieldKey(spec) {
  * Two call shapes are accepted, both forwarding to the same underlying
  * ``registry.category("fields").add(...)``:
  *
- * 1. **Legacy string form** — backward-compatible with the 94 existing
- *    call sites:
+ * 1. **Legacy string form** — backward-compatible:
  *
  *    ```js
  *    registerField("text", widget);          // plain
@@ -114,27 +101,16 @@ export function fieldKey(spec) {
  *    }, many2ManyTagsField);
  *    ```
  *
- *    The alias form is intentionally limited to the same-widget case;
- *    a variant widget (different component, different ``extractProps``)
- *    must use its own call so the registration site reads as a deliberate
- *    new variant, not a side effect.
+ *    Aliases are limited to the same-widget case; a variant widget
+ *    (different component/``extractProps``) must use its own call so the
+ *    registration site reads as a deliberate new variant.
  *
  * Returns the widget so call sites stay one-liners and downstream
  * addons can chain (``const w = registerField(spec, widget);``).
  *
- * Historical note: an earlier revision (commit 253cf3d8d38) maintained
- * a parallel ``FIELD_WIDGETS`` Map alongside the live registry, with a
- * "drift detector" test asserting ``FIELD_WIDGETS ⊆ registry``. The
- * Map was scaffolding for promised downstream tooling (.d.ts
- * generation, audit scripts, debug inspectors) that never materialized
- * — the debug inspector that did land
- * (``webclient/debug/field_widgets_dialog.js``) reads the registry
- * directly anyway. The drift test was structurally guaranteed to
- * pass because the only writer of the Map was this function, which
- * always wrote both halves on the same line. Map and test removed in
- * favor of a smaller surface; if a real downstream consumer emerges
- * later, the Map can be reintroduced alongside that consumer rather
- * than as speculative scaffolding.
+ * Historical note: a parallel ``FIELD_WIDGETS`` Map + drift-detector test
+ * once shadowed the registry for tooling that never materialized; removed
+ * as dead scaffolding. Reintroduce only alongside a real consumer.
  *
  * @template T
  * @param {string | FieldRegistrationSpec} nameOrSpec - Registry key

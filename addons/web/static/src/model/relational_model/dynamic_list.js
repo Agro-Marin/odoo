@@ -470,7 +470,6 @@ export class DynamicList extends DataPoint {
         }
         discardInvalidRecords();
 
-        // ask confirmation
         canProceed = await this.model.hooks.lifecycle.onAskMultiSaveConfirmation(
             _changes,
             validRecords,
@@ -485,7 +484,6 @@ export class DynamicList extends DataPoint {
             return false;
         }
 
-        // save changes
         let records;
         try {
             records = await save();

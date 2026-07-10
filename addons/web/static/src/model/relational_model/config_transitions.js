@@ -26,29 +26,23 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 
 /**
  * Build the next ``RelationalModelConfig`` from a current one plus a
- * partial parameter bag.  Mirrors the historical
+ * partial parameter bag. Mirrors the historical
  * ``RelationalModel._getNextConfig`` contract.
  *
- * Two branches drive the bulk of the logic:
+ * Two branches: **MonoRecord** (``resId``/``resIds`` propagation, plus
+ * "switch to edit mode when no resId" for the create flow
+ * (``record.load({ resId: false })``)) and **List /
+ * grouped** (domain/groupBy/orderBy plumbing, max-depth clipping,
+ * default-month granularity for date/datetime groupbys, and an
+ * offset-reset on domain change so pagination doesn't strand the user on
+ * an empty page).
  *
- *   1. **MonoRecord** — ``resId`` / ``resIds`` propagation, plus the
- *      "switch to edit mode when no resId" rule used by the create
- *      flow (``record.load({ resId: false })``).
+ * Mutates a shallow copy of ``currentConfig``; nested structures
+ * (``groups``, ``context``) are NOT deep-cloned since the caller's
+ * overwrite semantics already cover the only paths that matter.
  *
- *   2. **List / grouped** — domain / groupBy / orderBy plumbing,
- *      max-depth clipping, default-month granularity for date /
- *      datetime groupbys, and an offset-reset on domain change so
- *      pagination doesn't strand the user on an empty page.
- *
- * The function mutates a shallow copy of ``currentConfig``; nested
- * structures (``groups``, ``context``) are NOT deep-cloned because
- * the caller's overwrite semantics already cover the only paths that
- * matter (full ``groups`` clear on groupBy change; ``context``
- * replaced by a fresh spread).
- *
- * Async work (``_getPropertyDefinition``) is deliberately NOT done
- * here — that lives in {@link postprocessReadGroup} which runs after
- * the RPC.
+ * Async work (``_getPropertyDefinition``) is deliberately NOT done here —
+ * that lives in {@link postprocessReadGroup}, which runs after the RPC.
  *
  * @param {RelationalModelConfig} currentConfig
  * @param {Partial<SearchParams>} params

@@ -64,8 +64,8 @@ const FUZZY_NAMESPACES = ["default"];
  */
 
 /**
- * Util used to filter commands that are within category.
- * Note: for the default category, also get all commands having invalid category.
+ * Filter predicate for commands within a category. The "default" category
+ * also matches commands with an invalid category.
  *
  * @param {string} categoryName the category key
  * @param {string[]} categories
@@ -214,8 +214,7 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Modifies the commands to be displayed according to the namespace and the options.
-     * Selects the first command in the new list.
+     * Compute the commands to display for namespace/options; select the first one.
      * @param {string} namespace
      * @param {{ searchValue?: string, activeElement?: Element, sessionId?: number }} [options]
      */
@@ -227,9 +226,8 @@ export class CommandPalette extends Component {
             const result = provide(this.env, options);
             return result;
         });
-        // Don't let one broken provider swallow the results of the others
-        // (Promise.all would reject the whole search, which then looks like
-        // "no result found"): log the failures and render what succeeded.
+        // Don't let one broken provider swallow the others' results (Promise.all
+        // would reject the whole search, looking like "no result found").
         const settled = await this.keepLast.add(Promise.allSettled(proms));
         for (const result of settled) {
             if (result.status === "rejected") {
@@ -309,8 +307,7 @@ export class CommandPalette extends Component {
      * @param {"PREV" | "NEXT"} type
      */
     selectCommandAndScrollTo(type) {
-        // In case the mouse is on the palette command, it avoids the selection
-        // of a command caused by a scroll.
+        // Avoid the mouse re-selecting a command as a result of this scroll.
         this.mouseSelectionActive = false;
         const index = this.state.commands.indexOf(this.state.selectedCommand);
         if (index === -1) {
@@ -340,9 +337,8 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Execute the action related to the order.
-     * If this action returns a config, then we will use it in the command palette,
-     * otherwise we close the command palette.
+     * Execute the action related to the order. If it returns a config, use it
+     * in the command palette; otherwise close the palette.
      * @param {CommandItem} command
      */
     async executeCommand(command) {

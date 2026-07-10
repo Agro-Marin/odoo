@@ -55,7 +55,6 @@ describe("findDependencyCycle", () => {
         ]);
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
-        // Cycle should contain both nodes and close the loop
         expect(cycle.length).toBeGreaterThan(2);
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
     });
@@ -68,9 +67,7 @@ describe("findDependencyCycle", () => {
         ]);
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
-        // Must be a valid cycle: first === last
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
-        // All three nodes in the cycle
         const nodes = new Set(cycle);
         expect(nodes.has("a")).toBe(true);
         expect(nodes.has("b")).toBe(true);
@@ -78,7 +75,6 @@ describe("findDependencyCycle", () => {
     });
 
     test("cycle in subgraph (not all nodes in cycle)", () => {
-        // d → a → b → c → a (cycle), but d is not part of the cycle
         const graph = new Map([
             ["d", ["a"]],
             ["a", ["b"]],
@@ -88,12 +84,10 @@ describe("findDependencyCycle", () => {
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
-        // d should NOT be in the cycle
         expect(cycle.includes("d")).toBe(false);
     });
 
     test("external dependencies (not in graph keys) are ignored", () => {
-        // "external" is referenced but not a key in the graph
         const graph = new Map([
             ["a", ["external", "b"]],
             ["b", []],
@@ -105,7 +99,6 @@ describe("findDependencyCycle", () => {
         const graph = new Map([
             ["a", ["b"]],
             ["b", []],
-            // Disconnected component with cycle
             ["x", ["y"]],
             ["y", ["x"]],
         ]);
@@ -132,7 +125,6 @@ describe("createWaveResolver", () => {
         expect(r.pendingOf("b")).toBe(1);
         expect(r.hasReady()).toBe(false);
 
-        // Drop the entry, then register it again with the same dep.
         r.untrack("b");
         expect(r.pendingOf("b")).toBe(undefined);
 
@@ -142,7 +134,6 @@ describe("createWaveResolver", () => {
         expect(r.pendingOf("b")).toBe(1);
         expect(r.hasReady()).toBe(false);
 
-        // Resolving the dep releases "b" exactly once.
         r.propagate("a");
         expect(r.pendingOf("b")).toBe(0);
         expect(r.shift()).toBe("b");
@@ -156,7 +147,6 @@ describe("createWaveResolver", () => {
         // With the stale edge gone, propagate("a") must not resurrect "b".
         r.propagate("a");
         expect(r.hasReady()).toBe(false);
-        // A fresh entry on the same dep still resolves correctly afterwards.
         r.track("c", ["a"]);
         r.propagate("a");
         expect(r.shift()).toBe("c");

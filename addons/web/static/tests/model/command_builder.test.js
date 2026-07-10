@@ -1,10 +1,8 @@
 // @ts-check
 
 /**
- * Pure unit tests for command_builder.js.
- *
- * Tests the x2many command serialization and deduplication logic
- * without OWL, without a browser DOM, and without any mock server.
+ * Unit tests for command_builder.js: x2many command serialization and
+ * deduplication, without OWL, DOM, or mock server.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -23,10 +21,6 @@ const DELETE = 2;
 const UNLINK = 3;
 const LINK = 4;
 const SET = 6;
-
-// ---------------------------------------------------------------------------
-// serializeCommands
-// ---------------------------------------------------------------------------
 
 describe("serializeCommands", () => {
     const fields = { name: { type: "char" } };
@@ -179,10 +173,6 @@ describe("serializeCommands", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// shouldEmitDelete
-// ---------------------------------------------------------------------------
-
 describe("shouldEmitDelete", () => {
     test("returns true when no CREATE exists (real record)", () => {
         const ownCommands = [{ command: [UPDATE, 1], index: 0 }];
@@ -214,10 +204,6 @@ describe("shouldEmitDelete", () => {
         expect(shouldEmitDelete(ownCommands)).toBe(true);
     });
 });
-
-// ---------------------------------------------------------------------------
-// shouldEmitUnlink
-// ---------------------------------------------------------------------------
 
 describe("shouldEmitUnlink", () => {
     test("returns true when no LINK exists", () => {
@@ -252,10 +238,6 @@ describe("shouldEmitUnlink", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// absorbUnlinkIntoSet
-// ---------------------------------------------------------------------------
-
 describe("absorbUnlinkIntoSet", () => {
     test("returns false when no commands exist", () => {
         expect(absorbUnlinkIntoSet([], 1)).toBe(false);
@@ -284,10 +266,6 @@ describe("absorbUnlinkIntoSet", () => {
         expect(commands[0][2]).toEqual([]);
     });
 });
-
-// ---------------------------------------------------------------------------
-// isUpdateRedundant
-// ---------------------------------------------------------------------------
 
 describe("isUpdateRedundant", () => {
     test("returns false for empty commands", () => {

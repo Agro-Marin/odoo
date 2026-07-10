@@ -122,11 +122,8 @@ export function isInRange(value, range) {
         return false;
     }
     if (Array.isArray(value)) {
-        // Sort chronologically. A plain `.sort()` would compare the DateTimes
-        // by their default string form (ISO), which is wrong for a mix of
-        // offsets: a later instant carrying a "+09:00" offset would sort after
-        // an earlier UTC instant. Subtracting compares by `valueOf()` (epoch
-        // millis), i.e. the true instants.
+        // Sort by instant (valueOf()), not string form — a plain .sort() would
+        // compare ISO strings and misorder DateTimes with differing UTC offsets.
         const actualValues = value.filter(Boolean).sort((x, y) => x - y);
         if (actualValues.length < 2) {
             return isInRange(actualValues[0], range);

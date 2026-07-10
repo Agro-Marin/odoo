@@ -85,7 +85,6 @@ test("simple week recurrence widget", async () => {
         message: "tuesday checkbox should be checked",
     });
 
-    // uncheck Sunday checkbox and check write call
     await click("td:nth-child(7) input");
     expect("td:nth-child(7) input").not.toBeChecked({
         message: "sunday checkbox should be unchecked",

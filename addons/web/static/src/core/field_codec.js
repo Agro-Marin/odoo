@@ -8,17 +8,15 @@ import { registry } from "@web/core/registry";
 /**
  * A single, complete value codec for one field type.
  *
- * This is a *facade*, not a fourth source of truth. ``format`` and ``parse``
- * resolve their backing function from the existing ``formatters`` / ``parsers``
- * registries at call time, so any third-party override of those registries —
- * including late additions from lazy-loaded bundles — is honored automatically
- * and the two tables can never silently disagree with the codec.
+ * A *facade*, not a fourth source of truth: ``format``/``parse`` resolve
+ * their backing function from the ``formatters``/``parsers`` registries at
+ * call time, so third-party overrides (including late-loaded bundles) are
+ * honored automatically and can never disagree with the codec.
  *
- * Its job is to close the asymmetry the registries leave open: ``formatters``
- * has 22 entries, ``parsers`` only 8, so 14 field types (char, text, selection,
- * boolean, the relational types, …) can be formatted but have no parser, which
- * is why every text/relational widget re-implements parsing inline today. A
- * codec always exposes BOTH directions for every type.
+ * Closes the asymmetry those registries leave open (22 formatters vs. only
+ * 8 parsers, so char/selection/boolean/relational types etc. had no parser
+ * and every widget re-implemented parsing inline) by exposing BOTH
+ * directions for every type.
  *
  * @typedef {object} FieldCodec
  * @property {(value: any, options?: Record<string, any>) => string} format
@@ -61,20 +59,19 @@ import { registry } from "@web/core/registry";
 
 const formatters = registry.category("formatters");
 const parsers = registry.category("parsers");
-// Transport conversion (server <-> client). Logic is registered by the model
-// layer (`@web/model/relational_model/field_values` + `record_value_transforms`);
-// the registry is the neutral interface both the model and this codec read, so
-// they can never diverge. These are DISTINCT from format/parse — see the probe
-// in scratchpad: serialize(many2one) is the id, format(many2one) is the name.
+// Transport conversion (server <-> client), registered by the model layer
+// (`@web/model/relational_model/field_values` + `record_value_transforms`).
+// The registry is the neutral interface both sides read, so they can never
+// diverge. DISTINCT from format/parse: serialize(many2one) is the id,
+// format(many2one) is the name.
 const serializers = registry.category("serializers");
 const deserializers = registry.category("deserializers");
 
 /**
- * Free-text types: parseable (their text input maps directly to the stored
- * value, via identity) but with no registered parser. They parse as identity,
- * so ``parseable`` is the only thing that tells them apart from picker-origin
- * types like selection/boolean. Whitespace handling (char's ``trim`` option)
- * is intentionally NOT done here — it is a per-field widget concern.
+ * Free-text types: parseable via identity (no registered parser needed), so
+ * ``parseable`` is what distinguishes them from picker-origin types like
+ * selection/boolean. Whitespace handling (char's ``trim`` option) is a
+ * per-field widget concern, not done here.
  */
 const TEXT_TYPES = new Set(["char", "text", "html"]);
 
@@ -86,11 +83,9 @@ const formatUnknown = (value) =>
     value == null || value === false ? "" : String(value);
 
 /**
- * Per-type codec cache. The cached object holds only stable closures that read
- * the registries live, so there is no staleness to invalidate (a deliberate
- * choice over caching a frozen ``hasParser``/``parseable`` snapshot). A plain
- * ``Map`` rather than ``@web/core/utils/functions.memoize`` because the latter
- * keys solely on its first argument.
+ * Per-type codec cache. Cached closures read the registries live, so there
+ * is no staleness to invalidate. Plain ``Map`` rather than
+ * ``@web/core/utils/functions.memoize`` (keys solely on first argument).
  *
  * @type {Map<string, FieldCodec>}
  */

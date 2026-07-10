@@ -154,35 +154,30 @@ test("positioning", async () => {
 
     await mountWithCleanup(MyComponent);
 
-    // default
     await hover("button.default");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
     expect(".o_popover").toHaveText("default");
     expect.verifySteps(["popover added with default positioning"]);
 
-    // top
     await hover("button.top");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
     expect(".o_popover").toHaveText("top");
     expect.verifySteps(["popover added with position: top"]);
 
-    // right
     await hover("button.right");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
     expect(".o_popover").toHaveText("right");
     expect.verifySteps(["popover added with position: right"]);
 
-    // bottom
     await hover("button.bottom");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
     expect(".o_popover").toHaveText("bottom");
     expect.verifySteps(["popover added with position: bottom"]);
 
-    // left
     await hover("button.left");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
@@ -388,7 +383,6 @@ test("touch rendering - tap-to-show", async () => {
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 
-    // Reopen it
     await pointerDown("button[data-tooltip]");
     await advanceTime(SHOW_AFTER_DELAY);
     await advanceTime(OPEN_DELAY);

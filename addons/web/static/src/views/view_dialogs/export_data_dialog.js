@@ -59,8 +59,7 @@ class ExportDataItem extends Component {
         });
         onWillStart(() => {
             if (this.props.isExpanded) {
-                // automatically expand the item when subfields are already loaded
-                // and display subfields that match the search string
+                // Auto-expand: subfields already loaded, filtered to match the search string
                 return this.toggleItem(this.props.field.id, false);
             }
         });
@@ -148,12 +147,10 @@ export class ExportDataDialog extends Component {
         this.debouncedOnResize = useDebounced(this.updateSize, 300);
 
         useSortable({
-            // Params
             ref: this.draggableRef,
             elements: ".o_export_field",
             enable: !this.state.isSmall,
             cursor: "grabbing",
-            // Hooks
             onDrop: async ({ element, previous, next }) => {
                 const indexes = [element, previous, next].map(
                     (e) =>

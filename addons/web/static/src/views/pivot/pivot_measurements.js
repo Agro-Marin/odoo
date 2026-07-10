@@ -97,12 +97,10 @@ export function getCurrencyIds(group, config, measureSpecs) {
 }
 
 /**
- * Builds the key under which a cell's values are stored in
- * ``data.measurements`` / ``data.currencyIds`` from its already-stringified
- * row and column parts.  Equivalent to ``JSON.stringify([rowValues,
- * colValues])`` without re-serializing both parts for every cell: callers
- * stringify each row part once per row and each column part once per table
- * build.
+ * Key under which a cell's values are stored in ``data.measurements`` /
+ * ``data.currencyIds``. Equivalent to ``JSON.stringify([rowValues,
+ * colValues])`` but callers pass pre-stringified parts to avoid
+ * re-serializing per cell.
  *
  * @param {string} rowKey ``JSON.stringify(rowValues)``
  * @param {string} colKey ``JSON.stringify(colValues)``

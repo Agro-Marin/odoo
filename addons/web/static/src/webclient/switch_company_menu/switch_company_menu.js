@@ -20,13 +20,10 @@ import { user, userBus } from "@web/services/user";
 import { SwitchCompanyItem } from "@web/webclient/switch_company_menu/switch_company_item";
 
 /**
- * Lazy id -> company Map over ``user.allowedCompaniesWithAncestors``.
- *
- * ``getCompany`` is called per child company, per node, per keystroke while
- * filtering, so an ``Array.find`` per lookup is quadratic on large company
- * trees. The map is rebuilt only when the companies array reference changes
- * (a new ``user`` configuration, e.g. after a server-state change in tests).
- *
+ * Lazy id -> company Map over ``user.allowedCompaniesWithAncestors``. Avoids an
+ * O(n) ``Array.find`` per lookup (called per child, per node, per keystroke while
+ * filtering) on large company trees; rebuilt only when the companies array
+ * reference changes.
  * @type {Map<number, Object> | null}
  */
 let companyById = null;
@@ -148,7 +145,6 @@ class CompanySelector {
                 }
             }
         } else {
-            // If none is selected, select all.
             for (const companyId of allowedCompanyIds) {
                 this.selectedCompaniesIds.push(companyId);
             }

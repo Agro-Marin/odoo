@@ -7,7 +7,6 @@ import { Component, useState, xml } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 
 import { Notification } from "./notification.js";
-/** Renders all active notifications with fade-out transitions. */
 export class NotificationContainer extends Component {
     static props = {
         notifications: Object,

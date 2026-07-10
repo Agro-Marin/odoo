@@ -206,23 +206,12 @@ export class StatusBarField extends Component {
     }
 
     /**
-     * Determines what items must be visible and how they must be displayed.
-     * There are 4 main scenarios:
-     *
-     * 1. All items can be displayed inline, no modification in the UI;
-     *
-     * The following scenarios imply that the viewport is too small to display
-     * all items in one line. Adjustments are made incrementally:
-     *
-     * 2. Items up to 1 before the currently selected item are combined in a dropdown;
-     *
-     * 3. Items up to 1 after the currently selected item are combined in a dropdown,
-     * along with the initially folded items;
-     *
-     * 4. If that still doesn't suffice: all items are combined in a single dropdown.
+     * Determines what items are visible and how they're displayed. Adjusts
+     * incrementally as space runs out: (1) all items inline; (2) items before
+     * the selected one collapse into a leading dropdown; (3) items after it
+     * (plus initially folded ones) also collapse; (4) last resort: single dropdown.
      */
     adjustVisibleItems() {
-        // Get all visible buttons
         const itemEls = [
             ...this.rootRef.el.querySelectorAll(
                 ".o_arrow_button:not(.dropdown-toggle)",

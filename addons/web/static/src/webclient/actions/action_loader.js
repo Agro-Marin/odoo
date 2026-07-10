@@ -20,12 +20,9 @@ const actionRegistry = registry.category("actions");
  * Given an id, xmlid, tag (key of the client action registry), or directly
  * an object describing an action, return the action description.
  *
- * Loaded `ir.actions.act_window` and `ir.actions.client` descriptors are
- * fetched from `/web/action/load` with disk-cache and one retry. Cold-cache
- * failures break navigation page-wide (every menu click, button click, and
- * breadcrumb hop hits this path), and action definitions are read-only —
- * the disk cache is invalidated explicitly on `ir.actions.act_window`
- * write/unlink — so retry is safe.
+ * Fetched via `/web/action/load` with disk-cache and one retry: actions are
+ * read-only (cache invalidated explicitly on write/unlink) and cold-cache
+ * failures break navigation page-wide, so retry is safe.
  *
  * @param {number | string | object} actionRequest
  * @param {object} [context]

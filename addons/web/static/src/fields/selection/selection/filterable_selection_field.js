@@ -4,9 +4,8 @@
 /** @module @web/fields/selection/selection/filterable_selection_field - Selection dropdown field with whitelist/blacklist value filtering */
 
 /**
- * The purpose of this field is to be able to define some values which should not be
- * displayed on our selection field, this way we can have multiple views for the same model
- * that uses different possible sets of values on the same selection field.
+ * Selection field that hides some values via whitelist/blacklist, so the
+ * same model field can expose different option sets per view.
  */
 
 import { registerField } from "@web/fields/_registry";

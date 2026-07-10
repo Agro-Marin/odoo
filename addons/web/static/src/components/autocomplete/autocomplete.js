@@ -119,15 +119,12 @@ export class AutoComplete extends Component {
             }
         }, this.timeout);
 
-        // Global listeners are registered only while the dropdown is open
-        // to avoid firing on every mouse movement / scroll when closed.
-        // Arrow functions capture `this` — required because addEventListener
-        // does not preserve component context like OWL's useExternalListener.
+        // Listeners are registered only while the dropdown is open, to avoid
+        // firing on every mouse move / scroll while closed. Arrow functions
+        // capture `this` since addEventListener won't do it for us.
         this._externalClose = (/** @type {Event} */ ev) => this.externalClose(ev);
-        // The mousemove listener is a one-shot latch: the first move flips
-        // mouseSelectionActive on and removes itself, so we stop capturing every
-        // pixel of movement forever. It is re-armed whenever the latch is reset
-        // (close, keyboard navigation) so hover-selection keeps working.
+        // One-shot latch: the first mousemove flips mouseSelectionActive and
+        // removes itself; re-armed on close/keyboard nav so hover keeps working.
         this._onMouseMove = () => {
             this._mouseMoveCleanup = null;
             this.mouseSelectionActive = true;
@@ -135,9 +132,8 @@ export class AutoComplete extends Component {
         this._globalCleanups = [];
         this._mouseMoveCleanup = null;
         // onWillDestroy (not onWillUnmount): a component destroyed before
-        // reaching "mounted" (sibling onWillStart rejection, parent destroyed
-        // mid-render) never runs willUnmount — the capture-phase window
-        // listeners would leak and fire against a null root ref forever.
+        // "mounted" never runs willUnmount, which would leak the capture-phase
+        // window listeners and let them fire against a null root ref.
         onWillDestroy(() => this._removeGlobalListeners());
 
         onWillUpdateProps((nextProps) => {
@@ -148,12 +144,8 @@ export class AutoComplete extends Component {
                     this.inputRef.el.value = nextProps.value;
                 }
                 // A prop value change means the owner replaced the value out from
-                // under us (e.g. a delayed onChange while the dropdown is open).
-                // Close so the next interaction re-opens a fresh, correctly-seeded
-                // dropdown — without this, a still-open list clicked afterwards
-                // toggles shut (onInputClick) instead of selecting. The inEdition
-                // guard above keeps the user's in-progress text; only the dropdown
-                // is dismissed.
+                // under us; close so the next interaction re-opens a fresh dropdown
+                // instead of a stale one that would toggle shut on click.
                 this.close();
             }
         });
@@ -162,12 +154,9 @@ export class AutoComplete extends Component {
         if (this.props.dropdown) {
             usePosition("sourcesList", () => this.targetDropdown, this.dropdownOptions);
         } else {
-            // Open eagerly so the source options are already loading during
-            // the first render (quick-add flows type immediately) — but only
-            // the state/sources part: the WINDOW listeners are deferred to
-            // mount, because a component destroyed before mounting would
-            // leak them permanently (onWillUnmount never runs) and they
-            // would fire against a null root ref forever.
+            // Open eagerly so sources start loading on first render (quick-add
+            // flows type immediately). Window listeners are deferred to mount
+            // though, since a pre-mount destroy would leak them permanently.
             this.state.open = true;
             this.loadSources(false);
             onMounted(() => {
@@ -258,10 +247,7 @@ export class AutoComplete extends Component {
         this._mouseMoveCleanup = null;
     }
 
-    /**
-     * Arm the one-shot mousemove latch: the first move sets
-     * mouseSelectionActive and removes the listener (once: true).
-     */
+    /** Arm the one-shot mousemove latch: first move sets mouseSelectionActive then self-removes. */
     _armMouseMove() {
         if (this._mouseMoveCleanup) {
             return; // already armed
@@ -295,14 +281,11 @@ export class AutoComplete extends Component {
     }
 
     async loadSources(useInput) {
-        // Order guard for overlapping loads (fast typing over a slow async source
-        // such as name_search): only the most recent invocation may mutate
-        // rendering state. Without it, a stale resolution still bumps optionsRev
-        // (spurious re-render against orphaned source objects) and the final
-        // navigate()/scroll() runs in last-to-resolve rather than last-issued
-        // order. The framework's SearchBar wraps its own calls in KeepLast, but
-        // every other consumer (record selectors, many2one widgets) relies on
-        // this component directly.
+        // Order guard for overlapping loads (fast typing over a slow async
+        // source): only the most recent invocation may mutate state, so a
+        // stale resolution can't bump optionsRev or run navigate()/scroll()
+        // out of order. SearchBar wraps calls in KeepLast; other consumers
+        // (record selectors, many2one widgets) rely on this guard directly.
         const loadId = (this._loadId = (this._loadId ?? 0) + 1);
         this.sources = [];
         this.state.activeSourceOption = null;
@@ -391,9 +374,8 @@ export class AutoComplete extends Component {
     }
 
     navigate(direction) {
-        // Navigation (keyboard or programmatic) takes over from the mouse:
-        // disarm hover selection and re-arm the latch so the next real
-        // mousemove re-enables it.
+        // Navigation takes over from the mouse: disarm hover selection and
+        // re-arm the latch so the next real mousemove re-enables it.
         this._resetMouseSelection();
         let step = Math.sign(direction);
         if (!step) {
@@ -451,8 +433,7 @@ export class AutoComplete extends Component {
             this.ignoreBlur = false;
             return;
         }
-        // If selectOnBlur is true, we select the first element
-        // of the autocomplete suggestions list, if this element exists
+        // selectOnBlur: auto-select the first suggestion, if any, on blur.
         if (this.props.selectOnBlur && !this.isOptionSelected && this.sources[0]) {
             const firstOption = this.sources[0].options[0];
             if (firstOption) {
@@ -600,10 +581,8 @@ export class AutoComplete extends Component {
         }
     }
     onOptionMouseLeave() {
-        // Mirror onOptionMouseEnter's gate: only clear an activation that the
-        // mouse set. Otherwise a stray mouseleave (e.g. right after keyboard
-        // navigation moved the active option) would wipe the keyboard-activated
-        // option and leave Enter with nothing to select.
+        // Mirror onOptionMouseEnter's gate: only clear an activation the mouse
+        // set, else a stray mouseleave after keyboard nav could wipe it out.
         if (!this.mouseSelectionActive) {
             return;
         }

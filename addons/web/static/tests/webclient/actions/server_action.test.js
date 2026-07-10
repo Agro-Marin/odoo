@@ -109,7 +109,6 @@ test("handle server actions returning false", async function (assert) {
     onRpc("/web/action/run", async () => false);
     stepAllNetworkCalls();
     await mountWithCleanup(WebClient);
-    // execute an action in target="new"
     function onClose() {
         expect.step("close handler");
     }
@@ -118,7 +117,6 @@ test("handle server actions returning false", async function (assert) {
         message: "should have rendered a form view in a modal",
     });
 
-    // execute a server action that returns false
     await getService("action").doAction(2);
     await animationFrame();
     expect(".o_technical_modal").toHaveCount(0, {

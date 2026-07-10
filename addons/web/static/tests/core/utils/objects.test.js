@@ -156,9 +156,9 @@ test("deepCopy", () => {
     expect(copy.a).not.toBe(obj.a);
     expect(copy.o).not.toBe(obj.o);
 
-    // structuredClone preserves Date, Set, and Map (unlike JSON round-trip)
-    // Note: structuredClone uses the native Date constructor, so instanceof
-    // checks fail when the test runner patches Date with MockDate.
+    // structuredClone preserves Date, Set, and Map (unlike JSON round-trip).
+    // It uses the native Date constructor, so instanceof checks fail when
+    // the test runner patches Date with MockDate.
     const date = new Date();
     const dateCopy = deepCopy(date);
     expect(Object.prototype.toString.call(dateCopy)).toBe("[object Date]");
@@ -178,10 +178,10 @@ test("deepCopy", () => {
     expect(mapCopy).not.toBe(map);
     expect(mapCopy.get("a")).toBe(1);
 
-    // OWL reactive proxies: structuredClone cannot clone Proxy objects
-    // (they lack internal slots), so deepCopy pre-unwraps via toRawDeep,
-    // then re-attempts structuredClone — preserving Date/Map/Set through
-    // the reactive wrapper instead of dropping them via JSON fallback.
+    // OWL reactive proxies: structuredClone can't clone Proxy objects (no
+    // internal slots), so deepCopy pre-unwraps via toRawDeep before
+    // re-attempting structuredClone, preserving Date/Map/Set instead of
+    // dropping them via the JSON fallback.
     const reactiveObj = reactive({
         ids: [1, 2, 3],
         name: "test",
@@ -208,9 +208,8 @@ test("deepCopy", () => {
 });
 
 test("deepCopy preserves structured types through reactive wrapper", () => {
-    // The pre-toRawDeep behavior would fall through to JSON.parse(JSON.stringify(...))
-    // on reactive input, silently mangling Date/Map/Set. These assertions verify
-    // the structured types survive after the unwrap-then-clone path.
+    // Pre-toRawDeep, this fell through to JSON.parse(JSON.stringify(...)) on
+    // reactive input, silently mangling Date/Map/Set.
     const date = new Date("2026-05-12T00:00:00Z");
     const set = new Set(["urgent", "billable"]);
     const map = new Map([["k", 1]]);
@@ -272,9 +271,9 @@ describe("toRawDeep", () => {
     });
 
     test("passes Date, RegExp by reference", () => {
-        // toRawDeep intentionally does not clone Date / RegExp — the trailing
-        // structuredClone in deepCopy handles their cloning. toRawDeep only
-        // needs to ensure the value at this slot is non-reactive.
+        // toRawDeep intentionally doesn't clone Date/RegExp — the trailing
+        // structuredClone in deepCopy handles that; toRawDeep only needs the
+        // slot to be non-reactive.
         const date = new Date();
         const regex = /foo/g;
         const r = reactive({ date, regex });

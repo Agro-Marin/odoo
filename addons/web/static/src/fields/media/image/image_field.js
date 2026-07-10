@@ -79,14 +79,11 @@ export class ImageField extends Component {
             if (record.resId !== resId) {
                 this.uniqueId = record.data.write_date;
             } else if (value !== nextValue) {
-                // A many2one image URL targets the RELATED record (relation +
-                // m2o id), and a dotted related field can change without this
-                // record's write_date moving. In both cases the parent's
-                // write_date is not a valid cache-buster — editing the linked
-                // record's image (via the m2o dialog, which refreshes the
-                // value's display_name) leaves the URL byte-identical and the
-                // browser serves the stale image — so bust with a fresh
-                // timestamp when the value changes.
+                // A many2one image URL targets the RELATED record, so neither
+                // a dotted-related change nor an m2o dialog edit (which only
+                // refreshes display_name) moves this record's write_date —
+                // the URL would stay byte-identical and serve a stale image,
+                // so bust with a fresh timestamp instead.
                 this.uniqueId =
                     isDottedRelated || this.fieldType === "many2one"
                         ? DateTime.now()

@@ -54,22 +54,17 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
         ...additionalClassList,
     ]);
     return Array.from(uniqueClasses)
-        .filter((c) => c) // remove falsy values
+        .filter((c) => c)
         .join(" ");
 }
 
 /**
- * Per-`fieldInfo` cache of extracted format options.
- *
- * ``codec.extractOptions(fieldInfo)`` derives options (digits, currency field,
- * …) purely from the parsed arch node, which is stable for a column's whole
- * lifetime — yet ``getFormattedValue`` runs once per read-only cell per render
- * (rows × formatter columns × every re-render), each time re-deriving those
- * options and, for numeric types, re-parsing ``digits`` (JSON.parse). Memoize
- * the extraction keyed on the ``fieldInfo`` object identity. The result is
- * still shallow-copied per call below, so ``.data``/``.field`` assignment and
- * formatter self-mutation (e.g. ``formatFloat`` setting ``options.digits``)
- * touch only the copy, never the cached original.
+ * Per-`fieldInfo` cache of extracted format options, keyed by object identity.
+ * `extractOptions` is stable per column for its whole lifetime but
+ * `getFormattedValue` runs once per cell per render, so memoize to avoid
+ * re-deriving (and re-JSON.parsing `digits`) every time. Still shallow-copied
+ * per call below, so formatter self-mutation (e.g. `formatFloat` setting
+ * `options.digits`) touches only the copy, never the cached original.
  * @type {WeakMap<object, object>}
  */
 const formatOptionsByFieldInfo = new WeakMap();
@@ -159,9 +154,7 @@ export function toStringExpression(str) {
     return `\`${(str ?? "").replaceAll("`", "\\`")}\``;
 }
 
-// ---------------------------------------------------------------------------
 // Controller utilities — shared logic extracted from form/list/kanban
-// ---------------------------------------------------------------------------
 
 /**
  * Compute the default model loading options for view controllers.
@@ -186,34 +179,20 @@ export function computeModelOptions(env, display) {
 
 /**
  * Compose the standard params object that multi-record view controllers
- * (list, kanban, plus future view types built on the same data shape)
- * pass to the relational model constructor.
+ * (list, kanban, ...) pass to the relational model constructor: state/config
+ * restoration (so returning to a view via the action manager replays the
+ * previous load instead of re-querying), `countLimit`/`defaultOrderBy` from
+ * the arch, `activeIdsLimit`, and
+ * ``hooks = { lifecycle, ui: { ...uiHooks, ...callerHooks.ui } }`` (every
+ * controller's UI hooks layered over the model defaults, plus its own
+ * lifecycle hooks).
  *
- * Centralizes the boilerplate every multi-record view applies:
+ * The caller's own view-specific config/extras (`groupByInfo`, `multiEdit`,
+ * `groupsLimit`, `maxGroupByDepth`, `limit`, etc.) go through `extras`,
+ * spread last so a controller can override any default here.
  *
- *   - **state restoration** — ``state = props.state?.modelState``
- *   - **config restoration** — ``config = props.state?.modelState?.config || config``
- *     so that returning to a view via the action manager replays the
- *     previous load instead of re-querying.
- *   - ``countLimit = archInfo.countLimit``
- *   - ``defaultOrderBy = archInfo.defaultOrder``
- *   - ``activeIdsLimit = session.active_ids_limit``
- *   - ``hooks = { lifecycle, ui: { ...uiHooks, ...callerHooks.ui } }`` —
- *     every controller starts from the model UI hooks
- *     (dialog/notification/action) and layers its own lifecycle and
- *     (optionally) UI overrides on top of the split contract enforced by
- *     ``RelationalModel``.
- *
- * The caller still owns its own ``config`` (extracted from arch with
- * any view-specific dependencies wired in via
- * ``addFieldDependencies``) and any view-specific extras
- * (``groupByInfo``, ``multiEdit``, ``groupsLimit``, ``maxGroupByDepth``,
- * ``limit``, etc.).  Those go through ``extras`` and are spread last so
- * a controller can override any default this function provides.
- *
- * Mono-record views (form) intentionally do not use this helper — their
- * config shape is different (``isMonoRecord``, ``resId``/``resIds``,
- * ``mode``) and they don't read most of the multi-record fields.
+ * Mono-record views (form) intentionally don't use this helper — their
+ * config shape (`isMonoRecord`, `resId`/`resIds`, `mode`) is different.
  *
  * @param {Object} args
  * @param {any} args.archInfo - parsed view arch
@@ -405,15 +384,11 @@ registry
     .category("shared_components")
     .add("computeViewClassName", computeViewClassName);
 
-// Validation contract for the shared_components registry. Its entries are
-// intentionally heterogeneous — OWL component classes (ViewButton) AND bare
-// hooks/utilities (useViewButtons, executeButtonCallback, loadSubViews,
-// useFormViewInDialog, computeViewClassName) — registered here so lower layers
-// (e.g. fields/x2many) resolve them without an upward import. The only contract
-// expressible registry-wide is therefore "must be callable": it catches a
-// non-callable mis-registration (object/undefined) at add time, while per-key
-// type contracts (ViewButton is a Component, useViewButtons is a hook) remain
-// the consumers' responsibility.
+// shared_components entries are heterogeneous (OWL components like
+// ViewButton, and bare hooks/utilities like useViewButtons) registered here
+// so lower layers (e.g. fields/x2many) resolve them without an upward
+// import. The only contract expressible registry-wide is "must be callable";
+// per-key type contracts remain the consumers' responsibility.
 registry
     .category("shared_components")
     .addValidation((entry) => typeof entry === "function");

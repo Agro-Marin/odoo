@@ -38,12 +38,9 @@ test("PhoneField in form view on normal screens (readonly)", async () => {
             </form>`,
         resId: 1,
     });
-    // Use ``a[href^="tel:"]`` to pick the phone link specifically — when
-    // the ``sms`` module is installed (as on the marin190 dev DB),
-    // ``sms.SendSMSButton`` adds a sibling ``<a class="o_field_phone_sms">``
-    // that the bare ``.o_field_phone a`` selector also matches.  Filtering
-    // by the ``tel:`` href keeps the assertion stable across both
-    // installed/uninstalled SMS module states.
+    // Filter by ``tel:`` href: with the ``sms`` module installed,
+    // ``sms.SendSMSButton`` adds a sibling ``.o_field_phone_sms`` link that the
+    // bare ``.o_field_phone a`` selector would also match.
     expect(".o_field_phone a[href^='tel:']").toHaveCount(1);
     expect(".o_field_phone a[href^='tel:']").toHaveText("yop");
     expect(".o_field_phone a[href^='tel:']").toHaveAttribute("href", "tel:yop");
@@ -65,9 +62,8 @@ test("PhoneField in form view on normal screens (edit)", async () => {
     });
     expect(`input[type="tel"]`).toHaveCount(1);
     expect(`input[type="tel"]`).toHaveValue("yop");
-    // Same SMS-button-coexistence pattern as the readonly test above;
-    // here in edit mode the visible link is the "Call" affordance from
-    // ``web.FormPhoneField``, also a ``tel:`` href.
+    // Same SMS-button-coexistence pattern as above; here the visible link is
+    // the "Call" affordance from ``web.FormPhoneField``.
     expect(".o_field_phone a[href^='tel:']").toHaveCount(1);
     expect(".o_field_phone a[href^='tel:']").toHaveText("Call");
     expect(".o_field_phone a[href^='tel:']").toHaveAttribute("href", "tel:yop");

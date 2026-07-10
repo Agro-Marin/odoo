@@ -3,12 +3,7 @@
 
 /** @module @web/model/relational_model/static_list_sort - Sorting and resequencing logic extracted from StaticList */
 
-/**
- * Record sorting, resequencing (drag-and-drop handle fields),
- * and sort-by-column logic for StaticList.
- *
- * Receives the StaticList instance as first argument (delegation pattern).
- */
+/** Receives the StaticList instance as first argument (delegation pattern). */
 
 import { pick } from "@web/core/utils/collections/objects";
 

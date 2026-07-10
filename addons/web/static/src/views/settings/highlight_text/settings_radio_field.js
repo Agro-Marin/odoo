@@ -7,7 +7,6 @@ import { registerField } from "@web/fields/_registry";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
 
 import { HighlightText } from "./highlight_text.js";
-/** RadioField variant with search-term highlighting on option labels. */
 export class SettingsRadioField extends RadioField {
     static template = "web.SettingsRadioField";
     static components = {

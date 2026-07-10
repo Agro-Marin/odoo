@@ -84,7 +84,6 @@ class User extends models.Model {
 }
 defineModels([Partner, User]);
 
-// Kanban
 // WOWL remove this helper and user the control panel instead
 const reload = async (kanban, params = {}) => {
     kanban.env.searchModel.reload(params);
@@ -118,7 +117,6 @@ test("JournalDashboardGraphField is rendered correctly", async () => {
         message: "graph of second record should be a linechart",
     });
 
-    // reload kanban
     await click("input.o_searchview_input");
     await press("Enter");
     await animationFrame();

@@ -455,8 +455,7 @@ test("Simple scroll to HTML elements", async () => {
         };
     };
 
-    // When using scrollTo to an element, this should just scroll
-    // until the element is visible in the scrollable parent
+    // scrollTo an element should just make it visible in the scrollable parent
     const subScrollable = queryOne("#sub-scrollable");
     subScrollable.style.overflowY = "scroll";
     subScrollable.style.height = getComputedStyle(subScrollable)["line-height"];
@@ -476,22 +475,19 @@ test("Simple scroll to HTML elements", async () => {
     expect(isVisible("#o-div-4")).toBe(false);
     expect(border("#o-div-1").top).toBe(0);
 
-    // Specify a scrollable which can not be scrolled, the effective scrollable
-    // should be its closest actually scrollable parent.
+    // A non-scrollable `scrollable` falls back to its closest scrollable ancestor.
     scrollTo(queryOne("#o-div-3"), { scrollable: queryOne("#fake-scrollable") });
     expect(isVisible("#o-div-3")).toBe(true);
     expect(isVisible("#o-div-4")).toBe(false);
     expect(border("#o-div-3").bottom).toBe(0);
 
-    // Reset the position
     scrollTo(queryOne("#o-div-1"));
     expect(isVisible("#o-div-1")).toBe(true);
     expect(isVisible("#o-div-3")).toBe(false);
     expect(isVisible("#o-div-4")).toBe(false);
 
-    // Scrolling should be recursive in case of a hierarchy of
-    // scrollables, if `isAnchor` is set to `true`, and it must be scrolled
-    // to the top even if it was positioned below the scroll view.
+    // `isAnchor` scrolls recursively through nested scrollables, forcing the
+    // target to the top even if it was below the scroll view.
     scrollTo(queryOne("#o-div-4"), { isAnchor: true });
     expect(isVisible("#o-div-4")).toBe(true);
     expect(border("#o-div-4").top).toBe(0);

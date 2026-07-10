@@ -4,33 +4,16 @@
 /** @module @web/views/list/list_styling - Class-name + formatted-value helpers extracted from ListRenderer */
 
 /**
- * Styling cohort extracted from ``ListRenderer``.
+ * Styling cohort extracted from ``ListRenderer``, applied via
+ * ``Object.assign(ListRenderer.prototype, listStylingMixin)`` in list_renderer.js.
  *
- * The methods below were originally instance methods on
- * ``ListRenderer.prototype``.  They are exported as a plain mixin
- * object that ``list_renderer.js`` applies to its prototype via
- * ``Object.assign(ListRenderer.prototype, listStylingMixin)``.
- *
- * Why prototype assignment instead of a hook (the pattern of
- * ``useListAggregates``, ``useListSelection``, etc.):
- *
- * The ~40 subclasses of ``ListRenderer`` (across ``stock``, ``hr``,
- * ``account``, ``sale``, ``web_studio``, etc. — verified fork-wide
- * count 2026-05-23; an earlier revision of this comment said "~71",
- * which was wrong even at the time it was written) override these
- * methods via ``super.getCellClass(col, record)``,
- * ``super.getRowClass(record)``, ``super.canUseFormatter(...)``.
- * A hook returning a namespaced object (``this.styling.getCellClass``)
- * would force every subclass to be rewritten — out of scope for a
- * refactor that should preserve behavior.  Mixin assignment keeps the
- * methods on the prototype chain so ``super.<method>(...)`` keeps
- * working untouched.
- *
- * The methods read from ``this`` (the renderer instance), not from
- * closed-over state — ``this.cellClassByColumn``, ``this._readonlyCache``,
- * ``this.props``, ``this.fields``, ``this.editedRecord`` all stay on
- * the renderer.  Field initializations (``this.cellClassByColumn = {}``)
- * remain in the renderer's setup; only the method bodies move here.
+ * Mixin rather than a hook (unlike ``useListAggregates``, ``useListSelection``)
+ * because ~40 fork-wide subclasses (stock, hr, account, sale, web_studio, ...)
+ * override these methods via ``super.getCellClass(...)`` etc.; staying on the
+ * prototype chain preserves that without rewriting every subclass. Methods read
+ * renderer state via ``this`` (``cellClassByColumn``, ``_readonlyCache``,
+ * ``props``, ``fields``, ``editedRecord``); field initializations
+ * (``this.cellClassByColumn = {}``) stay in the renderer's setup.
  */
 
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
@@ -158,9 +141,9 @@ export const listStylingMixin = {
             } else if (column.type === "field") {
                 classNames.push("o_field_cell");
                 if (column.attrs && column.attrs.class && !column.widget) {
-                    // When a widget is used, arch classes are delegated only to
-                    // the <Field> component (via getFieldClass) so that layout
-                    // classes like d-flex do not conflict with the cell layout.
+                    // When a widget is used, arch classes go only to the <Field>
+                    // component (via getFieldClass) so layout classes like d-flex
+                    // don't conflict with the cell layout.
                     classNames.push(column.attrs.class);
                 }
                 const typeClass = FIELD_CLASSES[this.fields[column.name].type];
@@ -320,9 +303,8 @@ export const listStylingMixin = {
             record.isInEdition &&
             (record.model.multiEdit || this.isInlineEditable(record))
         ) {
-            // In an x2many non-editable list a record may be "in edition" because
-            // it's opened in a dialog, but in the list we still want readonly
-            // formatting.
+            // In a non-editable x2many list a record may be "in edition" because
+            // it's opened in a dialog, but the list should still render readonly.
             return false;
         }
         return true;

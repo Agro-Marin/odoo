@@ -6,30 +6,15 @@
 import { registry } from "@web/core/registry";
 
 /**
- * Single source of truth for "how many form-in-dialog instances are
- * currently open across the page".  Replaces the per-FormController
- * counter that incremented/decremented on every form-in-dialog
- * mount/unmount.
+ * Single source of truth for how many form-in-dialog instances are open
+ * across the page. Replaces a per-FormController counter that had a latent
+ * bug: a controller mounted after a dialog opened would see count === 0,
+ * since the counter was scoped to the controller's lifetime, not the page.
  *
- * The counter pattern was wasteful (every FormController on the page
- * maintained its own counter from the same global events) and had a
- * latent bug: a controller mounted *after* a form-in-dialog opened
- * would see ``count === 0`` even though a dialog was already open,
- * because the counter was scoped to the controller's lifetime rather
- * than to the page.  The shared service fixes both.
- *
- * Historical note: an earlier revision exposed the count by
- * subscribing to ``AppEvent.FORM_DIALOG_ADD`` /
- * ``AppEvent.FORM_DIALOG_REMOVE`` bus events that
- * ``useFormViewInDialog`` triggered on mount/unmount.  The events
- * were preserved "for hypothetical external listeners".  None
- * materialized — the trigger and the listener were both inside the
- * web module, with no consumer of the events outside the
- * service-listener pairing they implemented.  The bus indirection
- * was removed in favor of direct ``push()`` / ``pop()`` calls from
- * ``useFormViewInDialog`` (one fewer hop, one fewer pair of
- * constants in events.js, no scaffolding waiting for consumers that
- * never came).
+ * An earlier revision exposed the count via bus events
+ * (``AppEvent.FORM_DIALOG_ADD``/``REMOVE``) kept "for hypothetical external
+ * listeners" that never materialized; replaced with direct ``push()``/
+ * ``pop()`` calls from ``useFormViewInDialog``.
  *
  * @typedef {{
  *   push: () => void,

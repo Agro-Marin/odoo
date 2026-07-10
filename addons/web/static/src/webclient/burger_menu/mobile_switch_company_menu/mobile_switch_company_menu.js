@@ -5,7 +5,6 @@
 
 import { SwitchCompanyMenu } from "@web/webclient/switch_company_menu/switch_company_menu";
 
-/** Mobile variant of the company switcher with a collapsible toggle. */
 export class MobileSwitchCompanyMenu extends SwitchCompanyMenu {
     static template = "web.MobileSwitchCompanyMenu";
 

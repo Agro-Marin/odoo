@@ -157,11 +157,8 @@ export class Many2XAutocomplete extends Component {
                         this.autoCompleteContainer.el
                     ).querySelector("input");
 
-                    // There are two cases:
-                    // 1. Value is the same as the input: it means the autocomplete has re-rendered with the right value
-                    //    This is in case we saved the record, triggering all the interface to update.
-                    // 2. Value is different from the input: it means the input has a manually entered value and nothing
-                    //    happened, that is, we discarded the changes
+                    // Value matches input: record was saved and the UI re-rendered.
+                    // Value differs: input was manually typed and nothing happened (discarded).
                     if (
                         this.props.value !==
                         /** @type {HTMLInputElement} */ (autoCompleteInput).value
@@ -417,17 +414,14 @@ export class Many2XAutocomplete extends Component {
     get actionSuggestions() {
         return [
             {
-                // create
                 enabled: this.addCreateSuggestion.bind(this),
                 build: this.buildCreateSuggestion.bind(this),
             },
             {
-                // create and edit
                 enabled: this.addCreateEditSuggestion.bind(this),
                 build: this.buildCreateEditSuggestion.bind(this),
             },
             {
-                // search more
                 enabled: this.addSearchMoreSuggestion.bind(this),
                 build: this.buildSearchMoreSuggestion.bind(this),
             },

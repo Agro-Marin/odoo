@@ -168,10 +168,9 @@ export class FileViewer extends Component {
         this.didDrag = false;
         this.dragStartX = ev.clientX;
         this.dragStartY = ev.clientY;
-        // Capture the pointer so move/up events keep flowing during the pan
-        // (retargeted to the image, bubbling through the main view) even when
-        // the pointer leaves the image. Untrusted pointers (tests) cannot be
-        // captured — the main view's pointerup handler still ends the drag.
+        // Capture the pointer so move/up keep flowing during the pan even if
+        // it leaves the image. Untrusted (test) pointers can't be captured —
+        // the main view's pointerup handler still ends the drag then.
         try {
             ev.target.setPointerCapture(ev.pointerId);
         } catch {
@@ -180,9 +179,8 @@ export class FileViewer extends Component {
     }
 
     /**
-     * Ends an image pan. Bound on the main view (pointerup/pointercancel) so
-     * it fires both when the pointer is captured by the image (the event
-     * retargets to the image and bubbles here) and when it is not.
+     * Ends an image pan. Bound on the main view (pointerup/pointercancel) so it
+     * fires whether or not the pointer was captured by the image.
      */
     onPointerupView() {
         if (!this.isDragging) {

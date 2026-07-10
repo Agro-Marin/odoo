@@ -41,10 +41,8 @@ function appendAttf(el, attr, string) {
 }
 
 export function appendToExpr(expr, string) {
-    // Append the new interpolation to the existing expression, preserving any
-    // literal text around it. (The former implementation re-extracted only the
-    // `{{...}}` span with a regex, silently dropping static text such as the
-    // "foo " in `t-attf-class="foo {{expr}}"`.)
+    // Append the new interpolation, preserving surrounding literal text (a prior
+    // regex-based version dropped static text like "foo " in `t-attf-class="foo {{expr}}"`).
     return expr ? `${expr} {{${string} }}` : `{{${string} }}`;
 }
 
@@ -59,12 +57,9 @@ export function objectToString(obj) {
 }
 
 export class FormCompiler extends ViewCompiler {
-    // NB: these must be initialized at the declaration, NOT in setup().
-    // `ViewCompiler`'s constructor calls `this.setup()`, but native class-field
-    // initializers run *after* super() returns — so any value setup() assigns to
-    // a declared-but-uninitialized field is immediately clobbered back to
-    // `undefined`. Initializing here keeps the field both type-declared and
-    // correctly valued once construction finishes.
+    // NB: must be initialized here, NOT in setup(). `ViewCompiler`'s constructor
+    // calls `this.setup()`, but class-field initializers run *after* super()
+    // returns, so a value setup() assigns would be clobbered back to `undefined`.
     /** @type {Record<string, any>} */
     encounteredFields = {};
     /** @type {Record<string, Element[] | null>} */
@@ -558,9 +553,8 @@ export class FormCompiler extends ViewCompiler {
      */
     compileLabel(el, params) {
         const forAttr = el.getAttribute("for");
-        // A label can contain or not the labelable Element it is referring to.
-        // If it doesn't, there is no `for=`
-        // Otherwise, the targetted element is somewhere else among its nextChildren
+        // A label may or may not contain the labelable element it targets via `for=`;
+        // if not, the target is elsewhere among its nextChildren.
         if (forAttr) {
             let label = createElement("label");
             copyAttributes(el, label);
@@ -650,13 +644,10 @@ export class FormCompiler extends ViewCompiler {
             const isVisibleExpr = makeIsVisibleExpr(invisible);
             pageSlot.setAttribute("isVisible", isVisibleExpr);
 
-            // Local collector per page — do NOT mutate the incoming params.
-            // A nested notebook inside this page reuses the SAME array (passed
-            // down via notebookPageFields), so its fields land in this page's
-            // list too; otherwise the outer page's invalid-field highlight
-            // (Notebook.computeInvalidPages) misses fields nested one level
-            // deeper, and the stale `params.notebookPageFields` reference
-            // leaked to siblings compiled after the notebook.
+            // Local collector per page — do NOT mutate the incoming params. A nested
+            // notebook reuses this SAME array via notebookPageFields, so its fields
+            // land here too; otherwise computeInvalidPages misses nested fields and
+            // the stale reference leaks to siblings compiled after the notebook.
             const pageFields = [];
             for (const contents of child.children) {
                 append(

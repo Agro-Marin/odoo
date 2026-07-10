@@ -4,8 +4,6 @@
 /** @module @web/webclient/actions/action_constants - Constants (dialog sizes, context key regex, embedded action keys, prop shape), error class, and ID parsing for the action service */
 
 /**
- * Constants, prop shape, error class, and simple parsing for the action service.
- *
  * Kept free of ``@odoo/owl`` / ``@web/*`` imports so the file stays
  * a pure-data leaf in the action_service module graph.
  */

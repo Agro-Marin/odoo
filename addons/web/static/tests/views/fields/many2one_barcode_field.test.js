@@ -100,7 +100,6 @@ test("Many2OneBarcode component should display the barcode icon", async () => {
 test("barcode button with single results", async () => {
     expect.assertions(3);
 
-    // The product selected (mock) for the barcode scanner
     const selectedRecordTest = Product._records[0];
 
     patchWithCleanup(BarcodeScanner, {
@@ -137,7 +136,6 @@ test.tags("desktop");
 test("barcode button with multiple results on desktop", async () => {
     expect.assertions(5);
 
-    // The product selected (mock) for the barcode scanner
     const selectedRecordTest = Product._records[1];
 
     patchWithCleanup(BarcodeScanner, {
@@ -181,7 +179,6 @@ test.tags("mobile");
 test("barcode button with multiple results on mobile", async () => {
     expect.assertions(5);
 
-    // The product selected (mock) for the barcode scanner
     const selectedRecordTest = Product._records[1];
 
     patchWithCleanup(BarcodeScanner, {
@@ -223,7 +220,6 @@ test("barcode button with multiple results on mobile", async () => {
 
 test.tags("mobile");
 test("many2one with barcode show all records", async () => {
-    // The product selected (mock) for the barcode scanner
     const selectedRecordTest = Product._records[1];
 
     patchWithCleanup(BarcodeScanner, {
@@ -236,7 +232,6 @@ test("many2one with barcode show all records", async () => {
         arch: `<form><field name="product_id" options="{'can_scan_barcode': True}"/></form>`,
     });
 
-    // Select one product
     await contains(".o_barcode").click();
 
     // Click on the input to show all records

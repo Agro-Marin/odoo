@@ -54,9 +54,7 @@ import { registerInlineViewArchs } from "./mock_server/mock_model.js";
  * @typedef {import("./mock_server/mock_model").ViewType} ViewType
  */
 
-//-----------------------------------------------------------------------------
 // Internals
-//-----------------------------------------------------------------------------
 
 /**
  * FIXME: isolate to external helper in @web?
@@ -87,9 +85,7 @@ class ViewDialog extends Component {
     }
 }
 
-//-----------------------------------------------------------------------------
 // Exports
-//-----------------------------------------------------------------------------
 
 /**
  *
@@ -323,10 +319,8 @@ export async function hideTab() {
 }
 
 /**
- * Changes or clears the value in a SelectMenu component, supporting when
- * the input is displayed in the toggler, in a Dropdown menu or in a
- * BottomSheet as well. The helper can directly select a value if it's
- * displayed or perform a search in the SelectMenu input if present.
+ * Changes or clears a SelectMenu value (toggler, Dropdown, or BottomSheet).
+ * Selects directly if the value is visible, otherwise searches via the input.
  * @param {string} selector
  * @param {EditSelectMenuParams} [params]
  */

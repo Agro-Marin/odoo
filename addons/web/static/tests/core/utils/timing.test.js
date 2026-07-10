@@ -296,10 +296,9 @@ describe("debounce", () => {
             expect.step("resolved " + x);
         });
         await runAllTimers();
-        // func is NOT called (3000ms did not elapse between the previous call
-        // and this one), but the suppressed call's promise is drained when the
-        // cooldown timer fires — resolved with undefined, like cancel() — so
-        // awaiters do not hang and pending entries do not accumulate.
+        // func is NOT called (3000ms hasn't elapsed), but the suppressed call's
+        // promise still resolves (undefined, like cancel()) when the cooldown
+        // timer fires, so awaiters don't hang and entries don't accumulate.
         expect.verifySteps(["resolved undefined"]);
 
         myDebouncedFunc().then((x) => {
@@ -444,10 +443,8 @@ describe("throttleForAnimationScrollEvent", () => {
     test("scroll loses target", async () => {
         let throttled = new Deferred();
         const throttledFn = throttleForAnimation((val, targetEl) => {
-            // In Chrome, the currentTarget of scroll events is lost after the
-            // event was handled, it is therefore null here.
-            // Because of this, if it is needed, it must be included in the
-            // callback signature.
+            // In Chrome, scroll events' currentTarget is lost after the event
+            // is handled (null here), so pass it explicitly if needed.
             const nodeName = val && val.currentTarget && val.currentTarget.nodeName;
             const targetName = targetEl && targetEl.nodeName;
             expect.step(

@@ -201,19 +201,15 @@ test("pager disabling", async () => {
             offset: 0,
             limit: 4,
             total: 10,
-            // The goal here is to test the reactivity of the pager; in a
-            // typical views, we disable the pager after switching page
-            // to avoid switching twice with the same action (double click).
+            // Verifies the pager disables itself after a page switch, so a double
+            // click can't re-trigger the action while the first update is pending.
             async onUpdate(data) {
-                // 1. Simulate a (long) server action
                 await reloadPromise;
-                // 2. Update the view with loaded data
                 await pager.updateProps(data);
             },
         },
     });
 
-    // Click and check button is disabled
     await click(".o_pager button.o_pager_next");
     await animationFrame();
     expect(".o_pager button.o_pager_next").toHaveAttribute("disabled");
@@ -231,13 +227,10 @@ test("pager disabling on desktop", async () => {
             offset: 0,
             limit: 4,
             total: 10,
-            // The goal here is to test the reactivity of the pager; in a
-            // typical views, we disable the pager after switching page
-            // to avoid switching twice with the same action (double click).
+            // Verifies the pager disables itself after a page switch, so a double
+            // click can't re-trigger the action while the first update is pending.
             async onUpdate(data) {
-                // 1. Simulate a (long) server action
                 await reloadPromise;
-                // 2. Update the view with loaded data
                 await pager.updateProps(data);
             },
         },
@@ -245,7 +238,6 @@ test("pager disabling on desktop", async () => {
 
     await click(".o_pager button.o_pager_next");
     await animationFrame();
-    // Try to edit the pager value
     await click(".o_pager_value");
     await animationFrame();
 

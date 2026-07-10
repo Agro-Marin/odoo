@@ -6,64 +6,57 @@
 /**
  * ``ListRecordRow`` renders one ``<tr class="o_data_row">`` of the list view.
  *
- * Why a component (and not the historical ``t-call``): with a ``t-call``, every
- * cell expression of every visible row is re-evaluated on ANY reactive change
- * the renderer is subscribed to (a single checkbox toggle re-formatted every
- * cell of every row). As a component whose props are referentially stable for
- * unchanged rows, OWL's ``arePropsDifferent`` check skips the whole row —
- * only the row whose own record changed re-renders (same pattern as
- * ``ListAggregatesRow``, pinned by test R4).
+ * Why a component and not the historical ``t-call``: a ``t-call`` re-evaluates
+ * every cell expression of every visible row on ANY reactive change the
+ * renderer is subscribed to (one checkbox toggle re-formats every cell of
+ * every row). As a component with referentially-stable props for unchanged
+ * rows, OWL's ``arePropsDifferent`` skips the whole row — only the row whose
+ * own record changed re-renders (same pattern as ``ListAggregatesRow``,
+ * pinned by test R4).
  *
- * COMPATIBILITY CONTRACT — this extraction must be invisible to the ~15
- * addons that customize record rows (audited fork-wide 2026-07-02, see the
- * list below). They do it three ways, all preserved:
+ * COMPATIBILITY CONTRACT — invisible to the ~15 addons that customize record
+ * rows (audited fork-wide 2026-07-02). Three patterns, all preserved:
  *
  * 1. ``static recordRowTemplate = "..."`` on a ``ListRenderer`` subclass, with
  *    a template inheriting ``web.ListRenderer.RecordRow`` (account, website,
  *    purchase_requisition, resource, sale, sale_management, hr_skills(+slides),
  *    documents, account_online_synchronization, account_accountant,
- *    web_studio). The row body therefore STAYS at t-name
- *    ``web.ListRenderer.RecordRow`` (byte-identical, all xpath anchors intact);
- *    this component's own template is a thin wrapper that dynamically t-calls
- *    ``props.recordRowTemplate`` (the renderer's ``constructor.recordRowTemplate``).
+ *    web_studio). The row body stays at t-name ``web.ListRenderer.RecordRow``
+ *    (byte-identical, xpath anchors intact); this component's own template
+ *    just t-calls ``props.recordRowTemplate`` dynamically.
  *
- * 2. ``this.X`` / bare-name expressions inside those templates historically
- *    resolved against the RENDERER's render context (its methods, getters,
+ * 2. ``this.X`` / bare-name expressions in those templates historically
+ *    resolved against the RENDERER's render context (methods, getters,
  *    instance state — e.g. ``isSection(record)``, ``this.rightPanelState``,
  *    ``this.comboColumns``, ``getPreviousRecords(record)``) plus template-scope
  *    vars (``record``, ``group``, ``groupId``, ``_canSelectRecord``). The
- *    component emulates that context exactly:
- *      - every renderer member (own fields + full prototype chain, subclasses
- *        included) is delegated lazily through accessors installed on the row
- *        class prototype;
- *      - methods run with ``this`` set to a proxy over the renderer that also
- *        resolves ``record``/``group``/``groupId`` to this row's values — so
- *        renderer methods (and their ``super`` chains) behave exactly as when
- *        they ran inside the row ``t-call`` (e.g. account's
- *        ``isSection(record = this.record)`` default still works);
- *      - writes (``this.foo = x``) land on the renderer instance.
+ *    component emulates that exactly: every renderer member is delegated
+ *    lazily via accessors on the row class prototype; methods run with
+ *    ``this`` proxied over the renderer (which also resolves
+ *    ``record``/``group``/``groupId`` to this row's values, so ``super``
+ *    chains and defaults like account's ``isSection(record = this.record)``
+ *    still work); writes (``this.foo = x``) land on the renderer instance.
  *
- * 3. ``rowsTemplate`` overrides that still ``t-call`` ``constructor.recordRowTemplate``
- *    directly (project notebook tasks, hr_skills skills/resume). That legacy
- *    path is untouched: the row body template still renders fine with the
- *    renderer as ``this`` because no helper moved off the renderer.
+ * 3. ``rowsTemplate`` overrides that still ``t-call``
+ *    ``constructor.recordRowTemplate`` directly (project notebook tasks,
+ *    hr_skills skills/resume) are untouched — no helper moved off the
+ *    renderer, so they keep rendering fine with the renderer as ``this``.
  *
- * REACTIVITY DESIGN (verified against OWL semantics — subscriptions accrue to
- * the component whose reactive proxy performs the read):
+ * REACTIVITY DESIGN (subscriptions accrue to whichever component's reactive
+ * proxy performs the read):
  *
  * - ``record``/``group`` exposed to the template are the RENDERER's reactive
- *   proxies (recovered via ``gridState``), NOT the row-wrapped prop. This keeps
- *   proxy identity consistent with all renderer-side state (``editedRecord``
- *   comparisons, ``list.records.indexOf(record)``, account's
- *   ``parentSectionMap.get(record)``, documents'
- *   ``record === this.rightPanelState.focusedRecord``, selection ranges…).
- *   Renderer-level subscriptions therefore stay exactly as before.
- * - The row subscribes ITSELF through its OWL-wrapped ``props.record`` proxy in
- *   ``_touchRecordDependencies()`` (selection, edition, validity, field values,
- *   x2many content, eval context incl. ``parent.*``) — so a change to this
- *   record re-renders this row even when every other row is skipped.
+ *   proxies (via ``gridState``), not the row-wrapped prop — this preserves
+ *   proxy identity for renderer-side comparisons (``editedRecord``,
+ *   ``list.records.indexOf(record)``, account's ``parentSectionMap``,
+ *   documents' ``rightPanelState.focusedRecord``, selection ranges…), so
+ *   renderer-level subscriptions are unaffected.
+ * - The row subscribes itself through its own OWL-wrapped ``props.record``
+ *   proxy in ``_touchRecordDependencies()`` (selection, edition, validity,
+ *   field values, x2many content, eval context incl. ``parent.*``), so a
+ *   change to this record re-renders only this row.
  * - Renderer state read from row templates (e.g. documents'
- *   ``rightPanelState``) is wrapped during render so the row ALSO subscribes
+ *   ``rightPanelState``) is wrapped during render so the row also subscribes
  *   to it (shallow), while returned values keep renderer-proxy identity.
  */
 

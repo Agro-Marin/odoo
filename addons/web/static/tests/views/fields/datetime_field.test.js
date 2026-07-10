@@ -114,7 +114,6 @@ test("DatetimeField in form view", async () => {
         message: "the selected date should be displayed in the input",
     });
 
-    // save
     await clickSave();
     expect(".o_field_datetime button").toHaveValue(newExpectedDateString, {
         message: "the selected date should be displayed after saving",
@@ -292,7 +291,6 @@ test("DatetimeField in editable list view", async () => {
     expect(".o_field_datetime input").toHaveValue("04/22/2018 08:25:00", {
         message: "the date should be correct in edit mode",
     });
-    // save
 
     await click(".o_list_button_save");
     await animationFrame();
@@ -424,7 +422,6 @@ test("DatetimeField remove value", async () => {
         message: "should have an empty input",
     });
 
-    // save
     await clickSave();
     expect(".o_field_datetime:first").toHaveText("", {
         message: "the selected date should be displayed after saving",
@@ -432,10 +429,7 @@ test("DatetimeField remove value", async () => {
 });
 
 test("datetime field: hit enter should update value", async () => {
-    // This test verifies that the field datetime is correctly computed when:
-    //     - we press enter to validate our entry
-    //     - we click outside the field to validate our entry
-    //     - we save
+    // Value must be correctly computed after enter-to-validate, click-away, and save.
     mockTimeZone(+2);
 
     await mountView({

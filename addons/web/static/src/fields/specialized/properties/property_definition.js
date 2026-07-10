@@ -95,7 +95,6 @@ export class PropertyDefinition extends Component {
 
         this._domInputIdPrefix = uuid();
 
-        // update the state and fetch needed information
         onWillUpdateProps((newProps) =>
             this._syncStateWithProps(newProps.propertyDefinition),
         );
@@ -162,16 +161,10 @@ export class PropertyDefinition extends Component {
             : currencyFields[0] || false;
     }
 
-    /**
-     * Return True if the current properties is the first one in the list.
-     */
     get isFirst() {
         return this.state.propertyIndex === 0;
     }
 
-    /**
-     * Return True if the current properties is the last one in the list.
-     */
     get isLast() {
         return this.state.propertyIndex === this.props.propertiesSize - 1;
     }
@@ -472,9 +465,6 @@ export class PropertyDefinition extends Component {
         }
     }
 
-    /**
-     * Update the number of records that match the current domain.
-     */
     async _updateMatchingRecordsCount() {
         if (this.state.resModel && this.state.resModel.length) {
             const domainList = new Domain(
@@ -490,9 +480,8 @@ export class PropertyDefinition extends Component {
                     ),
                 );
             } catch {
-                // e.g. an AccessError on the comodel while the user is still
-                // typing the domain: don't surface it as an error dialog, just
-                // hide the count.
+                // e.g. an AccessError while the user is still typing the
+                // domain: don't surface it, just hide the count.
                 this.state.matchingRecordsCount = undefined;
             }
         } else {

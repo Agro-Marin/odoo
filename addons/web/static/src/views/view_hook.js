@@ -25,7 +25,7 @@ import { ExportDataDialog } from "@web/views/view_dialogs/export_data_dialog";
  * A @web/core/concurrency:KeepLast must be present in the owl environment to allow coordinating
  * between clicks. (env.keepLast)
  *
- * Note that this is similar but quite different from action buttons, since action links
+ * This is similar but quite different from action buttons, since action links
  * are not dynamic according to the record.
  * @param {Object} params
  * @param  {String} params.resModel The default resModel to which actions will apply

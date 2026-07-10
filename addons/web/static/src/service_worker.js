@@ -13,14 +13,11 @@ const offLineURL = `${homepageURL}/offline`;
 // safe.
 const staticCacheName = "odoo-static-cache";
 
-// URL patterns eligible for stale-while-revalidate.  The regex matches
-// path-only (``url.pathname``) to avoid query-string false positives.
-//   /web/webclient/translations/<hash>   — translation bundles per lang + modules
-//   /web/assets/<hash>/<bundle>.js       — content-addressable asset bundles
-//   /web/image/<record_id>/...           — hash-prefixed image URLs
-// All three are keyed by a cache-busting component in the URL, so
-// reusing a cached entry for a matching URL is always correct.  When
-// the URL changes (new hash / new id) we just miss and populate.
+// URL patterns eligible for stale-while-revalidate: translation bundles,
+// asset bundles, and /web/image/ responses. Matches path-only
+// (``url.pathname``) to avoid query-string false positives. All three are
+// keyed by a cache-busting hash/id in the URL, so reusing a cached entry
+// for a matching URL is always correct.
 const STALE_WHILE_REVALIDATE_RE =
     /^\/web\/(webclient\/translations|assets|image)(\/|$)/;
 
@@ -33,7 +30,6 @@ self.addEventListener("install", (event) => {
             fetch(homepageURL).then((res) =>
                 res.ok ? storeDataOnCache(homepageURL, res) : null,
             ),
-            // offLine Page
             caches.open(cacheName).then((cache) => cache.add(offLineURL)),
         ]),
     );

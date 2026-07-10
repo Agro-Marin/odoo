@@ -6,22 +6,14 @@
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { useFileUploader } from "@web/core/utils/files";
 /**
- * Custom file input
- *
- * Component representing a customized input of type file. It takes a sub-template
- * in its default t-slot and uses it as the trigger to open the file upload
- * prompt.
+ * Customizable file input; the default t-slot content is the trigger that
+ * opens the file upload prompt.
  * @extends Component
- *
- * Props:
- * @param {string} [props.acceptedFileExtensions='*'] Comma-separated
- *      list of authorized file extensions (default to all).
- * @param {string} [props.route='/web/binary/upload_attachment'] Route called
- *      when a file is uploaded in the input.
+ * @param {string} [props.acceptedFileExtensions='*'] Comma-separated list of authorized file extensions (default to all).
+ * @param {string} [props.route='/web/binary/upload_attachment'] Route called when a file is uploaded.
  * @param {string} [props.resId]
  * @param {string} [props.resModel]
- * @param {string} [props.multiUpload=false] Whether the input should allow
- *      to upload multiple files at once.
+ * @param {string} [props.multiUpload=false] Whether to allow uploading multiple files at once.
  */
 export class FileInput extends Component {
     static template = "web.FileInput";
@@ -76,17 +68,9 @@ export class FileInput extends Component {
         return params;
     }
 
-    //--------------------------------------------------------------------------
     // Handlers
-    //--------------------------------------------------------------------------
 
-    /**
-     * Upload an attachment to the given route with the given parameters:
-     * - ufile: list of files contained in the file input
-     * - csrf_token: CSRF token provided by the odoo global object
-     * - resModel: a specific model which will be given when creating the attachment
-     * - resId: the id of the resModel target instance
-     */
+    /** Upload the input's files to `route`, tagged with the record's model/id if set. */
     async onFileInputChange() {
         this.state.isDisable = true;
         const httpParams = this.httpParams;
@@ -102,7 +86,7 @@ export class FileInput extends Component {
         try {
             const parsedFileData = await this.uploadFiles(this.props.route, httpParams);
             if (parsedFileData) {
-                // When calling onUpload, also pass the files to allow to get data like their names
+                // Also pass the raw files so onUpload can read metadata like names.
                 this.props.onUpload(
                     parsedFileData,
                     this.fileInputRef.el
@@ -111,9 +95,8 @@ export class FileInput extends Component {
                 );
             }
         } finally {
-            // Because the input would not trigger this method if the same file name is uploaded,
-            // we must clear the value once the upload is handled (even when it failed, so that
-            // re-selecting the same file triggers a new upload)
+            // The input won't fire this handler again for the same file name unless
+            // its value is cleared first — even on failure, so retry is possible.
             if (this.fileInputRef.el) {
                 /** @type {HTMLInputElement} */ (this.fileInputRef.el).value = "";
             }
@@ -121,9 +104,6 @@ export class FileInput extends Component {
         }
     }
 
-    /**
-     * Redirect clicks from the trigger element to the input.
-     */
     async onTriggerClicked() {
         if (await this.props.beforeOpen()) {
             this.fileInputRef.el.click();

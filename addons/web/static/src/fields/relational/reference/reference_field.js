@@ -21,16 +21,9 @@ import {
  */
 
 /**
- * 1. Reference field is a char field
- * 2. Reference widget has model_field prop
- * 3. Standard case
- */
-
-/**
- * This class represents a reference field widget. It can be used to display
- * a reference field OR a char field.
- * The res_model of the relation is defined either by the reference field itself
- * or by the model_field prop.
+ * Widget for a reference field (or a char field acting as one). The
+ * res_model of the relation comes from the field itself or from the
+ * model_field prop.
  *
  * 1) Reference field is a char field
  * We have to fetch the display name (name_get) of the referenced record.
@@ -160,16 +153,12 @@ export class ReferenceField extends Component {
         });
     }
 
-    /**
-     * Return true if the reference field is a char field.
-     */
     _isCharField(props) {
         return props.record.fields[props.name].type === "char";
     }
 
     /**
-     * Fetch special data if the reference field is a char field.
-     * It fetches the display name of the record.
+     * Fetch the display name of the referenced record (char-field case).
      *
      * @returns {Promise<{ resId: number, resModel: string, displayName: string }|false>}
      */
@@ -204,9 +193,6 @@ export class ReferenceField extends Component {
         return false;
     }
 
-    /**
-     * Ensure that the modelField is a many2one to ir.model
-     */
     _assertMany2OneToIrModel(props) {
         const field = props.modelField && props.record.fields[props.modelField];
         if (field && (field.type !== "many2one" || field.relation !== "ir.model")) {

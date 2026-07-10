@@ -8,10 +8,6 @@ import { registerField } from "@web/fields/_registry";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";
 
 import { UpgradeDialog } from "./upgrade_dialog.js";
-/**
- *  The upgrade boolean field is intended to be used in config settings.
- *  When checked, an upgrade popup is showed to the user.
- */
 
 export class UpgradeBooleanField extends BooleanField {
     setup() {

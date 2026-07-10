@@ -1,18 +1,14 @@
 // @ts-check
 
 /**
- * Unit tests for StaticList's floating-commands tracking
- * (``_trackCommandsPromise`` / ``_commandsPromise``) and its consumers:
+ * Tests for StaticList's floating-commands tracking (``_trackCommandsPromise``
+ * / ``_commandsPromise``): rejection surfacing via the error service,
+ * ``_discard`` → ``_pruneCache`` sequencing, and the ``record_save.save``
+ * barrier.
  *
- *  - rejection of an unawaitable async ``_applyCommands`` result is surfaced
- *    through the error service (unhandledrejection) instead of floating,
- *  - ``_discard`` sequences ``_pruneCache`` after the pending load settles,
- *  - ``record_save.save`` waits for pending command loads before serializing
- *    the changes (barrier).
- *
- * Uses ``Object.create(StaticList.prototype)`` so the real methods (including
- * the command engine via ``_applyCommands``) run against a hand-built state,
- * mirroring the mock style of static_list_command_engine.test.js.
+ * Uses ``Object.create(StaticList.prototype)`` so real methods (including
+ * ``_applyCommands``) run against a hand-built state, mirroring
+ * static_list_command_engine.test.js.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -23,9 +19,7 @@ import { StaticList } from "@web/model/relational_model/static_list";
 
 const LINK = 4;
 
-// ---------------------------------------------------------------------------
 // Mock factory
-// ---------------------------------------------------------------------------
 
 /**
  * Build a StaticList-shaped object backed by the real StaticList prototype.
@@ -94,9 +88,7 @@ function makeList({ loadRecords = async () => [] } = {}) {
     return list;
 }
 
-// ---------------------------------------------------------------------------
 // Rejection surfacing
-// ---------------------------------------------------------------------------
 
 describe("floating commands rejection", () => {
     test("a rejected commands load is surfaced, not silently dropped", async () => {
@@ -130,9 +122,7 @@ describe("floating commands rejection", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // _discard × _pruneCache sequencing
-// ---------------------------------------------------------------------------
 
 describe("_discard prune sequencing", () => {
     test("_pruneCache runs only after the pending commands load settles", async () => {
@@ -170,9 +160,7 @@ describe("_discard prune sequencing", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Save barrier
-// ---------------------------------------------------------------------------
 
 describe("save barrier on pending commands", () => {
     /**

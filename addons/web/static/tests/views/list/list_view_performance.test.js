@@ -5,38 +5,19 @@
  *
  * Regression-guard tests for the web list view performance optimisations.
  *
- * R4 — ListAggregatesRow isolation
- * ---------------------------------
- * computeAggregates() must NOT run when the user clicks a data cell (entering
- * edit mode) because that only toggles `editedRecord` on the parent —
- * `ListAggregatesRow`'s reactive subscriptions (list.records, record.data,
- * record.selected) are untouched.
- *
- * D3 — Selective unlink cache invalidation
- * -----------------------------------------
- * Unlinking a record should emit a CLEAR-CACHES event with `{ tables, model }`
- * so only the affected model's cache entries are evicted, not the entire cache.
- *
- * D3b — action_archive / action_unarchive symmetry
- * ------------------------------------------------
- * Archived/unarchived records disappear from the active-domain result set
- * just as unlinked records do; the cache must be invalidated for the same
- * reason (the model cannot self-update an entry that no longer matches its
- * implicit ``active = True`` filter).  Write/create/web_save are EXCLUDED
- * (see ``result_set_cache_invalidator_service.js`` for the canonical
- * ``RESULT_SET_REMOVING_METHODS`` set and its rationale).
- *
- * D3c — end-to-end RAM cache invalidation
- * ----------------------------------------
- * The D3 + D3b tests verify that the cache-invalidator service EMITS
- * CLEAR-CACHES correctly.  The ``rpc_cache.test.js`` tests verify that
- * ``invalidateByModel`` correctly removes the right entries.  These
- * D3c tests verify the FULL CHAIN: ``rpcBus.RPC:RESPONSE`` →
- * ``result_set_cache_invalidator_service`` → ``CLEAR-CACHES`` → ``rpc.js``
- * listener → ``rpcCache.invalidateByModel`` → the RAM cache no longer
- * contains the target model's entries (and the other model's entries
- * survive).  This is the integration that a stale-data regression
- * would actually break.
+ * - R4: ListAggregatesRow must not re-render when a data cell click only
+ *   toggles `editedRecord` on the parent — it has no reactive subscription
+ *   to that.
+ * - D3/D3b: unlink / action_archive / action_unarchive emit CLEAR-CACHES
+ *   with `{ tables, model }` so only the affected model's entries are
+ *   evicted (both remove records from the active-domain result set, which
+ *   the model can't self-update). write/create/web_save are EXCLUDED — see
+ *   `RESULT_SET_REMOVING_METHODS` in `result_set_cache_invalidator_service.js`.
+ * - D3c: verifies the FULL CHAIN — `rpcBus.RPC:RESPONSE` →
+ *   `result_set_cache_invalidator_service` → `CLEAR-CACHES` → `rpc.js` →
+ *   `rpcCache.invalidateByModel` — actually drops the target model's RAM
+ *   cache entries while other models' survive (`rpc_cache.test.js` covers
+ *   `invalidateByModel` in isolation).
  */
 
 import { after, beforeEach, expect, test } from "@odoo/hoot";
@@ -82,15 +63,10 @@ const { ResCompany, ResPartner, ResUsers } = webModels;
 defineModels([Currency, Foo, ResCompany, ResPartner, ResUsers]);
 
 // ``result_set_cache_invalidator_service`` (the RPC:RESPONSE → CLEAR-CACHES
-// bridge under test by D3/D3b/D3c below) installs its listener inside
-// ``service.start()``. Without an env started before each test the listener
-// is missing and the trigger-and-listen tests fail intermittently — they
-// only pass if an earlier test in the same browser session has already
-// started the env (e.g. via ``mountView``). Starting the env in
-// ``beforeEach`` makes every test in this file self-sufficient regardless
-// of run order. ``mountView`` reuses the existing env via
-// ``getMockEnv() || makeMockEnv()``, so this hook is a no-op cost for tests
-// that mount a view.
+// bridge under test below) attaches its listener in ``service.start()``, so
+// D3/D3b/D3c fail intermittently without an env started first. This makes
+// every test self-sufficient regardless of run order; ``mountView``'s
+// ``getMockEnv() || makeMockEnv()`` makes it a no-op for view-mounting tests.
 beforeEach(async () => {
     if (!getMockEnv()) {
         await makeMockEnv();

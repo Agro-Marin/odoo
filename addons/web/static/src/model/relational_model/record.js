@@ -85,37 +85,35 @@ export class RelationalRecord extends DataPoint {
         this._virtualId = options.virtualId || false;
         this._isEvalContextReady = false;
 
-        // Pending-edit accumulator. ``markRaw`` keeps the ChangeSet itself
-        // out of OWL's reactivity graph (its internal ``_changes`` bag is
-        // already ``markRaw`` for the same reason — see ``change_set.js``
-        // for the full rationale). The Record exposes the underlying bag
-        // via the ``_changes`` getter/setter below so existing consumers
-        // that iterate ``Object.keys(record._changes)`` keep working.
+        // Pending-edit accumulator; ``markRaw`` keeps it out of OWL's
+        // reactivity graph (see ``change_set.js`` for the rationale).
+        // Exposed via the ``_changes`` getter/setter below so existing
+        // consumers (``Object.keys(record._changes)``) keep working.
         this._changeSet = markRaw(new ChangeSet());
 
         // Reactive signal indicating whether the record has unsaved edits.
         //
         // Invariants enforced by paired helpers:
-        //   1. ``dirty`` is true after ``_update()`` is called, even before
-        //      async preprocessors have populated ``_changes`` (race
-        //      protection — set via ``_markDirty()`` at the top of
-        //      ``_update`` so UI bindings reflect "modified" the moment a
-        //      field update is dispatched, not after a network round-trip).
+        //   1. ``dirty`` is true after ``_update()``, even before async
+        //      preprocessors populate ``_changes`` (race protection — set
+        //      via ``_markDirty()`` so UI bindings reflect "modified" the
+        //      moment a field update is dispatched, not after a network
+        //      round-trip).
         //   2. ``setInvalidField()`` sets dirty=true even when ``_changes``
-        //      is empty (invalid user input is not in the change log but
-        //      the record is still considered modified — also routed
-        //      through ``_markDirty()``).
-        //   3. Whenever ``_changes`` is cleared, ``dirty`` MUST be reset
-        //      on the same atomic step — use ``_clearChanges()``. The
+        //      is empty (invalid input never reaches the change log but
+        //      the record still counts as modified) — also routed through
+        //      ``_markDirty()``.
+        //   3. Whenever ``_changes`` is cleared, ``dirty`` MUST reset in the
+        //      same atomic step — use ``_clearChanges()``. The
         //      ``keepChanges`` reload path instead derives ``dirty`` from
         //      the preserved change set and invalid-field flags (see
         //      ``_setData`` — Invariant 2 must survive that reload).
         //
         // Field components debounce typing locally; ``isDirty()`` (async)
-        // first calls ``model._askChanges()`` to flush pending field-level
-        // edits before reading this signal. Sync reads are safe in code
-        // paths that have already drained pending changes (post-mutex
-        // critical sections, post-flush callbacks).
+        // calls ``model._askChanges()`` first to flush pending edits before
+        // reading this signal. Sync reads are safe once pending changes are
+        // already drained (post-mutex critical sections, post-flush
+        // callbacks).
         this.dirty = false;
         this.selected = false;
 
@@ -457,29 +455,17 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Debug-only invariant check on the (``_changes``, ``dirty``) pair.
+     * Debug-only invariant check on the (``_changes``, ``dirty``) pair (see
+     * the field-level docstring in ``setup()``). The only legitimate states
+     * are ``(false, empty)`` clean, ``(true, non-empty)`` modified, and
+     * ``(true, empty)`` invalid input (Invariant 2) or the race window after
+     * ``_markDirty`` before preprocessors land (Invariant 1). ``(false,
+     * non-empty)`` must never persist past a checkpoint — the desync this
+     * catches. Call sites: after ``_clearChanges`` and after both
+     * ``_setData`` branches.
      *
-     * The contract (see the field-level docstring in ``setup()`` lines
-     * ~95-110): three legitimate states exist —
-     *
-     *   - ``(dirty=false, _changes empty)``    — clean record
-     *   - ``(dirty=true,  _changes non-empty)``— modified record
-     *   - ``(dirty=true,  _changes empty)``    — invalid input (Invariant 2)
-     *     OR race window after _markDirty before preprocessors land (Invariant 1)
-     *
-     * The state that MUST NEVER persist past an atomic checkpoint is
-     * ``(dirty=false, _changes non-empty)`` — the desync this assertion
-     * exists to catch.  Call sites are checkpoints where the invariant
-     * must strictly hold: after ``_clearChanges`` and after both
-     * ``_setData`` branches (the ``keepChanges: true`` path derives
-     * ``dirty`` from the preserved change set and invalid-field flags,
-     * so it upholds the invariant too).
-     *
-     * Production: silent (assertion skipped entirely).  Debug: emits
-     * ``console.warn`` with a structured payload so the offending
-     * mutation can be traced.  Chosen over ``throw`` because crashing
-     * the page on a desync is worse UX than the desync itself; the
-     * warning surfaces the bug to the developer without losing user data.
+     * Skipped in production; in debug mode emits ``console.warn`` (chosen
+     * over ``throw`` — crashing on a desync is worse UX than the desync).
      */
     _assertChangeSetInvariant() {
         if (!odoo.debug) {
@@ -520,7 +506,6 @@ export class RelationalRecord extends DataPoint {
             this._setEvalContext();
         };
 
-        // Apply changes
         for (const fieldName of Object.keys(changes)) {
             let change = changes[fieldName];
             if (change instanceof Operation) {
@@ -536,7 +521,6 @@ export class RelationalRecord extends DataPoint {
             }
         }
 
-        // Apply server changes
         const parsedChanges = this._parseServerValues(serverChanges, {
             currentValues: this.data,
         });

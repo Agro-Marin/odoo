@@ -40,19 +40,10 @@ const directMap = {
 };
 
 /**
- * Implements the decoding of Python string literals (embedded in
- * JS strings) into actual JS strings. This includes the decoding
- * of escapes into their corresponding JS
- * characters/codepoints/whatever.
- *
- * The ``unicode`` flags notes whether the literal should be
- * decoded as a bytestring literal or a unicode literal, which
- * pretty much only impacts decoding (or not) of unicode escapes
- * at this point since bytestrings are not technically handled
- * (everything is decoded to JS "unicode" strings)
- *
- * Eventurally, ``str`` could eventually use typed arrays, that'd
- * be interesting...
+ * Decodes a Python string literal (embedded in a JS string) into a JS
+ * string, resolving escapes. ``unicode`` selects bytestring vs unicode
+ * literal decoding, which only affects whether unicode escapes are decoded
+ * (everything else ends up as a JS "unicode" string regardless).
  *
  * @param {string} str
  * @param {boolean} unicode

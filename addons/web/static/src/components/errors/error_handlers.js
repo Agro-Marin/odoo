@@ -65,13 +65,9 @@ export function rpcErrorHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof RPCError) {
-        // When an error comes from the server, it can have an exeption name.
-        // (or any string truly). It is used as key in the error dialog from
-        // server registry to know which dialog component to use.
-        // It's how a backend dev can easily map its error to another component.
-        // Note that for a client side exception, we don't use this registry
-        // as we can directly assign a value to `component`.
-        // error is here a RPCError
+        // A server-side error can carry an exceptionName used as a registry
+        // key to pick a dialog component (lets a backend dev map an error to
+        // a specific component). Client-side errors set `component` directly.
         error.unhandledRejectionEvent.preventDefault();
         const exceptionName = originalError.exceptionName;
         let ErrorComponent = /** @type {any} */ (originalError).Component;
@@ -131,23 +127,14 @@ export function lostConnectionHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof ConnectionLostError) {
-        // Match ``rpcErrorHandler``'s pattern: handlers that fully take
-        // ownership of an error (here: by showing a sticky user-facing
-        // notification AND polling for connection restoration) MUST
-        // ``preventDefault`` on the unhandled-rejection event.  Without
-        // this, ``error_service.handleError``'s post-loop
-        // ``shouldLogError()`` check still returns true (it only inspects
-        // ``event.defaultPrevented``, not the loop's break/return value)
-        // and produces a redundant ``console.error`` traceback that:
-        //   * duplicates information the user already sees in the toast,
-        //     and
-        //   * fails browser-tour ``HttpCase`` tests, which treat any
-        //     ``console.error`` as a fatal browser exception (see
-        //     test_main_flows.TestUi.test_01_main_flow_tour racing against
-        //     the very first ``/mail/data`` ``init_messaging`` RPC after
-        //     a fresh-DB cold boot — the network glitch is transient and
-        //     the next attempt succeeds, but the duplicate console
-        //     traceback is still fatal to the test).
+        // Like rpcErrorHandler: a handler that fully owns an error (sticky
+        // notification + reconnect polling) MUST preventDefault the
+        // unhandled-rejection event. Otherwise error_service's
+        // shouldLogError() (which only checks event.defaultPrevented) still
+        // logs a redundant console.error — duplicating the toast and failing
+        // browser-tour HttpCase tests that treat any console.error as fatal
+        // (see test_main_flows.TestUi.test_01_main_flow_tour racing the
+        // first /mail/data init_messaging RPC on cold boot).
         error.unhandledRejectionEvent.preventDefault();
         if (connectionLostNotifRemove) {
             // notification already displayed (can occur if there were several

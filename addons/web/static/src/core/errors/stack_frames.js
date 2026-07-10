@@ -5,23 +5,15 @@
 
 /**
  * Replaces the vendored stacktrace.js UMD build (the last consumer of the
- * ``loadJS`` + global pattern in core error handling).  Two independent
- * halves:
+ * ``loadJS`` + global pattern in core error handling).
  *
- *   * {@link parseStackFrames} — parse ``error.stack`` text into structured
- *     frames.  Handles the V8 format (``at func (url:line:col)`` /
- *     ``at url:line:col``) and the Firefox/Safari format
- *     (``func@url:line:col``).
- *
- *   * {@link mapFramesToSource} — best-effort sourcemap resolution: when a
- *     frame's script advertises a ``//# sourceMappingURL=`` (the esbuild
- *     ``linked`` mode emits one pointing at the sibling ``.map``
- *     attachment), decode the map and rewrite the frame to the original
- *     file/line.  Scripts without a map (the production default) leave
- *     their frames untouched — same graceful degradation stacktrace.js
- *     had.  All fetches go through the HTTP cache; bundle URLs are
- *     content-addressed and immutable, so re-requesting the script text
- *     costs a disk-cache read, not a network round-trip.
+ *   * {@link parseStackFrames} — parses ``error.stack`` into structured
+ *     frames (V8 and Firefox/Safari formats, see the regexes below).
+ *   * {@link mapFramesToSource} — best-effort sourcemap resolution: decodes
+ *     a script's ``//# sourceMappingURL=`` map and rewrites frames to their
+ *     original file/line; scripts without one pass through unchanged.
+ *     Fetches are cheap since bundle URLs are content-addressed/immutable,
+ *     so requests hit the HTTP disk cache, not the network.
  */
 
 /**

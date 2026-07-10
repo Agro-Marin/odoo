@@ -262,11 +262,9 @@ function instantScrollTo(element) {
  * @returns {HTMLElement}
  */
 export function findAllDaySlot(date) {
-    // v7 dropped the explicit ``.fc-daygrid-body`` wrapper class — the
-    // all-day strip is just one of the ``[data-date=...]`` cells with no
-    // unique container hook.  Filter out the column-header cell (the
-    // only other ``.fc-day[data-date]`` in day/week views) so the first
-    // remaining match is the all-day grid cell.
+    // v7 dropped the ``.fc-daygrid-body`` wrapper; the all-day strip is
+    // just a ``[data-date=...]`` cell with no unique container. Exclude the
+    // column-header cell (the only other match in day/week views).
     return queryFirst(`.fc-day[data-date="${date}"]:not(.fc-col-header-cell)`);
 }
 
@@ -387,7 +385,6 @@ export async function clickEvent(eventId) {
 }
 
 export function expandCalendarView() {
-    // Expends Calendar view and FC too
     let tmpElement = queryFirst(".fc");
     do {
         tmpElement = tmpElement.parentElement;
@@ -417,26 +414,19 @@ export async function selectTimeRange(startDateTime, endDateTime) {
     );
 
     // FC v7 renders ``.fc-timegrid-slot-lane`` elements as visual
-    // BACKGROUND rows that are OUTSIDE the interactive ``TimeGridCols``
-    // container's DOM subtree.  Mousedown on a slot lane reaches only
-    // FC's document-level ``PointerDragging`` (used for unselect
-    // tracking) — it never reaches the component-level
-    // ``DateSelecting`` handler, so ``select`` never fires and
-    // ``createRecord`` is never called.
+    // BACKGROUND rows OUTSIDE the interactive ``TimeGridCols`` subtree.
+    // Mousedown on a slot lane reaches only FC's document-level
+    // ``PointerDragging`` (unselect tracking) — never the component-level
+    // ``DateSelecting`` handler, so ``select``/``createRecord`` never fire.
     //
-    // The real interactive element per date in time-grid view is the
-    // ``TimeGridCol`` with ``role='gridcell'`` and ``data-date``
-    // (rendered at ``fullcalendar.esm.js:12137`` — a div with
-    // ``aria-current``, ``data-date`` and ``role='gridcell'``).  In
-    // week/day view there are three elements per date:
-    //   #0  column header        role=columnheader   ~21px tall
-    //   #1  all-day strip cell   role=gridcell + .fc-daygrid-day  ~42px
-    //   #2  time-grid col body   role=gridcell, hashed class only  ~1056px
-    // Filter to #2 by excluding the all-day class.
+    // The real interactive element per date is the ``TimeGridCol`` with
+    // ``role='gridcell'`` and ``data-date`` (``fullcalendar.esm.js:12137``).
+    // Week/day view has three per date — header (columnheader), all-day
+    // strip (gridcell + .fc-daygrid-day), time-grid body (gridcell only).
+    // Filter to the time-grid body by excluding the all-day class.
     //
-    // Y position is still derived from the slot lane's rect (which
-    // FC's ``computeSlatHeight`` fork-patch ensures is non-zero via
-    // ``slotMinHeight``).
+    // Y position still comes from the slot lane's rect, kept non-zero by
+    // the ``computeSlatHeight`` fork-patch's ``slotMinHeight``.
     const startCol = queryFirst(
         `[data-date="${startDate}"][role="gridcell"]:not(.fc-daygrid-day)`,
     );
@@ -675,13 +665,11 @@ export async function moveEventToAllDaySlot(eventId, date) {
  * @returns {Promise<void>}
  */
 export async function resizeEventToTime(eventId, dateTime) {
-    // FC v7 only attaches the ``fc-event-resizer-end`` class to the segment
-    // whose ``isEnd && eventUi.durationEditable`` are both truthy (see
-    // ``fullcalendar.esm.js`` ``isEndResizable``).  Match the defensive
-    // pattern used by ``resizeEventToDate`` below: query all segments for
-    // this event id and select the last, then throw a diagnostic that
-    // names the FC fields to check rather than letting the dereference
-    // fail with ``Cannot read properties of null (reading 'style')``.
+    // FC v7 only attaches ``fc-event-resizer-end`` to the segment whose
+    // ``isEnd && eventUi.durationEditable`` are both true (see FC's
+    // ``isEndResizable``). Mirror ``resizeEventToDate``'s defensive pattern:
+    // query all segments, take the last, and throw a diagnostic naming the
+    // FC fields to check instead of a bare null dereference.
     const allSegments = queryAll(`.o_event[data-event-id="${eventId}"]`);
     const eventEl = allSegments[allSegments.length - 1] || findEvent(eventId);
 
@@ -726,18 +714,15 @@ export async function resizeEventToTime(eventId, dateTime) {
  * @returns {Promise<void>}
  */
 export async function resizeEventToDate(eventId, date) {
-    // FC v7 splits multi-day all-day events into one DOM node per day
-    // row (each tagged with the same ``data-event-id``).  The
-    // ``isEnd`` flag — and hence the ``fc-event-resizer-end`` class
-    // (``fullcalendar.esm.js:8945``: ``isEndResizable = !disableResizing
-    // && props.isEnd && eventUi.durationEditable``) — only sits on the
-    // LAST segment.  ``findEvent`` returned the FIRST one, so the
-    // resizer was on a sibling node and ``queryFirst`` returned null,
-    // throwing ``Cannot read properties of null (reading 'style')`` —
-    // visible as the ``Resizing Pill of Multiple Days(Allday)`` and
-    // ``create event and resize to next day (24h) on week mode``
-    // failures.  Query all segments and take the last for the resizer
-    // search.
+    // FC v7 splits multi-day all-day events into one DOM node per day row
+    // (same ``data-event-id``). The ``isEnd`` flag — and hence the
+    // ``fc-event-resizer-end`` class (``fullcalendar.esm.js:8945``:
+    // ``isEndResizable = !disableResizing && props.isEnd &&
+    // eventUi.durationEditable``) — only sits on the LAST segment.
+    // ``findEvent`` returned the FIRST, so the resizer was null, throwing
+    // on ``style`` — seen in the "Resizing Pill of Multiple Days(Allday)"
+    // and "create event and resize to next day (24h) on week mode" tests.
+    // Query all segments and take the last for the resizer search.
     const allSegments = queryAll(`.o_event[data-event-id="${eventId}"]`);
     const eventEl = allSegments[allSegments.length - 1] || findEvent(eventId);
     const slot = findAllDaySlot(date);

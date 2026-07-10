@@ -10,14 +10,10 @@ export const BUTTON_HANDLER_SELECTOR =
     'a, button, input[type="submit"], input[type="button"], .btn';
 
 /**
- * Protects a function which is to be used as a handler by preventing its
- * execution for the duration of a previous call to it (including async
- * parts of that call).
- *
- * Limitation: as the handler is ignored during async actions,
- * the 'preventDefault' or 'stopPropagation' calls it may want to do
- * will be ignored too. Using the 'preventDefault' and 'stopPropagation'
- * arguments solves that problem.
+ * Wraps a handler so a previous (possibly async) call must finish before it
+ * can run again. While locked, the wrapped handler's own preventDefault/
+ * stopPropagation calls are skipped too — use the preventDefault/
+ * stopPropagation/stopImmediatePropagation args to still apply them.
  *
  * @param {(...args: any[]) => any} fct
  *      The function which is to be used as a handler. If a promise
@@ -62,8 +58,6 @@ export function makeAsyncHandler(
         }
 
         if (_isLocked()) {
-            // If a previous call to this handler is still pending, ignore
-            // the new call.
             return;
         }
 
@@ -81,9 +75,8 @@ export function makeAsyncHandler(
 }
 
 /**
- * Creates a debounced version of a function to be used as a button click
- * handler. Also improves the handler to disable the button for the time of
- * the debounce and/or the time of the async actions it performs.
+ * Debounced version of a function used as a button click handler: also
+ * disables the button for the debounce and/or async-action duration.
  *
  * Limitation: if two handlers are put on the same button, the button will
  * become enabled again once any handler's action finishes (multiple click
@@ -104,9 +97,8 @@ export function makeButtonHandler(
     stopPropagation,
     stopImmediatePropagation,
 ) {
-    // Fallback: if the final handler is not bound to a button, at least
-    // make it an async handler (also handles the case where some events
-    // might ignore the disabled state of the button).
+    // Fallback: also wrap as an async handler in case some events ignore
+    // the button's disabled state.
     fct = makeAsyncHandler(
         fct,
         preventDefault,
@@ -124,10 +116,8 @@ export function makeButtonHandler(
             return handlerResult;
         }
 
-        // Disable the button for the duration of the handler's action
-        // or at least for the duration of the click debounce. This makes
-        // a 'real' debounce creation useless. Also, during the debouncing
-        // part, the button is disabled without any visual effect.
+        // Disable the button for the handler's action, or at least the
+        // click debounce (without visual effect during the debounce itself).
         buttonEl.classList.add("pe-none");
         let showDebouncedLoading = false;
         const addLoadingIfPending = () => {

@@ -27,7 +27,6 @@ test("Parameters error handling", async () => {
         await mountWithCleanup(List);
     };
 
-    // Incorrect params
     await mountListAndAssert(() => {
         expect(() => useSortable({})).toThrow(
             `Error in hook useSortable: missing required property "ref" in parameter`,
@@ -53,7 +52,6 @@ test("Parameters error handling", async () => {
         );
     });
 
-    // Correct params
     await mountListAndAssert(() => {
         useSortable({
             ref: useRef("root"),
@@ -124,7 +122,6 @@ test("Simple sorting in single group", async () => {
     expect(".o_dragged").toHaveCount(0);
     expect.verifySteps([]);
 
-    // First item after 2nd item
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
     expect(".item").toHaveCount(3);
@@ -181,7 +178,6 @@ test("Simple sorting in multiple groups", async () => {
     expect(".item").toHaveCount(9);
     expect.verifySteps([]);
 
-    // First item of 2nd list appended to first list
     await contains(".list2 .item:first-child").dragAndDrop(".list1");
 
     expect(".list").toHaveCount(3);
@@ -374,10 +370,8 @@ test("draggable area contains overflowing visible elements", async () => {
 
     const { cancel, moveTo } = await contains(".item11").drag();
 
-    // Drag first record of first group to the right
     await moveTo(".list3 .item:first");
 
-    // Verify that there is no scrolling
     expect(content).toHaveProperty("scrollLeft", 0);
     expect(".item.o_dragged").toHaveCount(1);
 
@@ -386,7 +380,6 @@ test("draggable area contains overflowing visible elements", async () => {
     expect(".item.o_dragged").toHaveRect({ right: 900 });
     expect(".list3 .item:first").toHaveRect({ right: 900 });
 
-    // Cancel drag
     await cancel();
 
     expect(".item.o_dragged").toHaveCount(0);
@@ -421,19 +414,15 @@ test("Dynamically disable sortable feature", async () => {
 
     expect.verifySteps([]);
 
-    // First item before last item
     await contains(".item:first-child").dragAndDrop(".item:last-child");
 
-    // Drag should have occurred
     expect.verifySteps(["start"]);
 
     state.enableSortable = false;
     await animationFrame();
 
-    // First item before last item
     await contains(".item:first-child").dragAndDrop(".item:last-child");
 
-    // Drag shouldn't have occurred
     expect.verifySteps([]);
 });
 
@@ -515,17 +504,14 @@ test("Ignore specified elements", async () => {
 
     expect.verifySteps([]);
 
-    // Drag root item element
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
     expect.verifySteps(["drag"]);
 
-    // Drag ignored element
     await contains(".item:first-child .not-ignored").dragAndDrop(".item:nth-child(2)");
 
     expect.verifySteps(["drag"]);
 
-    // Drag non-ignored element
     await contains(".item:first-child .ignored").dragAndDrop(".item:nth-child(2)");
 
     expect.verifySteps([]);
@@ -565,7 +551,6 @@ test("the classes parameters (placeholderElement, helpElement)", async () => {
     }
 
     await mountWithCleanup(List);
-    // First item after 2nd item
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
     expect(dragElement).not.toHaveClass("add-1");
     expect(dragElement).not.toHaveClass("add-2");
@@ -608,7 +593,6 @@ test("applyChangeOnDrop option", async () => {
     }
 
     await mountWithCleanup(List);
-    // First item after 2nd item
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 });
 
@@ -637,7 +621,6 @@ test("clone option", async () => {
     }
 
     await mountWithCleanup(List);
-    // First item after 2nd item
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
     expect(".placeholder:not(.item)").toHaveCount(0);
 });

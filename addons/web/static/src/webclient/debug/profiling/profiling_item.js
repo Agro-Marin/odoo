@@ -31,10 +31,9 @@ export class ProfilingItem extends Component {
         // eslint-disable-next-line no-restricted-syntax -- action is optional (absent in frontend bundle); useService would throw on setup
         const action = this.env.services.action;
         if (action) {
-            // using doAction in the backend to preserve breadcrumbs and stuff
+            // Preserve breadcrumbs by using the backend action.
             action.doAction("base.action_menu_ir_profile");
         } else {
-            // No action service means we are in the frontend.
             /** @type {any} */ (window).location =
                 "/web/#action=base.action_menu_ir_profile";
         }

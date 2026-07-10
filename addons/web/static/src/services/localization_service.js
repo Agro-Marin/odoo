@@ -236,16 +236,12 @@ export const localizationService = {
             try {
                 await translationProm;
             } catch (e) {
-                // Cold boot: this fetch was the ONLY source of
-                // lang_parameters. Swallowing the failure would resolve
-                // `translationIsReady` with an empty `localization` and
-                // every formatter page-wide would break with no diagnosable
-                // error. Apply safe defaults so the page stays usable, and
-                // make the failure loud. (No visible notification here: the
-                // localization service starts before the notification
-                // service — nearly every service depends on localization,
-                // which takes no service dependencies — so it is not
-                // reachable at this point of the boot.)
+                // Cold boot: this fetch is the ONLY source of lang_parameters
+                // — swallowing it would leave `localization` empty and break
+                // every formatter with no diagnosable error. Fall back to
+                // safe defaults and log loudly. No notification here: the
+                // notification service isn't started yet at this point in
+                // the boot (localization has no deps and starts first).
                 console.error(
                     "Translation fetch failed on cold boot; falling back to default localization parameters:",
                     e,

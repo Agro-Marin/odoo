@@ -52,10 +52,6 @@ patch(MainComponentsContainer.prototype, {
 
 let hasMainComponent = false;
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 /**
  * @param {App | Component} parent
  * @param {(component: Component) => boolean} predicate
@@ -138,7 +134,6 @@ export async function mountWithCleanup(ComponentClass, options) {
         translateFn = appTranslateFn,
     } = options || {};
 
-    // Common component configuration
     const commonConfig = {
         customDirectives,
         getTemplate,
@@ -152,7 +147,6 @@ export async function mountWithCleanup(ComponentClass, options) {
         warnIfNoStaticProps: true,
     };
 
-    // Fixture
     const fixture = getFixture();
     const targetEl = target ? queryOne(target) : fixture;
     if (fixtureClassName) {

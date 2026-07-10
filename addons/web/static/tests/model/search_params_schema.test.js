@@ -66,10 +66,8 @@ test("groupBy of wrong element type is flagged", () => {
 });
 
 test("fields outside the SEARCH_KEYS contract are flagged as unknown", () => {
-    // resId / resIds / resModel reach Model.load via OTHER paths
-    // (controller calls, constructor params).  The validator at
-    // this boundary only covers SEARCH_KEYS, so these should each
-    // surface as "unknown field" with a remediation hint.
+    // resId reaches Model.load via a different path (controller calls),
+    // so it should surface as "unknown field" at this boundary.
     const issues = validateSearchParams({ resId: 7 });
     expect(issues.length).toBe(1);
     expect(issues[0]).toMatch(/unknown field 'resId'/);
@@ -100,10 +98,8 @@ test("multiple unknown fields each surface as own issue", () => {
 });
 
 test("schema enumerates exactly the SEARCH_KEYS contract", () => {
-    // Pin the canonical contract: same four keys as
-    // ``core/constants.js:SEARCH_KEYS``.  If someone adds a key to
-    // either side without updating the other, this assertion
-    // catches the drift.
+    // Pins the same four keys as core/constants.js:SEARCH_KEYS so a
+    // one-sided update to either side gets caught here.
     expect(Object.keys(SEARCH_PARAMS_SCHEMA).toSorted()).toEqual([
         "context",
         "domain",

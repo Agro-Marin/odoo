@@ -15,11 +15,8 @@ registry
 /** Internal wrapper that injects dialogData into the child environment. */
 class DialogWrapper extends Component {
     static template = xml`<t t-component="props.subComponent" t-props="props.subProps" />`;
-    // Internal-only wrapper instantiated by the dialog service's ``add()``
-    // (see ``overlay.add(DialogWrapper, { subComponent, subProps, subEnv })``
-    // ~30 lines below). The contract is private to this file — no external
-    // caller constructs ``DialogWrapper`` directly — so the prop shape is
-    // bounded and worth typing for typo-safety inside the service.
+    // Internal-only wrapper instantiated by the dialog service's ``add()``;
+    // typed here for typo-safety even though the contract is private to this file.
     static props = {
         subComponent: Function,
         subProps: Object,
@@ -110,10 +107,8 @@ export const dialogService = {
                             return;
                         }
                         isBeingClosed = true;
-                        // The user-provided onClose may throw; the stack /
-                        // stacking-state / body-class bookkeeping must still run
-                        // so a failed callback can't leave a dialog stuck in the
-                        // stack with scroll locked (``modal-open`` on <body>).
+                        // onClose may throw; keep the finally so stack/body-class
+                        // bookkeeping still runs and can't leave scroll locked.
                         try {
                             await options.onClose?.(closeParams);
                         } finally {

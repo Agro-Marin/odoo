@@ -62,12 +62,9 @@ class User extends models.Model {
 defineModels([Partner, User]);
 
 beforeEach(() => {
-    // Date field should not have an offset as they are ignored.
-    // However, in the test environement, a UTC timezone is set to run all tests. And if any code does not use the safe timezone method
-    // provided by the framework (which happens in this case inside the date range picker lib), unexpected behavior kicks in as the timezone
-    // of the dev machine collides with the timezone set by the test env.
-    // To avoid failing test on dev's local machines, a hack is to apply an timezone offset greater than the difference between UTC and the dev's
-    // machine timezone. For belgium, > 60 is enough. For India, > 5h30 is required, hence 330.
+    // Tests run in UTC; code that bypasses the framework's safe timezone helpers (the daterange
+    // picker lib does) can collide with the dev machine's local timezone. Use an offset far enough
+    // from UTC (>5h30 covers India) that this can't happen on any dev machine.
     mockTimeZone(+5.5);
 
     disableAnimations();
@@ -107,7 +104,6 @@ test("Datetime field - interaction with the datepicker", async () => {
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
-    // open the first one
     await contains(".o_field_daterange:first button[data-field=datetime]").click();
 
     expect(".o_datetime_picker").toBeDisplayed();
@@ -123,7 +119,6 @@ test("Datetime field - interaction with the datepicker", async () => {
     await click(timeInputStart);
     await animationFrame();
     expect(".o_time_picker_option").toHaveCount(24 * 4);
-    // Close picker
     await contains(".o_form_view_container").click();
     expect(".o_datetime_picker").toHaveCount(0);
 
@@ -148,7 +143,6 @@ test("Datetime field - interaction with the datepicker", async () => {
     await contains(getPickerCell("8").at(0)).click(); // 02/08/2017
     await contains(getPickerCell("9").at(0)).click(); // 02/09/2017
 
-    // Save
     await clickSave();
 
     // Check date after save
@@ -202,7 +196,6 @@ test("Date field - interaction with the datepicker", async () => {
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
-    // open the first one
     await contains("button[data-field=date]").click();
     expect(".o_datetime_picker:first").toBeDisplayed();
     expect(".o_select_start").toHaveText("3");
@@ -213,7 +206,6 @@ test("Date field - interaction with the datepicker", async () => {
     await contains("button.o_next").click();
     await contains(getPickerCell("12")).click(); // 2017-03-12
 
-    // Close picker
     await contains(".o_form_view").click();
 
     // Check date after change
@@ -233,7 +225,6 @@ test("Date field - interaction with the datepicker", async () => {
     await contains(getPickerCell("13")).click();
     await contains("button.o_next").click();
     await contains(getPickerCell("18")).click();
-    // Close picker
     await contains(".o_form_view").click();
 
     // Check date after change
@@ -241,7 +232,6 @@ test("Date field - interaction with the datepicker", async () => {
     expect("button[data-field=date]").toHaveValue("02/13/2017");
     expect("button[data-field=date_end]").toHaveValue("03/18/2017");
 
-    // Save
     await clickSave();
 
     // Check date after save
@@ -263,7 +253,6 @@ test("Date field - interaction with the datepicker - empty dates", async () => {
             </form>`,
     });
 
-    // open the first one
     await contains("input[data-field=date_start]").click();
 
     expect(".o_select_start").not.toHaveCount();
@@ -343,7 +332,6 @@ test("Datetime field manually input value should send utc value to server", asyn
     // update input for Datetime
     await contains("button[data-field=datetime]").click();
     await contains("input[data-field=datetime]").edit("02/08/2017 11:30:00");
-    // save form
     await clickSave();
 
     expect("button[data-field=datetime]").toHaveValue("02/08/2017 11:30:00");
@@ -366,7 +354,6 @@ test("Daterange field keyup should not erase end date", async () => {
     expect("button[data-field=datetime]").toHaveValue("02/08/2017 15:30:00");
     expect("button[data-field=datetime_end]").toHaveValue("03/13/2017 05:30:00");
 
-    // reveal the o_datetime_picker
     await contains("button[data-field=datetime]").click();
 
     // the keyup event should not be handled by o_datetime_picker
@@ -376,7 +363,6 @@ test("Daterange field keyup should not erase end date", async () => {
 });
 
 test("Render with initial empty value: date field", async () => {
-    // 2014-08-14 12:34:56 -> the day E. Zuckerman, who invented pop-up ads, has apologised.
     mockDate("22014-08-14 12:34:56", +0);
     Partner._fields.date_end = fields.Date({ string: "Date end" });
 
@@ -392,11 +378,9 @@ test("Render with initial empty value: date field", async () => {
     await contains("input[data-field=date]").click();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // Select a value (today)
     await contains(".o_today").click();
     expect("button[data-field=date]").toHaveValue("08/14/2014");
 
-    // Reopen the datepicker
     await contains("button[data-field=date]").click();
 
     // Add an end date
@@ -409,7 +393,6 @@ test("Render with initial empty value: date field", async () => {
 });
 
 test("Render with initial empty value: datetime field", async () => {
-    // 2014-08-14 12:34:56 -> the day E. Zuckerman, who invented pop-up ads, has apologised.
     mockDate("2014-08-14 12:34:56", +0);
 
     await mountView({
@@ -425,11 +408,9 @@ test("Render with initial empty value: datetime field", async () => {
     expect(".o_datetime_picker").toBeVisible();
     expect(".o_toggle_range").toBeVisible();
 
-    // Select a value (today)
     await contains(".o_today").click();
     expect(".o_field_daterange input:eq(0)").toHaveValue("08/14/2014 12:00:00");
 
-    // Add an end date
     await contains(".o_toggle_range").click();
 
     expect("input[data-field=datetime]").toHaveValue("08/14/2014 12:00:00");
@@ -452,12 +433,10 @@ test("Render with initial empty value and optional start date", async () => {
     expect(".o_datetime_picker").toHaveCount(1);
     expect(".o_toggle_range").toHaveCount(1);
 
-    // Select a value (today)
     await contains(".o_today").click();
     expect(".o_field_daterange input:eq(0)").toHaveValue("08/14/2014 13:00:00");
     expect(".o_toggle_range").toBeVisible();
 
-    // Add an end date
     await contains(".o_toggle_range").click();
 
     expect("button[data-field=datetime]").toHaveValue("08/14/2014 12:00:00");
@@ -483,7 +462,6 @@ test("initial empty date with optional start date", async () => {
     await contains("button.o_daterange_start").click();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // Add an end date
     await contains(".o_toggle_range").click();
 
     expect(".o_datetime_picker").toHaveCount(1);
@@ -492,7 +470,6 @@ test("initial empty date with optional start date", async () => {
 });
 
 test("initial empty date with optional end date", async () => {
-    // 2014-08-14 12:34:56 -> the day E. Zuckerman, who invented pop-up ads, has apologised.
     mockDate("2014-08-14 12:34:56", +0);
 
     Partner._records[0].datetime = false;
@@ -511,7 +488,6 @@ test("initial empty date with optional end date", async () => {
     await contains("button.o_daterange_end").click();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // Add a start date
     await contains(".o_toggle_range").click();
 
     expect("button[data-field=datetime]").toHaveValue("03/12/2017 23:00:00");
@@ -615,12 +591,10 @@ test("Datetime field - open datepicker and switch page", async () => {
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
-    // open datepicker
     await contains("button[data-field=datetime]").click();
 
     expect(".o_datetime_picker:first").toBeDisplayed();
 
-    // Start date: id=1
     expect(".o_select_start").toHaveText("8");
     // End date: id=1
     await contains("button.o_next").click();
@@ -640,12 +614,10 @@ test("Datetime field - open datepicker and switch page", async () => {
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
-    // open date range picker
     await contains("button[data-field=datetime]").click();
 
     expect(".o_datetime_picker:first").toBeDisplayed();
 
-    // Start date: id=2
     expect(".o_select_start").toHaveText("10");
     // End date id=2
     await contains("button.o_next").click();
