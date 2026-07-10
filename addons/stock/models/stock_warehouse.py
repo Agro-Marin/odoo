@@ -19,14 +19,13 @@ ROUTE_NAMES = {
     "pick_pack_ship": _lt("Deliver in 3 steps (pick + pack + ship)"),
 }
 
-# The warehouse's own picking types, in creation-sequence order. Each value is
-# the short code that type carries three times over — as its ir.sequence code,
-# its ir.sequence prefix segment and its operation-type barcode suffix. Holding
-# it here once is the single source of truth that stops _get_picking_type_create
-# _values, _get_picking_type_update_values and _get_sequence_values from drifting
-# apart, and the order fixes each type's creation-sequence offset (in_type_id
-# first ... xdock_type_id last). Modules adding their own warehouse picking types
-# extend the three helpers directly; this covers only the base ones.
+# The base warehouse picking types, in creation-sequence order (the order fixes
+# each type's sequence offset, in_type_id first ... xdock_type_id last). Each
+# value is the short code the type reuses as its ir.sequence code, its prefix
+# segment and its barcode suffix. Keeping it here once stops
+# _get_picking_type_create_values, _get_picking_type_update_values and
+# _get_sequence_values from drifting apart. Modules add their own types by
+# extending those three helpers directly.
 WAREHOUSE_PICKING_TYPE_CODES = {
     "in_type_id": "IN",
     "qc_type_id": "QC",
@@ -250,12 +249,11 @@ class StockWarehouse(models.Model):
         taken_names = defaultdict(set)
         taken_codes = defaultdict(set)
         for vals in vals_list:
-            # Resolve the company up front — falling back to the same default the
-            # company_id field uses — so name/code/partner are always generated,
-            # even when the caller relies on that field default and leaves
-            # company_id out of vals (defaults aren't injected into vals until
-            # super().create()). Otherwise `code` would stay unset and the view
-            # location below would be created with name=None (NOT NULL violation).
+            # Resolve the company up front (same default company_id uses) so
+            # name/code/partner are generated even when the caller omits
+            # company_id: defaults aren't injected into vals until super()
+            # .create(), so otherwise `code` stays unset and the view location
+            # below would be created with name=None (NOT NULL violation).
             company = (
                 self.env["res.company"].browse(vals["company_id"])
                 if vals.get("company_id")
@@ -375,10 +373,10 @@ class StockWarehouse(models.Model):
 
         res = super().write(vals)
 
-        # The fields that trigger a route/rule/picking-type refresh form a
-        # structural set, so resolve them once from the cached helper instead of
-        # rebuilding the route values — and calling get_rules_dict — for every
-        # warehouse on every write (see _get_route_trigger_fields).
+        # The refresh-trigger fields are a structural set, so resolve them once
+        # from the cached helper instead of rebuilding the route values (and
+        # calling get_rules_dict) per warehouse on every write. See
+        # _get_route_trigger_fields.
         if warehouses:
             route_depends, global_depends, global_rule_keys = warehouses[
                 :1
@@ -457,11 +455,11 @@ class StockWarehouse(models.Model):
         creates sub-locations for — the base ones (Stock, Input, QC, Output,
         Packing) plus any added by installed modules (e.g. mrp's pbm/sam).
 
-        Cached because this *set* is structural: it only changes when a module
-        that extends ``_get_locations_values`` is (un)installed, which reloads
-        the registry and clears this cache. This lets ``_create_missing_locations``
-        check for missing locations on every write without recomputing barcode
-        values (a search per location) each time.
+        Cached because the set is structural: it only changes when a module
+        extending ``_get_locations_values`` is (un)installed, which reloads the
+        registry and clears this cache. Lets ``_create_missing_locations`` check
+        for missing locations on every write without a barcode search per
+        location each time.
         """
         return tuple(self._get_locations_values({}))
 
@@ -472,10 +470,9 @@ class StockWarehouse(models.Model):
         ``depends`` of ``_get_routes_values``.
 
         Structural set (the names come from *static* ``depends`` lists), hence
-        cached: it only changes when a module extending ``_get_routes_values``
-        is (un)installed, which reloads the registry and clears this cache. See
-        ``_sub_location_field_names`` for why keying this cache only on the model
-        is safe.
+        cached: it only changes when a module extending ``_get_routes_values`` is
+        (un)installed, which reloads the registry and clears this cache. See
+        ``_sub_location_field_names`` for why keying only on the model is safe.
         """
         return frozenset(self._collect_depends(self._get_routes_values()))
 
@@ -493,14 +490,14 @@ class StockWarehouse(models.Model):
         purpose: an over-inclusive trigger set only risks a redundant (and
         idempotent) refresh, whereas a missing field would skip a needed one.
 
-        Structural, hence cached — but note ``_generate_global_route_rules_values``
-        resolves the MTO rule and can ``raise`` on a warehouse whose delivery
-        chain has no stock-origin rule. That ``raise`` propagates *before*
-        ormcache stores anything, so a misconfigured warehouse never poisons this
-        cache for its healthy siblings: the caller turns the raise into a
-        base-globals fallback, and the next successful call recomputes and caches
-        the real set. (The old combined helper cached the fallback registry-wide,
-        letting one broken warehouse suppress global-route refreshes for all.)
+        Structural, hence cached — but ``_generate_global_route_rules_values``
+        can ``raise`` on a warehouse whose delivery chain has no stock-origin
+        rule. The raise propagates *before* ormcache stores anything, so a
+        misconfigured warehouse never poisons this cache for its healthy
+        siblings: the caller turns the raise into a base-globals fallback, and
+        the next successful call caches the real set. (The old combined helper
+        cached the fallback registry-wide, letting one broken warehouse suppress
+        global-route refreshes for all.)
         """
         global_values = self._generate_global_route_rules_values()
         return (
@@ -511,17 +508,17 @@ class StockWarehouse(models.Model):
     def _get_route_trigger_fields(self):
         """Return ``(route_depends, global_depends, global_rule_keys)``: the
         warehouse fields whose modification must refresh routes, rules and
-        picking types on ``write``. Composes the two cached, structural helpers
-        so ``write`` can decide whether a refresh is needed without rebuilding
-        the route values (and, notably, without calling ``get_rules_dict`` /
-        resolving partner & production locations) on every write.
+        picking types on ``write``. Composes the two cached structural helpers so
+        ``write`` can decide whether a refresh is needed without rebuilding the
+        route values (and without calling ``get_rules_dict`` / resolving partner
+        & production locations) on every write.
 
         The global part is guarded: ``_generate_global_route_rules_values`` can
         ``raise`` on a warehouse whose delivery chain has no stock-origin rule.
-        Rather than abort an unrelated write (e.g. a rename) just to populate a
-        trigger set, fall back to the base-known globals. Because this fallback
-        lives here and not inside the cached helper, it is never cached — so it
-        can't leak onto other warehouses (see ``_get_global_trigger_fields``).
+        Rather than abort an unrelated write (e.g. a rename), fall back to the
+        base-known globals. This fallback lives here, not in the cached helper,
+        so it is never cached and can't leak onto other warehouses (see
+        ``_get_global_trigger_fields``).
         """
         route_depends = self._get_route_depend_fields()
         try:
@@ -605,12 +602,11 @@ class StockWarehouse(models.Model):
             .with_context(active_test=False)
             .search([("location_id", "child_of", self.view_location_id.id)])
         )
-        # A foreign picking type blocks archiving if EITHER its default source
-        # or destination sits inside this warehouse — matching the error message
-        # below — because archiving these locations would leave it pointing at an
-        # archived one. The former all-AND domain only caught types with *both*
-        # endpoints inside, silently letting src-only / dest-only references
-        # dangle past archive.
+        # A foreign picking type blocks archiving if EITHER its default source or
+        # destination sits inside this warehouse (matching the error below):
+        # archiving those locations would leave it pointing at an archived one.
+        # The former all-AND domain only caught types with *both* endpoints
+        # inside, letting src-only / dest-only references dangle past archive.
         picking_type_using_locations = PickingType.search(
             [
                 "|",
@@ -950,14 +946,12 @@ class StockWarehouse(models.Model):
                 values.update({"warehouse_id": self.id})
                 new_rule_ids[rule_field] = self.env["stock.rule"].create(values).id
         if new_rule_ids:
-            # Persist every freshly-created global rule in one write instead of
-            # one per assignment. The skip context stops that write from
-            # re-triggering this very refresh: those Many2one fields are global
-            # rule triggers (so a *user* editing one refreshes), but here we're
-            # the ones setting them and the rules are already current — a
-            # re-entrant refresh would just rebuild get_rules_dict and rewrite
-            # identical values. On a warehouse with several global rules (e.g.
-            # mrp adds three) that removes as many redundant refresh passes.
+            # Persist every freshly-created global rule in one write. The skip
+            # context stops that write from re-triggering this refresh: those
+            # Many2one fields are global-rule triggers (a *user* editing one
+            # refreshes), but here we set them and the rules are already current,
+            # so a re-entrant refresh would just rebuild get_rules_dict and
+            # rewrite identical values.
             self.with_context(stock_no_global_route_refresh=True).write(new_rule_ids)
         return True
 
@@ -1070,10 +1064,9 @@ class StockWarehouse(models.Model):
         _find_existing_rule_or_create reuse or recreate them.
 
         Every route Many2one this (re)creates, plus the selectable routes added
-        to ``route_ids``, is persisted in a single trailing write rather than one
-        write per ``self[route_field] = route`` assignment. On a fresh warehouse
-        that collapses several re-entrant warehouse writes (each paying the
-        model's _check_company pass over ~20 relational fields) into one.
+        to ``route_ids``, is persisted in one trailing write rather than a write
+        per assignment — collapsing several re-entrant warehouse writes (each
+        paying a _check_company pass over ~20 relational fields) into one.
         """
         self.ensure_one()
         routes = []
@@ -1202,10 +1195,9 @@ class StockWarehouse(models.Model):
         (reactivating it when archived), otherwise create it.
 
         The match ignores ``active`` on purpose: matching only archived rules
-        (as this used to) makes the method non-idempotent — if an *active* rule
-        with the same identity already exists it would be duplicated. Matching
-        regardless of ``active`` makes a second call a no-op instead, so the
-        method no longer relies on the caller having archived stale rules first.
+        (as it used to) would duplicate an already-active rule of the same
+        identity. Ignoring ``active`` makes a second call a no-op, so it no
+        longer relies on the caller having archived stale rules first.
         """
         Rule = self.env["stock.rule"]
         to_create = []
@@ -1305,11 +1297,10 @@ class StockWarehouse(models.Model):
         """
         location_fields = self._sub_location_field_names()
         for warehouse in self:
-            # Fast path: skip building sub-location values (which runs a barcode
-            # search per location) when every sub-location already exists or is
-            # being set explicitly — the common case, hit on every write(). The
-            # field list comes from _get_locations_values (via a cached helper),
-            # so module-added locations (e.g. mrp's pbm/sam) are covered too.
+            # Fast path: skip building sub-location values (a barcode search per
+            # location) when every sub-location already exists or is set
+            # explicitly — the common case on every write(). The cached field
+            # list also covers module-added locations (e.g. mrp's pbm/sam).
             if all(warehouse[field] or field in vals for field in location_fields):
                 continue
             company_id = vals.get("company_id", warehouse.company_id.id)
@@ -1754,15 +1745,14 @@ class StockWarehouse(models.Model):
             self.mapped("lot_stock_id").mapped("location_id").write({"name": new_code})
         if new_name:
             # Routes are named "<warehouse name>: <label>" (see _format_routename),
-            # so keep them in sync by swapping just that leading prefix. This
-            # replaces the old `name.replace(old, new, 1)`, which could hit the
-            # wrong occurrence mid-string and left the label untouched.
+            # so keep them in sync by swapping just the leading prefix. The old
+            # `name.replace(old, new, 1)` could match the wrong occurrence
+            # mid-string and leave the label untouched.
             #
-            # Rules are intentionally NOT renamed here: _format_rulename builds
-            # their names from the warehouse *code*, not its name, so a name
-            # change never affects a rule name — the previous per-rule and
-            # mto_pull_id `.replace(warehouse.name, ...)` calls matched nothing
-            # and were dead code.
+            # Rules are intentionally NOT renamed: _format_rulename builds their
+            # names from the warehouse *code*, not its name, so a name change
+            # never affects a rule name — the old per-rule and mto_pull_id
+            # `.replace(warehouse.name, ...)` calls matched nothing (dead code).
             for warehouse in self:
                 old_prefix = "%s: " % warehouse.name
                 new_prefix = "%s: " % new_name
@@ -1775,9 +1765,9 @@ class StockWarehouse(models.Model):
             sequence_data = warehouse._get_sequence_values(name=new_name, code=new_code)
             wh = warehouse.sudo() if is_manager else warehouse
             # Data-driven so module-added picking types (mrp's pbm/sam/manu, pos,
-            # repair, subcontracting, ...) — whose keys `_get_sequence_values`
-            # also returns — get their sequence renamed too, instead of only the
-            # base eight. The keys are warehouse picking-type field names.
+            # repair, subcontracting, ...), whose keys `_get_sequence_values` also
+            # returns, get their sequence renamed too — not just the base eight.
+            # Keys are warehouse picking-type field names.
             for field_name, seq_vals in sequence_data.items():
                 sequence = wh[field_name].sequence_id
                 if sequence:
@@ -1940,8 +1930,7 @@ class StockWarehouse(models.Model):
         }
         # sequence_code and each type's creation-sequence offset both come from
         # WAREHOUSE_PICKING_TYPE_CODES (its order == the offset), so adding a base
-        # picking type means one entry there rather than a hand-picked, unique
-        # "+N" spread across this method.
+        # picking type is one entry there rather than a hand-picked "+N" here.
         for offset, (field, seq_code) in enumerate(
             WAREHOUSE_PICKING_TYPE_CODES.items(), start=1
         ):

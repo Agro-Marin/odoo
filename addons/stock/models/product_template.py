@@ -276,10 +276,9 @@ class ProductTemplate(models.Model):
                         ),
                     )
 
-        # Switching a product to storable requires dropping stale reservations and
-        # rebuilding its inventory from move history. ``vals.get`` is truthy only when
-        # is_storable is being set to True; ``templates_to_reset`` then holds exactly
-        # the ones actually transitioning (those already storable are skipped).
+        # Switching a product to storable drops stale reservations and rebuilds its
+        # inventory from move history. Only templates actually transitioning are reset;
+        # those already storable are skipped.
         clean_inventory = False
         templates_to_reset = self.env["product.template"]
         if vals.get("is_storable"):
@@ -294,13 +293,11 @@ class ProductTemplate(models.Model):
 
     def copy(self, default=None):
         new_products = super().copy(default=default)
-        # Variants aren't copied directly, so for each copied template we match its
-        # new variants to the originals by attribute value and carry over the storage
-        # category capacity. The mapping MUST be rebuilt per template: copy() is
-        # batched, so keying it globally lets templates that share an attribute value
-        # (e.g. two products both with "Color: Red") overwrite each other -- grafting
-        # capacities onto the wrong variant or crashing on the (product, category)
-        # uniqueness constraint.
+        # Variants aren't copied directly, so match each template's new variants to the
+        # originals by attribute value and carry over their storage category capacity.
+        # The mapping MUST be rebuilt per template: copy() is batched, so a global key
+        # lets templates sharing an attribute value (e.g. both "Color: Red") overwrite
+        # each other -- wrong variant, or a (product, category) uniqueness crash.
         storage_category_capacity_vals = []
         for old_template, new_template in zip(self, new_products, strict=True):
             new_variant_id_by_value = {
@@ -334,10 +331,9 @@ class ProductTemplate(models.Model):
     # ------------------------------------------------------------
 
     def _compute_count_lot_ids(self):
-        # Aggregate lot counts per variant in a single query, then roll up per
-        # template. Iterating ``product_variant_ids`` (active-filtered) mirrors the
-        # original per-record ``search_count`` and keeps archived variants' lots out
-        # of the count.
+        # Aggregate lot counts per variant in one query, then roll up per template.
+        # Iterating ``product_variant_ids`` (active-filtered) keeps archived variants'
+        # lots out of the count, matching the original per-record ``search_count``.
         counts = defaultdict(int)
         for product, count in self.env["stock.lot"]._read_group(
             [("product_id", "in", self.product_variant_ids.ids)],
@@ -408,10 +404,9 @@ class ProductTemplate(models.Model):
             )
 
     def _compute_has_available_route_ids(self):
-        # Global flag: true when any selectable route exists at all, so it is the
-        # same for every record and independent of the product's own fields. There
-        # is no field/context dependency to declare (it tracks stock.route config).
-        # Only existence matters, so limit=1 avoids counting the whole table.
+        # Global flag: true iff any selectable route exists, so it's the same for every
+        # record with no field/context dependency to declare (it tracks stock.route
+        # config). Only existence matters, so limit=1 avoids counting the whole table.
         self.has_available_route_ids = bool(
             self.env["stock.route"].search_count(
                 [("product_selectable", "=", True)],
@@ -434,11 +429,10 @@ class ProductTemplate(models.Model):
         "product_variant_ids.outgoing_qty",
         "tracking",
     )
-    # Mirror product.product._compute_quantities exactly: the template value is the
-    # sum of its variants' quantities, so it varies with every context key the
-    # variant does. Declaring only "warehouse_id" made the cache alias across
-    # location/date/owner/lot/package/company -- reading a template under one
-    # location returned a value computed under another.
+    # Mirror product.product._compute_quantities: the template value sums its variants'
+    # quantities, so it depends on every context key the variant does. Declaring only
+    # "warehouse_id" aliased the cache across location/date/owner/lot/package/company --
+    # a template read under one location returned a value computed under another.
     @api.depends_context(
         "lot_id",
         "owner_id",
@@ -744,10 +738,10 @@ class ProductTemplate(models.Model):
                 ("location_dest_usage", "in", ("internal", "transit")),
             ],
         )
-        # Fetch every stored field the ledger loop reads. ``location_usage`` /
-        # ``location_dest_usage`` are non-stored related fields (derived from the two
-        # locations) and can't be folded into the query, but pulling ``location_dest_id``
-        # up front spares an extra prefetch round-trip.
+        # Fetch the stored fields the ledger loop reads. ``location_usage`` /
+        # ``location_dest_usage`` are non-stored related fields and can't be folded
+        # into the query, but pulling ``location_dest_id`` up front spares a prefetch
+        # round-trip.
         move_lines_to_match = self.env["stock.move.line"].search_fetch(
             move_line_domain,
             [

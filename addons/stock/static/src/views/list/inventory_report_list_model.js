@@ -14,14 +14,10 @@ export class InventoryReportListModel extends RelationalModel {
     }
 
     /**
-     * Function called when a record has been _load (after saved).
-     * We need to detect when the user added to the list a quant which already exists
-     * (see stock.quant.create), either already loaded or not, to warn the user
-     * the quant was updated.
-     * This is done by checking :
-     * - the record id against the '_lastCreatedRecordId' on model
-     * - the create_date against the write_date (both are equal for newly created records).
-     *
+     * Called after a record is (re)loaded post-save. Detects when the user added a
+     * quant that already exists (see stock.quant.create) so we can warn them it was
+     * updated instead: its id matches '_lastCreatedRecordId', and create_date equals
+     * write_date only for a freshly created record.
      */
     async _updateSimilarRecords(reloadedRecord, serverValues) {
         if (this.config.isMonoRecord) {

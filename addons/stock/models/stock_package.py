@@ -200,7 +200,8 @@ class StockPackage(models.Model):
                     up_to_parent_packages=self,
                 )
         if vals.get("package_dest_id"):
-            # Guard against a cycle in the package_dest_id chain; `parent_path` can't be used here since it only tracks parent_package_id.
+            # Guard against a cycle in the package_dest_id chain; parent_path
+            # can't be used here since it only tracks parent_package_id.
             current_children_dest_ids = self._get_all_children_package_dest_ids()[1]
             if vals["package_dest_id"] in current_children_dest_ids:
                 raise ValidationError(
@@ -356,8 +357,8 @@ class StockPackage(models.Model):
 
     @api.depends("location_id", "child_package_dest_ids")
     def _compute_move_line_ids(self):
-        # location_id isn't used directly below, but is kept in depends to force a recompute
-        # of move_line_ids whenever the package moves to another location.
+        # location_id isn't used below but stays in @api.depends to force a
+        # recompute of move_line_ids whenever the package changes location.
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         groups = self.env["stock.move.line"]._read_group(
             domain=[
@@ -493,7 +494,7 @@ class StockPackage(models.Model):
         domain = Domain("state", "not in", ["done", "cancel"])
         pack_operator = "in"
         if isinstance(value, Iterable) and tuple(value) == (False,):
-            # Search for ('move_line_ids', '=', False), which means not assigned to any ongoing picking
+            # ('move_line_ids', '=', False): not assigned to any ongoing picking
             pack_operator = "not in"
         else:
             domain &= Domain("id", operator, value)
@@ -572,11 +573,11 @@ class StockPackage(models.Model):
         if packs_to_clear := previous_dest_packages.filtered(
             lambda p: not p.move_line_ids
         ):
-            # These previous destination packages no longer have any move line pointing to them
-            # now that the container changed, so they're irrelevant: free them.
+            # No move line points to these former dest packages now that the
+            # container changed, so they're irrelevant: free them.
             packs_to_clear.package_dest_id = False
 
-        # Since the uppermost package changed, there might be some new putaway to apply.
+        # The uppermost package changed, so new putaway rules may apply.
         package.move_line_ids._apply_putaway_strategy()
         return package._post_put_in_pack_hook()
 
@@ -606,7 +607,7 @@ class StockPackage(models.Model):
         self.env["stock.move.line"].browse(move_line_ids_to_update).write(
             {"result_package_id": False}
         )
-        # Unlink moves that had no initial demand and don't have any more associated move lines
+        # Unlink moves with no initial demand and no remaining move lines.
         self.env["stock.move"].search_fetch(
             [
                 ("id", "in", related_move_ids),
@@ -616,11 +617,12 @@ class StockPackage(models.Model):
             field_names=["id"],
         ).unlink()
 
-        # If packages in self are dest containers of other packages, remove them as their dest as well
+        # If packages in self are dest containers of others, clear that too.
         self.child_package_dest_ids.package_dest_id = False
         self.package_dest_id = False
 
-        # If parent packages are now isolated from bottom-level packages, clear their destination container as well
+        # Parent packages now isolated from bottom-level packages: clear their
+        # destination container too.
         self.env["stock.package"].search_fetch(
             [("id", "in", all_package_dest_ids), ("move_line_ids", "=", False)],
             field_names=["id"],
@@ -650,8 +652,8 @@ class StockPackage(models.Model):
     # ------------------------------------------------------------
 
     def _apply_dest_to_package(self, processed_package_ids=None):
-        """Moves packages to their `package_dest_id` container (or detaches them if none), ensuring
-        the container's quants don't end up split across locations.
+        """Move packages into their ``package_dest_id`` container (or detach them
+        if none), ensuring the container's quants aren't split across locations.
         """
         packages_todo = self
         if processed_package_ids:
@@ -698,7 +700,7 @@ class StockPackage(models.Model):
                 }
             )
             processed_package_ids.update(packages.ids)
-        # First level has been applied, need to check if next level needs to be applied as well.
+        # First level applied; check whether the next level needs it too.
         if (
             packages_todo.parent_package_id.package_dest_id
             or packages_todo.parent_package_id.parent_package_id
@@ -708,9 +710,8 @@ class StockPackage(models.Model):
             )
 
     def _apply_package_dest_for_entire_packs(self, allowed_package_ids=None):
-        """When a package is assigned to a picking, if all of its container is added,
-        then we consider the container to be added itself, unless the container
-        is a reusable package itself.
+        """When a package is added to a picking and its whole container is added
+        too, treat the container as added — unless it's a reusable package.
         """
         for container, packages in self.grouped("parent_package_id").items():
             if (
@@ -721,7 +722,7 @@ class StockPackage(models.Model):
                     continue
                 packages.package_dest_id = container
         if self.package_dest_id:
-            # If one level was added, need to check if the upper container is fully contained as well.
+            # One level added: check whether the upper container is fully contained too.
             self.package_dest_id._apply_package_dest_for_entire_packs(
                 allowed_package_ids
             )
@@ -730,7 +731,7 @@ class StockPackage(models.Model):
         res = {}
         if picking_id:
             package_weights = defaultdict(float)
-            # For an ongoing picking, also account for the weight of current dest children, if any.
+            # For an ongoing picking, also count the weight of current dest children.
             children_by_dest_pack, all_pack_ids = (
                 self._get_all_children_package_dest_ids()
             )
@@ -766,8 +767,8 @@ class StockPackage(models.Model):
                         child_id, 0
                     ) + package_weights.get(child_id, 0)
             else:
-                # Also add the base_weight of every nested package, including those that only
-                # contain other packages (and thus no quants of their own to weigh below).
+                # Add the base_weight of every nested package, including ones that
+                # only contain other packages (no quants of their own to weigh).
                 weight += sum(
                     package.all_children_package_ids.mapped(
                         lambda p: p.package_type_id.base_weight,
@@ -779,10 +780,12 @@ class StockPackage(models.Model):
         return res
 
     def _get_all_children_package_dest_ids(self):
-        """Gets all descendant packages that have a package in self as their `package_dest_id`, recursively.
-        Done manually since we only have a single _parent field (parent_package_id) on the model.
-        :returns: tuple(dict mapping each package in self to the ids of its dest-descendants,
-                  list of self's ids plus all those descendant ids, regardless of which package they belong to)
+        """All descendant packages having a package in self as their
+        ``package_dest_id``, recursively. Done manually since the model has a
+        single _parent field (parent_package_id).
+
+        :returns: tuple(dict mapping each package in self to its dest-descendant
+            ids, list of self's ids plus all those descendant ids)
         """
 
         def fetch_next_children(packages):
@@ -804,9 +807,10 @@ class StockPackage(models.Model):
         return all_children_by_pack, all_children_ids
 
     def _get_all_package_dest_ids(self):
-        """Gets self and all its parent destination packages, recursively.
-        Done manually since we only have a single _parent field (parent_package_id) on the model.
-        :returns: A list containing self's ids and all parent ids.
+        """Self and all its parent destination packages, recursively. Done
+        manually since the model has a single _parent field (parent_package_id).
+
+        :returns: list of self's ids and all parent ids.
         """
 
         def fetch_next_parents(packages):
@@ -826,8 +830,8 @@ class StockPackage(models.Model):
                 message=_("Quantities unpacked"),
                 unpack=True,
             )
-            # Quant clean-up, mostly to avoid multiple quants of the same product. For example, unpack
-            # 2 packages of 50, then reserve 100 => a quant of -50 is created at transfer validation.
+            # Quant clean-up to avoid multiple quants of the same product: e.g.
+            # unpack 2 packages of 50, then reserve 100 => a -50 quant at validation.
             quants._quant_tasks()
 
     def _pre_put_in_pack_hook(

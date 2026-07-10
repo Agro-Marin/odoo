@@ -186,11 +186,10 @@ class StockLocation(models.Model):
     def _check_replenish_location(self):
         if not any(self.mapped("replenish_location")):
             return
-        # Two replenish locations conflict only when one is an ancestor of the
-        # other: their child_of subtrees overlap, so orderpoints would
-        # double-count. Siblings (disjoint subtrees) are fine. Compare each
-        # location's own parent_path; fetch every replenish location once
-        # instead of a child_of/parent_of search per record.
+        # Two replenish locations conflict when one is an ancestor of the other:
+        # their subtrees overlap and orderpoints would double-count. Siblings
+        # (disjoint subtrees) are fine. Fetch all replenish locations once and
+        # compare parent_path, instead of a child_of search per record.
         replenish_locations = self.search([("replenish_location", "=", True)])
         for loc in self:
             if not loc.replenish_location or not loc.parent_path:
@@ -476,10 +475,9 @@ class StockLocation(models.Model):
         return self.parent_path.startswith(other_location.parent_path)
 
     def _prefixed_by_parent(self):
-        """Whether this location's names (``complete_name``/``display_name``)
-        prepend the parent's path. True only for a non-view location that has a
-        parent: a view aggregates its children and is not itself shown nested
-        under its own parent in the displayed hierarchy."""
+        """Whether ``complete_name``/``display_name`` prepend the parent's path.
+        True only for a non-view location with a parent: a view aggregates its
+        children and isn't shown nested under its own parent."""
         self.ensure_one()
         return bool(self.location_id) and self.usage != "view"
 
@@ -511,10 +509,9 @@ class StockLocation(models.Model):
                     ),
                 )
 
-        # NB: ``do_not_check_quant`` returns here, *before* the subtree traversal
-        # below — so it suppresses the whole descendant cascade, not just the
-        # stock check its name implies. This is what stops the recursive write at
-        # the bottom of this method (which sets the flag) from re-cascading.
+        # Despite its name, ``do_not_check_quant`` returns before the subtree
+        # traversal below, suppressing the whole descendant cascade — this is what
+        # stops the recursive write at the end of this method from re-cascading.
         if self.env.context.get("do_not_check_quant"):
             return
         # ``child_of`` returns self *and* every descendant, not just direct

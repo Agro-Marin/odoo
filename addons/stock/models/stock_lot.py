@@ -122,18 +122,16 @@ class StockLot(models.Model):
             groupby,
             ["__count"],
         )
-        # First pass: tally the 'no-company' lots per (product, name). Done as a
-        # separate pass so correctness never depends on the order `_read_group`
-        # returns rows in (the previous code relied on 'company_id DESC' placing
-        # NULL-company rows first, i.e. on Postgres' NULLS-FIRST semantics).
+        # First pass: tally 'no-company' lots per (product, name) separately so
+        # correctness never depends on `_read_group`'s row order (the old code relied
+        # on 'company_id DESC' + Postgres NULLS-FIRST to see NULL-company rows first).
         cross_lots = {}
         for company, product, name, count in records:
             if not company:
                 cross_lots[(product, name)] = count
-        # Second pass: a combination is a duplicate when it appears more than once
-        # within a company (or 'no-company'), or when a company-specific lot
-        # collides with a 'no-company' one. Company-specific lots are NOT checked
-        # against other companies.
+        # Second pass: a combination duplicates when it appears more than once within
+        # a company (or 'no-company'), or when a company-specific lot collides with a
+        # 'no-company' one. Company-specific lots aren't checked across companies.
         error_message_lines = set()
         for company, product, name, count in records:
             duplicates = count
@@ -453,13 +451,12 @@ class StockLot(models.Model):
         """Aggregate the on-hand quantity per lot, honouring the same
         location/owner/package/to_date context as the ``product_qty`` field.
 
-        ``lot_domain`` scopes which lots are aggregated: ``('lot_id', 'in', ids)``
-        for the compute, ``('lot_id', '!=', False)`` for the search. Both paths go
-        through this single method so the field and its search stay in lockstep;
-        they previously resolved stock through different domains, so a lot sitting
-        in a transit location (or narrowed by a ``location``/``warehouse_id``
-        context) could read 0 yet still match ``product_qty > 0`` in a search, and
-        vice versa.
+        ``lot_domain`` scopes which lots are aggregated: ``('lot_id', 'in', ids)`` for
+        the compute, ``('lot_id', '!=', False)`` for the search. Both go through this
+        single method so the field and its search stay in lockstep; they previously
+        used different domains, so a lot in transit (or narrowed by a
+        ``location``/``warehouse_id`` context) could read 0 yet still match
+        ``product_qty > 0`` in a search, and vice versa.
 
         :return: dict mapping each in-scope ``stock.lot`` record to its quantity.
         """

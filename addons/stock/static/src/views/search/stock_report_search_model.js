@@ -27,8 +27,7 @@ export class StockReportSearchModel extends SearchModel {
     }
 
     /**
-     * Clears the context of a warehouse so values calculate based on all possible
-     * warehouses
+     * Clears the warehouse context so values compute across all warehouses.
      */
     clearWarehouseContext() {
         delete this.globalContext.warehouse_id;
@@ -36,9 +35,9 @@ export class StockReportSearchModel extends SearchModel {
     }
 
     /**
+     * Sets the context to the selected warehouse so dependent values recalculate for
+     * it, without filtering out any records.
      * @param {number} warehouse_id
-     * Sets the context to the selected warehouse so values that take this into account
-     * will recalculate based on this without filtering out any records
      */
     applyWarehouseContext(warehouse_id) {
         this.globalContext['warehouse_id'] = warehouse_id;

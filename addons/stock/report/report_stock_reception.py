@@ -327,10 +327,9 @@ class ReportStockReport_Reception(models.AbstractModel):
         :param qtys list: the quantities that are being assigned to the move_ids (in same order as move_ids)
         :param in_ids ids: the ids of the moves that are to be assigned to move_ids
         """
-        # Drop lines that carry no incoming moves to link (e.g. the "expected"
-        # draft-only lines the client's "Assign all" also sends): there is
-        # nothing to make-to-order for them and processing them would wrongly
-        # split the outgoing move (and browse(False)[0] would raise).
+        # Drop lines with no incoming moves to link (e.g. the "expected" draft-only
+        # lines "Assign all" also sends): nothing to make-to-order, and processing
+        # them would wrongly split the out move (and browse(False)[0] would raise).
         assignments = [
             (out_id, qty, ins)
             for out_id, qty, ins in zip(move_ids, qtys, in_ids, strict=False)
@@ -341,10 +340,9 @@ class ReportStockReport_Reception(models.AbstractModel):
         out_ids = [out_id for out_id, _qty, _ins in assignments]
         outs = self.env["stock.move"].browse(out_ids)
 
-        # Split outs with only part of demand assigned to prevent reservation problems later on.
-        # We do this first so we can create their split moves in batch. Only outs
-        # that actually yield a split move are mapped, so the ids stay aligned
-        # 1:1 with the created moves (one split vals dict per out).
+        # Split outs with only part of demand assigned to avoid reservation problems.
+        # Done first so split moves are created in batch; only outs that yield a
+        # split are mapped, keeping ids aligned 1:1 with the created moves.
         new_move_vals = []
         split_out_ids = []
         for out, (_out_id, qty_to_link, _ins) in zip(outs, assignments, strict=True):

@@ -8,11 +8,9 @@ registry.category("services").add("stock_warehouse", {
     dependencies: ["action"],
     start(env, { action }) {
         rpcBus.addEventListener("RPC:RESPONSE", (ev) => {
-            // Defensive: malformed payloads (null detail, missing data,
-            // missing params) can be dispatched to the global rpcBus by
-            // tests or synthetic fires. Optional-chain before destructuring
-            // so this listener does not turn a malformed event into a
-            // thrown exception that pollutes other tests via the shared bus.
+            // Defensive: tests or synthetic fires can dispatch malformed payloads
+            // (null detail, missing data/params) on the shared rpcBus. Optional-chain
+            // before destructuring so a bad event doesn't throw and pollute other tests.
             if (!ev.detail?.data?.params) {
                 return;
             }

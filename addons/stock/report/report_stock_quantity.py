@@ -6,12 +6,10 @@ class ReportStockQuantity(models.Model):
     _auto = False
     _description = "Stock Quantity Report"
 
-    # Columns actually read by the SQL view below.  This drives ``to_flush``:
-    # any pending change to one of these fields is flushed to the database
-    # before the view is queried, so a read-after-write in the same transaction
-    # (tests, server actions, computed fields that read this report) sees fresh
-    # data.  Keep it in sync with the ``init`` query — a field listed here but
-    # not read is harmless, but a field read and not listed causes stale reads.
+    # Columns read by the SQL view below; drives ``to_flush`` so pending writes to
+    # them are flushed before the view is queried (fresh read-after-write in the
+    # same transaction). Keep in sync with ``init``: a field read but not listed
+    # here causes stale reads (an extra listed field is only harmless).
     _depends = {
         "product.product": ["product_tmpl_id"],
         "product.template": ["is_storable", "uom_id"],
@@ -64,10 +62,11 @@ class ReportStockQuantity(models.Model):
             - the dest warehouse is kept if the SM is not the duplicated one and is not an interwarehouse
                 OR the SM is the duplicated one and is an interwarehouse
 
-        A location is mapped to its warehouse through the stored ``stock_location.warehouse_id`` column
-        (maintained from ``parent_path``), which resolves a location nested in several warehouses to the
-        innermost one -- so joining on it, rather than re-deriving the mapping with ``parent_path LIKE``,
-        is both sargable and free of the double-counting a plain LIKE match would cause on nested warehouses.
+        Locations map to their warehouse via the stored
+        ``stock_location.warehouse_id`` column (from ``parent_path``), which resolves
+        a nested location to the innermost warehouse. Joining on it rather than a
+        ``parent_path LIKE`` match is sargable and avoids double-counting nested
+        warehouses.
         """
         tools.drop_view_if_exists(self.env.cr, "report_stock_quantity")
         query = f"""
