@@ -106,7 +106,9 @@ class ProductReplenish(models.TransientModel):
 
     def _get_record_to_notify(self, date):
         order_line = self.env["purchase.order.line"].search(
-            [("write_date", ">=", date)], limit=1
+            [("write_date", ">=", date), ("product_id", "=", self.product_id.id)],
+            order="id desc",
+            limit=1,
         )
         return order_line or super()._get_record_to_notify(date)
 
@@ -120,9 +122,9 @@ class ProductReplenish(models.TransientModel):
             ]
         return super()._get_replenishment_order_notification_link(order_line)
 
-    def _get_date_planned(self, route_id, **kwargs):
-        date = super()._get_date_planned(route_id, **kwargs)
-        if "buy" not in route_id.rule_ids.mapped("action"):
+    def _get_date_planned(self, route, **kwargs):
+        date = super()._get_date_planned(route, **kwargs)
+        if "buy" not in route.rule_ids.mapped("action"):
             return date
 
         supplier = kwargs.get("supplier")

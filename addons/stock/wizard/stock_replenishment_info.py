@@ -1,9 +1,10 @@
 from datetime import datetime, time
-from dateutil.relativedelta import relativedelta
 from json import dumps
 
+from dateutil.relativedelta import relativedelta
 
-from odoo import _, api, fields, models, SUPERUSER_ID
+from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.numbers.float_utils import float_round
 from odoo.tools.misc import format_date
@@ -13,6 +14,9 @@ class StockReplenishmentInfo(models.TransientModel):
     _name = "stock.replenishment.info"
     _description = "Stock supplier replenishment information"
     _rec_name = "orderpoint_id"
+
+    # Move states that count towards realised demand when estimating daily demand.
+    _DEMAND_MOVE_STATES = ("assigned", "confirmed", "partially_available", "done")
 
     orderpoint_id = fields.Many2one(comodel_name="stock.warehouse.orderpoint")
     product_id = fields.Many2one(
@@ -64,6 +68,11 @@ class StockReplenishmentInfo(models.TransientModel):
         compute="_compute_wh_replenishment_options",
     )
 
+    @api.constrains("percent_factor")
+    def _check_percent_factor(self):
+        if any(report.percent_factor < 0 for report in self):
+            raise ValidationError(_("The percentage factor cannot be negative."))
+
     @api.depends("orderpoint_id")
     def _compute_wh_replenishment_options(self):
         for replenishment_info in self:
@@ -108,6 +117,9 @@ class StockReplenishmentInfo(models.TransientModel):
                     )
             return formatted_description
 
+        qty_to_html = self.env["ir.qweb.field.float"].value_to_html
+        precision = {"decimal_precision": "Product Unit"}
+
         self.json_lead_days = False
         for replenishment_report in self:
             if (
@@ -116,7 +128,7 @@ class StockReplenishmentInfo(models.TransientModel):
             ):
                 continue
             orderpoint = replenishment_report.orderpoint_id
-            _, lead_days_description = (
+            __, lead_days_description = (
                 replenishment_report._get_lead_days_and_description()
             )
             if lead_days_description:
@@ -124,24 +136,18 @@ class StockReplenishmentInfo(models.TransientModel):
             replenishment_report.json_lead_days = dumps(
                 {
                     "lead_horizon_date": format_date(
-                        self.env, replenishment_report.orderpoint_id.lead_horizon_date
+                        self.env, orderpoint.lead_horizon_date
                     ),
                     "lead_days_description": lead_days_description,
                     "today": format_date(self.env, fields.Date.today()),
                     "trigger": orderpoint.trigger,
-                    "qty_forecast": self.env["ir.qweb.field.float"].value_to_html(
-                        orderpoint.qty_forecast, {"decimal_precision": "Product Unit"}
+                    "qty_forecast": qty_to_html(orderpoint.qty_forecast, precision),
+                    "qty_to_order": qty_to_html(orderpoint.qty_to_order, precision),
+                    "product_min_qty": qty_to_html(
+                        orderpoint.product_min_qty, precision
                     ),
-                    "qty_to_order": self.env["ir.qweb.field.float"].value_to_html(
-                        orderpoint.qty_to_order, {"decimal_precision": "Product Unit"}
-                    ),
-                    "product_min_qty": self.env["ir.qweb.field.float"].value_to_html(
-                        orderpoint.product_min_qty,
-                        {"decimal_precision": "Product Unit"},
-                    ),
-                    "product_max_qty": self.env["ir.qweb.field.float"].value_to_html(
-                        orderpoint.product_max_qty,
-                        {"decimal_precision": "Product Unit"},
+                    "product_max_qty": qty_to_html(
+                        orderpoint.product_max_qty, precision
                     ),
                     "product_uom_name": orderpoint.product_uom_name,
                     "virtual": orderpoint.trigger == "manual"
@@ -173,26 +179,32 @@ class StockReplenishmentInfo(models.TransientModel):
                 limit_date = start_date + relativedelta(months=1)
         return start_date, limit_date
 
-    def _prepare_graph_data(self, daily_demand=0):
-        self.ensure_one()
+    @api.model
+    def _prepare_graph_data(self, product_min_qty, product_max_qty, daily_demand=0):
+        """Build the scatter-graph payload consumed by ``replenishment_graph_widget``.
+
+        Pure helper: it derives everything from its arguments so it can be unit
+        tested and reasoned about without a record. ``product_max_qty`` is assumed
+        ``>= product_min_qty`` (enforced by ``orderpoint._check_min_max_qty``).
+        """
         if not daily_demand:
             ordering_period = 0
             x_axis_vals = ["", " "]
             curve_line_vals = []
         else:
-            qty_diff = self.product_max_qty - self.product_min_qty or 1
+            qty_diff = product_max_qty - product_min_qty or 1
             ordering_period = max(1, int(qty_diff / daily_demand))
             x_axis_vals = [""]
-            curve_line_vals = [{"x": "", "y": self.product_max_qty}]
+            curve_line_vals = [{"x": "", "y": product_max_qty}]
             for i in range(1, 4):
                 date_string = _("In %s day(s)", int(i * ordering_period))
                 x_axis_vals.append(date_string)
-                curve_line_vals.append({"x": date_string, "y": self.product_min_qty})
-                curve_line_vals.append({"x": date_string, "y": self.product_max_qty})
+                curve_line_vals.append({"x": date_string, "y": product_min_qty})
+                curve_line_vals.append({"x": date_string, "y": product_max_qty})
             curve_line_vals.pop()  # we pop the last value since it would result in an ascending line that we don't need
 
-        max_line_vals = [{"x": date, "y": self.product_max_qty} for date in x_axis_vals]
-        min_line_vals = [{"x": date, "y": self.product_min_qty} for date in x_axis_vals]
+        max_line_vals = [{"x": date, "y": product_max_qty} for date in x_axis_vals]
+        min_line_vals = [{"x": date, "y": product_min_qty} for date in x_axis_vals]
         graph_data = {
             "x_axis_vals": x_axis_vals,
             "max_line_vals": max_line_vals,
@@ -215,20 +227,18 @@ class StockReplenishmentInfo(models.TransientModel):
                 or not replenishment_report.orderpoint_id.location_id
             ):
                 continue
-            lead_days, _ = replenishment_report._get_lead_days_and_description()
+            # The graph only needs the cumulative delays, not their textual
+            # breakdown, so skip building the (discarded) description.
+            lead_days, __ = replenishment_report.with_context(
+                bypass_delay_description=True
+            )._get_lead_days_and_description()
             date_from, date_to = replenishment_report._get_period_of_time()
             domain = Domain.AND(
                 [
                     [("product_id", "=", replenishment_report.product_id.id)],
                     [("date", ">=", date_from)],
                     [("date", "<=", datetime.combine(date_to, time.max))],
-                    [
-                        (
-                            "state",
-                            "in",
-                            ["assigned", "confirmed", "partially_available", "done"],
-                        ),
-                    ],
+                    [("state", "in", self._DEMAND_MOVE_STATES)],
                     [
                         (
                             "company_id",
@@ -264,33 +274,25 @@ class StockReplenishmentInfo(models.TransientModel):
                 or 0.0
             )
 
-            if (
-                replenishment_report.product_max_qty
-                < replenishment_report.product_min_qty
-            ):
-                replenishment_report.product_max_qty = (
-                    replenishment_report.product_min_qty
-                )
-            average_stock = replenishment_report.product_min_qty + (
-                (
-                    replenishment_report.product_max_qty
-                    - replenishment_report.product_min_qty
-                )
-                / 2
-            )
+            # ``product_max_qty >= product_min_qty`` is guaranteed by the
+            # orderpoint constraint ``_check_min_max_qty``, so no clamping (and
+            # certainly no write-back to the orderpoint) is needed here.
+            product_min_qty = replenishment_report.product_min_qty
+            product_max_qty = replenishment_report.product_max_qty
+            average_stock = (product_min_qty + product_max_qty) / 2
             lead_time = lead_days.get("total_delay", 0)
             daily_demand = (
                 (quantity_out - quantity_returned) / (date_to - date_from).days
             ) * (replenishment_report.percent_factor / 100)
 
             ordering_period, graph_data = replenishment_report._prepare_graph_data(
-                daily_demand=daily_demand
+                product_min_qty, product_max_qty, daily_demand=daily_demand
             )
             replenishment_report.json_replenishment_graph = dumps(
                 {
                     "product_uom_name": replenishment_report.product_uom_name,
-                    "product_max_qty": replenishment_report.product_max_qty,
-                    "product_min_qty": replenishment_report.product_min_qty,
+                    "product_max_qty": product_max_qty,
+                    "product_min_qty": product_min_qty,
                     "qty_on_hand": replenishment_report.orderpoint_id.qty_on_hand,
                     "lead_time": lead_time,
                     "daily_demand": float_round(
