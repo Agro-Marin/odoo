@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
-
 from odoo import Command
-from odoo.addons.stock.tests.common import TestStockCommon
+from odoo.exceptions import UserError
 from odoo.tests import Form
 from odoo.tests.common import new_test_user
 
+from odoo.addons.stock.tests.common import TestStockCommon
+
 
 class TestWarehouse(TestStockCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -843,8 +842,9 @@ class TestWarehouse(TestStockCommon):
         resupply_rules = warehouse_B.resupply_route_ids.rule_ids
         self.assertEqual(len(resupply_rules), 2)
         stock_A_to_transit = resupply_rules.filtered(
-            lambda r: r.location_dest_id
-            == self.env.company.internal_transit_location_id
+            lambda r: (
+                r.location_dest_id == self.env.company.internal_transit_location_id
+            )
         )
         self.assertEqual(stock_A_to_transit.location_src_id, warehouse_A.lot_stock_id)
 
@@ -977,6 +977,40 @@ class TestWarehouse(TestStockCommon):
         self.assertTrue(warehouse.int_type_id.active)
         self.assertFalse(warehouse.pick_type_id.active)
         self.assertFalse(warehouse.pack_type_id.active)
+
+    def test_toggle_active_blocked_by_foreign_picking_type(self):
+        """Archiving a warehouse must be refused when a picking type belonging
+        to *another* warehouse references one of this warehouse's locations as
+        its default source OR destination — otherwise that picking type would be
+        left pointing at an archived location. Regression: the guard used to
+        require BOTH endpoints inside the warehouse, silently letting a
+        src-only / dest-only reference dangle.
+        """
+        Warehouse = self.env["stock.warehouse"]
+        wh_a = Warehouse.create({"name": "Archive Me", "code": "ARM"})
+        wh_b = Warehouse.create({"name": "Other WH", "code": "OTH"})
+        customer_loc = self.env.ref("stock.stock_location_customers")
+
+        # A picking type on B whose default *source* is A's stock (its
+        # destination, the customer, is outside A).
+        self.env["stock.picking.type"].create(
+            {
+                "name": "Foreign src-only",
+                "code": "outgoing",
+                "sequence_code": "FSO",
+                "warehouse_id": wh_b.id,
+                "default_location_src_id": wh_a.lot_stock_id.id,
+                "default_location_dest_id": customer_loc.id,
+                "company_id": wh_a.company_id.id,
+            }
+        )
+
+        with self.assertRaises(UserError):
+            wh_a.action_archive()
+        self.assertTrue(
+            wh_a.lot_stock_id.active,
+            "The stock location must stay active since archiving was refused.",
+        )
 
     def test_toggle_active_warehouse_2(self):
         # Required for `delivery_steps` to be visible in the view

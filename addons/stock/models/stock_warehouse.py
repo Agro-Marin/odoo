@@ -466,46 +466,67 @@ class StockWarehouse(models.Model):
         return tuple(self._get_locations_values({}))
 
     @ormcache()
-    def _get_route_trigger_fields(self):
-        """Warehouse field names whose modification must refresh the routes,
-        rules and picking types on ``write``, split into:
+    def _get_route_depend_fields(self):
+        """Warehouse field names whose modification must refresh the
+        reception/delivery (and module-added) routes and picking types — the
+        ``depends`` of ``_get_routes_values``.
 
-        - ``route_depends``: trigger the reception/delivery (and module-added)
-          route and picking-type refresh — the ``depends`` of
-          ``_get_routes_values``.
-        - ``global_depends``: trigger the global route rules refresh — the
-          ``depends`` of ``_generate_global_route_rules_values``.
+        Structural set (the names come from *static* ``depends`` lists), hence
+        cached: it only changes when a module extending ``_get_routes_values``
+        is (un)installed, which reloads the registry and clears this cache. See
+        ``_sub_location_field_names`` for why keying this cache only on the model
+        is safe.
+        """
+        return frozenset(self._collect_depends(self._get_routes_values()))
+
+    @ormcache()
+    def _get_global_trigger_fields(self):
+        """The global-route trigger fields, as a
+        ``(global_depends, global_rule_keys)`` pair:
+
+        - ``global_depends``: the ``depends`` of
+          ``_generate_global_route_rules_values``.
         - ``global_rule_keys``: the global rule ``Many2one`` field names
           themselves (writing one directly also warrants a refresh).
-
-        Structural set: the names come from the *static* ``depends`` lists in
-        those helpers, so it only changes when a module extending them is
-        (un)installed, which reloads the registry and clears this cache.
-        Mirrors ``_sub_location_field_names`` — it lets ``write`` decide whether
-        a refresh is needed without rebuilding those values (and, notably,
-        without calling ``get_rules_dict`` / resolving partner & production
-        locations) on every write, even for unrelated fields.
 
         The *unfiltered* ``_generate_global_route_rules_values`` is used on
         purpose: an over-inclusive trigger set only risks a redundant (and
         idempotent) refresh, whereas a missing field would skip a needed one.
 
-        Discovery must stay purely structural: ``_generate_global_route_rules_values``
+        Structural, hence cached — but note ``_generate_global_route_rules_values``
         resolves the MTO rule and can ``raise`` on a warehouse whose delivery
-        chain has no stock-origin rule. If that happens here it would abort an
-        otherwise unrelated write (e.g. a rename) just to populate this cache,
-        so the global part is guarded and falls back to the base-known globals.
+        chain has no stock-origin rule. That ``raise`` propagates *before*
+        ormcache stores anything, so a misconfigured warehouse never poisons this
+        cache for its healthy siblings: the caller turns the raise into a
+        base-globals fallback, and the next successful call recomputes and caches
+        the real set. (The old combined helper cached the fallback registry-wide,
+        letting one broken warehouse suppress global-route refreshes for all.)
         """
-        route_depends = frozenset(self._collect_depends(self._get_routes_values()))
+        global_values = self._generate_global_route_rules_values()
+        return (
+            frozenset(self._collect_depends(global_values)),
+            frozenset(global_values),
+        )
+
+    def _get_route_trigger_fields(self):
+        """Return ``(route_depends, global_depends, global_rule_keys)``: the
+        warehouse fields whose modification must refresh routes, rules and
+        picking types on ``write``. Composes the two cached, structural helpers
+        so ``write`` can decide whether a refresh is needed without rebuilding
+        the route values (and, notably, without calling ``get_rules_dict`` /
+        resolving partner & production locations) on every write.
+
+        The global part is guarded: ``_generate_global_route_rules_values`` can
+        ``raise`` on a warehouse whose delivery chain has no stock-origin rule.
+        Rather than abort an unrelated write (e.g. a rename) just to populate a
+        trigger set, fall back to the base-known globals. Because this fallback
+        lives here and not inside the cached helper, it is never cached — so it
+        can't leak onto other warehouses (see ``_get_global_trigger_fields``).
+        """
+        route_depends = self._get_route_depend_fields()
         try:
-            global_values = self._generate_global_route_rules_values()
-            global_depends = frozenset(self._collect_depends(global_values))
-            global_rule_keys = frozenset(global_values)
+            global_depends, global_rule_keys = self._get_global_trigger_fields()
         except UserError:
-            # Can't resolve the global rules for this (mis)configured warehouse;
-            # fall back to the base globals so trigger discovery never blocks a
-            # write. The real error still surfaces if a write actually refreshes
-            # the global routes (_create_or_update_global_routes_rules).
             _logger.warning(
                 "Could not resolve global route rules while computing warehouse "
                 "route trigger fields; falling back to base globals.",
@@ -584,8 +605,15 @@ class StockWarehouse(models.Model):
             .with_context(active_test=False)
             .search([("location_id", "child_of", self.view_location_id.id)])
         )
+        # A foreign picking type blocks archiving if EITHER its default source
+        # or destination sits inside this warehouse — matching the error message
+        # below — because archiving these locations would leave it pointing at an
+        # archived one. The former all-AND domain only caught types with *both*
+        # endpoints inside, silently letting src-only / dest-only references
+        # dangle past archive.
         picking_type_using_locations = PickingType.search(
             [
+                "|",
                 ("default_location_src_id", "in", locations.ids),
                 ("default_location_dest_id", "in", locations.ids),
                 ("id", "not in", picking_types.ids),
@@ -658,6 +686,23 @@ class StockWarehouse(models.Model):
             )
             to_disable_route_ids.action_archive()
 
+    def _existing_warehouse_values(self, field_name, company, taken=()):
+        """Return the set of ``field_name`` values already used by ``company``'s
+        warehouses (archived included) unioned with ``taken`` — the values
+        reserved earlier in the same, not-yet-flushed, create/copy batch that the
+        DB search can't see yet.
+
+        Single source shared by the name/code generators so they de-duplicate
+        against the same population and never collide with the
+        ``unique(<field>, company_id)`` constraints.
+        """
+        return set(taken) | set(
+            self.env["stock.warehouse"]
+            .with_context(active_test=False)
+            .search([("company_id", "=", company.id)])
+            .mapped(field_name)
+        )
+
     def _generate_default_name(self, company, taken=()):
         """Return a unique warehouse name for ``company``: the company name for
         the first warehouse, then a name suffixed with an incrementing counter.
@@ -665,15 +710,10 @@ class StockWarehouse(models.Model):
         never collide with the ``unique(name, company_id)`` constraint.
 
         ``taken`` reserves names already assigned earlier in the same, not yet
-        flushed, create/copy batch — which the DB search below can't see — so
+        flushed, create/copy batch — which the DB search can't see — so
         sibling records with defaulted names don't collide with each other.
         """
-        existing = set(taken) | set(
-            self.env["stock.warehouse"]
-            .with_context(active_test=False)
-            .search([("company_id", "=", company.id)])
-            .mapped("name")
-        )
+        existing = self._existing_warehouse_values("name", company, taken)
         if not existing:
             return company.name
         counter = len(existing) + 1
@@ -692,12 +732,7 @@ class StockWarehouse(models.Model):
         flushed, create/copy batch (see ``_generate_default_name``).
         """
         base = ((company.name or "WH")[:5] or "WH").upper()
-        existing = set(taken) | set(
-            self.env["stock.warehouse"]
-            .with_context(active_test=False)
-            .search([("company_id", "=", company.id)])
-            .mapped("code")
-        )
+        existing = self._existing_warehouse_values("code", company, taken)
         if base not in existing:
             return base
         # Keep within the 5-char limit by trimming room for the numeric suffix.
@@ -735,12 +770,7 @@ class StockWarehouse(models.Model):
         """Return the copy name ``base`` made unique for ``company`` against
         existing warehouses and ``taken`` (siblings copied in the same batch).
         """
-        existing = set(taken) | set(
-            self.env["stock.warehouse"]
-            .with_context(active_test=False)
-            .search([("company_id", "=", company.id)])
-            .mapped("name")
-        )
+        existing = self._existing_warehouse_values("name", company, taken)
         if base not in existing:
             return base
         counter = 2
@@ -1300,6 +1330,9 @@ class StockWarehouse(models.Model):
                 warehouse.write(missing_location)
 
     def create_resupply_routes(self, supplier_warehouses):
+        # Reads self.company_id / lot_stock_id / in_type_id as scalars and
+        # builds routes owned by a single supplied warehouse.
+        self.ensure_one()
         Route = self.env["stock.route"]
         Rule = self.env["stock.rule"]
 
@@ -1510,7 +1543,6 @@ class StockWarehouse(models.Model):
                         "push",
                     ),
                 ],
-                "company_id": warehouse.company_id.id,
             }
             for warehouse in self
         }
@@ -1578,7 +1610,7 @@ class StockWarehouse(models.Model):
                 "action": routing.action,
                 "auto": "manual",
                 "picking_type_id": routing.picking_type.id,
-                "procure_method": (first_rule and "make_to_stock") or "make_to_order",
+                "procure_method": "make_to_stock" if first_rule else "make_to_order",
                 "warehouse_id": self.id,
                 "company_id": self.company_id.id,
             }
@@ -1599,10 +1631,13 @@ class StockWarehouse(models.Model):
         pull_values["active"] = True
         rules_list = self._get_rule_values(route_values, values=pull_values)
         for pull_rules in rules_list:
+            # The first leg of the resupply route (sourced from stock) is MTS;
+            # every downstream leg pulls from the previous one, hence MTO.
             pull_rules["procure_method"] = (
-                self.lot_stock_id.id != pull_rules["location_src_id"]
-                and "make_to_order"
-            ) or "make_to_stock"  # first leg of the resupply route is MTS
+                "make_to_order"
+                if self.lot_stock_id.id != pull_rules["location_src_id"]
+                else "make_to_stock"
+            )
         return rules_list
 
     def _update_reception_delivery_resupply(self, reception_new, delivery_new):
@@ -1632,8 +1667,6 @@ class StockWarehouse(models.Model):
         routes = self.env["stock.route"].search([("supplier_wh_id", "=", self.id)])
         rules = Rule.search(
             [
-                "&",
-                "&",
                 ("route_id", "in", routes.ids),
                 ("action", "!=", "push"),
                 ("location_dest_id.usage", "=", "transit"),
@@ -1642,8 +1675,9 @@ class StockWarehouse(models.Model):
         rules.write(
             {
                 "location_src_id": new_location.id,
-                "procure_method": (change_to_multiple and "make_to_order")
-                or "make_to_stock",
+                "procure_method": "make_to_order"
+                if change_to_multiple
+                else "make_to_stock",
             }
         )
         if not change_to_multiple:
@@ -1700,7 +1734,6 @@ class StockWarehouse(models.Model):
             # they risk being used since resupply is no longer single-step.
             Rule.search(
                 [
-                    "&",
                     (
                         "route_id",
                         "=",
