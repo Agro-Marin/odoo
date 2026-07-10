@@ -16,7 +16,6 @@ from odoo.addons.base.tests.test_expression import TransactionExpressionCase
 
 
 class TestPropertiesMixin(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -146,7 +145,6 @@ class TestPropertiesMixin(TransactionCase):
 
 
 class PropertiesCase(TestPropertiesMixin):
-
     @mute_logger("odoo.db")
     def test_base_properties_model_access(self):
         with self.assertRaises(AccessError):
@@ -1632,9 +1630,9 @@ class PropertiesCase(TestPropertiesMixin):
             },
         ]
 
-        (self.message_1 | self.message_2 | self.message_3).discussion = (
-            self.discussion_1
-        )
+        (
+            self.message_1 | self.message_2 | self.message_3
+        ).discussion = self.discussion_1
         (self.message_1 | self.message_2).attributes = [
             {
                 "value": "a",
@@ -1820,7 +1818,8 @@ class PropertiesCase(TestPropertiesMixin):
                     "value": list(
                         zip(
                             partners[:10]._ids,
-                            partners[:10].mapped("display_name"), strict=False,
+                            partners[:10].mapped("display_name"),
+                            strict=False,
                         )
                     ),
                 },
@@ -1993,14 +1992,16 @@ class PropertiesCase(TestPropertiesMixin):
         with self.assertQueryCount(0, msg="Must read value from cache"):
             self.message_1.attributes
 
-        expected = ["""
+        expected = [
+            """
             UPDATE "test_orm_message"
             SET "attributes" = "__tmp"."attributes"::jsonb,
                 "write_date" = "__tmp"."write_date"::timestamp,
                 "write_uid" = "__tmp"."write_uid"::int4
             FROM (VALUES (%s)) AS "__tmp"("id", "attributes", "write_date", "write_uid")
             WHERE "test_orm_message"."id" = "__tmp"."id"
-        """]
+        """
+        ]
         with self.assertQueryCount(1), self.assertQueries(expected):
             self.message_1.attributes = [
                 {
@@ -2506,7 +2507,9 @@ class PropertiesCase(TestPropertiesMixin):
             action.update_path = "attributes.discussion_color_code"
         self.assertEqual(
             ve.exception.args[0],
-            "The path contained by the field 'Field to Update Path' contains a non-relational field (Discussion Properties) that is not the last field in the path. You can't traverse non-relational fields (even in the quantum realm). Make sure only the last field in the path is non-relational.",
+            "The path in field 'Field to Update Path' contains a non-relational "
+            "field (Discussion Properties) that is not the last segment. Only the "
+            "last field in a path may be non-relational.",
         )
 
     def test_getitem_property(self):
@@ -3058,9 +3061,9 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
 
     def test_properties_field_search_orderby_string(self):
         """Test that we can order record by properties string values."""
-        (self.message_1 | self.message_2 | self.message_3).discussion = (
-            self.discussion_1
-        )
+        (
+            self.message_1 | self.message_2 | self.message_3
+        ).discussion = self.discussion_1
         self.message_1.attributes = [
             {
                 "name": "mychar",
@@ -3090,9 +3093,9 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
 
     def test_properties_field_search_order_integer(self):
         """Test that we can order record by properties integer values."""
-        (self.message_1 | self.message_2 | self.message_3).discussion = (
-            self.discussion_1
-        )
+        (
+            self.message_1 | self.message_2 | self.message_3
+        ).discussion = self.discussion_1
         self.message_1.attributes = [
             {
                 "name": "myinteger",
@@ -4128,9 +4131,9 @@ class PropertiesGroupByCase(TestPropertiesMixin):
     def test_properties_field_read_group_tags(self):
         Model = self.env["test_orm.message"]
 
-        (self.message_1 | self.message_2 | self.message_3).discussion = (
-            self.discussion_1
-        )
+        (
+            self.message_1 | self.message_2 | self.message_3
+        ).discussion = self.discussion_1
 
         # group by tags property
         self.message_1.attributes = [

@@ -313,9 +313,6 @@ class Registry(
         self._caches = _RegistryCaches()
 
         # update context during loading modules
-        self._force_upgrade_scripts: set[str] = (
-            set()
-        )  # force the execution of the upgrade script for these modules
         self._reinit_modules: set[str] = set()  # modules to reinitialize
 
         # modules fully loaded (maintained during init phase by `loading` module)

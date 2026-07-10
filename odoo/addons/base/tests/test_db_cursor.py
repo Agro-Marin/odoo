@@ -1650,8 +1650,17 @@ class TestConnectionStateReset(BaseCase):
         self.assertNotIn("leak_schema", get("SHOW search_path"))
         self.assertFalse(get("SELECT to_regclass('pg_temp._leak_probe') IS NOT NULL"))
         self.assertEqual(get("SELECT count(*) FROM pg_listening_channels()"), 0)
+        # Scope to THIS backend: advisory locks are cluster-wide (not
+        # database-scoped) in PostgreSQL, so a bare count would also see locks
+        # held by any other Odoo process on the same cluster (a concurrent test
+        # run against another database) and spuriously fail. The other checks in
+        # this method are already connection-scoped.
         self.assertEqual(
-            get("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'"), 0
+            get(
+                "SELECT count(*) FROM pg_locks "
+                "WHERE locktype = 'advisory' AND pid = pg_backend_pid()"
+            ),
+            0,
         )
 
     def test_reset_sql_resets_role(self):

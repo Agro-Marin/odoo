@@ -1,12 +1,9 @@
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
-from odoo.modules import migration as migmod
 from odoo.modules.migration import (
     VERSION_RE,
-    MigrationManager,
     _convert_version,
     _is_upgrade_version_dir,
     _migration_applies,
@@ -133,58 +130,3 @@ class TestUpgradeScriptDiscovery(BaseCase):
 
     def test_resolve_addon_path_missing_returns_empty(self):
         self.assertEqual(_resolve_addon_path("no/such/addon_xyz/migrations"), "")
-
-
-class _FakeCursor:
-    rowcount = 0
-    dbname = "testdb"
-
-    def execute(self, *a, **k):
-        pass
-
-    def fetchall(self):
-        return []
-
-    def fetchone(self):
-        return None
-
-
-class _FakePkg:
-    def __init__(self, name, load_state="installed"):
-        self.name = name
-        self.load_state = load_state
-        self.load_version = "1.0"
-        self.manifest = {"version": "1.0"}
-
-
-class _FakeGraph:
-    def __init__(self, pkgs):
-        self._pkgs = pkgs
-
-    def __iter__(self):
-        return iter(self._pkgs)
-
-
-class TestMigrationManagerRegistry(BaseCase):
-    """Force-upgrade set is resolved once in __init__, not per migrate_module()."""
-
-    def test_registry_resolved_once_not_per_migrate_call(self):
-        calls = []
-
-        class FakeRegistry:
-            _force_upgrade_scripts = set()
-
-            def __init__(self, dbname):
-                calls.append(dbname)
-
-        pkgs = [_FakePkg(f"p{i}") for i in range(5)]
-        with patch.object(migmod, "Registry", FakeRegistry):
-            manager = MigrationManager(_FakeCursor(), _FakeGraph(pkgs))
-            # exactly one Registry() lookup, performed in __init__
-            self.assertEqual(len(calls), 1)
-            calls.clear()
-            for pkg in pkgs:
-                for stage in ("pre", "post", "end"):
-                    manager.migrate_module(pkg, stage)
-            # none of the 15 migrate_module() calls re-instantiates the Registry
-            self.assertEqual(calls, [])

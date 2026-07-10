@@ -12,8 +12,6 @@ from odoo.libs.parse_version import parse_version
 from odoo.modules.module import load_script
 from odoo.tools.misc import file_path
 
-from .registry import Registry
-
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -89,9 +87,7 @@ def _migration_applies(
         # major version bumps: compare just the module part so a 9.0.2.0 ->
         # 10.0.2.0 upgrade does not replay the 2.0 script.
         return (
-            parsed_installed[2:]
-            < parse_version(full_version)[2:]
-            <= parsed_target[2:]
+            parsed_installed[2:] < parse_version(full_version)[2:] <= parsed_target[2:]
         )
 
     return parsed_installed < parse_version(full_version) <= parsed_target
@@ -176,14 +172,11 @@ class MigrationManager:
         self.cr = cr
         self.graph = graph
         self.migrations = defaultdict(dict)
-        # Snapshot once: Registry() acquires a lock per call and this set does
-        # not change while a graph is being loaded.  Reused by migrate_module().
-        self._force_upgrade_scripts = Registry(cr.dbname)._force_upgrade_scripts
         self._get_files()
 
     def _needs_migration(self, pkg: module_graph.ModuleNode) -> bool:
         """Whether ``pkg`` should have its migration scripts collected/run."""
-        return pkg.load_state == "to upgrade" or pkg.name in self._force_upgrade_scripts
+        return pkg.load_state == "to upgrade"
 
     def _get_files(self) -> None:
         for pkg in self.graph:
