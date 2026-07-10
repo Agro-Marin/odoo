@@ -210,7 +210,8 @@ class Base(models.AbstractModel):
             ``action_id``
                 id of the action to get the filters, else the global filters
 
-        :return: dict with fields_views, fields and optionally filters
+        :return: dict with ``views`` and ``models`` keys (filters, when
+            requested, are nested under ``views['search']['filters']``)
         """
         options = options or {}
         result = {}
@@ -460,11 +461,12 @@ class Base(models.AbstractModel):
         :param options: ``mobile`` (bool) uses kanban instead of list views for
             x2many fields
         :rtype: dict[str, Any]
-        :raise AttributeError:
+        :raise ValueError:
 
             * if an inherited view has a position other than 'before', 'after',
               'inside', 'replace'
             * if a tag other than 'position' is found in a parent view
+        :raise ValidationError: if an inherited view has an invalid xpath
         """
         self.browse().check_access("read")
 

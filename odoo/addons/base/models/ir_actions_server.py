@@ -351,7 +351,7 @@ class IrActionsServer(models.Model):
         string="Webhook Fields",
         help="Fields to send in the POST request. "
         "The id and model of the record are always sent as '_id' and '_model'. "
-        "The name of the action that triggered the webhook is always sent as '_name'.",
+        "The name of the action that triggered the webhook is always sent as '_action'.",
     )
     webhook_sample_payload = fields.Text(
         string="Sample Payload", compute="_compute_webhook_sample_payload"

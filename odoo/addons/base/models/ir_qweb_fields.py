@@ -54,8 +54,9 @@ class IrQwebField(models.AbstractModel):
         """Return the available options as ``{name: settings}``.
 
         Each settings dict has guaranteed ``type`` (one of ``string``,
-        ``integer``, ``float``, ``model``, ``array``, ``selection``) and
-        ``string`` keys, plus optional ``description``, ``required`` (``False``
+        ``integer``, ``boolean``, ``char``, ``date``, ``datetime``, ``json``,
+        ``model``, ``array``, ``selection``) and ``string`` keys, plus optional
+        ``description``, ``required`` (``False``
         when absent, else ``True`` or a string), ``params`` and ``default_value``
         (json-friendly).
         """

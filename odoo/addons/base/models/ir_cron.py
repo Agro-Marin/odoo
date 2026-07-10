@@ -51,8 +51,8 @@ CONSECUTIVE_TIMEOUT_FOR_FAILURE = 3
 # A cron must satisfy both thresholds before deactivation.
 MIN_FAILURE_COUNT_BEFORE_DEACTIVATION = 5
 MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
-# Autovacuum retention: how long inactive-cron ``ir.cron.trigger`` rows and
-# ``ir.cron.progress`` rows are kept before garbage collection.
+# Autovacuum retention: how long inactive-cron ``ir.cron.trigger`` rows (and
+# ``ir.cron.progress`` rows for any cron) are kept before garbage collection.
 TRIGGER_RETENTION_PERIOD = timedelta(weeks=1)
 PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
@@ -132,7 +132,7 @@ class IrCron(models.Model):
     )
     lastcall = fields.Datetime(
         string="Last Execution Date",
-        help="Previous time the cron ran successfully, provided to the job through the context on the `lastcall` key",
+        help="Previous time the cron ran to completion (whether it finished or failed), provided to the job through the context on the `lastcall` key",
     )
     priority = fields.Integer(
         default=5,

@@ -1239,8 +1239,8 @@ class IrQweb(models.AbstractModel):
 
             render_template(qweb, values)
 
-        This method can be called only by :meth:`_render` method or by
-        the compiled code of t-call from an other template.
+        Called by :meth:`_generate_code_uncached` as part of the ``_compile``
+        pipeline.
 
         An ``options`` dictionary is created and attached to the function.
         It contains rendering options that are part of the cache key in
