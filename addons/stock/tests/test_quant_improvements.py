@@ -563,6 +563,40 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     # ---- P1: reservation reuses its gather except for least_packages -------------
+    def test_gather_signature_is_override_safe(self):
+        """`_gather` and `_get_available_quantity` are extension points overridden in
+        sibling repos (agromarin `marin`, `stock_blocked_location`) with fixed
+        signatures. The reservation path's per-call optimisation hints must therefore be
+        threaded via the private `_gather_removal_strategy` context key (and, for a
+        pre-gathered recordset, `_sum_available_quantity`) -- NOT as extra
+        keyword/positional params on these methods.
+
+        A `removal_strategy=`/`gathered_quants=` kwarg here once crashed those overrides
+        with `TypeError` on every reservation. This test locks the signatures down so
+        that regression cannot be reintroduced silently.
+        """
+        import inspect
+
+        import odoo.addons.stock.models.stock_quant as _sq
+
+        gather_params = inspect.signature(_sq.StockQuant._gather).parameters
+        self.assertNotIn(
+            "removal_strategy",
+            gather_params,
+            "_gather must not take removal_strategy as a param; thread it via the "
+            "_gather_removal_strategy context key so fixed-signature overrides survive.",
+        )
+        avail_params = inspect.signature(
+            _sq.StockQuant._get_available_quantity
+        ).parameters
+        self.assertNotIn("removal_strategy", avail_params)
+        self.assertNotIn(
+            "gathered_quants",
+            avail_params,
+            "_get_available_quantity must not take gathered_quants; reuse a pre-gathered "
+            "recordset through _sum_available_quantity instead.",
+        )
+
     def _count_gather_calls(self, fn):
         import odoo.addons.stock.models.stock_quant as _sq
 

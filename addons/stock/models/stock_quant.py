@@ -494,8 +494,8 @@ class StockQuant(models.Model):
                     )
                 plain_vals.append((index, vals))
         if plain_vals:
-            created = super().create([vals for _index, vals in plain_vals])
-            for (index, _vals), quant in zip(plain_vals, created, strict=True):
+            plain_records = super().create([vals for _index, vals in plain_vals])
+            for (index, _vals), quant in zip(plain_vals, plain_records, strict=True):
                 _add_to_cache(quant)
                 results[index] = quant
                 # stock.quant omits `_check_company_auto`, so the ORM never auto-runs
@@ -1321,7 +1321,6 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=False,
         qty=0,
-        removal_strategy=None,
     ):
         """Return the quants matching the given characteristics, ordered by the
         location/product removal strategy.
@@ -1333,14 +1332,25 @@ class StockQuant(models.Model):
         holding a gathered recordset must not assume passing it as ``self`` narrows the
         result (see ``_get_reserve_quantity``, which reuses its gather explicitly).
 
-        :param removal_strategy: pre-resolved strategy for this product/location.
-            Resolving it walks the product category and location parent chain, so a
-            caller that gathers then measures availability for the *same*
-            characteristics (the reservation path re-gathers up to three times) passes
-            it once instead of paying that walk each call. Resolved here if ``None``.
+        This is an **extension point** overridden in sibling repos (e.g. agromarin's
+        ``marin`` and ``stock_blocked_location``). Its public signature must stay
+        stable: any per-call optimisation the reservation path needs is threaded via
+        the private ``_gather_removal_strategy`` context key below, never as a new
+        positional/keyword argument -- so an override with a fixed signature (or one
+        forwarding ``**kwargs``) can never be broken by a caller passing a hint it does
+        not declare. (A ``removal_strategy=`` kwarg here once crashed those overrides
+        with ``TypeError`` on every reservation; the guard test in
+        ``test_quant_improvements`` locks the signature down.)
+
+        The context key holds a pre-resolved removal strategy for this
+        product/location: resolving it walks the product category + location parent
+        chain, so the reservation path (which gathers/measures the same characteristics
+        up to three times) resolves once and threads the result. Absent the key it is
+        resolved here.
         """
-        if removal_strategy is None:
-            removal_strategy = self._get_removal_strategy(product_id, location_id)
+        removal_strategy = self.env.context.get(
+            "_gather_removal_strategy"
+        ) or self._get_removal_strategy(product_id, location_id)
         domain = self._get_gather_domain(
             product_id,
             location_id,
@@ -1485,10 +1495,13 @@ class StockQuant(models.Model):
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
         self = self.sudo()
-        # Resolve the strategy once and reuse it for both the gather below and the
-        # closing _get_available_quantity re-gather (each would otherwise walk the
-        # product category + location parent chain again).
-        removal_strategy = self._get_removal_strategy(product_id, location_id)
+        # Resolve the strategy once and thread it (via the private
+        # `_gather_removal_strategy` context key, see `_gather`) to both the gather
+        # below and the closing `_get_available_quantity` re-gather, so neither re-walks
+        # the product category + location parent chain.
+        self = self.with_context(
+            _gather_removal_strategy=self._get_removal_strategy(product_id, location_id)
+        )
         quants = self._gather(
             product_id,
             location_id,
@@ -1496,7 +1509,6 @@ class StockQuant(models.Model):
             package_id=package_id,
             owner_id=owner_id,
             strict=True,
-            removal_strategy=removal_strategy,
         )
         if lot_id:
             if product_id.uom_id.compare(quantity, 0) > 0:
@@ -1561,7 +1573,6 @@ class StockQuant(models.Model):
                 owner_id=owner_id,
                 strict=True,
                 allow_negative=True,
-                removal_strategy=removal_strategy,
             ),
             in_date,
         )
@@ -1575,10 +1586,15 @@ class StockQuant(models.Model):
         lot_id=None,
         package_id=None,
         owner_id=None,
-        strict=True,
     ):
         """Increase or decrease `reserved_quantity` of a set of quants for a given
         product_id/location_id/lot_id/package_id/owner_id.
+
+        This always operates strictly (the exact characteristics tuple); reservation
+        never needs the non-strict, child-location gather. It used to take a ``strict``
+        flag that was never forwarded to `_update_available_quantity` (which hardcodes a
+        strict gather), so it silently did nothing -- dropped to stop callers relying on
+        a no-op.
         """
         self._update_available_quantity(
             product_id,
@@ -1814,14 +1830,11 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=False,
         allow_negative=False,
-        gathered_quants=None,
-        removal_strategy=None,
     ):
         """Return the available quantity, i.e. the sum of `quantity` minus the sum of
         `reserved_quantity`, for the set of quants sharing the combination of `product_id,
         location_id` if `strict` is set to False or sharing the *exact same characteristics*
         otherwise.
-        The set of quants to filter from can be in `self`, if not a search will be done
         This method is called in the following usecases:
             - when a stock move checks its availability
             - when a stock move actually assign
@@ -1833,57 +1846,71 @@ class StockQuant(models.Model):
         In the last ones, `strict` should be set to `True`, as we work on a specific set of
         characteristics.
 
-        :param gathered_quants: an already-``_gather``-ed recordset to sum over, so a
-            caller that just gathered the same characteristics avoids a second identical
-            search. Only pass it when it is the *full* gather for these characteristics:
-            a ``least_packages`` gather is narrowed to the chosen packages and would
-            under-report the real availability.
+        Always resolves the candidate set with a fresh ``_gather``. A caller that just
+        gathered the same characteristics reuses them via :meth:`_sum_available_quantity`
+        instead of passing them here -- keeping this method's signature stable for the
+        sibling-repo overrides that extend it (see :meth:`_gather`).
+
         :return: available quantity as a float
         """
-        self = self.sudo()
-        if gathered_quants is None:
-            quants = self._gather(
-                product_id,
-                location_id,
-                lot_id=lot_id,
-                package_id=package_id,
-                owner_id=owner_id,
-                strict=strict,
-                removal_strategy=removal_strategy,
-            )
-        else:
-            quants = gathered_quants.sudo()
+        quants = self.sudo()._gather(
+            product_id,
+            location_id,
+            lot_id=lot_id,
+            package_id=package_id,
+            owner_id=owner_id,
+            strict=strict,
+        )
+        return self._sum_available_quantity(
+            quants,
+            product_id,
+            lot_id=lot_id,
+            strict=strict,
+            allow_negative=allow_negative,
+        )
+
+    def _sum_available_quantity(
+        self, quants, product_id, lot_id=None, strict=False, allow_negative=False
+    ):
+        """Sum on-hand-minus-reserved over an already-``_gather``-ed ``quants`` set.
+
+        Split out of :meth:`_get_available_quantity` so :meth:`_get_reserve_quantity`
+        can reuse the recordset it just gathered without a second identical search --
+        *without* threading that recordset through ``_get_available_quantity``, which is
+        an extension point overridden in sibling repos. Only reuse ``quants`` when it is
+        the *full* gather for these characteristics: a ``least_packages`` gather is
+        narrowed to the chosen packages and would under-report availability, so its
+        caller re-gathers instead.
+        """
+        quants = quants.sudo()
         if product_id.tracking == "none":
             available_quantity = sum(quants.mapped("quantity")) - sum(
                 quants.mapped("reserved_quantity")
             )
             if allow_negative:
                 return available_quantity
-            else:
-                return (
-                    available_quantity
-                    if product_id.uom_id.compare(available_quantity, 0.0) >= 0.0
-                    else 0.0
-                )
-        else:
-            # Key per-lot availability by the lot record, with None standing in for
-            # untracked quants (the honest empty-lot value, not a magic string).
-            available_quantities = dict.fromkeys(set(quants.mapped("lot_id")), 0.0)
-            available_quantities[None] = 0.0
-            for quant in quants:
-                if not quant.lot_id and strict and lot_id:
-                    continue
-                available_quantities[quant.lot_id or None] += (
-                    quant.quantity - quant.reserved_quantity
-                )
-            if allow_negative:
-                return sum(available_quantities.values())
-            else:
-                return sum(
-                    available_quantity
-                    for available_quantity in available_quantities.values()
-                    if product_id.uom_id.compare(available_quantity, 0) > 0
-                )
+            return (
+                available_quantity
+                if product_id.uom_id.compare(available_quantity, 0.0) >= 0.0
+                else 0.0
+            )
+        # Key per-lot availability by the lot record, with None standing in for
+        # untracked quants (the honest empty-lot value, not a magic string).
+        available_quantities = dict.fromkeys(set(quants.mapped("lot_id")), 0.0)
+        available_quantities[None] = 0.0
+        for quant in quants:
+            if not quant.lot_id and strict and lot_id:
+                continue
+            available_quantities[quant.lot_id or None] += (
+                quant.quantity - quant.reserved_quantity
+            )
+        if allow_negative:
+            return sum(available_quantities.values())
+        return sum(
+            available_quantity
+            for available_quantity in available_quantities.values()
+            if product_id.uom_id.compare(available_quantity, 0) > 0
+        )
 
     def _get_gather_domain(
         self,
@@ -2189,7 +2216,11 @@ class StockQuant(models.Model):
         """
         self = self.sudo()
 
+        # Resolve the strategy once and thread it to every gather below via the private
+        # `_gather_removal_strategy` context key (see `_gather`), so neither the gather
+        # nor the availability re-gather re-walks the category + location parent chain.
         removal_strategy = self._get_removal_strategy(product_id, location_id)
+        self = self.with_context(_gather_removal_strategy=removal_strategy)
         quants = self._gather(
             product_id,
             location_id,
@@ -2198,28 +2229,30 @@ class StockQuant(models.Model):
             owner_id=owner_id,
             strict=strict,
             qty=quantity,
-            removal_strategy=removal_strategy,
         )
 
         # allow_negative defaults to False: quants left negative by another lot/package
         # don't reduce the available quantity of the rest.
         #
-        # `_get_available_quantity` re-gathers internally. For every strategy but
-        # least_packages that second gather is identical to `quants` (verified against
-        # fifo/lifo/closest), so we pass it through and save a full search of the
-        # stock_quant hot table. least_packages is the exception: `quants` was narrowed
-        # to the chosen packages by `qty`, but availability must be measured over the
-        # *whole* set, so let it re-gather.
-        available_quantity = quants._get_available_quantity(
-            product_id,
-            location_id,
-            lot_id,
-            package_id,
-            owner_id,
-            strict,
-            gathered_quants=None if removal_strategy == "least_packages" else quants,
-            removal_strategy=removal_strategy,
-        )
+        # For every strategy but least_packages the availability is measured over the
+        # `quants` just gathered, so reuse them via `_sum_available_quantity` and save a
+        # second full search of the stock_quant hot table. least_packages is the
+        # exception: `quants` was narrowed to the chosen packages by `qty`, but
+        # availability must be measured over the *whole* set, so re-gather it (a fresh
+        # `_get_available_quantity`, which reuses the threaded strategy above).
+        if removal_strategy == "least_packages":
+            available_quantity = self._get_available_quantity(
+                product_id,
+                location_id,
+                lot_id=lot_id,
+                package_id=package_id,
+                owner_id=owner_id,
+                strict=strict,
+            )
+        else:
+            available_quantity = self._sum_available_quantity(
+                quants, product_id, lot_id=lot_id, strict=strict, allow_negative=False
+            )
 
         # Packaging with a "full" reserve method can only reserve whole packages.
         if (
