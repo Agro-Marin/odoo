@@ -1,8 +1,7 @@
 """Phase-1 tests for the ir.attachment storage-backend skeleton.
 
-Covers backend selection (write side: configured location), key dispatch
-(read side: URI scheme), and equivalence of the backend value fragments
-with the live model behavior. See the C1 plan
+Cover write-side backend selection, read-side key dispatch, and equivalence
+of backend value fragments with the live model. See the C1 plan
 (``2026-06-10-storage-backend-formalization-plan.md``).
 """
 
@@ -66,11 +65,9 @@ class TestIrAttachmentStorage(TransactionCase):
             STORAGE_BACKENDS.pop("fake_s3")
 
     def test_unknown_scheme_warns_once(self):
-        """IRA-S2: a schemed key with no registered backend (e.g. ``s3://``
-        rows left behind after uninstalling the backend module) must fall
-        back to the filestore WITH a distinct warning — once per scheme —
-        so the inevitable read failure is blamed on the missing backend,
-        not the local filestore.
+        """IRA-S2: a schemed key with no registered backend falls back to the
+        filestore with a distinct warning, once per scheme, so the read
+        failure is blamed on the missing backend, not the filestore.
         """
         self.addCleanup(
             ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, "ghost-s3"
@@ -116,9 +113,7 @@ class TestIrAttachmentStorage(TransactionCase):
             STORAGE_BACKENDS.pop("fake_stream")
 
     def test_write_fragment_matches_model(self):
-        """backend.write's store fragment equals the live
-        _get_datas_related_values output (both persist + return the same
-        store_fname/db_datas)."""
+        """backend.write's store fragment equals _get_datas_related_values output."""
         for location, backend_cls in (("file", FileStorage), ("db", DbStorage)):
             self.icp.set_param("ir_attachment.location", location)
             for data in (b"payload", b""):
@@ -140,8 +135,8 @@ class TestIrAttachmentStorage(TransactionCase):
                 raise psycopg.errors.LockNotAvailable("simulated lock timeout")
             return real_execute(query, *args, **kwargs)
 
-        # commit/rollback are forbidden inside tests — stub the transaction
-        # boundary; what we test is the control flow around the lock failure
+        # commit/rollback are forbidden in tests; stub them to test the
+        # control flow around the lock failure
         with (
             patch.object(self.env.cr, "commit", lambda: None),
             patch.object(self.env.cr, "rollback", lambda: None),
@@ -173,9 +168,9 @@ class TestIrAttachmentStorage(TransactionCase):
 class MemoryStorage(AttachmentStorage):
     """In-memory backend: the test seam proving the contract is complete.
 
-    Deletes are reference-counted against ``store_fname`` (mirroring the
-    file backend's deferred GC): content-addressed keys are shared by
-    copies, so an eager delete would corrupt the remaining references.
+    Deletes are reference-counted against ``store_fname`` (like the file
+    backend's deferred GC): content-addressed keys are shared by copies, so
+    an eager delete would corrupt remaining references.
     """
 
     location = "memory"
@@ -242,9 +237,8 @@ def activate_memory_storage(env):
 class TestMemoryStorageCRUD(TransactionCase):
     """CRUD flows against a non-file backend prove the contract is complete.
 
-    Deliberately NOT the whole attachment suite: tests asserting filestore
-    specifics (on-disk paths, GC checklist) are file-backend tests by
-    definition and stay on FileStorage.
+    Not the whole attachment suite: tests asserting filestore specifics
+    (on-disk paths, GC checklist) stay on FileStorage.
     """
 
     def test_crud_lifecycle(self):
@@ -289,10 +283,9 @@ class TestMemoryStorageCRUD(TransactionCase):
         with activate_memory_storage(self.env):
             # Do NOT run a filestore-wide force_storage() here: _migrate marks
             # every live store_fname for GC on disk — a non-transactional side
-            # effect that survives the test rollback and can wipe filestore
-            # files still referenced by the database (observed 2026-07-07).
-            # Assert force_storage's search domain would pick the attachment,
-            # then migrate only it.
+            # effect that survives the rollback and can wipe filestore files
+            # still referenced by the DB (observed 2026-07-07). Assert the
+            # search domain would pick the attachment, then migrate only it.
             candidates = (
                 self.env["ir.attachment"]
                 .with_context(skip_res_field_check=True)
@@ -313,7 +306,7 @@ class TestMemoryStorageCRUD(TransactionCase):
 
     def test_unreadable_content_copy_preserves_metadata(self):
         """Copy preserves metadata even when backend content is unreadable
-        (IRA-B4) — the A1 scenario, simulable without monkeypatching privates (E1)."""
+        (IRA-B4, the A1 scenario simulated without monkeypatching privates, E1)."""
         payload = b"e1-payload"
         with activate_memory_storage(self.env):
             att = self.env["ir.attachment"].create({"name": "e1.bin", "raw": payload})

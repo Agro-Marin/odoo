@@ -51,53 +51,13 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def get_available_options(self) -> dict[str, dict[str, Any]]:
-        """Get the available option information.
+        """Return the available options as ``{name: settings}``.
 
-        :rtype: dict[str, dict[str, Any]]
-        :return: A dictionary that maps option names to their settings.
-
-            The settings are dict themselves and have the following keys:
-
-            type
-
-                Guaranteed, one of ``'string'``, ``'integer'``, ``'float'``,
-                ``'model'``, ``'array'``, or ``'selection'``.
-
-            string
-
-                Guaranteed
-
-            description
-
-                Optional
-
-            required
-
-                Optional, is assumed ``False`` when absent, otherwise
-                is either ``True`` or a string.
-
-            params
-
-                Optional
-
-            default_value
-
-                Optional, the default value, as a json-friendly type.
-
-            Example::
-
-                {
-                    <option>: {
-                        # guaranteed
-                        'type': ...,
-                        'string': ...,
-                        # optional
-                        'default_value': ...,
-                        'description': ...,
-                        'params': ...,
-                        'required': ...,
-                    }
-                }
+        Each settings dict has guaranteed ``type`` (one of ``string``,
+        ``integer``, ``float``, ``model``, ``array``, ``selection``) and
+        ``string`` keys, plus optional ``description``, ``required`` (``False``
+        when absent, else ``True`` or a string), ``params`` and ``default_value``
+        (json-friendly).
         """
         return {}
 
@@ -109,21 +69,11 @@ class IrQwebField(models.AbstractModel):
         options: dict[str, Any],
         values: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Generates the metadata attributes (prefixed by ``data-oe-``) for the
-        root node of the field conversion.
+        """Return the ``data-oe-*`` metadata attributes for the field's root node.
 
-        The default attributes are:
-
-        * ``model``, the name of the record's model
-        * ``id`` the id of the record to which the field belongs
-        * ``type`` the logical field type (widget, may not match the field's
-          ``type``, may not be any Field subclass name)
-        * ``translate``, a boolean flag (``0`` or ``1``) denoting whether the
-          field is translatable
-        * ``readonly``, has this attribute if the field is readonly
-        * ``expression``, the original expression
-
-        :returns: dict (attribute name, attribute value).
+        Covers model, id, field, type, expression and (if readonly) readonly.
+        ``type`` is the logical widget type, which may not match the field's
+        ``type`` nor any Field subclass name.
         """
         data = {}
         field = record._fields[field_name]
@@ -144,10 +94,7 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
-        """Converts a single value to its HTML version/output.
-
-        :rtype: str | Markup
-        """
+        """Convert a single value to its HTML output."""
         if value is None or value is False:
             return ""
 
@@ -163,20 +110,14 @@ class IrQwebField(models.AbstractModel):
     def record_to_html(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
-        """Converts the specified field of the ``record`` to HTML.
-
-        :rtype: str | Markup | bool
-        """
+        """Convert the given field of ``record`` to HTML."""
         if not record:
             return False
         # Read the field through the QWeb presentation context (lang, tz,
-        # bin_size, …) so the value is resolved as it should appear in the
-        # rendered document. Only that curated subset is propagated: the full
-        # rendering context carries qweb-internal per-render state
-        # (__qweb_loaded_functions, __qweb_compiled_cache, __qweb_loaded_codes,
-        # __qweb_loaded_options, _qweb_error_path_xml, …) that a blanket
-        # ``with_context(**self.env.context)`` dragged into every downstream
-        # compute/access evaluation — once per t-field cell.
+        # bin_size, …) so the value renders as it should. Only that curated
+        # subset is propagated: the full rendering context carries qweb-internal
+        # per-render state that a blanket with_context(**self.env.context) would
+        # drag into every downstream compute, once per t-field cell.
         env_context = self.env.context
         record_context = record.env.context
         context_delta = {
@@ -195,11 +136,7 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def user_lang(self) -> models.BaseModel:
-        """Fetches the res.lang record corresponding to the language code stored
-        in the user's context.
-
-        :returns: Model[res.lang]
-        """
+        """Return the ``res.lang`` record for the language in the user's context."""
         return self.env["res.lang"].browse(get_lang(self.env).id)
 
     @api.model
@@ -278,10 +215,9 @@ class IrQwebFieldFloat(models.AbstractModel):
             )
         elif options.get("precision") is None:
             int_digits = int(math.log10(abs(value))) + 1 if value != 0 else 1
-            # Cap the total number of significant digits near a double's ~15-16
-            # digit limit. The value is always rendered through f"%.{precision}f"
-            # below, which emits exactly `precision` decimals, so any float_round
-            # noise beyond `precision` never reaches the output.
+            # Cap significant digits near a double's ~15-16 digit limit. The
+            # value is rendered through f"%.{precision}f" below (exactly
+            # `precision` decimals), so float_round noise beyond it never shows.
             max_dec_digits = max(15 - int_digits, 0)
             # We display maximum 6 decimal digits or the number of significant decimal digits if it's lower
             precision = min(6, max_dec_digits)
@@ -308,10 +244,9 @@ class IrQwebFieldFloat(models.AbstractModel):
         field = record._fields[field_name]
         if "precision" not in options and "decimal_precision" not in options:
             _, precision = field.get_digits(record.env) or (None, None)
-            # Only inject ``precision`` when the field actually declares digits.
-            # A ``None`` precision would otherwise reach ``f"%.{precision}f"`` as
-            # the literal ``"%.Nonef"`` if the min-precision auto-branch is ever
-            # bypassed; leaving it out lets ``value_to_html`` derive precision.
+            # Only inject ``precision`` when the field declares digits: a
+            # ``None`` would otherwise reach ``f"%.{precision}f"`` as the literal
+            # ``"%.Nonef"``. Leaving it out lets ``value_to_html`` derive it.
             if precision is not None:
                 options = dict(options, precision=precision)
         if "min_precision" not in options and hasattr(field, "get_min_display_digits"):
@@ -509,11 +444,10 @@ class IrQwebFieldHtml(models.AbstractModel):
             # rendering "False"/"None"; the t-field path is guarded upstream.
             return Markup("")
         irQweb = self.env["ir.qweb"]
-        # wrap value inside a body and parse it as HTML
+        # Wrap in a <body> so the fragment parses as HTML.
         body = etree.fromstring(
             f"<body>{value}</body>", etree.HTMLParser(encoding="utf-8")
         )[0]
-        # use pos processing for all nodes with attributes
         for element in body.iter():
             if element.attrib:
                 attrib = dict(element.attrib)
@@ -586,14 +520,11 @@ class IrQwebFieldImage_Url(models.AbstractModel):
 
 
 class IrQwebFieldMonetary(models.AbstractModel):
-    """``monetary`` converter, has a mandatory option
-    ``display_currency`` only if field is not of type Monetary.
-    Otherwise, if we are in presence of a monetary field, the field definition must
-    have a currency_field attribute set.
+    """``monetary`` converter. ``display_currency`` is required unless the field
+    is a Monetary one (which must then declare a ``currency_field``).
 
-    The currency is used for formatting *and rounding* of the float value. It
-    is assumed that the linked res_currency has a non-empty rounding value and
-    res.currency's ``round`` method is used to perform rounding.
+    The currency drives formatting *and rounding* (via res.currency's ``round``);
+    the linked res.currency is assumed to have a non-empty rounding value.
     """
 
     _name = "ir.qweb.field.monetary"
@@ -645,11 +576,9 @@ class IrQwebFieldMonetary(models.AbstractModel):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError(_("The value send to monetary field is not a number."))
 
-        # lang.format mandates a sprintf-style format. These formats are non-
-        # minimal (they have a default fixed precision instead), and
-        # lang.format will not set one by default. currency.round will not
-        # provide one either. So we need to generate a precision value
-        # (integer > 0) from the currency's rounding (a float generally < 1.0).
+        # lang.format needs an explicit sprintf precision (it sets none by
+        # default, nor does currency.round), so derive one from the currency's
+        # decimal_places.
         decimal_places = options.get("decimal_places", display_currency.decimal_places)
         fmt = f"%.{decimal_places}f"
 
@@ -696,7 +625,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
         options = dict(options)
-        # currency should be specified by monetary field
         field = record._fields[field_name]
 
         if not options.get("display_currency") and field.type == "monetary":
@@ -704,7 +632,7 @@ class IrQwebFieldMonetary(models.AbstractModel):
             if currency_field_name:
                 options["display_currency"] = record[currency_field_name]
         if not options.get("display_currency"):
-            # search on the model if they are a res.currency field to set as default
+            # Fall back to the model's first res.currency many2one.
             currency_fields = [
                 k
                 for k, v in record._fields.items()
@@ -780,20 +708,12 @@ class IrQwebFieldTime(models.AbstractModel):
 
 
 class IrQwebFieldDuration(models.AbstractModel):
-    """``duration`` converter, to display integral or fractional values as
-    human-readable time spans (e.g. 1.5 as "1 hour 30 minutes").
+    """``duration`` converter: display a numerical value as a human-readable
+    time span (e.g. 1.5 as "1 hour 30 minutes"). Sub-second values are ignored.
 
-    Can be used on any numerical field.
-
-    Has an option ``unit`` which can be one of ``second``, ``minute``,
-    ``hour``, ``day``, ``week``, ``month`` or ``year``, used to interpret the
-    numerical field value before converting it. By default use ``second``.
-
-    Has an option ``round``. By default use ``second``.
-
-    Has an option ``digital`` to display 01:00 instead of 1 hour
-
-    Sub-second values will be ignored.
+    Options: ``unit`` (second/minute/hour/day/week/month/year, default second)
+    interprets the value; ``round`` (default second); ``digital`` shows 01:00
+    instead of "1 hour".
     """
 
     _name = "ir.qweb.field.duration"
@@ -951,9 +871,8 @@ class IrQwebFieldRelative(models.AbstractModel):
             value = datetime.combine(value, time.min)
 
         # ``record_to_html`` injects ``now`` for the t-field path; on the bare
-        # value (t-out widget) path it may be absent, so default to the current
-        # time — "relative" is meaningless without a reference and now is the
-        # obvious one. Both value and reference are naive UTC datetimes.
+        # value (t-out widget) path it may be absent, so default to now. Both
+        # value and reference are naive UTC datetimes.
         reference = fields.Datetime.from_string(
             options.get("now") or fields.Datetime.now()
         )
@@ -1144,9 +1063,8 @@ class IrQwebFieldContact(models.AbstractModel):
         value = value.sudo().with_context(show_address=True)
         display_name = value.display_name or ""
         name_line, *address_lines = display_name.split("\n")
-        # Avoid having something like:
-        # display_name = 'Foo\n  \n' -> This is a res.partner with a name and no address
-        # That would return markup('<br/>') as address. But there is no address set.
+        # Avoid e.g. display_name = 'Foo\n  \n' (name, no address) yielding a
+        # markup('<br/>') address when there is no address.
         if any(elem.strip() for elem in address_lines):
             address = opsep.join(address_lines).strip()
         else:

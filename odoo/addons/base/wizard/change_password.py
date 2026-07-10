@@ -36,7 +36,6 @@ class ChangePasswordWizard(models.TransientModel):
 
         :return: a client reload action if the acting user changed their own
             password, otherwise a window-close action.
-        :rtype: dict
         """
         self.ensure_one()
         self.user_ids.change_password_button()
@@ -65,12 +64,11 @@ class ChangePasswordUser(models.TransientModel):
     def change_password_button(self) -> None:
         """Write each line's new password onto its target user.
 
-        Cross-user password setting is blocked upstream of this method by three
-        independent layers (do not weaken any of them): the ``change.password.user``
-        ACL is restricted to ``base.group_erp_manager``, the ``change_password_rule``
-        record rule limits visible lines to ``[('create_uid', '=', user.id)]``, and
-        the final ``self.password`` write performed by ``_change_password`` requires
-        genuine ORM write rights on ``res.users`` (``password`` is not in
+        Cross-user password setting is blocked upstream by three independent
+        layers (do not weaken any): the ``change.password.user`` ACL is limited to
+        ``base.group_erp_manager``; the ``change_password_rule`` record rule scopes
+        lines to ``[('create_uid', '=', user.id)]``; and ``_change_password``'s
+        ``res.users`` write needs real ORM rights (``password`` is not in
         ``SELF_WRITEABLE_FIELDS``).
         """
         for line in self:
@@ -108,5 +106,4 @@ class ChangePasswordOwn(models.TransientModel):
         self.env.user._change_password(self.new_password or "")
         self.unlink()
         # reload to avoid a session expired error
-        # would be great to update the session id in-place, but it seems dicey
         return {"type": "ir.actions.client", "tag": "reload"}

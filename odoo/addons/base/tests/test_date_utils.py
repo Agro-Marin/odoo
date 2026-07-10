@@ -316,7 +316,7 @@ class TestDateRangeFunction(BaseCase):
         self.assertEqual(dates, expected)
 
     def test_date_range_with_date(self):
-        """Check date_range with naive datetimes."""
+        """Check date_range with dates."""
         start = date(1985, 1, 1)
         end = date(1986, 1, 1)
 

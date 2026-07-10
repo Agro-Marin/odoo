@@ -86,7 +86,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         :param table: name of the SQL table to find relations for
         :return: list of ``(table_name, column_name)`` tuples
-        :rtype: list
         """
         query = """
             SELECT cl1.relname as table, att1.attname as column
@@ -666,7 +665,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         # Merge bank accounts before merging partners
         self._merge_bank_accounts(src_partners, dst_partner)
 
-        # call sub methods to do the merge
         self._update_foreign_keys(src_partners, dst_partner)
         self._update_reference_fields(src_partners, dst_partner)
         self._update_values(src_partners, dst_partner)
@@ -745,9 +743,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     @api.model
     def _compute_selected_groupby(self) -> list[str]:
-        """Returns the list of field names the partner can be grouped (as merge
-        criteria) according to the option checked on the wizard
-        """
+        """Return the field names to group partners by, per the wizard's checked options."""
         groups = []
         group_by_prefix = "group_by_"
 

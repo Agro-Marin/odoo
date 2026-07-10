@@ -88,7 +88,6 @@ class IrModelFieldsSelection(models.Model):
                 )
             )
 
-        # determine expected and existing rows
         IMF = self.env["ir.model.fields"]
         expected = {
             (field_id, value): (label, index)
@@ -106,14 +105,12 @@ class IrModelFieldsSelection(models.Model):
         cr.execute(query, [list(model_names)])
         existing = {row[:2]: row[2:] for row in cr.fetchall()}
 
-        # create or update rows
         cols = ["field_id", "value", "name", "sequence"]
         rows = [key + val for key, val in expected.items() if existing.get(key) != val]
         if rows:
             ids = upsert_en(self, cols, rows, ["field_id", "value"])
             self.pool.post_init(mark_modified, self.browse(ids), cols[2:])
 
-        # update their XML ids
         module = self.env.context.get("module")
         if not module:
             return
@@ -141,12 +138,9 @@ class IrModelFieldsSelection(models.Model):
     def _update_selection(
         self, model_name: str, field_name: str, selection: list[tuple[str, str]]
     ) -> None:
-        """Set the selection of a field to the given list of pairs
-        ``(value, label)``.
-        """
+        """Set a field's selection to the given list of ``(value, label)`` pairs."""
         field_id = self.env["ir.model.fields"]._get_ids(model_name)[field_name]
 
-        # selection rows {value: row}
         cur_rows = self._existing_selection_data(model_name, field_name)
         new_rows = {
             value: {"value": value, "name": label, "sequence": index}
@@ -187,11 +181,7 @@ class IrModelFieldsSelection(models.Model):
     def _existing_selection_data(
         self, model_name: str, field_name: str
     ) -> dict[str, dict[str, Any]]:
-        """Return the field's selection rows from the database, keyed by value.
-
-        :return: ``{value: row_values}`` for the given model/field.
-        :rtype: dict
-        """
+        """Return the field's selection rows from the database, keyed by value."""
         query = """
             SELECT s.*, s.name->>'en_US' AS name
             FROM ir_model_fields_selection s
@@ -227,10 +217,9 @@ class IrModelFieldsSelection(models.Model):
             if model in self.pool and name in self.pool[model]._fields:
                 model_names.add(model)
             else:
-                # The field is not (yet) in the registry -- e.g. a selection row
-                # created during module load before its field is set up. The
-                # registry refresh is skipped; log it so the silent path stays
-                # observable (SEL-C7).
+                # Field not yet in registry (e.g. selection row created during
+                # module load before its field is set up); skip the refresh but
+                # log so the silent path stays observable (SEL-C7).
                 _logger.debug(
                     "Skipped registry setup for selection on %s.%s: "
                     "field not in registry",
@@ -238,7 +227,7 @@ class IrModelFieldsSelection(models.Model):
                     name,
                 )
         if model_names:
-            # setup models; this re-initializes model in registry
+            # re-initialize the models in the registry
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr, model_names)
 
@@ -247,14 +236,10 @@ class IrModelFieldsSelection(models.Model):
     def _is_jsonb_stored(self, field) -> bool:
         """Whether the column backing a selection/reference field is jsonb.
 
-        ``company_dependent`` fields are stored as ``{company_id: value}`` jsonb
-        instead of a plain scalar column. :meth:`write` (value rename) and
-        :meth:`_get_records_by_value` (value match) must both branch on this
-        predicate so their stored-column SQL can never diverge (SEL-C1).
-
-        :param field: the selection/reference field -- an ``ir.model.fields``
-            record or an ORM field; only ``company_dependent`` is read.
-        :rtype: bool
+        ``company_dependent`` fields are stored as ``{company_id: value}`` jsonb,
+        not a plain scalar. :meth:`write` and :meth:`_get_records_by_value` must
+        both branch on this predicate so their stored-column SQL cannot diverge
+        (SEL-C1).
         """
         return bool(field.company_dependent)
 
@@ -271,12 +256,11 @@ class IrModelFieldsSelection(models.Model):
             self._raise_base_field_error()
 
         if "value" in vals:
-            # Two selection rows of the same field cannot share a value
-            # (UNIQUE(field_id, value)); a batch renaming several rows of one
-            # field to the same value would only fail at flush -- after the
-            # destructive column rewrites below already ran. Reject it up front.
-            # len(self) > len(self.field_id) holds iff some field owns more than
-            # one row in self (SEL-C2).
+            # Two rows of one field cannot share a value (UNIQUE(field_id,
+            # value)); a batch renaming several rows of one field to the same
+            # value would only fail at flush -- after the destructive column
+            # rewrites below already ran. Reject up front: len(self) >
+            # len(self.field_id) iff some field owns more than one row (SEL-C2).
             if len(self) > len(self.field_id):
                 raise UserError(
                     _(
@@ -288,17 +272,15 @@ class IrModelFieldsSelection(models.Model):
                 if selection.value == vals["value"]:
                     continue
                 if selection.field_id.store:
-                    # in order to keep the cache consistent, flush the
-                    # corresponding field, and invalidate it from cache
+                    # flush and invalidate the field to keep the cache consistent
                     model = self.env[selection.field_id.model]
                     fname = selection.field_id.name
                     model.invalidate_model([fname])
-                    # Replace the old value by the new one in the field's stored
-                    # column. company_dependent fields are jsonb keyed by company
-                    # ({company_id: value}); a value rename is global, so every
-                    # company key holding the old value must migrate. Mirror the
-                    # storage-shape branch in _get_records_by_value so the two
-                    # cannot diverge (SEL-C1).
+                    # Replace the old value by the new one in the stored column.
+                    # company_dependent fields are jsonb keyed by company; a value
+                    # rename is global, so every company key holding the old value
+                    # must migrate. Mirror the branch in _get_records_by_value so
+                    # the two cannot diverge (SEL-C1).
                     if self._is_jsonb_stored(selection.field_id):
                         query = SQL(
                             "UPDATE %s AS t SET %s = ("
@@ -331,11 +313,10 @@ class IrModelFieldsSelection(models.Model):
 
         result = super().write(vals)
 
-        # Re-initialise the affected models in the registry only when the change
-        # can alter the selection SET or ORDER. A label-only (name) edit leaves
-        # the valid values and their order intact, so the sole stale artefact is
-        # the lang-keyed get_field_selection ormcache ("stable"); clearing that
-        # is far cheaper than a full _setup_models__ rebuild (SEL-C6).
+        # Rebuild the models only when the change can alter the selection SET or
+        # ORDER. A label-only (name) edit leaves values and order intact, so the
+        # only stale artefact is the lang-keyed get_field_selection ormcache
+        # ("stable"); clearing it is far cheaper than _setup_models__ (SEL-C6).
         self.env.flush_all()
         if {"value", "sequence", "field_id"} & vals.keys():
             model_names = self.field_id.model_id.mapped("model")
@@ -362,7 +343,7 @@ class IrModelFieldsSelection(models.Model):
         # Reload registry for normal unlink only. For module uninstall, the
         # reload is done independently in odoo.modules.loading.
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
-            # setup models; this re-initializes model in registry
+            # re-initialize the models in the registry
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr, model_names)
 
@@ -413,11 +394,10 @@ class IrModelFieldsSelection(models.Model):
         # Group the deleted rows by field so each field's model is resolved and
         # flushed once, not once per value.
         for field_record, selections in self.grouped("field_id").items():
-            # The field may exist in database but not in registry. In this case
-            # we allow the field to be skipped, but for production this should
-            # be handled through a migration script. The ORM will take care of
-            # the orphaned 'ir.model.fields' down the stack, and will log a
-            # warning prompting the developer to write a migration script.
+            # The field may exist in database but not in registry; skip it (in
+            # production this should be handled by a migration script). The ORM
+            # handles the orphaned 'ir.model.fields' down the stack and logs a
+            # warning prompting the developer to write one.
             Model = self.env.get(field_record.model)
             if Model is None:
                 continue
@@ -449,7 +429,6 @@ class IrModelFieldsSelection(models.Model):
                 else [self.env.company]
             )
             for company in companies:
-                # make a company-specific env for the Model
                 company_model = Model.with_company(company.id)
                 # one flush + one query resolves every value's records
                 records_by_value = self._get_records_by_value(
@@ -471,7 +450,7 @@ class IrModelFieldsSelection(models.Model):
                     elif ondelete == "cascade":
                         records.unlink()
                     else:
-                        # this shouldn't happen... simply a sanity check
+                        # sanity check; should never happen
                         raise ValueError(
                             _(
                                 'The ondelete policy "%(policy)s" is not valid for field "%(field)s"',
@@ -492,7 +471,6 @@ class IrModelFieldsSelection(models.Model):
         (SEL-P3).
 
         :param field: the ORM field backing the selection/reference column.
-        :rtype: dict
         """
         fname = field.name
         company_model.flush_model([fname])

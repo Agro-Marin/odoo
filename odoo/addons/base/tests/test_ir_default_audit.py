@@ -7,27 +7,23 @@ from odoo.tests.common import TransactionCase, mute_logger, new_test_user, tagge
 class TestIrDefaultCompanyDependent(TransactionCase):
     """Regression coverage for the company-dependent helpers of ``ir.default``.
 
-    Covers the two ORM-facing methods that had no test (audit ird-T1/ird-T2):
+    Covers two previously-untested ORM methods (ird-T1/ird-T2):
     ``_get_field_column_fallbacks`` (per-company column fallback mapping) and
     ``_evaluate_condition_with_fallback`` (tri-state True/False/None return).
-    ``res.partner.barcode`` is used as the reference ``company_dependent`` Char.
+    ``res.partner.barcode`` is the reference ``company_dependent`` Char.
     """
 
     def setUp(self):
         super().setUp()
         self.IrDefault = self.env["ir.default"]
-        # Start from a clean slate for res.partner so prior defaults from the
-        # test database do not leak into the per-company fallback mapping.
+        # Clean slate so prior res.partner defaults don't leak into the mapping.
         self.IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
-        # Sanity check: barcode must stay a company_dependent field, otherwise
-        # the methods under test would never be exercised.
+        # barcode must stay company_dependent or the methods are never exercised.
         self.assertTrue(self.env["res.partner"]._fields["barcode"].company_dependent)
 
     def _existing_company_ids(self):
-        """Return the current ``res.company`` ids via raw SQL.
-
-        Mirrors what ``_get_field_column_fallbacks`` reads internally so the
-        assertions compare against the exact same set of company ids.
+        """Return the current ``res.company`` ids via raw SQL, mirroring what
+        ``_get_field_column_fallbacks`` reads internally.
         """
         self.env.flush_all()
         self.env.cr.execute("SELECT ARRAY_AGG(id) FROM res_company")

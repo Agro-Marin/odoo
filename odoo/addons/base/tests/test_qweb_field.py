@@ -93,7 +93,7 @@ class TestQwebFieldFloatConverter(common.TransactionCase):
 
 
 class TestQwebFieldFloatTime(common.TransactionCase):
-    """QF-T3: ``float_time`` widget (hours-as-fraction -> HH:MM). Previously untested."""
+    """QF-T3: ``float_time`` widget (hours-as-fraction -> HH:MM)."""
 
     def value_to_html(self, value, options=None):
         return self.env["ir.qweb.field.float_time"].value_to_html(value, options or {})
@@ -106,8 +106,7 @@ class TestQwebFieldFloatTime(common.TransactionCase):
 
 
 class TestQwebFieldDuration(common.TransactionCase):
-    """QF-T4: ``duration`` widget, incl. the digital branch and the
-    ``round`` > hour clamp, none of which had positive-value coverage."""
+    """QF-T4: ``duration`` widget, incl. the digital branch and ``round`` > hour clamp."""
 
     def value_to_html(self, value, options=None):
         return self.env["ir.qweb.field.duration"].value_to_html(value, options or {})
@@ -173,10 +172,9 @@ class TestQwebFieldRelative(common.TransactionCase):
 
 
 class TestQwebFieldRecordContext(common.TransactionCase):
-    """``record_to_html`` must propagate only the curated presentation context
-    (template cache keys + tz/bin_size) onto the record — not the qweb
-    per-render internals that a blanket ``with_context(**self.env.context)``
-    dragged into every downstream compute."""
+    """``record_to_html`` propagates only the curated presentation context
+    (template cache keys + tz/bin_size) onto the record, not the qweb
+    per-render internals."""
 
     QWEB_INTERNALS = (
         "__qweb_loaded_functions",
@@ -373,10 +371,8 @@ XSS_RAW_FRAGMENTS = ("<script>", '"xss"')
 class TestQwebFieldEscaping(common.TransactionCase):
     """QF-T1: per-converter escaping/XSS regression tests.
 
-    These pin the security-critical invariant that every converter building
-    ``Markup`` from untrusted data routes it through ``escape``/``nl2br``/``%``/
-    ``.format``. A regression (e.g. swapping ``nl2br(x)`` for ``Markup(x)`` or
-    dropping ``escape`` in Selection) would leak raw markup and is caught here.
+    Pin the invariant that every converter building ``Markup`` from untrusted
+    data routes it through ``escape``/``nl2br``/``%``/``.format``.
     """
 
     @classmethod

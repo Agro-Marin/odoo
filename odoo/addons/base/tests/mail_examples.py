@@ -562,9 +562,7 @@ MSOFFICE_1_OUT = [
 ]
 
 
-# ------------------------------------------------------------
 # Test cases coming from bugs
-# ------------------------------------------------------------
 
 # bug: read more not apparent, strange message in read more span
 BUG1 = """<pre>Hi Migration Team,

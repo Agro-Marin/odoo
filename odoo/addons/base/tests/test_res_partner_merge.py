@@ -9,7 +9,6 @@ class TestMergePartner(TransactionCase):
         self.Partner = self.env["res.partner"]
         self.Bank = self.env["res.partner.bank"]
 
-        # Create partners
         self.partner1 = self.Partner.create(
             {"name": "Partner 1", "email": "partner1@example.com"}
         )
@@ -20,7 +19,6 @@ class TestMergePartner(TransactionCase):
             {"name": "Partner 3", "email": "partner3@example.com"}
         )
 
-        # Create bank accounts
         self.bank1 = self.Bank.create(
             {"acc_number": "12345", "partner_id": self.partner1.id}
         )
@@ -31,7 +29,6 @@ class TestMergePartner(TransactionCase):
             {"acc_number": "12345", "partner_id": self.partner3.id}
         )  # Duplicate account number
 
-        # Create references
         self.attachment1 = self.env["ir.attachment"].create(
             {
                 "name": "Attachment 1",
@@ -69,12 +66,11 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_parent_with_child_is_rejected(self):
-        """Merging a contact with one of its own parents/children must raise.
+        """Merging a contact with its own parent/child must raise.
 
-        Regression: the guard computed ``all_descendants - partner_ids`` and then
-        intersected it back with ``partner_ids`` (always empty), so a parent+child
-        merge slipped through and repointed the survivor onto itself
-        (``parent_id = id``).
+        Regression: the guard intersected ``all_descendants - partner_ids`` back
+        with ``partner_ids`` (always empty), so a parent+child merge slipped
+        through and repointed the survivor onto itself (``parent_id = id``).
         """
         parent = self.Partner.create(
             {"name": "Parent Co", "email": "parent@example.com"}
@@ -91,7 +87,6 @@ class TestMergePartner(TransactionCase):
         self.assertNotEqual(child.parent_id, child)
 
     def test_merge_partners_without_bank_accounts(self):
-        """Test merging partners without any bank accounts"""
         partner4 = self.Partner.create(
             {"name": "Partner 4", "email": "partner4@example.com"}
         )
@@ -108,7 +103,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_partners_with_unique_bank_accounts(self):
-        """Test merging partners with unique bank accounts"""
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
         wizard._merge([self.partner1.id, self.partner2.id], self.partner1)
 
@@ -132,7 +126,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_partners_with_duplicate_bank_accounts(self):
-        """Test merging partners with duplicate bank accounts among themselves"""
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
         src_partners = self.partner1 + self.partner3
         wizard._merge((src_partners + self.partner2).ids, self.partner2)
@@ -164,7 +157,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_partners_with_duplicate_bank_accounts_with_destination(self):
-        """Test merging partners with duplicate bank accounts with the destination partner"""
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
         wizard._merge([self.partner1.id, self.partner3.id], self.partner1)
 
@@ -192,7 +184,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_partners_with_references(self):
-        """Test merging partners with references"""
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
         wizard._merge([self.partner1.id, self.partner2.id], self.partner1)
 
@@ -297,13 +288,12 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_aligns_user_company_to_destination(self):
-        """The merge keeps a linked user's company consistent with the
-        destination partner's company. res.partner requires its company_id to
-        match its users' company, so the user is re-homed to the destination's
-        company. Covers the previously-untested company-sync; also documents that
-        BPM-L03's proposed "preserve the user's own default" is NOT viable -- it
-        would leave the destination partner and its user inconsistent and abort
-        the merge."""
+        """Merge re-homes a linked user to the destination partner's company.
+
+        res.partner requires its company_id to match its users' company. BPM-L03's
+        proposed "preserve the user's own default" is NOT viable: it would leave
+        partner and user inconsistent and abort the merge.
+        """
         Company = self.env["res.company"]
         company_a, company_b = Company.create(
             [{"name": "Merge A"}, {"name": "Merge B"}]
@@ -331,17 +321,15 @@ class TestMergePartner(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMergePartnerForeignKeyClash(TransactionCase):
-    """BPM-L06: when repointing source FK rows to the destination violates a
-    multi-column UNIQUE/CHECK constraint, the FK-update helper must repoint the
-    non-clashing source rows and drop only the offending row -- not blanket
-    delete every source row.
+    """BPM-L06: on a multi-column UNIQUE/CHECK clash, the FK-update helper must
+    repoint the non-clashing source rows and drop only the offending row, not
+    blanket-delete every source row.
 
-    res_partner_bank carries a real ``unique(sanitized_acc_number, partner_id)``
-    constraint over its res.partner FK column, so re-pointing a source bank row
-    whose account number already exists on the destination drives the savepoint
-    ``else`` branch of ``_update_foreign_keys_generic``. The helper is invoked
-    directly (not via the full ``_merge``) because ``_merge`` re-points bank
-    accounts in ``_merge_bank_accounts`` before the generic FK pass runs.
+    res_partner_bank's ``unique(sanitized_acc_number, partner_id)`` constraint
+    lets a source bank row whose number already exists on dst drive the savepoint
+    ``else`` branch of ``_update_foreign_keys_generic``. The helper is called
+    directly, not via ``_merge``, because ``_merge`` re-points bank accounts in
+    ``_merge_bank_accounts`` before the generic FK pass runs.
     """
 
     def test_clashing_row_dropped_non_clashing_repointed(self):
@@ -351,10 +339,9 @@ class TestMergePartnerForeignKeyClash(TransactionCase):
         src_clash = Partner.create({"name": "fk src clash", "email": "fk@example.com"})
         src_keep = Partner.create({"name": "fk src keep", "email": "fk@example.com"})
 
-        # Destination already owns account "CLASH"; the clashing source owns the
-        # same number, so re-pointing it to dst collides on
-        # (sanitized_acc_number, partner_id). The other source's number is
-        # unique and must survive the re-point.
+        # dst already owns "CLASH"; re-pointing the clashing source's identical
+        # number to dst collides on (sanitized_acc_number, partner_id). The other
+        # source's number is unique and must survive the re-point.
         Bank.create({"acc_number": "CLASH", "partner_id": dst.id})
         bank_clash = Bank.create({"acc_number": "CLASH", "partner_id": src_clash.id})
         bank_keep = Bank.create({"acc_number": "UNIQUE-B", "partner_id": src_keep.id})
@@ -381,22 +368,14 @@ class TestMergePartnerForeignKeyClash(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMergePartnerCompanyDependent(TransactionCase):
-    """BPM-P1: company-dependent references carried by merged partners must
-    still resolve correctly after the EXISTS row-filter optimisation of the
-    company-dependent jsonb rewrite.
+    """BPM-P1: company-dependent references on merged partners must still resolve
+    after the EXISTS row-filter optimisation of the company-dependent jsonb rewrite.
 
-    NOTE: a dedicated functional test for the BPM-P1 jsonb-m2o code path (the
-    ``many2one_company_dependents[dst._name]`` loop) is NOT feasible in the
-    base test harness: no base model declares a ``company_dependent=True``
-    Many2one pointing at res.partner, so that loop never iterates in the base
-    DB, and adding a throwaway model with a real jsonb-backed company-dependent
-    m2one column would require runtime table creation (init_models) plus
-    removal of a brand-new model from the shared registry on teardown -- a
-    pattern with no precedent in the suite that risks polluting the registry
-    for subsequent tests. This test instead exercises the adjacent
-    company-dependent merge path through the real ``res.partner.barcode``
-    company-dependent field to confirm per-company references resolve after the
-    merge.
+    The jsonb-m2o path (``many2one_company_dependents[dst._name]``) can't be tested
+    directly: no base model declares a ``company_dependent=True`` Many2one at
+    res.partner, and adding a throwaway jsonb-backed model would require runtime
+    table creation plus registry teardown with no precedent in the suite. This
+    exercises the adjacent path via the real ``res.partner.barcode`` field instead.
     """
 
     def test_company_dependent_reference_resolves_after_merge(self):

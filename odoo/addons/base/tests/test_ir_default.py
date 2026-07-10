@@ -42,6 +42,7 @@ class TestIrDefault(TransactionCase):
         ):
             IrDefault.create({"field_id": field.id, "json_value": '"C"'})
             IrDefault.flush_all()
+
     def test_defaults(self):
         """check the mechanism of user-defined defaults"""
         companyA = self.env.company

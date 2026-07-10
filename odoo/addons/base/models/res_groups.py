@@ -95,28 +95,11 @@ class ResGroups(models.Model):
         "The api key duration cannot be a negative value.",
     )
 
-    """ The groups involved are to be interpreted as sets.
-    Thus we can define groups that we will call for example N, Z... such as mathematical sets.
-        ┌──────────────────────────────────────────┐
-        │ C  ┌──────────────────────────┐          │
-        │    │ R  ┌───────────────────┐ │ ┌──────┐ |   "C"
-        │    │    │ Q  ┌────────────┐ │ │ │ I    | |   "I" implied "C"
-        │    │    │    │ Z  ┌─────┐ │ │ │ │      | |   "R" implied "C"
-        │    │    │    │    │ N   │ │ │ │ │      │ │   "Q" implied "R"
-        │    │    │    │    └─────┘ │ │ │ │      │ │   "P" implied "R"
-        │    │    │    └────────────┘ │ │ │      │ │   "Z" implied "Q"
-        │    │    └───────────────────┘ │ │      │ │   "N" implied "Z"
-        │    │      ┌───────────────┐   │ │      │ │
-        │    │      │ P             │   │ │      │ │
-        │    │      └───────────────┘   │ └──────┘ │
-        │    └──────────────────────────┘          │
-        └──────────────────────────────────────────┘
-    For example:
-    * A manager group will imply a user group: all managers are users (like Z imply C);
-    * A group "computer developer employee" will imply that he is an employee group, a user
-      group, that he has access to the timesheet user group.... "computer developer employee"
-      is therefore a set of users in the intersection of these groups. These users will
-      therefore have all the rights of these groups in addition to their own access rights.
+    """Groups are interpreted as sets: a group that implies another is a subset of
+    it. E.g. a manager group implies the user group (every manager is a user), so
+    its members gain all the implied groups' rights on top of their own.
+    Implication is transitive (a "developer employee" group implies employee, user,
+    timesheet...).
     """
     implied_ids = fields.Many2many(
         "res.groups",
@@ -173,20 +156,16 @@ class ResGroups(models.Model):
 
     @api.constrains("user_ids")
     def _check_user_disjoint_groups(self) -> None:
-        # Here we should check all the users in any group of 'self':
-        #
-        #   self.user_ids._check_disjoint_groups()
-        #
-        # But that wouldn't scale at all for large groups, like more than 10K
-        # users.  So instead we search for such a nasty user.
+        # We should check every user in any group of 'self'
+        # (self.user_ids._check_disjoint_groups()), but that does not scale for
+        # large groups (10K+ users). Instead, search for one offending user.
         gids = self._get_user_type_groups().ids
-        # Deliberately restricted to active users: an archived user holding two
-        # disjoint user-type groups cannot log in, so it is harmless, and
-        # re-validating dormant data on every group write would not scale. Note
-        # the asymmetry with _compute_all_user_ids, which fills the all_user_ids
-        # cache with active_test=False so archived members are reachable in
-        # active_test=False contexts (the recordset — and all_users_count —
-        # still exclude them in the default context at access time).
+        # Restricted to active users: an archived user holding two disjoint
+        # user-type groups cannot log in, so it is harmless, and re-validating
+        # dormant data on every group write would not scale. Note the asymmetry
+        # with _compute_all_user_ids, which fills the all_user_ids cache with
+        # active_test=False so archived members are reachable in active_test=False
+        # contexts.
         domain = (
             Domain("active", "=", True)
             & Domain("group_ids", "in", self.ids)
@@ -309,20 +288,18 @@ class ResGroups(models.Model):
         res = super().write(vals)
 
         # Any write to a group can affect the cached `groups` registry family:
-        # _get_view_group_hierarchy reads name/comment/privilege_id and the
-        # implication graph; _get_group_definitions reads the implication +
-        # membership graph. Previously only implied_ids/implied_by_ids busted it,
-        # so e.g. renaming a group left the settings / user-form hierarchy widget
-        # stale. Group writes are rare and config-time (stored-computed-field
-        # recomputation goes through low-level _write, not this override), so
-        # invalidate unconditionally.
+        # _get_view_group_hierarchy and _get_group_definitions read the
+        # implication/membership graph plus name/comment/privilege_id. Busting it
+        # only on implied_ids/implied_by_ids left e.g. a renamed group stale in the
+        # hierarchy widget. Group writes are rare and config-time, so invalidate
+        # unconditionally.
         if self.ids:
             self.env.registry.clear_cache("groups")
 
         return res
 
     def _ensure_xml_id(self) -> dict[int, str]:
-        """Return the groups external identifiers, creating the external identifier for groups missing one"""
+        """Return each group's external identifier, creating one where missing."""
         result = self.get_external_id()
         missings = {
             group_id: f"__custom__.group_{group_id}"
@@ -587,15 +564,12 @@ class ResGroups(models.Model):
     @api.depends("all_user_ids")
     def _compute_all_users_count(self) -> None:
         # Count via search_count instead of len(all_user_ids): reading the
-        # relational field would materialize the entire implied-user
-        # population into the ORM cache per count render. Semantics
-        # preserved: users whose direct groups intersect the groups implying
-        # this one, inheriting the caller's active_test — the x2many
-        # recordset it replaces filtered archived users out at access time in
-        # the default context (RelationalMulti._make_corecords), even though
-        # _compute_all_user_ids fills the cache with active_test=False. Runs
-        # as superuser (compute_sudo=True on the field), like the
-        # sudo-computed relational read it replaces.
+        # relational field would materialize the whole implied-user population
+        # into the ORM cache per render. Semantics preserved, inheriting the
+        # caller's active_test — the x2many it replaces excluded archived users at
+        # access time in the default context, even though _compute_all_user_ids
+        # fills the cache with active_test=False. Runs as superuser
+        # (compute_sudo=True), like the relational read it replaces.
         Users = self.env["res.users"]
         for group in self:
             group.all_users_count = Users.search_count(

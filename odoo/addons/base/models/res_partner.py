@@ -41,29 +41,15 @@ def _find_duplicate(
     company_id: int | None,
     company_scoped: bool = False,
 ) -> ResPartner | Literal[False]:
-    """Find first duplicate candidate matching the given criteria.
+    """Return the first pre-fetched candidate duplicating the partner, or False.
 
-    Replaces per-partner ``search(domain, limit=1)`` calls with Python-only
-    filtering on pre-fetched candidates.
+    Python-only equivalent of the former per-partner ``search(domain, limit=1)``.
+    *values* are scanned in list order (VAT variants), so the earliest-listed
+    variant wins — a harmless deviation for these warning-only fields.
 
-    Candidates within a single *value* preserve default model order (they come
-    from ``search_fetch``), so the first match for that value equals the
-    original ``limit=1`` result.  When *values* holds several entries (e.g. VAT
-    variants), they are scanned in list order, so the earliest-listed variant
-    wins over a globally-earlier candidate matching a later variant — an
-    intentional, harmless deviation for the warning-only duplicate fields.
-
-    Filters replicate the original SQL domain:
-    - ``("country_id", "in", [country_id, False])`` — applied only when
-      *country_id* is set (matches the conditional VAT/registry country term).
-    - ``("company_id", "in", [False, company_id])`` — applied when *company_id*
-      is set, or unconditionally when *company_scoped* is True.  The registry
-      check scopes by company even for a company-less partner (``company_id``
-      falsy + ``company_scoped=True`` ⇒ only company-less candidates match),
-      whereas the VAT check adds the company term only when the partner has a
-      company (``company_scoped=False``).
-    - ``("id", "!=", partner_id)``
-    - ``"!", ("id", "child_of", partner_id)``
+    *company_scoped* applies the company filter even to a company-less partner
+    (registry check); otherwise the company term applies only when the partner
+    has a company (VAT check).
     """
     for value in values:
         for candidate in candidates_by_value.get(value, []):
@@ -79,10 +65,9 @@ def _find_duplicate(
                 and candidate.country_id.id != country_id
             ):
                 continue
-            # Company filter — skip candidates whose company differs.  The term
-            # applies when the partner has a company, or unconditionally when
-            # company_scoped (registry): a company-less scoped partner then
-            # matches only company-less candidates.
+            # Company filter — skip candidates whose company differs. Applies
+            # when the partner has a company, or unconditionally when
+            # company_scoped (registry).
             if (
                 candidate.company_id.id
                 and candidate.company_id.id != company_id
@@ -94,12 +79,9 @@ def _find_duplicate(
 
 
 def _is_descendant_of(candidate: Any, ancestor_id: int) -> bool:
-    """Check if candidate is a descendant of ancestor_id via parent_id chain.
+    """Return whether candidate is a descendant of ancestor_id via parent_id.
 
-    Walks up the parent hierarchy (typically 1-2 hops for contacts).
-    Parent records are batch-prefetched by the ORM, so this does not
-    trigger per-call queries.  Includes a visited-set guard to prevent
-    infinite loops if a cycle exists in the database.
+    Walks up the (ORM-prefetched) parent chain, with a visited-set cycle guard.
     """
     seen = set()
     record = candidate
@@ -135,14 +117,12 @@ _RE_WHITESPACE_BEFORE_NEWLINE = re.compile(r"\s+\n")
 
 
 def _complete_name_trgm_index_definition(registry) -> str:
-    """Definition of the GIN trigram index on ``complete_name``.
+    """GIN trigram index definition for ``complete_name`` (empty when ``pg_trgm``
+    is unavailable).
 
-    Returns an empty definition (no index) when ``pg_trgm`` is unavailable.
-    The ORM wraps both operands of ``ilike`` conditions in ``unaccent()``
-    (see ``orm/fields/_field_sql.py``), so the index expression must be
-    wrapped the same way for the planner to match it — but only when the
-    ``unaccent`` function is immutable and therefore indexable (same rule as
-    ``check_indexes`` in ``orm/runtime/_registry_schema.py``).
+    The ORM wraps both operands of ``ilike`` in ``unaccent()``, so the index
+    expression must match — but only when ``unaccent`` is immutable/indexable
+    (same rule as ``check_indexes``).
     """
     if not registry.has_trigram:
         return ""
@@ -436,18 +416,14 @@ class ResPartner(models.Model):
         "CHECK( (type='contact' AND name IS NOT NULL) or (type!='contact') )",
         "Contacts require a name",
     )
-    # GIN trigram index backing the substring (ilike) autocomplete path of
-    # _rec_names_search on the hottest search of the system. It complements —
-    # not replaces — the field-level btree (index=True) that serves the model
-    # _order; setting index="trigram" on the field instead would swap the
-    # btree for the GIN index (one index per field in check_indexes).
+    # GIN trigram index backing the ilike autocomplete path of _rec_names_search.
+    # Complements (not replaces) the field btree serving _order; index="trigram"
+    # on the field would swap the btree for the GIN (one index per field).
     _complete_name_trgm_index = models.Index(_complete_name_trgm_index_definition)
-    # GIN index backing the `barcode @> jsonb_build_object(company_id, value)`
-    # containment probe of _check_barcode_unicity; a btree expression index
-    # cannot serve it because the company slot key is only known at runtime.
-    # jsonb_path_ops (hashes whole key/value paths, supports @> only) is far
-    # more selective here than the default jsonb_ops, which indexes every key
-    # and value separately.
+    # GIN index backing the `barcode @> jsonb_build_object(...)` containment probe
+    # of _check_barcode_unicity; a btree expression index cannot serve it (the
+    # company slot key is only known at runtime). jsonb_path_ops is more selective
+    # here than the default jsonb_ops.
     _barcode_gin_index = models.Index("USING gin (barcode jsonb_path_ops)")
 
     def _compute_application_statistics(self) -> None:
@@ -456,9 +432,8 @@ class ResPartner(models.Model):
             p.application_statistics = result.get(p.id, [])
 
     def _compute_application_statistics_hook(self) -> dict[int, list]:
-        """Hook for override, as overriding compute method does not update
-        cache accordingly. All overrides receive False instead of previously
-        assigned value."""
+        """Override hook: overriding the compute directly does not update the
+        cache; all overrides receive False instead of the previously assigned value."""
         return defaultdict(list)
 
     def _get_street_split(self) -> dict[str, str]:
@@ -601,10 +576,9 @@ class ResPartner(models.Model):
     def _compute_main_user_id(self) -> None:
         """Determine the main user for each partner.
 
-        Batch-fetches all active users linked to the partners in a single
-        query, then selects the best match (prefer internal over share,
-        smallest id) in Python.  Users are sorted at SQL level so the first
-        match per partner is always the best — no per-partner ``min()`` needed.
+        Users are fetched sorted (share ASC, id ASC), so the first match per
+        partner is the best (internal over share, smallest id) — no per-partner
+        ``min()`` needed.
         """
         # Sudo: res.users record rule hides users from other companies; we need
         # all linked users to determine the main user regardless of company scope.
@@ -618,9 +592,8 @@ class ResPartner(models.Model):
             self.env["ir.model.data"]._xmlid_to_res_id("base.user_root")
         )
 
-        # Single query: fetch all active users sorted by (share ASC, id ASC).
-        # share=False (internal) sorts before share=True (portal), then
-        # smallest id wins — so the first user per partner is always the best.
+        # Fetch all active users sorted (share ASC, id ASC): internal before
+        # portal, then smallest id — the first user per partner is the best.
         best_user: dict[int, ResUsers] = {}
         all_users = Users.search_fetch(
             [("partner_id", "in", self.ids), ("active", "=", True)],
@@ -675,16 +648,16 @@ class ResPartner(models.Model):
         "country_id.code",
     )
     def _compute_same_vat_partner_id(self) -> None:
-        """Detect duplicate VAT/company_registry with batch pre-fetching.
+        """Detect duplicate VAT/company_registry via batch pre-fetching.
 
-        Instead of N individual search() calls (one per partner), fetches all
-        candidate records in 1-2 bulk queries and matches in Python.
+        Fetches all candidates in 1-2 bulk queries and matches in Python instead
+        of one search() per partner.
         """
         # active_test=False: deactivated partners should still flag duplicates
         Partner = self.with_context(active_test=False).sudo()
 
         # Phase 1: Collect all VAT variants and registries across the batch.
-        # Memoize per-partner VAT variant lists to avoid recomputing in Phase 4.
+        # Memoize per-partner VAT variant lists to avoid recomputing in Phase 3.
         all_vats = set()
         all_registries = set()
         vat_variants: dict[int, list[str]] = {}
@@ -706,11 +679,9 @@ class ResPartner(models.Model):
             if partner.company_registry and not partner.parent_id:
                 all_registries.add(partner.company_registry)
 
-        # Phase 2: Batch-fetch candidate records, indexed by field value for
-        # O(1) lookup per partner (replaces N search() calls).  ``search_fetch``
-        # already returns only rows that exist, so the fetched keys ARE the set
-        # of existing values — a separate ``_read_group`` existence pre-check
-        # would just be a redundant extra query returning the same information.
+        # Phase 2: Batch-fetch candidates, indexed by field value for O(1) lookup
+        # per partner. search_fetch returns only existing rows, so the fetched
+        # keys are the set of existing values (no separate existence check).
         vat_by_value: dict[str, list] = defaultdict(list)
         if all_vats:
             for c in Partner.search_fetch(
@@ -727,10 +698,8 @@ class ResPartner(models.Model):
             ):
                 reg_by_value[c.company_registry].append(c)
 
-        # Phase 3: Python-only matching (0 additional SQL queries).
-        # Reuses memoized VAT variants from Phase 1.  A value is present in
-        # *_by_value only if it exists in the DB, so membership doubles as the
-        # existence guard.
+        # Phase 3: Python-only matching (no further queries). Reuses memoized
+        # VAT variants; membership in *_by_value doubles as the existence guard.
         for partner in self:
             partner_id = partner._origin.id
             vats = vat_variants.get(partner.id)
@@ -957,12 +926,11 @@ class ResPartner(models.Model):
             raise ValidationError(_("Another partner already has this barcode"))
         if not ids_by_value:
             return
-        # Probe the rest of the table with jsonb containment conditions:
-        # unlike `barcode ->> %(cid)s = %(value)s` (whose runtime jsonb key
-        # defeats any expression index and forces a seq scan), each `@>` term
-        # is served by the GIN index on barcode (_barcode_gin_index), and the
-        # OR of terms becomes a single BitmapOr over it — one query per batch,
-        # not per value (pinned by test_check_barcode_batch).
+        # Probe the rest of the table with jsonb containment (`@>`) terms: each is
+        # served by the GIN index (_barcode_gin_index) and the OR becomes one
+        # BitmapOr — one query per batch, not per value (pinned by
+        # test_check_barcode_batch). `barcode ->> %(cid)s = %(value)s` would
+        # instead force a seq scan (runtime jsonb key defeats expression indexes).
         probes = tools.SQL(" OR ").join(
             # explicit ::text casts: jsonb_build_object is variadic "any", so
             # the server-side binding cannot infer the parameter types
@@ -1018,12 +986,11 @@ class ResPartner(models.Model):
 
     @api.model
     def _commercial_fields(self) -> list[str]:
-        """Returns the list of fields that are managed by the commercial entity
-        to which a partner belongs. These fields are meant to be hidden on
-        partners that aren't `commercial entities` themselves, or synchronized
-        at update (if present in _synced_commercial_fields), and will be
-        delegated to the parent `commercial entity`. The list is meant to be
-        extended by inheriting classes."""
+        """Return the fields managed by the partner's commercial entity.
+
+        These are hidden on non-commercial-entity partners and delegated to the
+        parent commercial entity (synced ones live in _synced_commercial_fields).
+        Meant to be extended by inheriting classes."""
         return self._synced_commercial_fields() + [
             "company_registry",
             "industry_id",
@@ -1031,27 +998,22 @@ class ResPartner(models.Model):
 
     @api.model
     def _synced_commercial_fields(self) -> list[str]:
-        """Returns the list of fields that are managed by the commercial entity
-        to which a partner belongs. When modified on a children, update is
-        propagated until the commercial entity."""
+        """Return commercial fields that, when modified on a child, propagate up
+        to the commercial entity."""
         return ["vat"]
 
     def _get_set_field_values(self, field_names: list[str]) -> dict[str, Any]:
-        """Return write values for the subset of ``field_names`` that are set on
-        the record. Commercial values are considered individually, so only set
-        values are taken into account (an empty set yields ``{}``)."""
+        """Return write values for the subset of ``field_names`` set on the record
+        (commercial values are considered individually; empty set yields ``{}``)."""
         set_fields = [fname for fname in field_names if self[fname]]
         return self._convert_fields_to_values(set_fields) if set_fields else {}
 
     def _get_commercial_values(self) -> dict[str, Any]:
-        """Get commercial values from record. Return only set values, as they
-        are considered individually, and only set values should be taken into
-        account."""
+        """Return the record's set commercial values (unset values are omitted)."""
         return self._get_set_field_values(self._commercial_fields())
 
     def _get_synced_commercial_values(self) -> dict[str, Any]:
-        """Get synchronized commercial values from record. Return only set values
-        as for other commercial values."""
+        """Return the record's set synced commercial values."""
         return self._get_set_field_values(self._synced_commercial_fields())
 
     @api.model
@@ -1070,23 +1032,19 @@ class ResPartner(models.Model):
             sync_vals = commercial_partner._get_commercial_values()
             if sync_vals:
                 self.write(sync_vals)
-                # Propagate to descendants only the fields that were actually
-                # synced onto self (the ones SET on the commercial entity),
-                # instead of every commercial field: an unset commercial field
-                # on the commercial entity must not wipe the descendants'
-                # values, exactly as it does not wipe self's value above.
+                # Propagate to descendants only the fields actually synced onto
+                # self (those SET on the commercial entity): an unset commercial
+                # field must not wipe descendants' values, as it doesn't wipe
+                # self's above.
                 self._commercial_sync_to_descendants(list(sync_vals))
             self._company_dependent_commercial_sync()
 
     def _company_dependent_commercial_sync(self) -> None:
-        """Propagate sync of company-dependent commercial fields to other companies.
+        """Propagate company-dependent commercial fields to other companies.
 
-        For each other company, the commercial partner's per-company values
-        are first compared with the partners' current values, and only the
-        fields that actually differ are written; companies whose values all
-        already match are skipped entirely. This idempotent-write elimination
-        avoids paying one full ``write()`` cycle per company of the database
-        on every re-parenting when there is nothing to update.
+        Only fields that actually differ are written; companies already in sync
+        are skipped, avoiding a full ``write()`` cycle per company on every
+        re-parenting when there is nothing to update.
         """
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
             return
@@ -1112,15 +1070,11 @@ class ResPartner(models.Model):
     def _commercial_sync_to_descendants(
         self, fields_to_sync: list[str] | None = None
     ) -> None:
-        """Handle sync of commercial fields to descendants.
+        """Sync commercial fields to descendants.
 
-        The whole non-company subtree below ``self`` is collected breadth-first
-        (child discovery batches one query per depth level through the
-        ``child_ids`` prefetch) and receives the commercial values in a single
-        ``write()``: ``sync_vals`` always comes from the same commercial
-        partner, so it is loop-invariant across the subtree. Nodes flagged
-        ``is_company`` are their own commercial entities: they are not synced
-        and their subtrees are not entered.
+        The non-company subtree below ``self`` is collected breadth-first and
+        written in one ``write()`` (the values are loop-invariant). ``is_company``
+        nodes are their own commercial entities: not synced, subtrees not entered.
         """
         commercial_partner = self.commercial_partner_id
         if fields_to_sync is None:
@@ -1139,17 +1093,14 @@ class ResPartner(models.Model):
             )
 
     def _fields_sync(self, values: dict[str, Any]) -> None:
-        """Sync commercial fields and address fields from company and to children.
-        Also synchronize address to parent. This mimics related fields
-        to the parent, with more control. This method should be called after
-        updating values in cache e.g. self should contain new values.
+        """Sync commercial and address fields across the partner hierarchy.
 
-        Three directions are handled, in order:
-          1. from the parent down onto self (:meth:`_sync_from_parent`),
-          2. from self up onto the parent (:meth:`_sync_to_parent`),
-          3. from self down onto its children (:meth:`_children_sync`).
+        Mimics related fields with more control; call after updating values in
+        cache (self must hold the new values). Three directions, in order:
+        parent→self (:meth:`_sync_from_parent`), self→parent
+        (:meth:`_sync_to_parent`), self→children (:meth:`_children_sync`).
 
-        :param dict[str, Any] values: updated values, triggering sync
+        :param values: updated values triggering the sync
         """
         self._sync_from_parent(values)
         self._sync_to_parent(values)
@@ -1245,19 +1196,14 @@ class ResPartner(models.Model):
         return website
 
     def _compute_is_public(self) -> None:
-        """Detect public partners via batch lookup instead of per-partner user_ids.
-
-        Uses a single ``_read_group`` on ``res.users`` joining through the
-        public group relation, avoiding intermediate record loads.
-        """
+        """Detect public partners via a single ``_read_group`` on ``res.users``
+        joining through the public group, instead of per-partner user_ids."""
         self.is_public = False
         public_group = self.env.ref("base.group_public", raise_if_not_found=False)
         if not public_group:
             return
-        # Single query: find which of our partners are linked to a user in the
-        # public group.  active_test=False because the public user is archived.
-        # Sudo: public users are archived (active_test=False) and the record
-        # rule on res.users would hide them; sudo ensures we see all of them.
+        # active_test=False + sudo: the public user is archived and hidden by the
+        # res.users record rule, so both are needed to see it.
         public_partner_ids = {
             partner.id
             for (partner,) in self.env["res.users"]
@@ -1345,11 +1291,9 @@ class ResPartner(models.Model):
             if banks_to_sync:
                 banks_to_sync.acc_holder_name = vals["name"]
 
-        # filter to keep only really updated values -> field synchronize goes through
-        # partner tree and we should avoid infinite loops in case same value is
-        # updated due to cycles. Use case: updating a property field, which updated
-        # a computed field, which has an inverse writing the same value on property
-        # field. Yay.
+        # Keep only really updated values: field sync walks the partner tree, so
+        # we must avoid infinite loops when a cycle re-writes the same value (e.g.
+        # a property field → computed field → inverse writing back the property).
         pre_values_list = [
             {fname: partner[fname] for fname in vals} for partner in self
         ]
@@ -1508,7 +1452,6 @@ class ResPartner(models.Model):
     def create_company(self) -> bool:
         self.ensure_one()
         if new_company := self._create_contact_parent_company():
-            # Set new company as my parent
             self.write(
                 {
                     "parent_id": new_company.id,
@@ -1523,7 +1466,6 @@ class ResPartner(models.Model):
     def _create_contact_parent_company(self) -> Self:
         self.ensure_one()
         if self.company_name:
-            # Create parent company
             values = {
                 "name": self.company_name,
                 "is_company": True,
@@ -1611,10 +1553,10 @@ class ResPartner(models.Model):
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
-        """Override of name_create to handle some basic formats when creating
-        partners. If only an email address is received and no name can be
-        parsed from it, the name is set to the email value. With the
-        ``force_email`` context key, an email address must be found."""
+        """Create a partner from a free-form name/email string.
+
+        If only an email is received and no name can be parsed, the name is set to
+        the email. With the ``force_email`` context key, an email must be found."""
         default_type = self.env.context.get("default_type")
         if default_type and default_type not in self._fields["type"].get_values(
             self.env
@@ -1668,22 +1610,19 @@ class ResPartner(models.Model):
         return self.create(create_values)
 
     def address_get(self, adr_pref: list[str] | None = None) -> dict[str, int | bool]:
-        """Find contacts/addresses of the right type(s) by doing a depth-first-search
-        through descendants within company boundaries (stop at entities flagged ``is_company``)
-        then continuing the search at the ancestors that are within the same company boundaries.
-        Defaults to the ``'contact'`` address when the requested type is not found, or to the
-        provided partner itself if no ``'contact'`` address is found either.
+        """Find contacts/addresses of the requested type(s) by DFS through
+        descendants within company boundaries (stopping at ``is_company`` nodes),
+        then continuing at ancestors within the same boundaries. Falls back to the
+        ``'contact'`` address, then to the first partner itself.
 
         Multi-record contract: a SINGLE result dict is shared by all records in
-        ``self``. Partners are scanned in recordset order and the first address
-        found for a type wins — later partners cannot override it — and the
-        fallback default is resolved against the FIRST partner. Callers wanting
-        per-partner resolution must call this method one partner at a time.
+        ``self``, scanned in recordset order — the first address found for a type
+        wins, and the fallback default is resolved against the FIRST partner. Call
+        one partner at a time for per-partner resolution.
 
-        The reachable forest is prefetched with one ``child_of`` search under
-        the current user's record rules (deliberately NO sudo: addresses the
-        user cannot see must not be resolved), then walked in memory instead of
-        reading ``child_ids`` node by node.
+        The reachable forest is prefetched with one ``child_of`` search under the
+        current user's record rules (deliberately NO sudo: addresses the user
+        cannot see must not be resolved).
         """
         adr_pref = set(adr_pref or [])
         if "contact" not in adr_pref:
@@ -1708,14 +1647,11 @@ class ResPartner(models.Model):
 
             # Prefetch the whole reachable forest in ONE search on the topmost
             # roots (child_of includes the roots themselves). active_test=False
-            # plus the explicit `active` filter below mirrors the child_ids
-            # field exactly (domain [('active','=',True)] with active_test
-            # disabled): archived nodes are never traversed as children, while
-            # the chain roots above are scanned regardless of active, as
-            # before. Record rules apply to the search: descendants that are
-            # hidden from the user (directly, or through an invisible
-            # intermediate node) are not reachable, as with per-node child_ids
-            # reads.
+            # plus the explicit `active` filter below mirrors the child_ids field
+            # (domain [('active','=',True)]): archived nodes are never traversed
+            # as children, while chain roots are scanned regardless of active.
+            # Record rules apply: descendants hidden from the user are unreachable,
+            # as with per-node child_ids reads.
             children_map = defaultdict(list)
             root_ids = [
                 chain[-1].id for chain in chains if isinstance(chain[-1].id, int)
@@ -1786,8 +1722,6 @@ class ResPartner(models.Model):
     def _prepare_display_address(
         self, without_company: bool = False
     ) -> tuple[str, dict[str, str]]:
-        # get the information that will be injected into the display format
-        # get the address format
         address_format = self._get_address_format()
         args = defaultdict(
             str,

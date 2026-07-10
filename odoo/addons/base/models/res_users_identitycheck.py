@@ -39,28 +39,23 @@ class ResUsersIdentitycheck(models.TransientModel):
             ) from None
 
     def run_check(self) -> Any:
-        """Execute the deferred method after re-verifying the user's identity.
+        """Run the deferred method after re-verifying the user's password.
 
-        Safe as a button target: requires an HTTP request, re-checks the
-        password against the current user, and runs only methods flagged by the
-        ``check_identity`` decorator (see ``res_users.check_identity``).
+        Requires an HTTP request and only runs methods flagged by the
+        ``check_identity`` decorator.
 
-        :return: the deferred action method's return value (typically an
+        :return: the deferred method's return value (typically an
             ``ir.actions.*`` dict).
-        :rtype: typing.Any
         """
         if not request:
             raise UserError(_("This method can only be accessed over HTTP."))
         self._check_identity()
 
-        # RIC-L1 (audit 2026-05-28, S3 latent, inherited design — no local fix):
-        # `identity-check-last` is stamped here, *before* the allow-list check
-        # below, and is session-global / method-agnostic. Once any identity check
-        # passes, every @check_identity method runs prompt-free for the decorator's
-        # 10-minute window, and even a rejected (disallowed-method) call refreshes
-        # that clock. This is the intended coarse "sudo window" of the upstream
-        # check_identity decorator, not a defect introduced here; changing it
-        # requires a coordinated decorator-level redesign (per-action token binding).
+        # RIC-L1 (audit 2026-05-28, S3 latent, inherited design): `identity-check-last`
+        # is stamped before the allow-list check below and is session-global, so any
+        # passing check opens a prompt-free 10-minute window for every @check_identity
+        # method (even a rejected call refreshes it). This is the upstream decorator's
+        # intended coarse "sudo window"; fixing it needs a decorator-level redesign.
         request.session["identity-check-last"] = time.time()
         ctx, model, ids, method_name, args, kwargs = json_loads(self.sudo().request)
         method = getattr(self.env(context=ctx)[model].browse(ids), method_name)

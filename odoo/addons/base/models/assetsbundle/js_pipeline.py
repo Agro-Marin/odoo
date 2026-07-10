@@ -9,8 +9,8 @@ from odoo.tools.assets.esm_graph import (
 from odoo.tools.json import scriptsafe as json
 
 if TYPE_CHECKING:
-    # Typing-only sibling import: ``bundle`` imports this module at runtime,
-    # so the reverse edge stays under TYPE_CHECKING to avoid an import cycle.
+    # ``bundle`` imports this module at runtime; keep the reverse edge under
+    # TYPE_CHECKING to avoid an import cycle.
     from .bundle import AssetsBundle
 from .assets import JavascriptAsset
 from .common import _bundle_log
@@ -19,13 +19,10 @@ from .common import _bundle_log
 class JsPipeline:
     """Assemble one bundle's JavaScript content for the legacy concatenated bundle.
 
-    Split out of :class:`AssetsBundle` so JS *content generation* — the
-    module-syntax guard, the production concatenation, and the debug sourcemap
-    body — lives behind one boundary, mirroring :class:`CssPipeline`. Attachment
-    persistence (the ``js`` / ``js.map`` records) stays on :class:`AssetsBundle`
-    (:meth:`AssetsBundle.js` / :meth:`AssetsBundle.js_with_sourcemap`), which
-    orchestrates this pipeline together with :class:`AssetAttachmentStore` — the
-    same division of labour the CSS path uses.
+    Split out of :class:`AssetsBundle` so JS content generation (module-syntax
+    guard, production concatenation, debug sourcemap body) lives behind one
+    boundary, mirroring :class:`CssPipeline`. Attachment persistence (the ``js``
+    / ``js.map`` records) stays on :class:`AssetsBundle`.
     """
 
     def __init__(self, bundle: AssetsBundle) -> None:
@@ -39,13 +36,12 @@ class JsPipeline:
         :return: replacement JS for the asset, or ``None`` when it is safe
         :rtype: str | None
         """
-        # Since the legacy transpiler was removed, ES-module syntax inside the
-        # concatenated classic bundle is a browser-side SyntaxError that takes
-        # the WHOLE bundle down. Excluding the file keeps the rest functional
-        # and the misconfiguration loud on both server and client.  Detection
-        # is syntax-based on purpose: the ``is_odoo_module`` routing heuristic
-        # also claims plain non-module files under /static/src, which are
-        # perfectly valid in a classic script and must not be stubbed.
+        # The legacy transpiler is gone, so ES-module syntax in the concatenated
+        # classic bundle is a browser SyntaxError that takes the WHOLE bundle
+        # down. Excluding the file keeps the rest working and the
+        # misconfiguration loud. Detection is syntax-based on purpose: the
+        # ``is_odoo_module`` routing heuristic also claims plain non-module
+        # files under /static/src, valid classic scripts that must not be stubbed.
         bundle = self._bundle
         if bundle._is_esm_bundle:
             return None
@@ -82,9 +78,9 @@ class JsPipeline:
             for asset in self._bundle.javascripts
         )
         if template_bundle:
-            # The ";" defuses ASI, exactly like the ";\n" join above: a last
-            # file ending in an unterminated expression would otherwise CALL
-            # the template IIFE as its argument.
+            # The ";" defuses ASI, like the ";\n" join above: a last file ending
+            # in an unterminated expression would otherwise CALL the template
+            # IIFE as its argument.
             content_bundle += ";" + template_bundle
         return content_bundle
 
@@ -99,9 +95,8 @@ class JsPipeline:
         """
         content_bundle_list = []
         content_line_count = 0
-        # Lines emitted before the file body by ``with_header(minimal=False)``;
-        # the verbose header and this offset are kept in sync through the
-        # ``JavascriptAsset._HEADER_LINE_COUNT`` constant.
+        # Lines ``with_header(minimal=False)`` emits before the file body; kept
+        # in sync with this offset via ``JavascriptAsset._HEADER_LINE_COUNT``.
         line_header = JavascriptAsset._HEADER_LINE_COUNT
         for asset in self._bundle.javascripts:
             stub = self._module_syntax_error_stub(asset)

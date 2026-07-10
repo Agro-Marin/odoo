@@ -124,10 +124,9 @@ class TestModuleManifest(BaseCase):
 
 
 class TestManifestAutoInstall(BaseCase):
-    """Validation of the ``auto_install`` manifest key in _load_manifest.
-
-    These branches guard against silently-misparsed manifests (a string
-    becoming a set of characters, a trigger that is not a dependency).
+    """Validate ``auto_install`` key handling in _load_manifest (guards against
+    silently-misparsed manifests: a string becoming a char set, a non-dependency
+    trigger).
     """
 
     BASE = {"author": "x", "license": "MIT"}
@@ -135,7 +134,9 @@ class TestManifestAutoInstall(BaseCase):
     def test_auto_install_string_is_rejected(self):
         # 'auto_install': 'sale' (forgot the brackets) must not become {'s','a',...}
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
-            _load_manifest("m", {**self.BASE, "auto_install": "sale", "depends": ["sale"]})
+            _load_manifest(
+                "m", {**self.BASE, "auto_install": "sale", "depends": ["sale"]}
+            )
 
     def test_auto_install_non_bool_non_collection_rejected(self):
         with self.assertRaisesRegex(TypeError, "must be a bool"):
@@ -143,7 +144,9 @@ class TestManifestAutoInstall(BaseCase):
 
     def test_auto_install_trigger_must_be_a_dependency(self):
         with self.assertRaisesRegex(AssertionError, "must be dependencies"):
-            _load_manifest("m", {**self.BASE, "auto_install": ["sale"], "depends": ["base"]})
+            _load_manifest(
+                "m", {**self.BASE, "auto_install": ["sale"], "depends": ["base"]}
+            )
 
     def test_auto_install_true_expands_to_all_depends(self):
         manifest = _load_manifest(

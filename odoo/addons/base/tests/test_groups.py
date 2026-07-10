@@ -228,16 +228,12 @@ class TestGroupsObject(common.BaseCase):
         self.assertEqual(str(~~((A & B) | A1)), "('A' & 'B') | 'A1'")
 
     def test_groups_invert_blowup_is_guarded(self):
-        """Inverting a large disjunction must fail fast, not hang the worker.
+        """Inverting a large disjunction must raise SetExpressionError fast.
 
-        ``~((A1 & A2) | (B1 & B2) | ...)`` expands via De Morgan to a product of
-        the per-intersection leaf counts, i.e. ``2**N`` for N two-leaf
-        disjuncts.  A pathological expression must raise ``SetExpressionError``
-        (a ``ValueError``) immediately instead of materializing millions of
-        terms.
+        De Morgan expands ``~((A1 & A2) | ...)`` to ``2**N`` terms for N two-leaf
+        disjuncts, so a pathological expression must be guarded, not materialized.
         """
-        # 40 independent groups -> 20 two-leaf intersections OR'd together;
-        # inverting expands to 2**20 ~ 1.05M terms, well over the guard limit.
+        # 40 groups -> 20 two-leaf intersections; inverting = 2**20 terms.
         defs = SetDefinitions({i: {"ref": f"g{i}"} for i in range(1, 41)})
         groups = [defs.parse(f"g{i}") for i in range(1, 41)]
         expr = defs.empty
@@ -247,7 +243,7 @@ class TestGroupsObject(common.BaseCase):
         with self.assertRaises(SetExpressionError):
             _ = ~expr
 
-        # A small inversion of the same shape must still succeed.
+        # A small inversion of the same shape still succeeds.
         small = (groups[0] & groups[1]) | (groups[2] & groups[3])
         self.assertTrue(str(~small))
 
@@ -584,12 +580,10 @@ class TestGroupsOdoo(common.TransactionCase):
         cls.definitions = cls.env["res.groups"]._get_group_definitions()
 
     def parse_repr(self, group_repr):
-        """Return the group object from the string (given by the repr of the group object).
+        """Return the group object parsed from its repr string.
 
-        :param group_repr: str
-            Use | (union) and & (intersection) separator like the python object.
-                intersection it's apply before union.
-                Can use an invertion with ~.
+        ``group_repr`` uses ``|`` (union), ``&`` (intersection, binds tighter),
+        and ``~`` (inversion), like the Python object's repr.
         """
         if not group_repr:
             return self.definitions.universe
@@ -1166,8 +1160,6 @@ class TestGroupsOdoo(common.TransactionCase):
         self.assertFalse((~self.definitions.parse("*")).matches(user_group_ids))
 
     def test_groups_5_contains_user(self):
-        # user is included into the defined group of users
-
         user = self.env["res.users"].create(
             {
                 "name": "A User",
@@ -1332,19 +1324,17 @@ class TestGroupsOdoo(common.TransactionCase):
 
 @common.tagged("post_install", "-at_install", "groups")
 class TestGroupsCacheInvalidation(common.TransactionCase):
-    """The cached `groups` registry family (res.groups._get_view_group_hierarchy)
-    must be invalidated when group or privilege metadata that feeds it changes.
+    """The cached `groups` family (res.groups._get_view_group_hierarchy) must be
+    invalidated when group or privilege metadata feeding it changes.
 
-    Regression tests for audit findings RG-L1 (group rename) and RG-L2 (privilege
-    edit): the cache was previously busted only on implied_ids/implied_by_ids
-    changes, so renaming a group or privilege served a stale hierarchy to the
-    settings / user-form group widget.
+    RG-L1 (group rename) / RG-L2 (privilege edit): the cache was previously
+    busted only on implied_ids/implied_by_ids changes, serving a stale hierarchy.
     """
 
     def setUp(self):
         super().setUp()
-        # The `groups` cache is registry-wide and not rolled back with the test
-        # transaction; clear it so created-then-rolled-back records do not linger.
+        # The `groups` cache is registry-wide and not rolled back with the
+        # transaction; clear it so rolled-back records do not linger.
         self.addCleanup(self.env.registry.clear_cache, "groups")
 
     def test_group_rename_invalidates_view_group_hierarchy(self):
@@ -1379,10 +1369,9 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         )
 
     def test_unlink_invalidates_default_group_cache(self):
-        """RG-T1: a direct res.groups.unlink must bust the `default`-family
-        caches (res.users._get_group_ids) so a deleted group's id is not left
-        stale in a user who held it. Pre-fix this asserted the stale id;
-        post-fix the id is gone.
+        """RG-T1: res.groups.unlink must bust the `default`-family caches
+        (res.users._get_group_ids) so a deleted group's id is not left stale in
+        a user who held it.
         """
         Groups = self.env["res.groups"]
         group = Groups.create({"name": "Audit RG-T1 Group"})
@@ -1395,7 +1384,7 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         )
         user.group_ids += group
 
-        # Warm the @ormcache (default family) and confirm the group is present.
+        # Warm the @ormcache (default family); the group must be present.
         self.assertIn(
             group.id,
             user._get_group_ids(),
@@ -1404,8 +1393,8 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
 
         group.unlink()
 
-        # No intervening default-flushing operation: the unlink override itself
-        # must have busted the `default` family.
+        # No intervening default-flushing op: the unlink override itself must
+        # have busted the `default` family.
         self.assertNotIn(
             group.id,
             user._get_group_ids(),
@@ -1420,9 +1409,8 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         """
         Groups = self.env["res.groups"]
 
-        # _is_feature_enabled resolves an xmlid and checks PROPER implication by
-        # group_user (a group never implies itself), so the feature needs its own
-        # external id to be referenced.
+        # _is_feature_enabled checks PROPER implication by group_user (a group
+        # never implies itself), so the feature needs its own external id.
         feature = Groups.create({"name": "Audit RG-T2 Feature"})
         self.env["ir.model.data"].create(
             {
@@ -1466,7 +1454,7 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         Groups = self.env["res.groups"]
         Privilege = self.env["res.groups.privilege"]
 
-        # Warm the cache, then create a privilege: it must appear.
+        # Warm, then create: the privilege must appear.
         Groups._get_view_group_hierarchy()
         privilege = Privilege.create({"name": "Audit RGP-T1"})
         hierarchy = Groups._get_view_group_hierarchy()
@@ -1476,7 +1464,7 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
             "create did not invalidate the groups-family view_group_hierarchy",
         )
 
-        # Warm again, then unlink: it must disappear.
+        # Warm again, then unlink: the privilege must disappear.
         Groups._get_view_group_hierarchy()
         privilege_id = privilege.id
         privilege.unlink()
@@ -1491,11 +1479,9 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
 class TestAllUsersCount(common.TransactionCase):
     """all_users_count computed via search_count (RG-P2).
 
-    The count must not materialize the whole implied-user population into
-    the ORM cache, and must keep matching len(all_user_ids): users whose
-    direct groups intersect the groups implying this one, under the caller's
-    active_test — the all_user_ids recordset filters archived users out at
-    access time in the default context (RelationalMulti._make_corecords).
+    The count must not materialize the whole implied-user population into the ORM
+    cache, and must keep matching len(all_user_ids) under the caller's active_test
+    (archived users are filtered out at access time in the default context).
     """
 
     def test_count_includes_implied_users(self):
@@ -1543,7 +1529,7 @@ class TestAllUsersCount(common.TransactionCase):
         )
         # active_test=False context: archived members included, like the
         # relational read (invalidate first: the non-stored integer cache is
-        # context-independent, for the old compute too).
+        # context-independent).
         self.env.invalidate_all()
         base_no_active_test = group_base.with_context(active_test=False)
         implying_no_active_test = group_implying.with_context(active_test=False)
@@ -1562,8 +1548,8 @@ class TestAllUsersCount(common.TransactionCase):
 class TestPrivilegeGroupSorting(common.TransactionCase):
     """_sorted_privilege_group_ids precomputes the implication counts (RG-P3).
 
-    The order contract is unchanged: by number of the privilege's groups each
-    group implies (self included), then sequence, then id.
+    Order contract: by number of the privilege's groups each group implies (self
+    included), then sequence, then id.
     """
 
     def test_sorted_by_implication_depth_then_sequence(self):

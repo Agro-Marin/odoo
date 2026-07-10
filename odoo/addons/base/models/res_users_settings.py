@@ -31,9 +31,9 @@ class ResUsersSettings(models.Model):
     def _find_or_create_for_user(self, user: Any) -> Self:
         """Return the settings record for *user*, creating one if absent.
 
-        When the current cursor is read-only (e.g. called from a readonly
-        HTTP route), fall back to an in-memory record so that callers can
-        still format the settings without triggering a write on a RO cursor.
+        On a read-only cursor (e.g. a readonly HTTP route) fall back to an
+        in-memory record so callers can format settings without writing on the
+        RO cursor.
         """
         settings = user.sudo().res_users_settings_ids
         if not settings:
@@ -79,17 +79,15 @@ class ResUsersSettings(models.Model):
         and inverse-less computes, and only writes values that actually changed.
 
         :param dict new_settings: field name -> new value to apply.
-        :return: the formatted subset of the fields that were changed (+ ``id``).
-        :rtype: dict[str, Any]
+        :return: the formatted subset of changed fields (+ ``id``).
         """
         self.ensure_one()
-        # Ownership is enforced by the `res_users_settings_rule_user` record rule
-        # ([('user_id','=',user.id)]), NOT by this method: the write below runs
-        # without sudo so a group_user cannot reach another user's record
-        # (RUSET-L1). Do NOT wrap this method in sudo() assuming it self-checks
-        # ownership -- doing so would bypass the rule. `user_id` is additionally
-        # in `_PROTECTED_SETTINGS_FIELDS` so a row cannot be re-pointed at
-        # another user.
+        # Ownership is enforced by the `res_users_settings_rule_user` record
+        # rule, NOT here: the write runs without sudo so a group_user cannot
+        # reach another user's record (RUSET-L1). Do NOT wrap this in sudo() --
+        # it would bypass the rule. `user_id` is also in
+        # `_PROTECTED_SETTINGS_FIELDS` so a row cannot be re-pointed at another
+        # user.
         changed_settings = {}
         for setting, new_value in new_settings.items():
             if setting in self._PROTECTED_SETTINGS_FIELDS:
@@ -105,16 +103,11 @@ class ResUsersSettings(models.Model):
     def _is_setting_changed(self, fname: str, new_value: Any) -> bool:
         """Return whether writing ``new_value`` to ``fname`` would change it.
 
-        Implements the "only write actual changes" contract of
-        :meth:`set_res_users_settings` per field type:
-
-        * many2one: compare the incoming id against the current record's id
-          (both normalized so ``None``/``False``/empty compare equal);
-        * one2many/many2many: the incoming value is a list of x2many commands
-          (or ids); compare the id-set that would result from applying them
-          against the current id-set. Commands whose outcome cannot be
-          determined statically (create/update) always count as changed;
-        * other fields: plain value comparison.
+        Comparison is per field type: many2one compares ids (both normalized so
+        ``None``/``False``/empty compare equal); x2many compares the id-set that
+        applying the commands would yield against the current one (create/update
+        commands, whose outcome isn't statically known, always count as
+        changed); other fields compare by value.
         """
         self.ensure_one()
         current_value = self[fname]
@@ -135,10 +128,9 @@ class ResUsersSettings(models.Model):
         """Return the id-set an x2many holding ``current_ids`` would contain
         after writing ``value`` (a list of x2many commands and/or bare ids).
 
-        Return ``None`` when the outcome cannot be determined without applying
-        the commands (create/update payloads, malformed commands, or a value
-        that is not a command list) — callers must then treat the value as
-        changed and let ``write()`` validate it.
+        Return ``None`` when the outcome cannot be determined statically
+        (create/update payloads, malformed commands, or a non-list value) --
+        callers then treat the value as changed and let ``write()`` validate it.
         """
         if not isinstance(value, (list, tuple)):
             return None
@@ -149,8 +141,7 @@ class ResUsersSettings(models.Model):
                     # bare id: linked to the relation (ORM shorthand)
                     target_ids.add(command)
                 case [fields.Command.CREATE, *_] | [fields.Command.UPDATE, *_]:
-                    # creates new records / mutates a related record: the
-                    # resulting relation cannot be compared statically
+                    # create/update: resulting relation can't be compared statically
                     return None
                 case [fields.Command.DELETE, int() as res_id, *_] | [
                     fields.Command.UNLINK,

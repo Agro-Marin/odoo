@@ -197,17 +197,14 @@ class IrModuleCase(TransactionCase):
 
 class TestModuleDependencyClosure(TransactionCase):
     """IRMOD-T7: direct coverage of the recursive-CTE dependency-closure API
-    (_dependency_closure / upstream_dependencies / downstream_dependencies)
-    on a synthetic module graph::
+    (_dependency_closure / upstream_dependencies / downstream_dependencies) on a
+    synthetic chain a <- b <- c <- d (``x <-- y`` = "y depends on x"), with c
+    uninstalled and a/b/d installed.
 
-        tclos_a < --tclos_b < --tclos_c < --tclos_d
-        (installed)(installed)(uninstalled)(installed)
-
-    where ``x <-- y`` reads "y depends on x".  Callers rely on subtle
-    semantics: state pruning blocks the paths *through* excluded modules,
-    ``known_deps`` doubles as blocked-set and result-union, seeds are
-    traversed regardless of their own state but excluded from the result,
-    and ``exclude_states=('',)`` matches no state (full closure).
+    Callers rely on subtle semantics: state pruning blocks the paths *through*
+    excluded modules, ``known_deps`` doubles as blocked-set and result-union,
+    seeds are traversed regardless of their own state but excluded from the
+    result, and ``exclude_states=('',)`` matches no state (full closure).
     """
 
     @classmethod

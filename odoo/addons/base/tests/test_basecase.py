@@ -2,9 +2,7 @@ from odoo.tests import common
 
 
 class TestSingleTransactionCase(common.SingleTransactionCase):
-    """
-    Check the whole-class transaction behavior of SingleTransactionCase.
-    """
+    """Check the whole-class transaction behavior of SingleTransactionCase."""
 
     def test_00(self):
         """Create a partner."""
@@ -49,9 +47,7 @@ class TestSingleTransactionCase(common.SingleTransactionCase):
 
 
 class TestTransactionCase(common.TransactionCase):
-    """
-    Check the per-method transaction behavior of TransactionCase.
-    """
+    """Check the per-method transaction behavior of TransactionCase."""
 
     def test_00(self):
         """Create a partner."""

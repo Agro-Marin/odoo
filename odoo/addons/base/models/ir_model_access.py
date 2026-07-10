@@ -23,9 +23,8 @@ class IrModelAccess(models.Model):
     _description = "Model Access"
     _order = "model_id,group_id,name,id"
     _allow_sudo_commands = False
-    # Single source of truth for the four CRUD access modes: name -> SQL column.
-    # Both the mode validation (``_check_access_mode``) and the ``perm_*``
-    # column names derive from these keys.
+    # Single source of truth for the four CRUD modes: mode name -> SQL column.
+    # Both mode validation and the ``perm_*`` column names derive from these keys.
     _PERM_COLUMNS = {
         "read": SQL("a.perm_read"),
         "write": SQL("a.perm_write"),
@@ -55,11 +54,8 @@ class IrModelAccess(models.Model):
 
     @classmethod
     def _check_access_mode(cls, mode: str) -> None:
-        """Validate ``mode`` against the four CRUD access modes.
-
-        The valid modes are exactly the keys of :attr:`_PERM_COLUMNS`, so a
-        new mode only ever has to be declared in one place.
-        """
+        """Raise ``ValueError`` unless ``mode`` is one of the four CRUD access
+        modes (the keys of :attr:`_PERM_COLUMNS`)."""
         if mode not in cls._PERM_COLUMNS:
             raise ValueError(
                 f"Invalid access mode {mode!r}: expected one of {tuple(cls._PERM_COLUMNS)}."
@@ -67,8 +63,7 @@ class IrModelAccess(models.Model):
 
     @api.model
     def group_names_with_access(self, model_name: str, access_mode: str) -> list[str]:
-        """Return the names of visible groups which have been granted
-         ``access_mode`` on the model ``model_name``.
+        """Return the names of visible groups granted ``access_mode`` on ``model_name``.
 
         :rtype: list[str]
         """
@@ -103,9 +98,7 @@ class IrModelAccess(models.Model):
     @api.model
     @tools.ormcache("model_name", "access_mode", cache="stable")
     def _get_access_groups(self, model_name: str, access_mode: str = "read") -> Any:
-        """Return the group expression object that represents the users who
-        have ``access_mode`` to the model ``model_name``.
-        """
+        """Return the group expression for users who have ``access_mode`` on ``model_name``."""
         self._check_access_mode(access_mode)
         model = self.env["ir.model"]._get(model_name)
         accesses = self.sudo().search(
@@ -124,15 +117,9 @@ class IrModelAccess(models.Model):
             return group_definitions.universe
         return group_definitions.from_ids(accesses.group_id.ids)
 
-    # The context parameter is useful when the method translates error messages.
-    # But as the method raises an exception in that case,  the key 'lang' might
-    # not be really necessary as a cache key, unless the `ormcache`
-    # decorator catches the exception (it does not at the moment.)
-
-    # Keyed on the user's group set, not the uid: the result depends only on
-    # the groups, so same-group users share one entry per mode and per-user
-    # cache churn cannot evict it. _get_group_ids() is itself ormcached and
-    # returns a stable tuple of ids, i.e. a cheap hashable key.
+    # Keyed on the user's group set (not uid): the result depends only on the
+    # groups, so same-group users share one entry and per-user churn can't evict
+    # it. _get_group_ids() is itself ormcached and returns a stable id tuple.
     @tools.ormcache("self.env.user._get_group_ids()", "mode")
     def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
@@ -175,11 +162,10 @@ class IrModelAccess(models.Model):
 
         if model not in self.env:
             # A typo'd/unknown model is a programming error, not an access
-            # denial: raise a clear error instead of the generic AccessError
-            # the "not in allowed models" fallthrough used to produce. The
-            # lenient path is preserved for raise_exception=False callers,
-            # which legitimately probe models that may not be loaded (e.g.
-            # ir.ui.menu/ir.actions visibility checks on stale actions).
+            # denial: raise a clear error rather than a generic AccessError.
+            # The lenient path stays for raise_exception=False callers, which
+            # legitimately probe models that may not be loaded (e.g. stale
+            # ir.ui.menu/ir.actions visibility checks).
             if raise_exception:
                 raise ValueError(
                     f"Unknown model {model!r}: it does not exist in the registry"
@@ -224,11 +210,10 @@ class IrModelAccess(models.Model):
     @api.model
     def call_cache_clearing_methods(self) -> None:
         self.env.invalidate_all()
-        # Clearing the "stable" cache group cascades to the "default" group (see
-        # ``_CACHES_BY_KEY`` in the registry), so this single call invalidates
-        # BOTH _get_access_groups (stable) and _get_allowed_models (default).
-        # Do not narrow it to "default": that would leave _get_access_groups
-        # cached and hand out stale ACLs.
+        # Clearing "stable" cascades to the "default" group (see ``_CACHES_BY_KEY``
+        # in the registry), invalidating both _get_access_groups (stable) and
+        # _get_allowed_models (default). Narrowing to "default" would leave
+        # _get_access_groups cached and hand out stale ACLs.
         self.env.registry.clear_cache("stable")
 
     #
@@ -239,9 +224,9 @@ class IrModelAccess(models.Model):
         self.call_cache_clearing_methods()
         for vals in vals_list:
             # An access-granting ACL with no group grants that access to every
-            # user (global access), a deprecated pattern. ``group_id`` defaults
-            # to NULL, so an *omitted* key is the same global grant as an
-            # explicit falsy one -- both must warn.
+            # user (deprecated global access). ``group_id`` defaults to NULL, so
+            # an omitted key is the same global grant as an explicit falsy one --
+            # both must warn.
             if not vals.get("group_id") and any(
                 vals.get(f"perm_{mode}") for mode in self._PERM_COLUMNS
             ):

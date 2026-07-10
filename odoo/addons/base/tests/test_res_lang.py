@@ -10,8 +10,7 @@ from odoo.addons.base.models.res_lang import LangData, format_number, interspers
 
 class TestFormatNumberPure(BaseCase):
     """format_number is pure (registry-free): all locale conventions come from
-    the LangData argument, so it is unit-testable without a database. (W2)
-    """
+    the LangData argument, so it is DB-free unit-testable. (W2)"""
 
     EN = LangData(
         {"id": 1, "decimal_point": ".", "thousands_sep": ",", "grouping": "[3,0]"}
@@ -99,8 +98,7 @@ class test_res_lang(TransactionCase):
 
     def test_format_scientific_notation_not_grouped(self):
         """RL-L2: format() must not inject a thousands separator into the
-        exponent of scientific-notation output when grouping=True.
-        """
+        exponent of scientific-notation output when grouping=True."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         # %g / %G emit bare scientific notation; the exponent must stay intact.
         self.assertEqual(lang.format("%g", 1e20, grouping=True), "1e+20")
@@ -154,10 +152,9 @@ class test_res_lang(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_lang")
     def test_create_lang_resets_process_locale(self):
-        """RL-C1: _create_lang mutates the process-global locale inside a
-        serialized window (see _LOCALE_LOCK) and must always restore it,
-        including when the requested locale is unavailable on the platform.
-        """
+        """RL-C1: _create_lang mutates the process-global locale in a serialized
+        window (_LOCALE_LOCK) and must always restore it, even when the requested
+        locale is unavailable on the platform."""
         tools.translate.resetlocale()
         before = locale.setlocale(locale.LC_ALL)
         lang = self.env["res.lang"]._create_lang("xx_XX", "Locale Window Test")
@@ -176,11 +173,10 @@ class test_res_lang(TransactionCase):
         )
 
     def test_copy_lang_codes_are_url_safe_and_unique(self):
-        """RL-B3: copying a language must not push the translated '(copy)'
-        suffix into 'code' (frozen by write()) or 'url_code' (routing-facing
-        and unique); both get an untranslated URL-safe suffix with a counter,
-        while 'name' keeps the translated suffix.
-        """
+        """RL-B3: copying a language must not push the translated '(copy)' suffix
+        into 'code' (frozen by write()) or 'url_code' (routing-facing, unique):
+        both get an untranslated URL-safe suffix with a counter, while 'name'
+        keeps the translated suffix."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         copy1 = lang.copy()
         self.assertEqual(copy1.name, f"{lang.name} (copy)")

@@ -15,8 +15,7 @@ _FieldName = str
 def _get_placeholder_image(path: str) -> bytes:
     """Return the raw bytes of the placeholder image at ``path``.
 
-    Cached because the static images never change at runtime (same pattern
-    as ``res_company._get_default_logo``).
+    Cached: the static images never change at runtime.
     """
     with file_open(path, "rb") as file:
         return file.read()
@@ -47,8 +46,8 @@ class AvatarMixin(models.AbstractModel):
         for record in self:
             avatar = record[image_field]
             if not avatar:
-                # ``strip()`` so a whitespace-only name (truthy but yielding a
-                # blank/odd initial) falls through to the placeholder instead.
+                # strip() so a whitespace-only name falls through to the
+                # placeholder rather than yielding a blank initial.
                 name = record[record._avatar_name_field]
                 if record.id and name and name.strip():
                     avatar = record._avatar_generate_svg()
@@ -77,14 +76,11 @@ class AvatarMixin(models.AbstractModel):
         self._compute_avatar("avatar_128", "image_128")
 
     def _avatar_generate_svg(self) -> bytes:
-        """Build a base64-encoded SVG avatar from the record's first name
-        initial over an HSL background seeded from the name and create date.
-
-        :rtype: bytes
+        """Build a base64-encoded SVG avatar: the name's first initial over an
+        HSL background seeded from the name and create date.
         """
         self.ensure_one()
-        # ``strip()`` so a leading-whitespace name uses its first letter as the
-        # initial rather than a blank glyph.
+        # strip() so a leading-whitespace name uses its first letter, not a blank.
         initial = html_escape(self[self._avatar_name_field].strip()[0].upper())
         bgcolor = hsl_from_seed(
             self[self._avatar_name_field]
@@ -108,17 +104,12 @@ class AvatarMixin(models.AbstractModel):
         return "base/static/img/avatar_grey.png"
 
     def _avatar_get_placeholder(self) -> bytes:
-        """Return the raw bytes of the grey placeholder avatar image.
-
-        :rtype: bytes
-        """
+        """Return the raw bytes of the grey placeholder avatar image."""
         return _get_placeholder_image(self._avatar_get_placeholder_path())
 
     def _get_avatar_128_access_token(self) -> str:
-        """Return a scoped access token for the `avatar_128` field. The token can be
-        used with `ir_binary._find_record` to bypass access rights.
-
-        :rtype: str
+        """Return a scoped access token for `avatar_128`, usable with
+        `ir_binary._find_record` to bypass access rights.
         """
         self.ensure_one()
         return limited_field_access_token(self, "avatar_128", scope="binary")

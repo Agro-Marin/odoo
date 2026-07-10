@@ -861,7 +861,11 @@ class TestCommand(BaseCase):
         helpers are not re-hoisted onto the base."""
         from odoo.cli.command import Command, DatabaseCommand
 
-        for meth in ("add_config_arguments", "bootstrap_config", "require_single_database"):
+        for meth in (
+            "add_config_arguments",
+            "bootstrap_config",
+            "require_single_database",
+        ):
             self.assertIn(
                 meth,
                 vars(DatabaseCommand),
@@ -925,7 +929,9 @@ class TestCommand(BaseCase):
         ob.cr = FakeCur()
         ob._prefetch_field_kinds({"res_partner"})
         self.assertEqual(len(executed), 1, msg="prefetch must be a single query")
-        self.assertEqual(executed[0], [["res_partner"]], msg="tables passed via ANY(%s)")
+        self.assertEqual(
+            executed[0], [["res_partner"]], msg="tables passed via ANY(%s)"
+        )
 
         before = len(executed)
         self.assertEqual(ob.check_field("res_partner", "name"), "string")
@@ -968,17 +974,12 @@ class TestCommand(BaseCase):
     def test_databasecommand_preserves_bootstrap_addons_path(self):
         """`module install --addons-path=X` must not silently lose X.
 
-        The dispatcher (command.main) strips --addons-path and feeds it to
-        config in a FIRST parse; DatabaseCommand.bootstrap_config then runs a
-        SECOND parse via build_config_args, which forwards only -c/-d — never
-        --addons-path. Modules are found only because config._load_cli_options
-        specially preserves addons_path across the second parse's
-        _cli_options.clear(). If that preservation is ever dropped, addons_path
-        would vanish like any other CLI option and module/i18n/obfuscate/
-        populate would resolve zero modules with no error.
-
-        Pinned on an isolated configmanager so the global singleton — and thus
-        the rest of the test run — is left untouched.
+        command.main strips --addons-path and feeds it to config in a FIRST
+        parse; DatabaseCommand.bootstrap_config then runs a SECOND parse
+        forwarding only -c/-d. Modules are found only because config specially
+        preserves addons_path across that second parse; dropping that
+        preservation would make commands resolve zero modules with no error.
+        Pinned on an isolated configmanager so the global singleton is untouched.
         """
         from odoo.tools.config import configmanager
 

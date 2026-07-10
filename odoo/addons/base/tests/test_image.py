@@ -27,8 +27,8 @@ class TestImage(TransactionCase):
         self.img_1920x1080_jpeg = tools.image_apply_opt(
             Image.new("RGB", (1920, 1080)), "JPEG"
         )
-        # The following image contains a tag `Lens Info` with a value of `3.99mm f/1.8`
-        # This particular tag 0xa432 makes the `exif_transpose` method fail in 5.4.1 < Pillow < 7.2.0
+        # Contains tag 0xa432 (`Lens Info` = `3.99mm f/1.8`) which makes
+        # `exif_transpose` fail for 5.4.1 < Pillow < 7.2.0.
         self.img_exif_jpg = base64.b64decode(
             b"""/9j/4AAQSkZJRgABAQAAAQABAAD/4QDQRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAYAAAEaAAUA
                                   AAABAAAAVgEbAAUAAAABAAAAXgEoAAMAAAABAAEAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAA
@@ -47,9 +47,8 @@ class TestImage(TransactionCase):
                                   2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q=="""
         )
 
-        # Draw a red square in the middle of the image, this will be used to
-        # verify crop is working. The border is going to be `self.bg_color` and
-        # the middle is going to be `self.fill_color`.
+        # Draw a filled square inside a contrasting border, used to verify crop:
+        # border is `self.bg_color`, middle is `self.fill_color`.
 
         # horizontal image (border is left/right)
         image = Image.new("RGB", (1920, 1080), color=self.bg_color)
@@ -468,7 +467,6 @@ class TestImage(TransactionCase):
             image = img_open(
                 tools.image_process(test[0], size=test[1], crop=test[2], quality=95)
             )
-            # verify size
             self.assertEqual(image.size, test[3], "%s - correct size" % test[5])
 
             half_width, half_height = image.size[0] / 2, image.size[1] / 2
@@ -478,28 +476,24 @@ class TestImage(TransactionCase):
                 0,
                 image.size[0] - 1,
             )
-            # verify top
             px = (half_width, top)
             self.assertEqual(
                 image.getpixel(px),
                 test[4][0],
                 "%s - color top (%s, %s)" % (test[5], px[0], px[1]),
             )
-            # verify bottom
             px = (half_width, bottom)
             self.assertEqual(
                 image.getpixel(px),
                 test[4][1],
                 "%s - color bottom (%s, %s)" % (test[5], px[0], px[1]),
             )
-            # verify left
             px = (left, half_height)
             self.assertEqual(
                 image.getpixel(px),
                 test[4][2],
                 "%s - color left (%s, %s)" % (test[5], px[0], px[1]),
             )
-            # verify right
             px = (right, half_height)
             self.assertEqual(
                 image.getpixel(px),
@@ -637,13 +631,10 @@ class TestImage(TransactionCase):
             + bytes([orientation])
             + b"\x00\x00\x00\x00\x00\x00\x00"
         )
-        # The image image is saved with the exif tag.
         return tools.image_apply_opt(image, "JPEG", exif=exif)
 
     def _orientation_test(self, orientation, colors, size, expected):
-        # Generate the test image based on orientation and order of colors.
         image = self._get_exif_colored_square(orientation, colors, size)
-        # The image is read again now that it has orientation added.
         fixed_image = tools.image_fix_orientation(img_open(image))
         # Ensure colors are in the right order (blue, yellow, green, pink).
         self._assertAlmostEqualSequence(

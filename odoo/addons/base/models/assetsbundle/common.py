@@ -15,21 +15,19 @@ _bundle_log = get_asset_logger("bundle")
 
 
 def _sourcemap_source_root(asset_url: str) -> str:
-    """Relative root climbing from the served bundle URL back to ``/``.
+    """Return the relative ``sourceRoot`` climbing from the bundle URL to ``/``.
 
-    Source map ``sources`` entries are site-absolute paths; the browser
-    resolves them against ``sourceRoot``, so the root must contain one
-    ``..`` per directory segment of the bundle URL.
+    Source map ``sources`` are site-absolute; the browser resolves them against
+    ``sourceRoot``, so it needs one ``..`` per directory segment of the URL.
     """
     return "/".join(".." for _ in range(len(asset_url.split("/")) - 2)) + "/"
 
 
 class BundleFileSpec(TypedDict):
-    """One bundle source file, as collected by ``ir_qweb._get_asset_content``.
+    """One bundle source file, collected by ``ir_qweb._get_asset_content``.
 
-    ``content`` is the inline source (empty string for file-backed assets,
-    where ``filename`` points at the file on disk); the constructor renames
-    it to the asset's ``inline`` attribute.
+    ``content`` is inline source (empty for file-backed assets, where
+    ``filename`` points at the file on disk).
     """
 
     url: str
@@ -39,21 +37,16 @@ class BundleFileSpec(TypedDict):
 
 
 class NativeModuleData(TypedDict):
-    """The import-map / preload payload returned by ``get_native_module_data``.
-
-    Fixed shape consumed at three ir_qweb sites; the TypedDict documents the
-    contract and lets a type checker catch a misspelled key at the call site.
-    """
+    """The import-map / preload payload returned by ``get_native_module_data``."""
 
     import_map: dict[str, str]
     preload_urls: list[str]
     bridge_import_map: dict[str, str]
 
 
-# ``xml()`` returns a discriminated union of blocks; the ``type`` literal is the
-# discriminator the consumer (``generate_xml_bundle``) branches on. Modelling it
-# as two TypedDicts (instead of ``dict[str, Any]``) makes a typo in either the
-# discriminator or a payload key a static error, not a silent KeyError at render.
+# ``xml()`` returns a discriminated union of blocks; ``type`` is the
+# discriminator ``generate_xml_bundle`` branches on. Two TypedDicts (not
+# ``dict[str, Any]``) turn a typo into a static error, not a render KeyError.
 class TemplatesBlock(TypedDict):
     """A run of primary / parentless templates, in source order."""
 
@@ -73,12 +66,10 @@ class ExtensionsBlock(TypedDict):
 XMLBlock = TemplatesBlock | ExtensionsBlock
 
 
-# Two error families, deliberately kept separate:
-#   * AssetError   — an asset's content could not be obtained, decoded or parsed
-#                    (catchable as one group via ``except AssetError``)
-#   * CompileError — a preprocessor subprocess (Sass/rtlcss) failed; caught
-#                    explicitly alongside ``SassCompileError``, never via the
-#                    ``except AssetError`` net, hence a separate RuntimeError.
+# Two families kept separate: AssetError (content could not be obtained/decoded/
+# parsed) is caught as a group via ``except AssetError``; CompileError (a
+# preprocessor subprocess failed) is caught explicitly and must NOT fall into
+# that net, hence a separate RuntimeError.
 class CompileError(RuntimeError):
     """A stylesheet preprocessor (Sass/rtlcss) failed or timed out."""
 
@@ -98,20 +89,16 @@ class XMLAssetError(AssetError):
 def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
     """Run *argv* feeding *source* on stdin; return its stdout.
 
-    Shared subprocess plumbing for the stylesheet CLIs (Sass, rtlcss):
-    launch, feed, bounded wait, kill-and-reap on timeout.  Every failure
-    shape raises ``CompileError``; callers translate it into their own
-    degradation policy (propagate vs ``css_errors`` + degraded output).
+    Shared subprocess plumbing for the stylesheet CLIs (Sass, rtlcss). Every
+    failure shape raises ``CompileError``.
 
     :param argv: command line; ``argv[0]`` names the tool in errors
-    :param source: text piped to stdin
     :param timeout_s: budget — a hung binary must not pin a worker
     :raises CompileError: launch failure, timeout, or non-zero exit
     """
     try:
-        # ``errors="replace"``: a tool emitting non-UTF-8 bytes (locale-encoded
-        # stderr, binary junk on a crash) degrades to replacement characters
-        # instead of raising a UnicodeDecodeError that bypasses every caller's
+        # ``errors="replace"``: non-UTF-8 tool output degrades to replacement
+        # chars instead of a UnicodeDecodeError that would bypass callers'
         # CompileError policy.
         proc = Popen(
             argv,
@@ -133,19 +120,17 @@ def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
         cmd_output = out + err
         if not cmd_output:
             cmd_output = f"Process exited with return code {proc.returncode}\n"
-        # Name the tool: the launch-failure and timeout branches already do,
-        # and the raw tool output alone can be ambiguous in ``css_errors``.
+        # Name the tool: raw output alone can be ambiguous in ``css_errors``.
         raise CompileError(f"{argv[0]!r}: {cmd_output}")
     return out
 
 
-# CSS string-literal / comment tokenizer — the two spans every whole-text CSS
+# CSS string-literal / comment tokenizer — the spans every whole-text CSS
 # rewrite (url(), @import, appearance) and the minifier must treat as opaque.
-# Alternation order matters: a ``"`` inside a comment is consumed by the comment
-# arm, a ``/*`` inside a string by the string arm (a left-to-right scan takes
-# whichever opens first). One definition, referenced by
-# ``StylesheetAsset._minify_css_body`` (masking) and
-# ``_rewrite_css_outside_strings`` (skip-in-place) so the two never drift.
+# Alternation order matters: a left-to-right scan takes whichever of comment/
+# string opens first. One definition shared by
+# ``StylesheetAsset._minify_css_body`` and ``_rewrite_css_outside_strings`` so
+# they never drift.
 _CSS_STRING_OR_COMMENT = re.compile(
     r"""/\*.*?\*/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'""",
     re.DOTALL,
@@ -157,26 +142,20 @@ def _rewrite_css_outside_strings(
 ) -> str:
     """Apply ``repl`` to ``target`` matches that lie in CSS *code* only.
 
-    A single left-to-right scan consumes string-literal and comment spans first
-    (the same tokenizer strategy as :meth:`StylesheetAsset._minify_css_body`),
+    A single left-to-right scan consumes string-literal and comment spans first,
     so a ``url()`` / ``@import`` / ``appearance:`` written *inside* a
-    ``content: "…"`` value or a comment is passed through untouched instead of
-    being rewritten — the string-unawareness the whole-text ``re.sub`` calls
-    used to have (characterized as "known limitations" before this).
-    ``target``'s own capture groups reach ``repl`` unchanged: the scanner adds
-    none of its own.
+    ``content: "…"`` value or a comment passes through untouched. ``target``'s
+    own capture groups reach ``repl`` unchanged; the scanner adds none.
 
-    A real ``url("x")`` is still rewritten — its match *starts* at the ``url(``
-    token (code); only the inner ``"x"`` is a protected span, which the rewrite
-    never needs to enter — so preload byte-matching is unaffected.
+    A real ``url("x")`` is still rewritten: its match *starts* at the ``url(``
+    token (code), and only the inner ``"x"`` is a protected span the rewrite
+    never enters.
     """
-    # DOTALL is scoped to the string/comment arm via ``(?s:...)`` — only that
-    # arm needs it (block comments ``/\*.*?\*/`` and ``\\.`` line continuations
-    # span newlines). The previous ``target.flags | re.DOTALL`` forced DOTALL
-    # onto the WHOLE combined pattern, silently redefining any ``.`` a future
-    # ``target`` might carry; scoping confines it so the caller's pattern keeps
-    # exactly the flags it was compiled with. ``(?s:...)`` is non-capturing, so
-    # ``target``'s own group numbers are unchanged.
+    # DOTALL scoped to the string/comment arm via ``(?s:...)`` — only it needs
+    # it (block comments and ``\\.`` continuations span newlines). Applying it
+    # to the whole combined pattern would silently redefine any ``.`` a future
+    # ``target`` carries. ``(?s:...)`` is non-capturing, so ``target``'s group
+    # numbers are unchanged.
     scanner = re.compile(
         f"(?s:{_CSS_STRING_OR_COMMENT.pattern})|{target.pattern}",
         target.flags,

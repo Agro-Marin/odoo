@@ -22,10 +22,8 @@ from odoo.addons.base.tests.common import MockSmtplibCase
 
 
 def _generate_self_signed_cert(common_name="smtp.example.com"):
-    """Return ``(cert_pem, key_pem)`` bytes for a fresh self-signed RSA cert.
-
-    Kept local to the tests so the SSL-context builders can be exercised
-    without a live SMTP server or on-disk fixtures.
+    """Return ``(cert_pem, key_pem)`` bytes for a fresh self-signed RSA cert,
+    so the SSL-context builders can run without a live SMTP server or fixtures.
     """
     import datetime
 
@@ -98,10 +96,10 @@ class EmailConfigCase(TransactionCase):
         self.assertEqual(message["From"], "settings@example.com")
 
     def test_build_email_missing_from_raises_coded_error(self):
-        """No resolvable sender must raise an OutgoingEmailError carrying a
-        stable ``.code`` (NO_FOUND_FROM). mail.mail classifies failures on this
-        code; guards the regression where these were plain UserError and the
-        ``mail_from_*`` / ``mail_email_*`` classification degraded to 'unknown'.
+        """No resolvable sender must raise an OutgoingEmailError with a stable
+        ``.code`` (NO_FOUND_FROM), which mail.mail uses to classify failures.
+        Regression: these were plain UserError, degrading classification to
+        'unknown'.
         """
         IrMailServer = self.env["ir.mail_server"]
         with patch.dict(config.options, {"email_from": False}):
@@ -133,10 +131,9 @@ class EmailConfigCase(TransactionCase):
 
     def test_build_email_headers_override_standard_headers(self):
         """A ``headers`` entry must *override* an already-set standard header,
-        not append a duplicate. Under EmailMessage/SMTP_POLICY, singleton headers
-        (Subject, From, Reply-To, Message-Id, ...) cap at one occurrence, so a
-        plain append raised ValueError and aborted the send (reachable from the
-        free-form ``mail.mail.headers`` field). This pins the override contract.
+        not append a duplicate. Under EmailMessage/SMTP_POLICY singleton headers
+        cap at one occurrence, so a plain append raised ValueError and aborted
+        the send (reachable via the free-form ``mail.mail.headers`` field).
         """
         IrMailServer = self.env["ir.mail_server"]
         for header, override in [
@@ -162,9 +159,9 @@ class EmailConfigCase(TransactionCase):
     def test_build_email_rejects_header_injection(self):
         """MS-T3: CR/LF in a header value or name must raise (no header smuggling).
 
-        The defense lives in CPython's ``email.policy`` (``verify_generated_headers``
-        is preserved by the cloned no-fold policy). This pins the behavior so a
-        future policy/clone change that disables it is caught.
+        The defense lives in CPython's ``email.policy``
+        (``verify_generated_headers``, preserved by the cloned no-fold policy);
+        this catches a future policy/clone change that disables it.
         """
         IrMailServer = self.env["ir.mail_server"]
 
@@ -881,9 +878,9 @@ class TestSslContexts(TransactionCase):
     """Unit coverage for the SSL-context builders.
 
     These paths lean on private urllib3/pyOpenSSL internals (``PyOpenSSLContext.
-    _ctx``, ``match_hostname``, …) and were previously only exercised by the
-    live-SMTPD integration suite. Building the contexts directly guards against
-    an upstream urllib3/pyOpenSSL change breaking outgoing TLS silently.
+    _ctx``, ``match_hostname``, …) previously only exercised by the live-SMTPD
+    suite; building the contexts directly guards against an upstream change
+    silently breaking outgoing TLS.
     """
 
     @classmethod

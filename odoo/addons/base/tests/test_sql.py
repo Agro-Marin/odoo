@@ -157,10 +157,9 @@ class TestSQL(BaseCase):
             "    print('SAFE')\n"
         )
         # Propagate the parent's import paths so the child can ``import odoo``
-        # whether odoo is pip-installed or run from source (where ``odoo-bin``
-        # injects ``addons/odoo`` into ``sys.path`` at runtime — a bare
-        # subprocess would otherwise ``ModuleNotFoundError`` and the security
-        # check would never actually run).
+        # even when run from source (odoo-bin injects ``addons/odoo`` into
+        # sys.path at runtime); otherwise the subprocess ModuleNotFoundErrors and
+        # the security check never runs.
         env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
         out = subprocess.run(
             [sys.executable, "-O", "-c", snippet],

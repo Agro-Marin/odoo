@@ -23,14 +23,13 @@ class TransactionExpressionCase(TransactionCase):
             f"filtered_domain do not match SQL search for domain: {domain}",
         )
         if test_complement and domain:
-            # testing complement when asked, skip trivial the case where domain is TRUE
+            # skip the trivial case where domain is TRUE
             domain = Domain(domain)
 
-            # test whether the result of the search and the complement are equal to the universe
+            # a search and its complement must cover the universe
             complement_domain = ~domain
             if not init_domain.is_true():
-                # the init_search is not TRUE
-                # first, check the complement with a single search; include inactive records for the complement
+                # check the full complement, including inactive records
                 cpl = model.with_context(active_test=False).search(
                     complement_domain, order="id"
                 )
@@ -42,7 +41,7 @@ class TransactionExpressionCase(TransactionCase):
                     uni.ids,
                     f"{domain} and {complement_domain} don't cover all records (search all)",
                 )
-                # second, for the rest of the check, limit the serach with init_domain
+                # limit the rest of the check to init_domain
                 complement_domain = init_domain & complement_domain
 
             # general case where the universe is init_search
@@ -193,7 +192,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id doesn't contain cat_a failed (3).",
         )
 
-        # (Obviously we can do the same for cateory B.)
+        # Same for category B.
         without_b = self._search(partners, [("category_id", "not in", [cat_b.id])])
         self.assertTrue(
             b not in without_b,
@@ -549,10 +548,8 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         res_partners = self._search(Partner, [("company_id.partner_id", "not in", [])])
         self.assertEqual(all_partners, res_partners, "not in [] fails")
 
-        # Test the '(not) like/in' behavior. res.partner and its parent_id
-        # column are used because parent_id is a many2one, allowing to test the
-        # Null value, and there are actually some null and non-null values in
-        # the demo data.
+        # Test '(not) like/in' behavior on parent_id, a many2one with both null
+        # and non-null values in demo data.
         all_partners = self._search(Partner, [])
         non_partner_id = max(all_partners.ids) + 1
 
@@ -560,21 +557,9 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         without_parent = all_partners.filtered(lambda p: not p.parent_id)
         with_website = all_partners.filtered(lambda p: p.website)
 
-        # We treat null values differently than in SQL. For instance in SQL:
-        #   SELECT id FROM res_partner WHERE parent_id NOT IN (0)
-        # will return only the records with non-null parent_id.
-        #   SELECT id FROM res_partner WHERE parent_id IN (0)
-        # will return expectedly nothing (our ids always begin at 1).
-        # This means the union of those two results will give only some
-        # records, but not all present in database.
-        #
-        # When using domains and the ORM's search method, we think it is
-        # more intuitive that the union returns all the records, and that
-        # a domain like ('parent_id', 'not in', [0]) will return all
-        # the records. For instance, if you perform a search for the companies
-        # that don't have Odoo has a parent company, you expect to find,
-        # among others, the companies that don't have parent company.
-        #
+        # Unlike SQL, the ORM treats NULL so that a domain and its negation
+        # cover all records: ('parent_id', 'not in', [0]) returns every record,
+        # including those with a null parent_id.
 
         # existing values be treated similarly if we simply check that some
         # existing value belongs to them.
@@ -1004,9 +989,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_20_expression_parse(self):
-        # TDE note: those tests have been added when refactoring the expression.parse() method.
-        # They come in addition to the already existing tests; maybe some tests
-        # will be a bit redundant
         Users = self.env["res.users"]
 
         # Create users

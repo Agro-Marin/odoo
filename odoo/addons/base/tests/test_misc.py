@@ -473,9 +473,9 @@ class TestAddonsFileAccess(BaseCase):
         )
 
     def test_file_open(self):
-        # The needle includes UTF8 so we test reading non-ASCII files at the same time.
-        # This depends on the system locale and is harder to unit test, but if you manage to run the
-        # test with a non-UTF8 locale (`LC_ALL=fr_FR.iso8859-1 python3...`) it should not crash ;-)
+        # The needle includes UTF8, so this also exercises reading non-ASCII files.
+        # Locale-dependent: running with a non-UTF8 locale
+        # (`LC_ALL=fr_FR.iso8859-1 python3...`) should still not crash.
         test_needle = "A needle with non-ascii bytes: ♥"
 
         # absolute path
@@ -1085,9 +1085,8 @@ class TestFormatAmountFunction(TransactionCase):
     def test_trailing_false_on_number_having_trailing_zeroes_with_kilikili_language(
         self,
     ):
-        # Here the amount is first will be given decimal separator and thousandth separator as
-        # follows 10#000#00 in which second # is decimal so, the RE targets the decimal separator
-        # at the last position.
+        # The amount is formatted as 10#000#00; the second # is the decimal, so
+        # the RE must target the decimal separator at the last position.
         self.assert_format_amount(
             10000, "fA%s10#000" % "\N{NO-BREAK SPACE}", False, "GFL"
         )

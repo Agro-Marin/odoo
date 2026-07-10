@@ -8,14 +8,10 @@ from odoo.addons.base.models.ir_asset import AssetPaths
 
 @tagged("post_install", "-at_install")
 class TestReplaceDirective(TransactionCase):
-    """IRASSET-L1 / IRASSET-C2: drive the REAL ``IrAsset._process_path`` REPLACE
-    branch (not a re-implemented mirror) and pin its contract:
-
-    * a source already present in the bundle is repositioned to the target
-      slot, not silently dropped;
-    * a source set that includes the target keeps the target;
-    * the sources land at the target slot in **source order** (IRASSET-C2 --
-      previously new-then-present, which reordered interleaved sources).
+    """IRASSET-L1 / IRASSET-C2: pin the real ``IrAsset._process_path`` REPLACE
+    branch. A present source is repositioned to the target slot (not dropped), a
+    source set including the target keeps it, and sources land in source order
+    (IRASSET-C2 — the old new-then-present order reordered interleaved sources).
     """
 
     @staticmethod
@@ -44,8 +40,8 @@ class TestReplaceDirective(TransactionCase):
             )
 
     def test_replace_source_already_present(self):
-        # replace /c by /a (already in the bundle): /a is repositioned to /c's
-        # slot and kept; before the fix insert() was a no-op and /a was stranded.
+        # replace /c by /a (already present): /a moves to /c's slot; the old
+        # insert() no-op stranded /a.
         ap = self._seed(["/a", "/b", "/c"])
         self._run_replace(ap, "/c", [("/a", "/full/a", 1)])
         self.assertEqual(self._paths(ap), ["/b", "/a"])
@@ -73,9 +69,8 @@ class TestReplaceDirective(TransactionCase):
         self.assertNotIn("/b", ap.memo)
 
     def test_replace_preserves_source_order(self):
-        # IRASSET-C2: sources interleave already-present (/a, /b) and new
-        # (/x, /y).  The result must follow SOURCE order [/a, /x, /b, /y], not
-        # the old new-then-present order [/x, /y, /a, /b].
+        # IRASSET-C2: interleaved present (/a, /b) and new (/x, /y) sources must
+        # follow SOURCE order [/a, /x, /b, /y], not the old [/x, /y, /a, /b].
         ap = self._seed(["/a", "/b", "/T"])
         source = [
             ("/a", "/full/a", 1),
@@ -102,16 +97,10 @@ class TestReplaceDirective(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDirectiveAbsentTarget(TransactionCase):
-    """IRASSET-T1: pin the resolves-but-absent-in-bundle directive contract.
-
-    The fork added warn+no-op for the *empty-resolution* target/path cases
-    (covered in test_assetsbundle.py). This pins the *complementary* case: a
-    target/path that resolves to a real file which is simply not part of THIS
-    bundle. ``after`` / ``before`` / ``replace`` raise ValueError via
-    ``AssetPaths.index`` (anchor must be present), and ``remove`` raises via
-    ``AssetPaths.remove`` (the path to remove must be present). This is the
-    upstream-faithful contract; pinning it makes a behaviour change a
-    deliberate decision rather than a silent regression.
+    """IRASSET-T1: pin the resolves-but-absent-in-bundle contract. A target/path
+    resolving to a real file absent from THIS bundle makes after/before/replace
+    raise via ``AssetPaths.index`` and remove raise via ``AssetPaths.remove``.
+    The empty-resolution case (warn+no-op) lives in test_assetsbundle.py.
     """
 
     def _seed(self):
@@ -126,9 +115,8 @@ class TestDirectiveAbsentTarget(TransactionCase):
         return ap
 
     def test_index_absent_target_raises_with_bundle(self):
-        # The anchor used by after / before / replace resolves to a real path
-        # that is simply not in this bundle: index() raises ValueError naming
-        # the bundle (the directive cannot position relative to an absent anchor).
+        # Anchor resolves to a real path absent from this bundle: index() raises
+        # ValueError naming the bundle (can't position relative to an absent anchor).
         ap = self._seed()
         with self.assertRaises(ValueError) as cm:
             ap.index("/web/absent.js", "bundle1")
@@ -136,9 +124,8 @@ class TestDirectiveAbsentTarget(TransactionCase):
         self.assertIn("/web/absent.js", str(cm.exception))
 
     def test_remove_resolvable_absent_path_raises_with_bundle(self):
-        # remove of a path that resolves on disk but is not in this bundle
-        # raises ValueError naming the bundle (upstream contract). Contrast with
-        # the empty-resolution case (paths == []), which warns and no-ops.
+        # remove of a path resolving on disk but absent from this bundle raises
+        # ValueError naming the bundle; the empty-resolution case warns and no-ops.
         ap = self._seed()
         with self.assertRaises(ValueError) as cm:
             ap.remove([("/web/absent.js", "/full/absent.js", 1)], "bundle1")
@@ -147,7 +134,7 @@ class TestDirectiveAbsentTarget(TransactionCase):
         self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
 
     def test_replace_absent_target_raises_via_process_path(self):
-        # End-to-end through the REAL _process_path: a REPLACE whose target
+        # End-to-end through the real _process_path: a REPLACE whose target
         # resolves to a real file absent from the bundle raises.
         IrAsset = self.env["ir.asset"]
         ap = self._seed()
@@ -176,13 +163,10 @@ class TestDirectiveAbsentTarget(TransactionCase):
 class TestGetPathsEscapeWarning(TransactionCase):
     """IRASSET-C4 / IRASSET-C5: the two non-wildcard resolution outcomes that
     silently degraded to an attachment URL must each leave a distinct trace.
-
-    C4: a path naming an installed addon but resolving *outside* that addon's
-    ``static/`` directory (escape). C5: a LITERAL path *inside* ``static/``
-    that matches no file (typo) — empty globs already warned ("did not resolve
-    to anything") while the literal sibling case resolved without a trace.
-    Both keep the attachment-URL degradation (attachment rows may
-    legitimately shadow a since-removed static file).
+    C4: a path naming an installed addon but resolving outside its ``static/``
+    (escape). C5: a literal path inside ``static/`` matching no file (typo).
+    Both keep the attachment-URL degradation (attachment rows may legitimately
+    shadow a since-removed static file).
     """
 
     def test_escape_outside_static_warns(self):
@@ -193,14 +177,14 @@ class TestGetPathsEscapeWarning(TransactionCase):
             result = IrAsset._get_paths(escaping, installed)
         joined = "\n".join(cm.output)
         self.assertIn("resolves outside the static/", joined)
-        # It still degrades to a (doomed) attachment tuple -- unchanged behaviour.
+        # Still degrades to a (doomed) attachment tuple -- unchanged behaviour.
         self.assertEqual(result, [(escaping, None, None)])
 
     def test_missing_literal_inside_static_warns_typo(self):
         IrAsset = self.env["ir.asset"]
         installed = IrAsset._get_installed_addons_list()
-        # Inside base/static, just not present on disk: attachment fallback,
-        # with the C5 typo warning (NOT the C4 escape warning).
+        # Inside base/static but absent on disk: attachment fallback with the C5
+        # typo warning (not the C4 escape warning).
         inside = "/base/static/src/scss/__does_not_exist__.scss"
         with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
             result = IrAsset._get_paths(inside, installed)
@@ -223,15 +207,11 @@ class TestGetPathsEscapeWarning(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestProcessCommandMalformed(TransactionCase):
-    """IRASSET-A2: a malformed manifest asset command must raise a ValueError
-    whose message names the offending command.
-
-    The parser's whole purpose in catching is to attach ``command`` to the
-    error. Previously it only caught ``(ValueError, IndexError)`` and used
-    ``add_note`` -- so a non-subscriptable command (int, None) escaped as a raw
-    ``TypeError`` and a dict escaped as ``KeyError``, both WITHOUT the command
-    in ``str(exc)``. Pin that every malformed shape surfaces the command in the
-    exception message itself.
+    """IRASSET-A2: a malformed manifest asset command must raise ValueError whose
+    message names the offending command. The parser previously caught only
+    ``(ValueError, IndexError)`` via ``add_note``, so a non-subscriptable command
+    (int/None) escaped as TypeError and a dict as KeyError, both without the
+    command in ``str(exc)``. Pin that every malformed shape surfaces it.
     """
 
     def test_int_command_raises_valueerror_naming_command(self):
@@ -245,8 +225,8 @@ class TestProcessCommandMalformed(TransactionCase):
         self.assertIn("path", str(cm.exception))
 
     def test_wrong_arity_raises_valueerror_naming_command(self):
-        # command[0] is a valid directive but the tuple has the wrong length:
-        # the command must still appear in str(exc), not only in __notes__.
+        # Valid directive but wrong arity: the command must still appear in
+        # str(exc), not only in __notes__.
         with self.assertRaises(ValueError) as cm:
             self.env["ir.asset"]._process_command(["after", "only_two"])
         self.assertIn("only_two", str(cm.exception))
@@ -254,11 +234,10 @@ class TestProcessCommandMalformed(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestReorderPresentSourceWarns(TransactionCase):
-    """IRASSET-A1: AFTER/BEFORE with a source already present in the bundle is a
-    silent no-op -- ``insert`` dedups it, so it is NOT repositioned (unlike
-    REPLACE, which pulls present sources out and re-inserts them at the target
-    slot). Pin that this asymmetry now emits a WARNING so an ineffective
-    reorder directive is visible instead of vanishing.
+    """IRASSET-A1: AFTER/BEFORE with an already-present source is a silent no-op
+    (``insert`` dedups it, so it is not repositioned — unlike REPLACE, which
+    pulls present sources out and re-inserts them at the target slot). Pin that
+    this asymmetry now emits a WARNING so the ineffective directive is visible.
     """
 
     def _run(self, directive, target, source_path):
@@ -302,11 +281,10 @@ class TestReorderPresentSourceWarns(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestRemovePartialAbsentWarns(TransactionCase):
-    """IRASSET-A3: ``AssetPaths.remove`` of a set that mixes present and absent
-    paths removes the present ones but used to silently ignore the absent ones
-    -- inconsistent with the all-absent case (which raises) and the
-    empty-resolution case (which warns). Pin that the ignored, stale subset now
-    emits a WARNING naming it, while an all-present remove stays silent.
+    """IRASSET-A3: ``AssetPaths.remove`` of a mix of present and absent paths
+    removes the present ones but used to silently ignore the absent ones —
+    inconsistent with the all-absent (raises) and empty-resolution (warns) cases.
+    Pin that the stale subset now emits a WARNING while all-present stays silent.
     """
 
     def _seed(self):
@@ -332,14 +310,12 @@ class TestRemovePartialAbsentWarns(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestGlobRemoveIsSetSubtraction(TransactionCase):
-    """Task 23534: a wildcarded ``remove`` resolves against files on DISK
-    while the bundle usually holds only a subset of them (e.g. mail removes
-    ``discuss/**/*`` from ``web.assets_backend`` before re-adding the allowed
-    subsets, and ``**/*.dark.scss`` globs match files only ever added to the
-    dark bundles). Absent disk matches are expected set subtraction, not
-    staleness: through ``_process_path`` a glob remove stays silent on partial
-    or full absence, while a literal remove keeps the strict IRASSET-A3
-    contract (warn on partial, raise on all-absent).
+    """Task 23534: a wildcarded ``remove`` resolves against files on disk while
+    the bundle usually holds only a subset of them (e.g. mail removes
+    ``discuss/**/*`` before re-adding allowed subsets; ``**/*.dark.scss`` matches
+    files only in the dark bundles). Absent disk matches are expected set
+    subtraction, so a glob remove stays silent on partial/full absence, while a
+    literal remove keeps the IRASSET-A3 contract (warn on partial, raise on all).
     """
 
     def _seed(self):
@@ -402,16 +378,15 @@ class TestGlobRemoveIsSetSubtraction(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTopologicalSort(TransactionCase):
-    """IRASSET-D1: ``_topological_sort`` governs asset load order but had no
-    direct unit test. Pin its core contract with synthetic manifests: every
-    dependency precedes its dependents, missing ``depends`` falls back to
-    ``base``, and the full input set is returned.
+    """IRASSET-D1: pin ``_topological_sort`` (asset load order) with synthetic
+    manifests: every dependency precedes its dependents, missing ``depends``
+    falls back to ``base``, and the full input set is returned.
     """
 
     def _sort(self, manifests, addons):
         IrAsset = self.env["ir.asset"]
-        # ``_topological_sort`` is @ormcache'd on the addons tuple; run inside a
-        # fresh cache so synthetic runs don't collide with real ones.
+        # @ormcache'd on the addons tuple; clear so synthetic runs don't collide
+        # with real ones.
         IrAsset.env.registry.clear_cache()
         with patch.object(
             Manifest, "for_addon", lambda name, **kw: manifests.get(name)
@@ -434,8 +409,8 @@ class TestTopologicalSort(TransactionCase):
         self.assertLess(pos["base"], pos["leaf_mod"])
 
     def test_missing_depends_falls_back_to_base(self):
-        # A manifest with no ``depends`` key is treated as depending on base, so
-        # base must come first (the ``manif.get("depends") or ["base"]`` rule).
+        # No ``depends`` key => depends on base (``manif.get("depends") or
+        # ["base"]``), so base must come first.
         manifests = {"base": {"depends": []}, "orphan": {}}
         order = self._sort(manifests, ["orphan", "base"])
         self.assertLess(order.index("base"), order.index("orphan"))
@@ -445,9 +420,8 @@ class TestTopologicalSort(TransactionCase):
 class TestAssetPathsCacheCanonical(TransactionCase):
     """IRASSET-P1: ``_get_asset_paths`` sorts the active-addons set before
     building the ``_topological_sort`` @ormcache key, so the key is canonical
-    regardless of the process-dependent iteration order of the addon set (set
-    hash randomization). Pin that the tuple handed to ``_topological_sort`` is
-    sorted, preventing cross-worker cache fragmentation.
+    despite set hash randomization. Pin that the tuple is sorted, preventing
+    cross-worker cache fragmentation.
     """
 
     def test_addons_are_sorted_into_topological_sort_key(self):

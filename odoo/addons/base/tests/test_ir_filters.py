@@ -10,7 +10,7 @@ _logger = logging.getLogger(__name__)
 
 
 def noid(seq):
-    """Removes values that are not relevant for the test comparisons"""
+    """Drop keys irrelevant to test comparisons."""
     for d in seq:
         d.pop("id", None)
         d.pop("action_id", None)
@@ -294,7 +294,7 @@ class TestEmbeddedFilters(FiltersCase):
             }
         )
 
-        # If embedded_action_id and embedded_parent_res_id are set, should return the corresponding filter
+        # Matching embedded_action_id + embedded_parent_res_id returns the filter
         filters = (
             self.env["ir.filters"]
             .with_user(self.USER_ID)
@@ -318,7 +318,7 @@ class TestEmbeddedFilters(FiltersCase):
             ],
         )
 
-        # Check that the filter is correctly linked to one embedded_parent_res_id and is not returned if another one is set
+        # A different embedded_parent_res_id must not return the filter
         filters = (
             self.env["ir.filters"]
             .with_user(self.USER_ID)
@@ -330,7 +330,7 @@ class TestEmbeddedFilters(FiltersCase):
         )
         self.assertItemsEqual(noid(filters), [])
 
-        # Check that a shared filter can be fetched with another user
+        # A shared filter is fetchable by another user
         filters = (
             self.env["ir.filters"]
             .with_user(ADMIN_USER_ID)
@@ -354,7 +354,7 @@ class TestEmbeddedFilters(FiltersCase):
             ],
         )
 
-        # If embedded_action_id and embedded_parent_res_id are not set, should return no filters
+        # Without embedded args, no embedded filters are returned
         filters = (
             self.env["ir.filters"].with_user(self.USER_ID).get_filters("ir.filters")
         )
@@ -390,10 +390,8 @@ class TestEmbeddedFilters(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestCreateFilterValidation(FiltersCase):
-    """Regression tests for audit finding IRF-L1: create_filter must reject a
-    favorite whose stored domain/context is not a list/dict, so a single
-    malformed favorite created over RPC cannot break the shared favorites
-    dropdown far from its cause.
+    """IRF-L1: create_filter must reject a favorite whose domain/context is not
+    a list/dict, so one malformed RPC favorite cannot break the shared dropdown.
     """
 
     def test_create_filter_rejects_non_list_domain(self):
@@ -444,13 +442,13 @@ class TestCreateFilterValidation(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestConstrainsValidation(FiltersCase):
-    """Audit findings IRF-L2 / IRF-C1: validation must run on every write path
-    (raw ORM ``create``/``write``), not only ``create_filter``, and ``sort``
-    must be a list of strings.
+    """IRF-L2 / IRF-C1: validation must run on every write path (raw ORM
+    ``create``/``write``, not only ``create_filter``), and ``sort`` must be a
+    list of strings.
     """
 
     def test_raw_create_rejects_non_list_domain(self):
-        # IRF-L2: a malformed domain inserted via plain ORM create (bypassing
+        # IRF-L2: a malformed domain via plain ORM create (bypassing
         # create_filter) is rejected by the @api.constrains backstop.
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create(
@@ -482,7 +480,7 @@ class TestConstrainsValidation(FiltersCase):
 
     def test_create_rejects_sort_with_non_string_elements(self):
         # IRF-C1: the DB CHECK only enforces "jsonb array"; [1, 2] passes it but
-        # blows up later at ",".join(...). The constraint must reject it.
+        # later blows up at ",".join(...), so the constraint must reject it.
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create(
                 {
@@ -515,10 +513,10 @@ class TestConstrainsValidation(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestCrossUserWrite(FiltersCase):
-    """Audit finding IRF-T1: pin the cross-user write contract. Absent a record
-    rule, ``ir.filters`` grants full CRUD to ``group_user``, so any internal
-    user can edit a global (shared) filter. This test documents that intended
-    behaviour so a future record-rule change is a conscious decision.
+    """IRF-T1: pin the cross-user write contract. Absent a record rule,
+    ``ir.filters`` grants full CRUD to ``group_user``, so any internal user can
+    edit a global (shared) filter; documented so a future record-rule change is
+    deliberate.
     """
 
     def test_internal_user_can_write_global_filter(self):

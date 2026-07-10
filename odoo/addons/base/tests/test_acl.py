@@ -35,9 +35,7 @@ class TestACL(TransactionCaseWithUserDemo):
         self.env.registry.clear_cache("templates")
 
     def test_field_visibility_restriction(self):
-        """Check that model-level ``groups`` parameter effectively restricts access to that
-        field for users who do not belong to one of the explicitly allowed groups
-        """
+        """Field-level ``groups`` restricts the field to members of the allowed groups."""
         currency = self.env["res.currency"].with_user(self.user_demo)
 
         # Add a view that adds a label for the field we are going to check
@@ -132,7 +130,7 @@ class TestACL(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.models")
     def test_field_crud_restriction(self):
-        "Read/Write RPC access to restricted field should be forbidden"
+        """Read/Write RPC access to a restricted field must be forbidden."""
         partner = self.env["res.partner"].browse(1).with_user(self.user_demo)
 
         # Verify the test environment first
@@ -174,7 +172,7 @@ class TestACL(TransactionCaseWithUserDemo):
         partner = self.env["res.partner"].with_user(self.user_demo)
         self._set_field_groups(partner, "email", self.TEST_GROUP)
 
-        # accessing fields must no raise exceptions...
+        # accessing fields must not raise exceptions...
         partner = partner.search([], limit=1)
         _ = partner.name
         # ... except if they are restricted
@@ -183,9 +181,11 @@ class TestACL(TransactionCaseWithUserDemo):
                 _ = partner.email
 
     def test_view_create_edit_button(self):
-        """Test form view Create, Edit, Delete button visibility based on access right of model.
-        Test the user with and without access in the same unit test / transaction
-        to test the views cache is properly working"""
+        """Create/Edit/Delete button visibility follows the model's access rights.
+
+        Exercises a user with and without access in one transaction to check the
+        views cache.
+        """
         methods = ["create", "edit", "delete"]
         company = self.env["res.company"].with_user(self.user_demo)
         company_view = company.get_view(False, "form")
@@ -203,9 +203,11 @@ class TestACL(TransactionCaseWithUserDemo):
             self.assertIsNone(view_arch.get(method))
 
     def test_m2o_field_create_edit(self):
-        """Test many2one field Create and Edit option visibility based on access rights of relation field
-        Test the user with and without access in the same unit test / transaction
-        to test the views cache is properly working"""
+        """Many2one Create/Edit option visibility follows the relation's access rights.
+
+        Exercises a user with and without access in one transaction to check the
+        views cache.
+        """
         methods = ["create", "write"]
         company = self.env["res.company"].with_user(self.user_demo)
         company_view = company.get_view(False, "form")
@@ -225,8 +227,7 @@ class TestACL(TransactionCaseWithUserDemo):
             self.assertEqual(field_node[0].get("can_" + method), "True")
 
     def test_get_views_fields(self):
-        """Tests fields restricted to group_test are not passed when calling `get_views` as demo
-        but the same fields are well passed when calling `get_views` as admin"""
+        """``get_views`` hides group-restricted fields from demo but not from admin."""
         Partner = self.env["res.partner"]
         self._set_field_groups(Partner, "email", self.TEST_GROUP)
         views = Partner.with_user(self.user_demo).get_views([(False, "form")])

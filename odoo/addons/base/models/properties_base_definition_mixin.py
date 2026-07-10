@@ -42,9 +42,8 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
         :return: ``Domain.TRUE`` or ``Domain.FALSE``
         :rtype: Domain
         """
-        # Known upstream-inherited limitation: every model that uses properties
-        # is expected to be searched with the normalized ``in`` operator, so any
-        # other operator is rejected outright rather than silently mishandled.
+        # Upstream limitation: properties are only searched with the normalized
+        # ``in`` operator; reject anything else rather than mishandle it.
         if operator != "in":
             raise NotImplementedError(
                 f"Unsupported operator {operator!r} for properties_base_definition_id"
@@ -76,12 +75,8 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
     def _field_to_sql(self, alias: str, fname: str, query: Any = None) -> SQL:
         """Render the non-stored definition field as a constant for export/read.
 
-        :param str alias: SQL table alias of the queried model
-        :param str fname: field name being rendered
-        :param query: ongoing query (loosely typed as ``Any`` to match the
-            untyped ``BaseModel._field_to_sql`` signature it overrides)
-        :return: the SQL fragment for ``fname``
-        :rtype: SQL
+        ``query`` is typed ``Any`` to match the untyped ``BaseModel._field_to_sql``
+        signature it overrides.
         """
         if fname == "properties_base_definition_id":
             # Allow the export to work

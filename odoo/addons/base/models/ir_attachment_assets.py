@@ -16,16 +16,13 @@ class IrAttachment(models.Model):
     _ESM_GC_GRACE_DAYS = 7
 
     def unlink(self) -> bool:
-        # Deleting an asset-bundle attachment must also drop the "assets"
-        # ormcache, which stores rendered asset nodes embedding the bundle URL:
-        # a cached node that outlives its attachment is a hard 404 on the next
-        # request (the ESM serve path, unlike the classic /web/assets
-        # controller, has no on-the-fly rebuild). clear_cache() also signals
-        # other workers. The hot build-time version rotation goes through
-        # _unlink_attachments' raw SQL, which bypasses this on purpose to avoid
-        # cross-worker thrash and only ever drops already-superseded versions.
-        # Captured before super().unlink() empties the recordset; the cache is
-        # cleared after, once the rows are actually gone.
+        # Deleting an asset-bundle attachment must drop the "assets" ormcache
+        # too: it stores rendered nodes embedding the bundle URL, and a cached
+        # node outliving its attachment is a hard 404 (the ESM serve path has
+        # no on-the-fly rebuild, unlike the classic /web/assets controller).
+        # Build-time version rotation bypasses this via _unlink_attachments' raw
+        # SQL to avoid cross-worker thrash. Captured before super() empties the
+        # recordset; cache cleared after, once the rows are gone.
         clear_assets = any(
             url and url.startswith("/web/assets/") for url in self.mapped("url")
         )
@@ -36,20 +33,13 @@ class IrAttachment(models.Model):
 
     @api.model
     def _generated_asset_domain(self) -> Domain:
-        """Return the domain identifying ALL server-generated web-asset rows.
+        """Return the domain matching ALL server-generated web-asset rows.
 
-        The identity shared by the asset GC and bundle regeneration: a public,
-        ir.ui.view-owned (``res_id=0``) attachment created by the superuser
-        whose ``url`` lives under ``/web/assets/``.
-
-        This matches EVERY server-generated asset attachment — classic
-        ``.min.js``/``.min.css`` bundles included — not only the ESM
-        pipeline's artifacts (the method's historical name,
-        ``_esm_asset_domain``, invited over-deletion by callers assuming
-        an ESM-only match). Callers that must touch only ESM artifacts
-        use :meth:`_esm_generated_asset_domain` instead.
-
-        :rtype: Domain
+        A public, ir.ui.view-owned (``res_id=0``) attachment created by the
+        superuser with a ``url`` under ``/web/assets/``. Matches EVERY
+        server-generated asset — classic ``.min.js``/``.min.css`` bundles
+        included — not only ESM artifacts; callers needing only ESM rows use
+        :meth:`_esm_generated_asset_domain`.
         """
         return Domain(
             [
@@ -65,14 +55,10 @@ class IrAttachment(models.Model):
     def _esm_generated_asset_domain(self) -> Domain:
         """Return the domain matching ESM-pipeline artifacts only.
 
-        Narrows :meth:`_generated_asset_domain` to the rows created by
+        Narrows :meth:`_generated_asset_domain` to rows created by
         ``IrQweb._save_esm_attachment`` / ``_save_esm_sidecar`` /
-        ``BridgeShimManager._persist_bridge_shims``. The name suffixes also
-        catch the legacy ``/web/assets/<ver>/<bundle>.esm.js`` layout while
-        excluding the classic ``.min.js`` bundles, which have their own
-        rotation.
-
-        :rtype: Domain
+        ``BridgeShimManager._persist_bridge_shims``, excluding the classic
+        ``.min.js`` bundles (which have their own rotation).
         """
         return self._generated_asset_domain() & Domain.OR(
             [
@@ -87,19 +73,17 @@ class IrAttachment(models.Model):
     def _gc_esm_assets(self) -> None:
         """Sweep superseded ESM bundle artifacts and aged bridge shims.
 
-        Bundle rebuilds do not delete the previous version inline (the row
-        must keep serving in-flight pages, stale CDN HTML and workers that
-        have not yet processed the cache-clear signal); this vacuum deletes
-        superseded rows once they are older than the grace window, always
-        keeping the newest row per artifact name — a stable bundle's only
-        row may be years old and must survive.
+        Rebuilds do not delete the previous version inline (it must keep
+        serving in-flight pages and not-yet-signalled workers); this vacuum
+        deletes superseded rows past the grace window but always keeps the
+        newest row per artifact name — a stable bundle's only row may be years
+        old and must survive.
 
         Bridge shims (``/web/assets/esm/bridges/<hash>.js``) are
-        content-addressed and re-persisted on the next read-write render
-        after the cache clear that ``unlink()`` triggers, so age alone is a
-        safe criterion for them; a page older than the grace window doing
-        its first lazy import of a swept shim 404s until reload — accepted,
-        the alternative was unbounded row growth (no other GC path exists).
+        content-addressed and re-persisted on the next read-write render after
+        ``unlink()``'s cache clear, so age alone is safe for them. A page past
+        the grace window lazily importing a swept shim 404s until reload —
+        accepted; the alternative is unbounded row growth.
         """
         get_param = self.env["ir.config_parameter"].sudo().get_param
         try:
@@ -109,12 +93,10 @@ class IrAttachment(models.Model):
         except TypeError, ValueError:
             grace_days = self._ESM_GC_GRACE_DAYS
         # Floor at one day: 0/negative makes cutoff >= now and sweeps every
-        # bridge (which has no newest-per-name protection) on every run.
+        # bridge (no newest-per-name protection) on every run.
         grace_days = max(1, grace_days)
         cutoff = fields.Datetime.now() - timedelta(days=grace_days)
 
-        # Asset rows as created by _save_esm_attachment / _save_esm_sidecar /
-        # _persist_bridge_shims (see _esm_generated_asset_domain).
         candidates = self.sudo().search(
             self._esm_generated_asset_domain() & Domain("write_date", "<", cutoff)
         )
@@ -127,25 +109,22 @@ class IrAttachment(models.Model):
         artifacts = candidates - bridges
         stale_artifacts = self.browse()
         if artifacts:
-            # The newest row per name is the live version. It must be
-            # computed over ALL rows of that name — not just the over-grace
-            # candidates — otherwise a superseded row whose successor is
-            # younger than the cutoff would pose as "newest" forever.
+            # The newest row per name is live. Compute it over ALL rows of
+            # that name (not just over-grace candidates), else a superseded row
+            # whose successor is younger than the cutoff poses as "newest"
+            # forever.
             #
-            # "Newest" means freshest ``write_date`` (id as tie-break), NOT
-            # max id: content-addressed saves REUSE an existing row when a
-            # bundle's content reverts (deploy rollback: content A → B →
-            # back to A), and the render path bumps the reused row's
+            # "Newest" = freshest ``write_date`` (id tie-break), NOT max id:
+            # content-addressed saves REUSE a row when content reverts (rollback
+            # A → B → A), and the render path bumps the reused row's
             # ``write_date`` on every uncached reuse
-            # (``IrQweb._persist_esm_attachment_rows``).  Max-id liveness
-            # would keep calling B — the abandoned newer row — live and
-            # sweep A, the row every cached node URL actually points at
-            # (hard 404: the ESM serve path has no rebuild).
+            # (``IrQweb._persist_esm_attachment_rows``). Max-id liveness would
+            # keep B (the abandoned newer row) live and sweep A, the row every
+            # cached node URL points at (hard 404: no ESM rebuild).
             live_ids = set()
             _seen_names = set()
-            # Same population as `candidates` (minus the grace/suffix
-            # filters): a serving-group user could otherwise create a
-            # same-named row that poses as "newest", marking the real
+            # Same population as `candidates` minus the grace/suffix filters,
+            # so a same-named row can't pose as "newest" and mark the real
             # bundle stale.
             for att in self.sudo().search(
                 self._generated_asset_domain()
@@ -159,10 +138,10 @@ class IrAttachment(models.Model):
 
         to_gc = stale_artifacts | bridges
         if to_gc:
-            # unlink() handles the filestore entries and, because the URLs
-            # are under /web/assets/, clears the "assets" ormcache so the
-            # next render re-persists any bridge shim still in use (same
-            # content hash, same URL — browser caches stay valid).
+            # unlink() drops the filestore entries and, since the URLs are
+            # under /web/assets/, clears the "assets" ormcache so the next
+            # render re-persists any bridge shim still in use (same content
+            # hash and URL — browser caches stay valid).
             to_gc.unlink()
             _logger.info(
                 "GC'd %d stale ESM artifact(s) and %d aged bridge shim(s) "

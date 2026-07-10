@@ -22,7 +22,7 @@ class TestResConfig(TransactionCase):
         self.error_msg_wo_menu = (
             "WarningRedirect test string: %(field:res.partner.lang)s."
         )
-        # Note: see the get_config_warning() doc for a better example
+        # See get_config_warning() doc for a better example
 
         # Fetch the expected values
         menu = self.env.ref(self.menu_xml_id)
@@ -89,13 +89,10 @@ class TestResConfig(TransactionCase):
 
     # TODO: ASK DLE if this test can be removed
     def test_40_view_expected_architecture(self):
-        """Tests the res.config.settings form view architecture expected by the web client.
-        The res.config.settings form view is handled with a custom widget expecting a very specific
-        structure. This architecture is tested extensively in Javascript unit tests.
-        Here we briefly ensure the view sent by the server to the web client has the right architecture,
-        the right blocks with the right classes in the right order.
-        This tests is to ensure the specification/requirements are listed and tested server side, and
-        if a change occurs in future development, this test will need to be adapted to specify these changes.
+        """Ensure the res.config.settings form view sent to the web client has
+        the structure its custom widget expects (blocks, classes, order).
+
+        Tested extensively in JS unit tests; this is the server-side check.
         """
         view = self.env["ir.ui.view"].create(
             {
@@ -126,9 +123,8 @@ class TestResConfig(TransactionCase):
 
     # TODO: ASK DLE if this test can be removed
     def test_50_view_expected_architecture_t_node_groups(self):
-        """Tests the behavior of the res.config.settings form view postprocessing when a block `app`
-        is wrapped in a `<t groups="...">`, which is used when you need to display an app settings section
-        only for users part of two groups at the same time."""
+        """Form view postprocessing when an `app` block is wrapped in a
+        `<t groups="...">` (used to gate a section on two groups at once)."""
         view = self.env["ir.ui.view"].create(
             {
                 "name": "foo",
@@ -247,10 +243,8 @@ class TestResConfigClassification(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestResConfigExecute(TransactionCase):
     def test_01_execute_res_config(self):
-        """
-        Try to create and execute all res_config models. Target settings that can't be
-        loaded or saved and avoid remaining methods `get_default_foo` or `set_foo` that
-        won't be executed is foo != `fields`
+        """Create and execute every res.config.settings model, surfacing any
+        that can't be loaded or saved.
         """
         all_config_settings = self.env["ir.model"].search(
             [("name", "like", "config.settings")]

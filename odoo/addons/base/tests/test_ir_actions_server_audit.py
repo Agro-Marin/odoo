@@ -1,8 +1,5 @@
-"""Audit tests for ir.actions.server.
-
-Covers the required ``action`` parameter of ``_get_eval_context`` (the override
-derives its context from ``action.model_id``, so a missing action could only
-crash later on ``None.model_id``) and the immutability of the ormcached
+"""Audit tests for ir.actions.server: the required ``action`` parameter of
+``_get_eval_context`` and the immutability of the ormcached
 ``_selection_target_model`` result.
 """
 
@@ -18,11 +15,10 @@ class TestServerActionEvalContext(TransactionCase):
     """_get_eval_context requires the server action it is evaluated for."""
 
     def test_eval_context_requires_action(self):
-        # Lock the base override's signature rather than calling with zero
-        # args: downstream overrides (e.g. mail's) may still declare an
-        # action=None default, so the runtime failure mode of a zero-arg call
-        # depends on which modules are installed. The audited contract is
-        # that ir.actions.server's own override takes a required action.
+        # Assert on the signature, not a zero-arg call: downstream overrides
+        # (e.g. mail's) may declare action=None, so a zero-arg call's failure
+        # mode depends on installed modules. The contract is that this override
+        # takes a required action.
         parameter = inspect.signature(IrActionsServer._get_eval_context).parameters[
             "action"
         ]
@@ -49,9 +45,8 @@ class TestServerActionEvalContext(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSelectionTargetModelCache(TransactionCase):
-    """The ormcached model-selection list must be an immutable tuple: the
-    cached value is shared across callers, so a mutable list would let one
-    caller corrupt the cache for everyone."""
+    """The ormcached model-selection list must be an immutable tuple, since the
+    cached value is shared across callers."""
 
     def test_returns_immutable_tuple_of_tuples(self):
         ServerAction = self.env["ir.actions.server"]

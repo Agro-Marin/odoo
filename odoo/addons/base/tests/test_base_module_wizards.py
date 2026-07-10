@@ -7,11 +7,10 @@ from odoo.tools import mute_logger
 class TestBaseModuleWizards(TransactionCase):
     """Audit Tranche 4 coverage for the base module wizards.
 
-    Pins the access/audit gate on the upgrade-apply step (BMUPG-L1), the
-    cancel inverse-mapping (BMUPG-M1), and the uninstall display-vs-actual
-    invariant (T-BMUN1). Every test runs fully in-transaction on synthetic
-    ir.module.module records; none triggers a real Registry rebuild
-    (no button_immediate_* / upgrade_module apply is executed).
+    Pins the upgrade-apply access gate (BMUPG-L1), the cancel inverse-mapping
+    (BMUPG-M1), and the uninstall display-vs-actual invariant (T-BMUN1). Every
+    test runs in-transaction on synthetic ir.module.module records; none
+    triggers a real Registry rebuild.
     """
 
     def setUp(self):
@@ -66,11 +65,10 @@ class TestBaseModuleWizards(TransactionCase):
             wizard.with_user(self.plain_user).upgrade_module()
 
     def test_upgrade_module_allows_admin_until_apply(self):
-        """BMUPG-L1: the admin gate is a no-op for a legitimate admin.
+        """BMUPG-L1: the admin gate lets a legitimate admin through.
 
-        The decorator must let an admin through to the method body. We assert
-        the precondition guard runs (it raises UserError on an uninstalled
-        dependency) rather than AccessDenied — proving the gate passed without
+        Assert the precondition guard runs (UserError on an uninstalled
+        dependency) rather than AccessDenied, proving the gate passed without
         reaching the real commit/Registry.new apply.
         """
         mod = self._make_module("wizard_upg_root", "to install")
@@ -100,14 +98,13 @@ class TestBaseModuleWizards(TransactionCase):
         self.assertEqual(to_install.state, "uninstalled")
 
     def test_uninstall_actual_set_covers_hidden_dependent(self):
-        """T-BMUN1: the actual uninstall closure is complete even when the
-        display set hides a technical dependent (show_all=False).
+        """T-BMUN1: the actual uninstall closure includes a technical dependent
+        that the display set hides (show_all=False).
 
-        Graph: a technical (non-application) module depends on an application
-        root. With show_all=False the technical dependent is filtered OUT of
-        impacted_module_ids (display), but _get_modules() (the closure the
-        real uninstall uses) must still include it. Pins the display-vs-actual
-        contract so a future refactor cannot silently under-uninstall.
+        A technical (non-application) module depends on an application root.
+        With show_all=False it is filtered OUT of impacted_module_ids (display),
+        but _get_modules() (the closure the real uninstall uses) must still
+        include it, so a refactor cannot silently under-uninstall.
         """
         root = self._make_module("wizard_uninst_root", "installed", application=True)
         tech_dep = self._make_module(

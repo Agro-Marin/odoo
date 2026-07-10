@@ -90,7 +90,6 @@ class TestPdf(TransactionCase):
         branded_content = writer_buffer.getvalue()
         writer_buffer.close()
 
-        # Read the metadata of the newly created pdf.
         reader_buffer = io.BytesIO(branded_content)
         pdf_reader = pdf.PdfFileReader(reader_buffer)
         pdf_info = pdf_reader.metadata
@@ -103,9 +102,7 @@ class TestPdf(TransactionCase):
         self.minimal_reader_buffer.close()
 
     def test_reshaping_non_arabic_text(self):
-        """
-        Test that reshaper doesn't alter non-Arabic text.
-        """
+        """Reshaper doesn't alter non-Arabic text."""
         english_text = "Hello, I'm just an English text"
         processed_text = reshape_text(english_text)
         self.assertEqual(
@@ -121,9 +118,7 @@ class TestPdf(TransactionCase):
         )
 
     def test_reshaping_arabic_text(self):
-        """
-        Test reshaping is applied properly on Arabic text.
-        """
+        """Reshaping is applied properly on Arabic text."""
         text = "بث مباشر"
         processed_text = reshape_text(text)
         expected_shapes = ["ﺮ", "ﺷ", "ﺎ", "ﺒ", "ﻣ", " ", "ﺚ", "ﺑ"]

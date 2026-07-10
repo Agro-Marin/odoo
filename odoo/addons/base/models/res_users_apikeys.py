@@ -20,9 +20,8 @@ _logger = logging.getLogger(__name__)
 API_KEY_SIZE = 20  # in bytes
 INDEX_SIZE = 8  # in hex digits, so 4 bytes, or 20% of the key
 KEY_CRYPT_CONTEXT = CryptContext(
-    # default is 29000 rounds which is 25~50ms, which is probably unnecessary
-    # given in this case all the keys are completely random data: dictionary
-    # attacks on API keys isn't much of a concern
+    # default 29000 rounds (25~50ms) is unnecessary here: keys are fully random,
+    # so dictionary attacks aren't a concern
     ["pbkdf2_sha512"],
     pbkdf2_sha512__rounds=6000,
 )
@@ -91,8 +90,9 @@ class ResUsersApikeys(models.Model):
     def _remove(self) -> dict[str, str]:
         """Remove the API key(s) without an identity check.
 
-        Use :meth:`remove` for the identity-checked path; this variant skips the
-        check (mainly to remove trusted devices)."""
+        Use :meth:`remove` for the identity-checked path; this variant skips it
+        (mainly to remove trusted devices).
+        """
         if not self:
             return {"type": "ir.actions.act_window_close"}
         if self.env.is_system() or self.mapped("user_id") == self.env.user:
@@ -115,16 +115,13 @@ class ResUsersApikeys(models.Model):
     def unlink(self) -> bool:
         # AK-P2 (audit 2026-07-06): revoking a key MUST drop the memoised
         # credential check. `res.users._check_uid_passwd_cached` memoises
-        # *successful* authentications -- including the API-key path -- in the
-        # registry's `default` cache (see the invalidation contract documented
-        # on that method in res_users.py); without this clear, a revoked key
-        # keeps authenticating RPC until an unrelated cache invalidation.
-        # Clearing here (rather than only in `_remove`) also covers direct
-        # deletion through `res.users.api_key_ids` -- a SELF_WRITEABLE_FIELDS
-        # one2many, so `Command.delete` bypasses `_remove` entirely and
-        # `api_key_ids` is not in `_get_invalidation_fields`. Key *creation*
-        # needs no clear: a failed check raises and ormcache memoises return
-        # values, not exceptions (see the note in `_generate`).
+        # *successful* authentications (including the API-key path); without this
+        # clear a revoked key keeps authenticating RPC until an unrelated
+        # invalidation. Clearing here rather than only in `_remove` also covers
+        # direct deletion via `res.users.api_key_ids` (a SELF_WRITEABLE_FIELDS
+        # one2many, so `Command.delete` bypasses `_remove`). Key creation needs
+        # no clear: a failed check raises and ormcache memoises values, not
+        # exceptions.
         res = super().unlink()
         self.env.registry.clear_cache()
         return res
@@ -140,13 +137,10 @@ class ResUsersApikeys(models.Model):
         """
         # AK-L1 (audit 2026-05-28, S3 latent, accepted): candidate rows are
         # narrowed by `index = key[:INDEX_SIZE]`, the first 8 hex chars (32 bits)
-        # of the key stored in cleartext for lookup performance. This is a
-        # deliberate, documented trade-off — the full secret is only ever stored
-        # as a salted pbkdf2 hash, so an attacker with DB read access still faces
-        # the remaining 128 bits (2^128, infeasible); the cleartext prefix only
-        # shaves the nominal margin. The number of verify() calls scales with
-        # prefix collisions (content-dependent), not with the secret, so it is
-        # not a practical key-recovery timing oracle. No code change required.
+        # stored in cleartext for lookup speed. Deliberate trade-off: the full
+        # secret is only stored as a salted pbkdf2 hash, so DB read access still
+        # leaves the remaining 128 bits infeasible. verify() calls scale with
+        # prefix collisions, not the secret, so this is not a timing oracle.
         if not scope or not key:
             msg = "scope and key required"
             raise ValueError(msg)
@@ -177,11 +171,8 @@ class ResUsersApikeys(models.Model):
     def _get_max_duration(self) -> float:
         """Return the maximum API-key duration (in days) for ``self.env.user``.
 
-        The maximum is the highest ``api_key_duration`` across the user's
-        groups. Deliberate decision point: a user whose groups grant no
-        duration at all (``max(..., default=0.0)`` yields ``0.0``, which is
-        also the falsy value of an unset ``api_key_duration``) is coerced to
-        1.0 day rather than being denied key creation outright.
+        The highest ``api_key_duration`` across the user's groups; a user whose
+        groups grant none is coerced to 1.0 day rather than denied key creation.
         """
         return (
             max(
@@ -198,16 +189,15 @@ class ResUsersApikeys(models.Model):
         :raises ValidationError: when a non-system user omits the date or exceeds
             the maximum duration allowed by their group privileges.
         """
-        # A system (or sudoed) user may create a persistent key (no expiration
-        # date) or exceed the maximum duration determined by the user's privileges.
+        # A system (or sudoed) user may create a persistent key or exceed the
+        # user's maximum duration.
         if self.env.is_system():
             return
         if not date:
             raise ValidationError(_("The API key must have an expiration date"))
         max_duration = self._get_max_duration()
-        # fields.Datetime.now() is the same naive-UTC value as
-        # datetime.now(UTC).replace(tzinfo=None) but is freeze-time patchable,
-        # matching _compute_expiration_date.
+        # fields.Datetime.now() is freeze-time patchable (matching
+        # _compute_expiration_date), unlike datetime.now(UTC).
         if date > fields.Datetime.now() + datetime.timedelta(days=max_duration):
             raise ValidationError(
                 _("You cannot exceed %(duration)s days.", duration=max_duration)
@@ -230,10 +220,9 @@ class ResUsersApikeys(models.Model):
         :raises AccessError: when ``self.env.user`` is not an internal user.
         """
         # AK-P1 (audit 2026-05-28): enforce the "only internal users hold API
-        # keys" invariant at the minting primitive itself, not only at the
-        # make_key UI path, so any in-process caller of _generate is self-guarded.
-        # To use a duration greater than that allowed by the user's privileges
-        # this must be called in a sudoed environment (env.is_system()).
+        # keys" invariant at the minting primitive, not only the make_key UI
+        # path, so any caller of _generate is self-guarded. Exceeding the user's
+        # max duration requires a sudoed env (env.is_system()).
         if not self.env.user._is_internal():
             raise AccessError(_("Only internal users can create API keys"))
         self._check_expiration_date(expiration_date)

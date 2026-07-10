@@ -22,13 +22,11 @@ _logger = logging.getLogger(__name__)
 @odoo.tests.tagged("post_install", "-at_install", "post_install_l10n")
 class TestReports(odoo.tests.TransactionCase):
     def test_get_report_rejects_bool_reference(self):
-        """``_get_report`` must reject bool refs consistently.
+        """Reject bool refs like unknown strings.
 
-        ``bool`` is an ``int`` subclass: without an explicit guard,
-        ``_get_report(False)`` silently browsed an empty recordset and
-        ``_get_report(True)`` crashed with an opaque ``TypeError`` in
-        ``browse()``. Both must now raise ``ValueError`` like the
-        unknown-string case.
+        ``bool`` is an ``int`` subclass, so without a guard ``_get_report(False)``
+        browsed an empty recordset and ``_get_report(True)`` crashed in
+        ``browse()``. Both must raise ``ValueError``.
         """
         Report = self.env["ir.actions.report"]
         for ref in (False, True):
@@ -39,12 +37,10 @@ class TestReports(odoo.tests.TransactionCase):
         """Each body must render with its OWN stylesheets, not the first body's.
 
         Regression: in a mixed-language batch, bodies reference direction-specific
-        bundles (``...rtl.min.css`` vs ``...min.css``). ``_preparse_external_css``
-        used to parse only the first body's ``<link>``s and apply them to every
-        body, leaving other bodies' links unstripped and bleeding the first body's
-        (e.g. LTR) CSS onto them.
+        bundles (rtl vs ltr). ``_preparse_external_css`` used to parse only the
+        first body's ``<link>``s and apply them to every body, bleeding the first
+        body's CSS onto the others.
         """
-        # Built from the model's dependency factory; no report record needed.
         engine = self.env["ir.actions.report"]._build_weasyprint_engine()
         ltr = (
             '<html><head><link rel="stylesheet" href="/a/ltr.css"/></head>'
@@ -54,18 +50,16 @@ class TestReports(odoo.tests.TransactionCase):
             '<html><head><link rel="stylesheet" href="/a/rtl.css"/></head>'
             "<body>y</body></html>"
         )
-        # Stub the parsed-CSS map (sentinels) so we exercise the routing logic
-        # without hitting WeasyPrint's fetcher/parser.
+        # Stub the parsed-CSS map so routing is exercised without WeasyPrint.
         ltr_css, rtl_css = object(), object()
         parsed_by_url = {"/a/ltr.css": ltr_css, "/a/rtl.css": rtl_css}
 
         html0, css0 = engine._process_body_html(ltr, "", parsed_by_url)
         html1, css1 = engine._process_body_html(rtl, "", parsed_by_url)
 
-        # Each body keeps only its own stylesheet...
+        # Each body keeps only its own stylesheet, and its <link> is stripped.
         self.assertEqual(css0, [ltr_css])
         self.assertEqual(css1, [rtl_css])
-        # ...and no <link> survives in either body (all pre-parsed links stripped).
         self.assertNotIn("stylesheet", html0)
         self.assertNotIn("stylesheet", html1)
 
@@ -81,9 +75,9 @@ class TestReports(odoo.tests.TransactionCase):
     def test_render_entry_points_do_not_mutate_caller_data(self):
         """Render entry points must copy ``data`` before mutating it.
 
-        Previously ``data.setdefault("report_type", ...)`` injected a key into
-        the caller's dict as a side effect. The unknown report ref raises after
-        the defensive copy, so the caller's dict must be untouched.
+        ``data.setdefault("report_type", ...)`` used to inject a key into the
+        caller's dict. The unknown ref raises after the defensive copy, so the
+        caller's dict must be untouched.
         """
         Report = self.env["ir.actions.report"]
         data = {"foo": "bar"}
@@ -95,10 +89,10 @@ class TestReports(odoo.tests.TransactionCase):
         """Concurrent tolerant-font renders must not leak the fontTools patch.
 
         ``_write_pdf_tolerant_fonts`` monkey-patches a process-global fontTools
-        method. Without serialization, a restore-order race between two
-        concurrent tolerant renders makes the second capture the first's patched
-        function as its "original" and reinstall it permanently. Assert the
-        patch/restore window is mutually exclusive and the global is restored.
+        method. Without serialization, a restore-order race lets the second
+        render capture the first's patched function as its "original" and
+        reinstall it permanently. Assert the patch window is mutually exclusive
+        and the global is restored.
         """
         from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
 
@@ -113,7 +107,7 @@ class TestReports(odoo.tests.TransactionCase):
                 pass
 
             def write_pdf(self, **kwargs):
-                # Runs inside the patched critical section of the function.
+                # Runs inside the patched critical section.
                 with counter_lock:
                     state["cur"] += 1
                     state["max"] = max(state["max"], state["cur"])
@@ -276,10 +270,9 @@ class TestReports(odoo.tests.TransactionCase):
     def test_reload_from_attachment_null_mimetype(self):
         """A reused attachment with a NULL mimetype must not crash generation.
 
-        ``ir.attachment.mimetype`` is a nullable Char; the ORM always populates
-        it, but a migration / external import / raw SQL can leave it NULL. The
-        image-conversion check in ``_render_qweb_pdf_prepare_streams`` must guard
-        against that, like the other mimetype reads in the model do.
+        ``mimetype`` is a nullable Char the ORM always populates, but a migration
+        or raw SQL can leave it NULL. The image-conversion check in
+        ``_render_qweb_pdf_prepare_streams`` must guard against that.
         """
         report = self.env["ir.actions.report"].create(
             {
@@ -328,9 +321,7 @@ PAPER_SIZES = {
 
 
 class Box:
-    """
-    Utility class to help assertions
-    """
+    """Position helper for PDF layout assertions."""
 
     def __init__(self, obj, page_height, page_width):
         self.x1 = round(obj.x0, 1)
@@ -420,9 +411,10 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
         super()._addError(result, test, exc_info)
 
     def get_paper_format(self, mediabox):
-        """
-        :param: mediabox: a page mediabox. (Example: (0, 0, 595, 842))
-        :return: a (format, orientation). Example ('A4', 'portait')
+        """Return ``(format, orientation)`` for a page mediabox.
+
+        :param mediabox: a page mediabox, e.g. ``(0, 0, 595, 842)``
+        :return: e.g. ``('A4', 'portait')``
         """
         x, y, width, height = mediabox
         self.assertEqual(
@@ -483,8 +475,8 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
                     </t>
                 </t>
             """
-        # this templates doesn't use the "web.external_layout" in order to simplify the final result and make the edition of footer and header easier
-        # this test does not aims to test company base.document.layout, but the rendering only.
+        # No web.external_layout: keeps header/footer editing simple; this tests
+        # rendering only, not company base.document.layout.
         if partners is None:
             partners = self.partners
         self.last_pdf_content = (
@@ -512,12 +504,13 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
         return list(PDFPage.create_pages(doc))
 
     def _parse_pdf(self, pdf_content, expected_format=("A4", "portait")):
-        """
-        :param: pdf_content: the bdf binary content
-        :param: expected_format: a get_paper_format like format.
-        :return: list[list[(box, Element)]] a list of element per page
-        Note: box is a 4 float tuple based on the top left corner to ease ordering of elements.
-        The result is also rounded to one digit
+        """Return parsed elements per page.
+
+        :param pdf_content: the PDF binary content
+        :param expected_format: a get_paper_format-like format
+        :return: list[list[(box, Element)]], one list of elements per page.
+            ``box`` is a 4-float tuple from the top-left corner (to ease
+            ordering), rounded to one digit.
         """
         pages = self._get_pdf_pages(pdf_content)
         ressource_manager = PDFResourceManager()
@@ -564,12 +557,11 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
 
 @odoo.tests.tagged("post_install", "-at_install", "pdf_rendering")
 class TestReportsRendering(TestReportsRenderingCommon):
-    """
-    This test aims to test as much as possible the current pdf rendering,
-    especially multipage headers and footers (via CSS running elements).
-    A custom template without web.external_layout is used on purpose in order to
-    easily test headers and footer regarding rendering only,
-    without using any company document.layout logic.
+    """Exercise PDF rendering, especially multipage headers/footers via CSS
+    running elements.
+
+    A custom template without web.external_layout is used on purpose to test
+    rendering only, without any company document.layout logic.
     """
 
     def test_format_A4(self):
@@ -665,9 +657,9 @@ class TestReportsRendering(TestReportsRenderingCommon):
         """Drive the split and large-batch memory-bounded paths directly.
 
         ``split`` returns one PDF per body; a non-split batch above
-        ``report.weasyprint_native_merge_max`` serializes each body
-        incrementally and merges with pypdf.  Both are exercised here on plain
-        inline HTML (no assets), independent of the report pipeline.
+        ``report.weasyprint_native_merge_max`` merges incrementally with pypdf.
+        Both are exercised on plain inline HTML, independent of the report
+        pipeline.
         """
         report_model = self.env["ir.actions.report"]
         engine = report_model._build_weasyprint_engine()
@@ -685,8 +677,8 @@ class TestReportsRendering(TestReportsRenderingCommon):
             self.assertEqual(len(self._get_pdf_pages(pdf)), 1)
 
         # Threshold 1 (< 3 bodies) forces the incremental pypdf merge path.
-        # The threshold is now frozen at construction (dependency-injected),
-        # so rebuild the engine after changing the config parameter.
+        # The threshold is frozen at construction, so rebuild the engine after
+        # changing the config parameter.
         self.env["ir.config_parameter"].sudo().set_param(
             "report.weasyprint_native_merge_max", "1"
         )
@@ -698,10 +690,9 @@ class TestReportsRendering(TestReportsRenderingCommon):
     def test_batch_bounded_merge_matches_native(self):
         """The large-batch pypdf merge must equal WeasyPrint's native merge.
 
-        Rendering the same records once with the native ``Document.copy()``
-        merge (threshold above the batch size) and once with the memory-bounded
-        incremental merge (threshold below it) must yield the same page count
-        and per-page content — the memory optimisation changes cost, not output.
+        Rendering the same records with the native ``Document.copy()`` merge and
+        with the memory-bounded incremental merge must yield the same pages: the
+        optimisation changes cost, not output.
         """
         partners = self.env["res.partner"].create(
             [{"name": f"Batch record {i}"} for i in range(3)]
@@ -896,10 +887,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.assertEqual(pages_contents, expected_pages_contents)
 
     def test_report_specific_paperformat_args(self):
-        """
-        Verify that the values defined in `specific_paperformat_args` take
-        precedence over those in the paperformat when building @page CSS.
-        """
+        """`specific_paperformat_args` must override the paperformat in @page CSS."""
         css = self.env["ir.actions.report"]._paperformat_to_css(
             self.env["report.paperformat"].new(
                 {
@@ -934,11 +922,8 @@ class TestReportsRendering(TestReportsRenderingCommon):
         """data-report-landscape in specific_paperformat_args must force landscape.
 
         Regression: _paperformat_to_css read specific_paperformat_args for margins
-        but never for the landscape attribute, so templates that set::
-
-            <t t-set="data_report_landscape" t-value="True"/>
-
-        produced portrait PDFs instead of landscape ones.
+        but not for the landscape attribute, so ``data_report_landscape=True``
+        produced portrait PDFs.
         """
         Report = self.env["ir.actions.report"]
         pf = self.env["report.paperformat"].new(
@@ -980,13 +965,13 @@ class TestReportsRendering(TestReportsRenderingCommon):
 
     def test_format_landscape_from_template_attribute(self):
         """QWeb data_report_landscape=True forces a landscape PDF even when the
-        paperformat record has orientation=Portrait.
+        paperformat record is Portrait.
 
-        This is the full end-to-end regression test: the template variable
-        ``data_report_landscape`` renders as ``data-report-landscape="True"`` on
-        the HTML root element, which ``_prepare_weasyprint_html`` captures into
-        ``specific_paperformat_args``, which ``_paperformat_to_css`` must then
-        honour.  Two partners are used so the multi-record render path is also exercised.
+        End-to-end: ``data_report_landscape`` renders as
+        ``data-report-landscape="True"`` on the HTML root, which
+        ``_prepare_weasyprint_html`` captures into ``specific_paperformat_args``
+        for ``_paperformat_to_css`` to honour. Two partners also exercise the
+        multi-record path.
         """
         paper_format = self.env.ref("base.paperformat_euro")
         paper_format.orientation = "Portrait"
@@ -1022,11 +1007,11 @@ class TestReportsRendering(TestReportsRenderingCommon):
             )
 
     def test_paperformat_to_css_bad_margin(self):
-        """A malformed data-report-margin-* attribute falls back to the
-        paperformat value instead of raising ValueError (IAR-L4).
+        """A malformed data-report-margin-* falls back to the paperformat value
+        instead of raising ValueError (IAR-L4).
 
-        Templates supply data-report-margin-top/-bottom as strings; a value
-        like "2cm" must not crash the render with an uncaught HTTP 500.
+        Templates supply these as strings; a value like "2cm" must not crash the
+        render with an uncaught HTTP 500.
         """
         Report = self.env["ir.actions.report"]
         pf = self.env["report.paperformat"].new(
@@ -1055,9 +1040,9 @@ class TestReportsRendering(TestReportsRenderingCommon):
 
         Exercises the real WeasyPrint -> PyMuPDF -> PIL path (no stub). The
         method early-returns ``[None] * len(bodies)`` under ``current_test``, so
-        we clear that guard to cover the actual rasterize/resize/format logic
-        (IAR-T1). Regression guard: WeasyPrint 68 has no ``write_png``, so a
-        stubbed backend would hide a fully broken method.
+        we clear that guard to cover the real rasterize/resize/format logic
+        (IAR-T1). WeasyPrint 68 has no ``write_png``, so a stubbed backend would
+        hide a fully broken method.
         """
         Report = self.env["ir.actions.report"]
 
@@ -1087,10 +1072,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
 @odoo.tests.tagged("post_install", "-at_install", "-standard", "pdf_rendering")
 class TestReportsRenderingLimitations(TestReportsRenderingCommon):
     def test_no_clip(self):
-        """
-        Current version will add a fixed margin on top of document
-        This test demonstrates this limitation
-        """
+        """Demonstrate the limitation: a fixed margin is added on top of the document."""
         header_content = """
             <div style="background-color:blue">
                 <div t-foreach="range(15)" t-as="pos" t-esc="'Header %s' % pos"/>
@@ -1103,7 +1085,7 @@ class TestReportsRenderingLimitations(TestReportsRenderingCommon):
                 </div>
             </div>
         """
-        # adding a margin on page to avoid bot block to me considered as the same
+        # page margin keeps header and body from being read as the same box
         pdf_content = self.create_pdf(
             page_content=page_content, header_content=header_content
         )
@@ -1144,10 +1126,9 @@ class TestAggregatePdfReports(odoo.tests.HttpCase):
     def test_aggregate_report_with_some_resources_reloaded_from_attachment(
         self,
     ):
-        """
-        Test for opw-3827700, which caused reports generated for multiple records to fail if there was a record in
-        the middle that had an attachment, and 'Reload from attachment' was enabled for the report. The misbehavior was
-        caused by an indexing issue.
+        """Regression opw-3827700: a multi-record report failed when a middle
+        record had an attachment and 'Reload from attachment' was enabled (an
+        indexing bug).
         """
         self.env["ir.ui.view"].create(
             {
@@ -1170,9 +1151,8 @@ class TestAggregatePdfReports(odoo.tests.HttpCase):
     def test_aggregate_report_with_some_resources_reloaded_from_attachment_with_multiple_page_report(
         self,
     ):
-        """
-        Same as @test_report_with_some_resources_reloaded_from_attachment, but tests the behavior for reports that
-        span multiple pages per record.
+        """Same as the single-page variant, but for reports spanning multiple
+        pages per record.
         """
         self.env["ir.ui.view"].create(
             {

@@ -15,9 +15,8 @@ _logger = logging.getLogger(__name__)
 STORAGE_BACKENDS: dict[str, type[AttachmentStorage]] = {}
 
 # Schemes already reported by backend_for_key's no-backend warning, so a
-# missing backend module is reported once per scheme per process instead of
-# once per read (a busy server reading thousands of orphaned s3:// keys
-# would otherwise flood the log with the same line).
+# missing backend is logged once per scheme per process, not once per read
+# (orphaned s3:// keys would otherwise flood the log).
 _UNKNOWN_SCHEMES_WARNED: set[str] = set()
 
 
@@ -29,21 +28,13 @@ def register_storage(cls: type[AttachmentStorage]) -> type[AttachmentStorage]:
 
 
 def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
-    """Return the read-side backend owning *key*.
+    """Return the read-side backend owning *key*, dispatched by URI scheme.
 
-    Dispatch is by URI scheme; keys without a scheme (the plain
-    ``ab/<sha1>`` sharded layout) belong to the local filestore.
-
-    A schemed key whose backend is NOT registered (e.g. ``s3://...`` rows
-    left behind after uninstalling the backend module) still falls back to
-    the local filestore, but with a distinct once-per-scheme warning:
-    the fallback can only fail (the filestore does not hold the bytes),
-    and without the warning that failure gets blamed on the local
-    filestore instead of the missing backend.
-
-    :param env: the current environment
-    :param str key: a ``store_fname`` value
-    :rtype: AttachmentStorage
+    Keys without a scheme (the plain ``ab/<sha1>`` sharded layout) belong to
+    the local filestore. A schemed key whose backend is NOT registered (e.g.
+    ``s3://`` rows left after uninstalling the backend) also falls back to the
+    filestore, but warns once per scheme so the inevitable read failure is
+    blamed on the missing backend, not the filestore.
     """
     if "://" in key:
         for backend_cls in STORAGE_BACKENDS.values():
@@ -66,28 +57,20 @@ def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
 class AttachmentStorage:
     """Contract for an ir.attachment content storage backend.
 
-    Scope — which extension axis to pick
-    ------------------------------------
+    For **content-addressed key stores**: backends that persist opaque payloads
+    under a store key (``store_fname``) and serve them back through Odoo
+    (:meth:`read` / :meth:`to_stream`) — local filestore, db column, an S3-like
+    blob store fronted by the server. Register a subclass with
+    ``@register_storage``; write-side dispatch follows the
+    ``ir_attachment.location`` parameter, read-side dispatch follows the key's
+    URI scheme (:func:`backend_for_key`).
 
-    This registry is for **content-addressed key stores**: backends that
-    persist opaque payloads under a store key (``store_fname``) and serve
-    them back through Odoo (:meth:`read` / :meth:`to_stream`) — the local
-    filestore, the db column, an S3-like blob store fronted by the server.
-    Register a subclass with ``@register_storage``; write-side dispatch
-    follows the ``ir_attachment.location`` parameter, read-side dispatch
-    follows the key's URI scheme (:func:`backend_for_key`).
-
-    **URL-redirect storage is deliberately NOT this axis.** Attachments
-    whose content the *client* exchanges directly with a remote store
-    (signed upload/download URLs, CDN) remain the sanctioned domain of the
-    ``cloud_storage`` module and its provider add-ons (``type='cloud_storage'``
-    rows driven by the ``cloud_storage_provider`` parameter, with
-    ``_to_http_stream`` / ``_generate_cloud_storage_*`` overrides — see
-    ``odoo/addons/cloud_storage`` and the agromarin ``ir_attachment_s3``
-    extension). Those rows carry a ``url``, not a store key, so they never
-    reach this registry. Pick the axis by who serves the bytes: Odoo
-    serves them → register a backend here; the client talks to the remote
-    store directly → extend ``cloud_storage``.
+    URL-redirect storage is deliberately NOT this axis: attachments whose
+    content the *client* exchanges directly with a remote store (signed URLs,
+    CDN) belong to the ``cloud_storage`` module — those rows carry a ``url``,
+    not a store key, so they never reach this registry. Pick by who serves the
+    bytes: Odoo serves them → register here; the client talks to the store
+    directly → extend ``cloud_storage``.
     """
 
     # write-side registry name (the ``ir_attachment.location`` value)
@@ -108,43 +91,37 @@ class AttachmentStorage:
 
     @staticmethod
     def _inline_datas_values(data: bytes) -> dict[str, Any]:
-        """Content-location fragment keeping *data* inline in ``db_datas``.
+        """Store values keeping *data* inline in ``db_datas`` (no store key).
 
-        The shared no-store-key case: db storage, and EMPTY content on any
-        backend (an empty payload is never keyed externally — no file, no
-        blob — it stays inline on the row, see :meth:`FileStorage.write`).
+        The shared no-key case: db storage, and empty content on any backend
+        (an empty payload is never keyed externally — see
+        :meth:`FileStorage.write`).
         """
         return {"store_fname": False, "db_datas": data}
 
     def write(self, data: bytes, checksum: str) -> dict[str, Any]:
-        """Persist *data* in the backend and return its store values.
+        """Persist *data* and return the ``store_fname`` / ``db_datas`` values.
 
-        :param bytes data: the binary content
+        The store key is a by-product of the write itself (no separate
+        "derive the key" hook to keep in sync). Backends that keep content
+        inline (db, empty content) return the inline fragment
+        (:meth:`_inline_datas_values`) without external I/O.
+
         :param str checksum: SHA-1 hex digest of *data*
-        :return: the ``store_fname`` / ``db_datas`` values to persist on
-            the row. The persisted key comes from the write itself — the
-            single source of truth for where the content lives (there is
-            deliberately no separate "derive the key" hook to keep in sync
-            with what was actually written). Backends that keep content
-            inline (db storage, empty content) return the inline fragment
-            (:meth:`_inline_datas_values`) without external I/O.
-        :rtype: dict
         """
         raise NotImplementedError
 
     def write_stream(self, fileobj: Any) -> dict[str, Any]:
-        """Persist the content read from *fileobj* and return its store values.
+        """Persist the content of *fileobj* and return its store values.
 
-        Default implementation BUFFERS the whole stream then delegates to
-        :meth:`write` — backends that can stream (see :class:`FileStorage`)
-        override this to keep peak memory flat. Backends that cannot stream
-        (``db``, custom column stores) inherit the buffering, preserving the
-        previous behavior.
+        Default buffers the whole stream then delegates to :meth:`write`.
+        Backends that can stream (see :class:`FileStorage`) override this to
+        keep peak memory flat; non-streaming backends (``db``) inherit the
+        buffering.
 
         :param fileobj: a binary file-like supporting ``read(size)``
-        :return: the create/write columns to persist (``store_fname`` /
-            ``db_datas`` / ``checksum`` / ``file_size``)
-        :rtype: dict
+        :return: columns to persist (``store_fname`` / ``db_datas`` /
+            ``checksum`` / ``file_size``)
         """
         model = self.env["ir.attachment"]
         data = fileobj.read()
@@ -160,12 +137,11 @@ class AttachmentStorage:
     def migration_domain(self) -> list:
         """Return the domain matching attachments NOT in this backend.
 
-        Used by ``force_storage`` to find the rows to migrate INTO this
-        backend. A keyed custom backend must match both db rows and other
-        backends' keys (see ``MemoryStorage`` in the tests for an example).
-        The file backend keeps its historical ``db_datas`` domain, which
-        does not claim other backends' keys — custom→file migration is a
-        known limitation, by design.
+        Used by ``force_storage`` to find rows to migrate INTO this backend.
+        A keyed custom backend must match both db rows and other backends'
+        keys. The file backend keeps its historical ``db_datas`` domain, which
+        does not claim other backends' keys — custom→file migration is a known
+        limitation, by design.
         """
         raise NotImplementedError
 
@@ -181,10 +157,8 @@ class AttachmentStorage:
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         """Fill *stream* to serve *attachment*'s keyed content over HTTP."""
-        # Only keyed content reaches this hook: _to_http_stream dispatches by
-        # store key, and db-/url-backed rows have no key to dispatch on — they
-        # are served inline there. A keyed backend (file, s3, ...) MUST
-        # implement this.
+        # Only keyed content reaches this hook (_to_http_stream serves db-/url-
+        # backed rows inline). A keyed backend (file, s3, ...) MUST implement it.
         raise NotImplementedError
 
     # -- maintenance ------------------------------------------------------
@@ -269,25 +243,19 @@ class FileStorage(AttachmentStorage):
     def autovacuum(self) -> bool | None:
         """Sweep the GC checklist under a table lock (see _mark_for_gc)."""
         model = self._model()
-        # Continue in a new transaction. The LOCK statement below must be the
-        # first one in the current transaction, otherwise the database snapshot
-        # used by it may not contain the most recent changes made to the table
-        # ir_attachment! Indeed, if concurrent transactions create attachments,
-        # the LOCK statement will wait until those concurrent transactions end.
-        # But this transaction will not see the new attachments if it has done
-        # other requests before the LOCK (like reading the storage location).
+        # New transaction: the LOCK below must be its first statement, else the
+        # snapshot may miss concurrent attachment creates (the LOCK waits for
+        # them to end, but a transaction that already ran other queries won't
+        # see their rows).
         cr = self.env.cr
         cr.commit()
 
-        # Scan the checklist (filesystem, no DB) BEFORE locking, so the table
-        # lock only spans the whitelist query + unlinks, not the directory walk.
-        # The walk has no DB effect, so the LOCK is still the first DB statement
-        # of the new transaction (snapshot freshness, see comment above).
-        # The scan is capped (_GC_MAX_ENTRIES): the whole sweep below runs
-        # under the SHARE MODE lock, during which every attachment write
-        # blocks — after a bulk delete an unbounded checklist would hold that
-        # lock for the full backlog. Entries past the cap stay on disk and are
-        # picked up by the next run.
+        # Scan the checklist (filesystem, no DB) BEFORE locking, so the lock
+        # spans only the whitelist query + unlinks, and stays the first DB
+        # statement (snapshot freshness, above). The scan is capped
+        # (_GC_MAX_ENTRIES): the sweep runs under the SHARE MODE lock, blocking
+        # every attachment write — an unbounded checklist would hold it for the
+        # whole backlog. Entries past the cap wait for the next run.
         checklist = model._gc_checklist(limit=model._GC_MAX_ENTRIES)
         if len(checklist) >= model._GC_MAX_ENTRIES:
             _logger.info(
@@ -296,9 +264,9 @@ class FileStorage(AttachmentStorage):
                 len(checklist),
             )
 
-        # prevent all concurrent updates on ir_attachment while collecting,
-        # but only attempt to grab the lock for a little bit, otherwise it'd
-        # start blocking other transactions. (will be retried later anyway)
+        # Block concurrent updates on ir_attachment while collecting, but wait
+        # only briefly for the lock so we don't block other transactions
+        # (retried later anyway).
         cr.execute("SET LOCAL lock_timeout TO '10s'")
         try:
             cr.execute("LOCK ir_attachment IN SHARE MODE")
@@ -314,11 +282,10 @@ class FileStorage(AttachmentStorage):
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         stream.type = "path"
-        # Single-source the filestore traversal invariant through the model's
-        # _full_path (sanitize + resolve + containment) instead of a parallel
-        # safe_join. _full_path uses the cursor's db (== request.db under HTTP,
-        # and correct on the no-request cron/report path) and raises on an
-        # escaping key; treat that like a missing file below.
+        # Route the traversal check through the model's _full_path (sanitize +
+        # resolve + containment) rather than a parallel safe_join. It uses the
+        # cursor's db (correct under HTTP and on cron/report paths) and raises
+        # on an escaping key; treat that like a missing file below.
         try:
             stream.path = attachment._full_path(attachment.store_fname)
         except ValueError:
@@ -333,18 +300,13 @@ class FileStorage(AttachmentStorage):
                 attachment.id,
                 stream.path or attachment.store_fname,
             )
-            # Fall back to empty data so the caller gets a valid stream
-            # instead of an unhandled 500 error.
+            # Fall back to empty data so the caller gets a valid stream, not a 500.
             stream.type = "data"
             stream.data = b""
             stream.size = 0
-            # Neutralize the caching metadata: _to_http_stream built the
-            # stream with etag = checksum — the REAL content's digest — so a
-            # 200 with this empty body would be cached by browsers/proxies
-            # under the real ETag. Once the filestore file is restored,
-            # conditional requests keep matching that ETag, get 304, and
-            # clients keep the empty body forever. Serve the degraded
-            # response uncacheable and unconditional instead.
+            # Neutralize caching: the stream's etag is the REAL content digest,
+            # so a cached empty body would keep matching it (304) even after the
+            # file is restored, serving empty forever. Make it uncacheable.
             stream.etag = False
             stream.last_modified = None
             stream.conditional = False

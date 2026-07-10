@@ -1,18 +1,10 @@
 """Tier-1 (database-free) unit tests for ``NameManager.get_missing_fields``.
 
-The missing-fields set algebra — which combinations of node ``groups``,
-field-level python ``groups`` and model access groups make a referenced field
-"missing" for some users — is the most intricate logic of the view
-``NameManager``. It is exercised here against the *real*
-:class:`odoo.libs.set_expression.SetDefinitions` implementation and stub
-model/env objects: no registry, no database (see ``conftest.py``).
-
-Group universe used throughout (mirroring familiar base groups):
-
-* ``user`` — plain internal user
-* ``system`` — implies ``manager`` (``system ⊆ manager``)
-* ``manager``
-* ``portal`` — disjoint from all internal groups
+The missing-fields set algebra runs against the real
+:class:`odoo.libs.set_expression.SetDefinitions` with stub model/env objects:
+no registry, no database (see ``conftest.py``). Group universe: ``user`` (plain
+internal), ``system`` (⊆ ``manager``), ``manager``, ``portal`` (disjoint from
+internal groups).
 """
 
 from lxml import etree
@@ -44,13 +36,12 @@ class StubField:
 
 
 class StubEnv(dict):
-    """Environment stand-in: NameManager only stores it (group_definitions
-    being injected), so an empty mapping is enough."""
+    """Environment stand-in; NameManager only stores it, so empty is enough."""
 
 
 class StubModel:
-    """Model stand-in for NameManager: ``_fields``, ``fields_get`` and
-    ``has_access`` are the only members the missing-fields logic touches."""
+    """Model stand-in: only ``_fields``, ``fields_get`` and ``has_access`` are
+    touched by the missing-fields logic."""
 
     _name = "stub.model"
 
@@ -82,9 +73,9 @@ def declare(
 ) -> None:
     """Declare a ``<field>`` element for ``name`` shown to ``groups``.
 
-    ``model_groups`` mirrors the invariant documented on ``has_field``: for a
-    field with python ``groups``, _postprocess_tag_field/_validate_tag_field
-    AND them into ``node_info["model_groups"]`` before calling ``has_field``.
+    ``model_groups`` mirrors the ``has_field`` invariant: for a field with
+    python ``groups``, the postprocessing ANDs them into
+    ``node_info["model_groups"]`` before calling ``has_field``.
     """
     manager.has_field(
         field_node(name), name, node_info(view_groups=groups, model_groups=model_groups)
@@ -92,8 +83,8 @@ def declare(
 
 
 def use(manager: NameManager, name: str, groups=DEFS.universe) -> etree._Element:
-    """Reference ``name`` from a modifier expression on a node shown to
-    ``groups``; return the referencing node."""
+    """Reference ``name`` from a modifier on a node shown to ``groups``;
+    return the referencing node."""
     node = field_node("other")
     manager.must_have_fields(
         node,
@@ -154,8 +145,8 @@ class TestGetMissingFields:
         missing = manager.get_missing_fields()
         missing_groups, _reasons = missing["field_a"]
         assert missing_groups is not False
-        # the whole manager group is reported missing (the subtraction down to
-        # "manager minus system" happens later, in _add_missing_fields)
+        # whole manager group reported; the "manager minus system" subtraction
+        # happens later, in _add_missing_fields
         assert missing_groups == MANAGER
         assert not missing_groups.is_universal()
 
@@ -237,7 +228,7 @@ class TestParentRouting:
 
     def test_parent_prefixed_name_in_root_view_is_tolerated(self):
         """A ``parent.`` reference with no parent manager is silently skipped
-        (dual-use embedded forms, see must_have_fields)."""
+        (dual-use embedded forms)."""
         manager = make_manager({"field_a": StubField()})
         manager.must_have_fields(
             field_node("other"),

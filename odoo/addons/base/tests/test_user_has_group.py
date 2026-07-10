@@ -70,9 +70,8 @@ class TestHasGroup(TransactionCase):
         internal_user.browse(test_user.id).has_group(self.group0)
 
     def test_portal_creation(self):
-        """Here we check that portal user creation fails if it tries to create a user
-        who would also have group_user by implied_group.
-        Otherwise, it succeeds with the groups we asked for.
+        """Portal user creation must fail when implied groups would also grant
+        group_user; otherwise it succeeds with the requested groups.
         """
         grp_test_portal_xml_id = "test_user_has_group.portal_implied_group"
         grp_test_portal = self.env["res.groups"]._load_records(
@@ -148,8 +147,8 @@ class TestHasGroup(TransactionCase):
             )
 
     def test_portal_write(self):
-        """Check that adding a new group to a portal user works as expected,
-        except if it implies group_user/public, in chich case it should raise.
+        """Adding a group to a portal user works, unless it implies
+        group_user/public, in which case it raises.
         """
         grp_test_portal = self.env["res.groups"].create({"name": "implied by portal"})
         self.grp_portal.implied_ids = grp_test_portal
@@ -213,10 +212,9 @@ class TestHasGroup(TransactionCase):
             self.grp_internal.user_ids = [Command.link(test_user.id)]
 
     def test_two_user_types_implied_groups(self):
-        """Contrarily to test_two_user_types, we simply add an implied_id to a group.
-        This will trigger the addition of the relevant users to the relevant groups;
-        if, say, this was done in SQL and thus bypassing the ORM, it would bypass the constraints
-        and field recomputations, and thus give us a case uncovered by the aforementioned test.
+        """Unlike test_two_user_types, add an implied_id to a group, propagating
+        users to groups through the ORM. Bypassing the ORM (e.g. raw SQL) would
+        skip the constraints and recomputations this test covers.
         """
         grp_test = self.env["res.groups"].create(
             {
@@ -270,9 +268,7 @@ class TestHasGroup(TransactionCase):
         self.assertIn(test_user.name, grp_additional.x_user_names)
 
     def test_demote_user(self):
-        """When a user is demoted to the status of portal/public,
-        we should strip him of all his (previous) rights
-        """
+        """Demoting a user to portal/public strips all previous rights."""
         group_0 = self.env.ref(
             self.group0
         )  # the group to which test_user already belongs
@@ -310,8 +306,8 @@ class TestHasGroup(TransactionCase):
                 }
             )
 
-        # Now we demote him. The JS framework sends 3 and 4 commands,
-        # which is what we write here, but it should work even with a 5 command or whatever.
+        # Demote him. The JS framework sends 3/4 commands (as here), but a 5
+        # command must work too.
         self.test_user.write(
             {
                 "group_ids": [
@@ -322,9 +318,8 @@ class TestHasGroup(TransactionCase):
             }
         )
 
-        # if we screw up the removing groups/adding the implied ids, we could end up in two situations:
-        # 1. we have a portal user with way too much rights (e.g. 'Contact Creation', which does not imply any other group)
-        # 2. a group may be (transitively) implying group_user or a portal, then it would raise an exception
+        # A botched remove/imply could leave a portal user with too many rights,
+        # or transitively imply group_user/portal and raise.
         self.assertEqual(
             self.test_user.all_group_ids,
             (group_0 + self.grp_portal),
@@ -332,9 +327,8 @@ class TestHasGroup(TransactionCase):
         )
 
     def test_implied_groups(self):
-        """We check that the adding of implied ids works correctly for normal users and portal users.
-        In the second case, working normally means raising if a group implies to give 'group_user'
-        rights to a portal user.
+        """Adding implied ids works for normal and portal users; for a portal
+        user it must raise if a group would grant 'group_user' rights.
         """
         U = self.env["res.users"]
         G = self.env["res.groups"]
@@ -347,10 +341,9 @@ class TestHasGroup(TransactionCase):
         group_B = G.create({"name": "B"})
         group_BB = G.create({"name": "BB", "implied_ids": [Command.set([group_B.id])]})
 
-        # user_a is a normal user, so we expect groups to be added when we add them,
-        # as well as 'implied_groups'; otherwise nothing else should happen.
-        # By contrast, for a portal user we want implied groups not to be added
-        # if and only if it would not give group_user (or group_public) privileges
+        # Normal user: added groups and their implied groups are added.
+        # Portal user: implied groups are added only if they don't grant
+        # group_user/group_public privileges.
         user_a = U.create(
             {
                 "name": "a",
@@ -387,8 +380,8 @@ class TestHasGroup(TransactionCase):
         self.assertEqual(user_a.group_ids, (group_AA + group_BB + group_user))
         self.assertEqual(user_b.group_ids, (group_AA + group_BB + group_portal))
 
-        # now we create a group that implies the group_user
-        # adding it to a user should work normally, whereas adding it to a portal user should raise
+        # A group implying group_user: adding it to a normal user works, but to
+        # a portal user raises.
         group_C = G.create({"name": "C", "implied_ids": [Command.set([group_user.id])]})
 
         user_a.write({"group_ids": [Command.link(group_C.id)]})
@@ -432,11 +425,8 @@ class TestHasGroup(TransactionCase):
         )
 
         populate_cache()
-        # call_cache_clearing_methods is called in res.groups.write to invalidate
-        # cache before calling its parent class method (`odoo.models.Model.write`)
-        # as explain in the `res.group.write` comment.
-        # This verifies that calling `call_cache_clearing_methods()` invalidates
-        # the ormcache of method `user._has_group()`
+        # Verify call_cache_clearing_methods() invalidates the user._has_group()
+        # ormcache (res.groups.write calls it before super().write()).
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.assertFalse(
             self.registry._Registry__caches["default"],

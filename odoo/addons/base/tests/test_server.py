@@ -19,8 +19,8 @@ class TestMemorySoftLimit(BaseCase):
 
     def test_disabled_limit_skips_the_proc_read(self):
         # soft_limit 0 disables the check; RSS must NOT be read (the lazy-read
-        # contract the prefork worker already had and the threaded servers now
-        # share). A process whose memory_info() raises proves it is never called.
+        # contract shared by prefork and threaded servers). A process whose
+        # memory_info() raises proves it is never called.
         class Boom:
             def memory_info(self):
                 raise AssertionError("RSS must not be read when the limit is 0")
@@ -41,13 +41,13 @@ class TestMemorySoftLimit(BaseCase):
 class TestDbDispatchAuth(BaseCase):
     """Pin the db-service master-password gate (``service.db.dispatch``).
 
-    ``db.py`` documents this invariant as tested but no test existed; a
-    regression here is a security hole (a destructive method served without the
-    master password, or a public method made unreachable).
+    A regression here is a security hole: a destructive method served without
+    the master password, or a public method made unreachable.
     """
 
     def test_master_password_set_is_subset_of_dispatch(self):
         from odoo.service import db
+
         self.assertLessEqual(
             db._REQUIRES_MASTER_PASSWORD,
             set(db._DISPATCH),
@@ -56,6 +56,7 @@ class TestDbDispatchAuth(BaseCase):
 
     def test_destructive_methods_require_master_password(self):
         from odoo.service import db
+
         for method in (
             "create_database",
             "duplicate_database",
@@ -74,7 +75,14 @@ class TestDbDispatchAuth(BaseCase):
 
     def test_public_methods_stay_unauthenticated(self):
         from odoo.service import db
-        for method in ("db_exist", "list", "list_lang", "server_version", "list_countries"):
+
+        for method in (
+            "db_exist",
+            "list",
+            "list_lang",
+            "server_version",
+            "list_countries",
+        ):
             self.assertIn(method, db._DISPATCH)
             self.assertNotIn(
                 method,

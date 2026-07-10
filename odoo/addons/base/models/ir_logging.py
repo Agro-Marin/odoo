@@ -17,17 +17,11 @@ class IrLogging(models.Model):
     _order = "id DESC"
     _allow_sudo_commands = False
 
-    # The _log_access fields are defined manually for the following reasons:
-    #
-    # - The entries in ir_logging are filled in with sql queries bypassing the orm. As the --log-db
-    #   cli option allows to insert ir_logging entries into a remote database, the one2many *_uid
-    #   fields make no sense in the first place but we will keep it for backward compatibility.
-    #
-    # - Also, when an ir_logging entry is triggered by the orm (when using --log-db) at the moment
-    #   it is making changes to the res.users model, the ALTER TABLE will aquire an exclusive lock
-    #   on res_users, preventing the ir_logging INSERT to be processed, hence the ongoing module
-    #   install/update will hang forever as the orm is blocked by the ir_logging query that will
-    #   never occur.
+    # _log_access fields are defined manually: ir_logging rows are written by raw
+    # SQL bypassing the ORM (--log-db may even target a remote DB), so the *_uid
+    # one2many fields are meaningless but kept for backward compatibility. Manual
+    # definition also avoids the ORM's ALTER TABLE on res_users, whose exclusive
+    # lock would deadlock an in-progress install writing its own ir_logging entry.
     create_uid = fields.Integer(string="Created by", readonly=True)
     create_date = fields.Datetime(string="Created on", readonly=True)
     write_uid = fields.Integer(string="Last Updated by", readonly=True)
@@ -66,12 +60,10 @@ class IrLogging(models.Model):
     def _gc_logging(self) -> tuple[int, bool] | None:
         """Drop log entries older than the configured retention period.
 
-        ir_logging rows are appended by server-action ``log()`` calls and by
-        the ``--log-db`` handler, and would otherwise grow forever. Retention
-        is driven by the ``base.logging_retention_days`` config parameter
-        (default ``DEFAULT_LOGGING_RETENTION_DAYS``); a zero, negative or
-        unparsable value disables the collection (with a warning), for
-        deployments that archive the table externally.
+        Retention is driven by the ``base.logging_retention_days`` config
+        parameter (default ``DEFAULT_LOGGING_RETENTION_DAYS``); a non-positive or
+        unparsable value disables collection (with a warning), for deployments
+        that archive the table externally.
         """
         param = (
             self.env["ir.config_parameter"]

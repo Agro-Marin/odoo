@@ -33,10 +33,8 @@ FIELD_TYPES = [(key, key) for key in sorted(fields.Field._by_type__)]
 def _check_translate_value(vals: dict[str, Any]) -> None:
     """Reject the pre-Odoo-19 boolean form of ``translate``.
 
-    ``ir.model.fields.translate`` is a Selection since Odoo 19.  The upstream
-    deprecation shim silently converted booleans, guessing "standard" whenever
-    ``ttype`` was absent from the values -- wrong for html fields -- so this
-    fork raises instead of converting.
+    It is a Selection since Odoo 19; the upstream shim guessed "standard" when
+    ``ttype`` was absent (wrong for html fields), so this fork raises instead.
     """
     if vals.get("translate") and not isinstance(vals["translate"], str):
         raise ValueError(
@@ -542,8 +540,9 @@ class IrModelFields(models.Model):
                 )
 
     def _get(self, model_name: str, name: str) -> Self:
-        """Return the (sudoed) `ir.model.fields` record with the given model and name.
-        The result may be an empty recordset if the model is not found.
+        """Return the sudoed ``ir.model.fields`` record for the given model and name.
+
+        May be an empty recordset if the model is not found.
         """
         field_id = model_name and name and self._get_ids(model_name).get(name)
         return self.sudo().browse(field_id)
@@ -602,8 +601,8 @@ class IrModelFields(models.Model):
 
     def _prepare_update(self) -> Self:
         """Check whether the fields in ``self`` may be modified or removed.
-        This method prevents the modification/deletion of many2one fields
-        that have an inverse one2many, for instance.
+
+        Prevents modifying/deleting a many2one that has an inverse one2many, etc.
         """
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
         if not uninstalling and any(record.state != "manual" for record in self):
@@ -660,9 +659,7 @@ class IrModelFields(models.Model):
         if not records:
             return self
 
-        # remove pending write of this field
-        # If there are pending updates of the field we currently try to unlink,
-        # pop them out from the cache before removing the field.
+        # pop pending writes of these fields from the cache before removing them
         for record in records:
             model = self.env.get(record.model)
             field = model and model._fields.get(record.name)
@@ -725,10 +722,9 @@ class IrModelFields(models.Model):
         self._drop_column()
         res = super().unlink()
 
-        # The field we just deleted might be inherited, and the registry is
-        # inconsistent in this case; therefore we reload the registry and
-        # update the database schema of the models and their descendants
-        # (model names were captured before the rows were deleted).
+        # A deleted inherited field leaves the registry inconsistent; reload it
+        # and update the schema of the models and descendants (names captured
+        # before the rows were deleted).
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             reload_schema(self.env, model_names, model_names)
 
@@ -823,7 +819,6 @@ class IrModelFields(models.Model):
                 field = getattr(obj, "_fields", {}).get(item.name)
 
                 if vals.get("name", item.name) != item.name:
-                    # We need to rename the field
                     renamed |= item
                     if item.ttype in ("one2many", "many2many", "binary"):
                         # those field names are not explicit in the database!
@@ -851,11 +846,9 @@ class IrModelFields(models.Model):
         _check_translate_value(vals)
 
         if renamed:
-            # Single _prepare_update pass over the renamed fields: it checks
-            # the renames are allowed (views, dependencies) and returns the
-            # extra manual fields tied to them (e.g. inherited copies), which
-            # must be dropped along with the rename; the uninstall flag allows
-            # unlinking them.
+            # _prepare_update checks the renames are allowed and returns extra
+            # manual fields tied to them (e.g. inherited copies) that must be
+            # dropped along with the rename; the flag allows unlinking them.
             (renamed._prepare_update() - self).with_context(
                 **{MODULE_UNINSTALL_FLAG: True}
             ).unlink()
@@ -877,13 +870,12 @@ class IrModelFields(models.Model):
                     )
                 )
                 if index:
-                    # use make_index_name (the registry's naming convention,
-                    # '{table}__{column}_index' with 63-char truncation); the
-                    # previous hand-rolled '{table}_{column}_index' guess named
-                    # an index that never exists on this fork, crashing every
-                    # rename of an indexed field. IF EXISTS keeps the rename
-                    # tolerant when the index was skipped (e.g. translated
-                    # fields); check_indexes recreates it under the new name.
+                    # make_index_name is the registry's naming convention
+                    # ('{table}__{column}_index', 63-char truncated); the old
+                    # hand-rolled '{table}_{column}_index' named a nonexistent
+                    # index and crashed every indexed-field rename. IF EXISTS
+                    # tolerates a skipped index (e.g. translated fields);
+                    # check_indexes recreates it under the new name.
                     self.env.cr.execute(
                         SQL(
                             "ALTER INDEX IF EXISTS %s RENAME TO %s",
@@ -897,12 +889,10 @@ class IrModelFields(models.Model):
             # update the database schema of the models to patch
             reload_schema(self.env, OrderedSet(self.mapped("model")), patched_models)
         elif translate_only:
-            # A label/help-only translation edit leaves the valid field set and
-            # registry structure intact; the sole stale artefact is the
-            # lang-keyed get_field_string/get_field_help ormcache ("stable"),
-            # which is read live by Field._description_string/_help. Clearing
-            # that cache is far cheaper than a full _setup_models__ rebuild
-            # (mirrors SEL-C6 in ir_model_fields_selection.py).
+            # A label/help-only translation edit leaves the field set and
+            # registry intact; only the lang-keyed get_field_string/help
+            # ormcache ("stable") goes stale. Clearing it is far cheaper than a
+            # full _setup_models__ rebuild (mirrors SEL-C6).
             self.env.registry.clear_cache("stable")
 
         return res
@@ -911,8 +901,8 @@ class IrModelFields(models.Model):
     def _compute_display_name(self) -> None:
         IrModel = self.env["ir.model"]
         if not self.env.context.get("hide_model"):
-            # Pre-warm ormcache: single query for all distinct model names
-            # instead of one query per unique model on cache miss.
+            # pre-warm ormcache with one query for all model names instead of
+            # one per model on cache miss
             model_names = list({f.model for f in self if f.model})
             if model_names:
                 add_value = IrModel._get_id.__cache__.add_value
@@ -925,8 +915,8 @@ class IrModelFields(models.Model):
                 ):
                     add_value(IrModel, model_name, cache_value=model_id)
                     model_ids.append(model_id)
-                # one fetch for all model display strings: the _get(model).name
-                # reads below would otherwise SELECT once per distinct model
+                # one fetch for all model strings, else _get(model).name below
+                # SELECTs once per distinct model
                 IrModel.sudo().browse(model_ids).fetch(["name"])
         for field in self:
             if self.env.context.get("hide_model"):
@@ -1068,9 +1058,8 @@ class IrModelFields(models.Model):
         result: dict[str, dict[str, Any]] = defaultdict(dict)
         for row in cr.dictfetchall():
             result[row["model"]][row["name"]] = row
-        # ormcache returns the same object to every caller: freeze it so a
-        # mutation cannot corrupt the shared cached value (matches
-        # _get_fields_cached)
+        # ormcache shares one object across callers: freeze it so a mutation
+        # cannot corrupt the shared value (matches _get_fields_cached)
         return frozendict(result)
 
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
@@ -1153,7 +1142,6 @@ class IrModelFields(models.Model):
             ):
                 return None
             attrs["currency_field"] = field_data["currency_field"]
-        # add compute function if given
         if field_data["compute"]:
             attrs["compute"] = make_compute(
                 field_data["compute"], field_data["depends"]
@@ -1166,11 +1154,9 @@ class IrModelFields(models.Model):
 
     @api.model
     def get_field_string(self, model_name: str) -> dict[str, str]:
-        """Return the translation of fields strings in the context's language.
-        The result contains the available translations only.
+        """Return the field labels of ``model_name``, translated for the context language.
 
-        :param model_name: the name of a model
-        :return: the model's fields' strings as a dictionary `{field_name: field_string}`
+        :return: ``{field_name: field_string}`` (available translations only)
         """
         return {
             field_name: values["field_description"]
@@ -1179,11 +1165,9 @@ class IrModelFields(models.Model):
 
     @api.model
     def get_field_help(self, model_name: str) -> dict[str, str | None]:
-        """Return the translation of fields help in the context's language.
-        The result contains the available translations only.
+        """Return the field help of ``model_name``, translated for the context language.
 
-        :param model_name: the name of a model
-        :return: the model's fields' help as a dictionary `{field_name: field_help}`
+        :return: ``{field_name: field_help}`` (available translations only)
         """
         return {
             field_name: values["help"]
@@ -1194,12 +1178,9 @@ class IrModelFields(models.Model):
     def get_field_selection(
         self, model_name: str, field_name: str
     ) -> list[tuple[str, str]]:
-        """Return the translation of a field's selection in the context's language.
-        The result contains the available translations only.
+        """Return the field's selection, translated for the context language.
 
-        :param model_name: the name of the field's model
-        :param field_name: the name of the field
-        :return: the fields' selection as a list
+        :return: list of ``(value, label)`` (available translations only)
         """
         return (
             self._get_fields_cached(model_name).get(field_name, {}).get("selection", [])
@@ -1208,11 +1189,9 @@ class IrModelFields(models.Model):
     @api.model
     @tools.ormcache("model_name", "self.env.lang", cache="stable")
     def _get_fields_cached(self, model_name: str) -> dict[str, dict[str, Any]]:
-        """Return the translated information of all model field's in the context's language.
-        The result contains the available translations only.
+        """Return translated info for all of ``model_name``'s fields (available translations only).
 
-        :param model_name: the name of the field's model
-        :return: {field_name: {id, help, field_description, [selection]}}
+        :return: ``{field_name: {id, help, field_description, [selection]}}``
         """
         fields_ = self.sudo().browse(self._get_ids(model_name).values())
         result = {

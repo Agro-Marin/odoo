@@ -16,7 +16,7 @@ from odoo.tools.profiler import ExecutionContext, Profiler
 
 
 @tagged("post_install", "-at_install", "profiling")
-# post_install to ensure mail is already loaded if installed (new_test_user would fail otherwise because of notification_type)
+# post_install so mail is loaded (new_test_user needs notification_type)
 class TestProfileAccess(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -39,16 +39,15 @@ class TestProfileAccess(TransactionCase):
 
     def test_action_view_speedscope_url(self):
         """IRPROF-L1: the toolbar button opens the speedscope *config* URL
-        (intentional); pin it so the button label and URL do not silently
-        drift apart again."""
+        (intentional); pin it so button label and URL don't drift apart."""
         action = self.test_profile.action_view_speedscope()
         self.assertEqual(action["type"], "ir.actions.act_url")
         self.assertTrue(action["url"].startswith("/web/profile_config/"))
 
     def test_generate_speedscope_check_access(self):
-        """IRPROF-C2: ``_generate_speedscope`` enforces the group_system ACL
-        up front, so a non-system user is rejected with AccessError regardless
-        of whether the profile id exists -- no existence-oracle side-channel."""
+        """IRPROF-C2: ``_generate_speedscope`` enforces the group_system ACL up
+        front, so a non-system user gets AccessError regardless of whether the
+        profile id exists (no existence oracle)."""
         user = new_test_user(self.env, login="noProfileSpeed", groups="base.group_user")
         params = self.test_profile._parse_params({})
         with self.assertRaises(AccessError):
@@ -274,11 +273,8 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(profile_combined["events"][-1]["at"], 8.35)
 
     def test_end_priority(self):
-        """
-        If a sample as a time (usually a query) we expect to keep the complete frame
-        even if another concurent frame tics before the end of the current one:
-        frame duration should always be more reliable.
-        """
+        """A timed sample (usually a query) keeps its complete frame even if a
+        concurrent frame ticks before it ends: frame duration is more reliable."""
 
         async_profile = self.example_profile()["result"]
         sql_profile = self.example_profile()["result"]
@@ -288,15 +284,14 @@ class TestSpeedscope(BaseCase):
         sql_profile[0]["time"] = 3
         sql_profile[0]["query"] = "SELECT 1"
         sql_profile[0]["full_query"] = "SELECT 1"
-        # some check to ensure the take makes sence
+        # sanity-check the samples
         self.assertEqual(async_profile[1]["start"], 3)
         self.assertEqual(async_profile[2]["start"], 4)
 
         self.assertNotIn("query", async_profile[1]["stack"])
         self.assertNotIn("time", async_profile[1]["stack"])
         self.assertEqual(async_profile[1]["stack"], async_profile[2]["stack"])
-        # this last assertion is not really useful but ensures that the samples
-        # are consistent with the sql one, just missing tue query
+        # ensures the samples are consistent with the sql one, just missing the query
 
         sp = Speedscope(init_stack_trace=[])
         sp.add("sql", async_profile)
@@ -336,7 +331,7 @@ class TestSpeedscope(BaseCase):
     def test_following_queries_dont_merge(self):
         sql_profile = self.example_profile()["result"]
         stack = sql_profile[1]["stack"]
-        # make sql_profile two frames, separataed by some time
+        # two frames separated by some time
         sql_profile = [
             {
                 "start": 0.0,
@@ -599,9 +594,7 @@ class TestProfiling(TransactionCase):
         )
 
     def test_execution_context_nested(self):
-        """
-        This test checks that an execution can be nested at the same level of the stack.
-        """
+        """Check that an execution context can nest at the same stack level."""
         with Profiler(db=None, collectors=["sql"]) as p:
             stack_level = profiler.stack_size()
             with ExecutionContext(letter="a"):
@@ -671,18 +664,15 @@ class TestProfiling(TransactionCase):
         rendered = self.env["ir.qweb"]._render(template.id, values)
         self.assertEqual(rendered.strip(), result.strip(), "Without profiling")
 
-        # This rendering is used to cache the compiled template method so as
-        # not to have a number of requests that vary according to the modules
-        # installed.
+        # warm up: cache the compiled template so query counts don't vary by module
         with Profiler(description="test", collectors=["qweb"], db=None):
             self.env["ir.qweb"]._render(template.id, values)
 
         with Profiler(description="test", collectors=["qweb"], db=None) as p:
             rendered = self.env["ir.qweb"]._render(template.id, values)
-            # check if qweb is ok
             self.assertEqual(rendered.strip(), result.strip())
 
-        # check if the arch of all used templates is includes in the result
+        # check the arch of all used templates is in the result
         self.assertEqual(
             p.collectors[0].entries[0]["results"]["archs"],
             {
@@ -875,15 +865,14 @@ class TestProfiling(TransactionCase):
 
         self.assertGreater(first_query["time"], 0)
         self.assertEqual(first_query["stack"][-1][2], "_record_metrics")
-        # _record_metrics moved from cursor.py to db/metrics.py when sql_db was
-        # decomposed into the db/ package (ADR-0003); the profiler correctly
-        # captures its new home.
+        # _record_metrics moved from cursor.py to db/metrics.py (ADR-0003); the
+        # profiler captures its new home.
         self.assertEqual(first_query["stack"][-1][0].split("/")[-1], "metrics.py")
 
     def test_profiler_return(self):
-        # Enter test mode to avoid the profiler to commit the result
+        # test mode so the profiler doesn't commit its result
         self.registry_enter_test_mode()
-        # Trick: patch db_connect() to make it return the registry with the current test cursor
+        # patch db_connect() to return the registry with the current test cursor
         # See `ProfilingHttpCase`
         self.startClassPatcher(patch("odoo.db.db_connect", return_value=self.registry))
         with self.profile(collectors=["sql"]) as p:
@@ -903,9 +892,7 @@ def deep_call(func, depth):
 @tagged("-standard", "profiling_performance")
 class TestPerformance(BaseCase):
     def test_collector_max_frequency(self):
-        """
-        Check the creation time of an entry
-        """
+        """Check the creation time of an entry."""
         collector = profiler.Collector()
         p = Profiler(collectors=[collector], db=None)
 
@@ -935,11 +922,8 @@ class TestPerformance(BaseCase):
         self.assertGreater(len(collector.entries), 50000)  # ~70000
 
     def test_frequencies_1ms_sleep(self):
-        """
-        Check the number of entries generated in 1s at 1kHz
-        we need to artificially change the frame as often as possible to avoid
-        triggering the memory optimisation skipping identical frames
-        """
+        """Check the entries generated in 1s at 1kHz. Change the frame as often
+        as possible to avoid the memory optimisation that skips identical frames."""
 
         def sleep_1():
             time.sleep(0.0001)
@@ -957,10 +941,7 @@ class TestPerformance(BaseCase):
         self.assertGreater(entry_count, 700)  # ~920
 
     def test_traces_async_memory_optimisation(self):
-        """
-        Identical frames should be saved only once.
-        We should only have a few entries on a 1 second sleep.
-        """
+        """Identical frames are saved only once, so a 1s sleep yields few entries."""
         with Profiler(collectors=["traces_async"], db=None) as res:
             time.sleep(1)
         entry_count = len(res.collectors[0].entries)
@@ -969,7 +950,7 @@ class TestPerformance(BaseCase):
 
 @tagged("-standard", "profiling")
 class TestSyncRecorder(BaseCase):
-    # this test was made non standard because it can break for strange reason because of additionnal _remove or signal_handler frame
+    # non-standard: can break due to an extra _remove or signal_handler frame
     def test_sync_recorder(self):
         if sys.gettrace() is not None:
             self.skipTest(

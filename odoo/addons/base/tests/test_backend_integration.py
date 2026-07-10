@@ -1,25 +1,17 @@
-"""Integration tests requiring a loaded database.
-
-Tests that need ``ormcache`` or ``env.ref()`` and cannot run against
-DictBackend alone.  All other DictBackend tests have migrated to the
-fast pytest suite at ``core/tests/models/``.
-
-Remaining:
-- ``TestAmountToTextBackend``: ``amount_to_text()`` calls ``tools.get_lang()``
-  which relies on the ``res.lang`` ormcache being warm from a loaded database.
+"""Integration tests needing ``ormcache``/``env.ref()``, so they can't run
+against DictBackend alone. Other DictBackend tests live in the fast pytest suite
+``core/tests/models/``.
 """
 
 from odoo.tests.common import TransactionCase
 
 
 class TestAmountToTextBackend(TransactionCase):
-    """res.currency.amount_to_text() — sign handling for negative fractional amounts.
+    """res.currency.amount_to_text() sign handling for negative fractional amounts.
 
-    Validates the fix for amounts in (-1, 0) where int("-0") == 0 in Python
-    would silently lose the negative sign.
-
-    Uses real DB env since amount_to_text calls tools.get_lang() which relies
-    on the res.lang ormcache being warm from the loaded database.
+    Covers the fix for amounts in (-1, 0) where int("-0") == 0 would lose the
+    negative sign. Needs a real DB env because amount_to_text calls
+    tools.get_lang(), which relies on the warm res.lang ormcache.
     """
 
     @classmethod

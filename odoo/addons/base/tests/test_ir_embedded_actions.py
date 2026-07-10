@@ -21,7 +21,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             "active_id": cls.test_partner.id,
         }
 
-        # create parent action
         cls.parent_action = cls.env["ir.actions.act_window"].create(
             {
                 "name": "ParentAction",
@@ -29,14 +28,12 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             }
         )
 
-        # create actions
         cls.action_1 = cls.env["ir.actions.act_window"].create(
             {
                 "name": "Action1",
                 "res_model": "res.partner",
             }
         )
-        # create actions
         cls.action_2 = cls.env["ir.actions.act_window"].create(
             {
                 "name": "Action2",
@@ -44,7 +41,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             }
         )
 
-        # create embedded actions
         cls.embedded_action_1 = cls.env["ir.embedded.actions"].create(
             {
                 "name": "EmbeddedAction1",
@@ -54,7 +50,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             }
         )
 
-        # create embedded actions
         cls.embedded_action_2 = cls.env["ir.embedded.actions"].create(
             {
                 "name": "EmbeddedAction1",
@@ -194,12 +189,11 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_active_model_gates_visibility(self):
-        # Cross-model id collision: an active_id identifies a record of the
-        # context's active_model only, so an embedded action bound to another
-        # parent_res_model must be hidden even when that model's table happens
-        # to contain a record with the same id.
-        # self.env.user is the root user (active=False) and would never be
-        # found by the compute's search: use an active user instead.
+        # Cross-model id collision: active_id names a record of the context's
+        # active_model only, so an action on another parent_res_model stays
+        # hidden even if that model's table holds a same-id record.
+        # Root user (self.env.user) is active=False and the compute's search
+        # would never find it, so use an active user.
         user = self.user_demo
         cross_model_action = self.env["ir.embedded.actions"].create(
             {
@@ -271,7 +265,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_groups_on_embedded_action(self):
-        # Create user groups with implied permissions
         nested_arbitrary_group = self.env["res.groups"].create(
             {
                 "name": "arbitrary_group",

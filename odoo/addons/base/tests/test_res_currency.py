@@ -6,9 +6,8 @@ from odoo.tests.common import TransactionCase
 
 class TestResCurrency(TransactionCase):
     def test_view_company_rate_label(self):
-        """Tests the label of the company_rate and inverse_company_rate fields
-        are well set according to the company currency in the currency form view and the currency rate list view.
-        e.g. in the currency rate list view of a company using EUR, the company_rate label must be `Unit per EUR`
+        """The company_rate / inverse_company_rate labels follow the company
+        currency, e.g. `Unit per EUR` for a company using EUR.
         """
         company_foo, company_bar = self.env["res.company"].create(
             [
@@ -77,8 +76,7 @@ class TestResCurrency(TransactionCase):
             [("currency_id", "=", currencyB.id), ("name", "=", "2009-09-09")]
         ).rate = 3
 
-        # repeat _convert call
-        # the cached conversion rate is invalid due to the rate change -> query
+        # cached rate invalid due to the rate change -> one query
         with self.assertQueryCount(1):
             self.assertEqual(
                 currencyA._convert(
@@ -100,8 +98,7 @@ class TestResCurrency(TransactionCase):
             }
         )
 
-        # repeat _convert call
-        # the cached conversion rate is invalid due to the new rate of the to_currency -> query
+        # cached rate invalid due to the new rate of the to_currency -> one query
         with self.assertQueryCount(1):
             self.assertEqual(
                 currencyA._convert(
@@ -113,9 +110,9 @@ class TestResCurrency(TransactionCase):
                 400,
             )
 
-        # changing the convert params (here: the date) costs no query at all:
-        # the rate-history memo loaded by the previous conversion (RCUR-M1)
-        # answers any date of the same (currency, company root) in memory
+        # changing convert params (here the date) costs no query: the
+        # rate-history memo from the previous conversion (RCUR-M1) answers any
+        # date of the same (currency, company root) in memory
         with self.assertQueryCount(0):
             self.assertEqual(
                 currencyA._convert(
@@ -261,10 +258,9 @@ class TestResCurrency(TransactionCase):
         )
 
     def test_rate_memo_distinct_dates_single_query(self):
-        """RCUR-M1: the first lookup for a currency loads its full rate
-        history in one query; conversions at any number of *distinct* dates
-        within the same transaction are then answered from the transaction
-        memo without SQL (previously: one query per distinct date).
+        """RCUR-M1: the first lookup for a currency loads its full rate history
+        in one query; further conversions at any distinct dates in the same
+        transaction are answered from the memo without SQL.
         """
         cur_a, cur_b = self.env["res.currency"].create(
             [
@@ -285,11 +281,10 @@ class TestResCurrency(TransactionCase):
             ]
         )
         company = self.env.company
-        # Prime env caches (company root, currency fields) and the memo of
-        # cur_a; cur_b's history is deliberately left cold.  The mapped()
-        # calls refill the currencies' ORM field cache, dropped by the
-        # group_multi_currency toggle in create() — the counted block below
-        # measures rate-history lookups, not unrelated field fetches.
+        # Prime env caches and cur_a's memo; cur_b's history is left cold. The
+        # mapped() calls refill the ORM field cache dropped by the
+        # group_multi_currency toggle in create(), so the counted block measures
+        # rate-history lookups, not unrelated field fetches.
         company.currency_id._convert(1.0, cur_a, company, "2020-06-15")
         (cur_a + cur_b).mapped("rounding")
         with self.assertQueryCount(1):

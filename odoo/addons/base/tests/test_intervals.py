@@ -70,22 +70,17 @@ class TestIntervals(TransactionCase):
         )
 
     def test_keep_distinct(self):
-        """Test merge operations between two Intervals
-        instances with different _keep_distinct flags.
-        """
-
+        """Test merge operations between two Intervals with different _keep_distinct flags."""
         A = Intervals(self.ints([(0, 10)]), keep_distinct=False)
         B = Intervals(self.ints([(-5, 5), (5, 15)]), keep_distinct=True)
 
         C = A & B
-        # The _keep_distinct flag must be the same as the left one
+        # result keeps the left operand's _keep_distinct flag
         self.assertFalse(C._keep_distinct)
         self.assertEqual(len(C), 1)
         self.assertEqual(list(C), self.ints([(0, 10)]))
 
-        # If, as a result of the above operation, C has _keep_distinct = False
-        # but is not preserving its _items, the following operation must raise
-        # an error
+        # C is _keep_distinct=False but must still preserve its _items
         D = Intervals()
         C = C - D
         self.assertFalse(C._keep_distinct)

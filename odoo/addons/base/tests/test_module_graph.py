@@ -14,14 +14,10 @@ class TestGraph(BaseCase):
         modules_list: list[list[str]],
         expected: list[str],
     ) -> None:
-        """
-        Test the order of the modules that need to be loaded
+        """Assert the load order of modules added in successive rounds.
 
-        :param dependency: A dictionary of module dependency: {module_a: [module_b, module_c]}
-        :param modules_list: [['module_a', 'module_b'], ['module_c'], ...]
-            module_a and module_b will be added in the first round
-            module_c will be added in the second round
-            ...
+        :param dependency: module -> its depends, e.g. {module_a: [module_b]}
+        :param modules_list: modules to add per round, e.g. [['a', 'b'], ['c']]
         :param expected: expected graph order
         """
 
@@ -198,10 +194,9 @@ class TestGraph(BaseCase):
 class TestCycleDetection(BaseCase):
     """Unit tests for ModuleGraph._find_cycle_members (Tarjan SCC).
 
-    These exercise the algorithm directly, before ``extend`` removes the
-    offending nodes.  An end-to-end order test cannot distinguish a correct
-    detector from a buggy one here, because ``_remove`` cascades to dependents
-    and would prune a missed node transitively anyway.
+    Exercised directly, before ``extend`` removes the offending nodes: an
+    end-to-end order test cannot tell a correct detector from a buggy one, since
+    ``_remove`` cascades to dependents and would prune a missed node anyway.
     """
 
     @staticmethod
@@ -229,9 +224,7 @@ class TestCycleDetection(BaseCase):
     def test_shared_node_two_cycles(self):
         # a->b->d->a and a->c->d->a: one SCC {a,b,c,d}.  The previous DFS could
         # reach 'c' only after 'd' was DONE and miss it; Tarjan flags all four.
-        graph = self._graph(
-            {"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": ["a"]}
-        )
+        graph = self._graph({"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": ["a"]})
         self.assertEqual(graph._find_cycle_members(), {"a", "b", "c", "d"})
 
     def test_acyclic_graph_has_no_members(self):

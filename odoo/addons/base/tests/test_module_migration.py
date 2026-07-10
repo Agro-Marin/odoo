@@ -31,11 +31,10 @@ class TestConvertVersion(BaseCase):
 
 
 class TestMigrationApplies(BaseCase):
-    """Behaviour of the version comparator extracted from MigrationManager.
+    """Version comparator extracted from MigrationManager.
 
-    Cases are phrased against the running ``major_version`` where possible, and
-    use literal cross-major versions for the documented majorless invariant so
-    the test holds on any Odoo release.
+    Cases use the running ``major_version`` where possible, and literal
+    cross-major versions for the majorless invariant, so they hold on any release.
     """
 
     def test_full_version_runs_once_then_stops(self):
@@ -98,9 +97,7 @@ class TestVersionRegex(BaseCase):
 
 
 class TestUpgradeScriptDiscovery(BaseCase):
-    """The module-level helpers extracted from MigrationManager._get_files so
-    they can be unit-tested in isolation.
-    """
+    """Module-level helpers extracted from MigrationManager._get_files."""
 
     def _tmpdir(self):
         d = tempfile.mkdtemp(prefix="odoo_test_upgrade_")
@@ -169,9 +166,7 @@ class _FakeGraph:
 
 
 class TestMigrationManagerRegistry(BaseCase):
-    """The registry's force-upgrade set is resolved once (in __init__), not on
-    every per-package migrate_module() call.
-    """
+    """Force-upgrade set is resolved once in __init__, not per migrate_module()."""
 
     def test_registry_resolved_once_not_per_migrate_call(self):
         calls = []

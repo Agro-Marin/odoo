@@ -1,11 +1,9 @@
 """Schema-reflection bookkeeping models.
 
-These two models are *not* access control -- they record the PostgreSQL schema
-objects (constraints, indexes and many2many relation tables) that Odoo models
-create, so those objects can be dropped again when the owning module is
-uninstalled. They were previously bundled inside ``ir_model_access.py`` for
-historical reasons; they share no logic with ``ir.model.access`` and live here
-so the ACL model stands on its own.
+These models record the PostgreSQL schema objects (constraints, indexes and
+many2many relation tables) that Odoo models create, so they can be dropped again
+when the owning module is uninstalled. Split out of ``ir_model_access.py``, with
+which they share no logic.
 """
 
 import logging
@@ -23,10 +21,7 @@ _logger = logging.getLogger(__name__)
 
 
 class IrModelConstraint(models.Model):
-    """
-    This model tracks PostgreSQL indexes, foreign keys and constraints
-    used by Odoo models.
-    """
+    """Tracks PostgreSQL indexes, foreign keys and constraints used by Odoo models."""
 
     _name = "ir.model.constraint"
     _description = "Model Constraint"
@@ -103,11 +98,9 @@ class IrModelConstraint(models.Model):
                     if data.model.model in self.env
                     else data.model.model.replace(".", "_")
                 )
-                # test if FK exists on this table
-                # Since type='u' means any "other" constraint, to avoid issues we limit to
-                # 'c' -> check, 'u' -> unique, 'x' -> exclude constraints, effective leaving
-                # out 'p' -> primary key and 'f' -> foreign key, constraints.
-                # For 'f', it could be on a related m2m table, in which case we ignore it.
+                # Our type='u' means any "other" constraint, so match check/
+                # unique/exclude ('c','u','x') and exclude primary and foreign
+                # keys. An 'f' may live on a related m2m table, which we ignore.
                 # See: https://www.postgresql.org/docs/9.5/catalog-pg-constraint.html
                 if self.env.execute_query(
                     SQL(
@@ -157,11 +150,10 @@ class IrModelConstraint(models.Model):
         module: str,
         message: str | None = None,
     ) -> Self | None:
-        """Reflect the given constraint, and return its corresponding record
-        if a record is created or modified; returns ``None`` otherwise.
-        The reflection makes it possible to remove a constraint when its
-        corresponding module is uninstalled. ``type`` is 'f' for a foreign key,
-        'i' for an index, or 'u' for any other constraint.
+        """Reflect the given constraint so it can be dropped when its module is
+        uninstalled. ``type`` is 'f' (foreign key), 'i' (index) or 'u' (other).
+
+        :return: the created/modified record, or ``None`` if unchanged
         """
         if not module:
             # no need to save constraints for custom models as they're not part
@@ -230,12 +222,11 @@ class IrModelConstraint(models.Model):
     def _reflect_constraints(self, model_names: list[str]) -> None:
         """Reflect the ``_table_objects`` of the given models.
 
-        Batched like ``_reflect_fields``: one SELECT for every
-        ``(name, module)`` pair of the model set, one MERGE for the
-        created/changed rows and one batched xml-id update, instead of one or
-        two round-trips per constraint.  A MERGE is used (rather than
-        ``INSERT ... ON CONFLICT``) so the upsert does not depend on the
-        ``(name, module)`` unique constraint being present in the database.
+        Batched like ``_reflect_fields``: one SELECT for all ``(name, module)``
+        pairs, one MERGE for created/changed rows and one batched xml-id update,
+        instead of a round-trip per constraint. MERGE (not ``INSERT ... ON
+        CONFLICT``) so the upsert does not require the ``(name, module)`` unique
+        constraint to already exist in the database.
         """
         # expected rows, keyed by (name, module_name)
         expected: dict[tuple[str, str], dict[str, Any]] = {}
@@ -349,10 +340,7 @@ class IrModelConstraint(models.Model):
 
 
 class IrModelRelation(models.Model):
-    """
-    This model tracks PostgreSQL tables used to implement Odoo many2many
-    relations.
-    """
+    """Tracks PostgreSQL tables implementing Odoo many2many relations."""
 
     _name = "ir.model.relation"
     _description = "Relation Model"
@@ -372,9 +360,7 @@ class IrModelRelation(models.Model):
     create_date = fields.Datetime()
 
     def _module_data_uninstall(self) -> None:
-        """
-        Delete PostgreSQL many2many relations tracked by this model.
-        """
+        """Delete PostgreSQL many2many relation tables tracked by this model."""
         if not self.env.is_system():
             raise AccessError(
                 _("Administrator access is required to uninstall a module")
@@ -417,9 +403,8 @@ class IrModelRelation(models.Model):
             _logger.info("Dropped table %s", table)
 
     def _reflect_relation(self, model: Any, table: str, module: str) -> None:
-        """Reflect the table of a many2many field for the given model, to make
-        it possible to delete it later when the module is uninstalled.
-        """
+        """Reflect the m2m table of the given model so it can be dropped when
+        the module is uninstalled."""
         # No cache invalidation needed: this reads and writes ir_model_relation
         # through raw SQL only (like the sibling ``_reflect_constraint``), so
         # the ORM record cache is never consulted here.

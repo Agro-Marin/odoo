@@ -96,9 +96,8 @@ class TestQWebTField(TransactionCase):
         self.assertEqual(text, "5.0000")
 
     def test_render_t_call_options_retrocompat(self):
-        """QWEB-L1: the deprecated `t-call-options` attribute must still compile
-        (it is renamed to `t-options`). Previously `el.attrib.set()` raised
-        AttributeError, breaking this retro-compat path."""
+        """QWEB-L1: deprecated `t-call-options` must still compile (renamed to
+        `t-options`). Regression: `el.attrib.set()` raised AttributeError."""
         self.env["ir.ui.view"].create(
             {
                 "name": "qweb_t1_callee",
@@ -216,7 +215,7 @@ class TestQWebTField(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestQWebNS(TransactionCase):
     def test_render_static_xml_with_namespace(self):
-        """Test the rendering on a namespaced view with no static content. The resulting string should be untouched."""
+        """A namespaced view with no dynamic content renders unchanged."""
         expected_result = """
             <root>
                 <h:table xmlns:h="http://www.example.org/table">
@@ -248,7 +247,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_static_xml_with_namespace_2(self):
-        """Test the rendering on a namespaced view with no static content. The resulting string should be untouched."""
+        """A namespaced view with no dynamic content renders unchanged."""
         expected_result = """
             <html xmlns="http://www.w3.org/HTML/1998/html4" xmlns:xdc="http://www.xml.com/books">
                 <head>
@@ -291,7 +290,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_static_xml_with_useless_distributed_namespace(self):
-        """Test that redundant namespaces are stripped upon rendering."""
+        """Redundant namespaces are stripped on rendering."""
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -349,7 +348,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_static_xml_with_namespace_dynamic(self):
-        """Test the rendering on a namespaced view with dynamic URI (need default namespace uri)."""
+        """Namespaced view with a dynamic URI (needs a default namespace URI)."""
         tempate = """
             <root xmlns:h="https://default.namespace.url/h">
                 <h:table t-att="{'xmlns:h': h1}">
@@ -395,9 +394,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_static_xml_with_namespace_dynamic_2(self):
-        """Test the rendering on a namespaced view with dynamic URI (need default namespace uri).
-        Default URIs must be differents.
-        """
+        """Namespaced view with a dynamic URI; default URIs must differ."""
         tempate = """
             <root xmlns:f="https://default.namespace.url/f" xmlns:h="https://default.namespace.url/h" >
                 <h:table t-att="{'xmlns:h': h1}">
@@ -450,9 +447,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_dynamic_xml_with_namespace_t_esc(self):
-        """Test that rendering a template containing a node having both an ns declaration and a t-esc attribute correctly
-        handles the t-esc attribute and keep the ns declaration.
-        """
+        """A node with both an ns declaration and t-esc keeps the ns and applies t-esc."""
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -477,9 +472,7 @@ class TestQWebNS(TransactionCase):
     def test_render_dynamic_xml_with_namespace_t_esc_with_useless_distributed_namespace(
         self,
     ):
-        """Test that rendering a template containing a node having both an ns declaration and a t-esc attribute correctly
-        handles the t-esc attribute and keep the ns declaration, and distribute correctly the ns declaration to its children.
-        """
+        """Node with ns declaration + t-esc keeps the ns, applies t-esc, and distributes the ns to children."""
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -506,9 +499,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_dynamic_xml_with_namespace_t_attf(self):
-        """Test that rendering a template containing a node having both an ns declaration and a t-attf attribute correctly
-        handles the t-attf attribute and keep the ns declaration.
-        """
+        """Node with ns declaration + t-attf keeps the ns and applies t-attf."""
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -553,9 +544,7 @@ class TestQWebNS(TransactionCase):
     def test_render_dynamic_xml_with_namespace_t_attf_with_useless_distributed_namespace(
         self,
     ):
-        """Test that rendering a template containing a node having both an ns declaration and a t-attf attribute correctly
-        handles the t-attf attribute and that redundant namespaces are stripped upon rendering.
-        """
+        """Node with ns declaration + t-attf applies t-attf and strips redundant namespaces."""
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -754,7 +743,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_static_xml_with_extension(self):
-        """Test the extension of a view by an xpath expression on a ns prefixed element."""
+        """Extend a view via an xpath expression on a ns-prefixed element."""
         # primary view
         view1 = self.env["ir.ui.view"].create(
             {
@@ -810,9 +799,7 @@ class TestQWebNS(TransactionCase):
         )
 
     def test_render_dynamic_xml_with_code_error(self):
-        """Test that, when rendering a template containing a namespaced node
-        that evaluates code with errors, the proper exception is raised
-        """
+        """A namespaced node evaluating erroring code raises the proper exception."""
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -837,7 +824,7 @@ class TestQWebNS(TransactionCase):
             self.env["ir.qweb"]._render(view1.id)
 
     def test_render_static_xml_with_void_element(self):
-        """Test the rendering on a namespaced view with dynamic URI (need default namespace uri)."""
+        """Void elements in a namespaced view render correctly."""
         tempate = """
             <rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
                 <g:brand>Odoo</g:brand>
@@ -918,10 +905,9 @@ class TestQWebBasic(TransactionCase):
                 "foo",
             ),  # POP_JUMP_IF_NOT_NONE
             ("{a for a in (1, 2)}", {}, {1, 2}),  # RERAISE
-            # QWEB-T3: pin the Python 3.14 opcodes the safe allow-set was
-            # extended for. A future interpreter bump renaming/removing one of
-            # these would silently break every valid template using the
-            # corresponding construct; these cases catch that regression.
+            # QWEB-T3: pin the Python 3.14 opcodes the safe allow-set was extended
+            # for; an interpreter bump renaming/removing one silently breaks every
+            # template using that construct.
             ("(lambda a: a + a)(x)", {"x": 1}, 2),  # LOAD_FAST_BORROW_LOAD_FAST_BORROW
             ("sum(i for i in range(n))", {"n": 3}, 3),  # LOAD_FAST_BORROW + POP_ITER
             ("[i * i for i in range(n)]", {"n": 3}, [0, 1, 4]),  # LOAD_FAST_BORROW
@@ -1037,12 +1023,9 @@ class TestQWebBasic(TransactionCase):
             self.env["ir.qweb"]._render(t.id, values)
 
     def test_compile_expr_forbidden(self):
-        """QWEB-T4: the sandbox must reject the classic escape gadgets.
-
-        This pins the anti-sandbox-escape invariant against regression: a
-        future change re-opening one of these vectors must break this test.
-        Each gadget is driven through the real QWeb engine (`_render` of a
-        view whose `t-out` is the gadget expression), and asserted to raise.
+        """QWEB-T4: the sandbox must reject the classic escape gadgets. Each gadget
+        is driven through the real engine (`t-out` of the gadget expression) and
+        asserted to raise, pinning the anti-escape invariant against regression.
         """
         IrQweb = self.env["ir.qweb"]
         forbidden = [
@@ -1102,9 +1085,8 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(links[1].get("href"), "javascript:history.back()")
 
     def test_post_processing_att_malicious_scheme_extra_attributes(self):
-        """QWEB-T5c: the scrub must cover every URL-bearing attribute a browser
-        executes from — SVG ``xlink:href`` (``<a xlink:href="javascript:…">``)
-        and ``<object data="javascript:…">`` — not just href/src/action/formaction.
+        """QWEB-T5c: the scrub must cover every URL-bearing attribute — including
+        SVG ``xlink:href`` and ``<object data>`` — not just href/src/action/formaction.
         """
         qweb = self.env["ir.qweb"]
         for attr in ("href", "src", "action", "formaction", "xlink:href", "data"):
@@ -1125,11 +1107,9 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(legit["data"], "/web/content/1")
 
     def test_qwebcontent_cross_database_guard(self):
-        """QWEB: a lazy ``QwebContent`` is bound to the cursor of the database
-        that created it. If it outlives its request (e.g. cached and reused
-        while another database is being served) it must NOT render through that
-        stale/foreign cursor — otherwise one tenant's content leaks into
-        another's request, or it crashes on a closed cursor. The current thread's
+        """QWEB: a lazy ``QwebContent`` is bound to its creating database's cursor.
+        If reused while another database is served, it must NOT render through the
+        foreign cursor (tenant content leak / closed-cursor crash); the thread's
         ``dbname`` gates rendering. Regression for upstream 07a333c8 + 49b312f5.
         """
         # Capture a QwebContent that is created but never output, so it stays
@@ -1141,13 +1121,15 @@ class TestQWebBasic(TransactionCase):
             orig_init(self_qc, irQweb, params)
             captured.append(self_qc)
 
-        view = self.env["ir.ui.view"].create({
-            "name": "qc-cross-db",
-            "type": "qweb",
-            "arch_db": '<t t-name="qc-cross-db">'
-                       '<t t-set="frag"><b>secret</b></t>'
-                       "<span>outer</span></t>",
-        })
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "qc-cross-db",
+                "type": "qweb",
+                "arch_db": '<t t-name="qc-cross-db">'
+                '<t t-set="frag"><b>secret</b></t>'
+                "<span>outer</span></t>",
+            }
+        )
         with patch.object(QwebContent, "__init__", capture):
             self.env["ir.qweb"]._render(view.id, {})
         qc = next((c for c in captured if c.html is None), None)
@@ -1177,11 +1159,10 @@ class TestQWebBasic(TransactionCase):
                 thread.dbname = original
 
     def test_post_processing_att_control_char_obfuscation(self):
-        """QWEB-T5b: C0 control characters (TAB/LF/CR/NUL/...) are stripped by
-        the browser *before* the scheme is resolved, so ``java&#9;script:``
-        collapses to ``javascript:`` and executes. `_post_processing_att` must
-        strip control chars before matching so these obfuscations are still
-        scrubbed. Covers the previously-untested ``URL_CONTROL_CHARS`` defense.
+        """QWEB-T5b: browsers strip C0 control chars (TAB/LF/CR/NUL/...) before
+        resolving the scheme, so ``java&#9;script:`` collapses to ``javascript:``
+        and executes. `_post_processing_att` must strip them before matching.
+        Covers the ``URL_CONTROL_CHARS`` defense.
         """
         # Each payload embeds a C0 control char inside the scheme; all must be
         # blanked. The benign anchor pins that a legitimate URL is untouched.
@@ -1298,13 +1279,11 @@ class TestQWebBasic(TransactionCase):
         )
 
     def test_render_etree_tset_body_content(self):
-        """QWEB-P/etree: a ``t-set`` whose value is body content (wrapped in a
-        QwebContent) that is then output, inside an *etree*-provided template.
-        etree templates recompile with fresh, non-deterministic def_names
-        (ETREE_TEMPLATE_REF) and are NOT ormcached, so the render-local compile
-        memo must resolve the content function via the ``loaded_functions``
-        registration, never by re-``_compile``-ing the ref (which would mint a
-        different def_name and KeyError). Regression guard for that exact path.
+        """QWEB-P/etree: a ``t-set`` body (wrapped in a QwebContent) output inside
+        an *etree* template. etree templates recompile with fresh def_names
+        (ETREE_TEMPLATE_REF) and are NOT ormcached, so the render-local memo must
+        resolve the content function via ``loaded_functions``, never by
+        re-``_compile``-ing the ref (a fresh def_name would KeyError).
         """
         template = etree.fromstring(
             """<t>
@@ -1382,11 +1361,10 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_foreach_lazy_last_no_leak(self):
-        # A lazy generator is not Sized/int/Mapping, so ``*_last`` cannot be
-        # known. It must be reset to False on every iteration so a
-        # caller-provided (or outer-loop) ``x_last`` does not leak into the
-        # loop body. Regression: previously ``x_last`` was only assigned when
-        # the size was known, leaking the pre-existing value.
+        # A lazy generator is not Sized/int/Mapping, so ``*_last`` is unknowable
+        # and must be reset to False each iteration; otherwise a caller/outer-loop
+        # ``x_last`` leaks into the loop body. Regression: it was only assigned
+        # when the size was known.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1832,7 +1810,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_out_format_6(self):
-        # Use str method will use the string value. t-out will escape this str
+        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1851,7 +1829,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_out_format_7(self):
-        # Use str method will use the string value. t-out will escape this str
+        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1871,7 +1849,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_out_format_8(self):
-        # Use str method will use the string value. t-out will escape this str
+        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1895,7 +1873,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_out_format_9(self):
-        # Use str method will use the string value. t-out will escape this str
+        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1911,7 +1889,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_out_json(self):
-        # Use str method will use the string value. t-out will escape this str
+        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -2808,7 +2786,7 @@ class TestQWebBasic(TransactionCase):
         )
 
     def test_render_comment_tail(self):
-        """Test the rendering of a tail text, near a comment."""
+        """Render tail text near a comment."""
 
         view1 = self.env["ir.ui.view"].create(
             {
@@ -2833,9 +2811,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(self.env["ir.qweb"]._render(view1.id).strip(), expected)
 
     def test_render_comments(self):
-        """Test the rendering of comments with and without the
-        preserve_comments option.
-        """
+        """Render comments with and without the preserve_comments option."""
         comment = "<!-- Hello, world! -->"
         view = self.env["ir.ui.view"].create(
             {
@@ -2858,9 +2834,7 @@ class TestQWebBasic(TransactionCase):
         )
 
     def test_render_processing_instructions(self):
-        """Test the rendering of processing instructions with and without the
-        preserve_comments option.
-        """
+        """Render processing instructions with and without the preserve_comments option."""
         p_instruction = "<?hello world?>"
         view = self.env["ir.ui.view"].create(
             {
@@ -3422,18 +3396,13 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestQWebCompileIsolation(TransactionCase):
-    """Compilation is destructive: each directive pops the attributes it
-    consumes from the element (see ``_compile_node`` / ``_compile_directives``).
-    The source tree is shared, though — a DB view's tree is cached for the whole
-    transaction in ``cr.cache["_compile_batch_"]`` (see ``_preload_trees``), and
-    an etree passed by the caller is the caller's own object. Compilation must
-    therefore run on a private copy; otherwise a recompile (triggered by a
-    mid-transaction eviction of the bounded ``templates`` ormcache) or a reused
-    etree silently renders corrupted output. These tests pin that invariant.
-
-    They reproduce the regression in the standard (non-dev) test runner, where
-    ``_generate_code_cached`` is ormcached; in ``--dev=xml`` the engine already
-    deep-copies, so the corruption never occurred there.
+    """Compilation is destructive: each directive pops the attributes it consumes
+    from the element. The source tree is shared, though — a DB view's tree is
+    transaction-cached (``_preload_trees``) and a caller's etree is their own
+    object — so compilation must run on a private copy, else a recompile (from a
+    ``templates`` ormcache eviction) or a reused etree renders corrupted output.
+    Reproduces in the standard runner (``_generate_code_cached`` ormcached); in
+    ``--dev=xml`` the engine already deep-copies, so the bug never appeared.
     """
 
     @staticmethod
@@ -3448,11 +3417,9 @@ class TestQWebCompileIsolation(TransactionCase):
         ]
 
     def test_compile_is_idempotent(self):
-        """Compiling the same template twice must produce identical code.
-
-        Reproduces the recompile path a ``templates`` ormcache eviction triggers
-        in production: the second compile must read a pristine source tree, not
-        one the first compile stripped in place.
+        """Compiling the same template twice must produce identical code — the
+        second compile must read a pristine source tree, not one the first
+        stripped in place (the recompile path a ``templates`` eviction triggers).
         """
         view = self.env["ir.ui.view"].create(
             {
@@ -3475,10 +3442,9 @@ class TestQWebCompileIsolation(TransactionCase):
         )
 
     def test_render_does_not_mutate_cached_tree(self):
-        """A render must leave the transaction-cached source tree intact.
-
-        If rendering strips the cached tree, a later recompile (after an ormcache
-        eviction within the same transaction) renders corrupted HTML.
+        """A render must leave the transaction-cached source tree intact; if it
+        strips the tree, a later recompile (after an ormcache eviction in the same
+        transaction) renders corrupted HTML.
         """
         view = self.env["ir.ui.view"].create(
             {
@@ -3507,10 +3473,9 @@ class TestQWebCompileIsolation(TransactionCase):
         )
 
     def test_render_reused_etree_is_stable(self):
-        """Rendering the same etree object twice must give identical output.
-
-        The etree branch of ``_get_template`` must not mutate the caller's
-        element, otherwise the second render compiles an already-stripped tree.
+        """Rendering the same etree object twice must give identical output: the
+        etree branch of ``_get_template`` must not mutate the caller's element,
+        else the second render compiles an already-stripped tree.
         """
         qweb = self.env["ir.qweb"]
         element = etree.fromstring('<t><span t-esc="1 + 1"/></t>')
@@ -3605,12 +3570,11 @@ class TestQWebHelpers(TransactionCase):
             self.assertNotIn(attr, el.attrib)  # the attribute is consumed
 
     def test_element_marker_roundtrip(self):
-        """The marker emitter and ``ELEMENT_MARKER_REGEXP`` parser must agree —
-        they are the coupling that maps generated code back to source nodes.
-
-        The payload is recovered with ``ast.literal_eval`` (as ``_scan_error_source``
-        does), so a ``' , '`` embedded in the xml round-trips intact instead of
-        truncating the fields."""
+        """The marker emitter and ``ELEMENT_MARKER_REGEXP`` parser must agree — the
+        coupling that maps generated code back to source nodes. The payload is
+        recovered with ``ast.literal_eval`` (as ``_scan_error_source`` does), so a
+        ``' , '`` embedded in the xml round-trips intact.
+        """
         qweb = self.env["ir.qweb"]
         for path, xml in (
             ("/t/div", '<div class="x"/>'),

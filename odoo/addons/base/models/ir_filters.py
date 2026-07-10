@@ -48,9 +48,9 @@ class IrFilters(models.Model):
     _get_filters_index = models.Index(
         "(model_id, action_id, embedded_action_id, embedded_parent_res_id)",
     )
-    # The embedded_parent_res_id can only be defined when the embedded_action_id field is set.
-    # As the embedded model is linked to only one res_model, It ensure the unicity of the filter regarding the
-    # embedded_parent_res_model and the embedded_parent_res_id
+    # embedded_parent_res_id is only set when embedded_action_id is set. Since the
+    # embedded model links to a single res_model, this ensures filter unicity per
+    # embedded_parent_res_model and embedded_parent_res_id.
     _check_res_id_only_when_embedded_action = models.Constraint(
         "CHECK(NOT (embedded_parent_res_id IS NOT NULL AND embedded_action_id IS NULL))",
         "Constraint to ensure that the embedded_parent_res_id is only defined when a top_action_id is defined.",
@@ -64,9 +64,8 @@ class IrFilters(models.Model):
     def _check_serialized_fields(self) -> None:
         """Validate serialized blobs on every write path, not only ``create_filter``.
 
-        ``create_filter`` is the documented RPC entry point, but raw ORM
-        ``create``/``write`` (server code, data files, future RPC) must validate
-        too so the IRF-L1 guarantee holds at the actual write boundary (IRF-L2).
+        Raw ORM create/write (server code, data files, future RPC) must validate
+        too so the IRF-L1 guarantee holds at the write boundary (IRF-L2).
         """
         for filter_ in self:
             self._validate_serialized_fields(
@@ -103,8 +102,8 @@ class IrFilters(models.Model):
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
-        # NULL Integer field value read as 0, wouldn't matter except in this case will trigger
-        # check_res_id_only_when_embedded_action
+        # A NULL Integer reads as 0, which would trigger
+        # check_res_id_only_when_embedded_action here.
         for vals in vals_list:
             if vals.get("embedded_parent_res_id") == 0:
                 del vals["embedded_parent_res_id"]
@@ -158,23 +157,18 @@ class IrFilters(models.Model):
         embedded_action_id: int | None = None,
         embedded_parent_res_id: int | None = None,
     ) -> list[ValuesType]:
-        """Obtain the list of filters available for the user on the given model.
+        """Return the filters available to the current user on the given model.
 
-        :param str model: name of the model to find filters for (the
-            ``model_id`` value, e.g. ``"res.partner"``), not a database id.
-        :param action_id: optional ID of action to restrict filters to this action
-            plus global filters. If missing only global filters are returned.
-            The action does not have to correspond to the model, it may only be
-            a contextual action.
-        :param embedded_action_id: optional ID of the embedded action the filter
-            is scoped to; combined with ``embedded_parent_res_id``.
-        :param embedded_parent_res_id: optional id of the parent record the
-            embedded-action filter applies to; only meaningful when
-            ``embedded_action_id`` is set.
-        :return: list of dicts containing the
-            ``name``, ``is_default``, ``domain``, ``context``, ``user_ids`` (m2m),
-            ``sort``, ``embedded_action_id`` (m2o tuple) and
-            ``embedded_parent_res_id`` of the matching ``ir.filters``.
+        :param str model: the ``model_id`` value (e.g. ``"res.partner"``), not a db id.
+        :param action_id: if set, restrict to this action plus global filters;
+            otherwise only global filters. The action need not match the model.
+        :param embedded_action_id: embedded action the filter is scoped to;
+            combined with ``embedded_parent_res_id``.
+        :param embedded_parent_res_id: parent record the embedded-action filter
+            applies to; only meaningful with ``embedded_action_id``.
+        :return: list of dicts with ``name``, ``is_default``, ``domain``,
+            ``context``, ``user_ids``, ``sort``, ``embedded_action_id`` and
+            ``embedded_parent_res_id``.
         :rtype: list[dict]
         """
         # available filters: private filters (user_ids=uids) and public filters (uids=NULL),
@@ -203,13 +197,12 @@ class IrFilters(models.Model):
 
     @api.model
     def _validate_serialized_fields(self, vals: dict[str, Any]) -> None:
-        """Validate that the stored ``domain``/``context``/``sort`` blobs have the right shape.
+        """Validate that stored ``domain``/``context``/``sort`` blobs have the right shape.
 
-        ``ir.filters`` persists ``domain``/``context``/``sort`` as free-form text
-        that downstream consumers evaluate (``_get_eval_domain``, the web client,
-        ``website_snippet_filter``). A malformed favorite created over RPC would
-        otherwise break the favorites dropdown for everyone sharing it, failing
-        far from its cause; validate at the write boundary instead.
+        These are persisted as free-form text that downstream consumers evaluate.
+        A malformed favorite created over RPC would break the favorites dropdown
+        for everyone sharing it, failing far from its cause; validate at the
+        write boundary instead.
 
         :param dict vals: filter values about to be persisted.
         :raises ValidationError: if ``domain`` is not a list, ``context`` is not a

@@ -1,14 +1,7 @@
-"""Query count regression tests for base module N+1 optimizations.
+"""Query-count regression tests for base module N+1 optimizations.
 
-Each test pins the expected number of SQL queries for an optimized code path.
-If a future change introduces an N+1 regression, the test will fail with a
-higher-than-expected query count.
-
-Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags '/base:TestBasePerfRegression' -u base \
-        --stop-after-init --workers=0
-    grep "tests when loading" ./odoo.log
+Each test pins the expected SQL query count for an optimized path; an N+1
+regression fails the test with a higher count.
 """
 
 from odoo.tests.common import TransactionCase, tagged, warmup
@@ -30,10 +23,9 @@ class TestBasePerfRegression(TransactionCase):
             ]
         )
 
-        # Partners with unique VATs that do NOT exist elsewhere in DB.
-        # Use a distinctive prefix so the pre-filter _read_group finds them
-        # only in this batch — the optimization skips per-partner search
-        # when a VAT is unique in the entire database.
+        # Distinctive VAT prefix unique in the whole DB: the optimization skips
+        # per-partner search when the pre-filter _read_group finds a VAT only
+        # in this batch.
         cls.vat_partners = cls.env["res.partner"].create(
             [
                 {

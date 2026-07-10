@@ -16,15 +16,13 @@ PNG_1x1_B64 = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAA
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryNoRequest(TransactionCase):
-    """Regression test for audit finding IRB-L1: _get_image_stream_from must not
-    dereference the thread-local `request` proxy (request.httprequest.environ)
-    on the no-request path used by ir_actions_report to resolve /web/image URLs
-    server-side (cron/worker context). Previously this raised AttributeError,
-    silently downgrading the deadlock-avoidance fast path to an HTTP self-fetch.
+    """IRB-L1: _get_image_stream_from must not dereference the thread-local
+    `request` proxy on the no-request path (cron/worker resolving /web/image
+    server-side); previously it raised AttributeError, downgrading the
+    deadlock-avoidance fast path to an HTTP self-fetch.
 
-    Stream resolution is mocked to a ready data stream so this isolates the
-    request-handling branch in _get_image_stream_from from the (separate)
-    attachment-streaming path, which has its own request dependency.
+    Stream resolution is mocked to a ready data stream to isolate the
+    request-handling branch from the attachment-streaming path.
     """
 
     def test_get_image_stream_from_without_request(self):
@@ -55,10 +53,10 @@ class TestIrBinaryNoRequest(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrAttachmentNoRequest(TransactionCase):
-    """Regression for NEW-1 (discovered while testing IRB-L1): a filestore
-    attachment's _to_http_stream must resolve the filestore path without an HTTP
-    request (cron / server-side report rendering), where the `request` proxy is
-    unbound. Previously this raised on request.db.
+    """NEW-1 (found while testing IRB-L1): a filestore attachment's
+    _to_http_stream must resolve the filestore path without an HTTP request
+    (cron / server-side rendering), where `request` is unbound; previously it
+    raised on request.db.
     """
 
     def test_to_http_stream_without_request(self):
@@ -72,10 +70,10 @@ class TestIrAttachmentNoRequest(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryImageMissing(TransactionCase):
-    """Audit finding IRB-C1: _get_image_stream_from must degrade to the
-    placeholder when _get_stream_from raises MissingError (e.g. a dangling
-    attachment-backed binary field), instead of letting the error escape to a
-    500. Previously only UserError was caught.
+    """IRB-C1: _get_image_stream_from must degrade to the placeholder when
+    _get_stream_from raises MissingError (e.g. a dangling attachment-backed
+    binary field) instead of escaping to a 500; previously only UserError was
+    caught.
     """
 
     def test_missing_error_falls_back_to_placeholder(self):
@@ -101,10 +99,9 @@ class TestIrBinaryImageMissing(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
-    """Audit finding IRB-T1: exercise the access-control branches of
-    _find_record — valid field-scoped token grants sudo, a mismatched token
-    does not, and a record the user cannot read falls through to check_access
-    and raises.
+    """IRB-T1: exercise the access-control branches of _find_record -- a valid
+    field-scoped token grants sudo, a mismatched token does not, and an
+    unreadable record falls through to check_access and raises.
     """
 
     def test_valid_field_token_grants_sudo(self):
@@ -155,12 +152,11 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryImageBranches(TransactionCase):
-    """Audit finding IRB-C2 + branch coverage for _get_image_stream_from.
+    """IRB-C2 + branch coverage for _get_image_stream_from.
 
-    Pins the previously untested branches: the swallowed-exception DEBUG
-    trace (a typo'd field_name UserError used to vanish behind a silent
-    placeholder), the explicit-download re-raise, the ETag augmentation on
-    post-processing, and the empty-stream placeholder fallback.
+    Pins the previously untested branches: the swallowed-exception DEBUG trace,
+    the explicit-download re-raise, the ETag augmentation on post-processing,
+    and the empty-stream placeholder fallback.
     """
 
     @property

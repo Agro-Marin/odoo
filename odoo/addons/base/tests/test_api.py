@@ -7,7 +7,7 @@ from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 
 
 class TestAPI(SavepointCaseWithUserDemo):
-    """test the new API of the ORM"""
+    """Test the new API of the ORM."""
 
     @classmethod
     def setUpClass(cls):
@@ -32,10 +32,8 @@ class TestAPI(SavepointCaseWithUserDemo):
         domain = [("name", "ilike", "j"), ("id", "in", self.partners.ids)]
         partners = self.env["res.partner"].search(domain)
 
-        # partners is a collection of browse records
         self.assertTrue(partners)
 
-        # partners and its contents are instance of the model
         self.assertIsRecordset(partners, "res.partner")
         for p in partners:
             self.assertIsRecord(p, "res.partner")
@@ -757,11 +755,10 @@ class TestAPI(SavepointCaseWithUserDemo):
 
         with self.subTest("Should allow cross-group prefetching"):
             byfn = (p0 | p1 | p2).grouped("function")
-            # Flush before invalidating: since 2b88ae734aa, res.partner
-            # create() reads commercial_partner_id (in _children_sync), which
-            # computes it and marks it dirty; invalidate_all(flush=False)
-            # deliberately keeps dirty entries in cache, so without a flush
-            # the cache would not be empty here.
+            # Flush before invalidating: since 2b88ae734aa, res.partner create()
+            # computes commercial_partner_id (in _children_sync) and marks it
+            # dirty, and invalidate_all(flush=False) keeps dirty entries in cache,
+            # so without a flush the cache would not be empty here.
             self.env.invalidate_all()
             self.assertFalse(
                 dict(self.env._core.iter_field_items()),

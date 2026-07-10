@@ -10,12 +10,9 @@ from odoo.tools.translate import trans_export, trans_export_records
 NEW_LANG_KEY = "__new__"
 
 
-# BLEXP-SEC-1: the base.language.export ACL grants base.group_user (not
-# base.group_system like base.language.import). This export/import asymmetry is
-# a deliberate upstream design decision (Martin Trigaux, commit 65530dfd6a04,
-# 2020-01-14): exporting translations is read-only and exposes only strings an
-# internal user can already read, whereas importing mutates them. Do NOT
-# tighten the export ACL to group_system.
+# BLEXP-SEC-1: export is granted base.group_user (not base.group_system like
+# import) by deliberate upstream design: exporting is read-only and exposes only
+# strings an internal user can already read. Do NOT tighten to group_system.
 class BaseLanguageExport(models.TransientModel):
     _name = "base.language.export"
     _description = "Language Export"
@@ -77,12 +74,10 @@ class BaseLanguageExport(models.TransientModel):
             if self.export_type == "model":
                 if not self.model_name:
                     raise UserError(_("Please select a model to export."))
-                # BLEXP-1: the user-supplied domain is parsed here. Widen the
-                # catch beyond ValueError/SyntaxError so pathological input that
-                # makes ast.literal_eval raise TypeError (e.g. an unhashable
-                # dict key) is turned into a friendly UserError instead of a 500.
-                # The successful result must also be a list before it reaches
-                # search(); a non-list (e.g. "42") would otherwise crash there.
+                # BLEXP-1: catch TypeError beyond ValueError/SyntaxError so
+                # pathological input (e.g. an unhashable dict key) yields a
+                # UserError, not a 500. A non-list result (e.g. "42") would crash
+                # search(), so it is validated below.
                 try:
                     domain = ast.literal_eval(self.domain or "[]")
                 except ValueError, SyntaxError, TypeError:

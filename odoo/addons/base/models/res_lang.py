@@ -14,15 +14,12 @@ from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
 
-# ``locale.setlocale()`` mutates *process-global* state, and ``_create_lang``
-# must set it to read the target locale's facets (``localeconv``,
-# ``nl_langinfo``).  Odoo's threaded server runs other requests concurrently,
-# so two concurrent ``_create_lang`` calls could interleave their
-# setlocale/read/reset sequences and read the wrong locale's data.  This lock
-# serializes the whole setlocale window (set -> read -> reset).  It cannot
-# shield unrelated threads that read locale-dependent state without taking
-# the lock — a locale-free rewrite (e.g. babel) would be needed for that —
-# but it keeps the mutation window minimal and internally consistent.
+# ``locale.setlocale()`` mutates *process-global* state, which ``_create_lang``
+# sets to read the target locale's facets (``localeconv``, ``nl_langinfo``). On
+# the threaded server, two concurrent ``_create_lang`` calls could interleave
+# their set/read/reset sequences and read the wrong locale, so this lock
+# serializes the whole window. It cannot shield unrelated threads that read
+# locale state without taking it (a locale-free rewrite would be needed).
 _LOCALE_LOCK = threading.Lock()
 
 
@@ -30,9 +27,9 @@ _LOCALE_LOCK = threading.Lock()
 def _parse_grouping(grouping: str) -> tuple[int, ...]:
     """Parse a locale grouping spec (e.g. ``"[3,0]"``) to a tuple, cached.
 
-    ``res.lang.grouping`` is a 2-value Selection, so the input is one of a tiny
-    bounded set of constant strings. Caching avoids an ``ast.literal_eval`` per
-    formatted value on the QWeb number/currency rendering hot path (RL-P1).
+    RL-P1: input is one of a tiny bounded set (the ``grouping`` Selection), so
+    caching avoids an ``ast.literal_eval`` per value on the QWeb number/currency
+    rendering hot path.
     """
     return tuple(ast.literal_eval(grouping))
 
@@ -245,19 +242,13 @@ class ResLang(models.Model):
             _logger.error("No language is active.")
 
     def _find_lang_by_code(self, code: str) -> Self:
-        """Return the (possibly inactive) language record matching ``code``.
-
-        :param str code: code of the language to look up
-        :return: the language record, or an empty recordset
+        """Return the (possibly inactive) language record matching ``code``,
+        or an empty recordset.
         """
         return self.with_context(active_test=False).search([("code", "=", code)])
 
     def _activate_lang(self, code: str) -> Self:
-        """Activate the language matching ``code`` without loading translations.
-
-        :param str code: code of the language to activate
-        :return: the language matching ``code``
-        """
+        """Activate the language matching ``code`` without loading translations."""
         lang = self._find_lang_by_code(code)
         if lang and not lang.active:
             lang.active = True
@@ -268,9 +259,6 @@ class ResLang(models.Model):
 
         Unlike :meth:`_activate_lang`, this routes through
         :meth:`action_unarchive`, which also triggers ``_update_translations``.
-
-        :param str code: code of the language to activate
-        :return: the language matching ``code``
         """
         lang = self._find_lang_by_code(code)
         if lang and not lang.active:
@@ -284,22 +272,18 @@ class ResLang(models.Model):
             lang_name = lang
 
         def fix_datetime_format(format):
-            """Python's strftime supports only the format directives
-            that are available on the platform's libc, so in order to
-            be 100% cross-platform we map to the directives required by
-            the C standard (1989 version), always available on platforms
-            with a C standard implementation."""
-            # For some locales, nl_langinfo returns a D_FMT/T_FMT that contains
-            # unsupported '%-' patterns, e.g. for cs_CZ
+            """Map libc-specific strftime directives to the always-available
+            C89 ones, for cross-platform format strings."""
+            # Some locales (e.g. cs_CZ) return a D_FMT/T_FMT with unsupported
+            # '%-' patterns.
             format = format.replace("%-", "%")
             for pattern, replacement in tools.misc.DATETIME_FORMATS_MAP.items():
                 format = format.replace(pattern, replacement)
             return str(format)
 
-        # Read the locale information under _LOCALE_LOCK (see its comment):
-        # setlocale mutates process-global state and the facet reads below
-        # (localeconv, nl_langinfo) only see the target locale while it is
-        # set, so the whole set -> read -> reset window must be serialized.
+        # Read locale info under _LOCALE_LOCK (see its comment): the whole
+        # set -> read -> reset window over process-global locale state must be
+        # serialized.
         with _LOCALE_LOCK:
             try:
                 fail = True
@@ -316,10 +300,8 @@ class ResLang(models.Model):
                     _logger.warning(msg, lang, lc)
 
                 conv = locale.localeconv()
-                # Normalize grouping to match Selection field values (no
-                # spaces).  locale.localeconv()["grouping"] returns e.g.
-                # [3, 0] → str gives "[3, 0]" but the Selection expects
-                # "[3,0]".
+                # Normalize to the space-free Selection values: str([3, 0])
+                # gives "[3, 0]" but the Selection expects "[3,0]".
                 grouping = str(conv.get("grouping") or "[3,0]").replace(" ", "")
                 grouping_options = {v for v, _ in self._fields["grouping"].selection}
                 lang_info = {
@@ -339,18 +321,16 @@ class ResLang(models.Model):
                 }
             finally:
                 tools.translate.resetlocale()
-        # The ORM create does not need the temporary locale: run it outside
-        # the lock to keep the global-mutation window as short as possible.
+        # create() needs no locale: run it outside the lock to keep the
+        # global-mutation window short.
         return self.create(lang_info)
 
     @api.model
     def install_lang(self) -> bool:
         """Load the default language and set it as the default partner language."""
-        # Called from odoo/addons/base/data/res_lang_data.xml to load a language
-        # and set it as the default for every partner. The language is set via
-        # tools.config by the '_initialize_db' method on the 'db' object.
-        # This is a fragile solution and something else should be found.
-        # config['load_language'] is a comma-separated list or None
+        # Called from base/data/res_lang_data.xml. config['load_language'] (set
+        # via '_initialize_db' on the 'db' object) is a comma-separated list or
+        # None. Fragile — something better should be found.
         lang_code = (tools.config.get("load_language") or "en_US").split(",")[0]
         self._activate_lang(lang_code) or self._create_lang(lang_code)
         IrDefault = self.env["ir.default"]
@@ -388,17 +368,13 @@ class ResLang(models.Model):
     )
 
     def _get_data(self, **kwargs) -> LangData:
-        """Get the language data for the given field value in kwargs
-        For example, _get_data(code='en_US') will return the LangData
-        for the res.lang record whose 'code' field value is 'en_US'
+        """Return the LangData for a single ``{field_name: field_value}`` pair.
 
-        :param dict kwargs: ``{field_name: field_value}``
-                field_name is the only key in kwargs and in ``self.CACHED_FIELDS``
-                Try to reuse the used ``field_name``: 'id', 'code', 'url_code'
-        :return: Valid LangData if (field_name, field_value) pair is for an
-                **active** language. Otherwise, Dummy LangData which will return
-                ``False`` for all ``self.CACHED_FIELDS``
-        :raise: UserError if field_name is not in ``self.CACHED_FIELDS``
+        E.g. ``_get_data(code='en_US')``. Prefer a cached ``field_name`` ('id',
+        'code', 'url_code'). Returns a dummy LangData (all ``CACHED_FIELDS`` are
+        ``False``) when no **active** language matches.
+
+        :raise UserError: if ``field_name`` is not in ``self.CACHED_FIELDS``
         """
         if len(kwargs) != 1:
             raise TypeError(
@@ -423,10 +399,10 @@ class ResLang(models.Model):
 
     @tools.ormcache("field", cache="stable")
     def _get_active_by(self, field: str) -> LangDataDict:
-        """Return a LangDataDict mapping active languages' **unique**
-        **required** ``self.CACHED_FIELDS`` values to their LangData.
-        Its items are ordered by languages' names
-        Try to reuse the used ``field``: 'id', 'code', 'url_code'
+        """Return a LangDataDict mapping active languages' **unique required**
+        ``self.CACHED_FIELDS`` values to their LangData, ordered by name.
+
+        Prefer a reused ``field``: 'id', 'code', 'url_code'.
         """
         if field not in self.CACHED_FIELDS:
             raise UserError(_('Field "%s" is not cached', field))
@@ -596,19 +572,13 @@ class ResLang(models.Model):
         return candidate
 
     def format(self, percent: str, value, grouping: bool = False) -> str:
-        """Format ``value`` using ``percent`` with this language's locale.
+        """Format ``value`` using the ``percent`` ``%char`` specifier with this
+        language's locale.
 
-        Thin registry-facing wrapper around the pure :func:`format_number`:
-        it only resolves this record's :class:`LangData` (and checks the
-        language is installed). Callers that already hold a ``LangData``
-        (e.g. ``odoo.tools.formatting.formatLang``) should call
-        :func:`format_number` directly and skip the extra cache hops.
-
-        :param str percent: a single ``%char`` format specifier
-        :param value: the numeric value to format
-        :param bool grouping: whether to insert the locale thousands separator
-        :return: the locale-formatted string
-        :rtype: str
+        Thin registry-facing wrapper around the pure :func:`format_number`: it
+        only resolves this record's :class:`LangData` and checks the language is
+        installed. Callers that already hold a ``LangData`` (e.g. ``formatLang``)
+        should call :func:`format_number` directly to skip the cache hops.
         """
         self.ensure_one()
         data = self._get_data(id=self.id)
@@ -700,25 +670,14 @@ def intersperse(string: str, counts: list[int], separator: str = "") -> tuple[st
 
 
 def format_number(spec: str, value, lang_data: LangData, grouping: bool = False) -> str:
-    """Format ``value`` using ``spec`` with ``lang_data``'s locale conventions.
+    """Format ``value`` using the ``spec`` ``%char`` specifier and
+    ``lang_data``'s locale conventions.
 
-    Pure, registry-free counterpart of :meth:`ResLang.format` (which
-    delegates here): everything locale-related is taken from the given
-    ``lang_data`` (``decimal_point``, ``grouping``, ``thousands_sep``), so
-    this is unit-testable without a database and callable by code that
-    already holds a :class:`LangData` (e.g. ``formatLang``) without
-    re-fetching it through a recordset.
-
-    Handles float specs (``%e``/``%f``/``%g``) and integer specs
-    (``%d``/``%i``/``%u``); the latter are used by callers such as
-    ``ir_qweb_fields``. Scientific-notation output is never grouped.
-
-    :param str spec: a single ``%char`` format specifier
-    :param value: the numeric value to format
-    :param lang_data: the language data providing the locale conventions
-    :param bool grouping: whether to insert the locale thousands separator
-    :return: the locale-formatted string
-    :rtype: str
+    Pure, registry-free counterpart of :meth:`ResLang.format`: all locale data
+    (``decimal_point``, ``grouping``, ``thousands_sep``) comes from
+    ``lang_data``, so this is DB-free and callable by code already holding a
+    :class:`LangData`. Handles float (``%e``/``%f``/``%g``) and integer
+    (``%d``/``%i``/``%u``) specs; scientific-notation output is never grouped.
     """
     if not spec or spec[0] != "%":
         raise ValueError(
@@ -738,11 +697,10 @@ def format_number(spec: str, value, lang_data: LangData, grouping: bool = False)
 
         if spec[-1] in "eEfFgG":
             parts = formatted.split(".")
-            # Scientific-notation output (e.g. ``%g % 1e20`` → ``"1e+20"``)
-            # must NOT be grouped: ``parts[0]`` then holds the mantissa plus
-            # the ``e+NN`` exponent, and interspersing would inject the
-            # thousands separator into the exponent (RL-L2: ``"1e,+20"``).
-            # Only group the integer part of plain decimal output.
+            # RL-L2: never group scientific-notation output (e.g. "1e+20") —
+            # parts[0] holds mantissa+exponent, so interspersing would inject
+            # the separator into the exponent ("1e,+20"). Group plain decimals
+            # only.
             if "e" not in formatted and "E" not in formatted:
                 parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[0]
 

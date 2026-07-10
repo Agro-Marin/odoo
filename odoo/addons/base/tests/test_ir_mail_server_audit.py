@@ -17,16 +17,15 @@ _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
 
 @tagged("post_install", "-at_install")
 class TestMailServerArchiveAndHeaders(TransactionCase):
-    """Regression coverage for the ir.mail_server archive guard (write) and the
-    anti-spoofing header rewrite (_alter_message__). See base-module audit
-    findings MS-T1, MS-T2 and the latent MS-L3 leading-comma quirk."""
+    """Cover the ir.mail_server archive guard (write) and the anti-spoofing
+    header rewrite (_alter_message__). Audit findings MS-T1, MS-T2, MS-L3."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.IrMailServer = cls.env["ir.mail_server"]
-        # Three servers whose names sort differently from their creation order,
-        # so the display_name ordering in the error message can be asserted.
+        # Names sort differently from creation order, so error-message ordering
+        # by display_name can be asserted.
         cls.server_b, cls.server_a, cls.server_c = cls.IrMailServer.create(
             [
                 {
@@ -55,10 +54,9 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
     # ------------------------------------------------------------------
 
     def test_smtp_connection_test_disabled_send_raises_clean_error(self):
-        """With _disable_send() active (test mode), _connect__ returns None;
-        test_smtp_connection must short-circuit with an intelligible UserError
-        instead of an AttributeError on None wrapped in a misleading
-        'Connection Test Failed' message."""
+        """With _disable_send() active, _connect__ returns None and
+        test_smtp_connection must raise a clear UserError, not an AttributeError
+        wrapped in a misleading 'Connection Test Failed' message."""
         self.assertTrue(self.IrMailServer._disable_send())
         with self.assertRaises(UserError) as ctx:
             self.server_a.test_smtp_connection()
@@ -75,9 +73,8 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
     def test_archive_non_active_write_skips_usage_check(self):
         """A write that does not flip active to False never consults usages.
 
-        With active defaulting to True (vals.get('active', True)), a write of an
-        unrelated field on an in-use server must still go through, because the
-        guard only runs when the caller explicitly archives.
+        The guard only runs on explicit archive, so writing an unrelated field
+        on an in-use server still goes through.
         """
         usages = {self.server_a.id: ["Some usage"]}
         with patch.object(
@@ -156,11 +153,8 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         return message
 
     def test_alter_message_x_msg_to_add_empty_to(self):
-        """With no original To, the X-Msg-To-Add branch yields a CLEAN To header
-        (just the added address, no leading ', ').
-
-        This refutes the MS-L3 "leading comma" claim from the audit: the current
-        code does not emit a stray ', ' when the original To is empty.
+        """With no original To, X-Msg-To-Add yields a clean To (just the added
+        address, no leading ', '). Refutes the MS-L3 leading-comma claim.
         """
         message = self._make_message()
         message["X-Msg-To-Add"] = "added@example.com"
@@ -206,7 +200,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
 
 class _FailingSMTPSession:
-    """Bare caller-supplied SMTP session double whose delivery always fails.
+    """SMTP session double whose delivery always fails.
 
     ``from_filter``/``smtp_from`` mirror the ``(False, False)`` defaults of
     ``_read_session_context`` for a session that was never stashed.
@@ -221,10 +215,10 @@ class _FailingSMTPSession:
 
 @tagged("post_install", "-at_install")
 class TestMailServerSendFailureObservability(TransactionCase):
-    """Delivery failures in ``send_email`` must be observable in production:
-    logged at WARNING with the SMTP traceback, and the raised
-    ``MailDeliveryError`` must chain the root cause (``from e``) while keeping
-    its rendered message -- the stored ``mail.mail`` failure_reason -- intact."""
+    """``send_email`` delivery failures must be observable: logged at WARNING
+    with the SMTP traceback, and the ``MailDeliveryError`` must chain the root
+    cause (``from e``) while keeping its rendered message (the ``mail.mail``
+    failure_reason) intact."""
 
     def _make_message(self):
         message = EmailMessage(policy=email.policy.SMTP)
@@ -266,9 +260,9 @@ class TestMailServerSendFailureObservability(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMailServerOnchangeEncryption(TransactionCase):
-    """``_onchange_encryption`` must only rewrite ``smtp_port`` when it still
-    holds the default of the encryption mode being left (25 or 465); custom
-    user-entered ports survive an encryption toggle."""
+    """``_onchange_encryption`` rewrites ``smtp_port`` only when it still holds
+    the default of the mode being left (25 or 465); custom ports survive a
+    toggle."""
 
     def _new_server(self, encryption, port):
         return self.env["ir.mail_server"].new(

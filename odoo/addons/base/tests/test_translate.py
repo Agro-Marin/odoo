@@ -54,10 +54,10 @@ class TranslationToolsTestCase(BaseCase):
         """PoFileReader must not crash on a .po entry whose translator comment is
         absent or not the Odoo ``module: X`` form.
 
-        Regression: ``re.match(...).groups()`` raised ``AttributeError`` on an
-        empty/non-matching comment, aborting the whole translation import. The
-        comment only supplies a default module for ``code`` rows (ignored on
-        import); model/model_terms rows take their module from the occurrence.
+        Regression: ``re.match(...).groups()`` raised ``AttributeError`` on a
+        non-matching comment, aborting the import. The comment only supplies a
+        default module for ``code`` rows; model/model_terms rows take it from the
+        occurrence.
         """
         from types import SimpleNamespace
 
@@ -87,20 +87,15 @@ class TranslationToolsTestCase(BaseCase):
 
         def test_string(str):
             quoted = quote(str)
-            # print "\n1:", repr(str)
-            # print "2:", repr(quoted)
             unquoted = unquote("".join(quoted.split('"\n"')))
-            # print "3:", repr(unquoted)
             self.assertEqual(str, unquoted)
 
         test_string("""test \nall kinds\n \n o\r
          \\\\ nope\n\n"
          """)
 
-        # The ones with 1+ backslashes directly followed by
-        # a newline or literal N can fail... we would need a
-        # state-machine parser to handle these, but this would
-        # be much slower so it's better to avoid them at the moment
+        # Terms with 1+ backslashes directly followed by a newline or literal N
+        # can fail; handling them needs a slower state-machine parser, so avoid them.
         self.assertRaises(
             AssertionError,
             quote,
@@ -372,7 +367,7 @@ class TranslationToolsTestCase(BaseCase):
     def test_translate_xml_with_namespace(self):
         """Test xml_translate() on elements with namespaces."""
         terms = []
-        # do not slit the long line below, otherwise the result will not match
+        # do not split the long line below, otherwise the result will not match
         source = """<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
                         <cbc:UBLVersionID t-esc="version_id"/>
                         <t t-foreach="[1, 2, 3, 4]" t-as="value">
@@ -890,16 +885,16 @@ class TestTranslationWrite(TransactionCase):
         cls.category_xml_id = cls.category.export_data(["id"]).get("datas")[0][0]
 
     def test_flush_stale_flat_cache_entry_not_nulled(self):
-        """Regression: a translatable field whose value survives only in a
-        stale flat cache entry (``{id: scalar}`` — the layout used before
+        """Regression: a translatable field whose value survives only in a stale
+        flat cache entry (``{id: scalar}``, the layout used before
         ``field_depends_context`` is populated, e.g. during a
         ``_load_module_terms`` flush) must not be flushed as SQL ``NULL``.
 
         ``Field.get_column_update``'s ``translate is True`` branch skipped flat
-        entries unconditionally and returned ``None``, writing ``NULL``.  On a
-        required translatable field that raised ``NotNullViolation`` and
-        aborted ``-u`` (the ``loyalty.reward.description`` crash); on others it
-        silently cleared the stored value.
+        entries unconditionally and returned ``None``. On a required field that
+        raised ``NotNullViolation`` and aborted ``-u`` (the
+        ``loyalty.reward.description`` crash); on others it silently cleared the
+        value.
         """
         category = self.env["res.partner.category"].create({"name": "Reblochon"})
         field = category._fields["name"]
@@ -2563,11 +2558,9 @@ class TestTranslationTrigramIndexPatterns(BaseCase):
 class TestReconcileObsoleteTerms(TransactionCase):
     """Unit tests for ``BaseString._reconcile_obsolete_terms``.
 
-    This is the fuzzy term re-keying that ``mark_dirty`` uses to carry a
-    translation across an edit of its source term. It was previously buried
-    inside the ~170-line ``mark_dirty`` and untestable in isolation; now a named
-    method, it is exercised directly on the ``xml_translate`` field
-    ``ir.ui.view.arch_db`` (``get_trans_terms`` / ``_reconcile_obsolete_terms``
+    The fuzzy term re-keying that ``mark_dirty`` uses to carry a translation
+    across an edit of its source term. Exercised directly on the ``xml_translate``
+    field ``ir.ui.view.arch_db`` (``get_trans_terms`` / ``_reconcile_obsolete_terms``
     are pure, so no view record is needed).
     """
 

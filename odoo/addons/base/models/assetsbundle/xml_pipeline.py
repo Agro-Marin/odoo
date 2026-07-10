@@ -9,8 +9,8 @@ from odoo.tools import OrderedSet
 from odoo.tools.json import scriptsafe as json
 
 if TYPE_CHECKING:
-    # Typing-only sibling imports: ``bundle`` imports this module at runtime,
-    # so the reverse edge stays under TYPE_CHECKING to avoid an import cycle.
+    # ``bundle`` imports this module at runtime, so the reverse edge stays under
+    # TYPE_CHECKING to avoid an import cycle.
     from .bundle import AssetsBundle
     from .common import XMLBlock
 from .common import XMLAssetError
@@ -19,50 +19,39 @@ from .common import XMLAssetError
 class XmlTemplatePipeline:
     """Render one bundle's OWL templates into the JS that registers them.
 
-    Split out of :class:`AssetsBundle` so all template handling lives behind one
-    boundary, mirroring :class:`CssPipeline` for stylesheets: parsing into
-    primary/extension blocks (:meth:`xml`), rendering the ``registerTemplate``
-    calls (:meth:`generate_xml_bundle`), and the two delivery wrappers — the
-    legacy classic-bundle IIFE (:meth:`legacy_template_iife`) and the ESM
-    ``<script type="module">`` form (:meth:`generate_esm_template_bundle`).
-    ``AssetsBundle`` keeps thin façades for its public/test surface and the
-    ``ir_qweb`` call sites.
+    Split out of :class:`AssetsBundle` (mirroring :class:`CssPipeline`): parse
+    into primary/extension blocks (:meth:`xml`), render the ``registerTemplate``
+    calls (:meth:`generate_xml_bundle`), and wrap for delivery — legacy IIFE
+    (:meth:`legacy_template_iife`) or ESM ``<script type="module">``
+    (:meth:`generate_esm_template_bundle`).
     """
 
-    # OWL template-registration API destructured from ``@web/core/templates`` by
-    # the generated template bundles. Three call sites consume this exact set —
-    # the legacy IIFE wrapper and both header forms of
-    # ``generate_esm_template_bundle`` — so a single source keeps them from
-    # drifting when a registrar is added or renamed.
+    # OWL template-registration API destructured from ``@web/core/templates``.
+    # Three call sites consume this exact set (the IIFE wrapper and both header
+    # forms of ``generate_esm_template_bundle``); one source keeps them aligned.
     _TEMPLATE_MODULE = "@web/core/templates"
     _TEMPLATE_REGISTRARS = (
         "checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension"
     )
 
     def __init__(self, bundle: AssetsBundle) -> None:
-        """Bind the pipeline to the bundle whose templates it renders."""
         self._bundle = bundle
 
     def xml(self) -> list[XMLBlock]:
-        """
-        Create a list of blocks. A block can have one of the two types "templates" or "extensions".
-        A template with no parent or template with t-inherit-mode="primary" goes in a block of type "templates".
-        A template with t-inherit-mode="extension" goes in a block of type "extensions".
+        """Split the bundle's templates into ordered "templates"/"extensions" blocks.
 
-        Used parsed attributes:
-        * `t-name`: template name
-        * `t-inherit`: inherited template name.
-        * 't-inherit-mode':  'primary' or 'extension'.
-
-        :return: a list of blocks
+        A parentless or ``t-inherit-mode="primary"`` template goes in a
+        "templates" block; a ``t-inherit-mode="extension"`` one in an
+        "extensions" block. Reads ``t-name``, ``t-inherit`` and
+        ``t-inherit-mode``.
         """
         bundle = self._bundle
         blocks = []
         block = None
         for asset in bundle.templates:
-            # ``template_elements`` parses each asset's XML once and caches it
-            # (see XMLAsset); a parse error surfaces as XMLAssetError at access
-            # time and is handled by generate_xml_bundle's try/except.
+            # ``template_elements`` parses each asset once and caches it (see
+            # XMLAsset); a parse error surfaces as XMLAssetError here, caught by
+            # generate_xml_bundle.
             for template_tree in asset.template_elements:
                 template_name = template_tree.get("t-name")
                 inherit_from = template_tree.get("t-inherit")
@@ -71,7 +60,7 @@ class XmlTemplatePipeline:
                     inherit_mode = template_tree.get("t-inherit-mode", "primary")
                     if inherit_mode not in {"primary", "extension"}:
                         # ``asset.name`` covers inline assets (url is None),
-                        # where ``url.split`` would crash the error path.
+                        # where ``url.split`` would crash.
                         addon = asset.url.split("/")[1] if asset.url else asset.name
                         raise asset._error(
                             bundle.env._(
@@ -109,11 +98,9 @@ class XmlTemplatePipeline:
             content.append(f"throw new Error({json.dumps(str(e))});")
 
         def get_template(element: etree._Element) -> str:
-            # Serialize a COPY: the elements come from ``template_elements``,
-            # a cached parse tree shared by both delivery paths (legacy IIFE
-            # and ESM) and any other ``xml()`` consumer — stamping xml:space
-            # on the original would leak this serializer's concern into every
-            # later read of the cached tree.
+            # Serialize a COPY: the elements come from the cached
+            # ``template_elements`` tree shared by every consumer, so stamping
+            # xml:space on the original would leak into later reads.
             element = deepcopy(element)
             element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
             string = etree.tostring(element, encoding="unicode")
@@ -121,14 +108,11 @@ class XmlTemplatePipeline:
                 string.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
             )
             # The rendered JS may be emitted as an INLINE
-            # ``<script type="module">`` (``?debug=assets``, read-only
-            # renders, satellite template nodes).  The HTML parser ends a
-            # script element at the first ``</script`` (case-insensitive)
-            # REGARDLESS of JS string/template-literal context, so a
-            # template carrying a ``<script>`` child would truncate the
-            # surrounding tag and break the page.  ``<\/script`` is an
-            # identity escape inside a JS template literal, so the emitted
-            # string is unchanged.
+            # ``<script type="module">``. The HTML parser ends a script element
+            # at the first ``</script`` (case-insensitive) regardless of JS
+            # string context, so a template with a ``<script>`` child would
+            # truncate the tag. ``<\/script`` is an identity escape inside a JS
+            # template literal, leaving the string unchanged.
             return re.sub(r"(?i)</script", r"<\\/script", string)
 
         names = OrderedSet()
@@ -142,11 +126,10 @@ class XmlTemplatePipeline:
                     name = element.get("t-name")
                     names.add(name)
                     template = get_template(element)
-                    # The URL is a JS string argument, not template-literal
-                    # text: json.dumps quotes/escapes it so a url containing a
-                    # backtick or ``${`` cannot break out of (or interpolate
-                    # into) the surrounding literal. The template body stays a
-                    # backtick literal — get_template already escapes it.
+                    # The URL is a JS string argument: json.dumps escapes it so
+                    # a backtick or ``${`` can't break out of the literal. The
+                    # template body stays a backtick literal (get_template
+                    # already escaped it).
                     content.append(
                         f"registerTemplate({json.dumps(name)}, {json.dumps(url)}, `{template}`);"
                     )
@@ -176,14 +159,11 @@ class XmlTemplatePipeline:
     def generate_esm_template_bundle(self, use_import=True) -> str:
         """Generate an ESM template bundle for ``<script type="module">``.
 
-        When *use_import* is True (debug mode), uses native ``import``
-        from ``@web/core/templates`` (resolved via import map).
-
-        When False (production esbuild), accesses the templates module
-        via ``odoo.loader.modules.get()`` — this avoids a second module
-        instance (esbuild internalizes @web/core/templates, so an
-        ``import`` would create a separate copy with its own registry).
-        The esbuild bundle must execute first (registerNativeModules).
+        *use_import* True (debug): native ``import`` from
+        ``@web/core/templates`` via the import map. False (production esbuild):
+        ``odoo.loader.modules.get()`` instead, since esbuild internalizes the
+        module and an ``import`` would create a second copy with its own
+        registry (the esbuild bundle must run first, registerNativeModules).
         """
         bundle = self._bundle
         if not bundle.templates:
@@ -206,9 +186,8 @@ class XmlTemplatePipeline:
     def legacy_template_iife(self) -> str:
         """Wrap the registered templates in the classic-bundle IIFE.
 
-        Non-ESM bundles ship their templates *inside* the concatenated
-        ``.min.js`` via this wrapper; ESM bundles use
-        :meth:`generate_esm_template_bundle` instead.
+        Non-ESM bundles ship templates inside the concatenated ``.min.js`` via
+        this wrapper; ESM bundles use :meth:`generate_esm_template_bundle`.
         """
         templates = self.generate_xml_bundle()
         return textwrap.dedent(f"""

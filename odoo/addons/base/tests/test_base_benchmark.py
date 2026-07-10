@@ -254,7 +254,6 @@ class TestBaseBenchmark(TransactionCase):
         ir_fields = self.env["ir.model.fields"].search([], limit=100)
 
         def bench():
-            # Access display_name to trigger compute via ORM
             ir_fields.mapped("display_name")
 
         self._run_benchmark(

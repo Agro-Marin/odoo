@@ -9,12 +9,11 @@ class TestIrLoggingInit(TransactionCase):
     """ILOG-T1: pin the FK-drop idempotency contract of ``ir.logging.init``.
 
     ``init`` drops the legacy ``ir_logging_write_uid_fkey`` foreign key only
-    when it is still present (existence-checked via ``constraint_definition``).
-    The check-then-drop is deliberate: an unconditional ``DROP CONSTRAINT``
-    takes an ACCESS EXCLUSIVE lock even when the constraint is absent, which
-    would conflict with the ROW EXCLUSIVE lock an ir_logging insert needs and
-    could hang a module install/update. Regressing to an unconditional drop
-    would silently reintroduce that lock hazard.
+    when present (checked via ``constraint_definition``). The check-then-drop
+    is deliberate: an unconditional ``DROP CONSTRAINT`` takes an ACCESS
+    EXCLUSIVE lock even when the constraint is absent, conflicting with the
+    ROW EXCLUSIVE lock an ir_logging insert needs and hanging a module
+    install/update.
     """
 
     CONSTRAINT = "ir_logging_write_uid_fkey"

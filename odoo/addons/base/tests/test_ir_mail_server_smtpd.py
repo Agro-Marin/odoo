@@ -43,8 +43,7 @@ if getenv("ODOO_RUNBOT") and not aiosmtpd:
 
 
 def _find_free_local_address():
-    """Get a triple (family, address, port) on which it possible to bind
-    a local tcp service."""
+    """Return a (family, address, port) triple on which a local TCP service can bind."""
     addr = aiosmtpd.controller.get_localhost()  # it returns 127.0.0.1 or ::1
     family = socket.AF_INET if addr == "127.0.0.1" else socket.AF_INET6
     with socket.socket(family, socket.SOCK_STREAM) as sock:
@@ -81,8 +80,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
     def setUpClass(cls):
         super().setUpClass()
 
-        # aiosmtpd emits deprecation warnings because it uses its own
-        # deprecated features, mute those logs.
+        # aiosmtpd emits deprecation warnings from its own deprecated features; mute them.
         # https://github.com/aio-libs/aiosmtpd/issues/347
         class Session(aiosmtpd.smtp.Session):
             @property
@@ -97,9 +95,8 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
-        # aiosmtpd emits warnings for some unusual configuration, like
-        # requiring AUTH on a clear-text transport. Mute those logs
-        # since we also test those unusual configurations.
+        # Mute aiosmtpd warnings about unusual configs (e.g. AUTH over clear-text);
+        # we deliberately test those configs.
         warnings.filterwarnings(
             "ignore",
             "Requiring AUTH while not requiring TLS can lead to security vulnerabilities!",
@@ -120,8 +117,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         # decrease aiosmtpd verbosity, odoo INFO = aiosmtpd WARNING
         logging.getLogger("mail.log").setLevel(_logger.getEffectiveLevel() + 10)
 
-        # Get various TLS keys and certificates. CA was used to sign
-        # both client and server. self_signed is... self signed.
+        # TLS keys/certs: the CA signed both client and server; self_signed is self-signed.
         cls.ssl_ca, cls.ssl_client, cls.ssl_server, cls.ssl_self_signed = [
             Certificate(None, "base/tests/ssl/ca.cert.pem"),
             Certificate(
@@ -160,29 +156,23 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
-        # fix runbot, docker uses a single ipv4 stack but it gives ::1
-        # when resolving "localhost" (so stupid), use the following to
-        # force aiosmtpd/odoo to bind/connect to a fixed ipv4 OR ipv6
-        # address.
+        # Runbot's docker has a single ipv4 stack but resolves "localhost" to ::1;
+        # force aiosmtpd/odoo onto a fixed ipv4 or ipv6 address.
         family, addr, cls.port = _find_free_local_address()
         cls.localhost = getaddrinfo(addr, cls.port, family)
         cls.startClassPatcher(patch("socket.getaddrinfo", cls.getaddrinfo))
 
     def setUp(self):
         super().setUp()
-        # reactivate sending emails during this test suite, make sure
-        # NOT TO send emails using another ir.mail_server than the one
-        # created in setUp!
+        # Re-enable sending for this suite; do NOT send via any ir.mail_server
+        # other than the one created in setUp.
         patcher = patch.object(IrMail_Server, "_disable_send", return_value=False)
         patcher.start()
         self.addCleanup(patcher.stop)
 
     @classmethod
     def getaddrinfo(cls, host, port, *args, **kwargs):
-        """
-        Resolve both "localhost" and "notlocalhost" on the ip address
-        bound by aiosmtpd inside `start_smtpd`.
-        """
+        """Resolve "localhost"/"notlocalhost" to the address bound by aiosmtpd in `start_smtpd`."""
         if host in ("localhost", "notlocalhost") and port == cls.port:
             return cls.localhost
         return getaddrinfo(host, port, family=0, type=0, proto=0, flags=0)
@@ -195,16 +185,11 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         auth_required=True,
         stop_on_cleanup=True,
     ):
-        """
-        Start a smtp daemon in a background thread, stop it upon exiting
-        the context manager.
+        """Start an SMTP daemon in a background thread; stop it on context exit.
 
-        :param encryption: 'none', 'ssl' or 'starttls', the kind of
-            server to start.
-        :param ssl_context: the ``ssl.SSLContext`` object to use with
-            'ssl' or 'starttls'.
-        :param auth_required: whether the server enforces password
-            authentication or not.
+        :param encryption: 'none', 'ssl' or 'starttls', the kind of server to start.
+        :param ssl_context: ``ssl.SSLContext`` to use with 'ssl' or 'starttls'.
+        :param auth_required: whether the server enforces password authentication.
         """
         encryption = encryption.removesuffix("_strict")
         assert encryption in ("none", "ssl", "starttls")
@@ -243,12 +228,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_authentication_certificate_matrix(self):
-        """
-        Connect to a server that is authenticating users via a TLS
-        certificate. Test the various possible configurations (missing
-        cert, invalid cert and valid cert) against both a STARTTLS and
-        a SSL/TLS SMTP server.
-        """
+        """Test certificate auth (missing, self-signed, valid cert) against STARTTLS and SSL/TLS servers."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -330,12 +310,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             mail_server.test_smtp_connection()
 
     def test_authentication_login_matrix(self):
-        """
-        Connect to a server that is authenticating users via a login/pwd
-        pair. Test the various possible configurations (missing pair,
-        invalid pair and valid pair) against both a SMTP server without
-        encryption, a STARTTLS and a SSL/TLS SMTP server.
-        """
+        """Test login/password auth (missing, invalid, valid) against plain, STARTTLS and SSL/TLS servers."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -406,11 +381,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_encryption_matrix(self):
-        """
-        Connect to a server on a different encryption configuration than
-        the server is configured. Verify that it crashes with a good
-        error message.
-        """
+        """Connect with an encryption config mismatched to the server; verify a helpful error is raised."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -491,11 +462,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_man_in_the_middle_matrix(self):
-        """
-        Simulate that a pirate was successful at intercepting the live
-        traffic in between the Odoo server and the legitimate SMTP
-        server.
-        """
+        """Simulate an attacker intercepting traffic between Odoo and the legitimate SMTP server."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",

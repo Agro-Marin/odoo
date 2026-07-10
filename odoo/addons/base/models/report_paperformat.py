@@ -188,9 +188,8 @@ PAPER_SIZES = [
     },
 ]
 
-# O(1) lookup for paperformat mm dimensions, keyed by format name. Shared by
-# _compute_print_page_size below and ir.actions.report._paperformat_to_css —
-# both used to run a per-record/per-render linear scan of PAPER_SIZES.
+# O(1) dimension lookup by format key, replacing a per-record scan of PAPER_SIZES.
+# Used by _compute_print_page_size and ir.actions.report._paperformat_to_css.
 PAPER_SIZE_BY_KEY = {ps["key"]: ps for ps in PAPER_SIZES}
 
 
@@ -268,10 +267,9 @@ class ReportPaperformat(models.Model):
             )
 
     def _compute_print_page_size(self) -> None:
-        # RPF-C1 (deferred, cosmetic): a falsy `format` (empty, not "custom") yields
-        # 0x0 even when page_width/page_height are set. This is a transient display-only
-        # inconsistency; the _check_format_or_page constraint is the persist-time arbiter
-        # and the source of truth. Intentionally not altering compute behaviour here.
+        # RPF-C1 (deferred, cosmetic): a falsy `format` yields 0x0 even with
+        # page_width/page_height set. Display-only; _check_format_or_page is the
+        # persist-time arbiter.
         for record in self:
             width = height = 0.0
             if record.format:
@@ -288,7 +286,6 @@ class ReportPaperformat(models.Model):
                     height = paper_size["height"]
 
             if record.orientation == "Landscape":
-                # swap sizes
                 width, height = height, width
 
             record.print_page_width = width

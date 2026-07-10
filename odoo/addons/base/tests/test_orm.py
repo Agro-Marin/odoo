@@ -14,11 +14,10 @@ class TestORM(TransactionCase):
         c2 = self.env["res.partner.category"].create({"name": "Y"})
         c1.unlink()
 
-        # read() is expected to skip deleted records because our API is not
-        # transactional for a sequence of search()->read() performed from the
-        # client-side... a concurrent deletion could therefore cause spurious
-        # exceptions even when simply opening a list view!
-        # /!\ Using unprileged user to detect former side effects of ir.rules!
+        # read() skips deleted records: the search()->read() sequence is not
+        # transactional client-side, so a concurrent deletion must not raise
+        # (e.g. when simply opening a list view).
+        # /!\ unprivileged user, to catch former side effects of ir.rules!
         user = self.env["res.users"].create(
             {
                 "name": "test user",
@@ -303,9 +302,7 @@ class TestORM(TransactionCase):
 
 
 class TestInherits(TransactionCase):
-    """test the behavior of the orm for models that use _inherits;
-    specifically: res.users, that inherits from res.partner
-    """
+    """test the orm on models that use _inherits, e.g. res.users -> res.partner"""
 
     def test_default(self):
         """`default_get` cannot return a dictionary or a new id"""
@@ -422,16 +419,15 @@ class TestInherits(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestCompanyDependent(TransactionCase):
     def test_flush_stale_flat_cache_entry_not_nulled(self):
-        """Regression: a company-dependent field whose value survives only in a
-        stale flat cache entry (``{id: scalar}`` — the layout used before
-        ``field_depends_context`` is populated, e.g. during a
-        ``_load_module_terms`` flush) must not be flushed as SQL ``NULL``,
-        which silently clears the stored value.
+        """Regression: a company-dependent field whose value lives only in a
+        stale flat cache entry (``{id: scalar}``, the layout used before
+        ``field_depends_context`` is populated) must not be flushed as SQL
+        ``NULL``, which silently clears the stored value.
 
         ``Field.get_column_update``'s company-dependent branch skipped flat
-        entries unconditionally and returned ``None``.  This mirrors the same
-        defect (and fix) in the ``translate is True`` branch — see
-        ``test_translate.TestTranslationWrite.test_flush_stale_flat_cache_entry_not_nulled``.
+        entries unconditionally and returned ``None``. Mirrors the same defect
+        in the ``translate is True`` branch (see
+        ``test_translate.TestTranslationWrite.test_flush_stale_flat_cache_entry_not_nulled``).
         """
         partner = self.env["res.partner"].create({"name": "Flat", "barcode": "BC-1"})
         field = partner._fields["barcode"]
@@ -452,21 +448,12 @@ class TestCompanyDependent(TransactionCase):
         self.assertIn("BC-1", col_val.obj.values())
 
     def test_orm_ondelete_restrict(self):
-        # model_A
-        #  | field_a                           company dependent many2one is
-        #  | company dependent many2one        stored as jsonb and doesn't
-        #  | (ondelete='restrict')             have db ON DELETE action
-        #  v
-        # model_B
-        #  | field_b                           if a row for model_B is deleted
-        #  | many2one (ondelete='cascade')     because of ON DELETE CASCADE,
-        #  v                                   model_A will reference a deleted
-        # model_C                              row and logically be NULL when read
-        #
-        #                                      this test asks you to move the
-        #                                      ON DELETE CASCADE logic of model_B
-        #                                      to ORM and remove ondelete='cascade'
-
+        # A company-dependent many2one is stored as jsonb and has no DB ON
+        # DELETE action. If A.field_a (company-dependent m2o, ondelete='restrict')
+        # -> B and B.field_b (m2o, ondelete='cascade') -> C, then deleting C
+        # cascade-deletes B and leaves A referencing a dead row (read as NULL),
+        # bypassing the ORM 'restrict'. Such a combination must not exist: move
+        # the cascade logic to an unlink() override instead.
         for model in self.env.registry.values():
             for field in model._fields.values():
                 if (

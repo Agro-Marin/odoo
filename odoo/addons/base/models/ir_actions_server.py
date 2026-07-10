@@ -26,11 +26,9 @@ _server_action_logger = logging.getLogger(
 
 
 class LoggerProxy:
-    """Restricted logger proxy for server action ``safe_eval`` sandbox.
-
-    Only ``log``, ``info``, ``warning``, ``error``, and ``exception`` are
-    exposed.  Attribute access to anything else raises ``AttributeError``,
-    preventing user code from reaching internal logger state.
+    """Restricted logger for the ``safe_eval`` sandbox: only ``log``, ``info``,
+    ``warning``, ``error``, ``exception`` are exposed; anything else raises
+    ``AttributeError``.
     """
 
     _ALLOWED = frozenset({"log", "info", "warning", "error", "exception"})
@@ -42,8 +40,7 @@ class LoggerProxy:
         raise AttributeError(msg)
 
 
-# Stateless singleton reused across every eval-context build; there is no
-# per-action state to justify allocating a fresh proxy each time.
+# Stateless singleton reused across every eval-context build.
 _LOGGER_PROXY = LoggerProxy()
 
 
@@ -108,9 +105,7 @@ WEBHOOK_SAMPLE_VALUES = {
     None: "some_data",
 }
 
-# Server-action ``state`` values that create or update records (the "CRUD"
-# family). Single source of truth so the set isn't respelled as a literal
-# tuple in every method that branches on it.
+# Server-action ``state`` values that create or update records.
 CRUD_STATES = ("object_write", "object_create", "object_copy")
 
 
@@ -401,14 +396,13 @@ class IrActionsServer(models.Model):
         if not code_actions:
             return
 
-        # Single query: fetch all history entries for relevant actions
         History = self.env["ir.actions.server.history"]
         all_history = History.search_fetch(
             [("action_id", "in", code_actions.ids)],
             ["action_id", "code"],
         )
 
-        # Compare in Python instead of N search_count calls
+        # Compare in Python instead of N search_count calls.
         action_codes = {a.id: a.code for a in code_actions}
         actions_with_diff = set()
         for hist in all_history:
@@ -501,11 +495,9 @@ class IrActionsServer(models.Model):
             restricted_fields = []
             Model = self.env[self.model_id.model]
             for model_field in self.webhook_field_ids:
-                # you might think that the ir.model.field record holds references
-                # to the groups, but that's not the case - we need the field object
-                # itself. Use .get(): a stale webhook field (e.g. left behind after
-                # a module uninstall) must not turn this *compute* into a hard
-                # KeyError on plain read.
+                # Need the field object (not the ir.model.fields record) for
+                # ``.groups``. Use .get(): a stale webhook field (e.g. after a
+                # module uninstall) must not turn this compute into a KeyError.
                 field = Model._fields.get(model_field.name)
                 if field and field.groups:
                     restricted_fields.append(f"- {model_field.field_description}")
@@ -581,8 +573,8 @@ class IrActionsServer(models.Model):
 
     @api.depends_context("uid")
     def _compute_available_model_ids(self) -> None:
-        # The set of pickable models depends only on the user's access rights,
-        # not on any field of the record (in particular not on ``state``).
+        # Pickable models depend only on the user's access rights, not on any
+        # field of the record.
         allowed_models = self.env["ir.model"].search(
             [
                 (
@@ -596,19 +588,14 @@ class IrActionsServer(models.Model):
 
     @api.depends("model_id", "update_path", "state")
     def _compute_crud_relations(self) -> None:
-        """Compute the crud_model_id and update_field_id fields.
+        """Compute ``crud_model_id`` and ``update_field_id`` for CRUD actions.
 
-        The crud_model_id is the model on which the action will create or update
-        records. In the case of record creation, it is the same as the main model
-        of the action. For record update, it will be the model linked to the last
-        field in the update_path.
-        This is only used for object_create, object_copy and object_write actions.
-        The update_field_id is the field at the end of the update_path that will
-        be updated by the action - only used for object_write actions.
+        ``crud_model_id`` is the model created/updated: the main model for
+        create/copy, or the model of the last field in ``update_path`` for
+        writes. ``update_field_id`` is that last field (writes only).
         """
         for action in self:
-            # Reset update_related_model_id unconditionally; the branches
-            # below set (or clear) the other crud fields.
+            # Reset unconditionally; branches below set the other crud fields.
             action.update_related_model_id = False
             if action.model_id and action.state in CRUD_STATES:
                 if action.state in ("object_create", "object_copy"):
@@ -637,10 +624,7 @@ class IrActionsServer(models.Model):
                 action.update_path = False
 
     def _traverse_path(self) -> tuple[Any, Any]:
-        """Traverse the update_path to find the target model and field.
-
-        :return: a tuple (model, field) where model is the target model and field is the target field
-        """
+        """Return the (model, field) at the end of ``update_path``."""
         self.ensure_one()
         field_chain, _field_chain_str = self._get_relation_chain("update_path")
         if not field_chain:
@@ -657,12 +641,10 @@ class IrActionsServer(models.Model):
     ) -> tuple[list[Any], str]:
         """Resolve a dotted field path into its list of ``fields.Field`` objects.
 
-        By default this **degrades** on an invalid path (returns ``([], "")``) so
-        that stored computes (``crud_model_id``, ``warning``) and the sample
-        payload can read it without ever raising — a compute that raises would
-        blow up on plain ``read()`` and can abort an unrelated flush. Pass
-        ``raise_on_error=True`` (from the ``_check_update_path`` constraint) to
-        validate user input and surface a clear ``ValidationError`` at save time.
+        Degrades to ``([], "")`` on an invalid path so stored computes and the
+        sample payload can read it without raising (a raising compute could
+        abort an unrelated flush). Pass ``raise_on_error=True`` (from
+        ``_check_update_path``) to validate user input with a ``ValidationError``.
         """
         self.ensure_one()
         if (
@@ -767,10 +749,8 @@ class IrActionsServer(models.Model):
     def _check_update_path(self) -> None:
         """Validate ``update_path`` at save time.
 
-        The traversal validation lives here (not in ``_compute_crud_relations``)
-        so that a bad path is rejected with a clear, correctly-attributed error
-        when the user saves it, while plain reads/recomputes of stored fields
-        degrade gracefully instead of raising.
+        Kept here (not in ``_compute_crud_relations``) so a bad path raises a
+        clear error on save while stored recomputes degrade gracefully.
         """
         for action in self:
             if (
@@ -800,14 +780,12 @@ class IrActionsServer(models.Model):
         }
 
     def _get_runner(self) -> tuple[Any, bool]:
-        """Resolve the runner method for ``self.state`` and whether it is *multi*.
+        """Return ``(runner, is_multi)`` for ``self.state``, ``(None, False)`` if unknown.
 
-        Beware two unrelated meanings of "multi": the ``_multi`` **suffix** means
-        the runner handles many *records* in one call (so ``_run`` skips its
-        per-``active_id`` loop); the ``state == "multi"`` action type ("Multi
-        Actions") is matched by ``_run_action_multi`` and — since there is no
-        ``_run_action_multi_multi`` — is treated as non-multi, i.e. looped once
-        per record. Returns ``(None, False)`` for an unknown state.
+        Two unrelated meanings of "multi": the ``_multi`` suffix means the runner
+        handles many records at once (``_run`` skips its per-record loop); the
+        ``state == "multi"`` type is matched by ``_run_action_multi``, which has
+        no ``_multi`` suffix and so is looped once per record.
         """
         multi = True
         t = self.env.registry[self._name]
@@ -850,15 +828,10 @@ class IrActionsServer(models.Model):
     def _run_action_multi(self, eval_context: dict[str, Any] | None = None) -> Any:
         """Run each child action in ``sequence`` order.
 
-        Returns the *last non-falsy* child result (``act.run() or res``): the
-        action returned by the last child that actually returns one — a child
-        returning ``False``/``None`` does not clear an earlier child's action.
-
-        Note this runner needs the active record(s) in context. ``state ==
-        "multi"`` has no ``_multi`` suffix, so ``_run`` treats it as non-multi
-        and loops it once per ``active_id``; triggered with no active record
-        (e.g. straight from cron) it is skipped entirely, like every other
-        non-``code`` action type.
+        Returns the last non-falsy child result: a child returning
+        ``False``/``None`` does not clear an earlier child's action. Needs an
+        active record in context (looped once per ``active_id`` by ``_run``), so
+        triggered with none (e.g. from cron) it is skipped.
         """
         res = False
         for act in self.child_ids.sorted():
@@ -912,9 +885,8 @@ class IrActionsServer(models.Model):
             "_action": f"{self.name}(#{self.id})",
         }
         if self.webhook_field_ids:
-            # you might think we could use the default json serializer of the requests library
-            # but it will fail on many fields, e.g. datetime, date or binary
-            # so we use the json.dumps serializer instead with the str() function as default
+            # requests' default JSON serializer fails on datetime/date/binary
+            # fields, so serialize with json_dumps + str() default instead.
             vals.update(
                 record.read(self.webhook_field_ids.mapped("name"), load=None)[0]
             )
@@ -932,9 +904,8 @@ class IrActionsServer(models.Model):
             import requests
 
             try:
-                # 'send and forget' strategy, and avoid locking the user if the webhook
-                # is slow or non-functional (we still allow for a 1s timeout so that
-                # if we get a proper error response code like 400, 404 or 500 we can log)
+                # 'send and forget': short 1s timeout so a slow/broken webhook
+                # doesn't block the user, but real error codes still get logged.
                 response = requests.post(
                     url,
                     data=json_values,
@@ -953,11 +924,7 @@ class IrActionsServer(models.Model):
                 _logger.warning("Webhook call failed: %s", e)
 
     def _link_to_active_record(self, new_id: int) -> None:
-        """Link a newly created/copied record to the active record via ``link_field_id``.
-
-        Used by both ``_run_action_object_copy`` and ``_run_action_object_create``
-        to associate the result with the source record.
-        """
+        """Link a newly created/copied record to the active record via ``link_field_id``."""
         if not self.link_field_id:
             return
         record = self.env[self.model_id.model].browse(self.env.context.get("active_id"))
@@ -983,15 +950,11 @@ class IrActionsServer(models.Model):
         self._link_to_active_record(res_id)
 
     def _get_eval_context(self, action: Self) -> dict[str, Any]:
-        """Prepare the context used when evaluating python code, like the
-        python formulas or code server actions.
+        """Return the ``safe_eval`` context for python formulas and code actions.
 
-        :param action: the current server action. Required in this override
-            (the base ``ir.actions.actions`` signature keeps it optional):
-            the context is derived from ``action.model_id``, so calling
-            without an action could only crash on ``None.model_id``.
-        :type action: browse record
-        :returns: dict -- evaluation context given to safe_eval"""
+        :param action: the server action; required here (unlike the optional
+            base signature) since the context derives from ``action.model_id``.
+        """
 
         def log(message, level="info"):
             with self.pool.cursor() as cr:
@@ -1027,15 +990,11 @@ class IrActionsServer(models.Model):
             record = self.env.context["onchange_self"]
         eval_context.update(
             {
-                # orm
                 "env": self.env,
                 "model": model,
-                # Exceptions
                 "UserError": UserError,
-                # record
                 "record": record,
                 "records": records,
-                # helpers
                 "log": log,
                 "_logger": _LOGGER_PROXY,
             }
@@ -1043,26 +1002,22 @@ class IrActionsServer(models.Model):
         return eval_context
 
     def run(self) -> dict[str, Any] | bool:
-        """Runs the server action. For each server action, the
-        :samp:`_run_action_{TYPE}[_multi]` method is called. This allows easy
-        overriding of the server actions.
+        """Run the server action by dispatching to ``_run_action_{TYPE}[_multi]``.
 
-        The ``_multi`` suffix means the runner can operate on multiple records,
-        otherwise if there are multiple records the runner will be called once
-        for each.
+        The ``_multi`` suffix means the runner handles all records at once;
+        otherwise it is called once per record.
 
-        The call context should contain the following keys:
+        The call context should contain:
 
         active_id
-            id of the current object (single mode)
+            id of the current record (single mode)
         active_model
-            current model that should equal the action's model
+            current model, which should equal the action's model
         active_ids (optional)
-           ids of the current records (mass mode). If ``active_ids`` and
-           ``active_id`` are present, ``active_ids`` is given precedence.
+            ids of the current records (mass mode); takes precedence over
+            ``active_id``.
 
-        :return: an ``action_id`` to be executed, or ``False`` if finished
-                 correctly without return action
+        :return: an ``action_id`` to execute, or ``False`` if none.
         """
         res = False
         for action in self.sudo():
@@ -1086,7 +1041,6 @@ class IrActionsServer(models.Model):
         runner, multi = self._get_runner()
         res = False
         if runner and multi:
-            # call the multi method
             run_self = self.with_context(eval_context["env"].context)
             res = runner(run_self, eval_context=eval_context)
         elif runner:
@@ -1101,12 +1055,9 @@ class IrActionsServer(models.Model):
                 "active_ids", [active_id] if active_id else []
             )
             if not active_ids:
-                # No target record in context. A non-``_multi`` runner (every
-                # type except ``code``) needs one, so the loop below never runs
-                # and the action silently does nothing. This is almost always a
-                # misconfiguration -- e.g. a cron/scheduled action pointing at a
-                # non-``code`` server action, which never sets active_ids, or a
-                # ``multi`` action triggered the same way. Surface it instead of
+                # No target record: a non-``_multi`` runner needs one, so the
+                # loop below is a no-op. Almost always a misconfiguration (e.g. a
+                # cron pointing at a non-``code`` action); warn instead of
                 # failing silently.
                 _logger.warning(
                     "Server action %r (type %r) was triggered with no target "
@@ -1118,15 +1069,13 @@ class IrActionsServer(models.Model):
                     runner.__name__,
                 )
             for active_id in active_ids:
-                # run context dedicated to a particular active_id
                 run_self = self.with_context(
                     active_ids=[active_id], active_id=active_id
                 )
-                # Re-wrap the *triggering user's* env (from _get_eval_context)
-                # with this record's context. Do NOT use ``run_self.env``: that
-                # env is ``sudo()`` (su=True), and expressions/equations must
-                # evaluate with the user's own identity and ACLs, never elevated.
-                # (Guarded by test_b6_equation_evaluates_without_sudo_privilege.)
+                # Re-wrap the triggering user's env with this record's context.
+                # Do NOT use ``run_self.env``: it is ``sudo()``, and
+                # expressions/equations must run with the user's own ACLs, never
+                # elevated. (Guarded by test_b6_equation_evaluates_without_sudo_privilege.)
                 eval_context["env"] = eval_context["env"](context=run_self.env.context)
                 eval_context["records"] = eval_context["record"] = records.browse(
                     active_id
@@ -1146,13 +1095,11 @@ class IrActionsServer(models.Model):
         self.ensure_one()
 
         # Authorization is EITHER by group OR by record-level ACL, not both:
-        # - if ``group_ids`` is set, membership in one of those groups is the
-        #   sole gate. The action then runs ``sudo()``, so an authorized user
-        #   can intentionally act on records they could not otherwise write
-        #   (e.g. a Managers-only "Approve" action). No model/record ACL check
-        #   is performed in this branch — by design.
-        # - if ``group_ids`` is empty, the triggering user must themselves hold
-        #   write access to the model and to the concrete records.
+        # - ``group_ids`` set: group membership is the sole gate; the action runs
+        #   ``sudo()``, intentionally letting an authorized user act on records
+        #   they could not otherwise write. No ACL check in this branch, by design.
+        # - ``group_ids`` empty: the user must hold write access to the model and
+        #   the concrete records themselves.
         action_groups = self.group_ids
         if action_groups:
             if not (action_groups & self.env.user.all_group_ids):
@@ -1173,8 +1120,7 @@ class IrActionsServer(models.Model):
                 raise
 
         if not self.group_ids and records.ids:
-            # check access rules on real records only; base automations of
-            # type 'onchange' can run server actions on new records
+            # check access on real records only; onchange automations run on new records
             try:
                 records.check_access("write")
             except AccessError:
@@ -1209,10 +1155,10 @@ class IrActionsServer(models.Model):
     @api.model
     @tools.ormcache("self.env.lang")
     def _selection_target_model(self) -> tuple[tuple[str, str], ...]:
-        """Return all models as a selection sequence. Cached because the model
-        list only changes on module install/update (which clears the registry
-        cache). Immutable tuple: the cached value is shared across callers, so
-        a mutable list would let one caller corrupt the cache for everyone.
+        """Return all models as a selection sequence.
+
+        Cached (model list only changes on install/update, which clears the
+        cache); returns an immutable tuple since the cached value is shared.
         """
         return tuple(
             (model.model, model.name)
@@ -1258,8 +1204,8 @@ class IrActionsServer(models.Model):
 
     def _to_number(self, converter: Any) -> Any:
         """Convert ``self.value`` with ``converter`` (``int``/``float``), raising a
-        clean ``UserError`` instead of letting a raw string leak into ``write()``
-        and crash the ORM with a bare ``ValueError``."""
+        clean ``UserError`` instead of letting a bad string crash ``write()``.
+        """
         self.ensure_one()
         try:
             return converter(self.value)

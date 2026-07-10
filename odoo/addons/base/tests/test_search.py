@@ -7,9 +7,8 @@ class test_search(TransactionCase):
         self.patch(self.registry[model], "_order", order)
 
     def test_00_search_order(self):
-        # Create 6 partners with a given name, and a given creation order to
-        # ensure the order of their ID. Some are set as inactive to verify they
-        # are by default excluded from the searches and to provide a second
+        # Create 6 partners in a fixed creation order to fix their ID order. Some
+        # are inactive to verify they're excluded by default and to give a second
         # `order` argument.
 
         Partner = self.env["res.partner"]
@@ -20,11 +19,8 @@ class test_search(TransactionCase):
         ab = Partner.create({"name": "test_search_order_AB"})
         e = Partner.create({"name": "test_search_order_E", "active": False})
 
-        # The tests.
-
-        # The basic searches should exclude records that have active = False.
-        # The order of the returned ids should be given by the `order`
-        # parameter of search().
+        # Basic searches exclude active=False records; result order follows the
+        # `order` parameter.
 
         name_asc = Partner.search(
             [("name", "like", "test_search_order%")], order="name asc"
@@ -55,9 +51,8 @@ class test_search(TransactionCase):
             [ab, b, a, c], list(id_desc), "Search with 'ID DESC' order failed."
         )
 
-        # The inactive records shouldn't be excluded as soon as a condition on
-        # that field is present in the domain. The `order` parameter of
-        # search() should support any legal coma-separated values.
+        # A condition on `active` in the domain stops excluding inactive records;
+        # `order` accepts any legal comma-separated values.
 
         active_asc_id_asc = Partner.search(
             [
@@ -256,15 +251,12 @@ class test_search(TransactionCase):
     def test_10_inherits_m2order(self):
         Users = self.env["res.users"]
 
-        # Find Employee group
         group_employee = self.env.ref("base.group_user")
 
-        # Get country/state data
         country_be = self.env.ref("base.be")
         country_us = self.env.ref("base.us")
         states_us = country_us.state_ids[:2]
 
-        # Create test users
         u = Users.create(
             {
                 "name": "__search",
@@ -297,10 +289,9 @@ class test_search(TransactionCase):
             }
         )
 
-        # Search as search user
         Users = Users.with_user(u)
 
-        # Do: search on res.users, order on a field on res.partner to try inherits'd fields, then res.users
+        # Order by an inherits'd res.partner field, then res.users fields
         expected_ids = [u.id, a.id, c.id, b.id]
         user_ids = Users.search(
             [("id", "in", expected_ids)], order="name asc, login desc"
@@ -311,7 +302,7 @@ class test_search(TransactionCase):
             "search on res_users did not provide expected ids or expected order",
         )
 
-        # Do: order on many2one and inherits'd fields
+        # Order by many2one and inherits'd fields
         expected_ids = [c.id, b.id, a.id, u.id]
         user_ids = Users.search(
             [("id", "in", expected_ids)],
@@ -323,7 +314,7 @@ class test_search(TransactionCase):
             "search on res_users did not provide expected ids or expected order",
         )
 
-        # Do: order on many2one and inherits'd fields
+        # Order by many2one and inherits'd fields
         expected_ids = [u.id, b.id, c.id, a.id]
         user_ids = Users.search(
             [("id", "in", expected_ids)],
@@ -335,7 +326,7 @@ class test_search(TransactionCase):
             "search on res_users did not provide expected ids or expected order",
         )
 
-        # Do: order on many2one, but not by specifying in order parameter of search, but by overriding _order of res_users
+        # Order by many2one via _order override instead of the order param
         self.patch_order("res.users", "country_id desc, name asc, login desc")
         expected_ids = [u.id, c.id, b.id, a.id]
         user_ids = Users.search([("id", "in", expected_ids)]).ids
@@ -421,9 +412,8 @@ class test_search(TransactionCase):
 
     def test_20_x_active(self):
         """Check the behaviour of the x_active field."""
-        # test that a custom field x_active filters like active
-        # we take the model res.country as a test model as it is included in base and does
-        # not have an active field
+        # A custom x_active field should filter like active. res.country works as
+        # a test model: it's in base and has no active field.
         self.addCleanup(
             self.registry.reset_changes
         )  # reset the registry to avoid polluting other tests
@@ -461,9 +451,8 @@ class test_search(TransactionCase):
             ussr_search,
             "Search with active_test on a custom x_active field failed",
         )
-        # test that a custom field x_active on a model with the standard active
-        # field does not interfere with the standard behaviour
-        # use res.bank since it has an active field and is simple to use
+        # A custom x_active on a model that already has active must not interfere.
+        # res.bank has an active field and is simple to use.
         model_bank = self.env["res.bank"]
         self.env["ir.model.fields"].create(
             {

@@ -29,8 +29,7 @@ class ViewXMLID(common.TransactionCase):
         self.assertTrue(view)
         self.assertTrue(view.model_data_id)
         self.assertEqual(view.model_data_id.complete_name, "base.view_company_form")
-        # xml_id is assigned by the same compute, from the same ir.model.data
-        # rows, so the two fields can never disagree
+        # xml_id shares the same compute and ir.model.data rows, so it can't disagree
         self.assertEqual(view.xml_id, "base.view_company_form")
 
 
@@ -104,15 +103,10 @@ class ViewCase(TransactionCaseWithUserDemo):
 
 
 class TestNodeLocator(common.TransactionCase):
-    """
-    The node locator returns None when it can not find a node, and the first
-    match when it finds something (no jquery-style node sets)
-    """
+    """Return None on no match, else the first match (no jquery-style node sets)."""
 
     def test_no_match_xpath(self):
-        """
-        xpath simply uses the provided @expr pattern to find a node
-        """
+        """xpath uses the provided @expr pattern to find a node."""
         node = self.env["ir.ui.view"].locate_node(
             E.root(E.foo(), E.bar(), E.baz()),
             E.xpath(expr="//qux"),
@@ -128,9 +122,7 @@ class TestNodeLocator(common.TransactionCase):
         self.assertIs(node, bar)
 
     def test_no_match_field(self):
-        """
-        A field spec will match by @name against all fields of the view
-        """
+        """A field spec matches by @name against all fields of the view."""
         node = self.env["ir.ui.view"].locate_node(
             E.root(E.foo(), E.bar(), E.baz()),
             E.field(name="qux"),
@@ -152,9 +144,7 @@ class TestNodeLocator(common.TransactionCase):
         self.assertIs(node, bar)
 
     def test_no_match_other(self):
-        """
-        Non-xpath non-fields are matched by node name first
-        """
+        """Non-xpath non-fields are matched by node name first."""
         node = self.env["ir.ui.view"].locate_node(
             E.root(E.foo(), E.bar(), E.baz()),
             E.qux(),
@@ -170,10 +160,7 @@ class TestNodeLocator(common.TransactionCase):
         self.assertIs(bar, node)
 
     def test_attribute_mismatch(self):
-        """
-        Non-xpath non-field are filtered by matching attributes on spec and
-        matched nodes
-        """
+        """Non-xpath non-fields are filtered by matching attributes on spec and node."""
         node = self.env["ir.ui.view"].locate_node(
             E.root(E.foo(attr="1"), E.bar(attr="2"), E.baz(attr="3")),
             E.bar(attr="5"),
@@ -189,9 +176,7 @@ class TestNodeLocator(common.TransactionCase):
         self.assertIs(node, match)
 
     def test_version_mismatch(self):
-        """
-        A @version on the spec will be matched against the view's version
-        """
+        """A @version on the spec is matched against the view's version."""
         node = self.env["ir.ui.view"].locate_node(
             E.root(E.foo(attr="1"), version="4"),
             E.foo(attr="1", version="3"),
@@ -201,16 +186,12 @@ class TestNodeLocator(common.TransactionCase):
 
 class TestViewInheritance(ViewCase):
     def arch_for(self, name, view_type="form", parent=None):
-        """Generates a trivial view of the specified ``view_type``.
+        """Generate a trivial empty view of ``view_type`` with ``name`` as its
+        root ``@string``.
 
-        The generated view is empty but ``name`` is set as its root's ``@string``.
+        With a truthy ``parent``, generate an extension view replacing the
+        parent's ``@string`` by ``name`` instead of a root view.
 
-        If ``parent`` is not falsy, generates an extension view (instead of
-        a root view) replacing the parent's ``@string`` by ``name``
-
-        :param str name: ``@string`` value for the view root
-        :param str view_type:
-        :param bool parent:
         :return: generated arch
         :rtype: str
         """
@@ -225,17 +206,12 @@ class TestViewInheritance(ViewCase):
         return etree.tostring(element, encoding="unicode")
 
     def makeView(self, name, parent=None, arch=None):
-        """Generates a basic ir.ui.view with the provided name, parent and arch.
+        """Create a basic ir.ui.view with the given name, parent and arch.
 
-        If no parent is provided, the view is top-level.
+        Top-level if no parent; arch defaults to :meth:`~.arch_for`.
 
-        If no arch is provided, generates one by calling :meth:`~.arch_for`.
-
-        :param str name:
         :param int parent: id of the parent view, if any
-        :param str arch:
-        :returns: the created view's id.
-        :rtype: int
+        :returns: the created view record
         """
         view = self.View.create(
             {
@@ -740,11 +716,9 @@ class TestViewInheritance(ViewCase):
 
 
 class TestApplyInheritanceSpecs(ViewCase):
-    """Applies a sequence of inheritance specification nodes to a base
-    architecture. IO state parameters (cr, uid, model, context) are used for
-    error reporting
-
-    The base architecture is altered in-place.
+    """Apply a sequence of inheritance-spec nodes to a base architecture,
+    altering it in-place. IO state (cr, uid, model, context) is for error
+    reporting.
     """
 
     def setUp(self):
@@ -1368,8 +1342,7 @@ class TestTemplating(ViewCase):
             initial.get("data-oe-xpath"), "node containing t-esc is not branded"
         )
 
-        # The most important assert
-        # Fourth world - should have a correct oe-xpath, which is 3rd in main view
+        # Key assert: fourth world should have a correct oe-xpath (3rd in main view)
         [initial] = arch.xpath("/hello[1]/world[4]")
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1429,8 +1402,7 @@ class TestTemplating(ViewCase):
             initial.get("data-oe-xpath"), "node containing t-esc is not branded"
         )
 
-        # The most important assert
-        # Third world - should have a correct oe-xpath, which is 3rd in main view
+        # Key assert: third world should have a correct oe-xpath (3rd in main view)
         [initial] = arch.xpath("/hello[1]/world[3]")
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1443,7 +1415,7 @@ class TestTemplating(ViewCase):
             {
                 "name": "Base view",
                 "type": "qweb",
-                # The t-esc node is to ensure branding is distributed to both
+                # The t-esc node ensures branding is distributed to both
                 # <world/> elements from the start
                 "arch": """
                 <hello>
@@ -1512,9 +1484,8 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # Note: this test is a variant of the test_branding_inherit_remove_node
-        # -> in this case, we expect the branding to not be distributed on the
-        # <hello/> element anymore but on the only remaining world.
+        # Variant of test_branding_inherit_remove_node: branding should now land
+        # on the only remaining world, not on <hello/>.
         [initial] = arch.xpath("/hello[1]")
         self.assertIsNone(
             initial.get("data-oe-model"),
@@ -1577,8 +1548,7 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # Check if the replacement inside the child view did not mess up the
-        # branding of elements in that child view
+        # The child-view replacement must not disturb branding within that child view
         [initial] = arch.xpath('//world[hasclass("z")]')
         self.assertEqual(
             "/data/xpath/world[2]",
@@ -1586,8 +1556,7 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # Check if the replacement of the first worlds did not mess up the
-        # branding of the last world.
+        # Replacing the first worlds must not disturb the last world's branding
         [initial] = arch.xpath('//world[hasclass("c")]')
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1644,8 +1613,7 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # Check if the replacement inside the child view did not mess up the
-        # branding of elements in that child view
+        # The child-view replacement must not disturb branding within that child view
         [initial] = arch.xpath('//world[hasclass("z")]')
         self.assertEqual(
             "/data/xpath/world[2]",
@@ -1653,8 +1621,7 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # Check if the replacement of the first worlds did not mess up the
-        # branding of the last world.
+        # Replacing the first worlds must not disturb the last world's branding
         [initial] = arch.xpath('//world[hasclass("c")]')
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1680,9 +1647,8 @@ class TestTemplating(ViewCase):
                 "name": "Extension",
                 "type": "qweb",
                 "inherit_id": view1.id,
-                # Note: class="x" instead of t-field="x" in this arch, should lead
-                # to the same result that this test is ensuring but was actually
-                # a different case in old stable versions.
+                # class="x" (not t-field="x") should give the same result here,
+                # but was a distinct case in old stable versions.
                 "arch": """
                 <data>
                     <xpath expr="//world[hasclass('a')]" position="after">
@@ -1710,8 +1676,7 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # Check if the replacement inside the child view did not mess up the
-        # branding of elements in that child view, should not be the case as
+        # The child-view replacement must not disturb branding within that child view, should not be the case as
         # that root level branding is not distributed.
         [initial] = arch.xpath('//world[hasclass("y")]')
         self.assertEqual(
@@ -1720,8 +1685,8 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # Check if the child view replacement of added nodes did not mess up
-        # the branding of last world in the parent view.
+        # The child-view replacement of added nodes must not disturb the
+        # parent view's last-world branding
         [initial] = arch.xpath('//world[hasclass("b")]')
         self.assertEqual(
             "/hello[1]/world[2]",
@@ -1791,10 +1756,9 @@ class TestTemplating(ViewCase):
 
         self.View.distribute_branding(arch)
 
-        # Test that both head and body have their processing instruction
-        # 'apply-inheritance-specs-node-removal' removed after branding
-        # distribution. Note: test head and body separately as the code in
-        # charge of the removal is different in each case.
+        # Both head and body must have their 'apply-inheritance-specs-node-removal'
+        # PI removed after branding distribution; tested separately because the
+        # removal code differs for each.
         self.assertEqual(
             len(head),
             0,
@@ -1853,8 +1817,7 @@ class TestTemplating(ViewCase):
             "Inherited t-field has indication of xpath",
         )
 
-        # The most important assert
-        # The last world xpath should not have been impacted by the t-field from inheritance
+        # Key assert: the last world xpath must be unaffected by the inherited t-field
         [node] = arch.xpath("//world[last()]")
         self.assertEqual(
             node.get("data-oe-xpath"),
@@ -2529,16 +2492,12 @@ class TestViews(ViewCase):
     def test_parent_ref_in_root_view_is_tolerated(self):
         """A ``parent.``-prefixed reference in a root view is NOT flagged (IUVN-L1).
 
-        It cannot be resolved at standalone-validation time, but it is not
-        necessarily a typo: dual-use forms legitimately reference the embedding
-        parent (e.g. ``mail.activity.plan.template``'s form is validated
-        standalone yet is embedded as a one2many in ``mail.activity.plan``).
-        Routing such references to validation (commit that added the strict
-        ``else``) broke installation of ``mail`` and every dependent module, so
-        ``must_have_fields`` silently skips them, matching upstream. Catching
-        genuine ``parent.`` typos needs embedded-context validation, not a
-        blanket root-view error. See the IUVN-L1 note in
-        ``ir_ui_view_name_manager``.
+        It can't be resolved standalone but isn't necessarily a typo: dual-use
+        forms legitimately reference the embedding parent (e.g.
+        ``mail.activity.plan.template``'s form, embedded as a one2many in
+        ``mail.activity.plan``). Flagging such refs broke installation of
+        ``mail`` and dependents, so ``must_have_fields`` skips them. See the
+        IUVN-L1 note in ``ir_ui_view_name_manager``.
         """
         self.assertValid(
             """
@@ -2549,11 +2508,11 @@ class TestViews(ViewCase):
         )
 
     def test_reset_arch(self):
-        """reset_arch restores arch_prev on soft and is a safe no-op otherwise.
+        """reset_arch restores arch_prev on soft reset, safe no-op otherwise (IUV-M2).
 
-        Locks the IUV-M2 contract: write_dict is only applied when both ``arch``
-        and ``write_dict`` are bound (soft, or hard with arch_fs), so a hard
-        reset without arch_fs leaves the arch untouched and never NameErrors.
+        write_dict is applied only when both ``arch`` and ``write_dict`` are
+        bound (soft, or hard with arch_fs), so a hard reset without arch_fs
+        leaves the arch untouched and never NameErrors.
         """
         view = self.assertValid(
             '<form string="View"><field name="name"/></form>',
@@ -3615,12 +3574,9 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field restricted to users not having a group
-        # in another field restricted to users not having multiple group including the one above is valid
-        # e.g.
-        # if the user is portal, the field "name" will be in the view
-        # but the field "inherit_id" where "name" is used will not be in the view
-        # making it valid.
+        # A field restricted to !group used in a field restricted to several
+        # !groups including it is valid. E.g. for portal, "name" is in the view
+        # but "inherit_id" (which uses it) is not, so it's valid.
         validate(
             """
             <form string="View">
@@ -3631,12 +3587,9 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field restricted to a non group
-        # in another field restricted to a non group implied in the non group of the available field is valid
-        # e.g.
-        # if the user is employee, the field "name" will be in the view
-        # but the field "inherit_id", where "name" is used, will not be in the view,
-        # therefore making it valid
+        # A field restricted to !group used in a field restricted to a !group
+        # implied by it is valid. E.g. for employee, "name" is in the view but
+        # "inherit_id" (which uses it) is not, so it's valid.
         validate(
             """
             <form string="View">
@@ -4436,9 +4389,9 @@ class TestViews(ViewCase):
             )
         )
 
-        # moving an element should have no impact; this test checks that the
-        # implementation does not flag the inner element to be validated, which
-        # prevents to locate the corresponding element inside the arch
+        # moving an element should have no impact; check the implementation does
+        # not flag the inner element for validation (which would fail to locate
+        # the corresponding element inside the arch)
         self.assertValid(
             """<field name="group_ids" position="before">
                 <label for="group_ids" position="move"/>
@@ -4818,8 +4771,8 @@ class TestDebugger(common.TransactionCase):
 
 
 class TestViewTranslations(common.TransactionCase):
-    # these tests are essentially the same as in test_translate.py, but they use
-    # the computed field 'arch' instead of the translated field 'arch_db'
+    # same as the tests in test_translate.py, but using the computed field
+    # 'arch' instead of the translated field 'arch_db'
 
     @classmethod
     def setUpClass(cls):
@@ -4836,11 +4789,11 @@ class TestViewTranslations(common.TransactionCase):
                 "arch": archf % terms,
             }
         )
-        # DLE P70: `_sync_terms_translations`, which delete translations for which there is no value, is called sooner than before
-        # because it's called in `_write`, which is called by `flush`, which is called by the `search`.
-        # `arch_db` is in `_write` instead of `create` because `arch_db` is the inverse of `arch`.
-        # We need to flush `arch_db` before creating the translations otherwise the translation for which there is no value will be deleted,
-        # while the `test_sync_update` specifically needs empty translations
+        # DLE P70: flush `arch_db` before creating translations.
+        # `_sync_terms_translations` (which deletes value-less translations) now
+        # runs via `_write` -> `flush` -> `search`, and `arch_db` is written in
+        # `_write` (it's the inverse of `arch`). Without the flush, the empty
+        # translations this test needs would be deleted.
         self.env.flush_all()
         val = {"en_US": archf % terms}
         for lang, trans_terms in kwargs.items():
@@ -4996,10 +4949,7 @@ class TestViewTranslations(common.TransactionCase):
 
 
 class ViewModeField(ViewCase):
-    """
-    This should probably, eventually, be folded back into other test case
-    classes, integrating the test (or not) of the mode field to regular cases
-    """
+    """Tests for the ``mode`` field; could eventually fold back into other cases."""
 
     def testModeImplicitValue(self):
         """mode is auto-generated from inherit_id:
@@ -5034,18 +4984,14 @@ class ViewModeField(ViewCase):
 
     @mute_logger("odoo.db")
     def testPurePrimaryToExtension(self):
-        """
-        A primary view with inherit_id=None can't be converted to extension
-        """
+        """A primary view with inherit_id=None can't be converted to extension."""
         view_pure_primary = self.View.create({"inherit_id": None, "arch": "<qweb/>"})
         with self.assertRaises(IntegrityError):
             view_pure_primary.write({"mode": "extension"})
             view_pure_primary.env.flush_all()
 
     def testInheritPrimaryToExtension(self):
-        """
-        A primary view with an inherit_id can be converted to extension
-        """
+        """A primary view with an inherit_id can be converted to extension."""
         base = self.View.create(
             {
                 "inherit_id": None,
@@ -5059,9 +5005,7 @@ class ViewModeField(ViewCase):
         view.write({"mode": "extension"})
 
     def testDefaultExtensionToPrimary(self):
-        """
-        An extension view can be converted to primary
-        """
+        """An extension view can be converted to primary."""
         base = self.View.create(
             {
                 "inherit_id": None,
@@ -5073,9 +5017,7 @@ class ViewModeField(ViewCase):
         view.write({"mode": "primary"})
 
     def testChangeInheritOfPrimary(self):
-        """
-        A primary view with an inherit_id must remain primary when changing the inherit_id
-        """
+        """A primary view with an inherit_id stays primary when changing inherit_id."""
         base1 = self.View.create(
             {
                 "inherit_id": None,
@@ -5222,12 +5164,9 @@ class TestDefaultView(ViewCase):
 
 
 class TestViewCombined(ViewCase):
-    """
-    * When asked for a view, instead of looking for the closest parent with
-      inherit_id=False look for mode=primary
-    * If root.inherit_id, resolve the arch for root.inherit_id (?using which
-      model?), then apply root's inheritance specs to it
-    * Apply inheriting views on top
+    """View resolution: use the closest mode=primary ancestor (not the closest
+    inherit_id=False one); if it has an inherit_id, resolve that arch and apply
+    the root's inheritance specs to it; then apply inheriting views on top.
     """
 
     def setUp(self):
@@ -5758,10 +5697,7 @@ class TestViewCombined(ViewCase):
 
 
 class TestOptionalViews(ViewCase):
-    """
-    Tests ability to enable/disable inherited views, formerly known as
-    inherit_option_id
-    """
+    """Enable/disable inherited views (formerly inherit_option_id)."""
 
     def setUp(self):
         super().setUp()
@@ -5982,11 +5918,11 @@ class TestQWebRender(ViewCase):
 
 class TestTemplateCache(ViewCase):
     def test_preload_missing_template_caches_error(self):
-        """A nonexistent ref warmed through _preload_views must be cached as an
-        error: a later strict lookup raises MissingError. Regression guard:
+        """A nonexistent ref warmed through _preload_views is cached as an error,
+        so a later strict lookup raises MissingError. Regression guard:
         _fetch_template_views used to warm-push missing refs with error=False,
-        so _get_template_view(raise_if_not_found=True) silently returned an
-        empty recordset instead of raising."""
+        making the strict lookup silently return an empty recordset.
+        """
         missing_xmlid = "base.template_that_does_not_exist"
 
         # warm the templates cache the way ir.qweb._preload_trees does
@@ -6019,8 +5955,9 @@ class TestTemplateCache(ViewCase):
 
 
 class TestViewRefResolution(ViewCase):
-    """The *_view_ref context keys resolve through the cached xmlid resolver
-    and complain (instead of silently falling back) on bad references."""
+    """*_view_ref context keys resolve through the cached xmlid resolver and
+    warn (instead of silently falling back) on bad references.
+    """
 
     def test_view_ref_wrong_model_warns_and_falls_back(self):
         default_id = self.View.default_view("res.partner", "form")
@@ -6049,8 +5986,9 @@ class TestViewRefResolution(ViewCase):
         self.assertIn("does not match any record", capture.output[0])
 
     def test_view_cache_key_order_insensitive(self):
-        """The same *_view_ref combination spelled in a different context
-        insertion order must produce one cache key, not two."""
+        """The same *_view_ref combination in a different context insertion
+        order must produce one cache key, not two.
+        """
         Partner = self.env["res.partner"]
         key1 = Partner.with_context(
             form_view_ref="a.b", list_view_ref="c.d"
@@ -6149,9 +6087,8 @@ class TestValidationTools(common.BaseCase):
 
 class TestAccessibilityChecks(common.BaseCase):
     """The arch accessibility/markup checks are pure functions of an lxml node,
-    so they can be exercised without a database or an ir.ui.view record. These
-    tests both document the rules and pin their behaviour after extraction from
-    IrUiView into odoo.tools.view_validation.
+    exercisable without a database. These tests pin their behaviour after
+    extraction from IrUiView into odoo.tools.view_validation.
     """
 
     def test_dropdown_menu(self):
@@ -6263,12 +6200,11 @@ class TestAccessRights(TransactionCaseWithUserDemo):
     def test_view_custom_per_user_isolation(self):
         """A user cannot read another user's ir.ui.view.custom via the normal path.
 
-        Pins the per-user isolation that the global record rule provides on the
-        non-sudo path (IUVC-L1). The model's only ACL is group_system, so both
-        users are given that group to pass the ACL; the record rule
-        ``[('user_id','=',user.id)]`` must still confine each to their own
-        customizations. The hot path runs under sudo with hand-written user_id
-        filters, but this is the model-level backstop.
+        Pins the per-user isolation from the global record rule on the non-sudo
+        path (IUVC-L1). The only ACL is group_system, so both users get it to
+        pass the ACL; the rule ``[('user_id','=',user.id)]`` must still confine
+        each to their own customizations. The hot path runs under sudo with
+        hand-written user_id filters; this is the model-level backstop.
         """
         system_group = self.env.ref("base.group_system")
         user_a = self.env["res.users"].create(
@@ -7761,8 +7697,8 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="~'base.group_multi_company'",
         )
 
-        # fail because the access rights is group_system, no body can see the inherit_id
-        # # don't need to add field, the negative group is a subset of the mandatory group
+        # fails because the ACL is group_system, so nobody can see inherit_id;
+        # no field added since the negative group is a subset of the mandatory group
         validate(
             """
             <form string="View">
