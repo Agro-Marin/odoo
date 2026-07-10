@@ -13,7 +13,8 @@ This is the framework-level counterpart to the per-addon
 ## Identity
 
 - **What:** A fork of Odoo Community 19.0 (`19.0-marin`), framework + base addons.
-- **Runtime floor:** Python ≥ 3.14, PostgreSQL ≥ 18 (`odoo/release.py`).
+- **Runtime floor:** Python 3.14 (pinned: MIN = MAX = 3.14), PostgreSQL ≥ 18
+  (`odoo/release.py`).
 - **Posture:** No upstream backward-compatibility constraint on `19.0-marin` —
   the monoliths (`models.py`, `fields.py`, `api.py`, `http.py`, `sql_db.py`,
   `service/server.py`) have been decomposed into layered packages.
@@ -25,7 +26,7 @@ odoo/
 ├── orm/            The ORM, as an explicit 4-layer architecture (see below)
 │   ├── primitives, parsing, validation, constants, _typing   (Layer 0)
 │   ├── fields/, domain/                                       (Layer 1)
-│   ├── models/  (BaseModel + 14 mixins, metaclass)            (Layer 2)
+│   ├── models/  (BaseModel + 18 mixins, metaclass)            (Layer 2)
 │   ├── runtime/ (Environment, Registry, Transaction, backend) (Layer 3)
 │   └── components/  pure-Python cache / compute / unit-of-work (cross-cutting)
 ├── api/ · fields/ · models/   Thin public re-export shims over orm/ (stable imports)
