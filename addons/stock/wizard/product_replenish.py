@@ -1,5 +1,4 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
 
@@ -91,7 +90,7 @@ class ProductReplenish(models.TransientModel):
 
     @api.model
     def default_get(self, fields):
-        res = super(ProductReplenish, self).default_get(fields)
+        res = super().default_get(fields)
         product_tmpl_id = self.env["product.template"]
         if self.env.context.get("default_product_id"):
             product_id = self.env["product.product"].browse(
@@ -117,7 +116,7 @@ class ProductReplenish(models.TransientModel):
             res["company_id"] = company.id
         if "warehouse_id" in fields and "warehouse_id" not in res:
             warehouse = self.env["stock.warehouse"].search(
-                [("company_id", "=", company.id)], limit=1
+                [*self.env["stock.warehouse"]._check_company_domain(company)], limit=1
             )
             res["warehouse_id"] = warehouse.id
         if "route_id" in fields and "route_id" not in res and product_tmpl_id:
@@ -128,73 +127,63 @@ class ProductReplenish(models.TransientModel):
             )
             if not res["route_id"] and product_tmpl_id.route_ids:
                 res["route_id"] = product_tmpl_id.route_ids.filtered(
-                    lambda r: r.company_id == self.env.company or not r.company_id
+                    lambda r: r.company_id == company or not r.company_id
                 )[:1].id
         return res
 
-    def _get_date_planned(self, route_id, **kwargs):
+    def _get_date_planned(self, route, **kwargs):
         now = fields.Datetime.now()
-        delay = 0
-        if route_id:
-            delay = sum([rule.delay for rule in route_id.rule_ids])
+        delay = sum(route.rule_ids.mapped("delay"))
         return fields.Datetime.add(now, days=delay)
 
     def launch_replenishment(self):
-        try:
-            now = self.env.cr.now()
-            self.env["stock.rule"].with_context(clean_context(self.env.context)).run(
-                [
-                    self.env["stock.rule"].Procurement(
-                        self.product_id,
-                        self.quantity,
-                        self.product_uom_id,
-                        self.warehouse_id.lot_stock_id,  # Location
-                        _("Manual Replenishment"),  # Name
-                        _("Manual Replenishment"),  # Origin
-                        self.warehouse_id.company_id,
-                        self._prepare_run_values(),  # Values
-                    )
-                ]
-            )
-            move = self._get_record_to_notify(now)
-            notification = self._get_replenishment_order_notification(move)
-            act_window_close = {
-                "type": "ir.actions.act_window_close",
-                "infos": {"done": True},
-            }
-            if notification:
-                notification["params"]["next"] = act_window_close
-                return notification
-            return act_window_close
-        except UserError as error:
-            raise UserError(error)
-
-    # TODO: to remove in master
-    def _prepare_orderpoint_values(self):
-        values = {
-            "location_id": self.warehouse_id.lot_stock_id.id,
-            "product_id": self.product_id.id,
-            "qty_to_order": self.quantity,
+        self.ensure_one()
+        now = self.env.cr.now()
+        self.env["stock.rule"].with_context(clean_context(self.env.context)).run(
+            [
+                self.env["stock.rule"].Procurement(
+                    self.product_id,
+                    self.quantity,
+                    self.product_uom_id,
+                    self.warehouse_id.lot_stock_id,  # Location
+                    _("Manual Replenishment"),  # Name
+                    _("Manual Replenishment"),  # Origin
+                    self.warehouse_id.company_id,
+                    self._prepare_run_values(),  # Values
+                )
+            ]
+        )
+        move = self._get_record_to_notify(now)
+        notification = self._get_replenishment_order_notification(move)
+        act_window_close = {
+            "type": "ir.actions.act_window_close",
+            "infos": {"done": True},
         }
-        if self.route_id:
-            values["route_id"] = self.route_id.id
-        return values
+        if notification:
+            notification["params"]["next"] = act_window_close
+            return notification
+        return act_window_close
 
     def _prepare_run_values(self):
-        values = {
+        return {
             "warehouse_id": self.warehouse_id,
             "route_ids": self.route_id,
             "date_planned": self.date_planned,
             "force_uom": True,
         }
-        return values
 
     def _get_record_to_notify(self, date):
-        return self.env["stock.move"].search([("write_date", ">=", date)], limit=1)
+        # ``date`` (a whole-transaction timestamp) alone is not selective: every
+        # move written in this transaction shares it, so we also pin the product
+        # and take the newest id to land on the move this run just created.
+        return self.env["stock.move"].search(
+            [("write_date", ">=", date), ("product_id", "=", self.product_id.id)],
+            order="id desc",
+            limit=1,
+        )
 
     def _get_replenishment_order_notification_link(self, move):
         if move.picking_id:
-            action = self.env.ref("stock.stock_picking_action_picking_type")
             return [
                 {
                     "label": move.picking_id.name,
@@ -211,7 +200,7 @@ class ProductReplenish(models.TransientModel):
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
-                "title": _("The following replenishment order have been generated"),
+                "title": _("The following replenishment order has been generated"),
                 "message": "%s",
                 "links": link,
                 "sticky": False,
