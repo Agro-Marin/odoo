@@ -166,9 +166,9 @@ class ResConfigSettings(models.TransientModel):
         if not self.env.user.has_group("stock.group_stock_manager"):
             return
 
-        # If we just enabled multiple locations with this settings change, we can deactivate
-        # the internal operation types of the warehouses, so they won't appear in the dashboard.
-        # Otherwise (if we just disabled multiple locations with this settings change), activate them
+        # If we just enabled multiple locations, activate the warehouses' internal operation
+        # types so they appear in the dashboard. Otherwise (if we just disabled multiple
+        # locations with this settings change), deactivate them.
         warehouse_obj = self.env["stock.warehouse"]
         if self.group_stock_multi_locations and not previous_group.get(
             "group_stock_multi_locations"

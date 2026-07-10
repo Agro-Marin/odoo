@@ -54,8 +54,6 @@ class ProductProduct(models.Model):
         "In a context with a single Warehouse, this includes "
         "goods stored in the Stock Location of this Warehouse, or any "
         "of its children.\n"
-        "stored in the Stock Location of the Warehouse of this Shop, "
-        "or any of its children.\n"
         "Otherwise, this includes goods stored in any Stock Location "
         "with 'internal' type.",
     )
@@ -633,7 +631,7 @@ class ProductProduct(models.Model):
         }
         return action
 
-    # Be aware that the exact same function exists in product.template
+    # A method of the same name exists on product.template, but it just dispatches to the variants.
     def action_view_quants(self):
         hide_location = not self.env.user.has_group("stock.group_stock_multi_locations")
         hide_lot = all(product.tracking == "none" for product in self)
@@ -1030,8 +1028,8 @@ class ProductProduct(models.Model):
                 ),
             )
             loc_domain = Domain("location_id", "in", descendants_query)
-            # The condition should be split for done and not-done moves as the final_dest_id only make sense
-            # for the part of the move chain that is not done yet.
+            # The condition should be split for done and not-done moves as the location_final_id only makes
+            # sense for the part of the move chain that is not done yet.
             dest_loc_domain_done = Domain("location_dest_id", "in", descendants_query)
             dest_loc_domain_in_progress = Domain(
                 [

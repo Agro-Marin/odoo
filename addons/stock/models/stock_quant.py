@@ -2439,7 +2439,7 @@ class StockQuant(models.Model):
         but not limited to scrap, incoming picking SN encoding, and outgoing picking SN selection.
 
         :param product_id: `product.product` product to check SN for
-        :param lot_id: `stock.production.lot` SN to check
+        :param lot_id: `stock.lot` SN to check
         :param company_id: `res.company` company to check against (i.e. we ignore duplicate SNs across
             different companies for lots defined with a company)
         :param source_location_id: `stock.location` optional source location if using the SN rather

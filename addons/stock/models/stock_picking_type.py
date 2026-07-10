@@ -747,7 +747,7 @@ class StockPickingType(models.Model):
         """
         Returns a list, each element containing 3 values:
         * picking type ID
-        * list of date fields values of all pickings with that picking type
+        * list of date_planned values of that type's open (assigned/waiting/confirmed) pickings
         * data series name, used to display it in the graph
         """
         records = self.env["stock.picking"]._read_group(
