@@ -23,8 +23,8 @@ from odoo.tests.result import OdooTestResult
 _logger = logging.getLogger(__name__)
 
 
-# this is mainly to ensure that simple tests will continue to work even if BaseCase should be used
-# this only works if doClassCleanup is available on testCase because of the vendoring of suite.py.
+# ensures simple tests keep working even when BaseCase would be used; only
+# works if doClassCleanup is available on testCase (vendoring of suite.py).
 class TestTestSuite(TestCase):
     test_tags = {"standard", "at_install"}
     test_module = "base"
@@ -37,12 +37,9 @@ class TestTestSuite(TestCase):
 
 
 class TestRunnerLoggingCommon(TransactionCase):
-    """
-    The purpose of this class is to do some "metatesting": it actually checks
-    that on error, the runner logged the error with the right file reference.
-    This is mainly to avoid having errors in test/common.py or test/runner.py`.
-    This kind of metatesting is tricky; in this case the logs are made outside
-    of the test method, after the teardown actually.
+    """Metatesting: check that on error the runner logs it with the right file
+    reference (guards against errors in tests/common.py or tests/runner.py).
+    Tricky because the logs happen outside the test method, after teardown.
     """
 
     def setUp(self):
@@ -51,23 +48,19 @@ class TestRunnerLoggingCommon(TransactionCase):
         return super().setUp()
 
     def _addError(self, result, test, exc_info):
-        # We use this hook to catch the logged error. It is initially called
-        # post tearDown, and logs the actual errors. Because of our hack
-        # tests.common._ErrorCatcher, the errors are logged directly. This is
-        # still useful to test errors raised from tests. We cannot assert what
-        # was logged after the test inside the test, though. This method can be
-        # temporary renamed to test the real failure.
+        # Hook to catch the logged error. Called post-tearDown; thanks to
+        # tests.common._ErrorCatcher the errors are logged directly. This
+        # method can be temporarily renamed to test the real failure.
         try:
             self.test_result = result
-            # while we are here, let's check that the first frame of the stack
-            # is always inside the test method
+            # check the first frame of the stack is inside the test method
 
             if exc_info:
                 tb = exc_info[2]
                 self._check_first_frame(tb)
 
-            # intercept all ir_logging. We cannot use log catchers or other
-            # fancy stuff because makeRecord is too low level.
+            # intercept all ir_logging; log catchers don't work here because
+            # makeRecord is too low level
             log_records = []
 
             def makeRecord(
@@ -112,22 +105,20 @@ class TestRunnerLoggingCommon(TransactionCase):
             self._check_log_records(log_records)
 
         except Exception:
-            # we don't expect _feedErrorsToResult() to raise any exception, this
-            # will make it more robust to future changes and eventual mistakes
+            # _feedErrorsToResult() shouldn't raise; be robust to future changes
             _logger.exception("unexpected exception in _feedErrorsToResult")
 
     def _check_first_frame(self, tb):
         """Check that the first frame of the given traceback is the expected method name."""
-        # the list expected_first_frame_methods allow to define a list of first
-        # expected frame (useful for setup/teardown tests)
+        # expected_first_frame_methods holds a list of expected first frames
+        # (useful for setup/teardown tests)
         if self.expected_first_frame_methods is None:
             expected_first_frame_method = self._testMethodName
         else:
             expected_first_frame_method = self.expected_first_frame_methods.pop(0)
         if expected_first_frame_method.endswith("_with_decorators"):
-            # For decorators, we don't need to have the first frame in line with
-            # the test name because it already appears in the stack trace.
-            # See odoo/odoo#108202.
+            # For decorators the first frame need not match the test name; it
+            # already appears in the stack trace. See odoo/odoo#108202.
             return
         first_frame_method = tb.tb_frame.f_code.co_name
         if first_frame_method != expected_first_frame_method:
@@ -169,7 +160,7 @@ class TestRunnerLoggingCommon(TransactionCase):
 
     def _log_error(self, message):
         """Log an actual error (about a log in a test that doesn't match expectations)"""
-        # we would just log, but using the test_result will help keeping the tests counters correct
+        # use test_result (not plain logging) to keep the test counters correct
         self.test_result.addError(self, (AssertionError, AssertionError(message), None))
 
     def _clean_message(self, message):
@@ -204,9 +195,7 @@ class TestRunnerLogging(TestRunnerLoggingCommon):
         raise Exception("This is an error")
 
     def test_raise_subtest(self):
-        """
-        with subtest, we expect to have multiple errors, one per subtest
-        """
+        """With subtest, expect multiple errors, one per subtest."""
 
         def make_message(message):
             return f"""ERROR: Subtest TestRunnerLogging.test_raise_subtest (<subtest>)
@@ -537,11 +526,7 @@ class TestClassTeardown(BaseCase):
 
 
 class Test01ClassCleanups(BaseCase):
-    """
-    The purpose of this test combined with Test02ClassCleanupsCheck is to check that
-    class cleanup work. class cleanup where introduced in python3.8 but tests should
-    remain compatible with python 3.7
-    """
+    """With Test02ClassCleanupsCheck, checks that class cleanups run."""
 
     executed = False
     cleanup = False

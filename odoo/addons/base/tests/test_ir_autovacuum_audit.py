@@ -15,13 +15,10 @@ _IR_AUTOVACUUM_LOGGER = "odoo.addons.base.models.ir_autovacuum"
 class TestAutovacuumDispatcher(TransactionCase):
     """Regression coverage for the ir.autovacuum dispatcher guard (audit AV-T1).
 
-    ``_run_vacuum_cleaner`` requires ``is_admin()`` AND a ``cron_id`` in context
-    (ir_autovacuum.py:31-32), otherwise it raises ``AccessDenied``.
-
-    The failure-isolation contract (one ``@api.autovacuum`` method raising must
-    not abort the others) is NOT covered here: exercising it requires running
-    the dispatch loop, which commits the cursor between methods -- forbidden
-    inside a TransactionCase. The happy path is already covered in test_orm.
+    ``_run_vacuum_cleaner`` requires ``is_admin()`` AND a ``cron_id`` in context,
+    else it raises ``AccessDenied``. The failure-isolation contract is not
+    covered here (it needs the dispatch loop to commit between methods, forbidden
+    in a TransactionCase; already covered in test_orm).
     """
 
     def test_run_vacuum_requires_cron_id_in_context(self):
@@ -46,24 +43,21 @@ class TestAutovacuumDispatcher(TransactionCase):
 class TestAutovacuumTimeBudget(TransactionCase):
     """Regression coverage for the ``_run_vacuum_cleaner`` wall-clock budget.
 
-    A method reporting remaining work is re-enqueued only while the run is
-    within ``MAX_VACUUM_RUNTIME``; past the budget the backlog is deferred to
-    the next run (with a warning), so a huge backlog cannot turn the daily
-    vacuum into one unbounded run. First-pass methods are never skipped.
+    A method reporting remaining work is re-enqueued only while within
+    ``MAX_VACUUM_RUNTIME``; past the budget the backlog is deferred to the next
+    run (with a warning). First-pass methods are never skipped.
 
-    The dispatch loop is driven with the real registry replaced by fake
-    ``@api.autovacuum`` methods (``inspect.getmembers`` is stubbed inside the
-    ir_autovacuum module), so no real ``_gc_*`` work runs here. The per-method
-    ``ir.cron._commit_progress()`` is stubbed out too: with no cron progress
-    record in context it would fall through to a raw ``cr.commit()``, which is
-    forbidden on the shared TransactionCase test cursor.
+    The loop is driven with fake ``@api.autovacuum`` methods
+    (``inspect.getmembers`` stubbed inside the ir_autovacuum module), so no real
+    ``_gc_*`` runs. ``ir.cron._commit_progress`` is stubbed too: without a cron
+    progress record in context it would fall through to a raw ``cr.commit()``,
+    forbidden on the shared TransactionCase cursor.
     """
 
     @staticmethod
     def _getmembers_stub(methods):
         """Return an ``inspect.getmembers`` stand-in exposing ``methods``
-        (a list of ``(name, func)``) on ir.autovacuum only, and nothing on
-        every other registry model."""
+        (``(name, func)`` pairs) on ir.autovacuum only, nothing elsewhere."""
 
         def fake_getmembers(cls, predicate=None):
             if getattr(cls, "_name", None) == "ir.autovacuum":
@@ -75,8 +69,8 @@ class TestAutovacuumTimeBudget(TransactionCase):
     def _run(self, methods, fake_time=None):
         """Run the dispatcher with ``methods`` (``(name, func)`` pairs) as the
         only autovacuum methods, optionally under a stubbed ``time`` namespace.
-        Only the ir_autovacuum module's own ``inspect``/``time`` references are
-        swapped, plus ``ir.cron._commit_progress`` (see the class docstring)."""
+        Swaps only the ir_autovacuum module's ``inspect``/``time`` references
+        plus ``ir.cron._commit_progress`` (see the class docstring)."""
         autovacuum = self.env["ir.autovacuum"].with_context(cron_id=1)
         with contextlib.ExitStack() as stack:
             stack.enter_context(

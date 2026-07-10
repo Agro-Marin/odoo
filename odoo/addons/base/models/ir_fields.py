@@ -18,9 +18,9 @@ _lt = LazyTranslate(__name__)
 
 REFERENCING_FIELDS = {None, "id", ".id"}
 
-# Length of an ISO date prefix "YYYY-MM-DD". Kept as a local literal rather than
-# importing ``odoo.tools.misc.DATE_LENGTH``: pulling in ``odoo.tools.misc`` at
-# base-bootstrap time triggers an ir_model circular import.
+# Length of an ISO date prefix "YYYY-MM-DD". Local literal rather than
+# ``odoo.tools.misc.DATE_LENGTH``: importing that at base-bootstrap triggers an
+# ir_model circular import.
 DATE_LENGTH = 10
 
 
@@ -41,13 +41,11 @@ class FakeField(NamedTuple):
     name: str
 
 
-# A converter accepts either a real ORM field or the lightweight ``FakeField``
-# stand-in used for per-subproperty relational coercion. ``Converter`` is the
-# shape returned by :meth:`IrFieldsConverter.to_field`: a callable mapping a
-# ``fromtype`` value to ``(write_value, warnings)`` (or raising ``ValueError``).
-# ``RecordConverter`` is the record-level shape returned by
-# :meth:`IrFieldsConverter.for_model`: a callable mapping a record-ish dict and
-# a ``log(field, exception)`` callback to a dict of converted write() values.
+# ``FieldLike``: a real ORM field or the ``FakeField`` stand-in used for
+# per-subproperty relational coercion. ``Converter`` (from ``to_field``): maps a
+# ``fromtype`` value to ``(write_value, warnings)`` or raises ``ValueError``.
+# ``RecordConverter`` (from ``for_model``): maps a record-ish dict and a
+# ``log(field, exception)`` callback to a dict of converted write() values.
 type FieldLike = fields.Field | FakeField
 type Converter = Callable[[Any], tuple[Any, list]]
 type RecordConverter = Callable[[dict, Callable], dict]
@@ -58,7 +56,7 @@ class RefLookup(NamedTuple):
 
     ``id`` is the resolved database id, ``False`` for an empty reference, or
     ``None`` when nothing matched. ``field_type`` / ``error_msg`` feed the
-    "no matching record" message only on the unresolved path.
+    "no matching record" message on the unresolved path.
     """
 
     id: int | bool | None
@@ -68,7 +66,7 @@ class RefLookup(NamedTuple):
 
 
 class OdooImportWarning(Warning):
-    """Used to send warnings upwards the stack during the import process"""
+    """Warning propagated up the stack during import."""
 
     pass
 
@@ -77,12 +75,10 @@ class IrFieldsConverter(models.AbstractModel):
     _name = "ir.fields.converter"
     _description = "Fields Converter"
 
-    # The import savepoint (used to roll back a failed ``name_create``) is
-    # carried in the context key ``import_savepoint`` rather than threaded as a
-    # parameter through every converter: only ``db_id_for`` ever uses it, but a
-    # uniform ``converter(value)`` dispatch forces every converter to share one
-    # signature. ``BaseModel.load`` and the recursive ``for_model`` call keep it
-    # in context; the same mechanism already carries ``import_flush`` /
+    # The import savepoint (rolls back a failed ``name_create``) rides in the
+    # ``import_savepoint`` context key rather than as a converter parameter: the
+    # uniform ``converter(value)`` dispatch gives every converter one signature,
+    # yet only ``db_id_for`` needs it. Same mechanism as ``import_flush`` /
     # ``import_cache``.
 
     @api.model
@@ -93,7 +89,7 @@ class IrFieldsConverter(models.AbstractModel):
         error_params: str | dict[str, Any] | tuple = (),
         error_args: dict[str, Any] | None = None,
     ) -> Exception:
-        # sanitize error params for later formatting by the import system
+        # sanitize params so the import system's later %-formatting is safe
         def sanitize(p: Any) -> Any:
             return p.replace("%", "%%") if isinstance(p, str) else p
 
@@ -105,10 +101,10 @@ class IrFieldsConverter(models.AbstractModel):
                     error_params = {k: sanitize(v) for k, v in error_params.items()}
                 case tuple():
                     error_params = tuple(sanitize(v) for v in error_params)
-        # ``error_args`` is passed as the second exception arg even when ``None``
-        # on purpose: ``BaseModel.load._log`` keys off ``len(e.args) > 1`` (alone)
-        # to attach the human ``field_name`` to the per-field error message, so a
-        # 1-arg exception would silently drop it. Do not "simplify" this away.
+        # ``error_args`` is passed as the second arg even when ``None`` on
+        # purpose: ``BaseModel.load._log`` keys off ``len(e.args) > 1`` to attach
+        # the human ``field_name``, so a 1-arg exception would drop it. Don't
+        # "simplify" this away.
         return error_type(error_msg % error_params, error_args)
 
     @api.model
@@ -126,9 +122,9 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _import_field_policy(self, field: FieldLike) -> tuple[bool, bool]:
         """Return ``(skip_record, set_empty)`` for ``field`` from the import
-        context. Both flags key off the field's full slash-path
-        (:meth:`_import_policy_path`); the ``import_skip_records`` /
-        ``import_set_empty_fields`` lists are only ever populated together with
+        context, keyed off the field's full slash-path
+        (:meth:`_import_policy_path`). The ``import_skip_records`` /
+        ``import_set_empty_fields`` lists are only ever populated alongside
         ``import_file`` (see ``base_import``), so no extra guard is needed.
         """
         path = self._import_policy_path(field)
@@ -140,27 +136,15 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _error_field_path(self, field: str, value: str | list) -> list[str]:
-        """Rebuild field path for import error attribution to the right field.
-        This method uses the 'parent_fields_hierarchy' context key built during treatment of one2many fields
-        (_str_to_one2many). As the field to import is the last of the chain (child_id/child_id2/field_to_import),
-        we need to retrieve the complete hierarchy in case of error in order to assign the error to the correct
-        column in the import UI.
+        """Rebuild the full field path for import-error attribution in the UI.
 
-        :param str field: field in which the value will be imported.
-        :param str | list value:
-            - str: in most of the case the value we want to import into a field is a string (or a number).
-            - list: when importing into a one2may field, all the records to import are regrouped into a list of dict.
-                E.g.: creating multiple partners: [{None: 'ChildA_1', 'type': 'Private address'}, {None: 'ChildA_2', 'type': 'Private address'}]
-                where 'None' is the name. (because we can find a partner by his name, we don't need to specify the field.)
+        Prepends the ``parent_fields_hierarchy`` context key (built by
+        ``_str_to_one2many``) and descends into nested one2many values so the
+        error binds to the deepest imported field, e.g. ``['partner_id', 'type']``.
 
-        The field_path value is computed based on the last field in the chain.
-        for example,
-
-            - path_field for 'Private address' at childA_1 is ['partner_id', 'type']
-            - path_field for 'childA_1' is ['partner_id']
-
-        So, by retrieving the correct field_path for each value to import, if errors are raised for those fields,
-        we can link the errors to the correct header-field couple in the import UI.
+        :param str field: field the value is imported into.
+        :param str | list value: the raw value, or, for a one2many, a list of
+            per-record dicts to descend into.
         """
         field_path = [field]
         if parent_fields_hierarchy := self.env.context.get("parent_fields_hierarchy"):
@@ -182,28 +166,21 @@ class IrFieldsConverter(models.AbstractModel):
     def for_model(
         self, model: models.BaseModel, fromtype: type | str = str
     ) -> RecordConverter:
-        """Returns a converter object for the model. A converter is a
-        callable taking a record-ish (a dictionary representing an odoo
-        record with values of typetag ``fromtype``) and a ``log`` callback,
-        and returning a converted record matching what
-        :meth:`odoo.models.Model.write` expects.
-
-        The import savepoint is read from the ``import_savepoint`` context key.
+        """Return a record-level converter for ``model``: a callable taking a
+        record-ish dict (values of type ``fromtype``) and a ``log`` callback, and
+        returning a dict matching what :meth:`odoo.models.Model.write` expects.
 
         :param model: :class:`odoo.models.Model` for the conversion base
-        :param fromtype:
-        :returns: a record-level converter callable
         :rtype: RecordConverter
         """
         # make sure model is new api
         model = self.env[model._name]
         fields = model._fields
 
-        # Converters are resolved lazily and memoized per field name: only the
-        # columns actually present in the imported records pay for a
-        # ``to_field`` lookup, rather than eagerly building one for every field
-        # of the model. This matters for one2many imports, where ``for_model``
-        # is (re)built once per parent row over the *whole* comodel field set.
+        # Resolve converters lazily and memoize per field name: only columns
+        # actually present in the imported records pay for a ``to_field`` lookup.
+        # Matters for one2many imports, where ``for_model`` is (re)built once per
+        # parent row over the whole comodel field set.
         converter_cache: dict[str, Converter | None] = {}
 
         def get_converter(name: str) -> Converter | None:
@@ -227,10 +204,8 @@ class IrFieldsConverter(models.AbstractModel):
                 if converter is None:
                     # A field whose type has no ``_str_to_<type>`` method (e.g.
                     # ``properties_definition``), or one absent from the model.
-                    # Previously the eager ``converters[field]`` was ``None`` and
-                    # ``None(value)`` raised an uncaught TypeError that aborted
-                    # the *entire* ``load()``; log it as a per-field error
-                    # instead (IFLD-07).
+                    # Log a per-field error rather than let ``None(value)`` raise
+                    # a TypeError that aborts the entire ``load()`` (IFLD-07).
                     field_obj = fields.get(field)
                     log(
                         field,
@@ -247,36 +222,34 @@ class IrFieldsConverter(models.AbstractModel):
                     converted[field], ws = converter(value)
                     for w in ws:
                         if isinstance(w, str):
-                            # wrap warning string in an OdooImportWarning for
-                            # uniform handling
+                            # wrap in OdooImportWarning for uniform handling
                             w = OdooImportWarning(w)
                         log(field, w)
                 except (UnicodeEncodeError, UnicodeDecodeError) as e:
                     log(field, ValueError(str(e)))
                 except psycopg.DataError as e:
-                    # psycopg3 rejects bad bytes (e.g. NUL 0x00) at adaptation
-                    # time, client-side, as DataError (psycopg2 raised
-                    # ValueError). No server round-trip happened, so the cursor
-                    # is intact; surface it as a per-field import error.
+                    # psycopg3 rejects bad bytes (e.g. NUL 0x00) client-side at
+                    # adaptation time as DataError (psycopg2 raised ValueError).
+                    # No server round-trip, so the cursor is intact; surface it as
+                    # a per-field import error.
                     log(field, ValueError(str(e)))
                 except ValueError as e:
                     if import_file_context:
-                        # if the error is linked to a matching error, the error is a tuple
-                        # E.g.:("Value X cannot be found for field Y at row 1", {
+                        # A matching error carries a dict as its second arg. E.g.:
+                        # ("Value X cannot be found for field Y at row 1", {
                         #   'more_info': {},
                         #   'value': 'X',
                         #   'field': 'Y',
                         #   'field_path': ['child_id', 'Y'],  # a LIST; the web
                         #       client joins it with '/' (import_model.js)
                         # })  # noqa: ERA001, RUF100
-                        # In order to link the error to the correct header-field couple in the import UI, we need to add
-                        # the field path to the additional error info.
-                        # As we raise the deepest child in error, we need to add the field path only for the deepest
-                        # error in the import recursion. (if field_path is given, don't overwrite it)
+                        # Add the field path so the UI can bind the error to the
+                        # right header-field couple. Only the deepest child is
+                        # raised, so set it only if not already present.
                         error_info = len(e.args) > 1 and e.args[1]
                         if error_info and not error_info.get(
                             "field_path"
-                        ):  # only raise the deepest child in error
+                        ):  # only the deepest child in error
                             error_info["field_path"] = self._error_field_path(
                                 field, value
                             )
@@ -289,43 +262,26 @@ class IrFieldsConverter(models.AbstractModel):
     def to_field(
         self, field: FieldLike, fromtype: type | str = str
     ) -> Converter | None:
-        """Fetches a converter for the provided field object, from the
-        specified type.
+        """Return the converter for ``field`` from ``fromtype``, or ``None`` if
+        none matches.
 
-        A converter is a callable taking a value of type ``fromtype``
-        (or a composite of ``fromtype``, e.g. list or dict) and returning a
-        value acceptable for a write() on the field ``field``.
+        Looks up a method named ``_$fromtype_to_$field.type``. A converter takes
+        a value (a ``fromtype`` or composite of it) and returns
+        ``(write_value, warnings)``, or raises ``ValueError`` on a
+        validation/conversion failure.
 
-        By default, tries to get a method on itself with a name matching the
-        pattern ``_$fromtype_to_$field.type`` and returns it.
-
-        Converter callables can either return a value and a list of warnings
-        to their caller or raise ``ValueError``, which will be interpreted as a
-        validation & conversion failure.
-
-        ValueError can have either one or two parameters. The first parameter
-        is mandatory, **must** be a unicode string and will be used as the
-        user-visible message for the error (it should be translatable and
-        translated). It can contain a ``field`` named format placeholder so the
-        caller can inject the field's translated, user-facing name (@string).
-
-        The second parameter is optional and, if provided, must be a mapping.
-        This mapping will be merged into the error dictionary returned to the
-        client.
-
-        If a converter can perform its function but has to make assumptions
-        about the data, it can send a warning to the user through adding an
-        instance of :class:`~.OdooImportWarning` to the second value
-        it returns. The handling of a warning at the upper levels is the same
-        as ``ValueError`` above.
+        The ``ValueError`` first arg is a mandatory unicode, translated,
+        user-visible message; it may carry a ``field`` placeholder for the
+        field's user-facing name. An optional second arg is a mapping merged into
+        the error dict returned to the client. A converter making assumptions
+        about the data may instead append an :class:`~.OdooImportWarning` to its
+        returned warnings.
 
         :param field: field object to generate a value for
         :type field: FieldLike
-        :param fromtype: type to convert to something fitting for ``field``
+        :param fromtype: source type to convert from
         :type fromtype: type | str
-        :return: a function (fromtype -> field.write_type), or ``None`` when no
-                 converter matches the field type
-        :rtype: Any
+        :rtype: Converter | None
         """
         if not isinstance(fromtype, (type, str)):
             raise TypeError(
@@ -352,7 +308,7 @@ class IrFieldsConverter(models.AbstractModel):
         self, msg: str, value: Any, property_dict: dict
     ) -> Exception:
         """Build the per-subproperty import error shared by the Properties
-        coercion arms, injecting the offending ``value`` and the property label.
+        coercion arms, injecting ``value`` and the property label.
         """
         return self._format_import_error(
             ValueError,
@@ -367,12 +323,11 @@ class IrFieldsConverter(models.AbstractModel):
         """Coerce an imported Properties field value into write-ready form.
 
         :param field: the Properties field being imported into.
-        :param value: either the full JSON payload as a string, or the list of
-            per-property definition dicts to convert in place.
-        :return: a pair of the converted properties list and the warning list.
+        :param value: the full JSON payload as a string, or the list of
+            per-property definition dicts to convert.
         :rtype: tuple[list, list]
         """
-        # If we want to import the all properties at once (with the technical value)
+        # a string value imports all properties at once (the technical value)
         if isinstance(value, str):
             try:
                 value = json_loads(value)
@@ -388,9 +343,9 @@ class IrFieldsConverter(models.AbstractModel):
             )
             raise self._format_import_error(ValueError, msg, {"value": value})
 
-        # Coerce onto shallow copies so a caller that passed a list of property
-        # dicts (rather than a JSON string) does not observe its input mutated in
-        # place: converters must be free of visible side effects on their args.
+        # Coerce onto shallow copies: a caller passing property dicts (not a JSON
+        # string) must not see its input mutated in place. Converters must have no
+        # visible side effects on their args.
         value = [dict(property_dict) for property_dict in value]
 
         warnings = []
@@ -404,15 +359,14 @@ class IrFieldsConverter(models.AbstractModel):
                 )
 
             val = property_dict.get("value")
-            # An empty imported cell means "no value": skip coercion so it isn't
-            # rejected as an invalid selection/tag, nor unpacked as an empty
-            # m2o/m2m. Matches None / "" / [] / () but not falsy 0 / False.
+            # An empty cell means "no value": skip coercion so it isn't rejected
+            # as an invalid selection/tag nor unpacked as an empty m2o/m2m.
+            # Matches None / "" / [] / () but not falsy 0 / False.
             if val in (None, "", [], ()):
                 continue
 
-            # Coerce the sub-value in place per property type. Each arm returns
-            # ``(coerced_value, warnings)``; an unrecognized type is left as-is,
-            # matching the original fall-through behavior.
+            # Coerce the sub-value per property type; each arm returns
+            # ``(coerced_value, warnings)``. An unrecognized type is left as-is.
             match property_dict["type"]:
                 case "selection":
                     coerced, ws = self._property_to_selection(val, property_dict)
@@ -540,11 +494,8 @@ class IrFieldsConverter(models.AbstractModel):
         """Return ``(trues, falses)``: the lowercased literal and translated
         tokens accepted as boolean ``True`` / ``False`` on import.
 
-        Memoized per cursor (like :meth:`_selection_for_import`). The underlying
-        translations are already cached by :meth:`_get_boolean_translations`, so
-        the only per-cell cost this removes is the set construction itself --
-        rerun otherwise for every boolean *and* every relational-by-id cell of an
-        import (:meth:`db_id_for`).
+        Memoized per cursor to avoid rebuilding the sets for every boolean and
+        every relational-by-id cell (:meth:`db_id_for`) of an import.
         """
         tnx_cache = self.env.cr.cache.setdefault(self._name, {})
         cache_key = "boolean_value_sets"
@@ -574,12 +525,11 @@ class IrFieldsConverter(models.AbstractModel):
         """Whether ``value`` is a recognized falsy/empty token ("", "0",
         "false", "no", plus their translations).
 
-        Used by the relational-by-id / by-xmlid resolvers to treat an empty
-        cell as "no reference" without running the full boolean parser. The
-        non-``str`` guard lives here (rather than being duplicated, and
-        asymmetrically forgotten, at each call site): a non-string value is not
-        a falsy token, so it falls through to normal resolution instead of
-        raising ``AttributeError`` on ``value.lower()``.
+        Lets the relational-by-id / by-xmlid resolvers treat an empty cell as "no
+        reference" without the full boolean parser. The non-``str`` guard lives
+        here: a non-string value is not a falsy token, so it falls through to
+        normal resolution instead of raising ``AttributeError`` on
+        ``value.lower()``.
         """
         _trues, falses = self._boolean_value_sets()
         return isinstance(value, str) and value.lower() in falses
@@ -597,10 +547,10 @@ class IrFieldsConverter(models.AbstractModel):
         if skip_record:
             return None, []
 
-        # Return ``None`` (not ``True``) as the value on an unknown input: a
-        # caller that logs-but-continues must not silently coerce garbage to
-        # ``True``. The accompanying warning still aborts the row on the normal
-        # import path, and ``_str_to_properties`` checks the warning list.
+        # Return ``None`` (not ``True``) on unknown input: a caller that
+        # logs-but-continues must not coerce garbage to ``True``. The warning
+        # still aborts the row on the normal path, and ``_str_to_properties``
+        # checks the warning list.
         return None, [
             self._format_import_error(
                 ValueError,
@@ -627,11 +577,10 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_float(self, field: FieldLike, value: str) -> tuple[float, list]:
         try:
             result = float(value)
-            # Reject non-finite input: ``float()`` happily parses "nan" / "inf"
-            # (and overflowing exponents like "1e400" -> inf), but those are
-            # almost always a data error, cannot be stored in a numeric column,
-            # and would otherwise surface as a cryptic failure deep inside
-            # ``write()`` instead of a clean, field-attributed import error here.
+            # Reject non-finite input: ``float()`` parses "nan" / "inf" (and
+            # overflowing exponents like "1e400" -> inf), but those can't be
+            # stored in a numeric column and would surface as a cryptic ``write()``
+            # failure instead of a clean, field-attributed import error here.
             valid = math.isfinite(result)
         except ValueError:
             valid = False
@@ -657,13 +606,10 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_date(self, field: FieldLike, value: str) -> tuple[str, list]:
         try:
             # ``fields.Date.from_string`` slices to ``value[:DATE_LENGTH]`` and
-            # would silently accept trailing garbage ("2012-12-31xxx"); reject
-            # that so corrupt input fails loudly instead of importing a truncated
-            # value. A trailing *time* component is not garbage, though
-            # ("2012-12-31 00:00:00", ISO "2012-12-31T23:59:59") -- a very common
-            # shape for date columns exported from spreadsheets/databases -- so
-            # keep accepting it by requiring the whole string to still parse as a
-            # datetime before we drop the time part.
+            # would silently accept trailing garbage ("2012-12-31xxx"); reject it
+            # so corrupt input fails loudly. But a trailing time component is
+            # common and valid ("2012-12-31 00:00:00", "2012-12-31T23:59:59"), so
+            # require the whole string to parse as a datetime before dropping it.
             if isinstance(value, str) and value[DATE_LENGTH:].strip():
                 fields.Datetime.from_string(value)
             parsed_value = fields.Date.from_string(value)
@@ -697,10 +643,9 @@ class IrFieldsConverter(models.AbstractModel):
             ) from None
 
         # ``Datetime.from_string`` already converts an offset-bearing ISO string
-        # (e.g. Luxon's ``toISO()`` "2026-03-19T16:09:18-06:00") to naive UTC. In
-        # that case the offset has already been consumed, so re-stamping the input
-        # tz would double-apply timezone information and store the wrong instant.
-        # Only apply the input tz when the source value was tz-naive.
+        # (e.g. Luxon's ``toISO()`` "2026-03-19T16:09:18-06:00") to naive UTC.
+        # Re-stamping the input tz then would double-apply the offset and store
+        # the wrong instant, so only apply the input tz when the source was naive.
         if isinstance(value, str) and self._iso_value_is_tz_aware(value):
             return fields.Datetime.to_string(parsed_value), []
 
@@ -711,12 +656,8 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _iso_value_is_tz_aware(self, value: str) -> bool:
-        """Return whether an ISO datetime string carries timezone information.
-
-        :param str value: an ISO-formatted datetime string already accepted by
-            :meth:`fields.Datetime.from_string`.
-        :return: ``True`` when the source string was tz-aware (offset or ``Z``).
-        :rtype: bool
+        """Return whether an ISO datetime string carries timezone information
+        (an offset or ``Z``).
         """
         try:
             return datetime.fromisoformat(value).tzinfo is not None
@@ -725,8 +666,7 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _get_boolean_translations(self, src: str) -> list[str]:
-        # Cache translations so they don't have to be reloaded from scratch on
-        # every row of the file
+        # Cache translations so they aren't reloaded on every row of the file
         tnx_cache = self.env.cr.cache.setdefault(self._name, {})
         if src in tnx_cache:
             return tnx_cache[src]
@@ -745,15 +685,11 @@ class IrFieldsConverter(models.AbstractModel):
         """Return ``(untranslated_selection, current_lang_labels)`` for a
         selection ``field``, memoized per cursor for the life of an import.
 
-        ``field.get_description(...)["selection"]`` rebuilds the *entire* field
-        description dict on every call, and for a callable ``selection`` also
-        re-invokes the selection callable — both stable across the rows of one
-        import. Reading them once per import (rather than once per imported
-        cell) is the win; the per-cursor cache matches the pattern already used
-        for boolean/selection translations. ``current_lang_labels`` is the
-        ``{item: label}`` map in the current language, built only for callable
-        selections (static ones are translated in bulk from the database by
-        :meth:`_selection_import_index`).
+        Reading these once per import rather than per cell avoids rebuilding the
+        whole field description dict (and re-invoking a callable ``selection``) on
+        every cell. ``current_lang_labels`` is the ``{item: label}`` map in the
+        current language, built only for callable selections (static ones are
+        translated in bulk by :meth:`_selection_import_index`).
         """
         tnx_cache = self.env.cr.cache.setdefault(self._name, {})
         cache_key = ("import_selection", field.model_name, field.name, self.env.lang)
@@ -770,17 +706,14 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _selection_import_index(self, field: FieldLike) -> dict[str, Any]:
         """Return a memoized ``{normalized_token: item}`` index for a selection
-        ``field``: every accepted spelling of a value -- its technical key, its
-        label, and every translated label -- lowercased, mapped to the selection
-        item to store. Memoized per cursor, like :meth:`_selection_for_import`.
+        ``field``: every accepted spelling of a value -- technical key, label,
+        and every translated label -- lowercased, mapped to the selection item to
+        store. Memoized per cursor, like :meth:`_selection_for_import`.
 
-        This replaces a per-item translation scan that, for a static selection of
-        *n* items, issued up to *n* SQL queries on the first imported cell
-        referencing a late/unknown value (~600 for ``res.partner.tz``) and
-        repeated the burst per import batch. The index is built with a single
-        query for the whole field and turns per-cell resolution into an O(1) dict
-        lookup. ``setdefault`` keeps the earliest item on a token collision,
-        preserving the "first match wins" order of the old linear scan.
+        Built with one query for the whole field, replacing a per-item scan that
+        issued up to *n* queries per import batch (~600 for ``res.partner.tz``).
+        ``setdefault`` keeps the earliest item on a token collision, preserving
+        the old scan's "first match wins" order.
         """
         tnx_cache = self.env.cr.cache.setdefault(self._name, {})
         cache_key = (
@@ -795,8 +728,7 @@ class IrFieldsConverter(models.AbstractModel):
 
             def put(token: Any, item: Any) -> None:
                 # Skip only ``None`` / empty string; keep falsy-but-valid keys
-                # such as ``0`` / ``False`` (their ``str(...)`` is what the old
-                # linear scan compared against).
+                # such as ``0`` / ``False``.
                 if token is not None and token != "":
                     index.setdefault(str(token).lower(), item)
 
@@ -811,8 +743,7 @@ class IrFieldsConverter(models.AbstractModel):
                     put(current_lang_labels.get(item, label), item)
             else:
                 # One query for the whole field: pull every translated label of
-                # every selection row (keyed by its technical ``value``), rather
-                # than one query per item's English label.
+                # every selection row, keyed by its technical ``value``.
                 self.env["ir.model.fields.selection"].flush_model()
                 self.env.cr.execute(
                     """
@@ -824,9 +755,8 @@ class IrFieldsConverter(models.AbstractModel):
                     [field.model_name, field.name],
                 )
                 for value, name in self.env.cr.fetchall():
-                    # Ignore stale rows whose value is no longer in the field's
-                    # current selection, so a token can never resolve to a
-                    # removed item.
+                    # Ignore stale rows no longer in the current selection, so a
+                    # token never resolves to a removed item.
                     if value not in valid_items:
                         continue
                     for lang, txt in (name or {}).items():
@@ -837,9 +767,8 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _str_to_selection(self, field: FieldLike, value: str) -> tuple[Any, list]:
-        # Case-insensitive resolution against a prebuilt index so the given
-        # ``value`` need not match a selection item/label exactly. ``None`` is
-        # the miss sentinel (no selection item is ever ``None``), so a valid but
+        # Case-insensitive lookup against the prebuilt index. ``None`` is the
+        # miss sentinel (no selection item is ever ``None``), so a valid but
         # falsy item such as ``False`` still resolves.
         item = self._selection_import_index(field).get(str(value).lower())
         if item is not None:
@@ -865,8 +794,8 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _possible_values_action(self, field: FieldLike, subfield: str | None) -> dict:
         """Build the "Possible Values" act_window offered as ``moreinfo`` when a
-        reference cannot be resolved. Kept out of the ``db_id_for`` success path
-        (it is only ever consumed on an error) so a clean import pays nothing.
+        reference cannot be resolved. Only consumed on an error, so kept off the
+        ``db_id_for`` success path.
         """
         action = {
             "name": "Possible Values",
@@ -891,17 +820,13 @@ class IrFieldsConverter(models.AbstractModel):
         subfield: str | None,
         value: str,
     ) -> tuple[int | None, list]:
-        """Finds a database id for the reference ``value`` in the referencing
-        subfield ``subfield`` of the provided field of the provided model.
+        """Find a database id for reference ``value`` in ``subfield`` of ``field``.
 
         :param field: relational field for which references are provided
-        :param subfield: a relational subfield allowing building of refs to
-                         existing records: ``None`` for a name_search,
-                         ``id`` for an external id and ``.id`` for a database
-                         id
-        :param value: value of the reference to match to an actual record
-        :return: a pair of the matched database identifier (if any) and the
-                 list of warnings
+        :param subfield: ``None`` for a name_search, ``id`` for an external id,
+                         ``.id`` for a database id
+        :param value: reference value to match to a record
+        :return: a pair of the matched id (if any) and the warnings
         :rtype: tuple[int | None, list]
         """
         if subfield == ".id":
@@ -911,18 +836,17 @@ class IrFieldsConverter(models.AbstractModel):
         elif subfield is None:
             lookup = self._db_id_from_name(field, value)
         else:
-            # ``ValueError`` (not a bare ``Exception``) so ``for_model``'s ``fn``
-            # catches it and reports a per-field error instead of letting it
-            # escape and abort the whole ``load()``.
+            # ``ValueError`` (not bare ``Exception``) so ``for_model``'s ``fn``
+            # catches it and reports a per-field error instead of aborting the
+            # whole ``load()``.
             raise self._format_import_error(
                 ValueError,
                 self.env._("Unknown sub-field “%s”", subfield),
             )
 
-        # ``lookup.id`` is ``False`` for an empty reference (returned as-is), an
-        # int when resolved, or ``None`` when unresolved -- and an unresolved
-        # reference is an import error unless the field's policy skips the record
-        # / sets empty.
+        # ``lookup.id``: ``False`` for an empty reference (returned as-is), int
+        # when resolved, ``None`` when unresolved. An unresolved reference is an
+        # import error unless the field's policy skips the record / sets empty.
         skip_record = set_empty = False
         if self.env.context.get("import_file"):
             skip_record, set_empty = self._import_field_policy(field)
@@ -937,13 +861,12 @@ class IrFieldsConverter(models.AbstractModel):
         """Resolve a ``.id`` (raw database id) reference.
 
         :return: a :class:`RefLookup`; ``id`` is the int id when the record
-            exists, ``False`` for an empty reference, or ``None`` when the id
-            matches no existing record.
+            exists, ``False`` for an empty reference, ``None`` when no record
+            matches.
         """
         field_type = self.env._("database id")
-        # Skip only on a recognized falsy token ("0", "", "false", ...); an
-        # unknown value must fall through to the ``int(value)`` parse rather than
-        # be treated as empty (IFLD-03).
+        # Skip only on a recognized falsy token; an unknown value must fall
+        # through to the ``int(value)`` parse, not be treated as empty (IFLD-03).
         if self._is_falsy_token(value):
             return RefLookup(False, field_type, "", [])
         try:
@@ -971,9 +894,9 @@ class IrFieldsConverter(models.AbstractModel):
         if self._is_falsy_token(value):
             return RefLookup(False, field_type, "", [])
         # An external id is textual by definition. Coerce so a non-string cell
-        # (e.g. an integer passed through ``db_id_for``) resolves to "no match"
-        # -- a clean import error -- instead of raising ``TypeError`` on
-        # ``"." in value`` and aborting the whole ``load()`` (IFLD-14).
+        # (e.g. an integer via ``db_id_for``) resolves to "no match" -- a clean
+        # import error -- instead of raising ``TypeError`` on ``"." in value``
+        # and aborting the whole ``load()`` (IFLD-14).
         value = str(value)
         if "." in value:
             xmlid = value
@@ -1029,16 +952,15 @@ class IrFieldsConverter(models.AbstractModel):
                 return RefLookup(id, field_type, "", warnings)
             except UserError, ValueError, psycopg.Error:
                 # Only recoverable refusals become the "cannot create from name
-                # alone" import message: user-facing ORM errors (``UserError``
-                # covers its ``ValidationError`` / ``AccessError`` subclasses),
-                # conversion errors, and database errors. A programming error in
-                # a ``name_create`` override (e.g. ``TypeError``) now propagates
-                # instead of being masked by it (IFLD-16) -- mirrors the
-                # ``safe_write`` narrowing in ir_model_fields_selection.py
-                # (SEL-C4).
+                # alone" message: user-facing ORM errors (``UserError`` covers its
+                # ``ValidationError`` / ``AccessError`` subclasses), conversion
+                # errors, and database errors. A programming error in a
+                # ``name_create`` override (e.g. ``TypeError``) now propagates
+                # rather than being masked (IFLD-16; mirrors the ``safe_write``
+                # narrowing in ir_model_fields_selection.py, SEL-C4).
                 # ``import_savepoint`` is set by ``BaseModel.load``; guard so a
-                # caller reaching this branch without it fails with the intended
-                # import error, not ``AttributeError`` on ``None.rollback()``.
+                # caller reaching here without it fails with the import error, not
+                # ``AttributeError`` on ``None.rollback()``.
                 savepoint = self.env.context.get("import_savepoint")
                 if savepoint is not None:
                     savepoint.rollback()
@@ -1069,9 +991,8 @@ class IrFieldsConverter(models.AbstractModel):
             message = self.env._(
                 "No matching record found for %(field_type)s '%(value)s' in field '%%(field)s'"
             )
-        # Limit to 50 chars to avoid too-long error messages. Use a dedicated
-        # local so the source ``value`` is not mutated in place (IFLD-06): the
-        # truncation is purely for display in the human/structured payloads.
+        # Truncate to 50 chars for display only; a dedicated local avoids
+        # mutating the source ``value`` in place (IFLD-06).
         display_value = value[:50] if isinstance(value, str) else value
         error_info_dict = {"moreinfo": self._possible_values_action(field, subfield)}
         if self.env.context.get("import_file"):
@@ -1124,13 +1045,11 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _referencing_subfield(self, record: dict) -> str | None:
-        """Checks the record for the subfields allowing referencing (an
-        existing record in an other table), errors out if it finds potential
-        conflicts (multiple referencing subfields) or non-referencing subfields
-        returns the name of the correct subfield.
+        """Return the single referencing subfield of ``record``.
 
-        :param record:
-        :return: the record subfield to use for referencing
+        Raise if the record holds a non-referencing subfield, none, or more than
+        one (an ambiguous reference).
+
         :rtype: str | None
         """
         # Can import by display_name, external id or database id
@@ -1165,15 +1084,14 @@ class IrFieldsConverter(models.AbstractModel):
         """Resolve a reference record to a list of database ids plus warnings.
 
         Shared by the many2one / many2many converters and the Properties
-        relational coercion, which otherwise each duplicated the
-        ``_referencing_subfield`` → split-on-comma → :meth:`db_id_for` loop.
+        relational coercion.
 
         :param field: relational (or :class:`FakeField`) field being resolved.
         :param record: a single referencing record, e.g. ``{None: 'ref1,ref2'}``
             or ``{'id': 'module.xmlid'}``.
         :param multi: split the raw value on commas (x2many); otherwise treat it
             as a single reference (m2o).
-        :return: a pair ``(ids, warnings)``; ``ids`` may contain ``None`` for
+        :return: ``(ids, warnings)``; ``ids`` may contain ``None`` for
             references that did not resolve.
         """
         subfield = self._referencing_subfield(record)
@@ -1196,8 +1114,8 @@ class IrFieldsConverter(models.AbstractModel):
         ids, warnings = self._resolve_reference_ids(field, record, multi=False)
         return ids[0], warnings
 
-    # A many2one_reference stores a raw integer id, so it converts exactly like
-    # an integer field (alias, mirroring ``_str_to_monetary = _str_to_float``).
+    # A many2one_reference stores a raw integer id, so it converts like an
+    # integer field (alias, as with ``_str_to_monetary = _str_to_float``).
     _str_to_many2one_reference = _str_to_integer
 
     @api.model
@@ -1246,12 +1164,10 @@ class IrFieldsConverter(models.AbstractModel):
 
         def log(f: str, exception: Exception | Warning) -> None:
             if not isinstance(exception, Warning):
-                # ``f`` may name a field absent from the comodel (the
-                # converter-is-None branch of ``fn`` logs per-field errors for
-                # such names, IFLD-07); fall back to the raw name instead of
-                # raising ``KeyError`` here, which would escape ``fn``'s
-                # ``ValueError``-only handling and abort the whole ``load()``
-                # (IFLD-15).
+                # ``f`` may name a field absent from the comodel (IFLD-07);
+                # fall back to the raw name instead of raising ``KeyError``, which
+                # would escape ``fn``'s ``ValueError``-only handling and abort the
+                # whole ``load()`` (IFLD-15).
                 f_field = self.env[field.comodel_name]._fields.get(f)
                 current_field_name = f_field.string if f_field else f
                 arg0 = exception.args[0].replace(

@@ -13,18 +13,13 @@ class BaseModuleUpgrade(models.TransientModel):
 
     @api.model
     def _get_pending_modules(self) -> Self:
-        """Return the modules with a pending lifecycle operation to apply.
-
-        :return: modules in state ``to upgrade`` / ``to remove`` / ``to install``
-        :rtype: recordset
-        """
+        """Return modules in state ``to upgrade`` / ``to remove`` / ``to install``."""
         states = ["to upgrade", "to remove", "to install"]
         return self.env["ir.module.module"].search([("state", "in", states)])
 
     @api.model
     def get_module_list(self) -> Self:
-        # Public alias kept for RPC/external callers; delegates to the
-        # accurately-named private helper (the return is a recordset).
+        # Public alias kept for RPC/external callers.
         return self._get_pending_modules()
 
     @api.model
@@ -96,12 +91,10 @@ class BaseModuleUpgrade(models.TransientModel):
 
         # terminate transaction before re-creating cursor below
         self.env.cr.commit()
-        # BMUPG-L2 (known hazard): unlike ir.module.module._button_immediate_function,
-        # this apply path takes no LOCK ir_module_module / SELECT FROM ir_cron
-        # FOR UPDATE guards, so two concurrent schedule-applies (or an apply
-        # racing a triggered cron) are not detected here. button_immediate_*
-        # IS locked; this direct upgrade_module path is not. Routing through
-        # those locks is a behaviour change beyond the current minimal scope.
+        # BMUPG-L2 (known hazard): unlike _button_immediate_function, this path
+        # takes no LOCK ir_module_module / SELECT ... FOR UPDATE guards, so
+        # concurrent schedule-applies (or an apply racing a triggered cron) go
+        # undetected here.
         odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
         self.env.cr.reset()
 

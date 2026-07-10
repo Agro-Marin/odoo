@@ -11,12 +11,10 @@ class TestOrmProfiler(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # The CRUD/read mixins read the profiling flag via orm_profiler._OrmProfile
-        # (the orm_profiler module global), so enabling it here is sufficient —
-        # no per-consumer-module patching needed.
+        # Mixins read the profiling flag from the orm_profiler module global,
+        # so setting it here suffices (no per-consumer patching needed).
         cls._original_enabled = orm_profiler._orm_profiling_enabled
         orm_profiler._orm_profiling_enabled = True
-        # Create a fresh profiler on the transaction
         cls._original_profiler = cls.env.transaction._orm_profiler
         cls.env.transaction._orm_profiler = orm_profiler.OrmProfiler()
 
@@ -171,7 +169,6 @@ class TestOrmProfilerDisabled(TransactionCase):
     def test_no_profiler_when_disabled(self):
         """When disabled, CRUD operations succeed without profiler."""
         self.assertFalse(orm_profiler._orm_profiling_enabled)
-        # Operations should not fail even without a profiler
         cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})
         cat.unlink()

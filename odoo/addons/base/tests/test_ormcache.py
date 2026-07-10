@@ -20,7 +20,6 @@ class TestCacheSize(BaseCase):
         holder = Holder()
         holder.payload = b"x" * 1_000_000
 
-        # The 1 MB payload must be reflected in the reported size.
         self.assertGreater(get_cache_size(holder), 1_000_000)
 
 
@@ -38,9 +37,9 @@ class TestOrmCache(TransactionCase):
 
         # this test verifies the actual side effects of signaling changes
         cls._signal_changes_patcher.stop()
-        # if something invalidate the cache or registry before test_signaling_01_multiple,
-        # the test may fail the first time but succeed on retry
-        # disabling autoretry to avoid hidding "real" errrors
+        # disable autoretry: a cache/registry invalidation before
+        # test_signaling_01_multiple could make it fail then pass on retry,
+        # hiding real errors
         cls._retry = False
 
     def test_ormcache(self):
@@ -48,14 +47,12 @@ class TestOrmCache(TransactionCase):
         IMD = self.env["ir.model.data"]
         XMLID = "base.group_no_one"
 
-        # retrieve the cache, its key and stat counter
         cache, key, counter = get_cache_key_counter(IMD._xmlid_lookup, XMLID)
         hit = counter.hit
         miss = counter.miss
         tx_hit = counter.tx_hit
         tx_miss = counter.tx_miss
 
-        # clear the caches of ir.model.data, retrieve its key and
         self.env.registry.clear_cache()
         self.assertNotIn(key, cache)
 
@@ -126,14 +123,13 @@ class TestOrmCache(TransactionCase):
             self.assertEqual(self.env.registry.cache_invalidated, set())
             operations.append("assert_empty")
 
-        # run all threads
         threads = [Thread(target=run, args=(cache,)) for cache in caches]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join()
 
-        # ensure that the threads operations where executed in the expected order
+        # threads operations must have run in the expected order
         self.assertEqual(
             operations,
             ["clear_cache"] * nb_treads
@@ -183,11 +179,10 @@ class TestOrmCache(TransactionCase):
 
         registry.cache_sequences.update(old_sequences)
 
-        # Pin the logger: a bare assertLogs() listens on the root logger only,
-        # so when the suite runs under a WARNING-level log config the INFO
-        # record is filtered at the "odoo" logger before it ever propagates,
-        # and the assertion fails with "no logs triggered on root". Naming the
-        # logger makes assertLogs force its level to INFO for the block.
+        # Pin the logger: a bare assertLogs() listens on root only, so under a
+        # WARNING-level log config the INFO record is filtered at the "odoo"
+        # logger and the assert fails with "no logs triggered on root". Naming
+        # the logger forces assertLogs to set its level to INFO for the block.
         with self.assertLogs("odoo.registry") as logs:
             registry.check_signaling()
         self.assertEqual(

@@ -45,8 +45,8 @@ class TestEveryModel(TransactionCase):
                 msg="`_compute_display_name` doesn't work with new record (first onchange call).",
                 model=model_name,
             ):
-                # Check that the first onchange with display_name works on every models
-                # OR it will fail anyway when people will use click on New
+                # The first onchange must handle display_name on every model,
+                # else clicking New fails.
                 fields_used = model._fields["display_name"].get_depends(model)[0]
                 fields_used = [f.split(".", 1)[0] for f in fields_used]
                 fields_spec = {key: {} for key in fields_used + ["display_name"]}
@@ -84,7 +84,6 @@ class TestEveryModel(TransactionCase):
                 ),
                 contextlib.suppress(UserError),
             ):
-                # Test to open the Form view to check first onchange
                 Form(model)
 
     def test_computed_fields_without_dependencies(self):

@@ -7,10 +7,9 @@ from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
-# PostgreSQL ``int4`` range. A default whose value falls outside it cannot be
-# stored in the target column, so both entry points (``set`` and the
-# ``_check_json_format`` constraint) reject it up front via ``_fits_column``
-# rather than letting it fail later against the real column (IDEF-C1).
+# PostgreSQL ``int4`` range. Both entry points (``set`` and the
+# ``_check_json_format`` constraint) reject out-of-range values up front via
+# ``_fits_column`` rather than failing later against the real column (IDEF-C1).
 INT4_MIN = -(2**31)
 INT4_MAX = 2**31 - 1
 
@@ -51,10 +50,9 @@ class IrDefault(models.Model):
     json_value = fields.Char("Default Value (JSON format)", required=True)
 
     # One default per scope.  NULL user_id/company_id/condition are folded via
-    # COALESCE so the all-NULL scope (matched with ``= False`` on read) is unique
-    # too; otherwise a concurrent ``set()`` race leaves permanent shadow rows that
-    # the read path silently ignores.  See migrations/1.5/pre-migration.py for the
-    # one-time dedupe (keeping the lowest id, matching the read order).
+    # COALESCE so the all-NULL scope is unique too; otherwise a concurrent
+    # ``set()`` race leaves permanent shadow rows the read path silently ignores.
+    # See migrations/1.5/pre-migration.py for the one-time dedupe.
     _unique_scope = models.UniqueIndex(
         "(field_id, COALESCE(user_id, 0), COALESCE(company_id, 0),"
         " COALESCE(condition, ''))"
@@ -68,9 +66,8 @@ class IrDefault(models.Model):
     def _fits_column(field, parsed: Any) -> bool:
         """Whether a ``convert_to_cache`` result fits the field's storage column.
 
-        Only the ``int4`` range is enforced today; an out-of-range integer would
-        otherwise be accepted here and fail later when applied to the real
-        column. Both value-validation paths funnel through this single guard.
+        Only the ``int4`` range is enforced; both value-validation paths funnel
+        through this single guard.
         """
         if field.type == "integer":
             return INT4_MIN <= parsed <= INT4_MAX
@@ -91,7 +88,7 @@ class IrDefault(models.Model):
                 ) from None
             try:
                 parsed = field.convert_to_cache(value, model)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 raise ValidationError(
                     self.env._(
                         "Invalid value in Default Value field. Expected type '%(field_type)s' for '%(model_name)s.%(field_name)s'.",
@@ -127,9 +124,9 @@ class IrDefault(models.Model):
     def _invalidate_defaults_cache(self) -> None:
         """Drop the caches derived from the stored defaults.
 
-        Company-dependent fields cache a per-company fallback computed from these
-        defaults, so a change must invalidate both the record cache and the
-        ormcaches built on top of it (``_get_model_defaults``,
+        Company-dependent fields cache a per-company fallback computed from
+        these defaults, so a change must invalidate both the record cache and
+        the ormcaches built on it (``_get_model_defaults``,
         ``_get_field_column_fallbacks``).
         """
         self.env.invalidate_all()
@@ -200,21 +197,18 @@ class IrDefault(models.Model):
         company_id: int | bool = False,
         condition: str | bool = False,
     ) -> bool:
-        """Defines a default value for the given field. Any entry for the same
-        scope (field, user, company) will be replaced. The value is encoded
-        in JSON to be stored to the database.
+        """Set the default value for a field, replacing any entry for the same
+        (field, user, company) scope. Stored JSON-encoded.
 
         :param model_name: technical name of the model owning the field
         :param field_name: name of the field to set a default for
         :param value: the default value (JSON-encoded for storage)
-        :param user_id: may be ``False`` for all users, ``True`` for the
-                        current user, or any user id
-        :param company_id: may be ``False`` for all companies, ``True`` for
-                           the current user's company, or any company id
-        :param condition: optional condition that restricts the
-                          applicability of the default value; this is an
-                          opaque string, but the client typically uses
-                          single-field conditions in the form ``'key=val'``.
+        :param user_id: ``False`` for all users, ``True`` for the current user,
+                        or a user id
+        :param company_id: ``False`` for all companies, ``True`` for the current
+                           user's company, or a company id
+        :param condition: optional opaque condition restricting applicability;
+                          the client typically uses ``'key=val'`` form.
         """
         user_id, company_id = self._resolve_scope(user_id, company_id)
 
@@ -239,7 +233,7 @@ class IrDefault(models.Model):
                 else value
             )
             json_value = json.dumps(stored_value, ensure_ascii=False)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s",
@@ -258,7 +252,6 @@ class IrDefault(models.Model):
                 )
             )
 
-        # update existing default for the same scope, or create one
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
         if default:
@@ -291,14 +284,12 @@ class IrDefault(models.Model):
 
         :param model_name: technical name of the model owning the field
         :param field_name: name of the field to read the default for
-        :param user_id: may be ``False`` for all users, ``True`` for the
-                        current user, or any user id
-        :param company_id: may be ``False`` for all companies, ``True`` for
-                           the current user's company, or any company id
-        :param condition: optional condition that restricts the
-                          applicability of the default value; this is an
-                          opaque string, but the client typically uses
-                          single-field conditions in the form ``'key=val'``.
+        :param user_id: ``False`` for all users, ``True`` for the current user,
+                        or a user id
+        :param company_id: ``False`` for all companies, ``True`` for the current
+                           user's company, or a company id
+        :param condition: optional opaque condition restricting applicability;
+                          the client typically uses ``'key=val'`` form.
         """
         user_id, company_id = self._resolve_scope(user_id, company_id)
         field = self.env["ir.model.fields"]._get(model_name, field_name)
@@ -307,9 +298,9 @@ class IrDefault(models.Model):
 
     @api.model
     @tools.ormcache("self.env.uid", "self.env.company.id", "model_name", "condition")
-    # Note about ormcache invalidation: it is not needed when deleting a field,
-    # a user, or a company, as the corresponding defaults will no longer be
-    # requested. It must only be done when a user's company is modified.
+    # ormcache invalidation is not needed when deleting a field, user or company
+    # (those defaults will no longer be requested); only when a user's company
+    # changes.
     def _get_model_defaults(
         self, model_name: str, condition: str | bool = False
     ) -> dict[str, Any]:
@@ -325,11 +316,9 @@ class IrDefault(models.Model):
             if condition
             else tools.SQL("d.condition IS NULL")
         )
-        # Priority: user-and-company specific > user specific > company specific >
-        # global. The ``IS NOT NULL`` sort keys put the most specific row first
-        # explicitly, rather than relying on PostgreSQL's default NULLS ordering
-        # (a plain ``ORDER BY user_id`` would silently invert the priority under a
-        # different null-ordering convention).
+        # Priority: user-and-company specific > user > company > global. The
+        # ``IS NOT NULL`` sort keys put the most specific row first explicitly,
+        # not relying on PostgreSQL's default NULLS ordering.
         query = tools.SQL(
             """ SELECT f.name, d.json_value
                 FROM ir_default d
@@ -403,13 +392,9 @@ class IrDefault(models.Model):
     def _evaluate_condition_with_fallback(
         self, model_name: str, field_expr: str, operator: str, value: Any
     ) -> bool | None:
-        """Evaluate if a company-dependent field's fallback value satisfies the condition.
+        """Evaluate whether a company-dependent field's fallback value satisfies the condition.
 
-        When the field value of the condition is company_dependent without
-        customization, evaluate if its fallback value will be kept by
-        the condition.
-
-        :return: True if condition is satisfied, False if not, None if unknown.
+        :return: True if satisfied, False if not, None if unknown.
         :rtype: bool | None
         """
         field_name, _property_name = fields.parse_field_expr(field_expr)

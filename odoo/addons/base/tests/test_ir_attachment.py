@@ -36,8 +36,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.blob2_b64 = base64.b64encode(self.blob2)
 
     def assertApproximately(self, value, expectedSize, delta=1):
-        # we don't used bin_size in context, because on write, the cached value is the data and not
-        # the size, so we need on each write to invalidate cache if we really want to get the size.
+        # not bin_size: on write the cache holds the data, not the size, so
+        # getting the size would need a cache invalidation per write.
         with contextlib.suppress(UnicodeDecodeError):
             value = base64.b64decode(value.decode())
         size = len(value) / 1024  # kb
@@ -48,7 +48,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         # force storing in database
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
 
-        # 'ir_attachment.location' is undefined test database storage
         a1 = self.Attachment.create({"name": "a1", "raw": self.blob1})
         self.assertEqual(a1.datas, self.blob1_b64)
 
@@ -89,9 +88,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(a2_fn.is_file())
 
     def test_07_write_mimetype(self):
-        """
-        Tests the consistency of documents' mimetypes
-        """
+        """Document mimetypes stay consistent."""
 
         Attachment = self.Attachment.with_user(self.user_demo.id)
         a2 = Attachment.create(
@@ -128,9 +125,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_08_neuter_xml_mimetype(self):
-        """
-        Tests that potentially harmful mimetypes (XML mimetypes that can lead to XSS attacks) are converted to text
-        """
+        """Harmful XML mimetypes (XSS vectors) are forced to text."""
         Attachment = self.Attachment.with_user(self.user_demo.id)
         document = Attachment.create({"name": "document", "datas": self.blob1_b64})
         document.write({"datas": self.blob1_b64, "mimetype": "text/xml"})
@@ -159,9 +154,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_09_dont_neuter_xml_mimetype_for_admin(self):
-        """
-        Admin user does not have a mime type filter
-        """
+        """Admin users bypass the mimetype filter."""
         document = self.Attachment.create({"name": "document", "datas": self.blob1_b64})
         document.write({"datas": self.blob1_b64, "mimetype": "text/xml"})
         self.assertEqual(
@@ -184,9 +177,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         fullsize = 124.99
 
-        ####################################
-        ### test create/write on 'datas'
-        ####################################
+        # test create/write on 'datas'
         attach = Attachment.with_context(image_no_postprocess=True).create(
             {
                 "name": "image",
@@ -218,8 +209,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         attach.datas = img_encoded
         self.assertApproximately(attach.datas, fullsize)
 
-        # Check that we only compress quality when we resize. We avoid to compress again during a new write.
-        # no resize + quality -> should have no effect
+        # quality is only applied when resizing, so we don't recompress on a
+        # plain rewrite. no resize + quality -> no effect
         self.env["ir.config_parameter"].set_param(
             "base.image_autoresize_max_px", "10000x10000"
         )
@@ -227,9 +218,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         attach.datas = img_encoded
         self.assertApproximately(attach.datas, fullsize)
 
-        ####################################
-        ### test create/write on 'raw'
-        ####################################
+        # test create/write on 'raw'
 
         # reset default ~ delete
         self.env["ir.config_parameter"].search(
@@ -279,9 +268,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(attach.raw, gif_bin)
 
     def test_11_copy(self):
-        """
-        Copying an attachment preserves the data
-        """
+        """Copying an attachment preserves the data."""
         document = self.Attachment.create({"name": "document", "datas": self.blob2_b64})
         document2 = document.copy({"name": "document (copy)"})
         self.assertEqual(document2.name, "document (copy)")
@@ -327,9 +314,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_gc_prewalked_checklist(self):
         """GC accepts a checklist scanned before the lock (IRA-P2-3).
 
-        _gc_file_store walks the checklist outside the table lock and passes it
-        in; the collect phase must still drop orphans while sparing files a live
-        row still references (the whitelist query under the lock).
+        The collect phase drops orphans yet spares files a live row still
+        references (the whitelist query under the lock).
         """
         self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
         Attachment = self.env["ir.attachment"]
@@ -363,13 +349,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         os.utime(marker, (past, past))
 
     def test_gc_grace_spares_fresh_markers(self):
-        """The GC must not sweep a checklist entry younger than the grace
-        window (IRA-G1).
+        """GC must not sweep a checklist entry younger than the grace window
+        (IRA-G1).
 
-        create() writes the file and marks it for GC BEFORE super().create()
-        flushes the INSERT, so an autovacuum racing in that window would
-        delete content of a not-yet-committed transaction. The age gate in
-        _gc_checklist is what closes the race; pin it.
+        create() writes and marks the file BEFORE super().create() flushes the
+        INSERT, so an autovacuum racing that window would delete a not-yet-
+        committed transaction's content. The age gate in _gc_checklist closes
+        the race.
         """
         unique_blob = os.urandom(16)
         a1 = self.Attachment.create({"name": "a1", "raw": unique_blob})
@@ -401,8 +387,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         Both _file_write and _file_write_stream re-mark on dedup hits: the
         existing file may be an aborted transaction's orphan whose marker
-        already outlived the grace window, and without an mtime refresh the
-        GC could sweep it before the CURRENT transaction flushes its INSERT.
+        already outlived the grace window, and without an mtime refresh the GC
+        could sweep it before the CURRENT transaction flushes its INSERT.
         """
         unique_blob = os.urandom(16)
         checksum = hashlib.sha1(unique_blob, usedforsecurity=False).hexdigest()
@@ -436,13 +422,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_gc_sweep_restats_marker_before_unlink(self):
-        """The sweep must re-stat the checklist marker under the lock and spare a
-        file whose marker was refreshed after the pre-lock scan (IRA-G1 residual
-        race).
+        """The sweep re-stats the checklist marker under the lock, sparing a
+        file whose marker was refreshed after the pre-lock scan (IRA-G1
+        residual race).
 
         _gc_checklist stats marker mtimes before the SHARE lock; between that
-        scan and the unlink, a concurrent transaction can re-mark (refreshing the
-        marker's grace clock) and rewrite the file, whose still-uncommitted INSERT
+        scan and the unlink, a concurrent transaction can re-mark (refreshing
+        the grace clock) and rewrite the file, whose still-uncommitted INSERT
         the whitelist query cannot see. Re-stating under the lock closes the gap.
         """
         a1 = self.Attachment.create({"name": "restat", "raw": os.urandom(16)})
@@ -528,11 +514,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_create_unique_dedups_against_unreadable_row(self):
         """create_unique dedups against a row the caller cannot read (IRA-C2).
 
-        The dedup search runs sudo(), so identical content owned by someone
-        else / in another company is reused — the returned id may belong to a
-        row the caller cannot read (reading it stays ACL-gated downstream). A
-        non-sudo dedup would apply the caller's ACL, miss the row, and wrongly
-        create a duplicate.
+        The dedup search runs sudo(), so identical content owned by someone else
+        / in another company is reused (reading it stays ACL-gated downstream).
+        A non-sudo dedup would apply the caller's ACL, miss the row, and wrongly
+        duplicate.
         """
         company_b = self.env["res.company"].sudo().create({"name": "IRA-C2 B"})
         user_b = (
@@ -609,11 +594,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 self.assertEqual(stream.type, "data")
                 self.assertEqual(stream.data, b"")
                 self.assertEqual(stream.size, 0)
-                # The degraded stream must carry NO caching metadata: it was
-                # built with etag = checksum (the REAL content's digest), so a
-                # cacheable 200 with this empty body would keep answering 304
-                # to conditional requests after the file is restored — pinning
-                # the empty body in browser/proxy caches forever.
+                # The degraded stream must carry NO caching metadata: built with
+                # etag = checksum (the REAL content's digest), a cacheable 200
+                # with this empty body would keep answering 304 after the file is
+                # restored, pinning the empty body in caches forever.
                 self.assertIs(
                     stream.etag, False, "empty fallback must not keep the real ETag"
                 )
@@ -628,7 +612,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_postprocess_bad_max_resolution(self):
         """Bad base.image_autoresize_max_px config skips resize instead of crashing."""
-        # Create a real small PNG (1x1 pixel, red)
         from PIL import Image as PILImage
 
         img = PILImage.new("RGB", (2000, 2000), color="red")
@@ -647,7 +630,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                     "raw": png_data,
                 }
             )
-            # Attachment was created successfully (content may or may not be resized)
             self.assertTrue(att.id)
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
@@ -679,8 +661,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_to_http_stream_url_without_request(self):
         """url-branch of _to_http_stream must not crash with no request bound.
 
-        Reproduces P0-1: cron / server-side report rendering reach this path
-        with an empty request stack, where ``request.httprequest`` raised.
+        P0-1: cron / server-side report rendering reach this path with an empty
+        request stack, where ``request.httprequest`` raised.
         """
         from odoo.http.core import _request_stack
 
@@ -701,11 +683,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_compute_res_name_orphaned_res_id(self):
         """_compute_res_name degrades to False for an orphaned res_id (P0-6).
 
-        A res_id pointing at a record that does not exist must not raise
-        MissingError and break list views. Note: deleting the target via the
-        ORM would cascade-delete this attachment, so the real-world trigger is
-        an orphaned reference (import, raw-SQL deletion, cross-model leftover) —
-        reproduced here with an id that cannot exist.
+        A res_id pointing at a missing record must not raise MissingError and
+        break list views. ORM deletion would cascade-delete this attachment, so
+        the real trigger is an orphaned reference (import, raw-SQL deletion,
+        cross-model leftover); reproduced here with an id that cannot exist.
         """
         att = self.Attachment.create(
             {
@@ -723,9 +704,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         """_index keeps accented/non-ASCII words whole for text content.
 
         The old byte-class [\\x20-\\x7E] split every multi-byte UTF-8 char,
-        shredding Spanish words and crippling full-text search; the decoded,
-        Unicode-aware scan keeps them intact while staying identical to the old
-        output for pure-ASCII content.
+        shredding Spanish words and crippling full-text search. The Unicode-aware
+        scan keeps them intact while matching the old output for pure ASCII.
         """
         Att = self.env["ir.attachment"]
         spanish = "Configuración del módulo árbol genealógico".encode()
@@ -746,8 +726,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_migrate_preserves_content_on_empty_read(self):
         """_migrate must never blank a non-empty file on an empty read (P0-2).
 
-        Simulates a transient _file_read failure (returns b"") during a storage
-        migration and asserts the stored content and store_fname are untouched.
+        Simulates a transient _file_read failure (returns b"") during migration;
+        stored content and store_fname must be untouched.
         """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         att = self.Attachment.create({"name": "precious", "raw": b"precious-bytes"})
@@ -769,9 +749,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_create_from_stream_unreadable_readback_skips_index(self):
         """_create_from_stream must not index an empty read-back of stored content.
 
-        _file_read returns b"" on a (possibly transient) read error; feeding
-        that to _index would derive the index from the wrong (empty) bytes.
-        Same empty-read-on-non-empty-content guard as _compute_raw/_migrate.
+        _file_read returns b"" on a (possibly transient) read error; indexing
+        that would derive the index from the wrong (empty) bytes. Same guard as
+        _compute_raw/_migrate.
         """
         payload = b"streamed text payload for indexation"
         # positive control: the streaming path indexes readable text content
@@ -806,8 +786,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         """Every 'datas' entry point surfaces invalid base64 as a UserError.
 
         b64decode raises binascii.Error (a ValueError subclass) on malformed
-        padding/length; all decodes go through _decode_datas, which wraps
-        either as a clean UserError instead of a 500.
+        padding/length; all decodes go through _decode_datas, which wraps it as
+        a clean UserError instead of a 500.
         """
         bad = b"a"  # 1 char is never a valid base64 quantum, even unpadded
         with self.assertRaises(UserError):
@@ -826,8 +806,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         """Identical payloads in one batch derive their metadata once.
 
         Both content loops memoize _get_datas_related_values over identical
-        bytes — create() keyed on the content checksum, the write path on the
-        payload's identity (every record gets the same cached bytes object) —
+        bytes (create() keyed on the checksum, write on the payload's identity),
         so _index runs once, not once per record.
         """
         IrAttachmentCls = self.registry["ir.attachment"]
@@ -874,8 +853,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         """write() checks the res_field ACL once per distinct res_model (IRA-L2).
 
         The field ACL is deterministic per (res_model, res_field, operation,
-        user), so a batch of attachments on the same comodel needs one check,
-        not one per record — same rationale as _check_access's memoization.
+        user), so a batch on the same comodel needs one check, not one per
+        record — same rationale as _check_access's memoization.
         """
         partner = self.env["res.partner"].create({"name": "grouped-check"})
         atts = self.Attachment.create(
@@ -930,8 +909,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         serving group (IRA-P1-1).
 
         ``write`` only re-runs ``_check_serving_attachments`` on url/type change,
-        but the *content* is what ir.http._serve_fallback hands out. The check
-        lives in ``_set_attachment_data``, which both content paths reach
+        but the *content* is what ir.http._serve_fallback serves. The check lives
+        in ``_set_attachment_data``, which both content paths reach
         (``write({'raw': ...})`` and ``record.raw = ...`` via the inverse).
         """
         att = self.Attachment.create(
@@ -954,9 +933,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_file_write_atomic_no_poison(self):
         """A failed _file_write must not poison the content-addressed path (P0-4).
 
-        Previously a crash mid-write left a truncated file at the final path,
-        which then failed every future _same_content check with a spurious
-        collision UserError. tmp-file + atomic replace prevents that.
+        A crash mid-write used to leave a truncated file at the final path,
+        failing every future _same_content check with a spurious collision
+        UserError. tmp-file + atomic replace prevents that.
         """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         payload = b"atomic-write-" + os.urandom(16)
@@ -973,10 +952,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(
             target.exists(), "no truncated file may remain at the real path"
         )
-        # Staging now happens in the filestore tmp/ dir (so a crash-orphaned
-        # temp is reachable by _gc_stale_filestore_temps, unlike a shard-dir
-        # temp which no GC swept). The failure path must still unlink it, and
-        # the shard dir must never see a temp.
+        # Staging happens in the filestore tmp/ dir so a crash-orphaned temp is
+        # reachable by _gc_stale_filestore_temps (a shard-dir temp was swept by
+        # no GC). The failure path must still unlink it, and the shard dir must
+        # never see a temp.
         tmp_dir = Path(self.filestore, "tmp")
         self.assertEqual(
             list(tmp_dir.glob("write-*")) if tmp_dir.is_dir() else [],
@@ -996,10 +975,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_file_write_stages_temp_in_tmp_dir(self):
         """_file_write stages its temp in the filestore tmp/ dir, not the shard.
 
-        A shard-dir temp left by a crash before the atomic replace was reachable
-        by no GC — the checklist walk never saw it and the tmp/ sweep only scans
-        tmp/. Staging in tmp/ puts a crash-orphaned temp where
-        _gc_stale_filestore_temps can collect it. Pin the staging location so a
+        A shard-dir temp left by a pre-replace crash was reachable by no GC (the
+        checklist walk never saw it, the tmp/ sweep only scans tmp/). Staging in
+        tmp/ lets _gc_stale_filestore_temps collect it. Pin the location so a
         revert to shard-dir staging is caught.
         """
         payload = b"tmp-staging-" + os.urandom(16)
@@ -1035,8 +1013,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_file_write_single_get_path(self):
         """A filestore create resolves the path once, not twice (IRA-P2-1).
 
-        _get_datas_related_values no longer calls _get_path; only _file_write
-        does. Guards against reintroducing the double mkdir + double full-file
+        Only _file_write calls _get_path now (not _get_datas_related_values).
+        Guards against reintroducing the double mkdir + double full-file
         collision read.
         """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
@@ -1054,8 +1032,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         """Empty content gets the same checksum whether created or written (P0-7).
 
         _content_checksum's contract is "an empty file has a checksum too (for
-        caching)". The write path honoured it; create used to skip it, leaving an
-        empty attachment with checksum=False and no ETag in _to_http_stream.
+        caching)". write honoured it; create used to skip it, leaving an empty
+        attachment with checksum=False and no ETag in _to_http_stream.
         """
         empty_sha = hashlib.sha1(b"", usedforsecurity=False).hexdigest()
         created = self.Attachment.create({"name": "empty", "raw": b""})
@@ -1067,17 +1045,16 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(written.checksum, empty_sha, "write path agrees")
 
     def test_audit_url_attachments_warns_on_suspicious(self):
-        """``_audit_url_attachments`` must flag non-public binary attachments
-        with ``url`` set.
+        """``_audit_url_attachments`` flags non-public binary attachments with
+        ``url`` set.
 
-        Defense-in-depth for ``ir.http._serve_fallback``: any such record
-        is publicly servable at ``url``. The autovacuum pass logs a
-        WARNING so ops can review before a real exposure occurs.
+        Defense-in-depth for ``ir.http._serve_fallback``: any such record is
+        publicly servable at ``url``. The autovacuum pass logs a WARNING so ops
+        can review before a real exposure occurs.
         """
-        # Bypass `_check_serving_attachments` by creating as admin (sudo).
-        # This mirrors the real concern: a future ``controller.sudo().create(
-        # {'url': user_input})`` pattern would create a record that slips
-        # past the write-time gate.
+        # Bypass `_check_serving_attachments` by creating as admin (sudo),
+        # mirroring the real concern: a future ``controller.sudo().create(
+        # {'url': user_input})`` would slip past the write-time gate.
         suspicious = self.Attachment.sudo().create(
             {
                 "name": "probe.bin",
@@ -1283,11 +1260,12 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     def test_field_read_permission_uses_comodel_acl(self):
         """The res_field ACL in _check_access must defer to the *comodel's*
-        _has_field_access, not ir.attachment's. A comodel that overrides the
-        method (e.g. res.users self-service fields) would otherwise be
-        bypassed, leaking a field the comodel forbids. Unlike a plain
-        ``groups=...`` field (covered above, model-independent), only an
-        override exposes the wrong-model dispatch this guards against.
+        _has_field_access, not ir.attachment's.
+
+        A comodel overriding the method (e.g. res.users self-service fields)
+        would otherwise be bypassed, leaking a field it forbids. Unlike a plain
+        ``groups=...`` field (covered above, model-independent), only an override
+        exposes the wrong-model dispatch this guards against.
         """
         main_partner = self.env.ref("base.main_partner")
         attachment = self.env["ir.attachment"].search(
@@ -1336,8 +1314,8 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
         A broad ``('id', 'in', [...])`` domain has no ``res_model`` constraint,
         so ``_search`` takes the ``sudo()`` batched-fetch + ``_filtered_access``
-        post-filter branch instead of the ≤5-model branch. Assert that an
-        attachment the demo user must not see is still excluded.
+        post-filter branch instead of the ≤5-model branch; an attachment the
+        demo user must not see stays excluded.
         """
         # public attachment: always visible
         public_att = self.Attachments.sudo().create({"name": "public", "public": True})
@@ -1379,13 +1357,12 @@ class TestPermissions(TransactionCaseWithUserDemo):
         """Multi-batch keyset/OFFSET pagination must equal a single fetch (IRA-B5).
 
         ``test_search_unbounded_matches_limited`` uses fewer rows than
-        ``PREFETCH_MAX`` (1000), so the keyset seek predicate in
-        ``_fetch_accessible_ids`` — and the case where a forbidden row is the
-        batch anchor — are never exercised. Here ``PREFETCH_MAX`` is patched to
-        3 over interleaved accessible/inaccessible rows: lowering the batch size
-        must not change which rows ``_search`` returns, in ANY mode (limit=None
-        keyset, bounded keyset, offset slices, caller-supplied order), and must
-        never drop, duplicate, or leak an inaccessible row across a boundary.
+        ``PREFETCH_MAX`` (1000), leaving the keyset seek predicate in
+        ``_fetch_accessible_ids`` (and a forbidden row as batch anchor)
+        unexercised. Patching ``PREFETCH_MAX`` to 3 over interleaved rows: the
+        batch size must not change which rows ``_search`` returns in ANY mode
+        (limit=None keyset, bounded keyset, offset slices, caller order), and
+        must never drop, duplicate, or leak an inaccessible row across a boundary.
         """
         # accessible to demo: public, or a demo-owned orphan (create_uid=demo,
         # res_id=False). inaccessible: a superuser-owned orphan.
@@ -1441,9 +1418,9 @@ class TestPermissions(TransactionCaseWithUserDemo):
     def test_res_field_write_access(self):
         """A new ``res_field`` must pass the comodel field's ACL (IRA-L2).
 
-        Without this, a non-system user could re-point an attachment's
-        ``res_field`` at a field they cannot access, since the plain
-        ``res_field`` Char has no ``groups``.
+        Otherwise a non-system user could re-point an attachment's ``res_field``
+        at a field they cannot access, since the ``res_field`` Char has no
+        ``groups``.
         """
         partner = self.user_demo.partner_id
         # Restrict a writable partner field to system users only.
@@ -1480,7 +1457,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
         Also pins the XSS-neuter contract: a ``TRUST``-ed ``text/html`` /
         ``image/svg+xml`` upload is forced to ``text/plain`` for a non-view
-        writer (the demo user), so the upload path is not a stored-XSS vector.
+        writer (the demo user), so the upload path is no stored-XSS vector.
         """
 
         class _FakeFile:
@@ -1605,10 +1582,10 @@ class TestPermissions(TransactionCaseWithUserDemo):
     def test_write_create_url_binary_attachment(self):
         """A non-serving user cannot create/write a binary+url attachment.
 
-        Assert on the exception type only: the message is run through ``_()`` and
-        this dev DB serves ``es_MX``, so matching the English string is a flaky,
-        locale-dependent assertion. ``_check_serving_attachments`` is the only
-        ValidationError these paths can raise.
+        Assert on the exception type only: the message goes through ``_()`` and
+        this dev DB serves ``es_MX``, so matching the English string is flaky.
+        ``_check_serving_attachments`` is the only ValidationError these paths
+        can raise.
         """
         with self.assertRaises(ValidationError):
             self.Attachments.create(

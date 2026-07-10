@@ -5,8 +5,6 @@ from odoo.tests.tag_selector import TagsSelector
 @tagged("nodatabase")
 class TestSetTags(TransactionCase):
     def test_set_tags_empty(self):
-        """Test the set_tags decorator with an empty set of tags"""
-
         @tagged()
         class FakeClass(TransactionCase):
             pass
@@ -28,8 +26,6 @@ class TestSetTags(TransactionCase):
         self.assertEqual(fc.test_module, "base")
 
     def test_set_tags_single_tag(self):
-        """Test the set_tags decorator with a single tag"""
-
         @tagged("slow")
         class FakeClass(TransactionCase):
             pass
@@ -40,8 +36,6 @@ class TestSetTags(TransactionCase):
         self.assertEqual(fc.test_module, "base")
 
     def test_set_tags_multiple_tags(self):
-        """Test the set_tags decorator with multiple tags"""
-
         @tagged("slow", "nightly")
         class FakeClass(TransactionCase):
             pass
@@ -441,11 +435,9 @@ class TestSelectorSelection(TransactionCase):
         multiple_tags_standard_obj = Test_D()
         post_install_obj = Test_E()
 
-        # if 'standard' in not explicitly removed, tests without tags are
-        # considered tagged standard and they are run by default if
-        # not explicitly deselected with '-standard' or if 'standard' is not
-        # selectected along with another test tag
-        # same as "--test-tags=''" parameters:
+        # Tests without tags count as 'standard' and run by default unless
+        # '-standard' deselects them or 'standard' is selected with another tag.
+        # same as "--test-tags=''":
         tags = TagsSelector("")
         self.assertFalse(tags.check(no_tags_obj))
 
@@ -548,8 +540,7 @@ class TestSelectorSelection(TransactionCase):
         tags = TagsSelector("slow,-standard")
         self.assertFalse(tags.check(multiple_tags_standard_obj))
 
-        # Mimic the real post_install use case
-        # That uses a second tags selector
+        # Mimic the real post_install use case: a second tags selector.
         tags = TagsSelector("standard")
         position = TagsSelector("post_install")
         self.assertTrue(

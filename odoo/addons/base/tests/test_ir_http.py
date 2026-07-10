@@ -17,8 +17,8 @@ _logger = logging.getLogger(__name__)
 class TestIrHttpPerformances(TransactionCase):
     def test_routing_map_performance(self):
         self.env.registry.clear_cache("routing")
-        # if the routing map was already generated it is possible that some compiled regex are in cache.
-        # we want to mesure the cold state, when the worker just spawned, we need to empty the re cache
+        # Measure the cold state: drop any compiled-regex cache a prior routing
+        # map may have left behind.
         re._cache.clear()
 
         self.env.registry.clear_cache("routing")
@@ -27,7 +27,7 @@ class TestIrHttpPerformances(TransactionCase):
         duration = time.time() - start
         _logger.info("Routing map web generated in %.3fs", duration)
 
-        # generate the routing map of another website, to check if we can benefit from anything computed by the previous routing map
+        # second website: check we reuse anything the first routing map computed
         start = time.time()
         self.env["ir.http"].routing_map(key=1)
         duration = time.time() - start
@@ -35,19 +35,13 @@ class TestIrHttpPerformances(TransactionCase):
 
 
 class TestIrHttpAuth(TransactionCase):
-    """Base-level coverage for the auth methods and the URL fallback.
-
-    These paths are security-critical (IHTTP-T1) but were previously only
-    covered by the routing-map performance test.
-    """
+    """Base-level coverage for the auth methods and the URL fallback (IHTTP-T1, security-critical)."""
 
     @contextmanager
     def _fake_request(self, env, path="/"):
-        """Push a minimal fake ``request`` exposing ``env`` onto the stack.
-
-        Mirrors the pattern used by ``test_to_http_stream_missing_file`` so the
-        classmethods on ``ir.http`` that only read ``request.env`` /
-        ``request.httprequest`` can run without a live WSGI request.
+        """Push a minimal fake ``request`` exposing ``env`` onto the stack, so
+        classmethods reading only ``request.env``/``request.httprequest`` run
+        without a live WSGI request.
         """
         fake = SimpleNamespace(env=env, httprequest=SimpleNamespace(path=path))
         _request_stack.push(fake)
@@ -59,10 +53,8 @@ class TestIrHttpAuth(TransactionCase):
     def test_auth_method_user_rejects_public(self):
         """``_auth_method_user`` rejects a not-logged-in (public) user.
 
-        Covers the ``request.env.uid in [None] + _get_public_users()`` branch:
-        the public user -- and, by the same check, an anonymous uid=None env --
-        is treated as not logged in. The public uid is resolved via env.ref so
-        the lookup itself does not need a bound request.
+        Covers the ``uid in [None] + _get_public_users()`` branch: the public
+        user (and an anonymous uid=None env) counts as not logged in.
         """
         public_uid = self.env.ref("base.public_user").id
         with self._fake_request(self.env(user=public_uid)):
@@ -82,9 +74,8 @@ class TestIrHttpAuth(TransactionCase):
         """The URL fallback must NOT serve a non-public binary attachment.
 
         Regression pin for IHTTP-L3: ``_serve_fallback`` searches under
-        ``sudo()``; without the ``public=True`` filter a non-public binary
-        attachment colliding with an unmatched path would be served to anonymous
-        callers.
+        ``sudo()``; without the ``public=True`` filter a non-public attachment
+        on an unmatched path would be served to anonymous callers.
         """
         path = "/non_public_fallback_probe"
         # sudo() create bypasses the write-time serving guard, mirroring the
@@ -107,9 +98,8 @@ class TestIrHttpAuth(TransactionCase):
     def test_serve_attachment_public_filter(self):
         """The fallback domain (``public=True``) selects only public rows (IHTTP-L3).
 
-        ``_serve_fallback`` passes ``extra_domain=[('public', '=', True)]`` to
-        ``_get_serve_attachment``; assert that domain filter directly so the
-        fix's behaviour is pinned without exercising the HTTP response stack.
+        Asserts the ``extra_domain=[('public', '=', True)]`` filter that
+        ``_serve_fallback`` passes to ``_get_serve_attachment`` directly.
         """
         path = "/serve_attachment_public_filter_probe"
         Attachment = self.env["ir.attachment"].sudo()

@@ -19,9 +19,8 @@ class BaseCommon(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Mail logic won't be tested by default in other modules.
-        # Mail API overrides should be tested with dedicated tests on purpose
-        # Hack to use with_context and avoid manual context dict modification
+        # Mail logic is not tested by default; mail API overrides get dedicated
+        # tests. Use with_context to avoid manual context dict modification.
         cls.env = cls.env["base"].with_context(**cls.default_env_context()).env
 
         independent_user = cls.setup_independent_user()
@@ -56,7 +55,7 @@ class BaseCommon(TransactionCase):
 
     @classmethod
     def default_env_context(cls):
-        """To Override to reactivate the tracking"""
+        """Override to reactivate tracking."""
         return {**DISABLED_MAIL_CONTEXT}
 
     @classmethod
@@ -122,10 +121,10 @@ class BaseCommon(TransactionCase):
                 currency.id,
                 dirty=True,
             )
-            # this is equivalent to cls.env.company.currency_id = currency but without triggering buisness code checks.
-            # The value is added in cache, and the cache value is set as dirty so that that
-            # the value will be written to the database on next flush.
-            # this was needed because some journal entries may exist when running tests, especially l10n demo data.
+            # Equivalent to cls.env.company.currency_id = currency but without
+            # triggering business-code checks: the value is set dirty in cache so it
+            # is written to the database on the next flush. Needed because journal
+            # entries may exist when running tests, especially l10n demo data.
 
     @classmethod
     def _create_partner(cls, **create_values):
@@ -556,9 +555,10 @@ class HttpCaseWithUserPortal(HttpCase):
 
 
 class MockSmtplibCase:
-    """Class which allows you to mock the smtplib feature, to be able to test in depth the
-    sending of emails. Unlike "MockEmail" which mocks mainly the <ir.mail_server> methods,
-    here we mainly mock the smtplib to be able to test the <ir.mail_server> model.
+    """Mock smtplib to test email sending in depth.
+
+    Unlike MockEmail, which mocks the ir.mail_server methods, this mocks smtplib
+    itself so the ir.mail_server model can be tested.
     """
 
     @contextmanager
@@ -568,13 +568,7 @@ class MockSmtplibCase:
         origin = self
 
         class TestingSMTPSession:
-            """SMTP session object returned during the testing.
-
-            So we do not connect to real SMTP server. Store the mail
-            server id used for the SMTP connection and other information.
-
-            Can be mocked for testing to know which with arguments the email was sent.
-            """
+            """Fake SMTP session returned in tests to avoid connecting to a real server."""
 
             def quit(self):
                 pass
@@ -677,8 +671,8 @@ class MockSmtplibCase:
         msg_cc_lst=None,
         msg_to_lst=None,
     ):
-        """Check that the given email has been sent. If one of the parameter is
-        None it is just ignored and not used to retrieve the email.
+        """Assert an email matching the given parameters was sent; ``None``
+        parameters are ignored when matching.
 
         :param smtp_from: FROM used for the authentication to the mail server
         :param smtp_to_list: List of destination email address

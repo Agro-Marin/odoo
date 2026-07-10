@@ -78,13 +78,12 @@ class IrEmbeddedActions(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         """Create embedded actions, deriving a name and coercing the action XOR.
 
-        When ``name`` is omitted it defaults to the linked ``action_id`` name.
-        When a vals dict supplies both ``action_id`` and ``python_method``, the
-        pair is silently coerced (not rejected) to satisfy the SQL CHECK:
-        ``python_method`` wins when truthy, otherwise the falsy ``python_method``
-        is dropped.
+        An omitted ``name`` defaults to the linked ``action_id`` name. When a
+        vals dict has both ``action_id`` and ``python_method``, the pair is
+        silently coerced (not rejected) to satisfy the SQL CHECK: a truthy
+        ``python_method`` wins, otherwise the falsy ``python_method`` is dropped.
         """
-        # The name by default is computed based on the triggered action if a action_id is defined.
+        # Default the name from the triggered action when action_id is given.
         action_ids = [
             v["action_id"] for v in vals_list if "name" not in v and "action_id" in v
         ]
@@ -98,9 +97,9 @@ class IrEmbeddedActions(models.Model):
                 vals["name"] = action_names.get(vals.get("action_id"), "")
             if "python_method" in vals and "action_id" in vals:
                 if vals.get("python_method"):
-                    # then remove the action_id since the action surely given by the python method.
+                    # python_method supplies the action, so drop action_id.
                     del vals["action_id"]
-                else:  # remove python_method in the vals since the vals is falsy.
+                else:  # falsy python_method: drop it.
                     del vals["python_method"]
         return super().create(vals_list)
 
@@ -126,20 +125,20 @@ class IrEmbeddedActions(models.Model):
     )
     @api.depends_context("active_id", "active_model", "uid")
     def _compute_is_visible(self) -> None:
-        """Compute per-user read-time visibility of each embedded action."""
-        # Visibility is gated by the parent record matching the domain on the
-        # active id, by the user belonging to one of group_ids (if any), and by
-        # owner-or-shared scoping on user_id.
+        """Compute per-user read-time visibility of each embedded action.
+
+        Gated by the parent record matching the domain on the active id, by the
+        user belonging to one of group_ids (if any), and by owner-or-shared
+        scoping on user_id.
+        """
         active_id = self.env.context.get("active_id", False)
         if not active_id:
             self.is_visible = False
             return
-        # active_id only identifies a record of the context's active_model:
-        # when active_model is present, actions on any other parent_res_model
-        # must be hidden instead of matching an unrelated record that happens
-        # to share the same id (cross-model id collision). Without
-        # active_model, keep matching by id alone (flows passing only
-        # active_id).
+        # active_id identifies a record of the context's active_model: when
+        # active_model is present, hide actions on any other parent_res_model to
+        # avoid a cross-model id collision. Without active_model, match by id
+        # alone (flows passing only active_id).
         active_model = self.env.context.get("active_model")
         domain_id = [("id", "=", active_id)]
         for parent_res_model, records in self.grouped("parent_res_model").items():
@@ -165,8 +164,8 @@ class IrEmbeddedActions(models.Model):
                     except ValueError, SyntaxError:
                         record.is_visible = False
                         continue
-                    # bool(): the last operand is a recordset — don't assign
-                    # a recordset to the Boolean field via truthiness.
+                    # bool(): the last operand is a recordset — don't assign a
+                    # recordset to the Boolean field via truthiness.
                     record.is_visible = bool(
                         record.parent_res_id in (False, active_id)
                         and record.user_id.id in (False, self.env.uid)
@@ -185,7 +184,7 @@ class IrEmbeddedActions(models.Model):
                 )
 
     def _get_readable_fields(self) -> set[str]:
-        """return the set of fields that are safe to read"""
+        """Return the set of fields safe to read."""
         return {
             "name",
             "parent_action_id",

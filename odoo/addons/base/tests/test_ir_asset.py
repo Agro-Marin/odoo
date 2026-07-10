@@ -6,9 +6,7 @@ from odoo.tools.misc import file_path
 @tagged("-at_install", "post_install")
 class TestAsset(TransactionCase):
     def test_asset_tag(self):
-        """
-        Verify that assets defined with the <asset> tag are properly imported.
-        """
+        """Verify that assets defined with the <asset> tag are properly imported."""
         # Load new records
         convert_file(
             self.env,

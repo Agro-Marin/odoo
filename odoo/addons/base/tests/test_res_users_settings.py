@@ -5,12 +5,12 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestResUsersSettingsOwnership(TransactionCase):
-    """Cross-user access denial for res.users.settings (audit RUSET-T1).
+    """Cross-user access denial for res.users.settings (RUSET-T1).
 
-    Ownership rests entirely on the `res_users_settings_rule_user` record rule
-    [('user_id','=',user.id)]; this pins that a group_user cannot read or write
-    another user's settings, and that `user_id` (in _PROTECTED_SETTINGS_FIELDS)
-    cannot be rewritten via set_res_users_settings to hijack a row.
+    Ownership rests on the ``res_users_settings_rule_user`` record rule
+    [('user_id','=',user.id)]: a group_user cannot read or write another user's
+    settings, and ``user_id`` (in _PROTECTED_SETTINGS_FIELDS) cannot be
+    rewritten via set_res_users_settings to hijack a row.
     """
 
     @classmethod
@@ -21,10 +21,9 @@ class TestResUsersSettingsOwnership(TransactionCase):
         Settings = cls.env["res.users.settings"]
         cls.settings_a = Settings._find_or_create_for_user(cls.user_a)
         cls.settings_b = Settings._find_or_create_for_user(cls.user_b)
-        # Pick any non-protected, writable, stored scalar field present on the
-        # model (base alone declares none beyond user_id; post_install modules
-        # such as `web` add `density`). Falls back to a direct write of `id`-less
-        # vals if none exists.
+        # Pick any non-protected, writable, stored scalar field on the model
+        # (base declares none beyond user_id; modules such as `web` add
+        # `density`). None found -> tests fall back to id-less vals.
         cls._writable_field = next(
             (
                 name
@@ -38,9 +37,9 @@ class TestResUsersSettingsOwnership(TransactionCase):
         )
 
     def test_user_cannot_write_other_users_settings(self):
-        # User A tries to write B's settings record -> blocked by the record rule
-        # at write() (record not in A's domain). Use a direct write so the test
-        # does not depend on set_res_users_settings filtering out unknown fields.
+        # A writing B's record is blocked by the record rule at write() (not in
+        # A's domain). Direct write so the test does not depend on
+        # set_res_users_settings filtering out unknown fields.
         settings_b_as_a = self.settings_b.with_user(self.user_a)
         vals = {self._writable_field: False} if self._writable_field else {}
         with self.assertRaises(AccessError):
@@ -66,12 +65,11 @@ class TestResUsersSettingsOwnership(TransactionCase):
 class TestResUsersSettingsChangeDetection(TransactionCase):
     """Per-field-type change detection of set_res_users_settings (RUSET-P1).
 
-    The old detection did ``current_value = current_value.id`` for every
-    relational value: it raised "Expected singleton" for multi-record x2many
-    values and always reported "changed" when comparing a command payload to a
-    scalar id. Change detection now branches on the field type: many2one
-    compares ids, x2many compares the id-set resulting from the incoming
-    commands (statically normalized by `_x2many_command_target_ids`).
+    Detection branches on field type: many2one compares ids, x2many compares
+    the id-set resulting from the incoming commands (normalized by
+    ``_x2many_command_target_ids``). Guards the old bug where every relational
+    value was reduced to ``.id`` — raising "Expected singleton" on multi-record
+    x2many values.
     """
 
     @classmethod
@@ -166,9 +164,9 @@ class TestResUsersSettingsWriteOnlyChanges(TransactionCase):
             self.skipTest("no writable x2many field on res.users.settings")
         settings = self.settings.with_user(self.user)
         current_ids = settings[fname].ids
-        # old code compared the command payload to a scalar id (raising
-        # "Expected singleton" on multi-record values): a same-ids SET
-        # command must be detected as "no change"
+        # a same-ids SET command must be detected as "no change" (old code
+        # compared the command payload to a scalar id, raising "Expected
+        # singleton" on multi-record values)
         res = settings.set_res_users_settings({fname: [Command.set(current_ids)]})
         self.assertEqual(
             set(res.keys()),

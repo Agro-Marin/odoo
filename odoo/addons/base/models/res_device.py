@@ -31,15 +31,12 @@ _MOBILE_PLATFORMS = frozenset(
     }
 )
 
-# Single source of truth for the columns identifying one "device" (RDEV-P4,
-# audit 2026-07-07): both the ``res.device`` SQL view de-dup (ResDevice._where)
-# and the ``res.device.log`` GC (ResDeviceLog._gc_device_log) derive their
-# grouping from this constant so the two queries cannot drift apart again
-# (the view used to de-dup on user_id while GC de-dupped on ip_address).
-# The boolean flags a nullable column: those must be compared NULL-safely
-# (IS NOT DISTINCT FROM) in join conditions; window-function PARTITION BY
-# groups NULLs together natively. The column order matches the leading
-# columns of ``ResDeviceLog._composite_idx``.
+# Single source of truth for the columns identifying one "device" (RDEV-P4): the
+# ``res.device`` view de-dup (ResDevice._where) and the GC (_gc_device_log) both
+# derive their grouping from this constant so the two queries can't drift apart
+# again. The boolean marks a nullable column, compared NULL-safely (IS NOT
+# DISTINCT FROM) in joins; PARTITION BY groups NULLs natively. Column order
+# matches the leading columns of ``ResDeviceLog._composite_idx``.
 _DEVICE_IDENTITY_COLUMNS = (
     # (column, nullable)
     ("user_id", True),
@@ -144,9 +141,7 @@ class ResDeviceLog(models.Model):
 
     @api.model
     def _update_device(self, request: Any) -> None:
-        """
-        Must be called when we want to update the device for the current request.
-        Passage through this method must leave a "trace" in the session.
+        """Update the device for the current request, leaving a trace in the session.
 
         :param request: Request or WebsocketRequest object
         """
@@ -159,11 +154,10 @@ class ResDeviceLog(models.Model):
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
 
         if self.env.cr.readonly:
-            # RDEV-P1 (audit 2026-05-28, S3 robustness): rolling back the request
-            # transaction to obtain a RW cursor is safe only because device
-            # logging runs before any request-scoped writes (ir.http dispatch
-            # ordering). If this method were ever called after meaningful
-            # uncommitted work on the readonly cursor, that work would be lost.
+            # RDEV-P1: rolling back to obtain a RW cursor is safe only because
+            # device logging runs before any request-scoped writes (ir.http
+            # dispatch ordering); uncommitted work on the readonly cursor would
+            # otherwise be lost.
             self.env.cr.rollback()
             cursor = self.env.registry.cursor(readonly=False)
         else:
@@ -201,22 +195,16 @@ class ResDeviceLog(models.Model):
         # Keep the last device log
         # (even if the session file no longer exists on the filesystem)
         #
-        # RDEV-P3 (audit 2026-07-06): the previous correlated EXISTS self-join
-        # had no supporting index (both composite indexes are partial on
-        # `revoked`, which GC does not filter on) and degraded quadratically
-        # per device group; a single window-function pass sorts once instead.
-        # PARTITION BY groups NULLs together, matching NULL-safe device
-        # identity comparison. Deliberate change: on last_activity ties the
-        # old query kept every tied row; this keeps exactly one — greatest
-        # (last_activity, id) — aligning GC with the res.device view
-        # tie-break (see ResDevice._where). last_activity is never NULL in
-        # practice (the single insert path in _update_device always sets it).
+        # RDEV-P3: the old correlated EXISTS self-join had no supporting index
+        # (both composite indexes are partial on `revoked`, which GC doesn't
+        # filter on) and degraded quadratically; a single window-function pass
+        # sorts once. Deliberate change: on last_activity ties the old query kept
+        # every tied row, this keeps exactly one — greatest (last_activity, id) —
+        # aligning GC with the res.device view tie-break (ResDevice._where).
         #
-        # RDEV-P4 (audit 2026-07-07): the partition derives from
-        # _DEVICE_IDENTITY_COLUMNS, the same constant the res.device view
-        # de-dups on, plus ip_address: GC deliberately keeps one row per IP
-        # of a device so _compute_linked_ip_addresses retains the IP history
-        # of rows the view itself hides.
+        # RDEV-P4: partition on _DEVICE_IDENTITY_COLUMNS plus ip_address — GC
+        # keeps one row per IP of a device so _compute_linked_ip_addresses
+        # retains the IP history the view itself hides.
         partition_columns = SQL(", ").join(
             SQL.identifier(column) for column, _nullable in _DEVICE_IDENTITY_COLUMNS
         )
@@ -244,20 +232,14 @@ class ResDeviceLog(models.Model):
 
     @api.autovacuum
     def _update_revoked(self) -> None:
-        """
-        Set the field ``revoked`` to ``True`` for ``res.device.log``
-        for which the session file no longer exists on the filesystem.
-        """
-        # RDEV-P2 (audit 2026-05-28, S3 robustness, documented — no change):
-        # the candidate filter ("revoked", "=", False) shrinks the result window
-        # as rows are flagged, and the hand-rolled `offset -= len(to_revoke)`
-        # correction only compensates for rows revoked in the *current* batch.
-        # Under very large datasets some non-revoked candidates can be skipped in
-        # a single vacuum run, but they are caught on the next run; the session
-        # file is already gone, so only the audit `revoked` flag lags (no security
-        # impact). A keyset/seek scan (("id", ">", last_id)) would remove the
-        # write/cursor coupling, but is a behavioural change to a committing GC
-        # loop, intentionally left out of this minimal pass.
+        """Flag ``revoked`` on device logs whose session file is gone from disk."""
+        # RDEV-P2 (documented, no change): the ("revoked", "=", False) filter
+        # shrinks the window as rows are flagged, and `offset -= len(to_revoke)`
+        # only corrects for the current batch. On very large datasets some
+        # candidates can be skipped in one run but are caught on the next; the
+        # session file is already gone, so only the audit flag lags (no security
+        # impact). A keyset scan would remove the write/cursor coupling but is a
+        # behavioural change, left out of this minimal pass.
         batch_size = 100_000
         offset = 0
 
@@ -268,9 +250,8 @@ class ResDeviceLog(models.Model):
                     (
                         "last_activity",
                         "<",
-                        # RDEV-T1 (audit 2026-07-06): fields.Datetime.now() is
-                        # the conventional, test-patchable clock (identical
-                        # naive-UTC value as datetime.now(UTC) w/o tzinfo).
+                        # RDEV-T1: fields.Datetime.now() is the test-patchable
+                        # clock (same naive-UTC value as datetime.now(UTC)).
                         fields.Datetime.now()
                         - timedelta(seconds=get_session_max_inactivity(self.env)),
                     ),
@@ -321,11 +302,10 @@ class ResDevice(models.Model):
         """
         if not self:
             return
-        # RDEV-L1 (audit 2026-05-28): self-scope the privileged revoke so the
-        # invariant lives inside the method that escalates to sudo(), instead of
-        # relying solely on the upstream record rule. Mirrors res.users.apikeys._remove.
-        # A non-system caller may only revoke their own devices; admins
-        # (group_system) retain full revoke by design.
+        # RDEV-L1: self-scope the privileged revoke so the invariant lives in the
+        # method that escalates to sudo(), not only in the record rule (mirrors
+        # res.users.apikeys._remove). Non-system callers may revoke only their own
+        # devices; group_system retains full revoke.
         if not self.env.is_system() and self.mapped("user_id") != self.env.user:
             raise AccessError(_("You can only revoke your own devices."))
         ResDeviceLog = self.env["res.device.log"]
@@ -359,11 +339,10 @@ class ResDevice(models.Model):
     def _where(self) -> str:
         """Return the WHERE clause keeping the latest non-revoked log per device.
 
-        The device identity join derives from ``_DEVICE_IDENTITY_COLUMNS``
-        (RDEV-P4) — the same constant ``ResDeviceLog._gc_device_log`` partitions
-        on — so the view and the GC can never de-dup on diverging column sets.
-        All fragments interpolated below are module-level literals, not user
-        input (see the SQL wrapper rule, coding_guidelines §10.4).
+        The identity join derives from ``_DEVICE_IDENTITY_COLUMNS`` (RDEV-P4), the
+        same constant ``_gc_device_log`` partitions on, so view and GC can't
+        de-dup on diverging columns. All interpolated fragments are module-level
+        literals, not user input (SQL wrapper rule, coding_guidelines §10.4).
         """
         identity_join = "\n                        AND ".join(
             f"D2.{column} IS NOT DISTINCT FROM D.{column}"

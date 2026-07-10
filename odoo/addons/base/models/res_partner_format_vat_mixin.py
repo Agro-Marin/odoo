@@ -15,11 +15,9 @@ class FormatVatLabelMixin(models.AbstractModel):
     ) -> tuple:
         """Key the view cache on the company country's ``vat_label``.
 
-        The ``_get_view`` override relabels the ``vat`` field/label from the
-        company country's ``vat_label``, so that VALUE is the cache key — not
-        the company identity. Keying on the value dedupes the cache across
-        companies sharing a vat label and keeps it fresh when the company's
-        country or the country's label changes. Mirrors
+        ``_get_view`` relabels the ``vat`` field from that value, so the cache
+        keys on the value (not company identity): it dedupes companies sharing a
+        label and refreshes when the country or its label changes. Mirrors
         ``format.address.mixin._get_view_cache_key``.
         """
         key = super()._get_view_cache_key(view_id, view_type, **options)
@@ -34,7 +32,7 @@ class FormatVatLabelMixin(models.AbstractModel):
         if vat_label := self.env.company.country_id.vat_label:
             for node in arch.iterfind(".//field[@name='vat']"):
                 node.set("string", vat_label)
-            # In some module vat field is replaced and so above string change is not working
+            # Some modules replace the vat field, so also relabel its standalone label
             for node in arch.iterfind(".//label[@for='vat']"):
                 node.set("string", vat_label)
         return arch, view

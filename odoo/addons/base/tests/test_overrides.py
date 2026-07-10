@@ -4,8 +4,7 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("-at_install", "post_install")
 class TestOverrides(TransactionCase):
-    # Ensure all main ORM methods behavior works fine even on empty recordset
-    # and that their returned value(s) follow the expected format.
+    # Check core ORM methods work on empty recordsets and return the expected value.
 
     def test_creates(self):
         for model_env in self.env.values():

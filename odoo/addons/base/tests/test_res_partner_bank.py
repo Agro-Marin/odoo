@@ -33,7 +33,6 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
 
         self.assertEqual(partner_bank.acc_number, acc_number)
 
-        # sanitaze the acc_number
         sanitized_acc_number = "BE001251882303"
         self.assertEqual(partner_bank.sanitized_acc_number, sanitized_acc_number)
         vals = partner_bank_model.search([("acc_number", "=", sanitized_acc_number)])

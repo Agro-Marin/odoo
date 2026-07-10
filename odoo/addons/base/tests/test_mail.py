@@ -796,10 +796,8 @@ class TestEmailTools(BaseCase):
             self.assertEqual(email_domain_normalize(source), expected, msg)
 
     def test_email_normalize(self):
-        """Test 'email_normalize'. Note that it is built on 'email_split' so
-        some use cases are already managed in 'test_email_split(_and_format)'
-        hence having more specific test cases here about normalization itself.
-        """
+        """Test 'email_normalize'. Built on 'email_split', so these cases focus
+        on normalization itself rather than splitting."""
         format_name = "My Super Prénom"
         format_name_ascii = "=?utf-8?b?TXkgU3VwZXIgUHLDqW5vbQ==?="
         sources = [
@@ -995,9 +993,8 @@ class TestEmailTools(BaseCase):
                 self.assertEqual(email_split(source), expected)
 
     def test_email_split_and_format(self):
-        """Test 'email_split_and_format', notably in case of multi encapsulation
-        or multi emails. Also check 'email_split_and_format_normalize' while
-        being there."""
+        """Test 'email_split_and_format' (multi encapsulation, multi emails);
+        also checks 'email_split_and_format_normalize'."""
         sources = [
             "deboulonneur@example.com",
             '"Super Déboulonneur" <deboulonneur@example.com>',  # formatted
@@ -1048,7 +1045,7 @@ class TestEmailTools(BaseCase):
             ['"Déboulonneur" <DEboulonneur@😊.example.com>'],
             ['"Déboulonneur" <DÉBoulonneur.😊@Éxamplé.com>'],
         ]
-        # mostly the same except 3 cases so don't copy paste everything
+        # only the cases that differ from expected_list
         normalized = {
             # lower
             "deboulonneur@example.com Déboulonneur": [

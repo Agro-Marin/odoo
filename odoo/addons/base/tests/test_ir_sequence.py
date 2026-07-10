@@ -328,10 +328,9 @@ class TestIrSequenceInit(common.TransactionCase):
 
 class TestIrSequenceSwitchImplementation(common.TransactionCase):
     """Switching ``standard`` -> ``no_gap`` must seed ``number_next`` from the
-    live PostgreSQL sequence value before dropping it: under the standard
-    implementation the row's ``number_next`` column never advances, so
-    numbering would otherwise restart at a stale value and issue duplicate
-    document numbers.
+    live PostgreSQL sequence before dropping it. The standard row's
+    ``number_next`` never advances, so numbering would otherwise restart at a
+    stale value and issue duplicate document numbers.
     """
 
     def test_switch_to_no_gap_continues_numbering(self):

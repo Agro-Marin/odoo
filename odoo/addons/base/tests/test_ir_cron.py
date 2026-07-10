@@ -34,17 +34,12 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 class CronMixinCase:
     def capture_triggers(self, cron_id=None):
-        """
-        Get a context manager to get all cron triggers created during
-        the context lifetime. While in the context, it exposes the
-        triggers created so far from the beginning of the context. When
-        the context exits, it doesn't capture new triggers anymore.
+        """Return a context manager capturing cron triggers created within it.
 
-        The triggers are accessible on the `records` attribute of the
-        returned object.
+        Captured triggers are exposed on the returned object's `records`
+        attribute; nothing is captured once the context exits.
 
-        :param cron_id: An optional cron record id (int) or xmlid (str)
-                        to only capture triggers for that cron.
+        :param cron_id: optional cron id (int) or xmlid (str) to filter by.
         """
         if isinstance(cron_id, str):  # xmlid case
             cron_id = self.env.ref(cron_id).id
@@ -99,23 +94,21 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.env["ir.cron.trigger"].search(domain).unlink()
         self.env["ir.cron.progress"].search(domain).unlink()
 
-        # this ensures that cr.now() returns the frozen datetime, which is
-        # useful for knowing remaining jobs after "some time"
+        # pin cr.now() to the frozen datetime so "remaining jobs after some
+        # time" is deterministic
         self.patch(self.env.cr, "now", self.frozen_datetime)
 
     def _acquire_job(self, cr, cron=None):
         """Build the ``job`` dict through the real production acquire path.
 
-        ``_process_jobs_loop`` feeds ``_process_job`` the dict built by
-        ``_acquire_one_job`` (``dictfetchone``: SQL NULL comes back as
-        ``None``). Fabricating the dict from ``read(load=None)`` instead
-        yields ``False`` for NULL columns (e.g. ``first_failure_date``) — a
-        shape production never produces, which masked the dropped
-        ``deactivate`` write (see ``test_cron_deactivate_production_shape``).
-        Acquired with ``include_not_ready=True``, like
-        ``method_direct_trigger``, so tests need not make the cron ready
-        first. In registry test mode ``cr`` shares the test connection, so
-        the row lock it takes cannot deadlock with the test cursor.
+        ``_acquire_one_job`` uses ``dictfetchone``, so SQL NULL comes back as
+        ``None``; fabricating from ``read(load=None)`` yields ``False`` for NULL
+        columns (e.g. ``first_failure_date``) — a shape production never
+        produces, which masked a dropped ``deactivate`` write (see
+        ``test_cron_deactivate_production_shape``). Acquires with
+        ``include_not_ready=True`` so tests need not ready the cron first. In
+        registry test mode ``cr`` shares the test connection, so its row lock
+        cannot deadlock with the test cursor.
         """
         cron = cron if cron is not None else self.cron
         self.env.flush_all()
@@ -221,10 +214,8 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_cron_skip_unactive_triggers(self):
-        # Situation: an admin disable the cron and another user triggers
-        # the cron to be executed *now*, the cron shouldn't be ready and
-        # the trigger should not be stored.
-
+        # Admin disabled the cron, another user triggers it *now*: the cron
+        # must not be ready and the trigger must not be stored.
         self.cron.active = False
         self.cron.nextcall = fields.Datetime.now() + timedelta(days=2)
         self.cron.flush_recordset()
@@ -240,10 +231,8 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertFalse(capture.records, "trigger should has been skipped")
 
     def test_cron_keep_future_triggers(self):
-        # Situation: yesterday an admin disabled the cron, while the
-        # cron was disabled, another user triggered it to run today.
-        # In case the cron as been re-enabled before "today", it should
-        # run.
+        # Yesterday an admin disabled the cron; while disabled another user
+        # triggered it to run today. Re-enabled before today, it should run.
 
         # go yesterday
         self.frozen_datetime.tick(delta=timedelta(days=-1))
@@ -272,10 +261,9 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertTrue(capture.records, "trigger should has been kept")
 
     def test_trigger_call_at_uses_db_transaction_clock(self):
-        # Regression lock for the clock-source fix: _trigger must stamp call_at
-        # from the DB transaction clock (cr.now, via _now), NOT the process wall
-        # clock, so the trigger it writes and the "is it due" reader agree even
-        # when the app host clock differs from the DB's (or lacks tzset).
+        # _trigger must stamp call_at from the DB transaction clock (cr.now),
+        # NOT the process wall clock, so writer and "is it due" reader agree
+        # even when the app host clock differs from the DB's (or lacks tzset).
         db_time = datetime(2020, 1, 1, 12, 0, 0)
         self.patch(self.env.cr, "now", lambda: db_time)
         with self.capture_triggers(self.cron.id) as capture:
@@ -287,8 +275,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_toggle_sets_active_from_domain_existence(self):
-        # `toggle` had no direct coverage; also guards the search_count(limit=1)
-        # existence-check optimisation.
+        # Also guards the search_count(limit=1) existence-check optimisation.
         self.env["ir.config_parameter"].sudo().set_param("database.is_neutralized", "")
         self.cron.write({"active": False})
         self.cron.toggle("res.partner", [("id", "=", self.partner.id)])
@@ -638,9 +625,9 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
     def test_cron_timeout_failure(self):
         self.cron._trigger()
-        # `_acquire_one_job` joins the latest progress row per cron, so the
-        # acquired job dicts below carry this row's `progress_id`, `done`,
-        # `remaining` and `timed_out_counter` — exactly as in production.
+        # `_acquire_one_job` joins the latest progress row, so acquired job
+        # dicts carry this row's `progress_id`/`done`/`remaining`/
+        # `timed_out_counter`, as in production.
         self.env["ir.cron.progress"].create(
             [
                 {
@@ -676,9 +663,9 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
     def test_cron_timeout_success(self):
         self.cron._trigger()
-        # `_acquire_one_job` joins the latest progress row per cron, so the
-        # acquired job dicts below carry this row's `progress_id`, `done`,
-        # `remaining` and `timed_out_counter` — exactly as in production.
+        # `_acquire_one_job` joins the latest progress row, so acquired job
+        # dicts carry this row's `progress_id`/`done`/`remaining`/
+        # `timed_out_counter`, as in production.
         self.env["ir.cron.progress"].create(
             [
                 {
@@ -713,7 +700,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_acquire_processed_job(self):
-        # Test acquire job on already processed jobs
         job = self.env["ir.cron"]._acquire_one_job(self.cr, self.cron.id)
         self.assertEqual(
             job, None, "No error should be thrown, job should just be none"
@@ -858,16 +844,14 @@ class TestIrCron(TransactionCase, CronMixinCase):
     def test_cron_deactivate_production_shape(self):
         """A healthy cron requesting its own deactivation must be deactivated.
 
-        Regression test: production job dicts come from ``_acquire_one_job``,
-        where a cron that never failed has ``failure_count == 0``,
-        ``first_failure_date is None`` and ``active is True`` — exactly the
-        values ``_update_failure_count`` recomputes on success. Its skip-write
-        optimization then sees "no change", so the requested deactivation must
-        be carried separately from the row snapshot (``job["deactivate"]``)
-        or the UPDATE is silently dropped and the row stays active. The
-        ``read(load=None)``-fabricated dicts previously used in these tests
-        (SQL NULL -> ``False`` instead of ``None``) always compared unequal
-        and masked the bug.
+        For a cron that never failed (``failure_count == 0``,
+        ``first_failure_date is None``, ``active is True``),
+        ``_update_failure_count`` recomputes those same values on success, so
+        its skip-write optimization sees "no change". The deactivation must
+        therefore ride on ``job["deactivate"]``, separate from the row
+        snapshot, or the UPDATE is silently dropped. The ``read(load=None)``
+        dicts formerly used here (NULL -> ``False``, not ``None``) always
+        compared unequal and masked the bug.
         """
 
         def mocked_run(self):
@@ -901,10 +885,10 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_gc_cron_triggers_uses_transaction_clock(self):
-        # The GC cutoff must come from the transaction clock (cr.now()) — the
-        # same clock that stamps `call_at` — not the process wall clock. Here
-        # only the transaction clock is advanced past the retention window
-        # while the (frozen) wall clock stays put: the row must be collected.
+        # The GC cutoff must come from the transaction clock (cr.now(), the
+        # clock that stamps `call_at`), not the process wall clock. Only the
+        # transaction clock is advanced past the retention window while the
+        # frozen wall clock stays put: the row must be collected.
         self.cron.active = False
         trigger = self.env["ir.cron.trigger"].create(
             {"cron_id": self.cron.id, "call_at": fields.Datetime.now()}
@@ -965,23 +949,21 @@ class TestIrCronUser(TransactionCaseWithUserDemo, TestIrCron):
 
 @tagged("post_install", "-at_install")
 class TestIrCronAcquireLock(BaseCase):
-    """Real two-connection regression coverage for the
-    ``FOR NO KEY UPDATE ... SKIP LOCKED`` lock in
-    :meth:`ir.cron._acquire_one_job` (CRON-T1).
+    """Two-connection coverage for the ``FOR NO KEY UPDATE ... SKIP LOCKED``
+    lock in :meth:`ir.cron._acquire_one_job` (CRON-T1).
 
-    Unlike :class:`TestIrCron`, these tests must run on genuinely independent
-    database connections (not registry-test-mode savepoints, which reuse a
-    single cursor and would never contend for a row lock). They therefore
-    commit a dedicated cron and clean it up explicitly, mirroring
+    These need genuinely independent connections (not registry-test-mode
+    savepoints, which reuse one cursor and never contend for a row lock), so
+    they commit a dedicated cron and clean it up explicitly, mirroring
     ``test_ir_sequence.py``'s ``environment()`` pattern.
     """
 
     def setUp(self):
         super().setUp()
         self.registry = Registry(common.get_db_name())
-        # Commit a dedicated, ready cron so that two separate connections both
-        # see the row. nextcall is set in the past so the readiness WHERE
-        # clause (the real worker path) matches without relying on frozen time.
+        # Commit a dedicated, ready cron so both connections see the row.
+        # nextcall in the past makes the readiness WHERE clause (real worker
+        # path) match without relying on frozen time.
         with self.registry.cursor() as cr:
             env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
             cron = env["ir.cron"].create(
@@ -999,7 +981,6 @@ class TestIrCronAcquireLock(BaseCase):
             )
             self.cron_id = cron.id
             cr.commit()
-        # Drop the committed cron once the test finishes, on its own cursor.
         self.addCleanup(self._drop_cron)
 
     def _drop_cron(self):
@@ -1011,12 +992,10 @@ class TestIrCronAcquireLock(BaseCase):
     def test_acquire_one_job_skips_locked_row(self):
         """A second connection skips a cron whose row is locked by the first.
 
-        Connection A acquires (and locks) the cron via ``_acquire_one_job``
-        without committing, so the ``FOR NO KEY UPDATE`` lock is held.
-        Connection B's identical ``_acquire_one_job`` must return ``None``
-        (``SKIP LOCKED`` skips the locked row) rather than block on it or
-        return the same job — which is the sole guarantee preventing two
-        workers from running the same job.
+        Connection A acquires and locks the cron via ``_acquire_one_job``
+        without committing (``FOR NO KEY UPDATE`` held). B's identical call must
+        return ``None`` via ``SKIP LOCKED`` rather than block or return the same
+        job — the sole guarantee against two workers running one job.
         """
         IrCronModel = self.registry["ir.cron"]
         with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
@@ -1025,17 +1004,15 @@ class TestIrCronAcquireLock(BaseCase):
             self.assertIsNotNone(job_a, "connection A should acquire the ready job")
             self.assertEqual(job_a["id"], self.cron_id)
 
-            # Connection B must be skipped by SKIP LOCKED (returns immediately,
-            # no block, no row). If the lock were broken this would return the
-            # job; if SKIP LOCKED were absent this would block until timeout.
+            # B must be skipped by SKIP LOCKED (no block, no row). A broken lock
+            # would return the job; a missing SKIP LOCKED would block to timeout.
             job_b = IrCronModel._acquire_one_job(cr_b, self.cron_id)
             self.assertIsNone(
                 job_b,
                 "connection B must skip the row locked by connection A",
             )
 
-            # Release both locks explicitly; the cron stays committed for the
-            # cleanup cursor to remove.
+            # Release both locks; the cron stays committed for cleanup.
             cr_a.rollback()
             cr_b.rollback()
 
@@ -1044,8 +1021,8 @@ class TestIrCronAcquireLock(BaseCase):
 
         Confirms the SKIP LOCKED skip in
         :meth:`test_acquire_one_job_skips_locked_row` is due to the live lock,
-        not a permanent condition: after connection A commits (releasing the
-        lock), a fresh connection can acquire the same still-ready job.
+        not a permanent condition: after A commits, a fresh connection acquires
+        the same still-ready job.
         """
         IrCronModel = self.registry["ir.cron"]
         with self.registry.cursor() as cr_a:
@@ -1065,12 +1042,11 @@ class TestIrCronAcquireLock(BaseCase):
     def test_write_on_running_cron_raises_usererror(self):
         """Editing a cron whose row is locked by a running worker is refused.
 
-        Connection A holds the ``FOR NO KEY UPDATE`` acquire lock (the running
-        job). ``write`` on connection B takes the same lock with ``SKIP
-        LOCKED``; the skipped row surfaces as ``LockError``, which
-        ``_lock_for_update_or_raise`` must translate into a user-facing
-        ``UserError`` *before* touching the record. Guards the guardrail shared
-        by ``write`` and ``_unlink_unless_running``.
+        A holds the ``FOR NO KEY UPDATE`` acquire lock. ``write`` on B takes the
+        same lock with ``SKIP LOCKED``; the skipped row surfaces as
+        ``LockError``, which ``_lock_for_update_or_raise`` must translate into a
+        ``UserError`` before touching the record. Guards the guardrail shared by
+        ``write`` and ``_unlink_unless_running``.
         """
         IrCronModel = self.registry["ir.cron"]
         with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
@@ -1080,7 +1056,7 @@ class TestIrCronAcquireLock(BaseCase):
             env_b = odoo.api.Environment(cr_b, common.ADMIN_USER_ID, {})
             with self.assertRaises(UserError) as cm:
                 env_b["ir.cron"].browse(self.cron_id).write({"priority": 3})
-            # Pin it to the lock guardrail, not some incidental UserError.
+            # Pin to the lock guardrail, not some incidental UserError.
             self.assertIn("currently being executed", str(cm.exception))
 
             cr_a.rollback()
@@ -1091,7 +1067,7 @@ class TestIrCronAcquireLock(BaseCase):
 
         Same contention as :meth:`test_write_on_running_cron_raises_usererror`
         but through the ``@api.ondelete`` hook ``_unlink_unless_running`` (a
-        stronger ``FOR UPDATE`` lock, which likewise conflicts with A's held
+        stronger ``FOR UPDATE`` lock, which also conflicts with A's held
         ``FOR NO KEY UPDATE``).
         """
         IrCronModel = self.registry["ir.cron"]
@@ -1109,10 +1085,9 @@ class TestIrCronAcquireLock(BaseCase):
 
 
 class TestIrCronClassifyOutcome(BaseCase):
-    """Unit tests for the pure per-iteration outcome classifier.
-
-    These need no database: :meth:`IrCron._classify_outcome` is a pure
-    function of ``(success, done, remaining)``.
+    """Unit tests for the pure per-iteration outcome classifier
+    :meth:`IrCron._classify_outcome`, a pure function of
+    ``(success, done, remaining)`` needing no database.
     """
 
     def test_classify_outcome_full_truth_table(self):
@@ -1152,10 +1127,9 @@ class TestIrCronClassifyOutcome(BaseCase):
 
 
 class TestIrCronComputeNextCall(TransactionCase):
-    """Unit tests for the DST-aware ``nextcall`` advancement.
-
-    This logic (keep the same wall-clock hour across DST) had no direct
-    coverage before it was extracted into :meth:`IrCron._compute_next_call`.
+    """Unit tests for the DST-aware ``nextcall`` advancement
+    (:meth:`IrCron._compute_next_call`): keep the same wall-clock hour across
+    DST.
     """
 
     def _rec(self, tz):
@@ -1270,12 +1244,11 @@ class TestIrCronComputeNextCall(TransactionCase):
 
 
 class TestIrCronShouldContinue(BaseCase):
-    """Unit tests for the pure run-loop continuation predicate.
-
-    No database or real clock: :meth:`IrCron._should_continue_run` is a pure
-    function of ``(status, loop_count, now, end_time)``. It encodes the
-    otherwise-subtle rule "loop at least MIN_RUNS_PER_JOB passes AND until the
-    time budget is spent, but bail the instant a terminal status is reached".
+    """Unit tests for the pure run-loop continuation predicate
+    :meth:`IrCron._should_continue_run`, a pure function of
+    ``(status, loop_count, now, end_time)`` needing no database or clock. Its
+    rule: loop at least MIN_RUNS_PER_JOB passes AND until the time budget is
+    spent, but bail the instant a terminal status is reached.
     """
 
     def test_terminal_status_stops_immediately(self):
@@ -1316,11 +1289,9 @@ class TestIrCronShouldContinue(BaseCase):
 
 
 class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
-    """Direct tests for the failure-count / auto-deactivation bookkeeping.
-
-    Previously :meth:`IrCron._update_failure_count` was only exercised
-    indirectly through ``_process_job``. It writes ``ir_cron`` via raw SQL, so
-    each case builds a ``job`` dict, invokes it, then re-reads the record.
+    """Direct tests for :meth:`IrCron._update_failure_count`, the failure-count
+    / auto-deactivation bookkeeping. It writes ``ir_cron`` via raw SQL, so each
+    case builds a ``job`` dict, invokes it, then re-reads the record.
     """
 
     def setUp(self):
@@ -1403,8 +1374,7 @@ class TestIrCronDbChecks(TransactionCase):
     """Coverage for the per-database guard rails run before any job.
 
     ``_check_version`` and ``_check_modules_state`` gate whether a database is
-    polled at all (``_process_jobs`` skips the DB when they raise). None of
-    these branches were exercised before.
+    polled at all (``_process_jobs`` skips the DB when they raise).
     """
 
     def test_check_version_mismatch_raises_bad_version(self):

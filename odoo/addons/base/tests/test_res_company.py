@@ -9,9 +9,9 @@ from odoo.addons.base.models.res_company import ResCompany
 
 class TestCompany(TransactionCase):
     def test_check_active(self):
-        """Tests the ability to archive a company whether or not it still has active users.
-        Tests an archived user in an archived company cannot be unarchived
-        without changing its company to an active company."""
+        """A company can be archived only with no active users, and an archived
+        user in an archived company cannot be unarchived without first moving it
+        to an active company."""
         company = self.env["res.company"].create({"name": "foo"})
         user = self.env["res.users"].create(
             {
@@ -74,7 +74,7 @@ class TestCompany(TransactionCase):
         self.assertTrue(company.logo, "Should have a default logo")
         self.assertTrue(company.uses_default_logo)
         company.partner_id.image_1920 = False
-        # No logo means we fall back to another default logo for the website route -> uses_default
+        # No logo falls back to a default logo, so uses_default_logo stays True.
         self.assertTrue(company.uses_default_logo)
         company.partner_id.image_1920 = (
             "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
@@ -149,11 +149,10 @@ class TestCompany(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCompanyPublicUser(TransactionCase):
-    """Regression coverage for RC-L3: res.company._get_public_user() must probe
-    the company's public user by its deterministic per-company login before
-    copying base.public_user (res_company.py:_get_public_user), so it does not
-    raise on the global login-uniqueness constraint when an existing public user
-    is missing from base.group_public.
+    """RC-L3: res.company._get_public_user() probes the public user by its
+    per-company login before copying base.public_user, so it does not raise on
+    the global login-uniqueness constraint when an existing public user is
+    missing from base.group_public.
     """
 
     def test_get_public_user_creates_one_per_company(self):
@@ -177,10 +176,9 @@ class TestCompanyPublicUser(TransactionCase):
         copy raising on the global login-uniqueness constraint."""
         company = self.env["res.company"].create({"name": "Public Co 3"})
         public_user = company._get_public_user()
-        # Simulate a stale / half-rolled-back state: the public user for this
-        # company exists but is no longer a member of base.group_public, so the
-        # old group-membership probe would miss it and the deterministic-login
-        # copy would collide on the global UNIQUE(login) constraint.
+        # Stale state: the public user exists but is no longer a member of
+        # base.group_public, so the old group-membership probe would miss it and
+        # the login copy would collide on the global UNIQUE(login) constraint.
         public_group = self.env.ref("base.group_public")
         public_user.sudo().write({"group_ids": [Command.unlink(public_group.id)]})
         self.assertNotIn(public_user, public_group.sudo().all_user_ids)

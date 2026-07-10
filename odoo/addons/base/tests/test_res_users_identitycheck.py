@@ -12,9 +12,9 @@ _REQUEST = "odoo.addons.base.models.res_users_identitycheck.request"
 
 @tagged("post_install", "-at_install")
 class TestResUsersIdentityCheck(TransactionCase):
-    """Coverage for the password-check wizard guards (audit RIC-T1):
-    HTTP-only access, wrong-password rejection, and the ``__has_check_identity``
-    allow-list that gates which method ``run_check`` is allowed to execute.
+    """Guards for the password-check wizard (RIC-T1): HTTP-only access,
+    wrong-password rejection, and the ``__has_check_identity`` allow-list gating
+    which method ``run_check`` may execute.
     """
 
     @classmethod
@@ -26,7 +26,7 @@ class TestResUsersIdentityCheck(TransactionCase):
         return self.env["res.users.identitycheck"].with_user(self.user).create({})
 
     def test_run_check_requires_request(self):
-        """Without an HTTP request the wizard refuses to run (line 50-51 guard)."""
+        """Without an HTTP request the wizard refuses to run."""
         wizard = self._new_wizard()
         with patch(_REQUEST, None), self.assertRaises(UserError):
             wizard.run_check()
@@ -38,8 +38,8 @@ class TestResUsersIdentityCheck(TransactionCase):
             wizard.with_context(password="wrong").run_check()
 
     def test_run_check_rejects_undecorated_method(self):
-        """Even with the correct password, a method that is not decorated with
-        @check_identity must be refused (line 57 allow-list guard)."""
+        """A correct password still refuses a method not decorated with
+        @check_identity (allow-list guard)."""
         wizard = self._new_wizard()
         # `read` is a plain ORM method, not decorated for identity-checked use.
         payload = json.dumps([{}, "res.users", [self.user.id], "read", [["login"]], {}])

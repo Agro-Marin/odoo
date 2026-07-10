@@ -7,12 +7,10 @@ class QueryTestCase(BaseCase):
         query = Query(None, "product_product")
         query.add_table("product_template")
         query.add_where("product_product.template_id = product_template.id")
-        # add inner join
         alias = query.join(
             "product_template", "categ_id", "product_category", "id", "categ_id"
         )
         self.assertEqual(alias, "product_template__categ_id")
-        # add left join
         alias = query.left_join(
             "product_product", "user_id", "res_user", "id", "user_id"
         )
@@ -31,12 +29,10 @@ class QueryTestCase(BaseCase):
         query = Query(None, "product_product")
         query.add_table("product_template")
         query.add_where("product_product.template_id = product_template.id")
-        # add inner join
         alias = query.join(
             "product_template", "categ_id", "product_category", "id", "categ_id"
         )
         self.assertEqual(alias, "product_template__categ_id")
-        # add CHAINED left join
         alias = query.left_join(
             "product_template__categ_id", "user_id", "res_user", "id", "user_id"
         )
@@ -55,17 +51,14 @@ class QueryTestCase(BaseCase):
         query = Query(None, "product_product")
         query.add_table("product_template")
         query.add_where("product_product.template_id = product_template.id")
-        # add inner join
         alias = query.join(
             "product_template", "categ_id", "product_category", "id", "categ_id"
         )
         self.assertEqual(alias, "product_template__categ_id")
-        # add CHAINED left join
         alias = query.left_join(
             "product_template__categ_id", "user_id", "res_user", "id", "user_id"
         )
         self.assertEqual(alias, "product_template__categ_id__user_id")
-        # additional implicit join
         query.add_table("account_account")
         query.add_where("product_category.expense_account_id = account_account.id")
 
@@ -216,11 +209,9 @@ class TestQuery(TransactionCase):
         """count_matching() counts all matching rows, ignoring LIMIT/OFFSET."""
         model = self.env["res.partner.category"]
         model.create([{"name": f"CM Test {i}"} for i in range(5)])
-        # Build a query with LIMIT/OFFSET that returns a subset
         query = model._search([("name", "like", "CM Test")], limit=2, offset=1)
-        # len(query) respects LIMIT/OFFSET
+        # len respects LIMIT/OFFSET; count_matching ignores them
         self.assertEqual(len(query), 2)
-        # count_matching ignores LIMIT/OFFSET — returns total matching count
         self.assertEqual(query.count_matching(), 5)
 
     def test_count_matching_with_limit(self):
@@ -233,10 +224,9 @@ class TestQuery(TransactionCase):
 
     def test_count_matching_with_joins(self):
         """count_matching() works with queries that have LEFT JOINs (from ORDER BY)."""
-        # Ordering by a relational field adds a LEFT JOIN to the query
+        # ordering by a relational field adds a LEFT JOIN to the query
         query = self.env["res.partner"]._search(
             [("is_company", "=", True)], limit=5, order="parent_id"
         )
-        # Should not crash and should return a valid count
         total = query.count_matching()
         self.assertGreaterEqual(total, 0)

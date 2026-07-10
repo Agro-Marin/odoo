@@ -19,7 +19,8 @@ class TestIrSequenceDateRangeStandard(SingleTransactionCase):
         self.assertTrue(seq)
 
     def test_ir_sequence_date_range_2_change_dates(self):
-        """Draw numbers to create a first subsequence then change its date range. Then, try to draw a new number adn check a new subsequence was correctly created."""
+        """Draw numbers to create a subsequence, change its date range, then
+        draw again and check a new subsequence was created."""
         year = date.today().year - 1
 
         def january(d):
@@ -72,7 +73,8 @@ class TestIrSequenceDateRangeNoGap(SingleTransactionCase):
         self.assertTrue(seq)
 
     def test_ir_sequence_date_range_2_change_dates(self):
-        """Draw numbers to create a first subsequence then change its date range. Then, try to draw a new number adn check a new subsequence was correctly created."""
+        """Draw numbers to create a subsequence, change its date range, then
+        draw again and check a new subsequence was created."""
         year = date.today().year - 1
 
         def january(d):

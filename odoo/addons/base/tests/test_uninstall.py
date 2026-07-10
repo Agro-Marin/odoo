@@ -11,9 +11,7 @@ from odoo.tests.common import BaseCase
 
 @contextmanager
 def environment():
-    """Return an environment with a new cursor for the current database; the
-    cursor is committed and closed after the context block.
-    """
+    """Yield an environment with a fresh cursor, committed and closed on exit."""
     reg = Registry(common.get_db_name())
     with reg.cursor() as cr:
         yield api.Environment(cr, api.SUPERUSER_ID, {})
@@ -24,10 +22,7 @@ MODEL = "test_uninstall.model"
 
 
 class TestUninstall(BaseCase):
-    """
-    Test the install/uninstall of a test module. The module is available in
-    `odoo.tests` which should be present in the addons-path.
-    """
+    """Test install/uninstall of the ``test_uninstall`` module from the addons-path."""
 
     def test_01_install(self):
         """Check a few things showing the module is installed."""

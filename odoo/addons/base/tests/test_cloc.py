@@ -153,9 +153,9 @@ class TestClocCustomization(TransactionCase):
                 }
             )
         )
-        # Simulate the effect of https://github.com/odoo/odoo/commit/9afce4805fc8bac45fdba817488aa867fddff69b
-        # Updating a module create xml_id of the module even for manual field if it's the original module
-        # of the model
+        # Simulate https://github.com/odoo/odoo/commit/9afce4805fc8bac45fdba817488aa867fddff69b:
+        # updating a module creates an xml_id for a manual field when it's the
+        # model's original module.
         self.create_xml_id("base", name, field)
         return field
 
@@ -174,9 +174,9 @@ for rec in records:
         )
 
     def test_ignore_auto_generated_computed_field(self):
-        """
-        Check that we count custom fields with no module or studio not auto generated
-        Having an xml_id but no existing module is consider as not belonging to a module
+        """Count custom fields with no module, or studio fields not auto-generated.
+
+        An xml_id whose module doesn't exist counts as not belonging to a module.
         """
         f1 = self.create_field("x_invoice_count")
         self.create_xml_id("studio_customization", "invoice_count", f1)
@@ -296,10 +296,7 @@ class TestClocParser(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestClocStdNoCusto(TransactionCase):
     def test_no_custo_install(self):
-        """
-        Make sure after the installation of module
-        no database customization is counted
-        """
+        """No database customization is counted after installing a module."""
         cl = cloc.Cloc()
         cl.count_customization(self.env)
         self.assertEqual(

@@ -115,9 +115,9 @@ class ResCountry(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
-        """Search countries, matching a 2-char ``name`` against ``code`` first.
+        """Search countries, matching a 2-char ``name`` against ``code`` first
+        so code matches rank before name matches.
 
-        :return: list of (id, display_name) tuples, code matches before name matches.
         :rtype: list[tuple[int, str]]
         """
         result = []
@@ -129,9 +129,8 @@ class ResCountry(models.Model):
                 ["display_name"],
                 limit=limit,
             )
-            # No sudo: the ids come from a permission-checked search_fetch that
-            # already prefetched display_name (whose dependencies carry no
-            # group restriction); sudo would discard that prefetch.
+            # No sudo: search_fetch already permission-checked and prefetched
+            # display_name; sudo would discard that prefetch.
             result.extend((country.id, country.display_name) for country in countries)
             domain &= Domain("id", "not in", countries.ids)
             if limit is not None:
@@ -162,13 +161,10 @@ class ResCountry(models.Model):
         if "code" in vals or "phone_code" in vals:
             # _phone_code_for caches code -> phone_code; bust it when either changes.
             self.env.registry.clear_cache("stable")
-        # NB: no clear_cache("templates") for address_view_id / address_format /
-        # vat_label. The view-cache consumers of those fields (format.address.mixin
-        # and format.vat.label.mixin) key their _get_view_cache_key on the field
-        # VALUES, so changing them yields a new cache key — stale entries are
-        # simply never served again. The old explicit invalidation was both too
-        # broad (it flushed every template) and too narrow (it skipped
-        # address_format, the common reorder branch of _view_get_address).
+        # No clear_cache("templates") for address_view_id / address_format /
+        # vat_label: their view-cache consumers (format.address.mixin,
+        # format.vat.label.mixin) key _get_view_cache_key on the field VALUES,
+        # so a change yields a new key and stale entries are never served again.
         return res
 
     def unlink(self) -> bool:
@@ -178,11 +174,9 @@ class ResCountry(models.Model):
     def get_address_fields(self) -> list[str]:
         """Return the address placeholder names parsed from ``address_format``."""
         self.ensure_one()
-        # Match only real %(field)s placeholders: a laxer \((.+?)\) would also
-        # capture literal parenthesized text into "field names" consumed by the
-        # portal/website address forms.
-        # ``address_format`` is not required and may be cleared to False; guard
-        # re.findall against a non-string value so callers do not raise TypeError.
+        # Match only real %(field)s placeholders; a laxer \((.+?)\) would capture
+        # literal parenthesized text as field names. ``address_format`` may be
+        # False, so guard re.findall against a non-string value.
         return re.findall(r"%\((\w+)\)s", self.address_format or "")
 
     @api.depends("code")
@@ -208,11 +202,9 @@ class ResCountry(models.Model):
             if record.address_format:
                 try:
                     record.address_format % test_values
-                # Reject TypeError here too (e.g. numeric %d against string values):
-                # string-only test_values surface conversion mismatches at write time.
-                # The runtime consumer res.partner._display_address only catches
-                # KeyError/ValueError, so this constraint must stay strict to avoid
-                # exposing an uncaught TypeError at render.
+                # Reject TypeError too (e.g. numeric %d against string values):
+                # res.partner._display_address only catches KeyError/ValueError,
+                # so catch it here to avoid an uncaught TypeError at render time.
                 except ValueError, KeyError, TypeError:
                     raise UserError(
                         _("The layout contains an invalid format key")
@@ -221,9 +213,8 @@ class ResCountry(models.Model):
     @api.depends("country_group_ids")
     def _compute_country_group_codes(self) -> None:
         """Compute the JSON list of country group codes for this country."""
-        # Fall back to [""] rather than [] so the (non-stored, cached) Json
-        # value is never coerced to False; this keeps it a valid iterable for
-        # downstream consumers.
+        # Fall back to [""] rather than [] so the cached Json value is never
+        # coerced to False and stays a valid iterable for consumers.
         for country in self:
             country.country_group_codes = [
                 g.code for g in country.country_group_ids if g.code
@@ -291,11 +282,11 @@ class ResCountryState(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
-        """Search states, matching ``name`` against ``code`` (=ilike) first.
+        """Search states, matching ``name`` against ``code`` (=ilike) first so
+        code matches rank before name matches.
 
         Also accepts the ``in`` operator by fanning out one search per item.
 
-        :return: list of (id, display_name) tuples, code matches before name matches.
         :rtype: list[tuple[int, str]]
         """
         result = []
@@ -320,10 +311,9 @@ class ResCountryState(models.Model):
                 ["display_name"],
                 limit=limit,
             )
-            # No sudo: the ids come from a permission-checked search_fetch that
-            # already prefetched display_name (computed from name and
-            # country_id.code, both readable without elevation); sudo would
-            # discard that prefetch.
+            # No sudo: search_fetch already permission-checked and prefetched
+            # display_name (from name and country_id.code, both readable without
+            # elevation); sudo would discard that prefetch.
             result.extend((state.id, state.display_name) for state in states)
             domain &= Domain("id", "not in", states.ids)
             if limit is not None:

@@ -3,14 +3,11 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestResUsersLogGC(TransactionCase):
-    """Coverage for the res.users.log autovacuum GC (audit RUL-T1).
+    """Coverage for the res.users.log autovacuum GC (RUL-T1).
 
-    The GC keeps only the most recent log per user (create_date, then id as
-    tie-break) and -- by the semantics of the correlated EXISTS -- never
-    collects rows whose create_uid is NULL (documents RUL-L2).
-
-    Setup/teardown use raw SQL because _gc_user_logs itself runs a raw DELETE
-    and create_uid/create_date are auto-managed magic columns.
+    The GC keeps only the most recent log per user (create_date, then id tie-break)
+    and never collects rows with NULL create_uid (RUL-L2). Raw SQL is used because
+    _gc_user_logs runs a raw DELETE and create_uid/create_date are magic columns.
     """
 
     def test_gc_keeps_latest_per_user(self):
@@ -34,10 +31,9 @@ class TestResUsersLogGC(TransactionCase):
         self.assertEqual(remaining, [max(ids)], "GC must keep only the newest log")
 
     def test_gc_scopes_per_user(self):
-        # RUL-T2: the GC keeps the latest log PER user. User A's newest row must
-        # not be deleted just because user B has a (globally) newer row -- the
-        # `log1.create_uid = log2.create_uid` correlation guarantees per-user
-        # scoping. Pins it against an edit that drops the create_uid equality.
+        # RUL-T2: A's newest row must survive even though B has a globally newer
+        # row -- the `log1.create_uid = log2.create_uid` correlation scopes the
+        # keep per user. Pins against an edit dropping the create_uid equality.
         user_a = new_test_user(self.env, login="rul_gc_a")
         user_b = new_test_user(self.env, login="rul_gc_b")
         cr = self.env.cr
@@ -68,8 +64,8 @@ class TestResUsersLogGC(TransactionCase):
         )
 
     def test_gc_never_collects_null_create_uid(self):
-        # RUL-L2: NULL create_uid rows are never matched by `log1.create_uid =
-        # log2.create_uid` (NULL = NULL is never true), so they all survive.
+        # RUL-L2: NULL create_uid never matches `log1.create_uid =
+        # log2.create_uid` (NULL = NULL is never true), so all such rows survive.
         cr = self.env.cr
         cr.execute("SELECT count(*) FROM res_users_log WHERE create_uid IS NULL")
         before = cr.fetchone()[0]

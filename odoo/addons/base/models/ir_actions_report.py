@@ -46,34 +46,25 @@ from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.base.models.report_paperformat import PAPER_SIZE_BY_KEY
 
-# Hostnames that always resolve to this Odoo instance. Reports referencing the
-# server by a loopback IP (not just "localhost") must use the in-process
-# resolution fast path — otherwise the render issues a real HTTP self-request
-# that deadlocks when every worker is busy (the exact case the fast path exists
-# to avoid).
+# Hostnames that resolve to this instance: they must use the in-process fast
+# path, else the render issues a real HTTP self-request that deadlocks when
+# every worker is busy.
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
 
 
 def _is_blocked_fetch_ip(hostname: str | None) -> bool:
     """True if ``hostname`` is an IP literal in a private/reserved range.
 
-    When a report references an *absolute* URL that is not this instance, the
-    fetcher hands it to the stock WeasyPrint fetcher (public logos, fonts, …).
-    A report that instead points at an internal address — RFC 1918 private
-    space, loopback, or link-local (which includes the cloud metadata endpoint
-    ``169.254.169.254``) — is either a template bug or an SSRF attempt using
-    user-controlled data rendered into the template, so we refuse it.
-
-    This blocks IP *literals* only. Hostnames that resolve to internal IPs via
-    DNS (rebinding) are not caught here — enforce network egress controls for
-    that. Because WeasyPrint 68's ``URLFetcher.open()`` re-enters ``fetch()`` on
-    every HTTP redirect, redirect targets pass through this check too.
+    Refuses SSRF via report URLs pointing at internal addresses (RFC 1918,
+    loopback, link-local incl. the ``169.254.169.254`` metadata endpoint).
+    Blocks IP *literals* only — DNS rebinding to internal IPs needs egress
+    controls. Redirect targets pass through too (WeasyPrint 68 re-enters
+    ``fetch()`` on each redirect).
     """
     if not hostname:
         return False
     try:
-        # IPv6 literals arrive bracketed ("[::1]") from urlparse().hostname
-        # already strips brackets, but be defensive.
+        # urlparse().hostname already strips IPv6 brackets, but be defensive.
         ip = ipaddress.ip_address(hostname.strip("[]"))
     except ValueError:
         # Not an IP literal — a real hostname. Allowed (see DNS note above).
@@ -91,11 +82,9 @@ def _is_blocked_fetch_ip(hostname: str | None) -> bool:
 def _coerce_bool(value: Any, default: bool) -> bool:
     """Coerce a barcode option to bool, tolerating template/URL string inputs.
 
-    Barcode options arrive from QWeb widget options and ``/report/barcode`` URL
-    query strings, so the value may be ``"1"``/``"true"``/``"yes"`` as well as a
-    real bool/int. Unrecognised strings fall back to ``default`` instead of
-    raising ``ValueError`` mid-render (the old ``bool(int(x))`` crashed on any
-    non-numeric string).
+    Barcode options arrive as strings (``"1"``/``"true"``/``"yes"``) from QWeb
+    widgets and ``/report/barcode`` query strings. Unrecognised strings fall
+    back to ``default`` rather than raising mid-render.
     """
     if isinstance(value, bool):
         return value
@@ -111,14 +100,12 @@ def _coerce_bool(value: Any, default: bool) -> bool:
 
 
 def _inject_page_css(html: str, css: str) -> str:
-    """Inject CSS ``@page`` rules into an HTML document's ``<head>``.
+    """Inject a CSS ``@page`` ``<style>`` block into an HTML document's ``<head>``.
 
-    :param str html: HTML string (may be ``markupsafe.Markup``)
-    :param str css: CSS string to inject
-    :return: modified HTML string (plain ``str``, not ``Markup``)
+    :param html: HTML string (may be ``markupsafe.Markup``)
+    :return: modified HTML as plain ``str`` (not ``Markup``)
     """
-    # Convert from Markup to plain str to avoid auto-escaping
-    # (Markup.replace() would escape <style> tags to &lt;style&gt;)
+    # Plain str, not Markup: Markup.replace() would escape <style> to &lt;style&gt;
     html_str = str(html)
     style_tag = f'<style type="text/css">{css}</style>'
     if "</head>" in html_str:
@@ -126,33 +113,25 @@ def _inject_page_css(html: str, css: str) -> str:
     return f"{style_tag}{html_str}"
 
 
-# Bound of the process-wide decoded-image cache owned by _WeasySharedState
-# below.  When full, the oldest half is evicted (Python 3.7+ dicts preserve
-# insertion order).
+# Bound of the process-wide decoded-image cache (_WeasySharedState); when full,
+# the oldest half is evicted (dicts preserve insertion order).
 _WEASY_IMAGE_CACHE_MAX = 256
 
-# Non-split batches with more bodies than this are serialized incrementally —
-# each body is rendered to PDF bytes and its laid-out Document freed before the
-# next — then merged with pypdf.  WeasyPrint keeps the whole document in memory
-# and cannot stream a render, so the naive "render every body, then merge"
-# approach held EVERY record's Document at once; on a multi-thousand-invoice run
-# that is the dominant memory cost.  Smaller batches keep WeasyPrint's native
-# Document.copy() merge (better fidelity, one serialization, no pypdf cycle).
-# Override per deployment via the ``report.weasyprint_native_merge_max`` config
-# parameter (0 = always stream, huge = always native).
+# Non-split batches larger than this are serialized incrementally (render one
+# body, free its Document, repeat) then merged with pypdf, bounding peak memory:
+# WeasyPrint can't stream, so "render all, then merge" holds every Document at
+# once — the dominant cost on a multi-thousand-invoice run. Smaller batches keep
+# the native Document.copy() merge (better fidelity, no pypdf cycle). Override
+# via the ``report.weasyprint_native_merge_max`` config param (0 = always
+# stream, huge = always native).
 _NATIVE_MERGE_MAX_BODIES = 50
 
-# Reserved key of a render's ``data`` dict carrying the native PDF options
-# consumed by ``_render_qweb_pdf_prepare_streams`` (``pdf_variant``,
-# ``attachments``, ``xmp_metadata`` — see ``_build_pdf_options``).  Namespaced
-# so it can never collide with a template variable, and popped before ``data``
-# reaches the QWeb rendering context.  Producer example::
-#
-#     data[PDF_OPTIONS_DATA_KEY] = {"pdf_variant": "pdf/a-3b", ...}
-#
-# This is the ONLY channel: top-level ``data`` keys are plain template
-# variables and are never interpreted as PDF options (passing them there used
-# to leak invoice XML/XMP into the QWeb rendering context).
+# Reserved ``data`` key carrying native PDF options (``pdf_variant``,
+# ``attachments``, ``xmp_metadata``; see ``_build_pdf_options``) to
+# ``_render_qweb_pdf_prepare_streams``. Namespaced and popped before ``data``
+# reaches QWeb, so it can't collide with a template variable. This is the ONLY
+# channel: top-level ``data`` keys are plain template variables, never PDF
+# options (passing them there used to leak invoice XML/XMP into the context).
 PDF_OPTIONS_DATA_KEY = "__pdf_options__"
 _PDF_OPTION_KEYS = ("pdf_variant", "attachments", "xmp_metadata")
 
@@ -166,21 +145,13 @@ _tolerant_font_lock = threading.Lock()
 class _WeasySharedState:
     """Lock-guarded owner of the process-wide WeasyPrint shared state.
 
-    Survives across requests within a worker process and owns:
-
-    - the lazy :class:`FontConfiguration` singleton — the Pango font map with
-      loaded ``@font-face`` data.  Created lazily (never at import) to avoid
-      Pango/fontconfig mutex corruption after ``fork()`` in prefork
-      (multi-worker) mode;
-    - the bounded decoded-image cache shared across renders (company logo
-      etc.) so the same PNG is not re-decoded for every body;
-    - the once-per-process environment setup (:meth:`setup_process`) that
-      previously ran as import-time side effects.
-
-    Every mutation is serialized by a lock: correctness no longer relies on
-    GIL-atomic dict operations, so the state stays sound on a free-threaded
-    (nogil) build.  :meth:`reset_for_tests` restores a pristine
-    font-config/image-cache state between tests.
+    Survives across requests within a worker and owns: the lazy
+    :class:`FontConfiguration` singleton (built lazily, never at import, to
+    avoid Pango/fontconfig mutex corruption after ``fork()`` in prefork mode);
+    the bounded decoded-image cache (so a logo PNG isn't re-decoded per body);
+    and the once-per-process :meth:`setup_process`. Every mutation is
+    lock-serialized, so the state stays sound on a free-threaded (nogil) build
+    without relying on GIL-atomic dict ops.
     """
 
     def __init__(self) -> None:
@@ -192,29 +163,22 @@ class _WeasySharedState:
     def setup_process(self) -> None:
         """Idempotent, lazy once-per-process environment setup.
 
-        Runs on the first render instead of at import so that merely importing
-        this module (registry load, tooling, tests of unrelated models) does
-        not mutate process-global third-party state.
+        Runs on the first render, not at import, so merely importing this module
+        doesn't mutate process-global third-party state.
         """
         if self._process_setup_done:
             return
         with self._lock:
             if self._process_setup_done:
                 return
-            # WeasyPrint logs thousands of CSS warnings (box-shadow,
-            # @keyframes, vendor pseudo-elements, responsive @media queries,
-            # etc.) because the full web client CSS bundle includes Bootstrap
-            # and theme CSS designed for browsers, not paged media.  These
-            # warnings are harmless — the properties are simply ignored — but
-            # they pollute logs and slow rendering.  Suppress them.
+            # Suppress thousands of harmless CSS warnings: the web client CSS
+            # bundle (Bootstrap, themes) targets browsers, not paged media, so
+            # WeasyPrint ignores many properties and logs each one.
             logging.getLogger("weasyprint").setLevel(logging.ERROR)
-            # fontTools is used by WeasyPrint as a fallback font subsetter
-            # (when libharfbuzz-subset is not installed).  WeasyPrint's
-            # capture_logs() temporarily sets fontTools to DEBUG during
-            # subsetting, which causes hundreds of DEBUG/INFO messages to
-            # propagate to the root logger.  Disabling propagation prevents
-            # this without affecting WeasyPrint's internal warning capture via
-            # its CallbackHandler.
+            # WeasyPrint's capture_logs() sets fontTools (its fallback subsetter)
+            # to DEBUG during subsetting, flooding the root logger. Disabling
+            # propagation stops that without affecting WeasyPrint's own
+            # CallbackHandler capture.
             logging.getLogger("fontTools").propagate = False
             # Reports embed user-provided images; allow truncated files to
             # decode instead of failing the whole PDF.
@@ -239,10 +203,9 @@ class _WeasySharedState:
     def evict_image_cache_if_full(self) -> None:
         """Evict the oldest half of the image cache when it exceeds its limit.
 
-        Python 3.7+ dicts preserve insertion order, so ``list(d)[:n]`` gives
-        the oldest ``n`` keys.  Called before each render batch to keep the
-        per-worker cache from growing without bound on long-lived workers that
-        print many distinct images (product catalogs, etc.).
+        Called before each render batch to bound the per-worker cache on
+        long-lived workers that print many distinct images. Insertion order
+        (preserved by dict) gives the oldest keys.
         """
         with self._lock:
             if len(self._image_cache) > _WEASY_IMAGE_CACHE_MAX:
@@ -251,9 +214,11 @@ class _WeasySharedState:
                     del self._image_cache[key]
 
     def reset_for_tests(self) -> None:
-        """Drop the font config and clear the image cache (in place, so
-        module-level aliases of the cache dict stay valid).  The idempotent
-        :meth:`setup_process` mutations are deliberately not reverted."""
+        """Drop the font config and clear the image cache in place.
+
+        Clearing in place keeps module-level aliases of the cache dict valid.
+        The idempotent :meth:`setup_process` mutations are not reverted.
+        """
         with self._lock:
             self._font_config = None
             self._image_cache.clear()
@@ -261,9 +226,9 @@ class _WeasySharedState:
 
 _weasy_state = _WeasySharedState()
 
-# Backward-compatible module-level alias: the cache dict identity is stable
-# for the life of the process (reset_for_tests clears it in place), so
-# existing importers (e.g. addons/web/tests/test_reports.py) keep working.
+# Backward-compatible alias for external importers (e.g. web's test_reports):
+# the cache dict identity is stable for the process (reset_for_tests clears it
+# in place).
 _weasy_image_cache = _weasy_state.image_cache
 
 
@@ -273,21 +238,17 @@ def _get_weasy_font_config() -> FontConfiguration:
 
 
 def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options=None):
-    """Render a PDF with fontTools patched to tolerate invalid OS/2 unicode
-    range bits (e.g. bit 123 in malformed Unifont).
+    """Render a PDF with fontTools patched to tolerate invalid OS/2 unicode range
+    bits (e.g. bit 123 in malformed Unifont).
 
-    ``pdf_options`` is forwarded to ``write_pdf`` so the tolerant fallback keeps
-    any requested PDF/A variant / attachments.
+    ``pdf_options`` is forwarded to ``write_pdf`` so the fallback keeps any
+    requested PDF/A variant / attachments.
 
     ``setUnicodeRanges`` is a process-global class method, so the whole
-    patch/render/restore window is serialized by ``_tolerant_font_lock``.
-    Without the lock, two concurrent tolerant renders race on restore order: the
-    thread that enters second captures the first thread's *patched* function as
-    its ``_orig`` and its finally-block reinstalls that closure, leaking the
-    patch permanently (the "temporary" patch never comes off).  A concurrent
-    *normal* render may still transiently see the patched function while the lock
-    is held; that is genuinely harmless — the tolerant function is strictly more
-    permissive and only ever drops invalid bits.
+    patch/render/restore is serialized by ``_tolerant_font_lock``: without it
+    two concurrent tolerant renders race on restore order and leak the patch
+    permanently. A concurrent *normal* render may transiently see the patched
+    (strictly more permissive) function while the lock is held — harmless.
     """
     from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
 
@@ -309,12 +270,10 @@ def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options
 
         table_O_S_2f_2.setUnicodeRanges = _tolerant_setUnicodeRanges
         try:
-            # Use a fresh, method-local FontConfiguration so fonts are
-            # re-discovered cleanly under the patch WITHOUT mutating the
-            # process-global singleton.  The previous approach set
-            # ``_weasy_font_config = None``, forcing every other worker thread's
-            # next render to rebuild its font config — a shared state side effect
-            # from a rare fallback path.
+            # Fresh method-local FontConfiguration: rediscover fonts under the
+            # patch without mutating the process-global singleton (which would
+            # force every other worker to rebuild its font config from this rare
+            # fallback path).
             local_font_config = FontConfiguration()
             return weasyprint.HTML(
                 string=html_string,
@@ -353,20 +312,13 @@ _xpath_article = etree.ETXPath(
 
 _logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Workaround for CPython 3.14 compile() regression (bpo-XXXXX).
-#
-# Python 3.14 exhibits O(2^n) time in compile() for deeply nested generator
-# expressions.  cssselect2 generates such expressions for descendant selectors
-# like "ol ol ol ... ol" (common in Bootstrap CSS for list-style cycling).
-# A 20-level selector takes ~9s to compile in 3.14 vs 0.001s in 3.12.
-#
-# Fix: wrap cssselect2's _compile_node to limit CombinedSelector recursion
-# depth.  Selectors deeper than the limit return '0' (never match) — this is
-# harmless since 10+-level descendant selectors never match in PDF reports.
-# The wrapper is installed lazily by _WeasySharedState.setup_process() on the
-# first render (not at import); the pristine original is captured here.
-# ---------------------------------------------------------------------------
+# Workaround for a CPython 3.14 compile() regression: O(2^n) time for deeply
+# nested generator expressions, which cssselect2 emits for descendant selectors
+# like "ol ol ol ... ol" (Bootstrap list-style cycling) — a 20-level selector
+# takes ~9s vs 0.001s on 3.12. Fix: cap CombinedSelector recursion depth;
+# selectors past the limit return '0' (never match), harmless since 10+-level
+# descendant selectors never match in PDF reports. Installed lazily by
+# setup_process() on first render; the pristine original is captured here.
 _original_compile_node = _cs2_compiler._compile_node
 _MAX_SELECTOR_DEPTH = 10
 _selector_depth = threading.local()
@@ -375,10 +327,8 @@ _selector_depth = threading.local()
 def _compile_node_depth_limited(selector: Any) -> str:
     """Depth-limited wrapper around cssselect2's _compile_node.
 
-    Uses thread-local storage to track recursion depth safely across Odoo's
-    concurrent threaded workers.  The original approach of temporarily patching
-    ``_cs2_compiler._compile_node`` was not thread-safe: two concurrent PDF
-    renders could corrupt each other's depth counter via the shared global.
+    Tracks recursion depth in thread-local storage so concurrent PDF renders
+    don't corrupt each other's counter (a shared global would).
     """
     if isinstance(selector, _cs2_parser.CombinedSelector):
         depth = getattr(_selector_depth, "value", 0)
@@ -407,31 +357,26 @@ _BARCODE_RE = re.compile(r"^/report/barcode/(?P<type>[^/]+)/(?P<value>.+)")
 class OdooURLFetcher(URLFetcher):
     """WeasyPrint URL fetcher with Odoo resource resolution.
 
-    Subclasses URLFetcher (v68+) so that HTTP redirects also go through
-    :meth:`fetch`, fixing the SSRF vulnerability in the old function-based
-    approach (CVE-2025-68616).
+    Subclasses URLFetcher (v68+) so HTTP redirects also go through :meth:`fetch`,
+    closing the SSRF hole of the old function-based fetcher (CVE-2025-68616).
 
-    Resolution order for local URLs:
-    1. Asset bundles — ``/web/assets/<unique>/<filename>``
-    2. Static files — ``/<module>/static/...`` from the filesystem
-    3. HTTP fallback — session-authenticated request to the Odoo server
+    Local URL resolution order: asset bundles ``/web/assets/<unique>/<filename>``,
+    static files ``/<module>/static/...``, then a session-authenticated HTTP
+    fallback. External URLs delegate to the parent :class:`URLFetcher` unless
+    they point at a private/reserved IP literal (refused as SSRF, see
+    :func:`_is_blocked_fetch_ip`). Only ``http``/``https``/``data`` schemes are
+    allowed — ``file://`` is intentionally disallowed.
 
-    External URLs are delegated to the parent :class:`URLFetcher`, except those
-    pointing at private/reserved IP literals, which are refused as SSRF (see
-    :func:`_is_blocked_fetch_ip`). Only ``http``, ``https`` and ``data`` schemes
-    are permitted — ``file://`` is intentionally disallowed.
-
-    Use as a context manager to ensure the temporary session is cleaned up::
+    Use as a context manager so the temporary session is cleaned up::
 
         with OdooURLFetcher(env) as fetcher:
             weasyprint.HTML(string=html, url_fetcher=fetcher).write_pdf()
     """
 
     def __init__(self, env: Any, base_url: str | None = None) -> None:
-        # No "file" protocol: reports resolve every resource over http(s) (or
-        # inline data: URIs), so allowing file:// only re-opens the local-file
-        # read hole that was one of wkhtmltopdf's CVEs (e.g. an <img
-        # src="file:///etc/passwd"> smuggled in via user-controlled data).
+        # No "file" protocol: allowing file:// only re-opens the local-file read
+        # hole (a wkhtmltopdf CVE) — e.g. <img src="file:///etc/passwd"> smuggled
+        # in via user-controlled data. Resources resolve over http(s)/data:.
         super().__init__(
             allowed_protocols=["http", "https", "data"],
             allow_redirects=True,
@@ -487,7 +432,7 @@ class OdooURLFetcher(URLFetcher):
         parsed = urlparse(url)
 
         # Non-HTTP schemes (data:, file:) are handled natively by the parent
-        # URLFetcher via urllib handlers — don't intercept them.
+        # fetcher's urllib handlers — don't intercept.
         if parsed.scheme and parsed.scheme not in ("http", "https", ""):
             return super().fetch(url, headers)
 
@@ -497,12 +442,11 @@ class OdooURLFetcher(URLFetcher):
             or parsed.hostname in _LOOPBACK_HOSTS
         )
         if not is_local:
-            # Defence-in-depth SSRF guard: refuse absolute URLs pointing at
-            # private/reserved IP literals (internal services, 127.0.0.2 self-
-            # requests, the 169.254.169.254 metadata endpoint). WeasyPrint
-            # treats a fetch that raises as a missing resource and keeps
-            # rendering, so a bad template URL degrades gracefully rather than
-            # 500-ing the whole report.
+            # Defence-in-depth SSRF guard: refuse absolute URLs at private/
+            # reserved IP literals (internal services, the 169.254.169.254
+            # metadata endpoint). WeasyPrint treats a raised fetch as a missing
+            # resource, so a bad template URL degrades gracefully rather than
+            # 500-ing the report.
             if _is_blocked_fetch_ip(parsed.hostname):
                 _logger.warning(
                     "WeasyPrint refused a report resource pointing at a "
@@ -609,14 +553,13 @@ class OdooURLFetcher(URLFetcher):
         module_name = parts[0]
         static_path = "/".join(parts[1:])
         for addons_path in self._addons_paths:
-            # Local var deliberately named addons_root, not root, to avoid
-            # shadowing the module-level `root` imported from odoo.http (the
-            # session store used elsewhere in this fetcher).
+            # Named addons_root, not root, to avoid shadowing the module-level
+            # `root` (odoo.http session store) used elsewhere in this fetcher.
             addons_root = Path(addons_path.strip()).resolve()
             candidate = (addons_root / module_name / static_path).resolve()
-            # Ensure resolved path stays within the addons directory.
-            # Use is_relative_to() for proper path-component checking —
-            # str.startswith() would accept sibling dirs (e.g. addons-private).
+            # Keep the resolved path inside the addons dir. is_relative_to()
+            # checks path components — str.startswith() would accept siblings
+            # (e.g. addons-private).
             if not candidate.is_relative_to(addons_root):
                 continue
             if candidate.is_file():
@@ -677,9 +620,9 @@ class OdooURLFetcher(URLFetcher):
                 return None
 
             kwargs = {}
-            # Keep in sync with the options accepted by
-            # ir.actions.report.barcode() — the /report/barcode HTTP route
-            # forwards all of them, so the local fast path must too.
+            # Keep in sync with the options accepted by barcode(): the
+            # /report/barcode route forwards all of them, so the local fast
+            # path must too.
             for key in (
                 "width",
                 "height",
@@ -768,26 +711,20 @@ class OdooURLFetcher(URLFetcher):
             _logger.warning(
                 "WeasyPrint URL fetch failed for %s", full_url, exc_info=True
             )
-            # Intentional fallback: try WeasyPrint's built-in fetcher without
-            # Odoo session auth.  This handles publicly accessible resources
-            # (e.g. CDN fonts, public static files) that don't require a
-            # session cookie and would succeed unauthenticated.  This is NOT
-            # a redundant double-request bug — the two paths differ by auth.
-            # Retry with full_url: the original ``url`` may be relative
-            # (path-only), which the stock fetcher cannot resolve.
+            # Intentional fallback (not a redundant double request): retry with
+            # WeasyPrint's built-in fetcher, unauthenticated, for public
+            # resources (CDN fonts, public static files). Use full_url — ``url``
+            # may be path-only, which the stock fetcher can't resolve.
             return super().fetch(full_url)
 
     @staticmethod
     def _do_get(url: str, cookies: dict[str, str]) -> requests.Response:
-        """Issue a GET request, handling test-mode lock and cookie.
+        """Issue a GET request, handling the test-mode lock and cookie.
 
-        During tests the main thread holds ``_registry_test_lock``.  The HTTP
-        worker that serves this request needs the same lock to open a
-        ``TestCursor``.  We must therefore:
-
-        1. Set the ``test_request_key`` cookie so ``assertCanOpenTestCursor``
-           accepts the request.
-        2. Temporarily release the lock so the worker thread can acquire it.
+        During tests the main thread holds ``_registry_test_lock``, but the HTTP
+        worker serving this request needs it to open a ``TestCursor``. So: set
+        the ``test_request_key`` cookie (for ``assertCanOpenTestCursor``) and
+        temporarily release the lock so the worker can acquire it.
         """
         current_test = modules.module.current_test
         if not current_test:
@@ -801,10 +738,9 @@ class OdooURLFetcher(URLFetcher):
             getattr(current_test, "http_request_key", "") or current_test.canonical_tag
         )
         cookies[TEST_CURSOR_COOKIE_NAME] = key
-        # Use getattr: HttpCase.setUp() always sets http_request_key="", but
-        # TransactionCase does not.  Direct attribute access would raise
-        # AttributeError if a TransactionCase test triggers PDF rendering via
-        # force_report_rendering=True and the HTTP fallback is reached.
+        # getattr: HttpCase.setUp() sets http_request_key="" but TransactionCase
+        # doesn't — direct access would raise AttributeError if a TransactionCase
+        # render (force_report_rendering=True) reaches this HTTP fallback.
         saved_key = getattr(current_test, "http_request_key", "")
         current_test.http_request_key = key
         try:
@@ -825,25 +761,19 @@ class OdooURLFetcher(URLFetcher):
 class WeasyPrintEngine:
     """WeasyPrint rendering pipeline for a batch of pre-rendered HTML bodies.
 
-    Extracted from :class:`IrActionsReport` so the PDF engine can be driven with
-    plain ``(bodies, page_css)`` — no report record, no ``report_ref``, no
-    registry — and unit-tested in isolation.  Its dependencies are injected at
-    construction; the model's ``_build_weasyprint_engine`` resolves them from
-    the environment and ``_render_html_to_pdf`` resolves the paperformat to CSS
-    before delegating to :meth:`render`.
+    Extracted from :class:`IrActionsReport` so the PDF engine runs on plain
+    ``(bodies, page_css)`` — no report record or registry — and is unit-testable
+    in isolation. Dependencies are injected at construction (the model's
+    ``_build_weasyprint_engine`` resolves them). All bodies of a batch share one
+    WeasyPrint session (fetcher, fontconfig, image cache): the first warms the
+    cache, the rest hit it.
 
-    All bodies of one batch share a single WeasyPrint session: one URL fetcher,
-    one fontconfig, and one image cache. The first body warms the cache (CSS
-    bundles, images); the rest hit it directly.
-
-    :param fetcher_factory: zero-argument callable returning a URL-fetcher
-        context manager (the model's ``_build_url_fetcher`` — still the
-        model-level override hook).
-    :param merge_pdfs: callable merging a list of PDF ``BytesIO`` streams into
-        one stream (the model's ``_merge_pdfs``).
-    :param native_merge_max: batch size above which a non-split render
-        serializes incrementally and merges with pypdf instead of WeasyPrint's
-        native ``Document.copy()`` merge (see :data:`_NATIVE_MERGE_MAX_BODIES`).
+    :param fetcher_factory: zero-arg callable returning a URL-fetcher context
+        manager (the model's ``_build_url_fetcher`` override hook).
+    :param merge_pdfs: callable merging PDF ``BytesIO`` streams (``_merge_pdfs``).
+    :param native_merge_max: batch size above which a non-split render serializes
+        incrementally and merges with pypdf instead of the native
+        ``Document.copy()`` merge (see :data:`_NATIVE_MERGE_MAX_BODIES`).
     """
 
     def __init__(
@@ -867,16 +797,14 @@ class WeasyPrintEngine:
         """Render HTML bodies to PDF.
 
         :param bodies: complete HTML strings (one per record)
-        :param str page_css: ``@page`` CSS produced from the paperformat
-        :param bool split: return ``list[bytes]`` (one PDF per body) instead of a
-            single merged PDF
-        :param pdf_options: extra keyword arguments forwarded verbatim to
-            WeasyPrint ``write_pdf`` — e.g. ``pdf_variant='pdf/a-3b'``,
-            ``attachments=[...]``, ``xmp_metadata=[...]``.  When a ``pdf_variant``
-            is present the batch is never merged through pypdf (that would strip
-            the PDF/A output intent, ID and XMP — see :meth:`render`), so a
-            multi-body non-split PDF/A uses WeasyPrint's native ``Document.copy``
-            merge regardless of the memory threshold.
+        :param str page_css: ``@page`` CSS from the paperformat
+        :param bool split: return ``list[bytes]`` (one PDF per body) instead of
+            one merged PDF
+        :param pdf_options: kwargs forwarded verbatim to ``write_pdf``
+            (``pdf_variant``, ``attachments``, ``xmp_metadata``). With a
+            ``pdf_variant`` the batch is never merged through pypdf (which would
+            strip PDF/A intent/ID/XMP), so a multi-body PDF/A always uses the
+            native ``Document.copy`` merge.
         :type pdf_options: dict | None
         :return: PDF bytes, or ``list[bytes]`` when ``split=True``
         """
@@ -888,25 +816,22 @@ class WeasyPrintEngine:
         wants_pdfa = bool((pdf_options or {}).get("pdf_variant"))
         if wants_pdfa:
             # PDF/A forbids raster images with /Interpolate true (ISO 19005-3
-            # clause 6.2.8). WeasyPrint sets Interpolate from the CSS
-            # ``image-rendering`` property, emitting true for the default
-            # ``auto``. Force a non-auto value so every embedded image (logo,
-            # barcodes, …) is Interpolate=false. This only flips the viewer-side
-            # upscaling flag; the image bytes are unchanged. image-rendering is
-            # inherited, so setting it on the root covers backgrounds too, and
-            # the rule is appended last to win the cascade over bundle CSS.
+            # §6.2.8). WeasyPrint derives Interpolate from CSS ``image-rendering``
+            # (true for the default ``auto``), so force a non-auto value to make
+            # every image Interpolate=false. Only flips the viewer upscaling
+            # flag, not the bytes. It's inherited (covers backgrounds) and
+            # appended last to win the cascade.
             page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
 
         # The injected factory is the model's fetcher builder, so downstream
         # overrides of _build_url_fetcher still apply.
         with self._fetcher_factory() as fetcher:
-            # Single pass per body: inject the @page CSS, parse each distinct
-            # external stylesheet ONCE for the whole batch (lazy, memoized in
-            # parsed_css_by_url), and strip the parsed <link> tags.  Each body
-            # is rendered independently so counter(pages) is scoped per record
-            # — "Page X / Y" is per-record, not per-batch — and re-supplied
-            # with ONLY its own stylesheets, so a mixed-language batch never
-            # bleeds LTR CSS onto an RTL page.
+            # Single pass per body: inject @page CSS, parse each distinct
+            # stylesheet once for the batch (memoized in parsed_css_by_url),
+            # strip the parsed <link> tags. Bodies render independently so
+            # counter(pages) is per-record ("Page X / Y"), each with ONLY its
+            # own stylesheets — so a mixed-language batch never bleeds LTR CSS
+            # onto an RTL page.
             parsed_css_by_url: dict[str, Any] = {}
             processed = [
                 self._process_body_html(body, page_css, parsed_css_by_url, fetcher)
@@ -914,11 +839,9 @@ class WeasyPrintEngine:
             ]
 
             # Memory-bounded paths: render+serialize one body at a time, freeing
-            # each laid-out Document before the next.  Used when the output is
-            # per-body anyway (split) or the batch is large enough that holding
-            # every Document at once is the dominant memory cost.  Each body is
-            # still an independent render, so per-record counter(pages) is
-            # unchanged.
+            # each Document before the next. Used when output is per-body (split)
+            # or the batch is large enough that holding every Document dominates
+            # memory. Each body is still an independent render.
             if split:
                 return [
                     self._render_and_serialize_body(
@@ -945,9 +868,8 @@ class WeasyPrintEngine:
                 ]
                 return self._merge_pdfs(streams).getvalue()
 
-            # Native path (small batches): lay out every body, then merge via
-            # WeasyPrint's Document.copy() and serialize once — best fidelity,
-            # no pypdf round-trip.
+            # Native path (small batches): lay out every body, merge via
+            # Document.copy(), serialize once — best fidelity, no pypdf round-trip.
             documents = [
                 self._render_body_document(html_str, fetcher, body_css)
                 for html_str, body_css in processed
@@ -957,9 +879,9 @@ class WeasyPrintEngine:
                 return self._serialize_documents(documents, pdf_options=pdf_options)
             except ValueError as ve:
                 if "expected 0 <= int" in str(ve):
-                    # Font subsetting failed (malformed OS/2 unicode range bits in
-                    # a system font).  Re-render ALL bodies with the tolerant font
-                    # patch.
+                    # Font subsetting failed (malformed OS/2 unicode range bits
+                    # in a system font). Re-render ALL bodies with the tolerant
+                    # font patch.
                     _logger.warning(
                         "fontTools setUnicodeRanges failed during PDF serialization "
                         "(%s). A system font has invalid OS/2 unicode range bits. "
@@ -986,13 +908,9 @@ class WeasyPrintEngine:
     ) -> bytes:
         """Render one body to PDF bytes, freeing its Document immediately.
 
-        Peak memory is one laid-out Document at a time instead of the whole
-        batch.  Applies the tolerant-font fallback on the malformed-OS/2
-        serialization error, scoped to this single body (the native path
-        re-renders the entire batch; here only the failing body pays the cost).
-
-        ``pdf_options`` is forwarded to ``write_pdf`` (e.g. the PDF/A variant and
-        attachments for a single-invoice split render).
+        Peak memory is one Document at a time, not the whole batch. On the
+        malformed-OS/2 serialization error, applies the tolerant-font fallback
+        scoped to this body only. ``pdf_options`` is forwarded to ``write_pdf``.
         """
         document = self._render_body_document(html_str, fetcher, body_css)
         buf = io.BytesIO()
@@ -1019,23 +937,19 @@ class WeasyPrintEngine:
         parsed_css_by_url: dict[str, Any],
         fetcher: OdooURLFetcher | None = None,
     ) -> tuple[str, list]:
-        """Single pass per body: inject the @page CSS, lazily parse this body's
-        external stylesheets, strip the parsed ``<link>`` tags, and return the
-        parsed CSS objects for this body's own stylesheets.
+        """Inject @page CSS, parse this body's stylesheets, strip the parsed
+        ``<link>`` tags, and return this body's parsed CSS.
 
         ``parsed_css_by_url`` is the batch-wide memo (``css_url`` -> parsed
-        ``weasyprint.CSS``, or ``None`` when parsing failed).  All bodies of a
-        single language share the same ~300KB report CSS bundle, so parsing it
-        once and reusing the parsed rules (via WeasyPrint's ``stylesheets``
-        parameter) avoids re-fetching/re-parsing it per body.  Stylesheets are
-        keyed by URL rather than assuming every body shares the first body's:
-        a mixed-language batch references direction-specific bundles
-        (``...rtl.min.css`` vs ``...min.css``), so each body is rendered with
-        its OWN parsed CSS.  Links that failed to parse — or that are unknown
-        when no ``fetcher`` is supplied — are left in place for WeasyPrint.
+        ``weasyprint.CSS`` or ``None`` on failure): the ~300KB report bundle is
+        parsed once and reused. Keyed by URL, not shared across bodies, so a
+        mixed-language batch renders each body with its own direction-specific
+        CSS (``...rtl.min.css`` vs ``...min.css``). Links that fail to parse — or
+        that are unknown when no ``fetcher`` is given — are left in place for
+        WeasyPrint.
 
-        :return: ``(html_str, body_css)`` — the stripped HTML and the list of
-            parsed ``weasyprint.CSS`` objects to apply to this body.
+        :return: ``(html_str, body_css)`` — stripped HTML and parsed
+            ``weasyprint.CSS`` for this body.
         """
         html_with_css = _inject_page_css(body, page_css)
         body_css = []
@@ -1069,9 +983,9 @@ class WeasyPrintEngine:
     ) -> WeasyDocument:
         """Run WeasyPrint's layout pass for one body (no serialization).
 
-        Separating layout (render) from serialization (write_pdf) lets us combine
-        pages from multiple per-record Documents via ``Document.copy()`` before a
-        single serialization step, eliminating the pypdf parse/re-serialize cycle.
+        Separating layout from serialization lets us combine pages from multiple
+        per-record Documents via ``Document.copy()`` before a single
+        serialization, avoiding the pypdf parse/re-serialize cycle.
         """
         try:
             return weasyprint.HTML(string=html_str, url_fetcher=fetcher).render(
@@ -1094,14 +1008,11 @@ class WeasyPrintEngine:
     ) -> bytes:
         """Serialize laid-out WeasyPrint Documents to one PDF's bytes.
 
-        Only reached on the non-split native path of :meth:`render` (split
-        renders early-return per body): all pages are combined into a single
-        Document via ``Document.copy()`` (WeasyPrint's native merge) and
-        serialized once — no intermediate pypdf cycle, no corrupt-PDF risk.
-
-        ``pdf_options`` is forwarded to ``write_pdf`` (PDF/A variant, attachments,
-        XMP).  For a merged batch it is applied to the single combined Document,
-        so the whole output is one coherent PDF/A.
+        Only reached on :meth:`render`'s non-split native path (split
+        early-returns per body): all pages are combined into one Document via
+        ``Document.copy()`` and serialized once — no pypdf cycle. ``pdf_options``
+        is forwarded to ``write_pdf`` and applied to the combined Document, so a
+        merged batch stays one coherent PDF/A.
         """
         opts = pdf_options or {}
         if len(documents) == 1:
@@ -1123,17 +1034,13 @@ class WeasyPrintEngine:
     ) -> bytes:
         """Re-render all bodies with the tolerant-font patch after an OS/2 error.
 
-        Only reached on the non-split native path of :meth:`render` (split
-        renders early-return per body). ``processed`` is the ``(html_str,
-        body_css)`` list from :meth:`_process_body_html`, so each body keeps
-        its own stylesheets.  Falls back to the pypdf merge for the multi-body
-        case.
-
-        ``pdf_options`` (PDF/A variant, attachments) is forwarded to each
-        ``write_pdf``.  A single-body PDF/A keeps its conformance; the rare
-        multi-body pypdf merge below cannot preserve PDF/A, but this path only
-        triggers on a broken system font, and PDF/A output is single-invoice in
-        practice.
+        Only reached on :meth:`render`'s non-split native path. ``processed`` is
+        the ``(html_str, body_css)`` list from :meth:`_process_body_html`, so
+        each body keeps its own stylesheets; multi-body falls back to the pypdf
+        merge. ``pdf_options`` is forwarded to each ``write_pdf``. A single-body
+        PDF/A keeps its conformance; the rare multi-body pypdf merge can't, but
+        this triggers only on a broken system font and PDF/A output is
+        single-invoice in practice.
         """
         tolerant_pdfs = [
             _write_pdf_tolerant_fonts(html_str, fetcher, body_css, pdf_options)
@@ -1279,9 +1186,7 @@ class IrActionsReport(models.Model):
         }
 
     def associated_view(self) -> dict[str, Any] | bool:
-        """Used in the ir.actions.report form view in order to search naively after the view(s)
-        used in the rendering.
-        """
+        """Search naively for the view(s) used in rendering, for the report form view."""
         self.ensure_one()
         action_ref = self.env.ref("base.action_ui_view", raise_if_not_found=False)
         if not action_ref or len(self.report_name.split(".")) < 2:
@@ -1314,12 +1219,10 @@ class IrActionsReport(models.Model):
     def _get_attachment_filenames(self, records: Any) -> dict[int, Any]:
         """Evaluate the report's ``attachment`` filename expression per record.
 
-        Evaluated exactly once per record so callers can share the result
-        instead of re-``safe_eval``-ing the expression (it used to be evaluated
-        twice per record: once to look the attachment up and once to create it).
+        Evaluated once per record so callers share the result instead of
+        re-``safe_eval``-ing it (it was formerly evaluated twice per record).
 
-        :return: ``{record.id: evaluated name}`` — falsy evaluations are
-            normalized to ``""``.
+        :return: ``{record.id: evaluated name}``; falsy evaluations become ``""``.
         """
         self.ensure_one()
         if not self.attachment:
@@ -1333,13 +1236,12 @@ class IrActionsReport(models.Model):
     def _retrieve_attachments(self, records: Any) -> dict[int, Any]:
         """Batched version of :meth:`retrieve_attachment`.
 
-        ONE ``ir.attachment`` search for the whole recordset (evaluated names +
-        ``res_id in ids``) instead of one search per record — the difference
-        between 1 and N queries on a multi-thousand-record report batch.
+        ONE ``ir.attachment`` search for the whole recordset instead of one per
+        record — 1 query vs N on a large batch.
 
         :param records: recordset of ``self.model`` owning the attachments.
-        :return: ``{record.id: ir.attachment record}``; records without an
-            evaluated name or without a stored attachment are absent.
+        :return: ``{record.id: ir.attachment}``; records with no evaluated name
+            or no stored attachment are absent.
         """
         self.ensure_one()
         names_by_id = {
@@ -1368,12 +1270,11 @@ class IrActionsReport(models.Model):
     def retrieve_attachment(self, record: Any) -> Any | None:
         """Retrieve an attachment for a specific record.
 
-        Kept as the per-record extension hook (e.g. snailmail overrides it to
-        force a re-render); the batched implementation lives in
-        :meth:`_retrieve_attachments`.
+        Per-record extension hook (e.g. snailmail overrides it to force a
+        re-render); the batched implementation is :meth:`_retrieve_attachments`.
 
-        :param record: The record owning of the attachment.
-        :return: An ir.attachment record or None
+        :param record: the record owning the attachment.
+        :return: an ir.attachment record or None.
         """
         return self._retrieve_attachments(record).get(record.id)
 
@@ -1383,9 +1284,8 @@ class IrActionsReport(models.Model):
     def get_paperformat_by_xmlid(self, xml_id: str) -> Any:
         """Resolve a paperformat from an action XML id, for use from QWeb templates.
 
-        Called from ``web.report_templates`` (``report_templates.xml``) to read
-        ``css_margins`` on the report tied to ``xml_id``; falls back to the
-        company paperformat when ``xml_id`` is falsy.
+        Called from ``web.report_templates`` to read ``css_margins``; falls back
+        to the company paperformat when ``xml_id`` is falsy.
 
         :param str xml_id: external id of the report action
         :return: report.paperformat record
@@ -1446,11 +1346,9 @@ class IrActionsReport(models.Model):
                     "Remove it from the report template to suppress this warning.",
                     dead_attr,
                 )
-        # data-report-landscape is set by QWeb templates that require landscape output
-        # regardless of the paperformat record (e.g. report_bom_structure, report_stock_rule:
-        #   <t t-set="data_report_landscape" t-value="True"/>
-        # It's captured from the root <html> element by _prepare_weasyprint_html().
-        # The value arrives as a string ("True", "1", etc.).
+        # data-report-landscape forces landscape from the template regardless of
+        # the paperformat record (e.g. report_bom_structure). Captured from the
+        # root <html> by _prepare_weasyprint_html(); arrives as a string.
         _force_landscape = args.get("data-report-landscape")
         if _force_landscape and _force_landscape not in ("False", "0", "false", ""):
             landscape = True
@@ -1481,11 +1379,10 @@ class IrActionsReport(models.Model):
         else:
             size_css = f"A4 {orientation}"
 
-        # Margins (data-report-* overrides take priority).
-        # The override value is a template-supplied string and may be malformed
-        # (e.g. "2cm" instead of a bare number). Fall back to the paperformat
-        # record value with a warning rather than letting the float() cast raise
-        # a ValueError mid-render and surface as an uncaught HTTP 500.
+        # Margins (data-report-* overrides take priority). The override is a
+        # template string and may be malformed (e.g. "2cm"); fall back to the
+        # paperformat value with a warning rather than 500-ing mid-render on
+        # float().
         def _margin(attr, fallback):
             raw = args.get(attr, fallback)
             try:
@@ -1525,16 +1422,12 @@ class IrActionsReport(models.Model):
         )
 
     def _build_url_fetcher(self) -> OdooURLFetcher:
-        """Build a URL fetcher for WeasyPrint that resolves Odoo resources.
+        """Build the :class:`OdooURLFetcher` for WeasyPrint (model-level override hook).
 
-        Returns an :class:`OdooURLFetcher` (v68+ URLFetcher subclass) that
-        resolves asset bundles, static files, and HTTP fallbacks.  Use as a
-        context manager to ensure the temporary session is cleaned up::
+        Use as a context manager so the temporary session is cleaned up::
 
             with self._build_url_fetcher() as fetcher:
                 weasyprint.HTML(..., url_fetcher=fetcher).write_pdf()
-
-        :return: OdooURLFetcher instance (context manager)
         """
         return OdooURLFetcher(self.env)
 
@@ -1564,12 +1457,9 @@ class IrActionsReport(models.Model):
 
     @api.model
     def _build_weasyprint_engine(self) -> WeasyPrintEngine:
-        """Assemble a :class:`WeasyPrintEngine` with its dependencies resolved
-        from the environment (URL-fetcher factory, pypdf merge, native-merge
-        threshold), so the engine itself never reaches back into the registry.
-
-        ``_build_url_fetcher`` stays the model-level override hook: the factory
-        is bound here, so downstream overrides still apply.
+        """Assemble a :class:`WeasyPrintEngine` with dependencies resolved from
+        the environment, so the engine never reaches back into the registry.
+        ``_build_url_fetcher`` stays the override hook (bound here as the factory).
         """
         report_model = self.env["ir.actions.report"]
         return WeasyPrintEngine(
@@ -1583,24 +1473,23 @@ class IrActionsReport(models.Model):
     ) -> tuple[list[str], list[int | None], dict[str, str]]:
         """Prepare HTML documents for WeasyPrint rendering.
 
-        Headers and footers remain embedded in the document and are placed in
-        page margins via CSS running elements (position: running()).
+        Headers/footers stay embedded and are placed in page margins via CSS
+        running elements (position: running()).
 
         :param str html: rendered QWeb HTML containing all records
         :param report_model: model name for record identification
         :type report_model: str | bool
-        :return: tuple (bodies, res_ids, specific_paperformat_args)
-            - bodies: list of complete HTML strings (one per record)
-            - res_ids: list of record IDs (or None) matching bodies
-            - specific_paperformat_args: dict of data-report-* overrides
+        :return: ``(bodies, res_ids, specific_paperformat_args)`` — complete HTML
+            strings (one per record), matching record ids (or None), and the
+            data-report-* overrides.
         """
         layout = self._get_layout()
         if not layout:
             return [], [], {}
 
         base_url = self._get_report_url(layout=layout)
-        # NB: local named ``html_root`` (not ``root``) to avoid shadowing the
-        # module-level ``root`` imported from odoo.http (the session store).
+        # Named html_root (not root) to avoid shadowing the module-level
+        # odoo.http root (session store).
         html_root = lxml.html.fromstring(
             html, parser=lxml.html.HTMLParser(encoding="utf-8")
         )
@@ -1650,10 +1539,9 @@ class IrActionsReport(models.Model):
             header_node = headers[i] if i < len(headers) else None
             footer_node = footers[i] if i < len(footers) else None
 
-            # Build combined body: header + footer + article content.
-            # Running elements (position: running()) must appear BEFORE the
-            # content they should display on — WeasyPrint captures them at the
-            # point they appear in the document flow.
+            # Combined body: header + footer + article. Running elements
+            # (position: running()) must appear BEFORE the content they display
+            # on — WeasyPrint captures them at their point in the document flow.
             parts = []
             if header_node is not None:
                 parts.append(lxml.html.tostring(header_node, encoding="unicode"))
@@ -1703,24 +1591,19 @@ class IrActionsReport(models.Model):
     ) -> dict[str, Any] | None:
         """Translate high-level PDF/A parameters into WeasyPrint ``write_pdf`` kwargs.
 
-        Keeps callers free of the ``weasyprint`` import: pass a variant string, a
-        list of attachment dicts, and raw XMP RDF fragments.
+        Keeps callers free of the ``weasyprint`` import.
 
-        :param pdf_variant: e.g. ``"pdf/a-3b"`` (see WeasyPrint's ``pdf_variant``).
-            Enabling it also turns on ``custom_metadata`` so the document title
-            and producer flow into the PDF/A XMP.
-        :param attachments: list of either :class:`weasyprint.Attachment` or
-            dicts ``{"content": bytes, "name": str, "relationship": str,
-            "description": str}``.  For Factur-X the XML uses
-            ``relationship="Data"``.
-        :param xmp_metadata: list of raw XMP RDF fragments (``bytes``/``str``),
-            each a self-contained ``<rdf:RDF>…</rdf:RDF>`` block — WeasyPrint
-            appends them inside its ``<x:xmpmeta>`` after its own PDF/A
-            identification, so this is how the Factur-X extension schema is
-            added.  Each fragment is wrapped as a ``data:`` URI (what WeasyPrint's
-            ``xmp_metadata`` option expects).
-        :return: a ``write_pdf`` kwargs dict, or ``None`` when nothing was asked
-            for (so the default render path is untouched).
+        :param pdf_variant: e.g. ``"pdf/a-3b"``. Also enables ``custom_metadata``
+            so the title and producer flow into the PDF/A XMP.
+        :param attachments: list of :class:`weasyprint.Attachment` or dicts
+            ``{"content", "name", "relationship", "description"}`` (Factur-X XML
+            uses ``relationship="Data"``).
+        :param xmp_metadata: raw XMP RDF fragments (``bytes``/``str``), each a
+            self-contained ``<rdf:RDF>…</rdf:RDF>`` block WeasyPrint appends
+            inside its ``<x:xmpmeta>`` (how the Factur-X extension schema is
+            added); each is wrapped as a ``data:`` URI.
+        :return: a ``write_pdf`` kwargs dict, or ``None`` when nothing was
+            requested.
         """
         if not (pdf_variant or attachments or xmp_metadata):
             return None
@@ -1831,10 +1714,10 @@ class IrActionsReport(models.Model):
         # content fills the frame instead of sitting in the corner of an A4 page.
         page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
 
-        # WeasyPrint 68 cannot emit raster images (write_png was removed in v53):
-        # render to PDF, then rasterize page 1 with PyMuPDF. Imported lazily (once,
-        # before the loop) so a missing backend degrades every body to a logged
-        # None rather than breaking module import or re-importing per body.
+        # WeasyPrint 68 can't emit rasters (write_png removed in v53): render to
+        # PDF, rasterize page 1 with PyMuPDF. Imported lazily (once) so a missing
+        # backend degrades to logged None instead of breaking import or
+        # re-importing per body.
         try:
             import fitz  # PyMuPDF, declared in requirements.txt
         except ImportError as e:
@@ -1881,15 +1764,13 @@ class IrActionsReport(models.Model):
     ) -> str:
         """Inject standalone header/footer HTML into a body as CSS running elements.
 
-        Extracts the content from the header/footer HTML and wraps it in
-        <div class="header">/<div class="footer"> inside the body.
+        Extracts their content and wraps it in ``<div class="header">`` /
+        ``<div class="footer">`` inside the body.
 
         :param str body: complete HTML document
         :param header: standalone header HTML document (or None)
-        :type header: str | None
         :param footer: standalone footer HTML document (or None)
-        :type footer: str | None
-        :return: modified HTML body with header/footer injected
+        :return: modified HTML body
         """
         # Normalize to plain str: body may be markupsafe.Markup (returned by
         # ir.qweb._render). Markup's __add__ auto-escapes any non-Markup operand,
@@ -1920,9 +1801,7 @@ class IrActionsReport(models.Model):
 
     @api.model
     def _get_report_from_name(self, report_name: str) -> Self:
-        """Get the first record of ir.actions.report having the ``report_name`` as value for
-        the field report_name.
-        """
+        """Return the first ir.actions.report with this ``report_name``."""
         report_obj = self.env["ir.actions.report"]
         conditions = [("report_name", "=", report_name)]
         context = self.env["res.users"].context_get()
@@ -1940,10 +1819,9 @@ class IrActionsReport(models.Model):
             - ir.actions.report report_name
         """
         ReportSudo = self.env["ir.actions.report"].sudo()
-        # bool is an int subclass: without this guard, _get_report(False) would
-        # silently browse(False) (empty recordset) and _get_report(True) would
-        # crash in browse() with an opaque TypeError. Reject it explicitly so the
-        # "not found" contract is consistent with the unknown-string case below.
+        # bool is an int subclass: without this guard _get_report(False) would
+        # browse(False) (empty) and _get_report(True) would crash in browse().
+        # Reject explicitly for a consistent "not found" contract.
         if isinstance(report_ref, bool):
             raise ValueError(
                 f"Fetching report {report_ref!r}: invalid report reference"
@@ -2012,9 +1890,9 @@ class IrActionsReport(models.Model):
         if barcode_type in ("EAN8", "EAN13") and not check_barcode_encoding(
             value, barcode_type
         ):
-            # EAN barcodes with invalid check digits would silently produce
-            # a barcode that doesn't match the requested value.  Fall back to
-            # Code128 which accepts arbitrary strings.
+            # EAN barcodes with invalid check digits would silently encode a
+            # value that doesn't match the request. Fall back to Code128
+            # (accepts any string).
             barcode_type = "Code128"
 
         # `mask` is an Odoo-side post-processing concept, not a reportlab barcode
@@ -2028,10 +1906,9 @@ class IrActionsReport(models.Model):
             if barcode_type in ("Code128", "QR"):
                 msg = f"Cannot convert into {barcode_type} barcode."
                 raise ValueError(msg) from None
-            # Fall back to Code128 for unsupported symbologies.  Re-use the
-            # already-processed kwargs (humanReadable already renamed, etc.)
-            # instead of recursing through barcode() which would re-process
-            # them and lose the humanReadable → humanreadable rename.
+            # Fall back to Code128 for unsupported symbologies, reusing the
+            # already-processed kwargs — recursing through barcode() would
+            # re-process them and lose the humanReadable → humanreadable rename.
             _logger.warning(
                 "Cannot draw a %s barcode, falling back to Code128.",
                 barcode_type,
@@ -2062,24 +1939,19 @@ class IrActionsReport(models.Model):
 
     @api.model
     def get_available_barcode_masks(self) -> dict[str, Callable]:
-        """Hook for extension.
+        """Extension hook: return available QR-code masks.
 
-        Returns the available QR-code masks as a dict mapping each code (a string
-        uniquely identifying the mask) to a mask_function returning a reportlab
-        Drawing object with the result of the mask, and taking as parameters:
-
-            - width of the QR-code, in pixels
-            - height of the QR-code, in pixels
-            - reportlab Drawing object containing the barcode to apply the mask on
+        Maps each mask code to a function ``(width, height, reportlab Drawing)``
+        that returns the masked reportlab Drawing.
         """
         return {}
 
     def _render_template(
         self, template: str, values: dict[str, Any] | None = None
     ) -> bytes:
-        """Allow to render a QWeb template python-side. This function returns the 'ir.ui.view'
-        render but embellish it with some variables/methods used in reports.
-        :param values: additional methods/variables used in the rendering
+        """Render a QWeb template python-side, with the extra variables/methods reports use.
+
+        :param values: additional methods/variables for the rendering
         :returns: html representation of the template
         :rtype: bytes
         """
@@ -2143,14 +2015,11 @@ class IrActionsReport(models.Model):
         data: dict[str, Any] | None,
         report_type: str,
     ) -> tuple[list[int] | None, dict[str, Any]]:
-        """Shared normalization for every render entry point
-        (``_render_qweb_*``, ``_pre_render_qweb_pdf``,
-        ``_render_qweb_pdf_prepare_streams``).
+        """Shared normalization for every render entry point.
 
-        Defensively copies ``data`` (the entry points mutate it, and must never
-        mutate the caller's dict as a side effect), defaults ``report_type``,
-        and accepts a single id for ``res_ids``.  Idempotent, so nested entry
-        points can each normalize their own (public) arguments.
+        Copies ``data`` (entry points mutate it and must not touch the caller's
+        dict), defaults ``report_type``, and wraps a single id into a list.
+        Idempotent, so nested entry points can each normalize their own arguments.
         """
         data = dict(data) if data else {}
         data.setdefault("report_type", report_type)
@@ -2171,11 +2040,10 @@ class IrActionsReport(models.Model):
         _weasy_state.setup_process()
 
         # Native PDF/A options (e.g. Factur-X): the caller (account.move.send)
-        # supplies the variant, the invoice XML to embed, and the Factur-X XMP
-        # schema under ``data[PDF_OPTIONS_DATA_KEY]`` so WeasyPrint produces the
-        # final PDF/A-3 in one pass — no pypdf post-processing (which strips
-        # PDF/A conformance).  The reserved key is popped here so it can never
-        # collide with a template variable in the QWeb rendering context.
+        # passes the variant, invoice XML, and Factur-X XMP under
+        # data[PDF_OPTIONS_DATA_KEY] so WeasyPrint produces the PDF/A-3 in one
+        # pass (no pypdf post-processing, which strips conformance). Popped here
+        # so it can't collide with a template variable.
         pdf_options = data.pop(PDF_OPTIONS_DATA_KEY, None) or {}
         render_pdf_kwargs = {
             key: pdf_options[key] for key in _PDF_OPTION_KEYS if pdf_options.get(key)
@@ -2201,8 +2069,7 @@ class IrActionsReport(models.Model):
             if wants_attachment:
                 # Evaluate the filename expression ONCE per record and cache it
                 # in the stream dict ("attachment_name") so
-                # _prepare_pdf_report_attachment_vals_list doesn't re-safe_eval
-                # it later.
+                # _prepare_pdf_report_attachment_vals_list doesn't re-safe_eval it.
                 attachment_names = report_sudo._get_attachment_filenames(records)
                 if (
                     type(report_sudo).retrieve_attachment
@@ -2229,9 +2096,9 @@ class IrActionsReport(models.Model):
                 if attachment and report_sudo.attachment_use:
                     stream = io.BytesIO(attachment.raw)
 
-                    # Ensure the stream can be saved in Image.
-                    # mimetype is a nullable Char (NULL possible via migration
-                    # /import/raw SQL), so guard like the other reads do.
+                    # Ensure the stream can be saved as an image. mimetype is a
+                    # nullable Char (NULL via migration/import/raw SQL), so guard
+                    # the read.
                     if (attachment.mimetype or "").startswith("image"):
                         new_stream = io.BytesIO()
                         with Image.open(stream) as img:
@@ -2242,10 +2109,9 @@ class IrActionsReport(models.Model):
                 collected_streams[res_id] = {
                     "stream": stream,
                     "attachment": attachment,
-                    # Evaluated-filename cache: "" means evaluated-and-empty,
-                    # None means not evaluated (downstream falls back to
-                    # safe_eval, as it also does for entries built by an
-                    # overridden prepare_streams that lack this key).
+                    # Evaluated-filename cache: "" = evaluated-and-empty, None =
+                    # not evaluated (downstream falls back to safe_eval, as for
+                    # entries from an overridden prepare_streams lacking this key).
                     "attachment_name": attachment_names.get(res_id, "")
                     if wants_attachment
                     else None,
@@ -2311,10 +2177,9 @@ class IrActionsReport(models.Model):
             )
 
             if can_split:
-                # Batch all bodies into a single WeasyPrint session so they
-                # share one FontConfiguration, one URL fetcher session, and
-                # one resource cache.  The first body warms the cache (CSS
-                # bundles, images); subsequent bodies hit it directly.
+                # Batch all bodies into one WeasyPrint session (shared
+                # FontConfiguration, fetcher, cache): the first body warms the
+                # cache, the rest hit it.
                 render_bodies = []
                 render_res_ids = []
                 for body, res_id in zip(bodies, html_ids, strict=False):
@@ -2371,12 +2236,11 @@ class IrActionsReport(models.Model):
     def _prepare_pdf_report_attachment_vals_list(
         self, report: Self, streams: dict[int | bool, dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Hook to prepare attachment values needed for attachments creation
-        during the pdf report generation.
+        """Hook: build the attachment values to create during PDF report generation.
 
-        :param report: The report (with sudo) from a reference report_ref.
-        :param streams: Dict of streams for each report containing the pdf content and existing attachments.
-        :return: attachment values list needed for attachments creation.
+        :param report: the report (with sudo).
+        :param streams: per-record dict of pdf content and existing attachments.
+        :return: attachment values list for creation.
         """
         attachment_vals_list = []
         pending = []
@@ -2385,8 +2249,8 @@ class IrActionsReport(models.Model):
             if stream_data["attachment"]:
                 continue
 
-            # if res_id is false
-            # we are unable to fetch the record, it won't be saved as we can't split the documents unambiguously
+            # res_id is False: the record can't be identified (unsplit), so
+            # skip saving.
             if not res_id or not stream_data["stream"]:
                 _logger.warning(
                     "These documents were not saved as an attachment because the template of %s doesn't "
@@ -2407,11 +2271,9 @@ class IrActionsReport(models.Model):
             )
         }
         for res_id, stream_data in pending:
-            # "attachment_name" is the evaluated-filename cache written by
-            # _render_qweb_pdf_prepare_streams ("" means evaluated-and-empty).
-            # None — or a missing key — means the entry was built by an
-            # overridden prepare_streams without the cache: fall back to
-            # evaluating the expression here.
+            # "attachment_name" is the evaluated-filename cache ("" =
+            # evaluated-and-empty). None or missing means an overridden
+            # prepare_streams built the entry without the cache: evaluate here.
             attachment_name = stream_data.get("attachment_name")
             if attachment_name is None:
                 attachment_name = safe_eval(
@@ -2441,9 +2303,8 @@ class IrActionsReport(models.Model):
     ) -> tuple[bytes | dict[int | bool, dict[str, Any]], str]:
         # Returns (html_bytes, "html") in test mode, else (streams_dict, "pdf").
         res_ids, data = self._normalize_render_args(res_ids, data, "pdf")
-        # Resolve the reference once and forward the record (report_ref
-        # accepts a record): a no-op when the caller already resolved it,
-        # otherwise it saves the internal calls' repeated report_name search.
+        # Resolve the reference once and forward the record (a no-op if already
+        # resolved), sparing internal calls a repeated report_name search.
         report_sudo = self._get_report(report_ref)
         # In test environment, fallback to render_html unless force_report_rendering is set.
         if (
@@ -2624,9 +2485,8 @@ class IrActionsReport(models.Model):
         res_ids: list[int] | None,
         data: dict[str, Any] | None = None,
     ) -> tuple[bytes, str]:
-        # Resolve the reference once and forward the record (report_ref
-        # accepts a record), so downstream renderers don't re-search by
-        # report_name.
+        # Resolve the reference once and forward the record, so downstream
+        # renderers don't re-search by report_name.
         report = self._get_report(report_ref)
         report_type = report.report_type.lower().replace("-", "_")
         render_func = getattr(self, "_render_" + report_type, None)
@@ -2648,9 +2508,7 @@ class IrActionsReport(models.Model):
     ) -> dict[str, Any]:
         """Return an action of type ir.actions.report.
 
-        :param docids: id/ids/browse record of the records to print (if not used, pass an empty list)
-        :param data:
-        :param bool config:
+        :param docids: id/ids/browse record of records to print (empty list if unused)
         :rtype: dict[str, Any]
         """
         context = self.env.context
@@ -2660,10 +2518,9 @@ class IrActionsReport(models.Model):
             elif isinstance(docids, int):
                 active_ids = [docids]
             else:
-                # Any other iterable of ids (list, tuple, set, …). A
-                # non-iterable raises a plain TypeError instead of the
-                # NameError the old if/elif chain produced by falling
-                # through without binding active_ids.
+                # Any other iterable of ids. A non-iterable raises a plain
+                # TypeError instead of the NameError the old if/elif chain
+                # produced by not binding active_ids.
                 active_ids = list(docids)
             context = dict(self.env.context, active_ids=active_ids)
 
@@ -2701,10 +2558,10 @@ class IrActionsReport(models.Model):
         return action
 
     def get_valid_action_reports(self, model: str, record_ids: list[int]) -> list[int]:
-        """Return the list of ids of actions for which the domain is
-        satisfied by at least one record in record_ids.
+        """Return the ids of actions whose domain matches at least one of ``record_ids``.
+
         :param model: the model of the records to validate
-        :param record_ids: list of ids of records to validate
+        :param record_ids: ids of records to validate
         """
         records = self.env[model].browse(record_ids)
         actions_with_domain = self.filtered("domain")
@@ -2712,10 +2569,9 @@ class IrActionsReport(models.Model):
             self - actions_with_domain
         ).ids  # actions without domain are always valid
         for action in actions_with_domain:
-            # This is a public RPC feeding the action menu: one malformed
-            # stored domain must not 500 the whole menu for the model. Treat
-            # an un-parseable domain like no domain (always valid) and log it
-            # so it gets fixed.
+            # Public RPC feeding the action menu: one malformed stored domain
+            # must not 500 the whole menu. Treat an unparseable domain as no
+            # domain (always valid) and log it.
             try:
                 domain = literal_eval(action.domain)
             except ValueError, SyntaxError:

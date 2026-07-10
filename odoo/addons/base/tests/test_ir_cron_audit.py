@@ -1,9 +1,8 @@
 """Regression coverage for ``ir.cron`` (base module audit Tranche 4).
 
-Covers CRON-T01: the ``coalesce`` parameter of :meth:`ir.cron._trigger`,
-which quantizes every requested ``call_at`` up to the next coalesce-minute
-boundary so that several sub-minute triggers collapse into a single wake-up.
-These tests assert the CURRENT behaviour of the unmodified code.
+Covers CRON-T01: ``ir.cron._trigger(coalesce=...)`` quantizes each requested
+``call_at`` up to the next coalesce-minute boundary, collapsing several
+sub-minute triggers into one wake-up.
 """
 
 import math
@@ -48,8 +47,8 @@ class TestCronTriggerCoalesce(TransactionCase):
         """Replicate the source arithmetic at ir_cron.py:913-920.
 
         Mirrors ``datetime.fromtimestamp(ceil(dt.timestamp() / factor) *
-        factor)`` so the expectation tracks whatever timezone semantics the
-        running process has, matching the value the code actually stores.
+        factor)`` so the expectation tracks the process timezone semantics,
+        matching the stored value.
         """
         factor = coalesce * 60
         return datetime.fromtimestamp(math.ceil(dt.timestamp() / factor) * factor)

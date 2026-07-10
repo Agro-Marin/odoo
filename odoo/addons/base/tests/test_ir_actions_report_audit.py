@@ -1,8 +1,7 @@
 """Regression coverage for ir.actions.report's WeasyPrint URL fetcher.
 
-Audit Tranche 4, finding IAR-T2: the OdooURLFetcher path-traversal guard
-(_resolve_static_file) and the _parse_image_url URL parser were entirely
-untested. These tests lock the current behaviour of both helpers.
+Audit finding IAR-T2: the OdooURLFetcher path-traversal guard
+(_resolve_static_file) and the _parse_image_url parser were untested.
 """
 
 import io
@@ -29,21 +28,18 @@ class TestReportUrlFetcher(TransactionCase):
     """Lock the OdooURLFetcher static-file guard and image-URL parser."""
 
     def setUp(self):
-        """Build a fetcher instance via the model's public factory."""
         super().setUp()
         self.report = self.env["ir.actions.report"]
-        # _build_url_fetcher() returns an OdooURLFetcher; outside an HTTP
-        # request _setup_session() is a no-op, so the instance is safe to
-        # build and inspect directly in a TransactionCase.
+        # Outside an HTTP request _setup_session() is a no-op, so the fetcher is
+        # safe to build and inspect directly in a TransactionCase.
         self.fetcher = self.report._build_url_fetcher()
         self.addCleanup(self.fetcher.cleanup)
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_static_file_rejects_path_traversal(self):
         """A ``../``-escaping static path resolves to nothing (no escape)."""
-        # The is_relative_to() guard must reject any candidate that resolves
-        # outside the addons root, so a traversal attempt yields None rather
-        # than leaking a file from a sibling/parent directory.
+        # The is_relative_to() guard rejects any candidate resolving outside the
+        # addons root, so traversal yields None instead of leaking a file.
         url = "http://localhost/base/static/../../../../../../etc/passwd"
         path = "/base/static/../../../../../../etc/passwd"
         self.assertIsNone(self.fetcher._resolve_static_file(url, path))
@@ -107,8 +103,7 @@ class TestReportUrlFetcher(TransactionCase):
 
     def test_parse_image_url_missing_id_raises(self):
         """The query-string fallback raises ValueError when no id is given."""
-        # No regex matches the path and the query lacks an id, so res_id is 0
-        # and the guard raises ValueError.
+        # No regex matches and the query lacks an id, so res_id is 0 and raises.
         with self.assertRaises(ValueError):
             self.fetcher._parse_image_url("/web/image", "model=res.partner")
 
@@ -149,11 +144,9 @@ class TestReportUrlFetcher(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestReportAuditFixes(TransactionCase):
-    """Regression coverage for the ir.actions.report audit fixes: batched
-    create_action with access check, _search_model_id fallback protocol,
-    single report-reference resolution per render, unknown-report_type error,
-    and the observable barcode Code128 fallback.
-    """
+    """Regression coverage for ir.actions.report audit fixes: create_action
+    access check, _search_model_id fallback, single ref resolution per render,
+    unknown-report_type error, and the barcode Code128 fallback."""
 
     @classmethod
     def setUpClass(cls):

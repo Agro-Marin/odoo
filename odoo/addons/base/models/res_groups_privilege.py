@@ -11,12 +11,9 @@ class ResGroupsPrivilege(models.Model):
 
     name = fields.Char(required=True, translate=True)
     description = fields.Text()
-    # The default "No" is intended display text, not a sentinel: the user-form
-    # group widget (web/.../user_groups/res_user_group_ids_field.js:90) uses it
-    # as the label of the empty (`false`) option in this privilege's selection
-    # dropdown, i.e. "no access for this privilege". As a plain Python default
-    # string it is not run through translate=True; per-record values entered in
-    # the UI are translatable.
+    # "No" is display text: the user-form group widget labels this privilege's
+    # empty (`false`) selection option with it. As a plain default it is not
+    # translated, unlike per-record values entered in the UI.
     placeholder = fields.Char(
         default="No",
         help="Label shown for the empty option in the privilege selection field of the user form (e.g. 'No' access).",
@@ -25,11 +22,9 @@ class ResGroupsPrivilege(models.Model):
     category_id = fields.Many2one("ir.module.category", string="Category", index=True)
     group_ids = fields.One2many("res.groups", "privilege_id", string="Groups")
 
-    # Privilege metadata (name, description, placeholder, category, sequence) is
-    # read into the cached `groups` registry family by
-    # res.groups._get_view_group_hierarchy. The CRUD overrides below bust that
-    # cache so the settings / user-form group widget never shows stale privilege
-    # data. Privilege writes are rare and config-time, so the clear is cheap.
+    # Privilege metadata is cached in the `groups` registry family by
+    # res.groups._get_view_group_hierarchy; these CRUD overrides bust it so the
+    # group widget never shows stale data.
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

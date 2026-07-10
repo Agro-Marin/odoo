@@ -10,7 +10,6 @@ from odoo.tools.safe_eval import const_eval, expr_eval, safe_eval, test_python_e
 
 class TestSafeEval(BaseCase):
     def test_const(self):
-        # NB: True and False are names in Python 2 not consts
         expected = (1, {"a": {2.5}}, [None, "foo"])
         actual = const_eval('(1, {"a": {2.5}}, [None, u"foo"])')
         self.assertEqual(actual, expected)
@@ -18,7 +17,6 @@ class TestSafeEval(BaseCase):
         self.assertEqual(const_eval("10"), 10)
 
     def test_expr(self):
-        # NB: True and False are names in Python 2 not consts
         expected = 3 * 4
         actual = expr_eval("3 * 4")
         self.assertEqual(actual, expected)
@@ -66,7 +64,7 @@ class TestSafeEval(BaseCase):
             self.assertEqual(context["result"], expected)
 
     def test_safe_eval_strips(self):
-        # cpython strips spaces and tabs by deafult since 3.10
+        # cpython strips spaces and tabs by default since 3.10
         # https://github.com/python/cpython/commit/e799aa8b92c195735f379940acd9925961ad04ec
         # but we need to strip all whitespaces
         for expr, expected in [
@@ -81,8 +79,8 @@ class TestSafeEval(BaseCase):
             self.assertEqual(safe_eval(expr), expected)
 
     def test_runs_top_level_scope(self):
-        # when we define var in top-level scope, it should become available in locals and globals
-        # such that f's frame will be able to access var too.
+        # a var defined at top-level scope must land in both locals and globals
+        # so that f's frame can access it too.
         expr = dedent("""
         var = 1
         def f():

@@ -48,9 +48,7 @@ class UsersCommonCase(TransactionCase):
 
         cls.user_internal, cls.user_portal_1, cls.user_portal_2 = users
 
-        # Remove from the cache the values filled with admin rights for the users/partners that have just been created
-        # So unit tests reading/writing these partners/users
-        # as other low-privileged users do not have their cache polluted with values fetched with admin rights
+        # Drop admin-fetched values so low-privileged tests don't read a polluted cache.
         users.partner_id.invalidate_recordset()
         users.invalidate_recordset()
 
@@ -176,11 +174,9 @@ class TestUsers(UsersCommonCase):
 
     @mute_logger("odoo.db", "odoo.addons.base.models.res_users_deletion")
     def test_deactivate_portal_users_archive_and_remove(self):
-        """Test that if the account can not be removed, it's archived instead
-        and sensitive information are removed.
+        """An account that can't be removed is archived and its sensitive info wiped.
 
-        In this test, the deletion of "portal_user" will succeed,
-        but the deletion of "portal_user_2" will fail.
+        Here portal_user's deletion succeeds; portal_user_2's fails.
         """
         User = self.env["res.users"]
         portal_user = User.create(
@@ -238,8 +234,7 @@ class TestUsers(UsersCommonCase):
             "Should have added the user 2 in the deletion queue",
         )
 
-        # The deletion will fail for "portal_user_2",
-        # because of the absence of "ondelete=cascade"
+        # portal_user_2's deletion fails: this cron references it without ondelete=cascade.
         self.cron = self.env["ir.cron"].create(
             {
                 "name": "Test Cron",
@@ -272,11 +267,9 @@ class TestUsers(UsersCommonCase):
         public_user = self.env.ref("base.public_user")
         public_partner = public_user.partner_id
 
-        # Attempt to delete the public user
         with self.assertRaises(UserError, msg="Public user should not be deletable"):
             public_user.unlink()
 
-        # Ensure the public user still exists and is inactive
         self.assertTrue(
             public_user.exists() and not public_user.active,
             "Public user should still exist and be inactive",
@@ -289,14 +282,13 @@ class TestUsers(UsersCommonCase):
     def test_user_home_action_restriction(self):
         test_user = new_test_user(self.env, "hello world")
 
-        # Find an action that contains restricted context ('active_id')
+        # An action whose context is restricted (references 'active_id') is rejected.
         restricted_action = self.env["ir.actions.act_window"].search(
             [("context", "ilike", "active_id")], limit=1
         )
         with self.assertRaises(ValidationError):
             test_user.action_id = restricted_action.id
 
-        # Find an action without restricted context
         allowed_action = self.env["ir.actions.act_window"].search(
             ["!", ("context", "ilike", "active_id")], limit=1
         )
@@ -337,11 +329,9 @@ class TestUsers(UsersCommonCase):
         self.assertEqual(user.context_get()["lang"], "en_US")
 
     def test_context_get_request_lang_not_pinned(self):
-        """The request's Accept-Language is overlaid per call and must never
-        be memoised under the uid-wide context_get cache key: whichever
-        request fills the cache must not pin its locale for every other
-        session/worker of the same uid (W2; shared uids such as the public
-        user would otherwise serve the first visitor's language to everyone).
+        """The request's Accept-Language is overlaid per call, never memoised under
+        the uid-wide context_get cache key (W2): otherwise a shared uid (e.g. the
+        public user) would serve the first visitor's language to everyone.
         """
         self.env["res.lang"].with_context(active_test=False).search(
             [("code", "in", ["fr_FR", "es_ES", "de_DE", "en_US"])]
@@ -357,7 +347,7 @@ class TestUsers(UsersCommonCase):
         # A request fills the cache with its own language...
         with patch(patch_target, SimpleNamespace(best_lang="es_ES")):
             self.assertEqual(user.context_get()["lang"], "es_ES")
-        # ...but WITHOUT any cache clear, a request-less call falls back to
+        # ...but without any cache clear, a request-less call still falls back to
         # the DB-derived lang, and other requests get their own language.
         self.assertEqual(user.context_get()["lang"], "de_DE")
         with patch(patch_target, SimpleNamespace(best_lang="fr_FR")):
@@ -385,9 +375,7 @@ class TestUsers(UsersCommonCase):
         )
 
     def test_session_non_existing_user(self):
-        """
-        Test to check the invalidation of session bound to non existing (or deleted) users.
-        """
+        """Sessions bound to a non-existing (or deleted) user are invalidated."""
         User = self.env["res.users"]
         last_user_id = User.with_context(active_test=False).search(
             [], limit=1, order="id desc"
@@ -415,9 +403,8 @@ class TestUsers2(UsersCommonCase):
             )
 
     def test_default_groups(self):
-        """The groups handler doesn't use the "real" view with pseudo-fields
-        during installation, so it always works (because it uses the normal
-        group_ids field).
+        """During installation the groups handler uses the normal group_ids field,
+        not the "real" view with pseudo-fields, so it always works.
         """
         default_group = self.env.ref("base.default_user_group")
         test_group = self.env["res.groups"].create({"name": "test_group"})
@@ -451,7 +438,6 @@ class TestUsers2(UsersCommonCase):
         group_user.implied_ids = group_visitor
         groups = group_visitor + group_user + group_manager
 
-        # create a user
         user = self.env["res.users"].create({"name": "foo", "login": "foo"})
 
         # put user in group_visitor, and check field value
@@ -848,58 +834,49 @@ class TestUsersTweaks(TransactionCase):
 class TestUsersIdentitycheck(HttpCase):
     @users("admin")
     def test_revoke_all_devices(self):
-        """
-        Test to check the revoke all devices by changing the current password as a new password
-        """
-        # Change the password to 8 characters for security reasons
+        """Revoking all devices (via a password re-entry) invalidates other sessions."""
+        # 8-char password required for security.
         self.env.user.password = "admin@odoo"
 
-        # Create a first session that will be used to revoke other sessions
+        # First session: kept, and used to revoke the others.
         session = self.authenticate(
             "admin", "admin@odoo", session_extra={"_trace_disable": False}
         )
 
-        # Create a second session that will be used to check it has been revoked
+        # Second session: expected to be revoked.
         self.authenticate(
             "admin", "admin@odoo", session_extra={"_trace_disable": False}
         )
-        # Test the session is valid
-        # Valid session -> not redirected from /web to /web/login
+        # Valid session -> not redirected from /web to /web/login.
         self.assertTrue(self.url_open("/web").url.endswith("/web"))
 
-        # Push a fake request to the request stack, because @check_identity requires a request.
-        # Use the first session created above, used to invalid other sessions than itself.
+        # @check_identity needs a request; push the first session (the one kept).
         _request_stack.push(SimpleNamespace(session=session, env=self.env))
         self.addCleanup(_request_stack.pop)
-        # The user clicks the button logout from all devices from his profile
         action = self.env.user.action_revoke_all_devices()
-        # The form of the check identity wizard opens
         form = Form(
             self.env[action["res_model"]].browse(action["res_id"]),
             action.get("view_id"),
         )
-        # The user fills his password
         form.password = "admin@odoo"
-        # The user clicks the button "Log out from all devices", which triggers a save then a call to the button method
+        # save() then run_check() = clicking "Log out from all devices".
         user_identity_check = form.save()
         action = user_identity_check.with_context(password=form.password).run_check()
 
-        # Test the session is no longer valid
-        # Invalid session -> redirected from /web to /web/login
+        # Invalid session -> redirected from /web to /web/login.
         self.assertTrue(
             self.url_open("/web").url.endswith("/web/login?redirect=%2Fweb%3F")
         )
 
-        # In addition, the password must have been emptied from the wizard
+        # The wizard must also have blanked the password.
         self.assertFalse(user_identity_check.password)
 
 
 @tagged("post_install", "-at_install")
 class TestContextGetPartnerInvalidation(TransactionCase):
-    """Regression test for audit finding RU-L01: context_get (an ormcache keyed
-    on uid that reads the user's lang/tz, which live on res.partner via
-    _inherits) must be invalidated when lang/tz is written directly on the
-    user's partner, bypassing res.users.write's own invalidation.
+    """RU-L01: context_get (a uid-keyed ormcache reading lang/tz, which live on
+    res.partner via _inherits) must be invalidated when lang/tz is written directly
+    on the partner, bypassing res.users.write's own invalidation.
     """
 
     def test_partner_lang_write_invalidates_context_get(self):
@@ -912,8 +889,8 @@ class TestContextGetPartnerInvalidation(TransactionCase):
         user = user.with_user(user)
         self.assertEqual(user.context_get()["lang"], "en_US")
 
-        # Write lang directly on the partner (does not route through
-        # res.users.write, so only the partner-side invalidation can catch it).
+        # Direct partner write bypasses res.users.write; only the partner-side
+        # invalidation can catch it.
         user.partner_id.sudo().write({"lang": "fr_FR"})
 
         self.assertEqual(
@@ -925,13 +902,12 @@ class TestContextGetPartnerInvalidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestLoginCooldown(TransactionCase):
-    """Coverage for the brute-force login cooldown (audit RU-T01).
+    """Brute-force login cooldown (RU-T01).
 
     _assert_can_auth records failures per source IP and, after
-    base.login_cooldown_after failures within base.login_cooldown_duration,
-    refuses further attempts at the context-manager entry; a success resets the
-    counter; cooldown_after=0 disables the feature; and with no request the
-    guard is a no-op.
+    base.login_cooldown_after failures within base.login_cooldown_duration, refuses
+    further attempts at context-manager entry. A success resets the counter,
+    cooldown_after=0 disables the feature, and with no request the guard is a no-op.
     """
 
     _REQUEST = "odoo.addons.base.models.res_users.request"
@@ -941,8 +917,8 @@ class TestLoginCooldown(TransactionCase):
         icp = self.env["ir.config_parameter"].sudo()
         icp.set_param("base.login_cooldown_after", "2")
         icp.set_param("base.login_cooldown_duration", "60")
-        # _login_failures lives on the registry singleton, not rolled back with
-        # the test transaction; drop it so tests do not leak into each other.
+        # _login_failures lives on the registry singleton (not rolled back with the
+        # transaction); drop it so tests don't leak into each other.
         self.addCleanup(self.env.registry.__dict__.pop, "_login_failures", None)
 
     @staticmethod
@@ -995,8 +971,8 @@ class TestLoginCooldown(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_users")
     def test_cooldown_with_non_numeric_login(self):
-        # NEW-2: a triggered cooldown for a non-numeric login (e.g. an email)
-        # must raise AccessDenied, not ValueError from the i18n uid frame-walker
+        # NEW-2: a cooldown for a non-numeric login (e.g. an email) must raise
+        # AccessDenied, not ValueError from the i18n uid frame-walker
         # (_get_uid does int(frame_local 'user') when rendering the _() message).
         users = self.env["res.users"]
         login = "bob@example.com"
@@ -1015,11 +991,11 @@ class TestLoginCooldown(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_users")
     def test_stale_failure_entries_are_pruned(self):
-        """RU-M4: entries are only popped on a successful login from the same
-        source, so one-shot scanning IPs accumulate forever. Once the map
-        grows past LOGIN_FAILURES_PRUNE_THRESHOLD, recording a failure must
-        drop entries whose last failure is older than the cooldown window and
-        keep the fresh ones."""
+        """RU-M4: entries are only popped on a successful login from the same source,
+        so one-shot scanning IPs accumulate forever. Once the map grows past
+        LOGIN_FAILURES_PRUNE_THRESHOLD, recording a failure must drop entries older
+        than the cooldown window and keep the fresh ones.
+        """
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("203.0.113.7")):
             self._fail_once(users)  # seed the registry map with a fresh entry
@@ -1053,12 +1029,11 @@ class TestLoginCooldown(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResUsersInitPasswordMigration(TransactionCase):
-    """Coverage for res.users.init plaintext-password migration (audit RU-L09).
+    """res.users.init plaintext-password migration (RU-L09).
 
-    init() hashes any plaintext password and must invalidate the cached
-    `password` for EVERY migrated user, not just the last one (the bug was a
-    `uid` loop variable leaked from a comprehension that browsed only the last
-    migrated row).
+    init() hashes any plaintext password and must invalidate the cached `password`
+    for EVERY migrated user, not just the last (the bug: a `uid` loop variable leaked
+    from a comprehension that browsed only the last migrated row).
     """
 
     def test_init_invalidates_all_migrated_passwords(self):
@@ -1067,17 +1042,16 @@ class TestResUsersInitPasswordMigration(TransactionCase):
         user_a = new_test_user(self.env, login="rul09_a")
         user_b = new_test_user(self.env, login="rul09_b")
 
-        # Plant plaintext passwords directly in the DB (bypassing the ORM hashing)
-        # so init() treats them as not-yet-MCF and migrates them.
+        # Plant plaintext passwords directly in the DB (bypassing ORM hashing) so
+        # init() treats them as not-yet-MCF and migrates them.
         self.env.flush_all()
         self.env.cr.execute(
             "UPDATE res_users SET password=%s WHERE id = ANY(%s)",
             ("plaintext-secret", [user_a.id, user_b.id]),
         )
-        # Warm the ORM cache so BOTH users hold a cached `password` entry that
-        # init() must invalidate. `password` is blanked on read, so we assert on
-        # cache *presence* (env.cache.contains), not value. invalidate first so the
-        # access re-fetches the column into the cache.
+        # Warm the ORM cache so BOTH users hold a cached `password` entry init() must
+        # invalidate. `password` is blanked on read, so assert on cache *presence*
+        # (env.cache.contains), not value; invalidate first to force a re-fetch.
         (user_a + user_b).invalidate_recordset(["password"])
         _ = user_a.sudo().password
         _ = user_b.sudo().password
@@ -1086,9 +1060,8 @@ class TestResUsersInitPasswordMigration(TransactionCase):
 
         User.init()
 
-        # RU-L09: init() must invalidate EVERY migrated user's cached password,
-        # not just the last. The old code leaked the comprehension variable, so
-        # only user_b's cache was evicted and user_a kept its stale entry.
+        # RU-L09: the old code leaked the comprehension variable, evicting only
+        # user_b's cache and leaving user_a's stale.
         self.assertFalse(
             self.env.cache.contains(user_a, password_field),
             "init() must invalidate every migrated user's cached password (RU-L09)",
@@ -1108,21 +1081,19 @@ class TestResUsersInitPasswordMigration(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCheckUidPasswdCacheContract(TransactionCase):
-    """Pins the _check_uid_passwd_cached invalidation contract (audit RU-T3).
+    """_check_uid_passwd_cached invalidation contract (RU-T3).
 
-    The cache is keyed on (uid, sha256(passwd)) and only memoises successes.
-    The security-critical contract:
+    The cache is keyed on (uid, sha256(passwd)) and only memoises successes:
       - an ORM password change MUST invalidate the cache (old password stops
         authenticating);
-      - a raw-SQL password change WITHOUT registry.clear_cache() leaves the
-        cache stale (old password keeps authenticating) -- documenting why any
-        raw-SQL mutation must clear the cache.
+      - a raw-SQL change WITHOUT registry.clear_cache() leaves it stale (old
+        password keeps authenticating) -- hence raw-SQL mutations must clear it.
     """
 
     def setUp(self):
         super().setUp()
-        # The ormcache lives on the registry singleton, not rolled back with the
-        # test transaction; clear it so a stale entry cannot leak across tests.
+        # The ormcache lives on the registry singleton (not rolled back with the
+        # transaction); clear it so a stale entry can't leak across tests.
         self.addCleanup(self.env.registry.clear_cache)
         self.env.registry.clear_cache()
 
@@ -1168,10 +1139,10 @@ class TestCheckUidPasswdCacheContract(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSelfWriteCompanyGuard(UsersCommonCase):
-    """Self-write company_id range guard + api_key_ids blanket-sudo (audit RU-T4).
+    """Self-write company_id range guard (RU-T4).
 
-    res.users.write drops a self-written company_id that is not in the user's
-    own company_ids (silently, not an error), and applies one that is.
+    res.users.write silently drops a self-written company_id outside the user's own
+    company_ids (not an error), and applies one that is a member.
     """
 
     def test_self_write_company_id_non_member_is_dropped(self):
@@ -1181,8 +1152,8 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
         original_company = user.company_id
 
         me = user.with_user(user)
-        # Writing only a non-member company_id -> dropped; vals becomes empty so
-        # write short-circuits (RU-C2) and the company is unchanged.
+        # Non-member company_id is dropped; vals becomes empty so write
+        # short-circuits (RU-C2) and the company is unchanged.
         self.assertTrue(me.write({"company_id": other_company.id}))
         self.assertEqual(
             user.company_id,
@@ -1232,9 +1203,8 @@ class TestAtLeastOneAdministrator(TransactionCase):
         self.assertIn(group_system, indirect_admin.all_group_ids)
 
         # Strip DIRECT group_system membership from every direct member. The
-        # pre-RU-M3 constraint only looked at group_system.user_ids and raised
-        # a spurious ValidationError here, even though indirect_admin remains
-        # an effective administrator through the implying group.
+        # pre-RU-M3 constraint only looked at group_system.user_ids and raised a
+        # spurious ValidationError, ignoring the still-effective indirect_admin.
         direct_admins = group_system.user_ids
         self.assertTrue(direct_admins, "the test DB must have a direct admin")
         direct_admins.write({"group_ids": [Command.unlink(group_system.id)]})

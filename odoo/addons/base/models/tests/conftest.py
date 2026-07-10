@@ -1,16 +1,14 @@
 """Enable standalone (database-free) testing of the view ``NameManager``.
 
 Registers ``sys.modules`` stubs for the ``odoo.addons.base.models`` package
-chain (see :mod:`odoo._testing_bootstrap`) so the
-``ir_ui_view_name_manager`` leaf module imports without booting the
-framework or a database.
+chain (see :mod:`odoo._testing_bootstrap`) so the ``ir_ui_view_name_manager``
+leaf module imports without booting the framework or a database.
 
-The leaf module pulls ``_`` and ``frozendict`` from ``odoo.tools``; to avoid
-executing the real ``odoo/tools/__init__.py`` (and to stay compatible with
-the bare ``odoo.tools`` stub the ``odoo/tools/tests`` suite may already have
-registered in the same pytest process), a lightweight shim provides those two
-names on the stub. Attributes are only added when missing, so a real,
-already-imported ``odoo.tools`` is left untouched.
+The leaf module pulls ``_`` and ``frozendict`` from ``odoo.tools``. To avoid
+executing the real ``odoo/tools/__init__.py`` (and to stay compatible with a
+bare ``odoo.tools`` stub another suite may have registered in the same pytest
+process), a shim provides those two names, adding them only when missing so a
+real, already-imported ``odoo.tools`` is left untouched.
 """
 
 import sys
@@ -25,18 +23,17 @@ stub_odoo_packages(__file__)
 def _stub_pytest_package_chain() -> None:
     """Short-circuit pytest's ``Package`` collectors for this suite.
 
-    pytest (>= 8) turns every ancestor directory holding an ``__init__.py``
-    into a ``Package`` node and imports it at test setup. For this suite those
-    are ``odoo/addons/base`` and ``odoo/addons/base/models``, which pytest's
-    ``module_name_from_path`` names ``base`` and ``base.models`` (the walk up
-    stops at ``odoo/addons``, which has no ``__init__.py``). Importing the real
-    ``base/__init__.py`` under those names would boot every base model and be
-    rejected by the ORM metaclass ("should start with 'odoo.addons'").
+    pytest (>= 8) imports every ancestor directory with an ``__init__.py`` as a
+    ``Package`` node. Here those are ``odoo/addons/base`` and
+    ``odoo/addons/base/models``, which ``module_name_from_path`` names ``base``
+    and ``base.models`` (the walk stops at ``odoo/addons``, which has no
+    ``__init__.py``). Importing the real ``base/__init__.py`` under those names
+    would boot every base model and be rejected by the ORM metaclass.
 
-    ``import_path`` returns ``sys.modules[module_name]`` when the name is
-    already registered, so pre-registering inert stubs keeps the heavy
-    ``__init__.py`` files from ever running. No real module is ever imported
-    as top-level ``base``, so the stubs cannot shadow anything.
+    ``import_path`` reuses ``sys.modules[module_name]`` when already registered,
+    so pre-registering inert stubs keeps those ``__init__.py`` files from
+    running. No real module is imported as top-level ``base``, so the stubs
+    cannot shadow anything.
     """
     tests_dir = Path(__file__).resolve().parent
     for name, path in (

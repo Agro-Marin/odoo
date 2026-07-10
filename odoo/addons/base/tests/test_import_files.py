@@ -14,11 +14,9 @@ class TestFieldConverters(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.converter = cls.env["ir.fields.converter"]
-        # The datetime/date/boolean converters take ``(field, value)`` and only
-        # read ``field.name`` (boolean); any concrete field works.
-        # Keep the Field objects in a dict, NOT as class attributes: a Field is a
-        # data descriptor, so ``self.flds["dt"]`` would invoke ``Field.__get__`` on
-        # the TestCase (not a recordset) and raise. Dict access avoids that.
+        # Keep Fields in a dict, not class attributes: a Field is a data
+        # descriptor, so ``self.flds["dt"]`` would fire ``Field.__get__`` on the
+        # TestCase (not a recordset) and raise.
         cls.flds = {
             "dt": cls.env["res.partner"]._fields["write_date"],
             "date": cls.env["res.partner"]._fields["write_date"],
@@ -30,9 +28,7 @@ class TestFieldConverters(TransactionCase):
     def test_str_to_datetime_offset_bearing_iso_not_double_converted(self):
         """IFLD-01: an offset-bearing ISO string maps to the correct UTC instant.
 
-        ``16:09:18-06:00`` is ``22:09:18`` UTC. With env.tz set to a non-UTC
-        zone, the buggy double-application would have produced ``04:09:18`` the
-        next day; the fix must keep the already-converted instant untouched.
+        A tz-aware input must not be re-stamped with env.tz (double conversion).
         """
         converter = self.converter.with_context(tz="America/Mexico_City")
         value, warnings = converter._str_to_datetime(
@@ -82,10 +78,9 @@ class TestFieldConverters(TransactionCase):
         self.assertEqual(value, "2012-12-31")
 
     def test_str_to_date_accepts_trailing_time(self):
-        """IFLD-08: a date column carrying a time part ("2012-12-31 00:00:00",
-        ISO "2012-12-31T23:59:59") is a very common export shape and must import
-        as the plain date -- not be rejected as trailing garbage. The garbage
-        guard (IFLD-02) may only reject a tail that is not a valid time."""
+        """IFLD-08: a date column carrying a time part must import as the plain
+        date, not be rejected as trailing garbage (IFLD-02 rejects only a tail
+        that is not a valid time)."""
         for value in (
             "2012-12-31 00:00:00",
             "2012-12-31T23:59:59",
@@ -100,9 +95,8 @@ class TestFieldConverters(TransactionCase):
                 self.converter._str_to_date(self.flds["date"], value)
 
     def test_boolean_value_sets_built_once(self):
-        """IFLD-09: the true/false token sets are memoized per cursor, not
-        rebuilt for every boolean cell (which reran the translation lookups and
-        set construction once per converted value)."""
+        """IFLD-09: true/false token sets are memoized per cursor, not rebuilt
+        per boolean cell."""
         # drop any set cached by an earlier test on this shared cursor
         self.env.cr.cache.get("ir.fields.converter", {}).pop("boolean_value_sets", None)
         calls = []
@@ -126,8 +120,7 @@ class TestFieldConverters(TransactionCase):
 
     def test_str_to_properties_does_not_mutate_input(self):
         """IFLD-10: coercing a list of property dicts must not mutate the
-        caller's input in place -- converters must be side-effect-free on their
-        arguments."""
+        caller's input."""
         original = [
             {"name": "x", "type": "integer", "string": "X", "value": "42"},
         ]
@@ -140,16 +133,16 @@ class TestFieldConverters(TransactionCase):
         self.assertEqual(result[0]["value"], 42, "value must be coerced in output")
 
     def test_db_id_for_unknown_subfield_is_valueerror(self):
-        """IFLD-11: an unknown referencing sub-field raises ``ValueError`` (which
-        ``for_model`` catches into a per-field error) rather than a bare
-        ``Exception`` that would escape and abort the whole ``load()``."""
+        """IFLD-11: an unknown referencing sub-field raises ``ValueError`` (caught
+        by ``for_model`` into a per-field error), not a bare ``Exception`` that
+        aborts ``load()``."""
         with self.assertRaises(ValueError):
             self.converter.db_id_for(self.flds["m2o"], "not_a_subfield", "x")
 
     def test_db_id_for_dbid_resolution(self):
         """IFLD-12: ``db_id_for`` on a ``.id`` reference resolves an existing
         record, returns ``False`` for an empty reference, and raises for an id
-        that matches no record -- pinning the decomposed resolver + error path."""
+        matching no record."""
         partner = self.env["res.partner"].search([], limit=1)
         self.assertTrue(partner, "need at least one partner to resolve")
         got, warnings = self.converter.db_id_for(
@@ -165,10 +158,9 @@ class TestFieldConverters(TransactionCase):
             self.converter.db_id_for(self.flds["m2o"], ".id", str(partner.id + 10**9))
 
     def test_str_to_float_rejects_non_finite(self):
-        """IFLD-13: ``float()`` parses "nan"/"inf" (and overflowing exponents),
-        but those cannot be stored and would blow up cryptically inside
-        ``write()``; the converter must reject them with a clean import error
-        while still accepting ordinary and scientific-notation numbers."""
+        """IFLD-13: reject non-finite floats ("nan"/"inf", overflowing exponents)
+        with a clean import error rather than let them blow up in ``write()``;
+        ordinary and scientific-notation numbers still parse."""
         for value in ("nan", "NaN", "inf", "-inf", "Infinity", "1e400"):
             with self.assertRaises(ValueError, msg="%r must be rejected" % value):
                 self.converter._str_to_float(self.flds["float"], value)
@@ -194,9 +186,8 @@ class TestFieldConverters(TransactionCase):
         self.assertIs(false_val, False)
 
     def test_unsupported_field_type_logs_not_crash(self):
-        """IFLD-07: a field whose type has no ``_str_to_<type>`` converter (e.g.
-        ``properties_definition``) must log a per-field error instead of raising
-        an uncaught ``TypeError`` (``None(value)``) that aborts the whole
+        """IFLD-07: a field type with no ``_str_to_<type>`` converter must log a
+        per-field error, not raise an uncaught ``TypeError`` that aborts
         ``load()``."""
         target = None
         for model_name in self.env.registry.models:
@@ -266,11 +257,9 @@ class TestFieldConverters(TransactionCase):
         )
 
     def test_str_to_selection_index_single_query(self):
-        """IFLD-P3: selection resolution builds a single-query reverse index,
-        memoized per cursor -- not one SQL query per selection item. The old
-        linear scan issued up to one translation query per item on first
-        encounter (cumulatively ~600 for res.partner.tz, repeated per import
-        batch); resolving *every* item must now stay a small constant."""
+        """IFLD-P3: selection resolution builds one memoized reverse index per
+        cursor, not one SQL query per selection item. Resolving every item of a
+        ~600-value selection must stay a small constant number of queries."""
         fld = self.env["res.partner"]._fields["tz"]
         n = len(fld.selection)
         self.assertGreater(n, 100, "need a large static selection")
@@ -305,10 +294,8 @@ class TestFieldConverters(TransactionCase):
 
     def test_db_id_for_non_str_reference_is_clean_error(self):
         """IFLD-14: a non-string reference into an ``id`` / ``.id`` subfield
-        yields a clean ValueError import error, never a raw TypeError /
-        AttributeError that would escape ``db_id_for`` and abort the whole
-        ``load()`` (the ``id`` path previously called ``value.lower()`` /
-        ``"." in value`` without a string guard)."""
+        yields a clean ValueError, never a raw TypeError/AttributeError that
+        would escape ``db_id_for`` and abort ``load()``."""
         for subfield in (".id", "id"):
             with self.assertRaises(ValueError):
                 self.converter.db_id_for(self.flds["m2o"], subfield, 123456789)
@@ -321,11 +308,9 @@ class TestFieldConverters(TransactionCase):
         self.assertNotIn("unpack", str(cm.exception))
 
     def test_o2m_unknown_subfield_is_valueerror(self):
-        """IFLD-15: a one2many sub-row carrying a field name absent from the
-        comodel must surface as ``ValueError`` (which ``for_model`` turns into
-        a per-field error one level up), not as a raw ``KeyError`` from the
-        nested ``log`` closure that would escape and abort the whole
-        ``load()``."""
+        """IFLD-15: a one2many sub-row with a field name absent from the comodel
+        surfaces as ``ValueError`` (turned into a per-field error by
+        ``for_model``), not a raw ``KeyError`` that aborts ``load()``."""
         fld = self.env["res.partner"]._fields["child_ids"]
         with self.assertRaises(ValueError) as cm:
             self.converter._str_to_one2many(fld, [{"bogus.x": "42"}])
@@ -333,10 +318,9 @@ class TestFieldConverters(TransactionCase):
         self.assertIn("bogus.x", str(cm.exception.args[0]))
 
     def test_load_o2m_unknown_subfield_logs_not_crash(self):
-        """IFLD-15 (end to end): loading an o2m sub-column whose name slips
-        past ``_extract_records`` validation (a dotted name that is not a
-        property of the comodel) must produce a per-field import message on
-        the o2m column, not abort ``load()`` with a ``KeyError``."""
+        """IFLD-15 (end to end): loading an o2m sub-column whose name slips past
+        ``_extract_records`` validation must produce a per-field import message
+        on the o2m column, not abort ``load()`` with a ``KeyError``."""
         result = self.env["res.partner"].load(
             ["name", "child_ids/name", "child_ids/bogus.x"],
             [["IFLD15 Parent", "IFLD15 Child", "42"]],

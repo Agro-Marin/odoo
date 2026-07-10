@@ -81,7 +81,7 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
             [("model", "=", "res.partner.category"), ("name", "=", "name")]
         )
 
-        # create server action to
+        # server action exercised by the tests
         self.action = self.env["ir.actions.server"].create(
             {
                 "name": "TestAction",
@@ -410,8 +410,7 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(partners[1].city, str(partners[1].id))
 
     def test_35_crud_write_selection(self):
-        # Don't want to use res.partner because no 'normal selection field' exists there
-        # we'll use a speficic action for this test instead of the one from the test setup
+        # res.partner has no plain selection field, so use a dedicated res.country action
         # Do: update country name_position field
         selection_value = self.res_country_name_position_field.selection_ids.filtered(
             lambda s: s.value == "after"
@@ -817,8 +816,7 @@ ZeroDivisionError: division by zero"""
                 "webhook_url": "http://example.com/webhook",
             }
         )
-        # write a mock for the requests.post method that checks the data
-        # and returns a 200 response
+        # mock requests.post: assert the payload, return 200 then 400
         num_requests = 0
 
         def _patched_post(*args, **kwargs):
@@ -900,9 +898,8 @@ ZeroDivisionError: division by zero"""
             }
         )
         self.action.flush_recordset()
-        # The update_field_id should point to parent_id on res.partner
-        # (the second parent_id in the chain), not incorrectly treat the
-        # first parent_id as the last field.
+        # update_field_id must be the second parent_id (last in the chain),
+        # not the first one.
         self.assertEqual(
             self.action.update_field_id.name,
             "parent_id",
@@ -979,10 +976,9 @@ ZeroDivisionError: division by zero"""
                 "code": "open('/etc/passwd').read()",
             }
         )
-        # `open` is not a sandbox builtin, so it raises NameError at eval time,
-        # which safe_eval re-wraps as ValueError (safe_eval.py). A single class is
-        # required: Odoo's assertRaises validates its argument with issubclass(),
-        # which rejects a tuple of classes.
+        # `open` (not a sandbox builtin) raises NameError, which safe_eval
+        # re-wraps as ValueError. Pass a single class: assertRaises uses
+        # issubclass() and rejects a tuple.
         with self.assertRaises(ValueError):
             self.action.with_context(self.context).run()
 
@@ -1017,8 +1013,7 @@ ZeroDivisionError: division by zero"""
 
     def test_98_object_write_no_path_errors(self):
         """object_write with neither onchange_self nor update_path raises."""
-        # Build an object_write action and clear update_path afterwards so it
-        # mimics a programmatic action with nothing to update.
+        # Clear update_path afterwards to mimic an action with nothing to update.
         self.action.write(
             {
                 "state": "object_write",
@@ -1080,14 +1075,12 @@ ZeroDivisionError: division by zero"""
 
     def test_a3_active_less_non_code_run_warns(self):
         """A non-``code`` action run with no active record warns instead of
-        failing silently.
+        no-op'ing silently.
 
-        Every runner except ``code`` needs a target record; ``_run`` resolves an
-        empty ``active_ids`` and its per-record loop simply never iterates. That
-        is exactly how a cron/scheduled action pointed at, say, an
-        ``object_write`` (or a ``multi``) behaves -- a silent no-op. Assert we
-        emit a clear warning naming the action so the misconfiguration is
-        visible in the logs, while leaving the record untouched.
+        Every runner except ``code`` needs a target record; with empty
+        ``active_ids`` the per-record loop never iterates (e.g. a cron pointed at
+        an ``object_write``). Assert a warning naming the action is emitted and
+        the record is left untouched.
         """
         self.action.write(
             {
@@ -1207,15 +1200,10 @@ ZeroDivisionError: division by zero"""
         self.assertNotIn("state", getattr(compute, "_depends", ()))
 
     def test_b6_equation_evaluates_without_sudo_privilege(self):
-        """SECURITY INVARIANT: a server action's expression must evaluate with the
-        triggering user's own privilege — ``env.su`` must be False when a normal
-        user triggers it — so record ACLs still apply. The action *dispatch* runs
-        sudo, but the per-record eval-context env must stay the user's env, NOT
-        ``run_self.env`` (which is sudo). ``su=True`` here would bypass ACLs.
-
-        ``env.su`` is 0/False under the correct code; a regression that used
-        ``run_self.env`` would make it 1/True (proven to have teeth by temporarily
-        applying that change during development)."""
+        """SECURITY INVARIANT: an expression must evaluate with the triggering
+        user's own privilege (``env.su`` False), so record ACLs still apply. The
+        dispatch runs sudo, but the per-record eval-context env must stay the
+        user's env, NOT ``run_self.env`` (sudo) — that would bypass ACLs."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1339,9 +1327,7 @@ ZeroDivisionError: division by zero"""
         History.create(
             [{"action_id": action.id, "code": str(i)} for i in range(cap + 5)]
         )
-        self.assertEqual(
-            History.search_count([("action_id", "=", action.id)]), cap + 5
-        )
+        self.assertEqual(History.search_count([("action_id", "=", action.id)]), cap + 5)
         History._gc_histories()
         self.assertEqual(
             History.search_count([("action_id", "=", action.id)]),
@@ -1387,8 +1373,9 @@ ZeroDivisionError: division by zero"""
                 "code": "x = 1",
             }
         )
-        with self.assertRaises(AccessError), mute_logger(
-            "odoo.addons.base.models.ir_actions_server"
+        with (
+            self.assertRaises(AccessError),
+            mute_logger("odoo.addons.base.models.ir_actions_server"),
         ):
             action.with_user(self.user_demo).with_context(
                 active_model="ir.rule",
@@ -1985,13 +1972,7 @@ class TestCustomFields(TestCommonCustomFields):
 
     def test_related_field(self):
         """create a custom related field, and check filled values"""
-        #
-        # Add a custom field equivalent to the following definition:
-        #
-        # class ResPartner(models.Model)
-        #     _inherit = 'res.partner'
-        #     x_oh_boy = fields.Char(related="country_id.code", store=True)
-        #
+        # Equivalent to: x_oh_boy = fields.Char(related="country_id.code", store=True)
 
         # pick N=100 records in comodel
         countries = self.env["res.country"].search([("code", "!=", False)], limit=100)
@@ -2006,11 +1987,9 @@ class TestCustomFields(TestCommonCustomFields):
         self.env.flush_all()
 
         # create a non-computed field, and assert how many queries it takes.
-        # The baseline includes verifying res.partner's GIN trigram index on
-        # complete_name (added for autocomplete) and the GIN index on barcode
-        # (added for _check_barcode_unicity): creating a field forces a
-        # registry reload, whose schema check now validates those extra indexes —
-        # a handful of schema-time queries paid only on reload, not per request.
+        # The baseline includes schema-time validation of res.partner's GIN
+        # indexes (complete_name trigram, barcode) triggered by the registry
+        # reload — paid only on reload, not per request.
         model_id = self.env["ir.model"]._get_id("res.partner")
         query_count = 57
         with self.assertQueryCount(query_count):

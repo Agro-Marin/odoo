@@ -23,10 +23,9 @@ class ResUsersLog(models.Model):
     def _gc_user_logs(self) -> None:
         """Garbage-collect login logs, keeping only the latest entry per user.
 
-        For each ``create_uid`` the row with the greatest ``(create_date, id)``
-        survives; all older rows in the group are deleted. Rows with a NULL
-        ``create_uid`` are never collected (``NULL = NULL`` is never true in the
-        correlated EXISTS), so manual/SQL inserts without a creator accumulate.
+        Keeps the greatest ``(create_date, id)`` per ``create_uid``. Rows with a
+        NULL ``create_uid`` are never collected (``NULL = NULL`` never matches in
+        the EXISTS), so creatorless SQL inserts accumulate.
         """
         self.env.cr.execute("""
             DELETE FROM res_users_log log1 WHERE EXISTS (

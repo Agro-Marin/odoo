@@ -111,7 +111,7 @@ class TestFloatPrecision(TransactionCase):
         try_round(457.4554, "457.455")
         try_round(-457.4554, "-457.455")
 
-        # Try some rounding value with rounding method HALF-DOWN instead of HALF-UP
+        # Rounding method HALF-DOWN.
         try_round(2.6735, "2.673", method="HALF-DOWN")  # Tie rounds towards 0
         try_round(-2.6735, "-2.673", method="HALF-DOWN")  # Tie rounds towards 0
         try_round(2.6745, "2.674", method="HALF-DOWN")  # Tie rounds towards 0
@@ -125,7 +125,7 @@ class TestFloatPrecision(TransactionCase):
         try_round(457.4554, "457.455", method="HALF-DOWN")
         try_round(-457.4554, "-457.455", method="HALF-DOWN")
 
-        # Try some rounding value with rounding method HALF-EVEN instead of HALF-UP
+        # Rounding method HALF-EVEN.
         try_round(
             2.6735, "2.674", method="HALF-EVEN"
         )  # Tie rounds to the closest even number (i.e. up here)
@@ -147,10 +147,8 @@ class TestFloatPrecision(TransactionCase):
         try_round(457.4554, "457.455", method="HALF-EVEN")
         try_round(-457.4554, "-457.455", method="HALF-EVEN")
 
-        # Try some rounding value with rounding method UP instead of HALF-UP
-        # We use 8.175 because when normalizing 8.175 with precision_digits=3 it gives
-        # us 8175,0000000001234 as value, and if not handle correctly the rounding UP
-        # value will be incorrect (should be 8,175 and not 8,176)
+        # Rounding method UP. 8.175 normalizes to 8175.0000000001234 at precision 3;
+        # if mishandled, UP rounds to 8.176 instead of the correct 8.175.
         try_round(8.175, "8.175", method="UP")
         try_round(8.1751, "8.176", method="UP")
         try_round(-8.175, "-8.175", method="UP")
@@ -159,10 +157,8 @@ class TestFloatPrecision(TransactionCase):
         try_round(1.8, "2", 0, method="UP")
         try_round(-1.8, "-2", 0, method="UP")
 
-        # Try some rounding value with rounding method DOWN instead of HALF-UP
-        # We use 2.425 because when normalizing 2.425 with precision_digits=3 it gives
-        # us 2424.9999999999995 as value, and if not handle correctly the rounding DOWN
-        # value will be incorrect (should be 2.425 and not 2.424)
+        # Rounding method DOWN. 2.425 normalizes to 2424.9999999999995 at precision 3;
+        # if mishandled, DOWN rounds to 2.424 instead of the correct 2.425.
         try_round(2.425, "2.425", method="DOWN")
         try_round(2.4249, "2.424", method="DOWN")
         try_round(-2.425, "-2.425", method="DOWN")
@@ -184,8 +180,7 @@ class TestFloatPrecision(TransactionCase):
         ]
         expecteds = [".00", ".02", ".01", ".68", ".67", ".46", ".456", ".4556"]
         precisions = [2, 2, 2, 2, 2, 2, 3, 4]
-        # Note: max precision for double floats is 53 bits of precision or
-        # 17 significant decimal digits
+        # max precision for double floats is 53 bits, i.e. 17 significant decimal digits
         for magnitude in range(7):
             for frac, exp, prec in zip(fractions, expecteds, precisions, strict=False):
                 for sign in [-1, 1]:
@@ -277,12 +272,11 @@ class TestFloatPrecision(TransactionCase):
     def test_rounding_large_magnitude(self):
         """Large clean values must not gain spurious digits from the tie epsilon.
 
-        The IEEE-754 tie-rescue epsilon is magnitude-relative; once the
-        normalized value is large its ULP approaches/exceeds ~1, so an uncapped
-        epsilon (> 0.5) would spuriously flip a clean value to the next step
-        (e.g. float_round(1e13, precision_rounding=0.01) -> 10000000000000.01).
-        The HALF-* methods cap the epsilon below the .5 tie boundary to prevent
-        this while still rescuing genuine representation-error ties.
+        The IEEE-754 tie-rescue epsilon is magnitude-relative: at large magnitude
+        the ULP approaches/exceeds ~1, so an uncapped epsilon (> 0.5) would flip a
+        clean value to the next step (e.g. float_round(1e13, precision_rounding=0.01)
+        -> 10000000000000.01). HALF-* methods cap the epsilon below the .5 tie
+        boundary while still rescuing genuine representation-error ties.
         """
         # 0.145 is stored as 0.144999...; the rescue must still recognise it as a
         # tie, after which each method applies its own tie rule.

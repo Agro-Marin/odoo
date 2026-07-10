@@ -174,8 +174,7 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertNotIn("company_id", values)
 
     def test_email_formatted(self):
-        """Test various combinations of name / email, notably to check result
-        of email_formatted field."""
+        """Test name/email combinations, notably the email_formatted field."""
         # multi create
         new_partners = self.env["res.partner"].create(
             [
@@ -459,8 +458,8 @@ class TestPartner(TransactionCaseWithUserDemo):
         )
 
     def test_name_search_with_user(self):
-        """Check name_search on partner, especially with domain based on bypass_search_access
-        user_ids field. Check specific SQL of name_search correctly handle joined tables.
+        """Check name_search with a bypass_search_access domain (user_ids), ensuring the
+        generated SQL handles joined tables.
         """
         test_partner = self.env["res.partner"].create({"name": "Vlad the Impaler"})
         test_user = self.env["res.users"].create(
@@ -902,8 +901,7 @@ class TestPartnerAddressCompany(TransactionCase):
 
     @users("employee")
     def test_address_first_contact_sync(self):
-        """Test initial creation of company/contact pair where contact address gets copied to
-        company"""
+        """Test that a first contact's address is copied up to a void parent company."""
         (
             void_parent_ct,
             void_parent_comp,
@@ -997,10 +995,10 @@ class TestPartnerAddressCompany(TransactionCase):
                         )
 
     def test_address_get(self):
-        """Test address_get address resolution mechanism: it should first go down through descendants,
-        stopping when encountering another is_copmany entity, then go up, stopping again at the first
-        is_company entity or the root ancestor and if nothing matches, it should use the provided partner
-        itself"""
+        """Test address_get resolution: go down through descendants (stopping at a child
+        company), then up (stopping at the first company or root ancestor); fall back to
+        the partner itself if nothing matches.
+        """
         res_partner = self.env["res.partner"]
         elmtree = res_partner.browse(res_partner.name_create("Elmtree")[0])
         branch1 = res_partner.create(
@@ -1138,9 +1136,9 @@ class TestPartnerAddressCompany(TransactionCase):
 
     @users("employee")
     def test_address_parent_company_creation(self):
-        """When creating parent company, it should be populated with information
-        coming from children when possible, and not erase child with void values
-        from parent."""
+        """A new parent company is populated from its children where possible, without
+        erasing child values with void parent values.
+        """
         sync_commercial_fields = self.env["res.partner"]._synced_commercial_fields()
 
         # create your contact
@@ -1161,8 +1159,7 @@ class TestPartnerAddressCompany(TransactionCase):
         for fname, fvalue in self.test_address_values_cmp.items():
             self.assertEqual(individual[fname], fvalue)
 
-        # create a company through "quick create", which would have partial default
-        # values for some company values
+        # create a company via "quick create": partial default company values
         company = self.env["res.partner"].create(
             {
                 "is_company": True,
@@ -1481,8 +1478,9 @@ class TestPartnerAddressCompany(TransactionCase):
             )
 
     def test_commercial_field_sync_reset(self):
-        """Test voiding fields propagation. We would like to allow forcing void
-        values from parent, but limiting upstream reset from children."""
+        """Test void-value propagation: forcing void from parent is allowed, upstream
+        reset from children is not.
+        """
         sync_commercial_fields = self.env["res.partner"]._synced_commercial_fields()
 
         # create your contact
@@ -1701,8 +1699,7 @@ class TestPartnerAddressCompany(TransactionCase):
             test_partner_company.write({"company_id": company_2.id})
 
     def test_display_address_missing_key(self):
-        """Check _display_address when some keys are missing. As a defaultdict is used, missing keys should be
-        filled with empty strings."""
+        """Check _display_address fills missing format keys with empty strings (defaultdict)."""
         country = self.env["res.country"].create(
             {
                 "name": "TestCountry",
@@ -1763,8 +1760,7 @@ class TestPartnerAddressCompany(TransactionCase):
             partner._display_address()
 
     def test_display_name(self):
-        """Check display_name on partner, especially with different context
-        Check display_name correctly return name with context."""
+        """Check display_name on partner, including context variations."""
         test_partner_jetha = self.env["res.partner"].create(
             {
                 "name": "Jethala",

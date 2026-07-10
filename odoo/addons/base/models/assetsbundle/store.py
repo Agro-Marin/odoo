@@ -10,10 +10,9 @@ from odoo.libs.constants import (
 from odoo.tools import SQL
 
 if TYPE_CHECKING:
-    # Model-class imports must stay typing-only: base/models/__init__
-    # imports assetsbundle FIRST, and registering ir.attachment before
-    # model 'base' exists aborts registry load (house pattern — see
-    # ir_attachment.py's own TYPE_CHECKING block).
+    # Model-class imports must stay typing-only: base/models/__init__ imports
+    # assetsbundle FIRST, and registering ir.attachment before model 'base'
+    # exists aborts registry load (see ir_attachment.py's TYPE_CHECKING block).
     from odoo.addons.base.models.ir_attachment import IrAttachment
 from .common import _logger
 
@@ -21,12 +20,11 @@ from .common import _logger
 class AssetAttachmentStore:
     """Persist, look up and version-clean one bundle's ``ir.attachment`` artifacts.
 
-    Split out of :class:`AssetsBundle` so the raw-SQL attachment layer — and its
-    concurrency handling (``SKIP LOCKED`` deletes, the parallel-transaction
-    dedup, the cross-params fallback copy) — lives behind one boundary and is
-    testable without a full bundle. Holds no version state: the bundle's version
-    is read through the ``version_provider`` callback, leaving
-    :class:`AssetsBundle` the single source of truth for checksums.
+    Split out of :class:`AssetsBundle` so the raw-SQL attachment layer and its
+    concurrency handling (``SKIP LOCKED`` deletes, parallel-transaction dedup,
+    cross-params fallback copy) is testable without a full bundle. Holds no
+    version state: the version is read through the ``version_provider``
+    callback, leaving :class:`AssetsBundle` the source of truth for checksums.
     """
 
     # Bundles whose rebuild broadcasts a ``bundle_changed`` bus message.
@@ -35,12 +33,10 @@ class AssetAttachmentStore:
     # Stylesheet artifact extensions accepted by ``is_css``.
     _CSS_EXTENSIONS = frozenset({"css", "min.css", "css.map"})
 
-    # Persistable bundle artifacts and their served mimetype; doubles as
-    # the ``save_attachment`` extension whitelist (one source of truth —
-    # the guard and the lookup used to encode this twice and drift).
-    # No ``xml`` / ``min.xml`` entries: template bundles do not persist
-    # through this store — the production ESM-template path saves via
-    # ``ir_qweb._save_esm_attachment`` instead, and legacy templates ship
+    # Persistable bundle artifacts and their served mimetype; doubles as the
+    # ``save_attachment`` extension whitelist (one source of truth). No
+    # ``xml`` / ``min.xml``: template bundles don't persist here — ESM
+    # templates save via ``ir_qweb._save_esm_attachment``, legacy ones ship
     # inside the concatenated ``(min.)js`` artifact.
     _ATTACHMENT_MIMETYPES = MappingProxyType(
         {
@@ -79,13 +75,11 @@ class AssetAttachmentStore:
     def _like_escape(literal: str) -> str:
         """Escape LIKE metacharacters so *literal* matches only itself.
 
-        Bundle names routinely contain ``_`` (``web.assets_web``), which is
-        a single-char wildcard in SQL ``LIKE``: unescaped, the pattern for
-        ``test.audit_b`` also matches a sibling ``test.auditXb`` — letting
-        ``_clean_attachments`` delete the sibling's attachment and making
-        ``get_attachments(ignore_version=True)`` return several names
-        (which breaks the singleton ``raw`` read in ``css()``'s degraded
-        path).  PostgreSQL's default escape character is the backslash.
+        Bundle names routinely contain ``_`` (``web.assets_web``), a single-char
+        ``LIKE`` wildcard: unescaped, ``test.audit_b`` also matches a sibling
+        ``test.auditXb``, so ``_clean_attachments`` would delete the sibling's
+        attachment and ``get_attachments(ignore_version=True)`` return several
+        names. PostgreSQL's default escape character is the backslash.
         """
         return literal.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
@@ -106,13 +100,10 @@ class AssetAttachmentStore:
         """Build a SQL ``=like`` pattern over this bundle's attachment URLs.
 
         ``%`` wildcards may appear in ``unique`` (``ANY_UNIQUE``) and
-        ``extension``; ``ignore_params`` widens the match across
-        assets-params variants (website, lang).  The bundle *name* is a
-        literal: its LIKE metacharacters are escaped (see
-        :meth:`_like_escape`), so the pattern never crosses into a
-        sibling bundle's attachments.  Split from :meth:`get_asset_url`
-        so URL construction and SQL-pattern construction stop sharing
-        one signature.
+        ``extension``; ``ignore_params`` widens the match across assets-params
+        variants (website, lang). The bundle *name* is LIKE-escaped (see
+        :meth:`_like_escape`) so the pattern never crosses into a sibling
+        bundle's attachments.
         """
         return self._asset_url(unique, extension, ignore_params, pattern=True)
 
@@ -125,11 +116,10 @@ class AssetAttachmentStore:
     ) -> str:
         """Shared URL assembly for :meth:`get_asset_url` and the pattern form.
 
-        With ``pattern=True`` the bundle name is LIKE-escaped; ``unique``
-        and ``extension`` are left untouched — their wildcards
-        (``ANY_UNIQUE``, the ``"%"`` extension default) are intentional,
-        and their concrete values (7-hex unique, the
-        ``_ATTACHMENT_MIMETYPES`` extensions) contain no metacharacters.
+        With ``pattern=True`` the bundle name is LIKE-escaped; ``unique`` and
+        ``extension`` are left untouched — their wildcards (``ANY_UNIQUE``, the
+        ``"%"`` default) are intentional and their concrete values contain no
+        metacharacters.
         """
         direction = ".rtl" if self.is_css(extension) and self.rtl else ""
         autoprefixed = (
@@ -146,14 +136,12 @@ class AssetAttachmentStore:
     ) -> dict[str, Any]:
         """Build the ``ir.attachment`` create payload for one bundle artifact.
 
-        The single write-side source for both :meth:`save_attachment` and the
+        The single write-side source for :meth:`save_attachment` and the
         cross-params fallback copy in :meth:`get_attachments`. The identity
-        columns set here — ``res_model='ir.ui.view'``, ``res_id`` (the
-        ``Many2oneReference`` integer coerces the ``False`` to ``0``),
-        ``public=True``, and ``create_uid=SUPERUSER_ID`` via the creating user
-        — are exactly the columns :meth:`get_attachments` / :meth:`_clean_attachments`
-        filter on, so the read and write halves cannot drift. ``name`` /
-        ``mimetype`` / ``raw`` / ``url`` are the per-artifact payload.
+        columns set here (``res_model='ir.ui.view'``, ``res_id`` coerced to
+        ``0``, ``public=True``, ``create_uid=SUPERUSER_ID``) are exactly the
+        columns :meth:`get_attachments` / :meth:`_clean_attachments` filter on,
+        so the read and write halves cannot drift.
         """
         return {
             "name": name,
@@ -167,11 +155,11 @@ class AssetAttachmentStore:
         }
 
     def _unlink_attachments(self, attachments: IrAttachment) -> None:
-        """Unlinks attachments without actually calling unlink, so that the ORM cache is not cleared.
+        """Delete attachments via raw SQL to avoid clearing the ORM cache.
 
-        Specifically, if an attachment is generated while a view is rendered, clearing the ORM cache
-        could unload fields loaded with a sudo(), and expected to be readable by the view.
-        Such a view would be website.layout when main_object is an ir.ui.view.
+        Calling ``unlink`` here would clear the cache, unloading sudo()-loaded
+        fields a mid-render view still expects to read (e.g. website.layout
+        when main_object is an ir.ui.view).
         """
         fname_by_id = {
             attach.id: attach.store_fname
@@ -203,23 +191,18 @@ class AssetAttachmentStore:
             attachments._storage_delete(fpath)
 
     def _clean_attachments(self, extension: str, keep_url: str) -> None:
-        """Delete outdated ir.attachment records for this bundle before
-        saving a fresh one.
+        """Delete outdated ir.attachment records for this bundle, keeping *keep_url*.
 
-        When `extension` is js we need to check that we are deleting a different version (and not *any*
-        version) because, as one of the creates in `save_attachment` can trigger a rollback, the
-        call to `_clean_attachments` is made at the end of the method to avoid the rollback
-        of an ir.attachment unlink (because we cannot rollback a removal on the filestore), thus we
-        must exclude the current bundle.
+        ``_clean_attachments`` runs at the end of ``save_attachment`` because a
+        filestore removal cannot be rolled back if a later create fails; hence
+        the fresh version (``keep_url``) is excluded from the delete.
         """
         ira = self.env["ir.attachment"]
         to_clean_pattern = self.get_asset_url_pattern(extension=extension)
         # Mirror the identity columns ``get_attachments`` reads on (create_uid /
-        # res_model / res_id, set by ``_attachment_values``): the delete must
-        # never reach a row the read would not surface — otherwise a public
-        # attachment that merely shares the URL pattern (a different creator or
-        # res_model) would be GC'd here despite being invisible to the serving
-        # path. With this the read and delete halves cover the exact same set.
+        # res_model / res_id): the delete must not reach a row the read would
+        # not surface, or a public attachment merely sharing the URL pattern
+        # would be GC'd despite being invisible to the serving path.
         domain = [
             ("url", "=like", to_clean_pattern),
             ("url", "!=", keep_url),
@@ -242,18 +225,14 @@ class AssetAttachmentStore:
     def get_attachments(
         self, extension: str, ignore_version: bool = False
     ) -> IrAttachment:
-        """Return the ir.attachment records for a given bundle. Mitigates an issue where
-        parallel transactions generate the same bundle: while the file is not
-        duplicated on the filestore (as it is stored according to its hash), there are multiple
-        ir.attachment records referencing the same version of a bundle. As we don't want to source
-        the same bundle several times when rendering, we group our ir.attachment records
-        by file name and only return the one with the max id for each group.
+        """Return the ir.attachment records for this bundle.
 
-        :param extension: file extension (js, min.js, css)
-        :param ignore_version: if ignore_version, the url contains a version => web/assets/%/name.extension
-                                (the second '%' corresponds to the version),
-                               else: the url contains a version equal to that of the bundle version
-                                => web/assets/<version>/name.extension.
+        Parallel transactions can create several ir.attachment rows for the same
+        bundle version (the file itself is hash-deduplicated on the filestore);
+        group by name and keep the max id per group so a bundle is sourced once.
+
+        :param ignore_version: match any version (``web/assets/%/name.ext``)
+            instead of the current bundle version.
         """
         unique = (
             ANY_UNIQUE
@@ -281,11 +260,10 @@ class AssetAttachmentStore:
                 extension=extension,
                 ignore_params=True,
             )
-            # The cross-params fallback only finds anything when an
-            # ``_get_asset_bundle_url`` override (website) makes the
-            # ``ignore_params=True`` pattern wider than the primary one. In base
-            # the two patterns are byte-identical, so re-running the query is a
-            # guaranteed-empty second round-trip on every cache miss — skip it.
+            # The cross-params fallback only matches when an
+            # ``_get_asset_bundle_url`` override (website) widens the
+            # ``ignore_params=True`` pattern. In base the two patterns are
+            # identical, so skip the guaranteed-empty second query.
             similar_attachment_ids = []
             if fallback_url_pattern != url_pattern:
                 self.env.cr.execute(SQL(query, SUPERUSER_ID, fallback_url_pattern))
@@ -317,11 +295,7 @@ class AssetAttachmentStore:
         return self.env["ir.attachment"].sudo().browse(attachment_ids)
 
     def save_attachment(self, extension: str, content: str) -> IrAttachment:
-        """Record the given bundle in an ir.attachment and delete
-        all other ir.attachments referring to this bundle (with the same name and extension).
-
-        :param extension: extension of the bundle to be recorded
-        :param content: bundle content to be recorded
+        """Record the bundle in an ir.attachment and delete the outdated ones.
 
         :return: the created ir.attachment record.
         """
@@ -330,12 +304,11 @@ class AssetAttachmentStore:
             raise ValueError(f"Invalid asset extension {extension!r}")
         ira = self.env["ir.attachment"]
 
-        # The LTR/RTL (and autoprefixed) variants are distinguished by the
-        # URL, not the name: ``_asset_url`` injects ``.rtl`` / ``.autoprefixed``
-        # segments, and both ``get_attachments`` and ``_clean_attachments``
-        # match on that direction-scoped URL pattern — so the two variants
-        # never collide despite sharing this ``name``. (Upstream encoded the
-        # direction in the name; this fork moved it into the URL.)
+        # LTR/RTL (and autoprefixed) variants are distinguished by the URL, not
+        # the name: ``_asset_url`` injects ``.rtl`` / ``.autoprefixed`` segments
+        # that ``get_attachments`` / ``_clean_attachments`` match on, so the
+        # variants never collide despite sharing this ``name``. (Upstream
+        # encoded the direction in the name; this fork moved it to the URL.)
         fname = f"{self.name}.{extension}"
         unique = self._version("css" if self.is_css(extension) else "js")
         url = self.get_asset_url(

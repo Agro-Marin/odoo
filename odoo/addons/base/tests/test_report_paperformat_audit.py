@@ -1,8 +1,8 @@
-"""Audit tests for report.paperformat (RPF-T1 print page size + format/page constraint).
+"""Audit tests for report.paperformat (RPF-T1).
 
-RPF-T1 exercises _compute_print_page_size for a named format in both orientations and
-for a custom format, plus the _check_format_or_page constraint that forbids combining a
-named format with explicit page dimensions.
+Cover print page size for named formats (both orientations) and custom formats,
+plus the _check_format_or_page constraint forbidding a named format with explicit
+page dimensions.
 """
 
 from odoo.exceptions import ValidationError

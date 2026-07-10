@@ -8,8 +8,7 @@ from odoo.addons.base.models.ir_ui_menu import IrUiMenu
 
 class TestMenu(TransactionCase):
     def test_00_menu_deletion(self):
-        """Verify that menu deletion works properly when there are child menus, and those
-        are indeed made orphans"""
+        """Deleting a menu with children promotes those children to top-level."""
         Menu = self.env["ir.ui.menu"]
         root = Menu.create({"name": "Test root"})
         child1 = Menu.create({"name": "Test child 1", "parent_id": root.id})
@@ -32,9 +31,9 @@ class TestMenu(TransactionCase):
         self.assertEqual([child1.id, child2.id], orphans.ids)
 
     def test_display_name_recomputed_on_ancestor_rename(self):
-        """display_name mirrors complete_name's recursive triggers: renaming an
-        ancestor invalidates the full path of all descendants (regression guard
-        for the depends("parent_id")-only triggers that left it stale)."""
+        """Renaming an ancestor recomputes display_name (which mirrors
+        complete_name's recursive triggers) for all descendants (regression
+        guard: depends("parent_id")-only triggers left it stale)."""
         Menu = self.env["ir.ui.menu"]
         root = Menu.create({"name": "Path root"})
         child = Menu.create({"name": "Child", "parent_id": root.id})
@@ -199,8 +198,8 @@ class TestMenuVisibility(TransactionCase):
     def test_load_menus_root_keyed_on_debug(self):
         """load_menus_root keys on the debug flag (regression guard for IUM-L3):
         the cached root set reflects request.session.debug, not the first call."""
-        # the base method's ormcache key now includes the debug-resolving
-        # expression so the cached value cannot go stale across debug toggles
+        # ormcache key now includes the debug-resolving expression, so the
+        # cached value cannot go stale across debug toggles
         self.assertIn(
             "self._get_session_debug()", IrUiMenu.load_menus_root.__cache__.args
         )
@@ -277,9 +276,8 @@ class TestMenuMisc(TransactionCase):
         return patch.object(registry_class, "clear_cache", counting), calls
 
     def test_multi_copy_names_and_single_invalidation(self):
-        """Copying menus suffixes every copy's name at insert time: one
-        batched create() invalidation, no per-copy rename writes (each of
-        which used to wipe the whole registry cache)."""
+        """Copying menus suffixes each name at insert time: one batched create()
+        invalidation, not a per-copy rename write that wipes the registry cache."""
         menus = self.Menu.create([{"name": f"Multi {i}"} for i in range(3)])
         patcher, calls = self._count_cache_clears()
         with patcher:
@@ -295,8 +293,8 @@ class TestMenuMisc(TransactionCase):
         )
 
     def test_copy_suffixes_explicit_default_name(self):
-        """Behavior parity with the historical post-copy rename: an explicit
-        default name is suffixed too."""
+        """An explicit default name is suffixed too (parity with the historical
+        post-copy rename)."""
         menu = self.Menu.create({"name": "Original"})
         copy = menu.copy({"name": "Custom"})
         self.assertEqual(copy.name, "Custom (1)")

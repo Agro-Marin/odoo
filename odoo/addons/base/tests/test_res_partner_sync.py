@@ -1,16 +1,12 @@
-"""Characterization tests for res.partner field-sync machinery.
+"""Characterization tests pinning the current behaviour of res.partner field
+sync (``_fields_sync`` / ``_children_sync`` / commercial-field propagation /
+``_commercial_sync_to_descendants``) so it can be refactored safely.
 
-These pin the CURRENT observable behaviour of the partner synchronization code
-(``_fields_sync`` / ``_children_sync`` / the commercial-field propagation and
-``_commercial_sync_to_descendants`` recursion) so it can be refactored safely.
-
-Unlike the assertion-driven tests in ``test_res_partner.py``, several behaviours
-pinned here are subtle or arguably surprising — most notably that commercial
-sync to a *cross-company child that the acting user cannot see* silently does
-nothing, because child discovery runs under the acting user's record rules even
-though the eventual write is elevated with ``sudo()``. Each such case is called
-out in the test docstring. A refactor that intentionally changes one of these
-must update the corresponding test on purpose, not by accident.
+Several pinned behaviours are subtle -- most notably that commercial sync
+reaches a cross-company child the acting user cannot see, because child
+discovery in ``_children_sync`` runs under ``sudo()`` even though the record
+rule still hides the child from direct access. Each such case is called out in
+its test docstring; a refactor changing one must update the test on purpose.
 """
 
 from odoo import Command
@@ -36,9 +32,7 @@ class TestPartnerSyncCharacterization(TransactionCase):
             company_ids=[Command.set([cls.company_a.id])],
         )
 
-    # ------------------------------------------------------------------
     # Downstream propagation
-    # ------------------------------------------------------------------
     def test_downstream_commercial_sync_is_recursive(self):
         """A commercial-field write on the commercial entity propagates to every
         non-company descendant, however deep (3 levels here)."""
@@ -62,7 +56,9 @@ class TestPartnerSyncCharacterization(TransactionCase):
             self.assertEqual(child.vat, "V0")
 
         new_industry = self.env["res.partner.industry"].create({"name": "Char Ind 1"})
-        co.write({"vat": "V1", "company_registry": "REG1", "industry_id": new_industry.id})
+        co.write(
+            {"vat": "V1", "company_registry": "REG1", "industry_id": new_industry.id}
+        )
 
         for child in (c1, c2, c3):
             self.assertEqual(child.vat, "V1", "vat must reach every descendant")
@@ -73,13 +69,11 @@ class TestPartnerSyncCharacterization(TransactionCase):
                 child.industry_id, new_industry, "industry must reach every descendant"
             )
 
-    # ------------------------------------------------------------------
     # Upstream propagation: synced (vat) vs commercial-only (registry/industry)
-    # ------------------------------------------------------------------
     def test_upstream_sync_asymmetry(self):
-        """Only ``_synced_commercial_fields`` (vat) propagate UP from a child to
-        the commercial entity (and thus to siblings). Commercial-only fields
-        (company_registry, industry_id) do NOT propagate upstream."""
+        """Only ``_synced_commercial_fields`` (vat) propagate UP to the commercial
+        entity (and thus siblings); commercial-only fields (company_registry,
+        industry_id) do NOT."""
         co = self.Partner.create(
             {
                 "name": "Asym Co",
@@ -102,16 +96,12 @@ class TestPartnerSyncCharacterization(TransactionCase):
         self.assertEqual(
             co.company_registry, "REG0", "registry does NOT propagate upstream"
         )
-        self.assertEqual(
-            c1.company_registry, "REG0", "and siblings are left untouched"
-        )
+        self.assertEqual(c1.company_registry, "REG0", "and siblings are left untouched")
         self.assertEqual(
             c2.company_registry, "REG_LEAF", "the local write on the leaf stands"
         )
 
-    # ------------------------------------------------------------------
     # Upstream address propagation
-    # ------------------------------------------------------------------
     def test_upstream_address_sync_to_parent(self):
         """Editing a contact-type child's address propagates the address up to
         its parent (contact address == company address)."""
@@ -130,22 +120,19 @@ class TestPartnerSyncCharacterization(TransactionCase):
 
         contact.write({"street": "Second Street"})
         self.assertEqual(
-            company.street, "Second Street", "address edit propagates upstream to parent"
+            company.street,
+            "Second Street",
+            "address edit propagates upstream to parent",
         )
 
-    # ------------------------------------------------------------------
-    # Cross-company propagation — the surprising cases
-    # ------------------------------------------------------------------
+    # Cross-company propagation -- the surprising cases
     def test_cross_company_hidden_child_is_synced_via_sudo(self):
-        """Commercial sync reaches a cross-company child even when the acting user
-        cannot see it: child discovery in ``_children_sync`` runs under ``sudo()``,
-        so the commercial descendant-sync no longer bails on an apparently
-        childless parent. Direct visibility/write access is unaffected — the
-        record rule still hides the child and blocks direct writes; only the
-        sudo-elevated commercial propagation reaches it.
-
-        (Historically this silently no-oped: the old ``if not self.child_ids``
-        guard read child_ids under the user's rules and returned early.)
+        """Commercial sync reaches a cross-company child even when the acting
+        user cannot see it: child discovery in ``_children_sync`` runs under
+        ``sudo()``. The record rule still hides the child and blocks direct
+        writes; only the sudo-elevated commercial propagation reaches it.
+        (Historically the old ``if not self.child_ids`` guard read child_ids
+        under the user's rules and silently no-oped.)
         """
         co = self.Partner.with_user(self.user_a).create(
             {
@@ -160,7 +147,11 @@ class TestPartnerSyncCharacterization(TransactionCase):
             self.env["res.partner"]
             .sudo()
             .create(
-                {"name": "HiddenChild", "parent_id": co.id, "company_id": self.company_b.id}
+                {
+                    "name": "HiddenChild",
+                    "parent_id": co.id,
+                    "company_id": self.company_b.id,
+                }
             )
         )
         # it inherited the parent's vat at creation
@@ -208,9 +199,7 @@ class TestPartnerSyncCharacterization(TransactionCase):
             shared_child.vat, "V1", "visible child is reached by commercial sync"
         )
 
-    # ------------------------------------------------------------------
-    # Import path (_load_records_create) — batched sync, distinct from create()
-    # ------------------------------------------------------------------
+    # Import path (_load_records_create) -- batched sync, distinct from create()
     def test_load_import_inherits_from_parent(self):
         """CSV/XML import (``_load_records_create``) batches the parent→child
         sync: children inherit commercial fields (vat, company_registry,
@@ -228,8 +217,17 @@ class TestPartnerSyncCharacterization(TransactionCase):
             "parent_id/id",
         ]
         data = [
-            ["load_char_co", "Load Char Co", "1", "BELOADCHAR", "LOADREG",
-             "Parent Street", "ParentCity", str(industry.id), ""],
+            [
+                "load_char_co",
+                "Load Char Co",
+                "1",
+                "BELOADCHAR",
+                "LOADREG",
+                "Parent Street",
+                "ParentCity",
+                str(industry.id),
+                "",
+            ],
             ["load_char_c1", "Load Char C1", "0", "", "", "", "", "", "load_char_co"],
             ["load_char_c2", "Load Char C2", "0", "", "", "", "", "", "load_char_co"],
         ]
@@ -242,8 +240,12 @@ class TestPartnerSyncCharacterization(TransactionCase):
             self.assertEqual(
                 child.company_registry, "LOADREG", "registry inherited on import"
             )
-            self.assertEqual(child.industry_id, industry, "industry inherited on import")
-            self.assertEqual(child.street, "Parent Street", "address inherited on import")
+            self.assertEqual(
+                child.industry_id, industry, "industry inherited on import"
+            )
+            self.assertEqual(
+                child.street, "Parent Street", "address inherited on import"
+            )
             self.assertEqual(child.city, "ParentCity")
 
     def test_load_import_first_contact_populates_empty_company(self):
@@ -253,8 +255,15 @@ class TestPartnerSyncCharacterization(TransactionCase):
         fnames = ["id", "name", "is_company", "parent_id/id", "type", "street", "city"]
         data = [
             ["load_char_co2", "Load Char Co2", "1", "", "contact", "", ""],
-            ["load_char_ct2", "Load Char Ct2", "0", "load_char_co2", "contact",
-             "Contact Street", "ContactCity"],
+            [
+                "load_char_ct2",
+                "Load Char Ct2",
+                "0",
+                "load_char_co2",
+                "contact",
+                "Contact Street",
+                "ContactCity",
+            ],
         ]
         result = self.Partner.load(fnames, data)
         self.assertFalse(result["messages"], result["messages"])

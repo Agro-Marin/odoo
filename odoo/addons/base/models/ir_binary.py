@@ -34,22 +34,15 @@ class IrBinary(models.AbstractModel):
         access_token: str | None = None,
         field: str | None = None,
     ) -> Any:
-        """
-        Find and return a record using either an xmlid or a model+id
-        pair. This method is a helper for the ``/web/content`` and
-        ``/web/image`` controllers and should not be used in other
-        contexts.
+        """Find a record by xmlid or model+id, for ``/web/content`` and
+        ``/web/image`` only.
 
-        :param str | None xmlid: xmlid of the record
-        :param str res_model: model of the record,
-            ir.attachment by default.
-        :param int | None res_id: id of the record
-        :param str | None access_token: access token to use instead
-            of the access rights and access rules.
-        :param str | None field: image field name to check the access to.
-            Mandatory whenever ``access_token`` is supplied: a binary token is
-            minted bound to a concrete field name, so a token verified against
-            ``field=None`` can never match and is silently ignored (IRB-L2).
+        :param str res_model: model of the record, ir.attachment by default.
+        :param str | None access_token: token used instead of access rights.
+        :param str | None field: image field whose access is checked. Mandatory
+            with ``access_token``: a binary token is bound to a concrete field
+            name, so one verified against ``field=None`` never matches and is
+            silently ignored (IRB-L2).
         :returns: single record
         :raises MissingError: when no record was found.
         """
@@ -72,15 +65,11 @@ class IrBinary(models.AbstractModel):
         return record
 
     def _record_to_stream(self, record: Any, field_name: str) -> Stream:
-        """
-        Low level method responsible for the actual conversion from a
-        model record to a stream. This method is an extensible hook for
-        other modules. It is not meant to be directly called from
-        outside the ir.binary model.
+        """Convert a record's binary field to a stream.
 
-        :param record: the record where to load the data from.
-        :param str field_name: the binary field where to load the data
-            from.
+        Low-level extensible hook; not meant to be called from outside
+        ir.binary.
+
         :rtype: Stream
         """
         if record._name == "ir.attachment" and field_name in (
@@ -121,24 +110,16 @@ class IrBinary(models.AbstractModel):
         mimetype: str | None = None,
         default_mimetype: str = "application/octet-stream",
     ) -> Stream:
-        """
-        Create a :class:`odoo.http.Stream` from a record's binary field.
+        """Create a :class:`odoo.http.Stream` from a record's binary field.
 
-        :param record: the record where to load the data from.
-        :param str field_name: the binary field where to load the data
-            from.
-        :param str | None filename: when the stream is downloaded by
-            a browser, what filename it should have on disk. By default
-            it is ``{table}-{id}-{field}.{extension}``, the extension is
-            determined thanks to mimetype.
-        :param str filename_field: like ``filename`` but use
-            one of the record's char field as filename.
-        :param str | None mimetype: the data mimetype to use instead
-            of the stored one (attachment) or the one determined by
-            magic.
-        :param str default_mimetype: the mimetype to use when the
-            mimetype couldn't be determined. By default it is
-            ``application/octet-stream``.
+        :param str field_name: the binary field to load from.
+        :param str | None filename: download filename; defaults to
+            ``{table}-{id}-{field}.{extension}`` (extension from mimetype).
+        :param str filename_field: char field to use as the download filename.
+        :param str | None mimetype: mimetype to use instead of the stored or
+            magic-detected one.
+        :param str default_mimetype: fallback mimetype
+            (``application/octet-stream``).
         :rtype: Stream
         """
         with replace_exceptions(
@@ -189,10 +170,10 @@ class IrBinary(models.AbstractModel):
             ext = get_extension(stream.download_name) or ""
             stream.download_name = stream.download_name.removesuffix(ext)[:100] + ext
             # Two libraries on purpose (IRB-M2): odoo's `get_extension` parses
-            # the existing name (it understands odoo's multi-part / magic-byte
-            # extensions) to decide whether one is already present, while the
-            # stdlib `guess_extension` maps the mimetype to an extension to
-            # append. Do not "dedup" these — they answer different questions.
+            # the existing name (understands odoo's multi-part / magic-byte
+            # extensions) to see if one is present; stdlib `guess_extension`
+            # maps the mimetype to one to append. Don't "dedup" — different
+            # questions.
             if (
                 not get_extension(stream.download_name)
                 and stream.mimetype != "application/octet-stream"
@@ -215,46 +196,21 @@ class IrBinary(models.AbstractModel):
         crop: bool = False,
         quality: int = 0,
     ) -> Stream:
-        """
-        Create a :class:`odoo.http.Stream` from a record's binary field,
-        equivalent of :meth:`~_get_stream_from` but for images.
+        """Image variant of :meth:`_get_stream_from`.
 
-        In case the record does not exist or is not accessible, the
-        alternative ``placeholder`` path is used instead. If not set,
-        a path is determined via
-        :meth:`~odoo.models.BaseModel._get_placeholder_filename` which
-        ultimately fallbacks on ``web/static/img/placeholder.png``.
+        When the record is missing or inaccessible, ``placeholder`` is served
+        instead (defaulting to
+        :meth:`~odoo.models.BaseModel._get_placeholder_filename`, ultimately
+        ``web/static/img/placeholder.png``). When ``width``, ``height``,
+        ``crop`` or ``quality`` are given the image is post-processed and its
+        ETag updated accordingly (see :func:`odoo.tools.image.image_process`).
 
-        In case the arguments ``width``, ``height``, ``crop`` or
-        ``quality`` are given, the image will be post-processed and the
-        ETags (the unique cache http header) will be updated
-        accordingly. See also :func:`odoo.tools.image.image_process`.
-
-        :param record: the record where to load the data from.
-        :param str field_name: the binary field where to load the data
-            from.
-        :param str | None filename: when the stream is downloaded by
-            a browser, what filename it should have on disk. By default
-            it is ``{table}-{id}-{field}.{extension}``, the extension is
-            determined thanks to mimetype.
-        :param str filename_field: like ``filename`` but use
-            one of the record's char field as filename.
-        :param str | None mimetype: the data mimetype to use instead
-            of the stored one (attachment) or the one determined by
-            magic.
-        :param str default_mimetype: the mimetype to use when the
-            mimetype couldn't be determined. By default it is
-            ``image/png``.
-        :param str | None placeholder: in case the image is not
-            found or unaccessible, the path of an image to use instead.
-            By default the record ``_get_placeholder_filename`` on the
-            requested field or ``web/static/img/placeholder.png``.
-        :param int width: if not zero, the width of the resized image.
-        :param int height: if not zero, the height of the resized image.
-        :param bool crop: if true, crop the image instead of resizing
-            it.
-        :param int quality: if not zero, the quality of the resized
-            image.
+        :param str | None placeholder: image path served when the record image
+            is missing or inaccessible.
+        :param int width: resized width, or 0 to keep.
+        :param int height: resized height, or 0 to keep.
+        :param bool crop: crop instead of resize.
+        :param int quality: resized quality, or 0 for default.
         :rtype: Stream
         """
         stream = None
@@ -268,18 +224,14 @@ class IrBinary(models.AbstractModel):
                 default_mimetype,
             )
         except (UserError, MissingError) as exc:
-            # MissingError covers a dangling attachment-backed binary field
-            # (_record_to_stream raises "The related attachment does not exist."
-            # on attachment GC races / manual deletes). Degrade to the
-            # placeholder like the empty-stream case rather than escaping to a
-            # 500 (IRB-C1); still re-raise when an explicit download is asked.
+            # MissingError covers a dangling attachment-backed field (GC races /
+            # manual deletes). Degrade to the placeholder rather than a 500
+            # (IRB-C1); still re-raise on an explicit download.
             if request and request.params.get("download"):
                 raise
-            # The swallow also hides genuine programming errors (a typo'd
-            # field_name raises UserError "Record has no field ...") behind a
-            # silent placeholder; leave a trace so they are diagnosable
-            # (IRB-C2). DEBUG, not WARNING: the GC-race MissingError is a
-            # normal production occurrence.
+            # The swallow also hides real bugs (a typo'd field_name raises
+            # UserError) behind a silent placeholder; log a trace (IRB-C2).
+            # DEBUG not WARNING: the GC-race MissingError is normal in prod.
             _logger.debug(
                 "Falling back to the image placeholder for %s.%s: %s",
                 record._name,
@@ -303,11 +255,10 @@ class IrBinary(models.AbstractModel):
         if isinstance(stream.etag, str):
             stream.etag += f"-{width}x{height}-crop={crop}-quality={quality}"
 
-        # HTTP cache negotiation only applies when there is a live request.
-        # `request` is falsy on non-HTTP paths (e.g. ir_actions_report resolving
-        # /web/image URLs server-side to avoid HTTP self-requests, which runs in
-        # cron/worker context). With no request, always (re)process the image so
-        # those callers do not hit an AttributeError on request.httprequest.
+        # HTTP cache negotiation needs a live request. `request` is falsy on
+        # non-HTTP paths (e.g. ir_actions_report resolving /web/image URLs
+        # server-side in cron/worker context); there, always (re)process the
+        # image so callers don't hit an AttributeError on request.httprequest.
         modified = True
         if request:
             if isinstance(stream.last_modified, (int, float)):

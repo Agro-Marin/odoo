@@ -1,11 +1,9 @@
 """Shared, class-independent helpers for the ``ir.model.*`` reflection family.
 
-This module is a leaf: it depends only on the ORM core, never on any of the
-``ir_model*`` model classes.  Keeping these constants and pure functions here
-lets ``ir_model``, ``ir_model_fields``, ``ir_model_fields_selection``,
-``ir_model_access`` and ``ir_model_data`` share them without importing each
-other, which previously formed an import cycle (every sibling imported helpers
-from ``ir_model`` while ``ir_model`` re-imported the siblings' classes).
+A leaf module: depends only on ORM core, never on the ``ir_model*`` model
+classes. Housing these constants and pure functions here lets the siblings
+(``ir_model``, ``ir_model_fields``, ...) share them without importing each
+other, which previously formed an import cycle.
 """
 
 from __future__ import annotations
@@ -107,17 +105,16 @@ def reload_schema(
     setup_models: Collection[str],
     init_models: Collection[str] = (),
 ) -> None:
-    """Reload the registry (and optionally the database schema) after a change
-    to the reflected model/field definitions: flush pending updates, run an
-    incremental ``Registry._setup_models__`` for ``setup_models``, then
-    ``Registry.init_models`` for ``init_models`` and their ``_inherits``
-    descendants.
+    """Reload the registry (and optionally the DB schema) after a change to the
+    reflected model/field definitions: flush pending updates, run an incremental
+    ``_setup_models__`` for ``setup_models``, then ``init_models`` for
+    ``init_models`` and their ``_inherits`` descendants.
 
-    :param setup_models: model names passed to ``_setup_models__``.  An *empty*
-        collection still runs the incremental setup (which reloads the custom
-        models); this is what ``ir.model.create`` relies on.
-    :param init_models: model names whose database schema must be updated;
-        empty means "registry reload only".
+    :param setup_models: model names passed to ``_setup_models__``. An *empty*
+        collection still runs the incremental setup (reloading custom models);
+        ``ir.model.create`` relies on this.
+    :param init_models: model names whose DB schema must be updated; empty means
+        "registry reload only".
     """
     env.flush_all()  # _setup_models__ must read up-to-date rows from the db
     registry = env.registry
@@ -255,9 +252,8 @@ def _build_upsert_query(
 
     # Unlike INSERT … VALUES (which resolves NULL types against the target
     # column), MERGE … USING (VALUES …) treats the source as an independent
-    # sub-query.  When every value in a column is NULL, PostgreSQL defaults its
-    # type to text, causing mismatches (e.g. text vs jsonb/int4).  Cast every
-    # source-column reference to its target type to be NULL-batch-proof.
+    # sub-query: an all-NULL column defaults to text, causing type mismatches
+    # (text vs jsonb/int4). Cast every source column to its target type.
     def _pg_cast(fname: str) -> SQL:
         ct = fields[fname].column_type
         if ct and ct[0] not in ("varchar", "text"):
@@ -337,12 +333,10 @@ def upsert_en(
 
     fields = model._fields
 
-    # The input order is reconstructed by mapping each conflict-key tuple back
-    # to its returned id.  That mapping requires the conflict values to be
-    # hashable scalars that compare equal between the Python input and the
-    # RETURNING output.  A translated column round-trips as a jsonb ``dict``
-    # (unhashable, and not equal to the raw input), silently breaking the
-    # reconstruction — so reject it explicitly rather than crash cryptically.
+    # Input order is reconstructed by mapping each conflict-key tuple to its
+    # returned id, which needs hashable scalar keys that compare equal between
+    # input and RETURNING output. A translated column round-trips as a jsonb
+    # ``dict`` (unhashable, unequal), breaking this — reject it explicitly.
     if bad := [c for c in conflict if fields[c].translate]:
         raise ValueError(
             f"upsert_en: conflict columns cannot be translated fields (got {bad}); "

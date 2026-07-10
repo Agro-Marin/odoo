@@ -30,9 +30,7 @@ from .ir_model_common import (
 _logger = logging.getLogger(__name__)
 
 
-#
 # IMPORTANT: this must be the first model declared in the module
-#
 
 
 class Base(models.AbstractModel):
@@ -43,10 +41,7 @@ class Base(models.AbstractModel):
 
 
 class Unknown(models.AbstractModel):
-    """
-    Abstract model used as a substitute for relational fields with an unknown
-    comodel.
-    """
+    """Substitute for relational fields with an unknown comodel."""
 
     _name = "_unknown"
     _description = "Unknown"
@@ -129,7 +124,6 @@ class IrModel(models.Model):
     def _compute_inherited_model_ids(self) -> None:
         """Batch-resolve inherited models with a single search."""
         self.inherited_model_ids = False
-        # Collect all parent model names from the registry (no DB needed)
         all_parent_names = set()
         inherits_by_model: dict[str, list[str]] = {}
         for model in self:
@@ -140,7 +134,6 @@ class IrModel(models.Model):
                     all_parent_names.update(parent_names)
         if not all_parent_names:
             return
-        # Single search for all parent model names
         parent_records = {
             rec.model: rec
             for rec in self.search([("model", "in", list(all_parent_names))])
@@ -173,7 +166,6 @@ class IrModel(models.Model):
     def _compute_count(self) -> None:
         """Batch-count records using a single UNION ALL query."""
         self.count = 0
-        # Collect (table_name, model_name) for concrete models
         table_models: list[tuple[str, str]] = [
             (records._table, model.model)
             for model in self
@@ -183,7 +175,7 @@ class IrModel(models.Model):
         ]
         if not table_models:
             return
-        # Single UNION ALL: one COUNT(*) per table in one round-trip
+        # single UNION ALL: one COUNT(*) per table in one round-trip
         parts = [
             SQL(
                 "SELECT %s AS model, COUNT(*) FROM %s",
@@ -219,24 +211,23 @@ class IrModel(models.Model):
                 )  # regex check for the whole clause ('is it valid sql?')
             except UserError as e:
                 raise ValidationError(str(e)) from None
-            # add MAGIC_COLUMNS to 'stored_fields' in case 'model' has not been
-            # initialized yet, or 'field_id' is not up-to-date in cache
+            # add MAGIC_COLUMNS in case 'model' is not initialized yet, or
+            # 'field_id' is not up-to-date in cache
             stored_fields = set(
                 model.field_id.filtered("store").mapped("name") + models.MAGIC_COLUMNS
             )
             if model.model in self.env:
-                # add fields inherited from models specified via code if they are already loaded
+                # add already-loaded fields inherited from code-defined models
                 stored_fields.update(
                     fname
                     for fname, fval in self.env[model.model]._fields.items()
                     if fval.inherited and fval.base_field.store
                 )
 
-            # Extract the ordered field names using the ORM's own order parser
-            # (the single source of truth, already applied by _check_qorder)
+            # Use the ORM's own order parser (already applied by _check_qorder)
             # rather than a parallel regex that would drift from the grammar and
-            # mistake grouping funcs (e.g. "create_date:month") or related-field
-            # properties (e.g. "parent_id.name") for missing field names.
+            # mistake grouping funcs ("create_date:month") or related-field
+            # properties ("parent_id.name") for missing field names.
             for order_part in model.order.split(","):
                 order_match = models.regex_order.match(order_part)
                 field = order_match["field"] if order_match else None
@@ -262,7 +253,8 @@ class IrModel(models.Model):
 
     def _get(self, name: str) -> Self:
         """Return the (sudoed) `ir.model` record with the given name.
-        The result may be an empty recordset if the model is not found.
+
+        Empty recordset if the model is not found.
         """
         model_id = self._get_id(name) if name else False
         return self.sudo().browse(model_id)
@@ -386,21 +378,20 @@ class IrModel(models.Model):
             if vals.get("state", "manual") == "manual"
         ]
         if manual_models:
-            # setup models (the incremental setup with an empty list reloads
-            # custom models, which adds them to the registry), then create
-            # their database schema; freshly created models have no
-            # descendants, so the _inherits expansion is a no-op here
+            # reload custom models into the registry, then create their schema;
+            # freshly created models have no descendants, so _inherits expansion
+            # is a no-op here
             reload_schema(self.env, [], manual_models)
         return res
 
     @api.model
     @override
     def name_create(self, name: str) -> tuple[int, str]:
-        """Infer the model from the name. E.g.: 'My New Model' should become 'x_my_new_model'.
+        """Infer the model name from the description, e.g. 'My New Model' -> 'x_my_new_model'.
 
         The name is slugified (accents stripped, non-alphanumeric runs collapsed
-        to single underscores) so that punctuation or diacritics produce a valid
-        model name instead of failing the ``_check_model_name`` constraint.
+        to underscores) so punctuation or diacritics can't fail the
+        ``_check_model_name`` constraint.
         """
         slug = re.sub(r"[^a-z0-9]+", "_", remove_accents(name).lower()).strip("_")
         ir_model = self.create(
@@ -435,7 +426,6 @@ class IrModel(models.Model):
         """Reflect the given models."""
         if not model_names:
             return
-        # determine expected and existing rows
         rows = [
             self._reflect_model_params(self.env[model_name])
             for model_name in model_names
@@ -457,9 +447,9 @@ class IrModel(models.Model):
                 model_ids[row[0]] = id_
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
 
-        # pre-warm the _get_id ormcache with the (model, id) pairs just
-        # computed, so the subsequent _reflect_inherits/_reflect_fields passes
-        # do not cold-miss one SELECT per distinct model/parent name
+        # pre-warm the _get_id ormcache so the subsequent
+        # _reflect_inherits/_reflect_fields passes don't cold-miss one SELECT
+        # per distinct model/parent name
         add_value = self._get_id.__cache__.add_value
         for name, id_ in model_ids.items():
             add_value(self, name, cache_value=id_)
@@ -481,9 +471,7 @@ class IrModel(models.Model):
 
     @api.model
     def _instantiate_attrs(self, model_data: dict[str, Any]) -> dict[str, Any]:
-        """Return the attributes to instantiate a custom model definition class
-        corresponding to ``model_data``.
-        """
+        """Return the class attributes for a custom model defined by ``model_data``."""
         return {
             "_name": model_data["model"],
             "_description": model_data["name"],
@@ -541,10 +529,9 @@ class IrModelInherit(models.Model):
                     for parent_name in cls._inherit
                     if parent_name not in ("base", model_name)
                 ]
-                # parent_id is a required column; an unresolved parent would
-                # otherwise surface as an opaque NOT NULL violation deep inside
-                # upsert_en.  Resolve up front and fail with a message that
-                # names the culprit.
+                # parent_id is required: resolve parents up front so a missing
+                # one fails with a named culprit rather than an opaque NOT NULL
+                # violation deep inside upsert_en.
                 parent_ids = {}
                 for parent_name in (*inherit_parents, *cls._inherits):
                     parent_id = get_model_id(parent_name)
@@ -598,8 +585,8 @@ class IrModelInherit(models.Model):
             inh_ids.update(dict(zip(rows, ids, strict=True)))
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
 
-        # update their XML id: resolve every model/parent id to its xmlid-safe
-        # name once, instead of re-browsing (twice) inside the loop below
+        # update their XML id: resolve every model/parent id to its name once,
+        # instead of re-browsing (twice) inside the loop below
         involved = IrModel.browse(id_ for item in module_mapping for id_ in item[:2])
         involved.fetch(["model"])
         xml_name = {rec.id: rec.model for rec in involved}

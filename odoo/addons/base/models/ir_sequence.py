@@ -162,12 +162,10 @@ _INTERPOLATION_FORMATS = {
 class _InterpolationDict(dict):
     """Lazy mapping for the legacy ``%(key)s`` prefix/suffix placeholders.
 
-    Drawing a number is a hot path; formatting the full matrix of
-    14 formats x 3 dates on every draw is wasted work when a pattern only
-    references a few keys (or none). Values are therefore strftime-formatted
-    on first access via ``__missing__`` and cached, so repeated placeholders
-    format once. Unknown keys raise ``KeyError`` exactly like a plain dict,
-    which ``_get_prefix_suffix`` turns into a ``UserError``.
+    Values are strftime-formatted on first access via ``__missing__`` and
+    cached, so drawing a number avoids formatting the full 14 formats x 3 dates
+    matrix when a pattern references only a few keys. Unknown keys raise
+    ``KeyError``, which ``_get_prefix_suffix`` turns into a ``UserError``.
     """
 
     def __init__(
@@ -297,8 +295,7 @@ class IrSequence(models.Model):
             if seq.implementation == "standard":
                 if new_implementation in ("standard", None):
                     # Case 1: was standard, stays standard (or unspecified).
-                    # Implementation has NOT changed.
-                    # Only change sequence if really requested.
+                    # Only alter the sequence on explicit request.
                     if "number_next" in vals:
                         _alter_sequence(
                             self.env.cr,
@@ -313,18 +310,16 @@ class IrSequence(models.Model):
                         )
                         seq.date_range_ids._alter_sequence(number_increment=i)
                 else:
-                    # Case 2: was standard, becomes no_gap.
-                    # Under the standard implementation the row's number_next
-                    # column never advances (draws consume the PG sequence),
-                    # so seed it from the live sequence value before dropping
-                    # — unless the caller sets it explicitly — otherwise
-                    # numbering would restart at a stale value and issue
-                    # duplicate numbers.
+                    # Case 2: was standard, becomes no_gap. The row's
+                    # number_next never advances under standard (draws consume
+                    # the PG sequence), so seed it from the live sequence value
+                    # before dropping — unless the caller sets it explicitly —
+                    # else numbering restarts stale and issues duplicates.
                     if "number_next" not in vals and "number_next_actual" not in vals:
                         # Read all seeds first, then write them with direct
-                        # UPDATEs: an ORM assignment would recursively
-                        # re-enter write()/_alter_sequence and RESTART the
-                        # very PG sequences dropped just below.
+                        # UPDATEs: an ORM assignment would recursively re-enter
+                        # write()/_alter_sequence and RESTART the very PG
+                        # sequences dropped just below.
                         seq_seed = _predict_nextval(seq, seq._pg_sequence_name())
                         sub_seeds = [
                             (
@@ -501,9 +496,6 @@ class IrSequence(models.Model):
         For a plain sequence that is ``self``; for a date-ranged one it is the
         ``ir.sequence.date_range`` sub-sequence covering ``sequence_date`` (or
         the contextual / current date), created on the fly if none exists yet.
-        This is the single source of truth for resolving the active counter
-        record — used both by :meth:`_next` and by callers that need to read
-        ``number_next_actual`` (e.g. serial-number generation in stock).
         """
         self.ensure_one()
         if not self.use_date_range:
@@ -525,7 +517,6 @@ class IrSequence(models.Model):
         """Return the next interpolated value for this sequence."""
         if not self.use_date_range:
             return self._next_do()
-        # date mode
         dt = sequence_date or self.env.context.get(
             "ir_sequence_date", fields.Datetime.now()
         )
@@ -586,9 +577,8 @@ class IrSequenceDate_Range(models.Model):
         return "ir_sequence_%03d_%03d" % (self.sequence_id.id, self.id)
 
     def _get_number_next_actual(self) -> None:
-        """Return the sub-sequence's number_next from the date_range row when
-        the parent uses the no_gap implementation, and from the PostgreSQL
-        sequence when the parent uses the standard implementation."""
+        """Return number_next from the date_range row (no_gap parent) or from
+        the PostgreSQL sequence (standard parent)."""
         for seq in self:
             if seq.sequence_id.implementation != "standard":
                 seq.number_next_actual = seq.number_next
@@ -681,13 +671,10 @@ class IrSequenceDate_Range(models.Model):
                 lambda seq: seq.sequence_id.implementation == "standard"
             )
             seq_to_alter._alter_sequence(number_next=vals["number_next"])
-        # _update_nogap does a SELECT to get the next sequence number_next.
-        # When changing (writing) the number next of a sequence, the number next must be flushed before doing the select.
-        # Normally in such a case, we flush just above the execute, but for the sake of performance
-        # I believe this is better to flush directly in the write:
-        #  - Changing the number next of a sequence is really really rare,
-        #  - But selecting the number next happens a lot,
-        # Therefore, if I chose to put the flush just above the select, it would check the flush most of the time for no reason.
+        # _update_nogap SELECTs number_next, so it must be flushed after a
+        # write. Flush here rather than before that SELECT: writing number_next
+        # is rare while selecting it is hot, so flushing on the read path would
+        # check the flush most of the time for nothing.
         res = super().write(vals)
         self.flush_model(vals.keys())
         return res

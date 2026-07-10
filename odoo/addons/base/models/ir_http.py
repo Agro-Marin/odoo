@@ -94,13 +94,9 @@ class LazyCompiledBuilder:
         self._append_unknown = append_unknown
 
     def __get__(self, *args: Any) -> LazyCompiledBuilder:
-        # Rule.compile will actually call
-        #
-        #   self._build = self._compile_builder(False).__get__(self, None)
-        #   self._build_unknown = self._compile_builder(True).__get__(self, None)
-        #
-        # meaning the _build and _build_unknown will contain _compile_builder().__get__(self, None).
-        # This is why this override of __get__ is needed.
+        # Rule.compile binds the result via _compile_builder(...).__get__(self, None),
+        # so the builder must be a descriptor; returning self here keeps this lazy
+        # wrapper alive through that binding.
         return self
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
@@ -115,11 +111,7 @@ class LazyCompiledBuilder:
 
 
 class FasterRule(werkzeug.routing.Rule):
-    """Make calls to ``_compile_builder`` lazy.
-
-    ``_compile_builder`` is a major part of the routing map generation and
-    rules are actually not built so often.
-    """
+    """Make ``_compile_builder`` lazy: it dominates routing-map generation but rules are rarely built."""
 
     def _compile_builder(self, append_unknown: bool = True) -> LazyCompiledBuilder:
         return LazyCompiledBuilder(self, super()._compile_builder, append_unknown)
@@ -131,11 +123,8 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _slugify_one(cls, value: str, max_length: int | None = None) -> str:
-        """Transform a string to a slug that can be used in a url path.
+        """Transform a string into a slug usable in a URL path.
 
-        Replaces spaces and underscores with dashes '-', removes every character
-        that is not a word or a dash, collapses multiple dashes into one, strips
-        leading/trailing dashes, and lowercases the result.
         Example: ^h☺e$#!l(%l}o 你好& becomes hello-你好
         """
         uni = unicodedata.normalize("NFKD", value)
@@ -214,8 +203,7 @@ class IrHttp(models.AbstractModel):
         headers = request.httprequest.headers
 
         def get_http_authorization_bearer_token() -> str | None:
-            # werkzeug<2.3 doesn't expose `authorization.token` (for bearer authentication)
-            # check header directly
+            # werkzeug<2.3 doesn't expose `authorization.token`; read the header directly.
             header = headers.get("Authorization")
             if header and (m := re.match(r"^bearer\s+(.+)$", header, re.IGNORECASE)):
                 # strip trailing whitespace so it does not leak into the token
@@ -223,8 +211,7 @@ class IrHttp(models.AbstractModel):
             return None
 
         def check_sec_headers() -> bool:
-            """Protection against CSRF attacks.
-            Modern browsers automatically add Sec- headers that we can check to protect against CSRF.
+            """Check browser-set Sec-Fetch-* headers as CSRF protection.
             https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Sec-Fetch-User
             """
             return (
@@ -322,10 +309,8 @@ class IrHttp(models.AbstractModel):
     def _pre_dispatch(cls, rule: werkzeug.routing.Rule, args: dict[str, Any]) -> None:
         ICP = request.env["ir.config_parameter"].with_user(SUPERUSER_ID)
 
-        # Change the default database-wide 128MiB upload limit on the
-        # ICP value. Do it before calling http's generic pre_dispatch
-        # so that the per-route limit @route(..., max_content_length=x)
-        # takes over.
+        # Override the default 128MiB upload limit with the ICP value, before http's
+        # generic pre_dispatch so a per-route @route(..., max_content_length=x) still wins.
         key = "web.max_file_upload_size"
         if (value := ICP.get_param(key, None)) is not None:
             try:
@@ -340,9 +325,8 @@ class IrHttp(models.AbstractModel):
 
         request.dispatcher.pre_dispatch(rule, args)
 
-        # verify the default language set in the context is valid,
-        # otherwise fallback on the company lang, english or the first
-        # lang installed
+        # Ensure the context lang is valid, else fall back to company lang,
+        # English, or the first installed lang.
         env = (
             request.env
             if request.env.uid
@@ -350,8 +334,7 @@ class IrHttp(models.AbstractModel):
         )
         request.update_context(lang=get_lang(env).code)
 
-        # Replace uid and lang placeholder by the current request.env.uid and request.env.lang
-        # before checking the access.
+        # Rebind record args to the current request.env before checking access.
         for key, val in list(args.items()):
             if not isinstance(val, models.BaseModel):
                 continue
@@ -409,11 +392,9 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _serve_fallback(cls) -> Response | None:
         model = request.env["ir.attachment"]
-        # Only public attachments may be served by the URL fallback: the search
-        # runs under sudo(), so without this filter any binary attachment whose
-        # url collides with an unmatched path would be served to anonymous
-        # callers. This matches the hardening recommended by
-        # ir_attachment._audit_url_attachments. See IHTTP-L3.
+        # Only public attachments may be served by the URL fallback: the search runs
+        # under sudo(), so without this filter any attachment whose url collides with
+        # an unmatched path would leak to anonymous callers. See IHTTP-L3.
         attach = model.sudo()._get_serve_attachment(
             request.httprequest.path, extra_domain=[("public", "=", True)]
         )
@@ -437,9 +418,8 @@ class IrHttp(models.AbstractModel):
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)
-        # The @tools.ormcache(cache="routing") decorator caches and shares this
-        # map across instances; it is rebuilt only on a cache clear (every
-        # registry _setup_models__, i.e. every module install/upgrade/uninstall).
+        # @tools.ormcache(cache="routing") caches and shares this map; it is rebuilt only
+        # on a cache clear (every registry _setup_models__, i.e. every module install/upgrade/uninstall).
         routing_map = werkzeug.routing.Map(
             strict_slashes=False, converters=self._get_converters()
         )
@@ -453,9 +433,8 @@ class IrHttp(models.AbstractModel):
 
     @api.autovacuum
     def _gc_sessions(self) -> None:
-        # str2bool so the documented off-values ("0"/"false"/"no"/...) do not
-        # count as "set" and skip the GC (same pattern as ir_cron's
-        # ODOO_NOTIFY_CRON_CHANGES).
+        # str2bool so documented off-values ("0"/"false"/"no"/...) don't count as
+        # "set" and skip the GC (same pattern as ir_cron's ODOO_NOTIFY_CRON_CHANGES).
         if str2bool(os.getenv("ODOO_SKIP_GC_SESSIONS", ""), default=False):
             return
         http.root.session_store.vacuum(

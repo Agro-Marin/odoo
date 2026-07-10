@@ -6,32 +6,27 @@ from odoo.addons.base.models.ir_actions import _safe_eval_dict
 
 @tagged("post_install", "-at_install")
 class TestIrActionsExists(TransactionCase):
-    """IRA-L1: ir.actions exists() must reflect uncommitted changes in the
-    current transaction. The public exists() override that read the cached
-    _existing() id set (stale for NewId / just-created records) was removed; the
-    cache is now used only inside the already-flushing _get_bindings.
+    """IRA-L1: ir.actions exists() must reflect uncommitted changes; the cached
+    _existing() id-set (stale for NewId/just-created records) is now consulted
+    only inside the already-flushing _get_bindings, not in a public override.
     """
 
     def test_exists_reflects_uncommitted_create(self):
         model = self.env["ir.actions.act_url"]
         action = model.create({"name": "audit-ira-l1", "url": "/audit/ira-l1"})
-        # Standard ORM exists() must see the just-created (uncommitted) record.
-        # The removed act_window override consulted a cached id-set that could
-        # exclude such records.
+        # exists() must see the just-created (uncommitted) record.
         self.assertEqual(action.exists(), action)
 
     def test_get_bindings_still_resolves(self):
-        # _get_bindings filters to existing actions via _existing(); it must
-        # still return a mapping without raising after the override removal.
         bindings = self.env["ir.actions.actions"]._get_bindings("res.partner")
         self.assertIsInstance(dict(bindings), dict)
 
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingsCacheOnCreate(TransactionCase):
-    """ir.actions.actions.create must only clear the registry cache when a
-    created action is bound: the protected cache (_get_bindings) only selects
-    rows whose binding_model_id is set, so unbound creates cannot stale it.
+    """ir.actions.actions.create only clears the registry cache for a bound
+    action: _get_bindings selects only rows with binding_model_id set, so
+    unbound creates cannot stale it.
     """
 
     def test_unbound_create_keeps_bindings_cache(self):
@@ -80,11 +75,10 @@ class TestSafeEvalDict(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
-    """ir.actions unlink() must manually cascade to ir.embedded.actions.
-
-    The ``ondelete="cascade"`` on ir.embedded.actions.action_id never becomes a
-    working FK (ir_actions is a PostgreSQL inheritance root), so without the
-    manual cascade a deleted action leaves dangling embedded actions behind.
+    """ir.actions unlink() must manually cascade to ir.embedded.actions: the
+    ``ondelete="cascade"`` on action_id never becomes a working FK (ir_actions
+    is a PostgreSQL inheritance root), so without it deleted actions leave
+    dangling embedded actions behind.
     """
 
     @classmethod
@@ -115,9 +109,9 @@ class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
         )
 
     def test_unlink_blocked_by_seeded_embedded_action(self):
-        # A data-file-seeded embedded action (real external id) is not
-        # deletable, so the cascade's ondelete hook must block the manual
-        # deletion of the action it references instead of leaving it dangling.
+        # A data-file-seeded embedded action (real external id) is not deletable,
+        # so the cascade's ondelete hook must block the action's deletion instead
+        # of leaving it dangling.
         embedded = self._create_embedded()
         self.env["ir.model.data"].create(
             {
@@ -135,8 +129,8 @@ class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestEmbeddedActionsGroupIdsConvention(TransactionCase):
-    """ir.embedded.actions follows the group_ids naming convention of every
-    sibling action model (the field was historically misnamed groups_ids)."""
+    """ir.embedded.actions follows the group_ids naming convention of sibling
+    action models (the field was historically misnamed groups_ids)."""
 
     def test_group_ids_field_renamed(self):
         fields = self.env["ir.embedded.actions"]._fields

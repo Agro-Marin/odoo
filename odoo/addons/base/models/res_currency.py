@@ -16,22 +16,18 @@ from odoo.tools import SQL, ormcache, parse_date
 
 _logger = logging.getLogger(__name__)
 
-# Maximum significant digits for currency float display (total digits in the
-# ``digits`` tuple used by Float fields).  69 is the practical upper bound for
-# IEEE 754 double precision — effectively "no upper limit on integer digits".
+# Total digits in the Float ``digits`` tuple. 69 is the IEEE 754 double upper
+# bound — effectively no limit on integer digits.
 _CURRENCY_TOTAL_DIGITS = 69
 
-# RCUR-M1: ``env.cr.cache`` key of the transaction-scoped currency-rate
-# history memo::
+# RCUR-M1: ``env.cr.cache`` key of the transaction-scoped rate-history memo::
 #
 #     {(currency_id, company_root_id):
 #         ((specific_dates, specific_values), (global_dates, global_values))}
 #
-# Populated by ``ResCurrency._get_rates_from_memo``; dropped whole by
-# ``ResCurrencyRate.create/write/unlink`` (same-transaction rate changes).
-# ``cr.cache`` itself is transaction-local — cleared on rollback and
-# transaction reset — so registry-wide or cross-transaction staleness is
-# impossible by construction.
+# Populated by ``_get_rates_from_memo``, dropped by
+# ``ResCurrencyRate.create/write/unlink``. ``cr.cache`` is transaction-local
+# (cleared on rollback/reset), so cross-transaction staleness cannot occur.
 RATE_HISTORY_CACHE_KEY = "res_currency_rate_history"
 
 
@@ -41,7 +37,7 @@ class ResCurrency(models.Model):
     _rec_names_search = ["name", "full_name"]
     _order = "active desc, name"
 
-    # Note: 'code' column was removed as of v6.0, the 'name' should now hold the ISO code.
+    # 'code' column was removed in v6.0; 'name' now holds the ISO code.
     name = fields.Char(
         string="Currency",
         size=3,
@@ -131,9 +127,7 @@ class ResCurrency(models.Model):
 
     @api.model
     def _toggle_group_multi_currency(self) -> None:
-        """
-        Automatically activate group_multi_currency if there is more than 1 active currency; deactivate it otherwise
-        """
+        """Activate group_multi_currency when >1 active currency, deactivate otherwise."""
         active_currency_count = self.search_count([("active", "=", True)])
         if active_currency_count > 1:
             self._activate_group_multi_currency()
@@ -159,9 +153,10 @@ class ResCurrency(models.Model):
         if self.env.context.get("install_mode") or self.env.context.get(
             "force_deactivate"
         ):
-            # install_mode : At install, when this check is run, the "active" field of a currency added to a company will
-            #                still be evaluated as False, despite it's automatically set at True when added to the company.
-            # force_deactivate : Allows deactivation of a currency in tests to enable non multi_currency behaviors
+            # install_mode: at install the "active" field of a currency added to a
+            #   company still evaluates False despite being auto-set True on add.
+            # force_deactivate: allows deactivating a currency in tests for
+            #   non-multi-currency behaviours.
             return
 
         currencies = self.filtered(lambda c: not c.active)
@@ -179,20 +174,13 @@ class ResCurrency(models.Model):
 
         Per currency, selects the latest rate with ``name <= date`` scoped to the
         company root or global (``company_id`` NULL); falls back to the earliest
-        known rate, then to ``1.0`` if the currency has no rate at all.
-
-        :param company: company whose root/global rates are considered
-        :param date: cut-off date for rate selection
-        :return: mapping of currency id to applicable rate
-        :rtype: dict[int, float]
+        known rate, then to ``1.0`` when the currency has no rate at all.
         """
         if not self.ids:
             return {}
-        # RCUR-M1: transaction-scoped memo — the first lookup for a
-        # (currency, company root) pair loads the currency's full rate
-        # history into env.cr.cache; any later date is answered with a
-        # bisect, so batch flows converting line-by-line with per-line dates
-        # stop issuing one SQL query per distinct (date, company, currency).
+        # RCUR-M1: first lookup per (currency, company root) loads the full rate
+        # history into the memo; later dates resolve by bisect, so batch flows
+        # with per-line dates avoid one SQL query per (date, company, currency).
         rates = self._get_rates_from_memo(company, date)
         if rates is not None:
             return rates
@@ -225,12 +213,9 @@ class ResCurrency(models.Model):
                 currency_id,
             )
         )
-        # RCUR-L1: the fallback runs only when no rate exists on or before
-        # 'date' (i.e. a date preceding the currency's first recorded rate).
-        # Ordering 'name ASC' is deliberate: it returns the *earliest* known
-        # rate, so early dates use the first historical rate. This is
-        # intentional (asymmetric with the primary 'name DESC' selection), not
-        # a bug — behaviour is correct, documented here for auditors.
+        # RCUR-L1: fallback for dates before the currency's first recorded rate.
+        # 'name ASC' is deliberate — it returns the *earliest* known rate,
+        # asymmetric with the primary 'name DESC' selection, not a bug.
         rate_fallback = Rate._search(
             [
                 ("company_id", "in", (False, company.root_id.id)),
@@ -262,19 +247,13 @@ class ResCurrency(models.Model):
     def _get_rates_from_memo(self, company: Self, date: Any) -> dict[int, float] | None:
         """Memoized equivalent of :meth:`_get_rates_sql` (RCUR-M1).
 
-        The first call for a (currency, company root) pair loads the
-        currency's complete rate history — both the company-root scope and
-        the global ``company_id IS NULL`` scope — into ``env.cr.cache`` (one
-        query per batch of unseen currencies); any date is then resolved in
-        memory by :meth:`_resolve_rate_from_history`.  The memo lives on the
-        cursor cache, so it is transaction-local (cleared on rollback and
-        transaction reset), and it is dropped by
-        ``ResCurrencyRate.create/write/unlink`` so same-transaction rate
-        changes are never served stale.
+        The first call per (currency, company root) loads the currency's full
+        rate history (company-root and global ``company_id IS NULL`` scopes)
+        into the memo; later dates resolve in memory via
+        :meth:`_resolve_rate_from_history`.
 
-        :return: same mapping as :meth:`_get_rates`, or ``None`` when
-                 ``date`` cannot be normalized to a date (callers then use
-                 the SQL cold path, which compares the raw value in SQL).
+        :return: same mapping as :meth:`_get_rates`, or ``None`` when ``date``
+                 cannot be normalized (caller then uses the SQL cold path).
         """
         try:
             date = fields.Date.to_date(date)
@@ -303,9 +282,9 @@ class ResCurrency(models.Model):
                 specific, global_ = histories[rate.currency_id.id]
                 dates, values = specific if rate.company_id else global_
                 dates.append(rate.name)
-                # CHECK (rate > 0) forbids 0.0: a falsy value means SQL NULL,
-                # which the COALESCE chain of the SQL path skips over — keep
-                # None so _resolve_rate_from_history can do the same.
+                # CHECK (rate > 0) forbids 0.0, so a falsy value is SQL NULL,
+                # which the COALESCE chain skips — keep None so
+                # _resolve_rate_from_history matches.
                 values.append(rate.rate or None)
             for currency_id, history in histories.items():
                 memo[currency_id, root_id] = history
@@ -349,14 +328,12 @@ class ResCurrency(models.Model):
         for currency in self:
             currency.is_current_company_currency = company_currency == currency
 
-    # RCUR-C1: the rate selection depends on the rate's date ('name') and
-    # company scoping, not only on its value — declaring all three keeps the
-    # cached rate/inverse_rate/rate_string of the currency *owning* the rate
-    # consistent. This does not replace the invalidate_model() calls in
-    # ResCurrencyRate.create/write/unlink: another currency's cached values
-    # can depend on this one's rates (through the 'to_currency' context or
-    # because this is the company currency all three fields are expressed
-    # against), a cross-record dependency @api.depends cannot express.
+    # RCUR-C1: selection depends on the rate's date ('name') and company scope,
+    # not only its value — declaring all three keeps the owning currency's
+    # cached rate/inverse_rate/rate_string consistent. It does not replace the
+    # invalidate_model() calls in ResCurrencyRate: another currency's cached
+    # values can depend on this one's rates (via 'to_currency' or as the company
+    # currency), a cross-record dependency @api.depends cannot express.
     @api.depends("rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:
@@ -375,7 +352,6 @@ class ResCurrency(models.Model):
         to_currency = (
             self.browse(self.env.context.get("to_currency")) or company_currency
         )
-        # the subquery selects the last rate before 'date' for the given currency/company
         currency_rates = (self + to_currency)._get_rates(company, date)
         to_rate = currency_rates.get(to_currency.id) or 1.0
         to_name = to_currency.name
@@ -441,55 +417,35 @@ class ResCurrency(models.Model):
             )
 
     def format(self, amount: float) -> str:
-        """Return ``amount`` formatted according to ``self``'s rounding rules, symbols and positions.
+        """Return ``amount`` formatted per ``self``'s rounding, symbol and position.
 
-        Also take care of removing the minus sign when 0.0 is negative
-
-        :param float amount: the amount to format
-        :return: formatted str
+        Also removes the minus sign when 0.0 is negative.
         """
         self.ensure_one()
         return tools.format_amount(self.env, amount + 0.0, self)
 
     def round(self, amount: float) -> float:
-        """Return ``amount`` rounded according to ``self``'s rounding rules.
-
-        :param float amount: the amount to round
-        :return: rounded float
-        """
+        """Return ``amount`` rounded per ``self``'s rounding rules."""
         self.ensure_one()
         return tools.float_round(amount, precision_rounding=self.rounding)
 
     def compare_amounts(self, amount1: float, amount2: float) -> int:
-        """Compare ``amount1`` and ``amount2`` after rounding them according to the
-        given currency's precision.
-        An amount is considered lower/greater than another amount if their rounded
-        value is different. This is not the same as having a non-zero difference!
+        """Compare ``amount1`` and ``amount2`` after rounding each to the currency's
+        precision; return -1, 0 or 1 (lower / equal / greater).
 
-        For example 1.432 and 1.431 are equal at 2 digits precision,
-        so this method would return 0.
-        However 0.006 and 0.002 are considered different (returns 1) because
-        they respectively round to 0.01 and 0.0, even though
-        0.006-0.002 = 0.004 which would be considered zero at 2 digits precision.
-
-        :param float amount1: first amount to compare
-        :param float amount2: second amount to compare
-        :return: (resp.) -1, 0 or 1, if ``amount1`` is (resp.) lower than,
-                 equal to, or greater than ``amount2``, according to
-                 ``currency``'s rounding.
+        Rounding happens before comparing, so this differs from a non-zero
+        difference: 0.006 vs 0.002 compare as different (round to 0.01 vs 0.0) at
+        2-digit precision even though their difference rounds to zero.
         """
         self.ensure_one()
         return tools.float_compare(amount1, amount2, precision_rounding=self.rounding)
 
     def is_zero(self, amount: float) -> bool:
-        """Returns true if ``amount`` is small enough to be treated as
-        zero according to current currency's rounding rules.
-        Warning: ``is_zero(amount1-amount2)`` is not always equivalent to
-        ``compare_amounts(amount1,amount2) == 0``, as the former will round after
-        computing the difference, while the latter will round before, giving
-        different results for e.g. 0.006 and 0.002 at 2 digits precision.
+        """Return True if ``amount`` rounds to zero at the currency's precision.
 
-        :param float amount: amount to compare with currency's zero
+        Warning: ``is_zero(a - b)`` is not always ``compare_amounts(a, b) == 0`` —
+        is_zero rounds after the subtraction, compare_amounts before (differing
+        for e.g. 0.006 and 0.002 at 2-digit precision).
         """
         self.ensure_one()
         return tools.float_is_zero(amount, precision_rounding=self.rounding)
@@ -521,12 +477,8 @@ class ResCurrency(models.Model):
     ) -> float:
         """Return the rate converting one unit of ``from_currency`` to ``to_currency``.
 
-        :param from_currency: source currency
-        :param to_currency: target currency
-        :param company: company used to look up the rate (defaults to env company)
-        :param date: date used to look up the rate (defaults to today)
-        :return: the conversion rate (``1`` when both currencies are equal)
-        :rtype: float
+        ``company`` defaults to the env company, ``date`` to today; returns ``1``
+        when both currencies are equal.
         """
         if from_currency == to_currency:
             return 1
@@ -548,13 +500,7 @@ class ResCurrency(models.Model):
     ) -> float:
         """Return ``from_amount`` converted from ``self`` to ``to_currency``.
 
-        :param float from_amount: the amount to convert
-        :param to_currency: target currency
-        :param company: company used to look up the conversion rate
-        :param date: date used to look up the conversion rate
-        :param bool round: whether to round the result to ``to_currency``'s precision
-        :return: converted amount
-        :rtype: float
+        :param bool round: round the result to ``to_currency``'s precision
         """
         if from_amount is None:
             msg = "_convert() requires a numeric amount, got None"
@@ -617,8 +563,8 @@ class ResCurrency(models.Model):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """The override of _get_view changing the rate field labels according to the company currency
-        makes the view cache dependent on the company currency"""
+        """View cache must depend on the company currency, since _get_view
+        relabels the rate fields with it."""
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (self._get_context_company_currency_name(),)
 
@@ -725,11 +671,10 @@ class ResCurrencyRate(models.Model):
         return vals
 
     def write(self, vals: dict[str, Any]) -> bool:
-        # 'rate', 'inverse_rate' and 'rate_string' of *other* currencies may
-        # have been computed against self's rate rows (the company/context
-        # currency and 'to_currency' in _compute_current_rate), a cross-record
-        # dependency @api.depends cannot express: invalidate all three
-        # model-wide (the owning currency alone is covered by the depends).
+        # Other currencies' rate/inverse_rate/rate_string may be computed against
+        # self's rate rows (company/context currency and 'to_currency' in
+        # _compute_current_rate) — a cross-record dependency @api.depends cannot
+        # express, so invalidate all three model-wide.
         self.env["res.currency"].invalidate_model(
             ["rate", "inverse_rate", "rate_string"]
         )
@@ -750,9 +695,7 @@ class ResCurrencyRate(models.Model):
         return records
 
     def unlink(self) -> bool:
-        # Cross-record invalidation for the same reason as write() above:
-        # deleting a rate can change other currencies' cached rate,
-        # inverse_rate and rate_string computed against it.
+        # Cross-record invalidation for the same reason as write() above.
         self.env["res.currency"].invalidate_model(
             ["rate", "inverse_rate", "rate_string"]
         )
@@ -825,8 +768,8 @@ class ResCurrencyRate(models.Model):
                         for rate_sudo in currency_rate.currency_id.rate_ids.sudo()
                         if rate_sudo.rate and rate_sudo.company_id == company
                     ]
-                    # rate_ids is ordered "name desc, id": reverse to get the
-                    # date-ascending order bisect needs (dates are unique per
+                    # rate_ids is ordered "name desc, id": reverse to the
+                    # date-ascending order bisect needs (dates unique per
                     # currency/company).
                     candidates.reverse()
                 # Latest rate strictly before this record's date, like
@@ -898,8 +841,8 @@ class ResCurrencyRate(models.Model):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """The override of _get_view changing the rate field labels according to the company currency
-        makes the view cache dependent on the company currency"""
+        """View cache must depend on the company currency, since _get_view
+        relabels the rate fields with it."""
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (self.env["res.currency"]._get_context_company_currency_name(),)
 

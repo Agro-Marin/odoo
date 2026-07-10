@@ -4,17 +4,11 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tools import ormcache
 
-# ``env.cr.cache`` key of the transaction-scoped memo of definition ids
-# created by the *current* transaction::
-#
-#     {(model_name, field_name): definition_id}
-#
-# Mirrors RATE_HISTORY_CACHE_KEY in res_currency.py: ``cr.cache`` is
-# transaction-local — cleared on commit, rollback and savepoint rollback
-# (``Transaction.clear``) — so the id of a rolled-back row can never leak
-# into another transaction, unlike an entry added to the process-global
-# "stable" ormcache (additions there are NOT transaction-aware:
-# ``Registry.reset_changes`` reverts invalidations only).
+# ``env.cr.cache`` key for the transaction-local memo of definition ids created
+# by the current transaction: ``{(model_name, field_name): definition_id}``.
+# ``cr.cache`` is cleared on commit/rollback/savepoint rollback, so a rolled-back
+# id can never leak into another transaction -- unlike the process-global
+# "stable" ormcache, whose additions are not transaction-aware.
 DEFINITION_MEMO_CACHE_KEY = "properties_base_definition_ids"
 
 
@@ -71,11 +65,8 @@ class PropertiesBaseDefinition(models.Model):
     def _get_definition_for_property_field(
         self, model_name: str, field_name: str
     ) -> Self:
-        """Return the definition record for a model's properties field.
+        """Return the definition record for a model's properties field, creating it if missing.
 
-        :param str model_name: technical name of the model owning the field
-        :param str field_name: name of the ``properties`` field
-        :return: the matching (or newly created) definition record
         :rtype: properties.base.definition
         """
         return self.browse(
@@ -87,18 +78,12 @@ class PropertiesBaseDefinition(models.Model):
     ) -> int:
         """Return the definition id for a model's properties field, creating it if missing.
 
-        The id of a definition row created here is memoized in ``env.cr.cache``
-        (transaction-local, see DEFINITION_MEMO_CACHE_KEY) only; the
-        process-global "stable" ormcache is populated exclusively by
-        :meth:`_search_definition_id_for_property_field`, i.e. from a row found
-        by SELECT.  A rollback therefore cannot leave a dangling id in the
-        registry cache: the transaction memo dies with the transaction, and the
-        next transaction's SELECT repopulates the stable cache from what was
-        actually committed.
+        A row created here is memoized only in the transaction-local
+        ``env.cr.cache`` (DEFINITION_MEMO_CACHE_KEY); the process-global "stable"
+        ormcache is populated exclusively from committed rows found by
+        :meth:`_search_definition_id_for_property_field`. A rollback therefore
+        cannot leave a dangling id in the registry cache.
 
-        :param str model_name: technical name of the model owning the field
-        :param str field_name: name of the ``properties`` field
-        :return: the id of the matching (or newly created) definition record
         :rtype: int
         """
         # 1. Transaction-local memo: a definition created earlier in this
@@ -113,10 +98,9 @@ class PropertiesBaseDefinition(models.Model):
         except ValueError:
             pass
 
-        # 3. Lazy create.  Other transactions cannot see the uncommitted row
-        # anyway, and the UNIQUE constraint on properties_field_id serializes
-        # concurrent creators; the id is only memoized transaction-locally so
-        # that a rollback cannot poison the process-global cache.
+        # 3. Lazy create. The UNIQUE constraint on properties_field_id serializes
+        # concurrent creators; the id is memoized transaction-locally only, so a
+        # rollback cannot poison the process-global cache.
         field_ids = self.env["ir.model.fields"]._get_ids(model_name)
         field_id = field_ids.get(field_name)
         if not field_id:
@@ -132,29 +116,18 @@ class PropertiesBaseDefinition(models.Model):
     def _search_definition_id_for_property_field(
         self, model_name: str, field_name: str
     ) -> int:
-        """Return the definition id for a model's properties field, SELECT only.
+        """Return the definition id for a model's properties field via SELECT only.
 
-        Raises ``ValueError`` when no definition row exists.  Raising on a miss
-        keeps the miss out of the "stable" cache (ormcache only stores returned
-        values), so the process-global cache only ever holds ids found by
-        SELECT; rows created by the current transaction are served from the
-        transaction memo of :meth:`_get_definition_id_for_property_field`
-        before this method runs, and are thus never memoized process-wide
-        while still uncommitted.
+        Raises ``ValueError`` on a miss so the miss stays out of the "stable"
+        ormcache (which only stores returned values); the cache thus only ever
+        holds ids found by a committed SELECT.
 
-        Fork (5b32001d5dd): replaces the upstream ORM ``search()`` with a
-        cached field_id lookup plus a direct raw SELECT, avoiding the
-        expensive JOIN query: SELECT ... FROM properties_base_definition
-        LEFT JOIN ir_model_fields ...  ir_model_fields._get_ids() is itself
-        ormcache'd on the "stable" group, so repeat calls stay in-memory.
-        The raw SELECT does not flush pending ORM writes, so a not-yet
-        flushed definition would be invisible here; in practice the only ORM
-        writer is _get_definition_id_for_property_field's create(), which
-        flushes through the ORM and memoizes its result transaction-locally.
+        Fork (5b32001d5dd): replaces the upstream ORM ``search()`` (an expensive
+        JOIN on ir_model_fields) with a cached ``_get_ids`` field lookup plus a
+        direct raw SELECT. The raw SELECT does not flush pending ORM writes, but
+        the only ORM writer is _get_definition_id_for_property_field's create(),
+        which flushes and memoizes its result transaction-locally.
 
-        :param str model_name: technical name of the model owning the field
-        :param str field_name: name of the ``properties`` field
-        :return: the id of the matching definition record
         :rtype: int
         :raise ValueError: when no definition row exists for the field
         """

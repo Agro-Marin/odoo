@@ -18,14 +18,13 @@ class TestNplusOneDetection(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Enable detection for tests — must patch both the source module and
-        # the consuming modules (each imports the flag as a local name).
+        # Enable detection: patch the source module and all consumers (see
+        # _CRUD_MODS above).
         cls._original_enabled = nplusone._n1_enabled
         nplusone._n1_enabled = True
         cls._original_crud_enabled = [m._n1_enabled for m in _CRUD_MODS]
         for _mod in _CRUD_MODS:
             _mod._n1_enabled = True
-        # Create a fresh tracker on the transaction
         cls._original_tracker = cls.env.transaction._n1_tracker
         cls.env.transaction._n1_tracker = nplusone.NplusOneTracker()
 
@@ -152,8 +151,7 @@ class TestNplusOneDetection(TransactionCase):
         )
         self.tracker.clear()
 
-        # Write different fields each time (from different lines — won't merge)
-        # But from a loop (same line) with different vals
+        # Same call site (the loop), alternating field sets -> distinct fingerprints
         for i, cat in enumerate(categories):
             if i % 2 == 0:
                 cat.write({"name": "Even"})
@@ -165,8 +163,7 @@ class TestNplusOneDetection(TransactionCase):
             for key, entry in self.tracker._data.items()
             if entry.count >= 2 and key[0] == "write"
         ]
-        # Both branches are from different lines, so tracked separately
-        # Each should have count=2 (below threshold of 3)
+        # Each branch is a distinct fingerprint -> count=2, below the threshold of 3
         for _, entry in violations:
             self.assertLess(entry.count, nplusone.NplusOneTracker.THRESHOLD)
 
@@ -188,8 +185,8 @@ class TestNplusOneDisabled(TransactionCase):
 
     def test_no_tracker_when_disabled(self):
         """When disabled, tracker should be None on new transactions."""
-        # The tracker was set during Transaction init based on _n1_enabled
-        # at that time. For this test, we verify the flag-based gating works.
+        # The tracker is set at Transaction init from _n1_enabled; verify the
+        # flag-based gating works.
         self.assertFalse(nplusone._n1_enabled)
         # CRUD operations should not fail even without a tracker
         cat = self.env["res.partner.category"].create({"name": "Disabled Test"})

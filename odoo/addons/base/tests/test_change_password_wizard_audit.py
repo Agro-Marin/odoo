@@ -4,8 +4,7 @@ from unittest.mock import patch
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
-# Path of the thread-local `request` proxy imported into res_users, which is
-# what the @check_identity decorator (used by change.password.own) consults.
+# The request proxy imported into res_users, consulted by @check_identity.
 _REQUEST = "odoo.addons.base.models.res_users.request"
 
 
@@ -13,16 +12,15 @@ _REQUEST = "odoo.addons.base.models.res_users.request"
 class TestChangePasswordWizardAudit(TransactionCase):
     """Security-regression coverage for the change-password wizards (audit CPW).
 
-    Pins the access-control invariants the audit verified: cross-user password
-    setting via ``change.password.user`` is gated by the
+    Cross-user password setting via ``change.password.user`` is gated by the
     ``base.group_erp_manager`` ACL (privilege-based, not a blanket block), and
-    ``change.password.own`` is structurally hard-bound to ``self.env.user``.
+    ``change.password.own`` is hard-bound to ``self.env.user``.
     """
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # A plain internal user (group_user) -- NOT an erp manager.
+        # A plain internal user -- NOT an erp manager.
         cls.internal = new_test_user(
             cls.env, login="cpw_internal", password="cpw_internal_pw"
         )
@@ -39,13 +37,9 @@ class TestChangePasswordWizardAudit(TransactionCase):
         )
 
     def _build_wizard(self, acting_user):
-        """Create a change.password.wizard the way the UI does (active_ids on
-        res.users seed a change.password.user line per target), acting as
+        """Create a change.password.wizard the way the UI does: active_ids on
+        res.users seed a change.password.user line per target, acting as
         ``acting_user``.
-
-        :param recordset acting_user: the session user creating the wizard.
-        :return: the wizard recordset bound to ``acting_user``.
-        :rtype: recordset
         """
         return (
             self.env["change.password.wizard"]
@@ -56,8 +50,7 @@ class TestChangePasswordWizardAudit(TransactionCase):
 
     def test_non_manager_cannot_change_other_user_password(self):
         """A non-erp-manager internal user is denied use of the
-        change.password.user wizard to set another user's password (the
-        change.password.* ACLs are group_erp_manager only)."""
+        change.password.user wizard to set another user's password."""
         with self.assertRaises(AccessError):
             wizard = self._build_wizard(self.internal)
             wizard.change_password_button()
@@ -88,8 +81,7 @@ class TestChangePasswordWizardAudit(TransactionCase):
     def test_change_password_own_operates_on_env_user(self):
         """change.password.own.change_password applies the new password to
         self.env.user only. Bypasses the @check_identity re-auth by stamping a
-        fresh ``identity-check-last`` in a patched HTTP request session (same
-        idiom as test_res_users_identitycheck)."""
+        fresh ``identity-check-last`` in a patched HTTP request session."""
         Users = self.env["res.users"]
         # A recent (now) identity check satisfies the @check_identity window.
         fake_request = SimpleNamespace(
@@ -108,7 +100,7 @@ class TestChangePasswordWizardAudit(TransactionCase):
         )
         with patch(_REQUEST, fake_request):
             result = wizard.change_password()
-        # The acting user's (self.internal) password was changed -- nobody else.
+        # The acting user's password was changed -- nobody else.
         self.assertEqual(result.get("tag"), "reload")
         Users._check_uid_passwd(self.internal.id, "cpw_own_new_pw")
         with self.assertRaises(AccessDenied):

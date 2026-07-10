@@ -266,8 +266,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should have been updated with record {records[1]}",
         )
 
-        # noupdate case
-        # note: this part is mainly there to avoid breaking the current behaviour, not asserting that it makes sence
+        # noupdate case: pins current behaviour, not asserting it makes sense
         xmlid = "base.test_xmlid_noupdates"
         with self.assertQueryCount(1):
             self.env["ir.model.data"]._update_xmlids(
@@ -594,9 +593,7 @@ class TestIrModelFields(TransactionCase):
     def test_label_translate_write_skips_registry_setup(self):
         """IMF-P2: a label-only (translatable field_description) write refreshes
         the label cache via a targeted 'stable' clear, without a full rebuild.
-
-        Mirrors test_selection_label_rename_skips_registry_setup. Proves the
-        optimisation is safe: translation still resolves after the cheap clear.
+        Mirrors test_selection_label_rename_skips_registry_setup.
         """
         Model, field = self._make_manual_field("label")
         with patch.object(self.env.registry, "_setup_models__") as mock_setup:
@@ -797,19 +794,16 @@ class TestIrModelInherit(TransactionCase):
 @tagged("-at_install", "post_install")
 class TestIrModelFieldsSelection(TransactionCase):
     """Selection-row write: value rename on stored columns + uniqueness guard.
-
     Pins SEL-C1 (company-dependent jsonb rename corruption) and SEL-C2 (batch
-    rename to a duplicate value) -- neither had any direct coverage.
+    rename to a duplicate value).
     """
 
     def _make_selection_field(self, stem, *, company_dependent=False, values=None):
-        """Create a manual model with one stored selection field and return
-        ``(Model, field)``. Defaults to the values ``draft``/``done``.
+        """Create a manual model with one stored selection field, defaulting to
+        ``draft``/``done`` values; return ``(Model, field)``.
 
-        :param str stem: unique suffix for the generated model/field names.
         :param bool company_dependent: store the column as per-company jsonb.
         :param values: optional ``[(value, label), ...]`` selection options.
-        :return: the manual model recordset and its ``ir.model.fields`` record.
         """
         values = values or [("draft", "Draft"), ("done", "Done")]
         model = self.env["ir.model"].create(
@@ -833,9 +827,9 @@ class TestIrModelFieldsSelection(TransactionCase):
     def _set_jsonb(self, model, field, record, mapping):
         """Seed a company-dependent jsonb column with ``{company_id: value}``.
 
-        Company-dependent ORM writes for a company outside the user's allowed
-        set fall back instead of storing a distinct key, so tests set the
-        per-company column state directly to get genuinely distinct values.
+        Written directly because company-dependent ORM writes for a company
+        outside the user's allowed set fall back instead of storing a distinct
+        key, which would prevent genuinely distinct per-company values.
         """
         self.env.cr.execute(
             SQL(

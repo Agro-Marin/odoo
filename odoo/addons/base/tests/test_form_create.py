@@ -3,17 +3,14 @@ from odoo.tests import Form, TransactionCase, tagged
 
 @tagged("-at_install", "post_install")
 class TestFormCreate(TransactionCase):
-    """
-    Test that the basic Odoo models records can be created on
-    the interface.
-    """
+    """Test that basic Odoo model records can be created from the interface."""
 
     def test_create_res_partner(self):
         # YTI: Clean that brol
         if hasattr(self.env["res.partner"], "property_account_payable_id"):
-            # Required for `property_account_payable_id`, `property_account_receivable_id` to be visible in the view
-            # By default, it's the `group` `group_account_readonly` which is required to see it, in the `account` module
-            # But once `account_accountant` gets installed, it becomes `account.group_account_user`
+            # Both groups are needed to see the property account fields: account
+            # requires group_account_readonly, account_accountant switches it to
+            # group_account_user.
             # https://github.com/odoo/enterprise/commit/68f6c1f9fd3ff6762c98e1a405ade035129efce0
             self.env.user.group_ids += self.env.ref("account.group_account_readonly")
             self.env.user.group_ids += self.env.ref("account.group_account_user")

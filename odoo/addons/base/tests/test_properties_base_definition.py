@@ -10,15 +10,13 @@ class DeliberateRollback(Exception):
 
 
 class TestPropertiesBaseDefinition(TransactionCase):
-    """PBD-H1: the lazy create of a properties base definition must never be
-    memoized in the process-global "stable" ormcache before it is committed.
+    """PBD-H1: a lazily-created properties base definition must not be memoized in
+    the process-global "stable" ormcache before it is committed.
 
-    ormcache additions are not transaction-aware (Registry.reset_changes
-    reverts invalidations only), so an id cached at create time would survive
-    a rollback of the creating transaction and be served, dangling, to every
-    later request of the worker.  The fix memoizes created ids in the
-    transaction-local ``env.cr.cache`` and lets only SELECT hits populate the
-    stable cache.
+    ormcache additions are not transaction-aware, so an id cached at create time
+    would survive a rollback and be served dangling to later requests. The fix
+    memoizes created ids in the transaction-local ``env.cr.cache`` and lets only
+    SELECT hits populate the stable cache.
     """
 
     MODEL = "res.partner"
@@ -27,9 +25,8 @@ class TestPropertiesBaseDefinition(TransactionCase):
     def setUp(self):
         super().setUp()
         self.Definition = self.env["properties.base.definition"]
-        # Start each test from a cold state: no definition row for the field,
-        # no cached id anywhere (the definition is created lazily, so whether
-        # a row pre-exists depends on unrelated test/install history).
+        # Start cold: no definition row for the field and no cached id anywhere
+        # (lazy creation means a pre-existing row depends on test/install history).
         field = self.env["ir.model.fields"]._get(self.MODEL, self.FIELD)
         self.Definition.sudo().search([("properties_field_id", "=", field.id)]).unlink()
         self.registry.clear_cache("stable")

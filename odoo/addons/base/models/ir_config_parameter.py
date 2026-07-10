@@ -39,16 +39,13 @@ class IrConfig_Parameter(models.Model):
 
     @mute_logger("odoo.addons.base.models.ir_config_parameter")
     def init(self, force: bool = False) -> None:
-        """
-        Initializes the parameters listed in _default_parameters.
-        It overrides existing parameters if force is ``True``.
-        """
+        """Initialize the parameters in _default_parameters, overriding
+        existing ones when ``force`` is True."""
         # avoid prefetching during module installation, as the res_users table
         # may not have all prescribed columns
         self = self.with_context(prefetch_fields=False)
         for key, func in _default_parameters.items():
-            # search runs every iteration; the gate below (force or not params)
-            # re-applies the default when force=True, else seeds only missing keys
+            # force re-applies the default; otherwise seed only missing keys.
             params = self.sudo().search([("key", "=", key)])  # noqa: E8507 — bounded: _default_parameters is a small fixed dict
             if force or not params:
                 params.set_param(key, func())
@@ -100,11 +97,10 @@ class IrConfig_Parameter(models.Model):
         if value is False or value is None:
             return False
         try:
-            # ICP-C1: the search-then-create pair is not atomic: a concurrent
-            # transaction may commit the same key between our search and our
-            # insert, and the unique constraint on `key` would then abort the
-            # whole transaction.  Run the create in a savepoint so that losing
-            # the race degrades into the regular update path below.
+            # ICP-C1: the search-then-create pair is not atomic; a concurrent
+            # transaction may commit the same key in between, tripping the unique
+            # constraint. The savepoint lets losing the race degrade into the
+            # update path below instead of aborting the whole transaction.
             with self.env.cr.savepoint():
                 self.create({"key": key, "value": value})
         except psycopg.errors.UniqueViolation:

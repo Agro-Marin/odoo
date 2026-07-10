@@ -130,15 +130,13 @@ class TestChromeBrowserOddDimensions(TestChromeBrowser):
 
 
 class TestRequestRemainingCommon(HttpCase):
-    # This test case tries to reproduce the case where a request is lost between two test and is execute during the secone one.
-    #
-    # - Test A browser js finishes with a pending request
-    # - _wait_remaining_requests misses the request since the thread may not be totally spawned (or correctly named)
-    # - Test B starts and a SELECT is executed
-    # - The request is executed and makes a concurrent fetchall
-    # - The test B tries to fetchall and fails since the cursor is already used by the request
-    #
-    # Note that similar cases can also consume savepoint, make the main cursor readonly, ...
+    # Reproduces a request lost between two tests and executed during the next:
+    # - test A's browser js finishes with a pending request
+    # - _wait_remaining_requests misses it (thread not yet spawned/named)
+    # - test B starts and executes a SELECT
+    # - the request runs a concurrent fetchall, so B's fetchall fails on the
+    #   already-used cursor
+    # Similar cases can also consume savepoints, make the main cursor readonly, ...
 
     @classmethod
     def setUpClass(cls):
@@ -248,13 +246,13 @@ class TestRequestRemainingStartDuringNext(TestRequestRemainingCommon):
 
 
 class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
-    """
-    This test is more specific to the current implem and check what happens if the lock is aquired after the next thread
-    Scenario:
-        - test_requests_a closes browser js, aquire the lock
-        - a ghost request tries to open a test curso, makes the first check (assertCanOpenTestCursor)
-        - the next test enables resquest (here using url_open) releasing the lock
-        - the pending request is executed but detects the test change
+    """Implementation-specific: the lock is acquired after the next thread.
+
+    - test_requests_a closes browser js, acquires the lock
+    - a ghost request opens a test cursor, makes the first check
+      (assertCanOpenTestCursor)
+    - the next test enables requests (url_open), releasing the lock
+    - the pending request runs but detects the test change
     """
 
     def test_requests_a(self, cookie=False):

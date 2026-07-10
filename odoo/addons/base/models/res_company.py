@@ -393,12 +393,10 @@ class ResCompany(models.Model):
         for company in self:
             # Copy modified delegated fields from root to branches
             if delegated_changed and not company.parent_id:
-                # Perf: one child_of search + one write per root in self. self is
-                # almost always a single company; a bulk-company migration that
-                # writes a delegated field on many roots at once would run N
-                # searches + N writes and should batch instead.
-                # Sudo: branches may include companies outside the user's scope.
-                # Delegated field sync must reach ALL branches of the root company.
+                # Perf: one child_of search + write per root; fine since self is
+                # almost always a single company (a bulk write over many roots
+                # would run N searches + N writes and should batch instead).
+                # Sudo: sync must reach ALL branches, some outside user scope.
                 branches = self.sudo().search(  # noqa: E8507 — bounded: only root companies (typically 1)
                     [
                         ("id", "child_of", company.id),
@@ -430,23 +428,19 @@ class ResCompany(models.Model):
         return res
 
     def _get_company_root_delegated_field_names(self) -> list[str]:
-        """Get the set of fields delegated to the root company.
+        """Return the field names delegated to the root company.
 
-        Some fields need to be identical on all branches of the company. All
-        fields listed by this function will be copied from the root company and
-        appear as readonly in the form view.
-
-        :rtype: list[str]
+        These fields must be identical on all branches: they are copied from the
+        root and shown readonly in the form view.
         """
         return ["currency_id"]
 
     def _get_company_address_field_names(self) -> list[str]:
         """Return the address field names shared by company and its partner.
 
-        :rtype: list[str]
+        The names are identical on both models, so they double as the copy map
+        between company and partner.
         """
-        # The fields are labeled identically on both models, so the same names
-        # are used to copy values between company and partner.
         return ["street", "street2", "city", "zip", "state_id", "country_id"]
 
     def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
@@ -518,9 +512,8 @@ class ResCompany(models.Model):
 
     # ``root_id.partner_id.color`` cannot be a dependency: ``root_id`` is a
     # non-stored compute without ``search=``, so the trigger resolver's inverse
-    # search on it would fail. Instead, the root partner's color change reaches
-    # the branches recursively: ``partner_id.color`` recomputes the root's own
-    # color, and ``parent_id.color`` cascades the invalidation down ``child_ids``.
+    # search would fail. Instead ``partner_id.color`` recomputes the root's own
+    # color and ``parent_id.color`` cascades the invalidation down ``child_ids``.
     @api.depends("root_id", "parent_id.color", "partner_id.color")
     def _compute_color(self) -> None:
         for company in self:
@@ -630,16 +623,12 @@ class ResCompany(models.Model):
         newself = self
         constraint = Domain.TRUE
         if context.pop("user_preference", None):
-            # We browse as superuser. Otherwise, the user would be able to
-            # select only the currently visible companies (according to rules,
-            # which are probably to allow to see the child companies) even if
-            # she belongs to some other companies.
+            # Constrain to the user's own companies: record rules alone would
+            # limit the search to currently visible companies, hiding others she
+            # belongs to. Search across all companies as superuser, then AND the
+            # constraint below (same pattern as __accessible_branches).
             companies = self.env.user.company_ids
             constraint = Domain("id", "in", companies.ids)
-            # Traverse all companies for the name search, then constrain to
-            # accessible ones via the domain AND below. Same pattern as
-            # __accessible_branches: get full structure (sudo), filter to
-            # accessible (constraint).
             newself = newself.sudo()
         newself = newself.with_context(context)
         domain = super(ResCompany, newself)._search_display_name(operator, value)
@@ -695,9 +684,9 @@ class ResCompany(models.Model):
             current = new.child_ids
 
         if not accessible_branch_ids and self.env.uid == SUPERUSER_ID:
-            # Accessible companies will always be the same for super user when called in a cron.
-            # Because of that, the intersection between them and self might be empty. The super user anyway always has
-            # access to all companies (as it bypasses the record rules), so we return the current company in this case.
+            # Under superuser (e.g. in a cron) the intersection with accessible
+            # companies may be empty; superuser bypasses record rules and has
+            # access to all companies, so fall back to the current company.
             return self.ids
 
         return accessible_branch_ids
@@ -716,11 +705,10 @@ class ResCompany(models.Model):
         )
 
     def _all_branches_selected(self) -> bool:
-        """Return whether all the branches of the companies in self are selected.
+        """Return whether exactly all branches of self's companies are selected.
 
-        Is ``True`` if all the branches, and only those, are selected.
-        Can be used when some actions only make sense for whole companies regardless of the
-        branches.
+        Useful for actions that only make sense on whole companies, branches
+        included.
         """
         # Sudo required: knowing ALL branches of root requires reading companies
         # outside the user's allowed set. This is structural info, not data access.
@@ -741,21 +729,15 @@ class ResCompany(models.Model):
         }
 
     def _get_public_user(self) -> models.Model:
-        """Return (creating if needed) the public user for this company.
-
-        :return: the company's public ``res.users`` record
-        :rtype: res.users
-        """
+        """Return (creating if needed) the company's public ``res.users``."""
         self.ensure_one()
-        # Per-company login invariant: a company's public user always carries
-        # this deterministic login. Login uniqueness is global (DB constraint on
-        # res.users), so this login is what keeps public users from colliding.
+        # Deterministic per-company login; login uniqueness is global (DB
+        # constraint on res.users), so it keeps public users from colliding.
         login = f"public-user@company-{self.id}.com"
-        # Probe by login (sudo + active_test=False) rather than by group_public
-        # membership: a stale/half-rolled-back public user, or one whose
-        # group_public membership was removed out of band, would otherwise be
-        # missed by a membership probe and the copy below would raise on the
-        # global login-uniqueness constraint instead of returning a usable record.
+        # Probe by login rather than group_public membership: a stale or
+        # out-of-band-modified public user would be missed by a membership
+        # probe, and the copy below would then hit the global login-uniqueness
+        # constraint instead of returning a usable record.
         existing = (
             self.env["res.users"]
             .sudo()

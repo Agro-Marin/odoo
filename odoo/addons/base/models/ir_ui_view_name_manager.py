@@ -39,24 +39,22 @@ class NameManager:
         if self.parent:
             self.parent.children.append(self)
 
-        # group_definitions is the factory for making group expression objects.
-        # It is injectable so the set algebra of get_missing_fields() can be
-        # unit-tested without a database (see test_name_manager.py); the
-        # default is the registry-wide res.groups definitions.
+        # Factory for group expression objects. Injectable so the set algebra of
+        # get_missing_fields() can be unit-tested without a database (see
+        # test_name_manager.py); defaults to the registry-wide res.groups definitions.
         if group_definitions is None:
             group_definitions = self.model.env["res.groups"]._get_group_definitions()
         self.group_definitions = group_definitions
 
-        # this represents the group of users that have access to this model
+        # group of users that have access to this model
         self.model_groups = (
             self.group_definitions.universe if model_groups is None else model_groups
         )
 
-        # this maps field names to the group of users that have access to the field
+        # maps field names to the group of users that have access to the field
         self.field_groups = {}
 
-        # group-inconsistency warning HTML built during postprocessing when the
-        # view is rendered for its warning_info (see
+        # group-inconsistency warning HTML built during postprocessing (see
         # IrUiView._group_inconsistency_warning); empty otherwise.
         self.warning: Markup = Markup("")
 
@@ -106,19 +104,15 @@ class NameManager:
     ) -> None:
         """Record fields referenced by an expression on ``node`` for validation.
 
-        ``use`` is an ``(attr, expr)`` pair describing *where* the reference
-        comes from: the attribute (or pseudo-attribute, e.g. ``"fieldname"``,
-        ``"filename"``) and the expression naming the fields. The same tuple
-        shape is used by both the validation and postprocessing phases:
-        :meth:`IrUiView._add_missing_fields` unpacks it to build the
-        ``data-used-by`` attribute of auto-appended fields, and
-        :meth:`check` renders it via :meth:`_describe_use` in error messages.
+        ``use`` is an ``(attr, expr)`` pair: the attribute (or pseudo-attribute,
+        e.g. ``"fieldname"``, ``"filename"``) and the expression naming the
+        fields. :meth:`IrUiView._add_missing_fields` unpacks it for the
+        ``data-used-by`` attribute of auto-appended fields; :meth:`check` renders
+        it via :meth:`_describe_use` in error messages.
         """
         access_groups = node_info["model_groups"] & node_info["view_groups"]
-        # ``names`` is a set: iterate it sorted so that used_fields insertion
-        # order (and everything derived from it -- the auto-appended missing
-        # fields in the arch, warning messages, validation errors) is stable
-        # across processes regardless of PYTHONHASHSEED.
+        # Iterate the set sorted so used_fields insertion order (and everything
+        # derived from it) is stable across processes regardless of PYTHONHASHSEED.
         for name in sorted(names):
             if name == "id":
                 continue
@@ -127,16 +121,12 @@ class NameManager:
             elif self.parent:
                 self.parent.must_have_fields(node, {name[7:]}, node_info, use)
             # A `parent.`-prefixed reference in a ROOT view (no parent) is
-            # tolerated (IUVN-L1): it cannot be resolved at standalone-validation
-            # time, but it is NOT necessarily a typo. Dual-use forms legitimately
-            # reference the embedding parent:
-            # e.g. mail.activity.plan.template's form is validated standalone yet
-            # is embedded as a one2many in mail.activity.plan, where its
-            # activity_type_id python domain ('res_model', '=', parent.res_model)
-            # resolves correctly. Silently skip such references (matching upstream)
-            # rather than raising "does not exist" — the strict `else` that routed
-            # them to used_names (commit 07a900d51f8) broke installation of mail and
-            # every module depending on it. Catching genuine `parent.` typos needs
+            # tolerated (IUVN-L1): it is not necessarily a typo. Dual-use forms
+            # legitimately reference the embedding parent (e.g.
+            # mail.activity.plan.template validated standalone yet embedded as a
+            # one2many in mail.activity.plan). Silently skip such references rather
+            # than raising "does not exist" — routing them to used_names (commit
+            # 07a900d51f8) broke installation of mail. Catching genuine typos needs
             # embedded-context validation, not a blanket root-view error.
 
     def must_have_name(self, name: str, use: str) -> None:
@@ -152,7 +142,7 @@ class NameManager:
         self.must_exist_groups[name] = node
 
     def _get_field_groups(self, name: str) -> Any:
-        """Return the group expression representing the users having read access to the field."""
+        """Return the group expression for users with read access to the field."""
         if name in self.field_groups:
             return self.field_groups[name]
 
@@ -381,18 +371,15 @@ class NameManager:
             info.update(self.field_info.get(name, {}))
 
     def get_missing_fields(self) -> dict[str, tuple[Any, list[tuple]]]:
-        """
-        return {'field_name': (missing_groups | False, [mandatory_groups, use, node])}
-        """
-        # model has read access for group E and F
-        # field_a has a (python) group G
+        """Return {field_name: (missing_groups | False, [(mandatory_groups, use, node)])}."""
+        # Worked example: model has read access for groups E and F, field_a has a
+        # (python) group G, in:
         # <div groups="A,B">
         #   <field name="field_a" invisible="field_b" groups="A,C"/>
         #   <field name="field_a" groups="B"/>
         #   <field name="field_c" required="field_a" groups="B1"/>
         #   <field name="field_c" required="field_a" groups="B2"/>
         # </div>
-        #
 
         missing_fields = {}
         for name, groups_uses in self.used_fields.items():
@@ -401,8 +388,7 @@ class NameManager:
 
             for used_groups, (use, node) in groups_uses.items():
                 available_info = self.available_fields.get(name, {})
-                # Access is restricted to the administrator only. There is no need to check
-                # groups as they are not used.
+                # Access restricted to the administrator only; groups need no check.
                 if used_groups.is_empty():
                     if not available_info.get("groups", []):
                         used.append((used_groups, use, node))

@@ -4,11 +4,7 @@ from odoo import fields, models
 
 
 class WizardIrModelMenuCreate(models.TransientModel):
-    """A wizard to create a menu and its action for a model.
-
-    Access is restricted to ``base.group_system`` (model ACL) and the entry
-    button is gated by ``groups="base.group_no_one"``.
-    """
+    """Wizard to create a menu and its action for a model."""
 
     _name = "wizard.ir.model.menu.create"
     _description = "Create Menu Wizard"
@@ -22,10 +18,9 @@ class WizardIrModelMenuCreate(models.TransientModel):
         """Create an act_window action and a menu entry for the context model.
 
         :return: a window-close action.
-        :rtype: dict
         """
-        # NOTE: the WMC ensure_one() idiom suggestion (replacing this `for menu
-        # in self` loop with self.ensure_one()) is deferred as a behavior change.
+        # WMC: replacing this `for menu in self` loop with ensure_one() is
+        # deferred as a behavior change.
         for menu in self:
             model_id = self.env.context.get("model_id")
             if not model_id:
