@@ -27,9 +27,9 @@ class StockRule(models.Model):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        # Force a company even when the caller explicitly clears it through the
-        # `default_company_id=False` context: a rule created from the UI should
-        # default to the current company rather than to a company-less rule.
+        # Force a company even when the caller clears it via `default_company_id=False`:
+        # a UI-created rule should default to the current company, not a company-less
+        # one.
         if "company_id" in fields_list and not res.get("company_id"):
             res["company_id"] = self.env.company.id
         return res
@@ -396,12 +396,10 @@ class StockRule(models.Model):
                 msg = _("No source location defined on stock rule: %s!", rule.name)
                 raise ProcurementException([(procurement, msg)])
 
-        # Prepare the move values, adapt the `procure_method` if needed.
-        # Process non-positive quantities (e.g. returns) before positive ones so
-        # that, within a company batch, refund moves are created first. The sort
-        # key is a bool: `compare(...) > 0` is False for qty <= 0 (sorted first)
-        # and True for qty > 0 (sorted last); Python's stable sort keeps the
-        # original order within each group.
+        # Sort non-positive quantities (e.g. returns) before positive ones so refund
+        # moves are created first within a company batch. The key is a bool: False for
+        # qty <= 0 (first), True for qty > 0 (last); stable sort preserves order within
+        # each group.
         procurements = sorted(
             procurements,
             key=lambda proc: proc[0].product_uom.compare(proc[0].product_qty, 0.0) > 0,
@@ -472,9 +470,9 @@ class StockRule(models.Model):
         move_dest_ids = [Command.link(move.id) for move in dest_moves]
 
         # For inter-warehouse transfers, default the new move's partner to the
-        # destination warehouse's partner. Tagging the *destination* moves with
-        # the source warehouse's partner is a write on existing records, so it
-        # is done in `_propagate_transit_partner` rather than in this getter.
+        # destination warehouse's partner. The reverse tagging of destination moves
+        # with the source warehouse's partner is a write, so it lives in
+        # `_propagate_transit_partner`, not this getter.
         if (
             move_dest_ids
             and not partner
@@ -500,9 +498,8 @@ class StockRule(models.Model):
             "location_final_id": location_dest_id.id,
             "move_dest_ids": move_dest_ids,
             "rule_id": self.id,
-            # `values` entries may be recordsets or plain lists of records
-            # (procurement callers across modules use both), so iterate
-            # instead of assuming a recordset.
+            # `values` entries may be recordsets or plain lists (callers use both),
+            # so iterate instead of assuming a recordset.
             "reference_ids": [
                 Command.set(
                     [reference.id for reference in values.get("reference_ids") or []],
@@ -790,9 +787,8 @@ class StockRule(models.Model):
                 continue
             if not warehouse_id:
                 return sub_dict[next(iter(sub_dict))]
-            # `.get(False)` rather than `[False]`: when the location chain spans
-            # several warehouses a group may hold only a foreign-warehouse rule
-            # and no warehouse-agnostic one. Falling through to the next route /
+            # `.get(False)` not `[False]`: a group may hold only a foreign-warehouse
+            # rule and no warehouse-agnostic one, so falling through to the next route /
             # parent location is correct; indexing would raise KeyError.
             rule = sub_dict.get(warehouse_id.id) or sub_dict.get(False)
             if rule:
@@ -831,11 +827,11 @@ class StockRule(models.Model):
         locations = location_id
         while locations[-1].location_id:
             locations |= locations[-1].location_id
-        # Resolve the intercompany locations once, instead of re-running
-        # `_check_intercomp_location` / `env.ref` for every location in the walk.
-        # When the inter-company transit location is in scope, `_get_rule_domain`
-        # also searched rules delivering to the shared Customers location, so that
-        # location must be tried alongside the inter-company one during the walk.
+        # Resolve the intercompany locations once instead of re-running
+        # `_check_intercomp_location` / `env.ref` per location in the walk. When the
+        # inter-company transit is in scope, `_get_rule_domain` also searches rules
+        # delivering to the shared Customers location, so it must be tried alongside
+        # the transit location during the walk.
         intercomp_transit = self.env.ref(
             "stock.stock_location_inter_company", raise_if_not_found=False
         )

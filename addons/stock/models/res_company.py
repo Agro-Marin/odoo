@@ -61,10 +61,9 @@ class ResCompany(models.Model):
          ('0 days') to avoid overstocking.""",
     )
 
-    # Text confirmation sent to the customer when a delivery is done. The channel
-    # is pluggable through _get_text_validation(): the base ships the 'sms' value
-    # (consumed by stock_sms); stock_enterprise adds 'whatsapp' via selection_add
-    # (consumed by whatsapp_stock).
+    # Text confirmation sent to the customer when a delivery is done. Channel is
+    # pluggable: base ships 'sms' (stock_sms); stock_enterprise adds 'whatsapp'
+    # via selection_add (whatsapp_stock).
     stock_text_confirmation = fields.Boolean(string="Stock Text Confirmation")
     stock_confirmation_type = fields.Selection(
         selection=[("sms", "SMS")],
@@ -99,10 +98,9 @@ class ResCompany(models.Model):
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
-        # Provision everything on the whole batch at once: each per-company hook is
-        # recordset-capable, so N companies cost a constant number of INSERTs per
-        # resource instead of N. Hook order encodes intra-company dependencies
-        # (picking types need sequences, rules need picking types).
+        # Provision on the whole batch at once: each hook is recordset-capable, so
+        # N companies cost a constant number of INSERTs instead of N. Order encodes
+        # dependencies (picking types need sequences, rules need picking types).
         companies_sudo = companies.sudo()
         companies_sudo._create_per_company_locations()
         companies_sudo._create_per_company_sequences()
@@ -110,11 +108,9 @@ class ResCompany(models.Model):
         companies_sudo._create_per_company_rules()
         companies_sudo._set_per_company_inter_company_locations(inter_company_location)
         if modules.module.current_test:
-            # Most tests assume every company owns a warehouse; production code
-            # provisions warehouses explicitly (bootstrap_first_warehouse at install,
-            # then the create_missing_* backfills). Go through the single seam rather
-            # than calling stock.warehouse.create directly, so this test convenience
-            # and any explicit provisioning a test does share one idempotent path.
+            # Tests assume every company owns a warehouse; production provisions them
+            # explicitly (bootstrap_first_warehouse, then create_missing_* backfills).
+            # Use the single idempotent seam, not stock.warehouse.create directly.
             companies_sudo._create_warehouse()
         return companies
 
@@ -126,10 +122,8 @@ class ResCompany(models.Model):
     def _all_companies(self):
         """Every company, archived ones included.
 
-        Provisioning covers a company whether or not it is currently active: an
-        archived company still owns records and may be reactivated later, so the
-        ``create_missing_*`` backfills must see it (matching how e.g. mrp
-        subcontracting enumerates companies for its own backfill).
+        Provisioning must cover archived companies too: they still own records and
+        may be reactivated later, so the ``create_missing_*`` backfills need them.
         """
         return self.env["res.company"].with_context(active_test=False).search([])
 
@@ -146,11 +140,10 @@ class ResCompany(models.Model):
     def _companies_with_property(self, model_name, field_name):
         """Companies that already resolve a default for the given property.
 
-        A default with no ``company_id`` applies to every company, so its presence
-        means all companies are covered. Mapping ``company_id`` alone would drop
-        that global default (``False`` maps to the empty recordset) and make the
-        ``create_missing_*`` backfills provision a duplicate resource for companies
-        that already resolve the property globally.
+        A default with no ``company_id`` covers every company, so its presence means
+        all are covered. Mapping ``company_id`` alone would drop that global default
+        (``False`` -> empty recordset) and let the ``create_missing_*`` backfills
+        duplicate a resource companies already resolve globally.
         """
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         defaults = self.env["ir.default"].sudo()
@@ -162,12 +155,13 @@ class ResCompany(models.Model):
         return defaults.search([("field_id", "=", field.id)]).mapped("company_id")
 
     def _create_transit_location(self):
-        """Create a per-company transit location for resupply routes between warehouses
-        of the same company, avoiding the accounting entries a cross-company transfer would trigger.
+        """Create a per-company transit location for resupply routes between
+        warehouses of the same company, avoiding the accounting entries a
+        cross-company transfer would trigger.
 
-        ``self`` may hold several companies: the ``create_missing_*`` backfills call
-        these provisioning helpers on a multi-company recordset, so they create in
-        one batch and pair results back with ``zip``.
+        ``self`` may hold several companies (the ``create_missing_*`` backfills call
+        these helpers on a multi-company recordset), so create in one batch and pair
+        results back with ``zip``.
         """
         locations = self.env["stock.location"].create(
             [
@@ -245,15 +239,11 @@ class ResCompany(models.Model):
         """Ensure every company in ``self`` owns its primary warehouse and return
         one warehouse per company, in ``self`` order (recordset-capable).
 
-        The single seam through which a company acquires a warehouse: the
-        first-company bootstrap below and any other caller that needs one
-        (e.g. test fixtures spinning up extra companies) go through here, so the
-        warehouse-provisioning contract lives in exactly one place. It is
-        idempotent -- a company that already owns a warehouse keeps it instead of
-        getting a duplicate -- so a caller can ask for a company's warehouse
-        without having to know whether one was already provisioned (which is what
-        makes it safe to share between the create-time convenience and an explicit
-        test call, both of which would otherwise hit unique(name, company_id)).
+        The single seam through which a company acquires a warehouse, so the
+        provisioning contract lives in one place. Idempotent: a company that already
+        owns a warehouse keeps it instead of getting a duplicate (which would hit
+        unique(name, company_id)), so callers need not know whether one was already
+        provisioned.
         """
         warehouse_by_company = {}
         for warehouse in self.env["stock.warehouse"].search(
@@ -284,9 +274,8 @@ class ResCompany(models.Model):
     def bootstrap_first_warehouse(self):
         """Bootstrap a warehouse for the first company when the database has none yet.
 
-        Unlike the ``create_missing_*`` backfills, this is a one-shot bootstrap, not
-        a per-company backfill: it provisions a single warehouse only when no
-        warehouse exists at all. Every other warehouse comes from an explicit
+        One-shot, not a per-company backfill: provisions a single warehouse only
+        when none exists at all. Every other warehouse comes from an explicit
         ``_create_warehouse`` caller.
         """
         if self.env["stock.warehouse"].search_count([], limit=1):
@@ -326,11 +315,10 @@ class ResCompany(models.Model):
     @api.model
     def create_missing_mail_template(self):
         """Backfill the delivery-confirmation mail template on companies that lack
-        it. New companies get it from the field default; this covers companies
-        that predate the template. Invoked from ``data/mail_template_data.xml``
-        once the template record exists (it is defined after ``data/stock_data.xml``
-        in the manifest, so this cannot ride with the other ``create_missing_*``
-        calls there — hence its own ``<function>`` next to the template)."""
+        it (new companies get it from the field default). Invoked from
+        ``data/mail_template_data.xml`` because the template is defined after
+        ``data/stock_data.xml`` in the manifest, so it can't ride with the other
+        ``create_missing_*`` calls there."""
         template_id = self._default_confirmation_mail_template()
         if not template_id:
             return
@@ -339,11 +327,10 @@ class ResCompany(models.Model):
         ).stock_mail_confirmation_template_id = template_id
 
     # The four ``_create_per_company_*`` hooks below run on a whole ``res.company``
-    # recordset — ``create`` calls them once on the batch — so every leaf provisioning
-    # (locations, sequences, ...) creates in one query instead of one per company.
-    # Modules extending them (mrp, stock_dropshipping, ...) already iterate over
-    # ``self``; the hooks stay ordered locations -> sequences -> picking types -> rules
-    # because picking types look up their sequence and rules look up their picking type.
+    # recordset (``create`` calls them once on the batch), so each leaf provisioning
+    # creates in one query, not one per company. Ordered locations -> sequences ->
+    # picking types -> rules: picking types look up their sequence, rules their
+    # picking type.
     def _create_per_company_locations(self):
         self._create_transit_location()
         self._create_inventory_loss_location()
@@ -364,13 +351,10 @@ class ResCompany(models.Model):
         and every other company at the shared inter-company transit location, in
         both directions. Only relevant once multi-company is enabled.
 
-        ``self`` may be a multi-company recordset; the other companies are
-        enumerated once here instead of once per company by the caller. Archived
-        companies are included (``_all_companies``): like the ``create_missing_*``
-        backfills, this wiring must reach a company that is dormant now but owns
-        records and may be reactivated later, or its cross-company transfers would
-        route through the default customer/supplier locations instead of the
-        shared inter-company transit location.
+        Archived companies are included (``_all_companies``): a dormant company
+        still owns records and may be reactivated, and without this wiring its
+        cross-company transfers would route through the default customer/supplier
+        locations instead of the shared transit location.
         """
         if not self.env.user.has_group("base.group_multi_company"):
             return

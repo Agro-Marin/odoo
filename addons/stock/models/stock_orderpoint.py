@@ -315,9 +315,9 @@ class StockWarehouseOrderpoint(models.Model):
         # to any warehouse at all (i.e. exclude locations of *other* warehouses).
         all_warehouses = self.env["stock.warehouse"].search([])
         for orderpoint in self:
-            # The company filter must be applied unconditionally: applying it only
-            # while iterating other warehouses (as before) silently dropped it when
-            # a single warehouse existed, leaking other companies' locations.
+            # Apply the company filter unconditionally: doing it only inside the
+            # other-warehouses loop dropped it when a single warehouse existed,
+            # leaking other companies' locations.
             loc_domain = Domain("usage", "in", ("internal", "view")) & Domain(
                 "company_id",
                 "in",
@@ -418,9 +418,9 @@ class StockWarehouseOrderpoint(models.Model):
                 ["product_qty:sum"],
             )
 
-            # Keep the move's location parent_path so each orderpoint can pick up moves
-            # landing in (or leaving from) any sub-location of its own location, not only
-            # the exact location. Matching by exact id silently ignored sub-bin moves.
+            # Keep each move's location parent_path so an orderpoint picks up moves in
+            # any sub-location of its own location, not just the exact one (matching by
+            # exact id missed sub-bin moves).
             moves_by_product = defaultdict(list)
             for product, location, in_date, in_qty in incoming_moves_by_product_date:
                 moves_by_product[product.id].append(
@@ -457,11 +457,10 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_lead_time_stats(self):
         """Store avg/stddev/count of actual lead times per product/warehouse.
 
-        These fields are stored but the ORM can only recompute them on the declared
-        `product_id`/`warehouse_id` triggers, which never change after creation -- so a
-        newly completed receipt would otherwise never be reflected. The scheduler
-        (`stock.rule._run_scheduler_tasks`) and the replenishment report
-        (`force_orderpoint_recompute`) call this method explicitly to keep them fresh.
+        The stored fields only ORM-recompute on `product_id`/`warehouse_id`, which never
+        change after creation, so a newly completed receipt is never reflected. The
+        scheduler (`stock.rule._run_scheduler_tasks`) and the replenishment report
+        (`force_orderpoint_recompute`) call this explicitly to keep them fresh.
         """
         result_map = self._read_lead_time_stats()
         for orderpoint in self:
@@ -970,9 +969,8 @@ class StockWarehouseOrderpoint(models.Model):
         single grouped query, instead of one `_read_group` per record.
 
         Override-friendly: modules layering action-specific routes (buy, manufacture)
-        extend this by calling `super()._get_default_route_map()` first and then
-        overwriting the ids they own. Applying overrides bottom-up (base, then each
-        `super()` caller) reproduces the top-down short-circuit precedence of the old
+        call `super()` first, then overwrite the ids they own. Applying overrides
+        bottom-up reproduces the top-down short-circuit precedence of the old
         per-record `_get_default_route`.
         """
         to_compute = self.filtered("location_id")
@@ -1037,10 +1035,9 @@ class StockWarehouseOrderpoint(models.Model):
         qty_in_progress = qty_in_progress_by_orderpoint.get(self.id)
         if qty_in_progress is None:
             qty_in_progress = self._quantity_in_progress()[self.id]
-        # Re-read `virtual_available` fresh rather than reuse the cached `qty_forecast`:
-        # by the time this runs (scheduler / action_replenish), procurements created for
-        # sibling orderpoints may already have moved forecasted stock, so the cached
-        # value can be stale while this read reflects current reality.
+        # Re-read `virtual_available` fresh instead of the cached `qty_forecast`: by the
+        # time this runs (scheduler / action_replenish), procurements for sibling
+        # orderpoints may have moved stock, leaving the cached value stale.
         product_context = self._get_product_context()
         qty_forecast_with_visibility = (
             self.product_id.with_context(product_context).read(
@@ -1090,9 +1087,9 @@ class StockWarehouseOrderpoint(models.Model):
             "stock.action_orderpoint_replenish",
         )
         action["context"] = self.env.context
-        # Include archived orderpoints too: an archived orderpoint on a product/location still
-        # counts against the unique product_location_check constraint, so ignoring it here would
-        # make us try to create a duplicate manual orderpoint for that same product/location.
+        # Include archived orderpoints too: they still count against the unique
+        # product_location_check constraint, so ignoring one would make us create a
+        # duplicate manual orderpoint for that product/location.
         orderpoints = (
             self.env["stock.warehouse.orderpoint"]
             .with_context(active_test=False)

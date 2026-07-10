@@ -16,9 +16,9 @@ from odoo.tools.translate import _
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
-# Terminal states shared by pickings and their moves: once done or cancelled a record
-# no longer takes part in confirmation, reservation, backorders, packing, etc. Used for
-# membership tests only (domains keep explicit tuples).
+# Terminal states for pickings and moves: a done/cancelled record no longer takes
+# part in confirmation, reservation, backorders, packing, etc. Membership tests only
+# (domains keep explicit tuples).
 DONE_CANCEL_STATES = frozenset(("done", "cancel"))
 
 
@@ -397,8 +397,8 @@ class StockPicking(models.Model):
         defaults = self.default_get(["name", "picking_type_id"])
         default_name = defaults.get("name", "/")
         default_picking_type_id = defaults.get("picking_type_id")
-        # Warm the cache for every referenced picking type so reading `sequence_id` in
-        # the loop is a single prefetch, not one query per distinct type.
+        # Prefetch every referenced picking type so `sequence_id` reads in the loop
+        # cost one query, not one per distinct type.
         type_ids = {
             vals.get("picking_type_id", default_picking_type_id) for vals in vals_list
         }
@@ -412,14 +412,14 @@ class StockPicking(models.Model):
                 if picking_type.sequence_id:
                     vals["name"] = picking_type.sequence_id.next_by_id()
 
-            # Defer writing `date_planned` until after the moves are created, so
-            # `_inverse_date_planned` runs deterministically on a fully-formed picking.
+            # Defer `date_planned` until after the moves exist, so
+            # `_inverse_date_planned` runs on a fully-formed picking.
             date_planneds.append(vals.pop("date_planned", False))
 
         pickings = super().create(vals_list)
 
         # Group by the deferred value so pickings sharing a `date_planned` are written
-        # (and their moves cascaded) once per distinct date rather than one-by-one.
+        # (cascading to their moves) once per distinct date, not one-by-one.
         ids_by_date_planned = defaultdict(list)
         for picking, date_planned in zip(pickings, date_planneds, strict=True):
             if date_planned:
@@ -453,17 +453,16 @@ class StockPicking(models.Model):
 
         res = super().write(vals)
 
-        # Adopt each changed picking's default locations *after* the type is applied, so
-        # they are resolved per-record with that picking's own partner/company (the
-        # supplier/customer override) instead of a single value forced onto the batch.
+        # Apply each changed picking's default locations *after* the type is set, so
+        # they resolve per-record with that picking's own partner/company (the
+        # supplier/customer override) rather than one value forced onto the batch.
         # Never override a location the caller passed explicitly in this same write; the
         # recursive write cascades the change to the picking's moves (see `after_vals`).
         write_src = "location_id" not in vals
         write_dest = "location_dest_id" not in vals
         if pickings_changing_type and (write_src or write_dest):
-            # Resolve per-record, then group pickings sharing the same resolved pair so
-            # the cascade to moves runs once per distinct pair instead of once per
-            # picking (mirrors the `date_planned` grouping in `create`).
+            # Group pickings sharing the same resolved pair so the cascade to moves runs
+            # once per distinct pair (mirrors the `date_planned` grouping in `create`).
             ids_by_locations = defaultdict(list)
             for picking in pickings_changing_type:
                 ids_by_locations[picking._get_type_default_location_ids()].append(
@@ -490,7 +489,7 @@ class StockPicking(models.Model):
         if "partner_id" in vals:
             after_vals["partner_id"] = vals["partner_id"]
         if after_vals:
-            # Scrap moves (dest usage "inventory") keep their own location, so exclude them.
+            # Scrap moves (dest "inventory") keep their own location; exclude them.
             self.move_ids.filtered(
                 lambda move: move.location_dest_usage != "inventory",
             ).write(after_vals)
@@ -547,7 +546,7 @@ class StockPicking(models.Model):
     @api.depends("date_deadline", "date_planned")
     def _compute_has_deadline_issue(self):
         for picking in self:
-            # Guard `date_planned`: comparing a datetime to a falsy value raises TypeError.
+            # Guard `date_planned`: comparing a datetime to False raises TypeError.
             picking.has_deadline_issue = bool(
                 picking.date_deadline
                 and picking.date_planned
@@ -596,10 +595,10 @@ class StockPicking(models.Model):
         other_pickings.products_availability_state = False
 
         all_moves = pickings.move_ids
-        # Compute forecast_availability for all moves in one batch instead of the default prefetch chunking.
+        # Batch-compute forecast_availability for all moves, not per prefetch chunk.
         all_moves._fields["forecast_availability"].compute_value(all_moves)
         for picking in pickings:
-            # For draft moves, forecast_availability is only checked against 0, not the full demand.
+            # Draft moves check forecast_availability against 0, not the full demand.
             if any(
                 move.product_id
                 and move.product_id.uom_id.compare(
@@ -833,7 +832,7 @@ class StockPicking(models.Model):
                 if package.shipping_weight:
                     shipping_weight += package.shipping_weight
                 else:
-                    # No explicit shipping weight on the package: fall back to its computed product weight.
+                    # No shipping weight set: fall back to the computed product weight.
                     shipping_weight += packages_weight.get(package, 0)
             picking.shipping_weight = shipping_weight
 
@@ -875,7 +874,8 @@ class StockPicking(models.Model):
         other_pickings = self - done_pickings
 
         packages_by_pick = defaultdict(int)
-        # Cannot _read_group() as picking_ids isn't stored, nor grouped() because multiple pickings per package
+        # Can't _read_group() (picking_ids isn't stored) nor grouped()
+        # (multiple pickings per package).
         packages = self.env["stock.package"].search(
             [("picking_ids", "in", other_pickings.ids)],
         )
@@ -897,7 +897,7 @@ class StockPicking(models.Model):
 
     @api.depends("state", "move_ids.product_uom_qty", "picking_type_code")
     def _compute_show_check_availability(self):
-        """Whether the "Check Availability" button should be shown on the picking form."""
+        """Whether the "Check Availability" button shows on the picking form."""
         for picking in self:
             if picking.state not in ("confirmed", "waiting", "assigned"):
                 picking.show_check_availability = False
@@ -1095,10 +1095,9 @@ class StockPicking(models.Model):
         value = set(value)
         invalid_states = ("done", "cancel", "draft")
         # A picking carries a non-False availability state only when it is
-        # waiting/confirmed/assigned AND of an outgoing/internal type — the exact
-        # condition `_compute_products_availability` applies. Every other picking (a
-        # receipt, a draft/done/cancel) reads as False for this field, even though its
-        # moves may well be reservable, so the search must scope itself the same way.
+        # waiting/confirmed/assigned AND of an outgoing/internal type — the condition
+        # `_compute_products_availability` applies. Every other picking reads as False
+        # (even if its moves are reservable), so the search must scope itself the same.
         qualifying = Domain(
             [
                 ("state", "not in", invalid_states),
@@ -1133,10 +1132,9 @@ class StockPicking(models.Model):
                 # invalid value for search
                 return False
 
-        # Only qualifying pickings can match, so scan just those (a far smaller Python
-        # filter than every non-terminal picking) and batch-compute the forecast field
-        # the matcher reads in one pass over their moves, instead of the default
-        # per-prefetch-chunk recompute (mirrors `_compute_products_availability`).
+        # Only qualifying pickings can match, so scan just those and batch-compute the
+        # forecast field the matcher reads in one pass over their moves, instead of the
+        # default per-chunk recompute (mirrors `_compute_products_availability`).
         candidate_pickings = self.env["stock.picking"].search(qualifying, order="id")
         candidate_moves = candidate_pickings.move_ids
         candidate_moves._fields["forecast_availability"].compute_value(candidate_moves)
@@ -1201,7 +1199,7 @@ class StockPicking(models.Model):
         return True
 
     def action_assign(self):
-        """Reserve quants for the picking's moves, updating move (and thus picking) state."""
+        """Reserve quants for the picking's moves, updating move (and picking) state."""
         self.filtered(lambda picking: picking.state == "draft").action_confirm()
         moves = self.move_ids.filtered(
             lambda move: move.state not in ("draft", "cancel", "done"),
@@ -1291,7 +1289,8 @@ class StockPicking(models.Model):
         )
         self.write({"date_done": fields.Datetime.now(), "priority": "0"})
 
-        # if incoming/internal moves make other confirmed/partially_available moves available, assign them
+        # If incoming/internal moves free up other confirmed/partially_available moves,
+        # assign them.
         done_incoming_moves = self.filtered(
             lambda p: p.picking_type_id.code in ("incoming", "internal"),
         ).move_ids.filtered(lambda m: m.state == "done")
@@ -1336,7 +1335,7 @@ class StockPicking(models.Model):
         if not self.env.context.get("skip_sanity_check", False):
             self._sanity_check()
 
-        # Pre-validation wizards must only touch moves/context, never call `_action_done` themselves.
+        # Pre-validation wizards touch only moves/context, never call `_action_done`.
         if not self.env.context.get("button_validate_picking_ids"):
             self = self.with_context(button_validate_picking_ids=self.ids)
         res = self._pre_action_done_hook()
@@ -1413,10 +1412,10 @@ class StockPicking(models.Model):
                     wh_location_ids,
                     lines.product_id.ids,
                 ),
-                # Reception report only offers *fresh* demand — moves with no existing
-                # origin, from other pickings. `_get_show_allocation_map` intentionally
-                # differs: it also re-surfaces demand already chained to this receipt's
-                # own lines (`move_orig_ids & lines`).
+                # Reception report only offers *fresh* demand: moves with no origin,
+                # from other pickings. `_get_show_allocation_map` differs on purpose —
+                # it also re-surfaces demand chained to this receipt's own lines
+                # (`move_orig_ids & lines`).
                 ("move_orig_ids", "=", False),
                 ("picking_id", "not in", pickings_show_report.ids),
             ],
@@ -1436,7 +1435,7 @@ class StockPicking(models.Model):
                     self.display_name,
                 ),
             )
-        # done-vs-demand comparison per move: 0 = fully done, >0 = over demand, <0 = partial
+        # done-vs-demand per move: 0 = fully done, >0 = over demand, <0 = partial
         demand_comparisons = [
             m.product_uom.compare(m.quantity, m.product_uom_qty) for m in self.move_ids
         ]
@@ -1464,11 +1463,11 @@ class StockPicking(models.Model):
 
     def _pre_action_done_hook(self):
         for picking in self:
-            # Auto-pick everything when the picking has quantity to move but the user
-            # picked nothing explicitly. The asymmetry around inventory-destination
-            # (scrap) moves is deliberate and load-bearing:
-            #  * their quantity DOES count towards `has_quantity` — a picking whose only
-            #    move goes to scrap must still auto-pick and validate (see test_scrap_10);
+            # Auto-pick everything when the picking has quantity to move but nothing was
+            # picked explicitly. The asymmetry for inventory-destination (scrap) moves
+            # is deliberate and load-bearing:
+            #  * their quantity DOES count towards `has_quantity`, so a picking whose
+            #    only move is scrap still auto-picks and validates (see test_scrap_10);
             #  * their quantity is auto-picked by the final write (all moves), so scrap
             #    transfers complete;
             #  * but a scrap move being `picked` does NOT count towards `has_pick`, so a
@@ -1566,7 +1565,8 @@ class StockPicking(models.Model):
                 [("id", "child_of", package_ids)],
             )
             all_package_ids = set(all_packages.ids)
-            # Remove existing move lines that already pulled from these packages, as using them fully now.
+            # Drop existing move lines that already pull from these packages; we use
+            # them fully now.
             self.move_line_ids.filtered(
                 lambda ml: ml.package_id.id in all_package_ids,
             ).unlink()
@@ -1711,9 +1711,8 @@ class StockPicking(models.Model):
         return True
 
     def _autoconfirm_picking(self):
-        """Automatically run `action_confirm` on `self` if one of the
-        picking's move was added after the initial
-        call to `action_confirm`. Note that `action_confirm` will only work on draft moves.
+        """Run `action_confirm` on pickings that gained a move after the initial
+        `action_confirm` (which acts only on draft moves).
         """
         pickings_with_additional_moves = self.filtered(
             lambda picking: (
@@ -1805,11 +1804,9 @@ class StockPicking(models.Model):
         pickings_print_product_label = self.filtered(
             lambda p: p.picking_type_id.auto_print_product_labels,
         )
-        # Group by format value (not by picking type): iterate the grouped keys so each
-        # distinct format yields exactly one action. Iterating `mapped(...)` instead
-        # would repeat a format shared by two types (duplicate actions) and reading
-        # `pickings.picking_type_id.product_label_format` off the >1-type group would
-        # raise a singleton error.
+        # Group by format value (not picking type) so each distinct format yields one
+        # action. Iterating `mapped(...)` instead would duplicate a format shared by two
+        # types, and reading the format off a >1-type group would raise a singleton.
         for print_format, pickings in pickings_print_product_label.grouped(
             lambda p: p.picking_type_id.product_label_format,
         ).items():
@@ -1904,8 +1901,8 @@ class StockPicking(models.Model):
         )
 
     def _create_backorder(self, backorder_moves=None):
-        """This method is called when the user chose to create a backorder. It will create a new
-        picking, the backorder, and move the stock.moves that are not `done` or `cancel` into it.
+        """Create a backorder picking and move the non-`done`/`cancel` stock.moves into
+        it. Called when the user chose to create a backorder.
         """
         backorders = self.env["stock.picking"]
         bo_to_assign = self.env["stock.picking"]
@@ -2154,8 +2151,8 @@ class StockPicking(models.Model):
         )
 
     def _get_without_quantities_error_message(self):
-        """Returns the error message raised in validation if no quantities are reserved.
-        The purpose of this method is to be overridden in case we want to adapt this message.
+        """Error message raised in validation when no quantities are reserved.
+        Overridable to adapt the message.
 
         :return: Translated error message
         :rtype: str
@@ -2195,11 +2192,10 @@ class StockPicking(models.Model):
         origin_objects = self.env[next(iter(orig_obj_changes))._name].concat(
             *orig_obj_changes,
         )
-        # The purpose here is to group each destination object by
-        # (document to log, responsible) no matter the stream direction.
-        # example:
-        # {'(delivery_picking_1, admin)': stock.move(1, 2)
-        #  '(delivery_picking_2, admin)': stock.move(3)}
+        # Group each destination object by (document to log, responsible), regardless of
+        # stream direction. E.g.:
+        # {(delivery_picking_1, admin): stock.move(1, 2),
+        #  (delivery_picking_2, admin): stock.move(3)}
         visited_documents = {}
         if stream == "DOWN":
             if groupby_method:
@@ -2212,9 +2208,8 @@ class StockPicking(models.Model):
                     "You have to define a groupby method and pass them as arguments.",
                 )
         elif stream == "UP":
-            # When using upstream document it is required to define
-            # _get_upstream_documents_and_responsibles on
-            # destination objects in order to ascend documents.
+            # Ascending requires `_get_upstream_documents_and_responsibles` to be
+            # defined on the destination objects.
             grouped_moves = {}
             for visited_move in origin_objects.mapped(stream_field):
                 for (
@@ -2312,7 +2307,7 @@ class StockPicking(models.Model):
         self._log_activity(_render_note_exception_quantity, documents)
 
     def _prepare_entire_pack_move_line_vals(self, packages):
-        """Prepares the move line values for every packages within packages and their children that contain products."""
+        """Move line values for each package (and child package) that holds products."""
         self.ensure_one()
         return [
             {
@@ -2407,7 +2402,7 @@ class StockPicking(models.Model):
                             "is_entire_pack": True,
                         },
                     )
-        # If we move all packages within a package, we can consider that they keep their container as well
+        # If all packages within a package move, they keep their container too.
         self.move_line_ids.result_package_id._apply_package_dest_for_entire_packs()
 
     def _check_move_lines_map_quant_package(self, package):
@@ -2424,7 +2419,7 @@ class StockPicking(models.Model):
         )
 
     def _is_single_transfer(self):
-        # Overridden in stock.picking.batch, where a "single transfer" means a single picking.
+        # Overridden in stock.picking.batch: a "single transfer" is a single picking.
         return len(self) == 1
 
     def _is_to_external_location(self):

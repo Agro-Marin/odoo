@@ -356,8 +356,8 @@ class ProductProduct(models.Model):
             self.env.context.get("from_date"),
             self.env.context.get("to_date"),
         )
-        # Services always have 0 quantities and are absent from res; set every field to 0
-        # first so those and the zero values filtered out below (`if val`) are still covered.
+        # Services have 0 quantities and are absent from res; zero every field first so
+        # they, and the zeros the `if val` filter drops below, are still set.
         self.with_context(skip_qty_available_update=True).qty_available = 0.0
         self.incoming_qty = 0.0
         self.outgoing_qty = 0.0
@@ -411,9 +411,9 @@ class ProductProduct(models.Model):
     # ------------------------------------------------------------
 
     def _search_qty_available(self, operator, value):
-        # Without a date range, qty_available only depends on quants, not moves, so we can
-        # bypass '_search_product_quantity' and use the quant-only '_search_qty_available_new'
-        # for better performance.
+        # Without a date range, qty_available depends only on quants, not moves,
+        # so use the faster quant-only '_search_qty_available_new' instead of
+        # '_search_product_quantity'.
         if not ({"from_date", "to_date"} & self.env.context.keys()):
             product_ids = self._search_qty_available_new(
                 operator,
@@ -456,10 +456,9 @@ class ProductProduct(models.Model):
                 .ids
             )
             return [("id", "in", ids)]
-        # These quantities are 0 for any product without quants or moves (kits aside), so
-        # only the candidate set can hold a non-zero value. Compute the field for those
-        # candidates through the normal, override-aware compute, then treat every other
-        # product as 0 via the `not in` branch below — avoiding a whole-catalogue compute.
+        # Only products with quants or moves (kits aside) can be non-zero; the rest
+        # are 0. Compute those candidates via the override-aware compute; every other
+        # product is treated as 0 in the `not in` branch below, skipping a full compute.
         candidates = self._get_quantity_search_candidates()
         vals_by_product = candidates.with_context(
             prefetch_fields=False
@@ -516,11 +515,11 @@ class ProductProduct(models.Model):
                 product_ids.add(product_id)
 
         if include_zero:
-            # A product absent from the quant groups has qty_available 0 in this domain,
-            # so it matches whenever 0 does — regardless of `is_storable`. Restricting to
-            # storable products here diverged from the field's own semantics
-            # (`filtered_domain`) and from the dated qty_available search, dropping
-            # non-storable/service products that legitimately have 0 on hand.
+            # A product absent from the quant groups has 0 on hand in this domain,
+            # so it matches whenever 0 does — regardless of `is_storable`. Filtering
+            # to storable here would diverge from the field's `filtered_domain`
+            # semantics and the dated search, dropping non-storable/service products
+            # that legitimately have 0.
             products_without_quants_in_domain = self.env["product.product"].search(
                 [("id", "not in", list(processed_product_ids))],
                 order="id",
@@ -883,10 +882,10 @@ class ProductProduct(models.Model):
         """Products whose on-hand/forecast quantity fields can be non-zero: those with
         quants or moves in the relevant locations.
 
-        A superset is safe — extra products simply compute to 0 and are filtered out —
-        but a subset would wrongly drop matches, so any override that lets a product be
-        non-zero without its own quants/moves (e.g. mrp phantom-BoM kits, whose quantity
-        comes from their components) MUST extend this set.
+        A superset is safe (extras compute to 0 and are filtered out) but a subset
+        drops matches, so any override letting a product be non-zero without its own
+        quants/moves (e.g. mrp phantom-BoM kits, sourced from components) MUST extend
+        this set.
         """
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             self._get_domain_locations()

@@ -17,17 +17,13 @@ _logger = logging.getLogger(__name__)
 class _LeastPackagesPriorityQueue:
     """Min-heap frontier for the least_packages removal-strategy A* search.
 
-    Hoisted to module level so it is defined once rather than rebuilt on every
-    _run_least_packages_removal_strategy_astar() call, and can be unit-tested.
+    Module-level so it is defined once (not rebuilt per
+    _run_least_packages_removal_strategy_astar() call) and is unit-testable.
 
-    Entries are pushed as ``(priority, insertion_index, item)``. The monotonic
-    ``insertion_index`` is a total-order tie-breaker: when two entries share a
-    priority the heap decides on insertion order (FIFO) and never falls through
-    to comparing the ``item`` nodes themselves. Without it, two equal-priority
-    entries would be ordered field-by-field, and a node's ``taken_packages``
-    mixes ``None`` package keys with ``int`` ones — ``None < int`` raises
-    ``TypeError`` on Python 3. This makes the crash structurally impossible
-    rather than merely improbable (see ``_least_packages_search``).
+    Entries are ``(priority, insertion_index, item)``. The monotonic
+    ``insertion_index`` breaks priority ties by FIFO insertion order so the heap
+    never compares the ``item`` nodes: a node's ``taken_packages`` mixes ``None``
+    and ``int`` package keys, and ``None < int`` raises ``TypeError`` on Python 3.
     """
 
     def __init__(self):
@@ -59,17 +55,16 @@ def _least_packages_search(qty_by_package, qty):
     Pure and side-effect free, so it is unit-testable in isolation of the ORM.
 
     :param qty_by_package: list of ``(key, available_qty)`` where ``key`` is a
-        ``stock.package`` id or ``None`` for a virtual single unit. The list is
-        expected **grouped by descending ``available_qty``** (as
-        ``_run_least_packages_removal_strategy_astar`` builds it, singles last):
-        the expansion loop below dedups adjacent equal amounts, so the grouping
-        is what makes "one branch per distinct amount" correct. Ordering is *not*
-        relied on for heap safety — ``_LeastPackagesPriorityQueue`` carries an
-        insertion-index tie-breaker so two equal-priority entries never compare
-        their nodes' ``None``/``int`` package keys.
+        ``stock.package`` id or ``None`` for a virtual single unit. Must be grouped
+        by ``available_qty`` (singles last, as
+        ``_run_least_packages_removal_strategy_astar`` builds it): the loop below
+        dedups adjacent equal amounts, so the grouping is what makes "one branch per
+        distinct amount" correct. Order is not relied on for heap safety --
+        ``_LeastPackagesPriorityQueue``'s insertion-index tie-breaker avoids
+        comparing nodes' ``None``/``int`` package keys.
     :param qty: quantity to cover.
-    :return: the winning node's ``taken_packages`` tuple — an exact cover when one
-        exists, otherwise the best partial/over cover found.
+    :return: the winning node's ``taken_packages`` tuple -- an exact cover if one
+        exists, else the best partial/over cover found.
     """
     size = len(qty_by_package)
 
@@ -91,8 +86,8 @@ def _least_packages_search(qty_by_package, qty):
         if current.count_remaining <= 0:
             return current.taken_packages
 
-        # Keep track of processed package amounts to only generate one branch for
-        # the same amount (the list is grouped by amount).
+        # Generate only one branch per distinct amount (the list is grouped by
+        # amount).
         last_count = None
         i = current.next_index
         while i < size:
@@ -131,9 +126,9 @@ def _least_packages_search(qty_by_package, qty):
     return best_leaf.taken_packages
 
 
-# Reservation candidate: the opaque handle returned to the caller (a stock.quant in
-# production), its on-hand and reserved quantities, and the characteristics key that
-# marks it interchangeable with other candidates for over-reservation absorption.
+# Reservation candidate: opaque handle returned to the caller (a stock.quant in
+# production), its on-hand and reserved quantities, and the characteristics key
+# grouping interchangeable candidates for over-reservation absorption.
 _ReservationCandidate = namedtuple(
     "_ReservationCandidate", "handle on_hand reserved key"
 )
@@ -142,37 +137,33 @@ _ReservationCandidate = namedtuple(
 def _distribute_reservation(candidates, quantity, available_quantity, precision_digits):
     """Distribute a signed ``quantity`` across pre-ordered reservation ``candidates``.
 
-    Pure and DB-free (mirrors :func:`_least_packages_search`): it manipulates plain
-    numbers and opaque ``handle`` values only, so the reservation allocation
-    algorithm — the trickiest arithmetic in this model — can be unit-tested with
-    hand-built inputs instead of real quants, moves and locations.
+    Pure and DB-free (like :func:`_least_packages_search`): operates on plain numbers
+    and opaque ``handle`` values only, so this allocation arithmetic -- the trickiest
+    in the model -- is unit-testable with hand-built inputs.
 
     :param candidates: list of :class:`_ReservationCandidate` already ordered by the
-        removal strategy. ``handle`` is echoed back verbatim in the result; ``key``
-        groups interchangeable candidates so stock already over-reserved into
-        negative available is absorbed first, before the rest of that group is
-        allowed to over-reserve too.
-    :param quantity: signed target in the candidates' UoM — ``> 0`` reserves,
-        ``< 0`` unreserves. Its sign is fixed for the whole run: reserving never
-        takes more than what is left to reserve, so it converges to zero without
-        crossing it.
-    :param available_quantity: the running budget the reserve branch draws down;
-        allocation stops as soon as either it or ``quantity`` rounds to zero. The
-        caller sizes it (positive branch: on-hand-minus-reserved of the whole set;
-        negative branch: total reserved), so the loop needs no global view.
-    :param precision_digits: the 'Product Unit' decimal precision; every comparison
-        rounds to it, matching ``uom.compare`` / ``uom.is_zero``.
-    :return: list of ``(handle, amount)`` pairs — ``amount`` positive when
-        reserving, negative when unreserving.
+        removal strategy. ``handle`` is echoed back verbatim; ``key`` groups
+        interchangeable candidates so stock already over-reserved into negative
+        available is absorbed first, before the rest of that group over-reserves too.
+    :param quantity: signed target in the candidates' UoM -- ``> 0`` reserves,
+        ``< 0`` unreserves. Its sign is fixed for the run: reserving never takes more
+        than is left, so it converges to zero without crossing it.
+    :param available_quantity: running budget the reserve branch draws down;
+        allocation stops once it or ``quantity`` rounds to zero. The caller sizes it
+        (positive branch: on-hand-minus-reserved of the whole set; negative branch:
+        total reserved), so the loop needs no global view.
+    :param precision_digits: 'Product Unit' decimal precision; every comparison rounds
+        to it, matching ``uom.compare`` / ``uom.is_zero``.
+    :return: list of ``(handle, amount)`` pairs -- ``amount`` positive when reserving,
+        negative when unreserving.
     """
     reserved = []
     if float_is_zero(quantity, precision_digits=precision_digits):
         return reserved
     reserving = float_compare(quantity, 0, precision_digits=precision_digits) > 0
 
-    # Group already-over-reserved (negative available) quantity by characteristics so
-    # it is absorbed first instead of letting other candidates in the same group
-    # over-reserve too.
+    # Group already-over-reserved (negative available) quantity by characteristics
+    # so it is absorbed first, not spread as more over-reservation in the group.
     negative_available = defaultdict(float)
     for cand in candidates:
         slack = cand.on_hand - cand.reserved
@@ -409,11 +400,11 @@ class StockQuant(models.Model):
 
     def init(self):
         super().init()
-        # product_id lost its standalone `index=True` (it is the leading column of both
-        # composite indexes above, so a single-column btree is pure write overhead on
-        # this hot table). `_auto_init` no longer recreates it, but the ORM never drops
-        # indexes it once created, so remove the now-orphan index here. Idempotent and
-        # runs after `_auto_init`, so it won't be re-created underneath us.
+        # product_id dropped its standalone `index=True` (it leads both composite
+        # indexes above, so a single-column btree is pure write overhead here).
+        # `_auto_init` no longer creates it, but the ORM never drops indexes it once
+        # made, so remove the now-orphan index here. Idempotent, and runs after
+        # `_auto_init` so it won't be recreated underneath us.
         self.env.cr.execute("DROP INDEX IF EXISTS stock_quant__product_id_index")
 
     # ------------------------------------------------------------
@@ -475,16 +466,16 @@ class StockQuant(models.Model):
 
         is_inventory_mode = self._is_inventory_mode()
         allowed_fields = self._get_inventory_fields_create()
-        # `results[i]` holds the quant produced for `vals_list[i]`, preserving order.
-        # Inventory-mode rows must be handled one at a time (each gathers/merges against
-        # existing quants); every other row is deferred to a single batched
-        # super().create() so @api.model_create_multi issues one INSERT instead of N.
+        # `results[i]` holds the quant for `vals_list[i]`, preserving order. Inventory-
+        # mode rows are handled one at a time (each gathers/merges against existing
+        # quants); other rows are deferred to one batched super().create() so
+        # @api.model_create_multi issues a single INSERT instead of N.
         #
-        # Because inventory-mode rows resolve to an *existing* quant when one matches,
-        # two vals sharing the same characteristics can map to the same record; the
-        # returned recordset is then shorter than `vals_list`. That coalescing is
-        # intended (one physical quant per characteristics tuple) — callers must not
-        # positionally zip the result against the input.
+        # Inventory-mode rows resolve to an *existing* quant when one matches, so two
+        # vals with the same characteristics can map to the same record and the result
+        # is then shorter than `vals_list`. That coalescing is intended (one physical
+        # quant per characteristics tuple) -- callers must not positionally zip the
+        # result against the input.
         results = [self.env["stock.quant"]] * len(vals_list)
         plain_vals = []  # list of (index, vals) for the batched, non-inventory create
         for index, vals in enumerate(vals_list):
@@ -507,11 +498,11 @@ class StockQuant(models.Model):
             for (index, _vals), quant in zip(plain_vals, created, strict=True):
                 _add_to_cache(quant)
                 results[index] = quant
-                # stock.quant intentionally omits `_check_company_auto`, so the ORM
-                # never auto-runs `_check_company` on create/write (unlike stock.lot,
-                # stock.location, ...). The engine path is trusted — company_id is a
-                # stored related off location_id — so this explicit call on the
-                # user-input (inventory) path is the *only* company consistency check.
+                # stock.quant omits `_check_company_auto`, so the ORM never auto-runs
+                # `_check_company` on create/write (unlike stock.lot, stock.location).
+                # The engine path is trusted (company_id is a stored related off
+                # location_id), so this explicit call on the user-input (inventory)
+                # path is the *only* company consistency check.
                 if is_inventory_mode and quant.company_id:
                     quant._check_company()
         return self.env["stock.quant"].union(*results)
@@ -597,13 +588,12 @@ class StockQuant(models.Model):
         if self._is_inventory_mode() and any(
             field for field in forbidden_fields if field in vals
         ):
-            # Quants sitting in an inventory-adjustment location can't be meaningfully
-            # edited, so a forbidden write on them is silently ignored (returning True
-            # honours the ORM write() contract: a no-op still "succeeded"). That leniency
-            # must NOT be extended to the rest of a mixed recordset: if a single real
-            # quant is also being written, the operation is restricted and swallowing it
-            # would silently drop the caller's change. Partition on the location's usage
-            # instead of gating the whole write on `any(... == "inventory")`.
+            # Quants in an inventory-adjustment location can't be meaningfully edited,
+            # so a forbidden write on them is silently ignored (returning True honours
+            # write()'s contract: a no-op still "succeeded"). Don't extend that leniency
+            # to a mixed recordset: if a real quant is also being written the operation
+            # is restricted, and swallowing it would drop the caller's change. So
+            # partition on the location's usage rather than gate on `any(...)`.
             if self.filtered(lambda quant: quant.location_id.usage != "inventory"):
                 raise UserError(
                     _("Quant's editing is restricted, you can't do this operation.")
@@ -715,10 +705,10 @@ class StockQuant(models.Model):
             ["date:max"],
         )
 
-        # A move line can be the "last count" for a quant sitting on either end of
-        # the move (source/dest location) and reached through either package slot
-        # (package/result package): the 2x2 cross product below is exactly those four
-        # (location, package) characteristics tuples. Keep the newest date per tuple.
+        # A move line can be the "last count" for a quant on either end of the move
+        # (source/dest location) reached through either package slot (package/result
+        # package): the 2x2 cross product below is those four (location, package)
+        # tuples. Keep the newest date per tuple.
         date_by_quant = {}
         for (
             product,
@@ -955,11 +945,10 @@ class StockQuant(models.Model):
         action = self.env["ir.actions.actions"]._for_xml_id(
             "stock.stock_move_line_action"
         )
-        # Move lines that touched this location on either end, filtered to this
-        # quant's lot. For an untracked quant ``lot_id.id`` is False, which correctly
-        # matches the lot-less move lines of an untracked product. Built with Domain
-        # operators so the (source-or-dest) grouping is explicit rather than relying
-        # on prefix-notation precedence.
+        # Move lines that touched this location on either end, filtered to this quant's
+        # lot. For an untracked quant ``lot_id.id`` is False, correctly matching the
+        # lot-less move lines of an untracked product. Built with Domain operators so
+        # the (source-or-dest) grouping is explicit, not reliant on prefix precedence.
         domain = (
             Domain("location_id", "=", self.location_id.id)
             | Domain("location_dest_id", "=", self.location_id.id)
@@ -1258,11 +1247,10 @@ class StockQuant(models.Model):
         )
 
         # Split rows into real packages (kept as-is) and a running count of unpackaged
-        # single units. Real packages are what make this strategy worthwhile: if there
-        # are none, bail out *before* allocating anything. Otherwise a location holding a
-        # large amount of unpackaged stock would eagerly build — and then immediately
-        # discard — a list of that many single-unit entries for a guaranteed no-op
-        # (measured ~46 ms for 2M unpackaged units before this early return).
+        # single units. Real packages make this strategy worthwhile: with none, bail
+        # out *before* allocating anything. Otherwise a location with lots of unpackaged
+        # stock would build -- then immediately discard -- a list of that many single-
+        # unit entries for a guaranteed no-op (~46 ms for 2M units before this return).
         real_packages = []
         singles_count = 0
         for package_id, available_qty in qty_by_package:
@@ -1278,10 +1266,10 @@ class StockQuant(models.Model):
             return domain
 
         try:
-            # Expanding the singles into individual (None, 1) entries is the memory-hungry
-            # step, so it lives inside the MemoryError guard alongside the search itself
-            # (the previous placement left the expansion unguarded). Singles are appended
-            # last on purpose; see _least_packages_search.
+            # Expanding singles into individual (None, 1) entries is the memory-hungry
+            # step, so it lives inside the MemoryError guard with the search (previously
+            # it was left unguarded). Singles are appended last on purpose; see
+            # _least_packages_search.
             qty_by_package = real_packages + [(None, 1)] * singles_count
             taken_packages = _least_packages_search(qty_by_package, qty)
             return self._least_packages_domain(taken_packages, domain)
@@ -1296,20 +1284,18 @@ class StockQuant(models.Model):
         """Build the search domain covering the packages/singles selected by
         :func:`_least_packages_search`.
 
-        Unpackaged singles are resolved to concrete quant ids with a single query.
-        The old implementation popped ids one at a time and re-ran the query every
-        time the list emptied (once per selected single, re-selecting the same
-        records); slicing the tail yields the identical id-set in one query.
+        Unpackaged singles are resolved to concrete quant ids in a single query.
+        Slicing the tail (``[-single_count:]``) yields the same id-set the old
+        per-single popping loop produced, without re-running the query each time.
 
-        Note the deliberate asymmetry: ``single_count`` is a count of selected
-        *unit slots* (the search expands loose stock into one ``(None, 1)`` entry
-        per unit), but ``single_item_ids`` are quant *records*, each of which may
-        hold more than one unit. Taking the last ``single_count`` records therefore
-        yields *at least* ``single_count`` loose units — never fewer — so the
-        candidate set can only over-cover on the unpackaged side. That over-cover is
-        harmless: the reservation loop caps consumption at the requested quantity,
-        and the package set is pinned exactly by ``package_id in [...]`` below, so no
-        extra package is ever opened by it.
+        Note the deliberate asymmetry: ``single_count`` counts selected *unit slots*
+        (the search expands loose stock into one ``(None, 1)`` entry per unit), but
+        ``single_item_ids`` are quant *records*, each possibly holding several units.
+        Taking the last ``single_count`` records thus yields *at least* that many loose
+        units -- never fewer -- so the candidate set can only over-cover on the
+        unpackaged side. That is harmless: the reservation loop caps consumption at the
+        requested quantity, and the package set is pinned exactly by
+        ``package_id in [...]`` below, so no extra package is ever opened.
         """
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
@@ -1341,19 +1327,17 @@ class StockQuant(models.Model):
         location/product removal strategy.
 
         Despite the historic name, this does **not** filter ``self``: it always
-        resolves the candidate set from scratch — by searching, or (for a strict,
-        non-``least_packages`` gather inside a ``quants_cache`` context) by reading
-        the pre-grouped cache. ``self`` is used only for ``env``/model access, never
-        as the candidate set. A caller that already holds a gathered recordset must
-        not assume passing it as ``self`` narrows the result (see
-        ``_get_reserve_quantity``, which reuses its gather explicitly instead).
+        resolves the candidate set from scratch -- by searching, or (for a strict,
+        non-``least_packages`` gather inside a ``quants_cache`` context) from the
+        pre-grouped cache. ``self`` is used only for ``env``/model access. A caller
+        holding a gathered recordset must not assume passing it as ``self`` narrows the
+        result (see ``_get_reserve_quantity``, which reuses its gather explicitly).
 
-        :param removal_strategy: the pre-resolved strategy for this
-            product/location. Resolving it walks the product category and the
-            location parent chain, so a caller that gathers and then measures
-            availability for the *same* characteristics (the reservation path
-            re-gathers up to three times) passes it once instead of paying that
-            walk on every call. Left ``None`` it is resolved here.
+        :param removal_strategy: pre-resolved strategy for this product/location.
+            Resolving it walks the product category and location parent chain, so a
+            caller that gathers then measures availability for the *same*
+            characteristics (the reservation path re-gathers up to three times) passes
+            it once instead of paying that walk each call. Resolved here if ``None``.
         """
         if removal_strategy is None:
             removal_strategy = self._get_removal_strategy(product_id, location_id)
@@ -1394,11 +1378,11 @@ class StockQuant(models.Model):
                     lambda q: not q.removal_date or q.removal_date >= cutoff
                 )
             # The search path orders on the DB by `order`; the cache is keyed but
-            # unordered, so replicate the fifo/lifo in_date ordering here. Without this
-            # the two paths hand back quants in a different order (id vs in_date), so the
-            # first quant locked/consumed downstream would differ depending on whether a
-            # quants_cache happened to be in context. (closest is re-sorted below for both
-            # paths; least_packages never takes this branch.)
+            # unordered, so replicate the fifo/lifo in_date ordering here. Otherwise the
+            # two paths return quants in a different order (id vs in_date), so the first
+            # quant locked/consumed downstream would differ by whether a quants_cache
+            # was in context. (closest is re-sorted below for both paths; least_packages
+            # never takes this branch.)
             if removal_strategy == "fifo":
                 res = res.sorted(lambda q: (q.in_date, q.id))
             elif removal_strategy == "lifo":
@@ -2155,11 +2139,11 @@ class StockQuant(models.Model):
             ).method
         location_id = location_id.sudo()
         # The nearest ancestor location carrying a strategy wins, else fifo. Rather
-        # than climb the tree one `location_id` read per level, resolve the whole
-        # chain from the materialised `parent_path` ("/"-joined ids, root-first, self
-        # last) and browse it at once: the first `removal_strategy_id` access
-        # prefetches the column for every ancestor in a single query. Falls back to
-        # the climb only if `parent_path` is not set yet (transient during creation).
+        # than climb one `location_id` read per level, resolve the whole chain from the
+        # materialised `parent_path` ("/"-joined ids, root-first, self last) and browse
+        # it at once: the first `removal_strategy_id` access prefetches the column for
+        # every ancestor in one query. Falls back to the climb only if `parent_path` is
+        # not set yet (transient during creation).
         if location_id.parent_path:
             ancestor_ids = [int(i) for i in location_id.parent_path.split("/") if i]
             for loc in self.env["stock.location"].browse(ancestor_ids[::-1]):
@@ -2221,12 +2205,11 @@ class StockQuant(models.Model):
         # don't reduce the available quantity of the rest.
         #
         # `_get_available_quantity` re-gathers internally. For every strategy but
-        # least_packages that second gather is byte-for-byte identical to `quants`
-        # (verified against fifo/lifo/closest), so we hand it straight through and save
-        # a full search of the stock_quant hot table on the reservation path.
-        # least_packages is the exception: `quants` was narrowed to the chosen packages
-        # by `qty`, while availability must be measured over the *whole* set, so let it
-        # re-gather.
+        # least_packages that second gather is identical to `quants` (verified against
+        # fifo/lifo/closest), so we pass it through and save a full search of the
+        # stock_quant hot table. least_packages is the exception: `quants` was narrowed
+        # to the chosen packages by `qty`, but availability must be measured over the
+        # *whole* set, so let it re-gather.
         available_quantity = quants._get_available_quantity(
             product_id,
             location_id,
@@ -2249,14 +2232,12 @@ class StockQuant(models.Model):
 
         quantity = min(quantity, available_quantity)
 
-        # `quantity` is in the quants unit of measure. There's a possibility that the move's
-        # unit of measure won't be respected if we blindly reserve this quantity, a common usecase
-        # is if the move's unit of measure's rounding does not allow fractional reservation. We chose
-        # to convert `quantity` to the move's unit of measure with a down rounding method and
-        # then get it back in the quants unit of measure with an half-up rounding_method. This
-        # way, we'll never reserve more than allowed. We do not apply this logic if
-        # `available_quantity` is brought by a chained move line. In this case, `_prepare_move_line_vals`
-        # will take care of changing the UOM to the UOM of the product.
+        # `quantity` is in the quants' UoM. Blindly reserving it could break the move's
+        # UoM rounding (e.g. when that rounding forbids fractional reservation), so
+        # round-trip it: convert to the move's UoM rounding DOWN, then back to the
+        # quants' UoM rounding HALF-UP, which never reserves more than allowed. Skipped
+        # when `available_quantity` comes from a chained move line -- there
+        # `_prepare_move_line_vals` changes the UoM to the product's.
         if not strict and uom_id and product_id.uom_id != uom_id:
             quantity_move_uom = product_id.uom_id._compute_quantity(
                 quantity, uom_id, rounding_method="DOWN"
@@ -2270,11 +2251,10 @@ class StockQuant(models.Model):
             if product_id.uom_id.compare(quantity, int(quantity)) != 0:
                 quantity = 0
 
-        # Size the running budget from the aggregate of the whole gathered set (the
-        # reserve branch draws it down; the unreserve branch guards against releasing
-        # more than is reserved), then hand the per-candidate allocation to the pure
-        # `_distribute_reservation`. The `raise` and the ORM aggregates stay here; the
-        # DB-free arithmetic lives in the extracted function.
+        # Size the running budget from the whole gathered set (the reserve branch draws
+        # it down; the unreserve branch guards against releasing more than is reserved),
+        # then hand per-candidate allocation to the pure `_distribute_reservation`. The
+        # `raise` and ORM aggregates stay here; the DB-free arithmetic is extracted.
         cmp_quantity = product_id.uom_id.compare(quantity, 0)
         if cmp_quantity > 0:
             # Positive quantity means reserving.
