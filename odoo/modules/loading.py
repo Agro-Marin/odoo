@@ -247,10 +247,7 @@ def load_module_graph(
         )
 
         if update_operation:
-            if (
-                update_operation == "upgrade"
-                or module_name in registry._force_upgrade_scripts
-            ):
+            if update_operation == "upgrade":
                 if package.name != "base":
                     registry._setup_models__(env.cr, [])  # incremental setup
                 migrations.migrate_module(package, "pre")

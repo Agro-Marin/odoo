@@ -42,6 +42,17 @@ class TestOrmCache(TransactionCase):
         # hiding real errors
         cls._retry = False
 
+        # tx_hit/tx_miss dedup stats are gated behind ODOO_ORMCACHE_TX_STATS
+        # (off by default); enable the runtime-flippable module flag for this
+        # suite so the tx-counter assertions below are self-contained rather than
+        # depending on an external env var being set.
+        import odoo.tools.cache as _cache_mod
+
+        cls.addClassCleanup(
+            setattr, _cache_mod, "_TX_STATS_ENABLED", _cache_mod._TX_STATS_ENABLED
+        )
+        _cache_mod._TX_STATS_ENABLED = True
+
     def test_ormcache(self):
         """Test the effectiveness of the ormcache() decorator."""
         IMD = self.env["ir.model.data"]

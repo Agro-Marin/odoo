@@ -1328,14 +1328,21 @@ class ResPartner(models.Model):
                 children.write({"company_id": company_id})
 
         # Access control BEFORE mutating: writing to a partner that backs another
-        # internal user requires write access on that user. Run it pre-write (on
-        # the current user_ids) so a caller catching AccessError cannot keep the
-        # unauthorized change — the check previously ran after super().write().
+        # internal user requires write access on that user. Run it pre-write so a
+        # caller catching AccessError cannot keep the unauthorized change — the
+        # check previously ran after super().write(). Read the backing users via
+        # sudo(): as the acting user, record rules could hide an internal user we
+        # are not allowed to see, silently skipping the guard (the old post-write
+        # read happened to see it via cache populated during the write). Then
+        # check the acting user's access in the non-sudo env.
         for partner in self:
-            if internal_users := partner.user_ids.filtered(
-                lambda u: u._is_internal() and u != self.env.user
-            ):
-                internal_users.check_access("write")
+            backing_ids = (
+                partner.sudo()
+                .user_ids.filtered(lambda u: u._is_internal() and u.id != self.env.uid)
+                .ids
+            )
+            if backing_ids:
+                self.env["res.users"].browse(backing_ids).check_access("write")
         result = True
         # Sudo required for is_company writes by non-system partner managers:
         # changing is_company recomputes commercial_partner_id across the whole

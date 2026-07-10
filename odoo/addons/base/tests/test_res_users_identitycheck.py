@@ -47,9 +47,10 @@ class TestResUsersIdentityCheck(TransactionCase):
         fake_request = SimpleNamespace(session={})
         with patch(_REQUEST, fake_request), self.assertRaises(UserError):
             wizard.with_context(password="ric_password").run_check()
-        # the anti-replay timestamp is stamped before the allow-list check
-        # (RIC-L1: session-global, method-agnostic 10-min sudo window)
-        self.assertIn("identity-check-last", fake_request.session)
+        # RIC-L1 (fixed): the prompt-free 10-min sudo window is stamped only
+        # AFTER the allow-list check passes, so a rejected (undecorated) method
+        # must NOT open the window — a bad payload can no longer refresh it.
+        self.assertNotIn("identity-check-last", fake_request.session)
 
     def test_run_check_identity_bound_to_env_user(self):
         """RIC-T3: the password is re-verified against ``self.env.user`` (the
