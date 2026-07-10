@@ -13,8 +13,8 @@ class StockRule(models.Model):
         new_move_vals["is_subcontract"] = False
         return new_move_vals
 
-    def _get_stock_move_values(self, product_id, product_qty, product_uom, location_dest_id, name, origin, company_id, values):
-        move_values = super()._get_stock_move_values(product_id, product_qty, product_uom, location_dest_id, name, origin, company_id, values)
+    def _get_stock_move_values(self, product_id, product_qty, product_uom_id, location_dest_id, name, origin, company_id, values):
+        move_values = super()._get_stock_move_values(product_id, product_qty, product_uom_id, location_dest_id, name, origin, company_id, values)
         if not move_values.get('partner_id'):
             if values.get('move_dest_ids') and values['move_dest_ids'].raw_material_production_id.subcontractor_id:
                 move_values['partner_id'] = values['move_dest_ids'].raw_material_production_id.subcontractor_id.id

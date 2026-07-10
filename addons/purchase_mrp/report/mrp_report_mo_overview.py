@@ -24,7 +24,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             for move in dest_moves:
                 if not move.raw_material_production_id:
                     continue
-                prod_qty = min(line_qty, move.product_uom._compute_quantity(move.product_uom_qty, po_line.product_uom_id))
+                prod_qty = min(line_qty, move.product_uom_id._compute_quantity(move.product_uom_qty, po_line.product_uom_id))
                 res.append(self._format_extra_replenishment(po_line, prod_qty, move.raw_material_production_id.id))
                 line_qty -= prod_qty
             if line_qty:

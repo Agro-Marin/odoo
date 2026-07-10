@@ -51,7 +51,7 @@ class TestMoveReservation(TestStockCommon):
             "picking_type_id": ptype.id,
         }
         if uom:
-            vals["product_uom"] = uom.id
+            vals["product_uom_id"] = uom.id
         move = self.env["stock.move"].create(vals)
         move._action_confirm()
         return move

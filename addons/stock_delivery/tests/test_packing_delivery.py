@@ -306,7 +306,7 @@ class TestPacking(TestPackingCommon):
                 'product_id': self.productA.id,
                 'product_uom_qty': 5.0,
                 'location_id': self.stock_location.id,
-                'product_uom': self.productA.uom_id.id,
+                'product_uom_id': self.productA.uom_id.id,
                 'location_dest_id': self.customer_location.id,
             })],
             'move_line_ids': [Command.create({
@@ -332,7 +332,7 @@ class TestPacking(TestPackingCommon):
                 'product_uom_qty': 3.0,
                 'location_id': wh_b.lot_stock_id.id,
                 'location_dest_id': wh_b.lot_stock_id.id,
-                'product_uom': self.productA.uom_id.id,
+                'product_uom_id': self.productA.uom_id.id,
             })],
             'move_line_ids': [Command.create({
                 'location_id': wh_b.lot_stock_id.id,

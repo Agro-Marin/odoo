@@ -68,7 +68,7 @@ class TestRepairCommon(common.TransactionCase):
         # Repair Orders
         cls.repair1 = cls.env['repair.order'].create({
             'product_id': cls.product_product_3.id,
-            'product_uom': cls.env.ref('uom.product_uom_unit').id,
+            'product_uom_id': cls.env.ref('uom.product_uom_unit').id,
             'picking_type_id': cls.stock_warehouse.repair_type_id.id,
             'move_ids': [
                 (0, 0, {
@@ -84,7 +84,7 @@ class TestRepairCommon(common.TransactionCase):
 
         cls.repair0 = cls.env['repair.order'].create({
             'product_id': cls.product_product_5.id,
-            'product_uom': cls.env.ref('uom.product_uom_unit').id,
+            'product_uom_id': cls.env.ref('uom.product_uom_unit').id,
             'user_id': False,
             'picking_type_id': cls.stock_warehouse.repair_type_id.id,
             'move_ids': [
@@ -101,7 +101,7 @@ class TestRepairCommon(common.TransactionCase):
 
         cls.repair2 = cls.env['repair.order'].create({
             'product_id': cls.product_product_6.id,
-            'product_uom': cls.env.ref('uom.product_uom_unit').id,
+            'product_uom_id': cls.env.ref('uom.product_uom_unit').id,
             'user_id': False,
             'picking_type_id': cls.stock_warehouse.repair_type_id.id,
             'move_ids': [
@@ -122,7 +122,7 @@ class TestRepairCommon(common.TransactionCase):
         product_to_repair = self.product_product_5
         return self.env['repair.order'].create({
             'product_id': product_to_repair.id,
-            'product_uom': product_to_repair.uom_id.id,
+            'product_uom_id': product_to_repair.uom_id.id,
             'picking_type_id': self.stock_warehouse.repair_type_id.id,
             'partner_id': self.res_partner_12.id
         })
@@ -431,8 +431,8 @@ class TestRepair(TestRepairCommon):
                 })
             ],
         })
-        self.assertEqual(repair.product_uom, self.product_product_3.uom_id)
-        self.assertEqual(repair.move_ids[0].product_uom, self.product_product_11.uom_id)
+        self.assertEqual(repair.product_uom_id, self.product_product_3.uom_id)
+        self.assertEqual(repair.move_ids[0].product_uom_id, self.product_product_11.uom_id)
 
     def test_repair_compute_location(self):
         repair = self.env['repair.order'].create({
@@ -573,7 +573,7 @@ class TestRepair(TestRepairCommon):
         # create a repair order
         repair_order = self.env['repair.order'].create({
             'product_id': self.product_product_3.id,
-            'product_uom': self.product_product_3.uom_id.id,
+            'product_uom_id': self.product_product_3.uom_id.id,
             # 'guarantee_limit': '2019-01-01',
             'location_id': self.stock_warehouse.lot_stock_id.id,
             'lot_id': sn_1.id,
@@ -672,7 +672,7 @@ class TestRepair(TestRepairCommon):
         quant.action_apply_inventory()
         repair_order = self.env['repair.order'].create({
             'product_id': self.product_product_3.id,
-            'product_uom': self.product_product_3.uom_id.id,
+            'product_uom_id': self.product_product_3.uom_id.id,
             'partner_id': self.res_partner_12.id,
             'move_ids': [
                 Command.create({
@@ -704,7 +704,7 @@ class TestRepair(TestRepairCommon):
         action = sn_01.action_lot_open_repairs()
         repair_order = self.env['repair.order'].with_context(action.get('context')).create({
             'product_id': self.product_product_3.id,
-            'product_uom': self.product_product_3.uom_id.id,
+            'product_uom_id': self.product_product_3.uom_id.id,
             'partner_id': self.res_partner_12.id,
         })
         self.assertEqual(repair_order.company_id, self.env.company)
@@ -715,7 +715,7 @@ class TestRepair(TestRepairCommon):
         """
         repair_order = self.env['repair.order'].create({
             'product_id': self.product_order_repair.id,
-            'product_uom': self.product_order_repair.uom_id.id,
+            'product_uom_id': self.product_order_repair.uom_id.id,
             'partner_id': self.res_partner_1.id,
             'move_ids': [
                 Command.create({
@@ -742,7 +742,7 @@ class TestRepair(TestRepairCommon):
         """
         repair_order = self.env['repair.order'].create({
             'product_id': self.product_order_repair.id,
-            'product_uom': self.product_order_repair.uom_id.id,
+            'product_uom_id': self.product_order_repair.uom_id.id,
             'partner_id': self.res_partner_1.id,
             'move_ids': [
                 Command.create({
@@ -778,7 +778,7 @@ class TestRepair(TestRepairCommon):
         self.stock_warehouse.repair_type_id.use_create_lots = True
         repair_order = self.env['repair.order'].create({
             'product_id': self.product_storable_lot.id,
-            'product_uom': self.product_storable_lot.uom_id.id,
+            'product_uom_id': self.product_storable_lot.uom_id.id,
             'partner_id': self.res_partner_1.id,
             'move_ids': [
                 Command.create({
@@ -827,7 +827,7 @@ class TestRepair(TestRepairCommon):
         self.product_product_3.is_storable = True
         repair_order = self.env['repair.order'].create({
             'product_id': self.product_product_3.id,
-            'product_uom': self.product_product_3.uom_id.id,
+            'product_uom_id': self.product_product_3.uom_id.id,
             'partner_id': self.res_partner_12.id,
             'location_id': self.stock_location_14.id,
             'move_ids': [
@@ -871,7 +871,7 @@ class TestRepair(TestRepairCommon):
         tracked_product_sn = self.env['stock.lot'].create({'name': 'tracked_product_sn1', 'product_id': tracked_product_repair_line.id})
         repair_order = self.env['repair.order'].with_context(context).create({
             'product_id': self.product_storable_serial.id,
-            'product_uom': self.product_storable_serial.uom_id.id,
+            'product_uom_id': self.product_storable_serial.uom_id.id,
             'location_id': self.stock_warehouse.lot_stock_id.id,
             'lot_id': sn_1.id,
             'picking_type_id': self.stock_warehouse.repair_type_id.id,

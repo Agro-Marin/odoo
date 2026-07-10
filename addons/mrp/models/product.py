@@ -374,7 +374,7 @@ class ProductProduct(models.Model):
             ("picked", "=", True),
         ]
         read_group_res = self.env["stock.move"]._read_group(
-            domain, ["product_id", "product_uom"], ["quantity:sum"]
+            domain, ["product_id", "product_uom_id"], ["quantity:sum"]
         )
         mapped_data = collections.defaultdict(float)
         for product, uom, qty in read_group_res:

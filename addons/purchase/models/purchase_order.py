@@ -1504,16 +1504,16 @@ class PurchaseOrder(models.Model):
             params=params,
         )
         if seller:
-            product_uom = (seller.product_id or seller.product_tmpl_id).uom_id
+            product_uom_id = (seller.product_id or seller.product_tmpl_id).uom_id
             price = seller.price_discounted
             if seller.currency_id != self.currency_id:
                 price = seller.currency_id._convert(price, self.currency_id)
-            if seller.product_uom_id != product_uom:
+            if seller.product_uom_id != product_uom_id:
                 # The discounted price is expressed in the product's UoM, not in the vendor
                 # price's UoM, so we need to convert it into to match the displayed UoM.
-                price = product_uom._compute_price(price, seller.product_uom_id)
+                price = product_uom_id._compute_price(price, seller.product_uom_id)
                 product_infos.update(
-                    uomFactor=seller.product_uom_id.factor / product_uom.factor
+                    uomFactor=seller.product_uom_id.factor / product_uom_id.factor
                 )
             product_infos.update(
                 price=price,

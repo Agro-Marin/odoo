@@ -132,7 +132,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             'location_dest_id': customer_location.id,
             'move_ids': [(0, 0, {
                 'product_id': kit.id,
-                'product_uom': kit.uom_id.id,
+                'product_uom_id': kit.uom_id.id,
                 'product_uom_qty': 1.0,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,

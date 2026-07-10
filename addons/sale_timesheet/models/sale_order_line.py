@@ -99,11 +99,11 @@ class SaleOrderLine(models.Model):
     def _convert_qty_company_hours(self, dest_company):
         company_time_uom_id = dest_company.project_time_mode_id
         allocated_hours = 0.0
-        product_uom = self.product_uom_id
-        if product_uom == self.env.ref('uom.product_uom_unit'):
-            product_uom = self.env.ref('uom.product_uom_hour')
-        if product_uom != company_time_uom_id and product_uom._has_common_reference(company_time_uom_id):
-            allocated_hours = product_uom._compute_quantity(self.product_uom_qty, company_time_uom_id, rounding_method='HALF-UP')
+        product_uom_id = self.product_uom_id
+        if product_uom_id == self.env.ref('uom.product_uom_unit'):
+            product_uom_id = self.env.ref('uom.product_uom_hour')
+        if product_uom_id != company_time_uom_id and product_uom_id._has_common_reference(company_time_uom_id):
+            allocated_hours = product_uom_id._compute_quantity(self.product_uom_qty, company_time_uom_id, rounding_method='HALF-UP')
         else:
             allocated_hours = self.product_uom_qty
         return allocated_hours

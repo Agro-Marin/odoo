@@ -848,7 +848,7 @@ class AccountEdiCommon(models.AbstractModel):
         delivered_qty = 1
         product_vals = {k: self._find_value(v, tree) for k, v in xpath_dict['product'].items()}
         product = self._import_product(**product_vals)
-        product_uom = self.env['uom.uom']
+        product_uom_id = self.env['uom.uom']
         quantity_node = tree.find(xpath_dict['delivered_qty'])
         if quantity_node is not None:
             delivered_qty = float(quantity_node.text)
@@ -858,10 +858,10 @@ class AccountEdiCommon(models.AbstractModel):
                     odoo_xmlid for odoo_xmlid, uom_unece in UOM_TO_UNECE_CODE.items() if uom_unece == uom_xml
                 ]
                 if uom_infered_xmlid:
-                    product_uom = self.env.ref(uom_infered_xmlid[0], raise_if_not_found=False) or self.env['uom.uom']
-        if product and product_uom and not product_uom._has_common_reference(product.product_tmpl_id.uom_id):
+                    product_uom_id = self.env.ref(uom_infered_xmlid[0], raise_if_not_found=False) or self.env['uom.uom']
+        if product and product_uom_id and not product_uom_id._has_common_reference(product.product_tmpl_id.uom_id):
             # uom incompatibility
-            product_uom = self.env['uom.uom']
+            product_uom_id = self.env['uom.uom']
 
         # line_net_subtotal (mandatory)
         price_subtotal = None
@@ -919,7 +919,7 @@ class AccountEdiCommon(models.AbstractModel):
             # vals to be written on the document line
             'name': self._find_value(xpath_dict['name'], tree),
             'product_id': product.id,
-            'product_uom_id': product_uom.id,
+            'product_uom_id': product_uom_id.id,
             'price_unit': price_unit,
             'quantity': quantity,
             'discount': discount,

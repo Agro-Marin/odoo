@@ -239,9 +239,9 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         # Update lines vals depending on sale order field names
         for line in po_line_vals:
             line_product = self.env['product.product'].browse(line['product_id'])
-            product_uom = self.env['uom.uom'].browse(line['product_uom_id'])
+            product_uom_id = self.env['uom.uom'].browse(line['product_uom_id'])
             line['product_uom_qty'] = line['product_qty']
-            line['price_unit'] = line_product.uom_id._compute_price(line_product.list_price, product_uom)
+            line['price_unit'] = line_product.uom_id._compute_price(line_product.list_price, product_uom_id)
             del line['product_qty']
 
         self.assertRecordValues(so.line_ids, po_line_vals)

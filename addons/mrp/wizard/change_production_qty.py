@@ -59,7 +59,7 @@ class ChangeProductionQty(models.TransientModel):
 
     @api.model
     def _need_quantity_propagation(self, move, qty):
-        return move.move_dest_ids and not move.product_uom.is_zero(qty)
+        return move.move_dest_ids and not move.product_uom_id.is_zero(qty)
 
     def change_prod_qty(self):
         precision = self.env["decimal.precision"].precision_get("Product Unit")

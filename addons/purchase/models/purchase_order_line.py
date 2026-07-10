@@ -1308,13 +1308,13 @@ class PurchaseOrderLine(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         company_id,
         partner_id,
         po,
     ):
         values = self.env.context.get("procurement_values", {})
-        uom_po_qty = product_uom._compute_quantity(
+        uom_po_qty = product_uom_id._compute_quantity(
             product_qty,
             product_id.uom_id,
             rounding_method="HALF-UP",
@@ -1326,12 +1326,12 @@ class PurchaseOrderLine(models.Model):
             partner_id=partner_id,
             quantity=product_qty if values.get("force_uom") else uom_po_qty,
             date=max(fields.Date.context_today(self, timestamp=po.date_order), today),
-            uom_id=product_uom if values.get("force_uom") else product_id.uom_id,
+            uom_id=product_uom_id if values.get("force_uom") else product_id.uom_id,
             params={"force_uom": values.get("force_uom")},
         )
         if (
             seller
-            and (seller.product_uom_id or seller.product_tmpl_id.uom_id) != product_uom
+            and (seller.product_uom_id or seller.product_tmpl_id.uom_id) != product_uom_id
         ):
             uom_po_qty = product_id.uom_id._compute_quantity(
                 uom_po_qty,
@@ -1345,8 +1345,8 @@ class PurchaseOrderLine(models.Model):
 
         if seller:
             price_unit = (
-                seller.product_uom_id._compute_price(seller.price, product_uom)
-                if product_uom
+                seller.product_uom_id._compute_price(seller.price, product_uom_id)
+                if product_uom_id
                 else seller.price
             )
             price_unit = self.env["account.tax"]._fix_tax_included_price_company(
@@ -1386,9 +1386,9 @@ class PurchaseOrderLine(models.Model):
 
         return {
             "name": name,
-            "product_qty": product_qty if product_uom else uom_po_qty,
+            "product_qty": product_qty if product_uom_id else uom_po_qty,
             "product_id": product_id.id,
-            "product_uom_id": product_uom.id or seller.product_uom_id.id,
+            "product_uom_id": product_uom_id.id or seller.product_uom_id.id,
             "price_unit": price_unit,
             "date_planned": date_planned,
             "tax_ids": [Command.set(taxes.ids)],

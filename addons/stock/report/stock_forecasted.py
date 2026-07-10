@@ -373,7 +373,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         for move in linked_moves:
             if move.state not in ("partially_available", "assigned"):
                 continue
-            reserved = move.product_uom._compute_quantity(
+            reserved = move.product_uom_id._compute_quantity(
                 move.quantity, move.product_id.uom_id
             )
             # check if the move reserved qty was counted before (happens if multiple outs share pick/pack)
@@ -405,7 +405,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         for move in linked_moves:
             if move.state in ("draft", "cancel", "assigned", "done"):
                 continue
-            reserved = move.product_uom._compute_quantity(
+            reserved = move.product_uom_id._compute_quantity(
                 move.quantity, move.product_id.uom_id
             )
             demand = max(move.product_qty - reserved, 0)

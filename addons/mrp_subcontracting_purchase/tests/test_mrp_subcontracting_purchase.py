@@ -659,7 +659,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
             'move_raw_ids': [(0, 0, {
                 'product_id': self.finished.id,
                 'product_uom_qty': 3.0,
-                'product_uom': self.finished.uom_id.id,
+                'product_uom_id': self.finished.uom_id.id,
             })]
         })
         mo.action_confirm()

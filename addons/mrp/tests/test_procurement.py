@@ -307,7 +307,7 @@ class TestProcurement(TestMrpCommon):
         move_dest = self.env["stock.move"].create(
             {
                 "product_id": product_1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.output_location.id,
                 "product_uom_qty": 10,
@@ -392,7 +392,7 @@ class TestProcurement(TestMrpCommon):
         move_dest = self.env["stock.move"].create(
             {
                 "product_id": product_bottle.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.output_location.id,
                 "product_uom_qty": 10,
@@ -438,7 +438,7 @@ class TestProcurement(TestMrpCommon):
         move_dest = self.env["stock.move"].create(
             {
                 "product_id": product.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.output_location.id,
                 "product_uom_qty": 10,
@@ -672,7 +672,7 @@ class TestProcurement(TestMrpCommon):
                     Command.create(
                         {
                             "product_id": product_1.id,
-                            "product_uom": product_1.uom_id.id,
+                            "product_uom_id": product_1.uom_id.id,
                             "product_uom_qty": 10.00,
                             "procure_method": "make_to_stock",
                             "location_id": self.stock_location.id,
@@ -1437,7 +1437,7 @@ class TestProcurement(TestMrpCommon):
                                 "location_dest_id": self.customer_location.id,
                                 "product_id": product_1.id,
                                 "product_uom_qty": 15,
-                                "product_uom": self.uom_unit.id,
+                                "product_uom_id": self.uom_unit.id,
                             }
                         )
                     ],
@@ -1608,7 +1608,7 @@ class TestProcurement(TestMrpCommon):
         mo.action_confirm()
         mo_child = mo._get_children()
 
-        self.assertEqual(mo.move_raw_ids.product_uom, self.uom_unit)
+        self.assertEqual(mo.move_raw_ids.product_uom_id, self.uom_unit)
         self.assertEqual(mo_child.product_uom_id, self.uom_dozen)
         self.assertEqual(mo_child.product_qty, 0.5)
 

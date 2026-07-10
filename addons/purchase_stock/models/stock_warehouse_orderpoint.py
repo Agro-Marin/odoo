@@ -217,7 +217,7 @@ class StockWarehouseOrderpoint(models.Model):
             return self.env["stock.rule"]._get_matching_supplier(
                 self.product_id,
                 self.qty_to_order,
-                self.product_uom,
+                self.product_uom_id,
                 self.company_id,
                 {},
             )
@@ -274,7 +274,7 @@ class StockWarehouseOrderpoint(models.Model):
         )._select_seller(
             quantity=qty_to_order,
             date=max(dates_info["date_order"].date(), fields.Date.today()),
-            uom_id=self.product_uom,
+            uom_id=self.product_uom_id,
         )
         return supplier.product_uom_id
 
@@ -295,7 +295,7 @@ class StockWarehouseOrderpoint(models.Model):
             )
             product_uom_qty = orderpoint.product_id.uom_id._compute_quantity(
                 product_qty,
-                orderpoint.product_uom,
+                orderpoint.product_uom_id,
                 round=False,
             )
             res[orderpoint.id] += product_uom_qty

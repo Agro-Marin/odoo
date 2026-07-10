@@ -136,10 +136,10 @@ class ProductTemplate(models.Model):
             flat = [item for sublist in barcode for item in sublist]
             packaging_domain |= Domain('barcode', 'in', flat)
 
-        product_uom = self.env['product.uom']
-        packaging = product_uom.search(packaging_domain)
+        product_uom_id = self.env['product.uom']
+        packaging = product_uom_id.search(packaging_domain)
         condition = packaging and packaging.product_id
-        packaging_read = product_uom._load_pos_data_read(packaging, config) if condition else []
+        packaging_read = product_uom_id._load_pos_data_read(packaging, config) if condition else []
 
         # account.tax loading
         account_tax = self.env['account.tax']

@@ -356,7 +356,7 @@ class TestLotValuation(TestStockValuationCommon):
             'location_id': self.supplier_location.id,
             'location_dest_id': c2_stock_loc.id,
             'product_id': self.product1.id,
-            'product_uom': self.uom_unit.id,
+            'product_uom_id': self.uom_unit.id,
             'product_uom_qty': 9.0,
             'price_unit': 6.0,
         })
@@ -817,7 +817,7 @@ class TestLotValuation(TestStockValuationCommon):
             'product_id': lot_product.id,
             'location_id': self.supplier_location.id,
             'location_dest_id': self.stock_location.id,
-            'product_uom': self.uom.id,
+            'product_uom_id': self.uom.id,
             'product_uom_qty': 1,
             'picking_type_id': self.picking_type_in.id,
             'move_line_ids': [Command.create({

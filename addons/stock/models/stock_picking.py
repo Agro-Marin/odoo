@@ -790,8 +790,8 @@ class StockPicking(models.Model):
             ["picking_id", "product_id", uom_fname],
             ["quantity:sum"],
         )
-        for picking, product, product_uom, quantity in res_groups:
-            totals[picking.id] += product_uom._compute_quantity(
+        for picking, product, product_uom_id, quantity in res_groups:
+            totals[picking.id] += product_uom_id._compute_quantity(
                 quantity, product.uom_id
             ) * getattr(product, product_attr)
         return totals
@@ -838,14 +838,14 @@ class StockPicking(models.Model):
 
     @api.depends(
         "move_ids.quantity",
-        "move_ids.product_uom",
+        "move_ids.product_uom_id",
         "move_ids.product_id.volume",
     )
     def _compute_shipping_volume(self):
         volumes = self._measure_total_by_picking(
             "stock.move",
             [],
-            "product_uom",
+            "product_uom_id",
             "volume",
         )
         for picking in self:
@@ -903,14 +903,14 @@ class StockPicking(models.Model):
                 picking.show_check_availability = False
                 continue
             if all(
-                m.picked or m.product_uom.compare(m.product_uom_qty, m.quantity) == 0
+                m.picked or m.product_uom_id.compare(m.product_uom_qty, m.quantity) == 0
                 for m in picking.move_ids
             ):
                 picking.show_check_availability = False
                 continue
             picking.show_check_availability = any(
                 move.state in ("waiting", "confirmed", "partially_available")
-                and move.product_uom.compare(move.product_uom_qty, 0)
+                and move.product_uom_id.compare(move.product_uom_qty, 0)
                 for move in picking.move_ids
             )
 
@@ -1327,7 +1327,7 @@ class StockPicking(models.Model):
         draft_picking = self.filtered(lambda p: p.state == "draft")
         draft_picking.action_confirm()
         for move in draft_picking.move_ids:
-            if move.product_uom.is_zero(move.quantity) and not move.product_uom.is_zero(
+            if move.product_uom_id.is_zero(move.quantity) and not move.product_uom_id.is_zero(
                 move.product_uom_qty,
             ):
                 move.quantity = move.product_uom_qty
@@ -1428,7 +1428,7 @@ class StockPicking(models.Model):
 
     def action_split_transfer(self):
         self.ensure_one()
-        if all(m.product_uom.is_zero(m.quantity) for m in self.move_ids):
+        if all(m.product_uom_id.is_zero(m.quantity) for m in self.move_ids):
             raise UserError(
                 _(
                     "%s: Nothing to split. Fill the quantities you want in a new transfer in the done quantities",
@@ -1437,7 +1437,7 @@ class StockPicking(models.Model):
             )
         # done-vs-demand per move: 0 = fully done, >0 = over demand, <0 = partial
         demand_comparisons = [
-            m.product_uom.compare(m.quantity, m.product_uom_qty) for m in self.move_ids
+            m.product_uom_id.compare(m.quantity, m.product_uom_qty) for m in self.move_ids
         ]
         if all(comparison == 0 for comparison in demand_comparisons):
             raise UserError(
@@ -2365,7 +2365,7 @@ class StockPicking(models.Model):
             # "Product Unit" decimal precision.
             if any(
                 (move.product_uom_qty and not move.picked)
-                or move.product_uom.compare(
+                or move.product_uom_id.compare(
                     move._get_picked_quantity(),
                     move.product_uom_qty,
                 )
@@ -2442,7 +2442,7 @@ class StockPicking(models.Model):
             )
             # A quantity below the move's UoM rounding is effectively zero.
             if all(
-                move.product_uom.is_zero(move.quantity)
+                move.product_uom_id.is_zero(move.quantity)
                 for move in picking.move_ids.filtered(
                     lambda m, has_pick=has_pick: (
                         m.state not in DONE_CANCEL_STATES and (not has_pick or m.picked)

@@ -176,16 +176,16 @@ class ProductPricelist(models.Model):
         rule_by_pid = {}
         target_uom_by_pid = {}
         for product in products:
-            product_uom = product.uom_id
+            product_uom_id = product.uom_id
             target_uom = (
-                uom or product_uom
+                uom or product_uom_id
             )  # If no uom is specified, fall back on the product uom
 
             # Compute quantity in product uom because pricelist rules are specified
             # w.r.t product default UoM (min_quantity, price_surchage, ...)
-            if target_uom != product_uom:
+            if target_uom != product_uom_id:
                 qty_in_product_uom = target_uom._compute_quantity(
-                    quantity, product_uom, raise_if_failure=False
+                    quantity, product_uom_id, raise_if_failure=False
                 )
             else:
                 qty_in_product_uom = quantity

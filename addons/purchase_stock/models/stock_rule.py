@@ -97,7 +97,7 @@ class StockRule(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         company_id,
         values,
     ):
@@ -120,7 +120,7 @@ class StockRule(models.Model):
                 partner_id=self._get_partner_id(values, self),
                 quantity=product_qty,
                 date=date,
-                uom_id=product_uom,
+                uom_id=product_uom_id,
                 params={"force_uom": values.get("force_uom")},
             )
 
@@ -162,7 +162,7 @@ class StockRule(models.Model):
         # necessary anymore since those values are taken from destination moves.
         return (
             procurement.product_id,
-            procurement.product_uom,
+            procurement.product_uom_id,
             procurement.values["propagate_cancel"],
             procurement.values.get("product_description_variants"),
             (procurement.values.get("orderpoint_id") and not procurement.values.get("move_dest_ids"))
@@ -268,7 +268,7 @@ class StockRule(models.Model):
             merged_procurement = self.env["stock.rule"].Procurement(
                 procurement.product_id,
                 quantity,
-                procurement.product_uom,
+                procurement.product_uom_id,
                 procurement.location_id,
                 procurement.name,
                 procurement.origin,
@@ -360,7 +360,7 @@ class StockRule(models.Model):
             supplier = rule._get_matching_supplier(
                 procurement.product_id,
                 procurement.product_qty,
-                procurement.product_uom,
+                procurement.product_uom_id,
                 company_id,
                 procurement.values,
             )
@@ -401,7 +401,7 @@ class StockRule(models.Model):
             po = self.env["purchase.order"].sudo().search([dom for dom in domain], limit=1)
             company_id = rules[0].company_id or procurements[0].company_id
             if not po:
-                positive_values = [p.values for p in procurements if p.product_uom.compare(p.product_qty, 0.0) >= 0]
+                positive_values = [p.values for p in procurements if p.product_uom_id.compare(p.product_qty, 0.0) >= 0]
                 if positive_values:
                     # We need a rule to generate the PO. However the rule generated
                     # the same domain for PO and the _prepare_purchase_order method
@@ -467,14 +467,14 @@ class StockRule(models.Model):
                     vals = self._update_purchase_order_line(
                         procurement.product_id,
                         procurement.product_qty,
-                        procurement.product_uom,
+                        procurement.product_uom_id,
                         company_id,
                         procurement.values,
                         po_line,
                     )
                     po_line.sudo().write(vals)
                 else:
-                    if procurement.product_uom.compare(procurement.product_qty, 0) <= 0:
+                    if procurement.product_uom_id.compare(procurement.product_qty, 0) <= 0:
                         # If procurement contains negative quantity, don't create a new line that would contain negative qty
                         continue
                     # If it does not exist a PO line for current procurement.
@@ -518,13 +518,13 @@ class StockRule(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         company_id,
         values,
         line,
     ):
         partner = values["supplier"].partner_id
-        procurement_uom_po_qty = product_uom._compute_quantity(
+        procurement_uom_po_qty = product_uom_id._compute_quantity(
             product_qty,
             line.product_uom_id,
             rounding_method="HALF-UP",

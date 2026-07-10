@@ -279,7 +279,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             'move_ids': [(0, 0, {
                 'product_id': self.product1.id,
                 'product_uom_qty': 5,
-                'product_uom': uom_hundred.id,
+                'product_uom_id': uom_hundred.id,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,
             })],
@@ -350,7 +350,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             'move_ids': [(0, 0, {
                 'product_id': self.product1.id,
                 'product_uom_qty': 2,
-                'product_uom': uom_hundred.id,
+                'product_uom_id': uom_hundred.id,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,
             })],
@@ -639,7 +639,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             'move_ids': [(0, 0, {
                 'product_id': self.product1.id,
                 'product_uom_qty': 3,
-                'product_uom': self.product1.uom_id.id,
+                'product_uom_id': self.product1.uom_id.id,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,
             })],
@@ -675,7 +675,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             'move_ids': [(0, 0, {
                 'product_id': self.product1.id,
                 'product_uom_qty': 1,
-                'product_uom': self.product1.uom_id.id,
+                'product_uom_id': self.product1.uom_id.id,
                 'location_id': stock_location.id,
                 'location_dest_id': customer_location.id,
             })],

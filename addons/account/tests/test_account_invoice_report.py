@@ -161,7 +161,7 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         First and last lines use Packagings. Quantity and price from the invoice are adapted
         to the standard UoM of the product.
 
-        quantity is quantity in product_uom
+        quantity is quantity in product_uom_id
         price_subtotal = Price_unit * Number_of_packages / currency_rate
         price_average = price_subtotal / quantity
         inventory_value = quantity * standard_price * (-1 OR 1 depending of move_type)

@@ -186,17 +186,17 @@ class PurchaseReport(models.Model):
                     )
                 ) / (24 * 60 * 60)::decimal(16,2)""",
             "product_uom_qty": """SUM(
-                    l.product_qty * line_uom.factor / product_uom.factor
+                    l.product_qty * line_uom.factor / product_uom_id.factor
                 )""",
             "qty_transferred": """SUM(
-                    l.qty_transferred * line_uom.factor / product_uom.factor
+                    l.qty_transferred * line_uom.factor / product_uom_id.factor
                 )""",
             "qty_invoiced": """SUM(
-                    l.qty_invoiced * line_uom.factor / product_uom.factor
+                    l.qty_invoiced * line_uom.factor / product_uom_id.factor
                 )""",
             "qty_to_invoice": """CASE WHEN t.bill_policy = 'ordered'
-                    THEN SUM(l.product_qty * line_uom.factor / product_uom.factor) - SUM(l.qty_invoiced * line_uom.factor / product_uom.factor)
-                    ELSE SUM(l.qty_transferred * line_uom.factor / product_uom.factor) - SUM(l.qty_invoiced * line_uom.factor / product_uom.factor)
+                    THEN SUM(l.product_qty * line_uom.factor / product_uom_id.factor) - SUM(l.qty_invoiced * line_uom.factor / product_uom_id.factor)
+                    ELSE SUM(l.qty_transferred * line_uom.factor / product_uom_id.factor) - SUM(l.qty_invoiced * line_uom.factor / product_uom_id.factor)
                 END""",
             "price_unit": """AVG(
                     l.price_unit / COALESCE(o.currency_rate, 1.0)
@@ -206,7 +206,7 @@ class PurchaseReport(models.Model):
                         l.product_qty * l.price_unit / COALESCE(o.currency_rate, 1.0)
                     ) / NULLIF(
                         SUM(
-                            l.product_qty * line_uom.factor / product_uom.factor
+                            l.product_qty * line_uom.factor / product_uom_id.factor
                         ),
                         0.0
                     )
@@ -215,10 +215,10 @@ class PurchaseReport(models.Model):
                     l.price_total / COALESCE(o.currency_rate, 1.0)
                 )::decimal(16,2) * account_currency_table.rate""",
             "weight": """SUM(
-                    p.weight * l.product_qty * line_uom.factor / product_uom.factor
+                    p.weight * l.product_qty * line_uom.factor / product_uom_id.factor
                 )""",
             "volume": """SUM(
-                    p.volume * l.product_qty * line_uom.factor / product_uom.factor
+                    p.volume * l.product_qty * line_uom.factor / product_uom_id.factor
                 )""",
             "price_subtotal": """SUM(
                     l.price_subtotal / COALESCE(o.currency_rate, 1.0)
@@ -264,7 +264,7 @@ class PurchaseReport(models.Model):
             ("product_template", "t", "LEFT JOIN", "p.product_tmpl_id=t.id"),
             ("res_company", "c", "LEFT JOIN", "o.company_id=c.id"),
             ("uom_uom", "line_uom", "LEFT JOIN", "l.product_uom_id=line_uom.id"),
-            ("uom_uom", "product_uom", "LEFT JOIN", "t.uom_id=product_uom.id"),
+            ("uom_uom", "product_uom_id", "LEFT JOIN", "t.uom_id=product_uom_id.id"),
         ]
 
     def _get_where_conditions(self) -> list:
@@ -322,7 +322,7 @@ class PurchaseReport(models.Model):
             "t.uom_id",
             "t.bill_policy",
             "line_uom.id",
-            "product_uom.factor",
+            "product_uom_id.factor",
             "partner.country_id",
             "partner.commercial_partner_id",
             "o.id",

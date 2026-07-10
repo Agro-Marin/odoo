@@ -22,7 +22,7 @@ class StockMove(models.Model):
         for move in self:
             if not move.is_subcontract:
                 continue
-            if not move.move_line_ids or move.product_uom.is_zero(move.quantity):
+            if not move.move_line_ids or move.product_uom_id.is_zero(move.quantity):
                 continue
             productions = move._get_subcontract_production().filtered(lambda m: m.state != 'cancel')
             if not productions:

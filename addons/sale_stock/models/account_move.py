@@ -121,8 +121,8 @@ class AccountMove(models.Model):
                 continue
 
             product = sml.product_id
-            product_uom = product.uom_id
-            quantity = sml.product_uom_id._compute_quantity(sml.quantity, product_uom)
+            product_uom_id = product.uom_id
+            quantity = sml.product_uom_id._compute_quantity(sml.quantity, product_uom_id)
 
             # is it a stock return considering the document type (should it be it thought of as positively or negatively?)
             # dropship returns use 'supplier' locations instead of 'internal', so both are accepted.
@@ -147,8 +147,8 @@ class AccountMove(models.Model):
             # from the previously delivered (and quantity becomes zero). If it's a delivery, we first
             # try to reach the previous_qty_invoiced
             if (
-                product_uom.compare(quantity, 0) < 0
-                or product_uom.compare(previous_qty_transferred, previous_qty_invoiced)
+                product_uom_id.compare(quantity, 0) < 0
+                or product_uom_id.compare(previous_qty_transferred, previous_qty_invoiced)
                 < 0
             ):
                 previously_done = (

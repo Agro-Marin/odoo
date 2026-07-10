@@ -189,7 +189,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             f.location_id = self.env.ref('stock.stock_location_suppliers')
             f.location_dest_id = warehouse.lot_stock_id
             f.product_id = comp
-            f.product_uom = qty_to_process[comp][1]
+            f.product_uom_id = qty_to_process[comp][1]
             f.product_uom_qty = qty_to_process[comp][0]
             move = f.save()
             move._action_confirm()
@@ -635,7 +635,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             'picking_type_id': warehouse.out_type_id.id,
             'move_ids': [(0, 0, {
                 'product_id': product.id,
-                'product_uom': product.uom_id.id,
+                'product_uom_id': product.uom_id.id,
                 'product_uom_qty': 1,
                 'location_id': warehouse.lot_stock_id.id,
                 'location_dest_id': self.env.ref('stock.stock_location_customers').id,

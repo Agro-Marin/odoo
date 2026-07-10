@@ -64,7 +64,7 @@ class TestStockMoveLine(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
             }
@@ -86,7 +86,7 @@ class TestStockMoveLine(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
                 "picking_type_id": self.picking_type_int.id,
@@ -118,7 +118,7 @@ class TestStockMoveLine(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.stock_location.id,
             }
@@ -225,7 +225,7 @@ class TestStockMoveLine(TestStockCommon):
                     "location_id": self.stock_location.id,
                     "location_dest_id": self.customer_location.id,
                     "product_id": self.productA.id,
-                    "product_uom": self.uom_unit.id,
+                    "product_uom_id": self.uom_unit.id,
                     "product_uom_qty": 10.0,
                 }
             )
@@ -309,7 +309,7 @@ class TestStockMoveLine(TestStockCommon):
         move = self.env["stock.move"].create(
             {
                 "product_id": self.productA.id,
-                "product_uom": self.productA.uom_id.id,
+                "product_uom_id": self.productA.uom_id.id,
                 "product_uom_qty": 1.0,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,

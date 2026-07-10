@@ -200,7 +200,7 @@ class TestSaleMrpFlowCommon(ValuationReconciliationTestCommon, TestSaleCommon):
             f.location_id = self.env.ref('stock.stock_location_suppliers')
             f.location_dest_id = warehouse.lot_stock_id
             f.product_id = comp
-            f.product_uom = qty_to_process[comp][1]
+            f.product_uom_id = qty_to_process[comp][1]
             f.product_uom_qty = qty_to_process[comp][0]
             move = f.save()
             move._action_confirm()
@@ -337,7 +337,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         moves = self.StockMove.search([
             ('raw_material_production_id', '=', mnf_product_a.id),
             ('product_id', '=', product_c.id),
-            ('product_uom', '=', self.uom_kg.id)])
+            ('product_uom_id', '=', self.uom_kg.id)])
 
         # Check total consume line with product c and uom kg.
         self.assertEqual(len(moves), 1, 'Production move lines are not generated proper.')
@@ -353,7 +353,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         move = self.StockMove.search([
             ('raw_material_production_id', '=', mnf_product_a.id),
             ('product_id', '=', product_c.id),
-            ('product_uom', '=', self.uom_gm.id)])
+            ('product_uom_id', '=', self.uom_gm.id)])
 
         # Check total consume line of product c with gm.
         self.assertEqual(len(move), 1, 'Production move lines are not generated proper.')
@@ -386,7 +386,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
 
         move = self.StockMove.search([('raw_material_production_id', '=', mnf_product_d.id), ('product_id', '=', product_c.id)])
         self.assertEqual(move.product_qty, 20, "Wrong product quantity in 'To consume line' of manufacturing order.")
-        self.assertEqual(move.product_uom.id, self.uom_kg.id, "Wrong unit of measure in 'To consume line' of manufacturing order.")
+        self.assertEqual(move.product_uom_id.id, self.uom_kg.id, "Wrong unit of measure in 'To consume line' of manufacturing order.")
         self.assertEqual(move.state, 'confirmed', "Wrong state in 'To consume line' of manufacturing order.")
 
         # -------------------------------
@@ -1238,7 +1238,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         # Check that the quantities on the picking are the one expected for each components
         for move in move_ids:
             corr_bom_line = bom_kit_uom_1.bom_line_ids.filtered(lambda b: b.product_id.id == move.product_id.id)
-            computed_qty = move.product_uom._compute_quantity(move.product_qty, corr_bom_line.product_uom_id)
+            computed_qty = move.product_uom_id._compute_quantity(move.product_qty, corr_bom_line.product_uom_id)
             self.assertEqual(computed_qty, line_ids.product_qty * corr_bom_line.product_qty)
 
         # Processe enough componenents in the picking to make 2 kit_uom_1
@@ -2385,7 +2385,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
             'product_id': self.component_a.id,
             'location_id': self.env.ref('stock.stock_location_suppliers').id,
             'location_dest_id': self.company_data['default_warehouse'].lot_stock_id.id,
-            'product_uom': self.component_a.uom_id.id,
+            'product_uom_id': self.component_a.uom_id.id,
             'product_qty': 1,
             'price_unit': p,
         } for p in [10, 50]])

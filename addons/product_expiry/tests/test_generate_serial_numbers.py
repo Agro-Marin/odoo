@@ -271,7 +271,7 @@ class TestProductExpiryTour(TestStockPickingTour):
         self.env['stock.move'].create({
             'product_id': product_exp.id,
             'product_uom_qty': 2,
-            'product_uom': product_exp.uom_id.id,
+            'product_uom_id': product_exp.uom_id.id,
             'picking_id': self.receipt.id,
         })
 

@@ -118,10 +118,10 @@ class ProductSupplierinfo(models.Model):
     @api.depends("discount", "price")
     def _compute_price_discounted(self):
         for rec in self:
-            product_uom = (rec.product_id or rec.product_tmpl_id).uom_id
+            product_uom_id = (rec.product_id or rec.product_tmpl_id).uom_id
             rec.price_discounted = rec.product_uom_id._compute_price(
                 rec.price,
-                product_uom,
+                product_uom_id,
             ) * (1 - rec.discount / 100)
 
     @api.depends("product_id")

@@ -769,7 +769,7 @@ class ProductPricelistItem(models.Model):
         # own currency and per the product's default UoM. Convert both to the
         # requested currency & UoM before combining them with the base price
         # (which _compute_base_price already returns in `currency`).
-        product_uom = product.uom_id
+        product_uom_id = product.uom_id
         rule_currency = self.currency_id or currency
 
         def convert(price):
@@ -777,8 +777,8 @@ class ProductPricelistItem(models.Model):
                 price = rule_currency._convert(
                     price, currency, self.env.company, date, round=False
                 )
-            if product_uom != uom:
-                price = product_uom._compute_price(price, uom)
+            if product_uom_id != uom:
+                price = product_uom_id._compute_price(price, uom)
             return price
 
         if self.compute_price == "fixed":

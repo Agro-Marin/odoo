@@ -21,7 +21,7 @@ class Procurement(NamedTuple):
 
     product_id: fields.Many2one
     product_qty: fields.Float
-    product_uom: fields.Many2one
+    product_uom_id: fields.Many2one
     location_id: fields.Many2one
     name: fields.Char
     origin: fields.Char

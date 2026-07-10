@@ -318,7 +318,7 @@ class TestOldRules(TestStockCommon):
                     {
                         "product_id": self.productA.id,
                         "product_uom_qty": 1,
-                        "product_uom": self.productA.uom_id.id,
+                        "product_uom_id": self.productA.uom_id.id,
                         "picking_id": picking.id,
                         "location_id": from_loc.id,
                         "location_dest_id": to_loc.id,
@@ -326,7 +326,7 @@ class TestOldRules(TestStockCommon):
                     {
                         "product_id": self.productB.id,
                         "product_uom_qty": 1,
-                        "product_uom": self.productB.uom_id.id,
+                        "product_uom_id": self.productB.uom_id.id,
                         "picking_id": picking.id,
                         "location_id": from_loc.id,
                         "location_dest_id": to_loc.id,
@@ -390,7 +390,7 @@ class TestOldRules(TestStockCommon):
             {
                 "product_id": prod.id,
                 "product_uom_qty": 5.0,
-                "product_uom": prod.uom_id.id,
+                "product_uom_id": prod.uom_id.id,
                 "location_id": self.warehouse_3_steps.wh_output_stock_loc_id.id,
                 "location_dest_id": self.customer_location.id,
                 "warehouse_id": self.warehouse_3_steps.id,
@@ -431,7 +431,7 @@ class TestOldRules(TestStockCommon):
             {
                 "product_id": self.product.id,
                 "product_uom_qty": 5.0,
-                "product_uom": self.product.uom_id.id,
+                "product_uom_id": self.product.uom_id.id,
                 "location_id": warehouse.wh_output_stock_loc_id.id,
                 "location_dest_id": self.customer_location.id,
                 "warehouse_id": warehouse.id,
@@ -478,7 +478,7 @@ class TestOldRules(TestStockCommon):
                     "location_id": self.warehouse_1.lot_stock_id.id,
                     "location_dest_id": self.customer_location.id,
                     "product_id": product.id,
-                    "product_uom": product.uom_id.id,
+                    "product_uom_id": product.uom_id.id,
                     "product_uom_qty": 1.0,
                     "origin": origin,
                     "reference_ids": [Command.link(reference.id)],

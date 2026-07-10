@@ -63,7 +63,7 @@ class StockMoveLine(models.Model):
             if lines == picking.move_line_ids and lines.move_id == picking.move_ids:
                 add_all_moves = True
                 for move, qty in qty_by_move.items():
-                    if move.product_uom.is_zero(qty):
+                    if move.product_uom_id.is_zero(qty):
                         add_all_moves = False
                         break
                 if add_all_moves:

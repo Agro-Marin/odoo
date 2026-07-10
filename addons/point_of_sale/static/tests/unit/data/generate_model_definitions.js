@@ -28,7 +28,7 @@ import { ProductCombo } from "./product_combo.data.js";
 import { ProductComboItem } from "./product_combo_item.data.js";
 import { ResUsers } from "./res_users.data.js";
 import { ResPartner } from "./res_partner.data.js";
-import { ProductUom } from "./product_uom.data.js";
+import { ProductUom } from "./product_uom_id.data.js";
 import { DecimalPrecision } from "./decimal_precision.data.js";
 import { UomUom } from "./uom_uom.data.js";
 import { ResCountry } from "./res_country.data.js";

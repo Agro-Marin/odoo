@@ -288,7 +288,7 @@ class TestInventory(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.pack_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 10.0,
             }
         )
@@ -297,7 +297,7 @@ class TestInventory(TransactionCase):
                 "location_id": self.pack_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 10.0,
             }
         )
@@ -572,7 +572,7 @@ class TestInventory(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 3.0,
             }
         )
@@ -620,7 +620,7 @@ class TestInventory(TransactionCase):
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
                 "product_id": self.product1.id,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "product_uom_qty": 4.0,
             }
         )

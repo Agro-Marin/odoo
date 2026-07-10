@@ -38,7 +38,7 @@ class TestVirtualAvailable(TestStockCommon):
             {
                 "product_id": cls.product_3.id,
                 "product_uom_qty": 3.0,
-                "product_uom": cls.product_3.uom_id.id,
+                "product_uom_id": cls.product_3.uom_id.id,
                 "picking_id": cls.picking_out.id,
                 "location_id": cls.stock_location.id,
                 "location_dest_id": cls.customer_location.id,
@@ -53,7 +53,7 @@ class TestVirtualAvailable(TestStockCommon):
                 "restrict_partner_id": cls.user_stock_user.partner_id.id,
                 "product_id": cls.product_3.id,
                 "product_uom_qty": 5.0,
-                "product_uom": cls.product_3.uom_id.id,
+                "product_uom_id": cls.product_3.uom_id.id,
                 "picking_id": cls.picking_out_2.id,
                 "location_id": cls.stock_location.id,
                 "location_dest_id": cls.customer_location.id,
@@ -168,7 +168,7 @@ class TestVirtualAvailable(TestStockCommon):
                 "location_id": self.customer_location.id,
                 "location_dest_id": self.stock_location.id,
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "product_uom_id": product.uom_id.id,
                 "product_uom_qty": 1,
                 "picking_id": picking.id,
             }

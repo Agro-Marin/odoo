@@ -359,7 +359,7 @@ class StockRule(models.Model):
             self.location_dest_id
         ):
             location_dest_id = move_to_copy.location_final_id.id
-        if move_to_copy.product_uom.compare(move_to_copy.product_uom_qty, 0) < 0:
+        if move_to_copy.product_uom_id.compare(move_to_copy.product_uom_qty, 0) < 0:
             copied_quantity = move_to_copy.product_uom_qty
         if not company_id:
             rule_sudo = self.sudo()
@@ -402,7 +402,7 @@ class StockRule(models.Model):
         # each group.
         procurements = sorted(
             procurements,
-            key=lambda proc: proc[0].product_uom.compare(proc[0].product_qty, 0.0) > 0,
+            key=lambda proc: proc[0].product_uom_id.compare(proc[0].product_qty, 0.0) > 0,
         )
         for procurement, rule in procurements:
             procure_method = rule.procure_method
@@ -435,7 +435,7 @@ class StockRule(models.Model):
         self,
         product_id,
         product_qty,
-        product_uom,
+        product_uom_id,
         location_dest_id,
         name,
         origin,
@@ -482,7 +482,7 @@ class StockRule(models.Model):
             if len(partners) == 1:
                 partner = partners.id
 
-        if product_uom.compare(product_qty, 0.0) < 0:
+        if product_uom_id.compare(product_qty, 0.0) < 0:
             values["to_refund"] = True
 
         move_values = {
@@ -491,7 +491,7 @@ class StockRule(models.Model):
             or self.location_dest_id.company_id.id
             or company_id.id,
             "product_id": product_id.id,
-            "product_uom": product_uom.id,
+            "product_uom_id": product_uom_id.id,
             "product_uom_qty": product_qty,
             "partner_id": partner,
             "location_id": self.location_src_id.id,
@@ -607,7 +607,7 @@ class StockRule(models.Model):
     @api.model
     def _skip_procurement(self, procurement):
         return procurement.product_id.type != "consu" or float_is_zero(
-            procurement.product_qty, precision_rounding=procurement.product_uom.rounding
+            procurement.product_qty, precision_rounding=procurement.product_uom_id.rounding
         )
 
     @api.model

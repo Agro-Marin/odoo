@@ -289,7 +289,7 @@ class ProductProduct(models.Model):
         document_date,
         document_type,
         is_refund_document=False,
-        product_uom=None,
+        product_uom_id=None,
         product_currency=None,
         product_price_unit=None,
         product_taxes=None,
@@ -306,8 +306,8 @@ class ProductProduct(models.Model):
         if not document_type:
             raise ValueError("document_type is required")
 
-        if product_uom is None:
-            product_uom = product.uom_id
+        if product_uom_id is None:
+            product_uom_id = product.uom_id
         if not product_currency:
             if document_type == "sale":
                 product_currency = product.currency_id
@@ -328,9 +328,9 @@ class ProductProduct(models.Model):
         if product_taxes:
             product_taxes = product_taxes._filter_taxes_by_company(company)
         # Apply unit of measure.
-        if product_uom and product.uom_id != product_uom:
+        if product_uom_id and product.uom_id != product_uom_id:
             product_price_unit = product.uom_id._compute_price(
-                product_price_unit, product_uom
+                product_price_unit, product_uom_id
             )
 
         # Apply fiscal position.

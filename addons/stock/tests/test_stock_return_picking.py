@@ -21,7 +21,7 @@ class TestReturnPicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 2,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -31,7 +31,7 @@ class TestReturnPicking(TestStockCommon):
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
-                "product_uom": self.uom_dozen.id,
+                "product_uom_id": self.uom_dozen.id,
                 "picking_id": picking_out.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -65,7 +65,7 @@ class TestReturnPicking(TestStockCommon):
         )
         self.assertEqual(
             return_line.uom_id.id,
-            move_1.product_uom.id,
+            move_1.product_uom_id.id,
             "Return line should have exact same uom as move uom",
         )
         self.assertEqual(return_line.quantity, 0, "Return line should have 0 quantity")
@@ -85,7 +85,7 @@ class TestReturnPicking(TestStockCommon):
         )
         self.assertEqual(
             return_line.uom_id.id,
-            move_2.product_uom.id,
+            move_2.product_uom_id.id,
             "Return line should have exact same uom as move uom",
         )
         self.assertEqual(return_line.quantity, 0, "Return line should have 0 quantity")
@@ -123,7 +123,7 @@ class TestReturnPicking(TestStockCommon):
             {
                 "product_id": product_serial.id,
                 "product_uom_qty": 1,
-                "product_uom": self.uom_unit.id,
+                "product_uom_id": self.uom_unit.id,
                 "picking_id": picking.id,
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -218,7 +218,7 @@ class TestReturnPicking(TestStockCommon):
                         {
                             "product_id": self.productA.id,
                             "product_uom_qty": 1,
-                            "product_uom": self.uom_unit.id,
+                            "product_uom_id": self.uom_unit.id,
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                         }
@@ -272,7 +272,7 @@ class TestReturnPicking(TestStockCommon):
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                             "product_uom_qty": 10,
-                            "product_uom": self.uom_unit.id,
+                            "product_uom_id": self.uom_unit.id,
                         }
                     )
                 ],
@@ -360,7 +360,7 @@ class TestReturnPicking(TestStockCommon):
                         {
                             "product_id": self.kgB.id,
                             "product_uom_qty": 1000,
-                            "product_uom": self.uom_gram.id,
+                            "product_uom_id": self.uom_gram.id,
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                         }
@@ -385,7 +385,7 @@ class TestReturnPicking(TestStockCommon):
         return_picking = self.env["stock.picking"].browse(
             stock_return_picking_action["res_id"]
         )
-        self.assertEqual(return_picking.move_ids.product_uom.id, self.uom_gram.id)
+        self.assertEqual(return_picking.move_ids.product_uom_id.id, self.uom_gram.id)
         self.assertEqual(return_picking.move_ids.product_uom_qty, 1000.0)
         return_picking.button_validate()
         self.assertEqual(return_picking.state, "done")
@@ -407,7 +407,7 @@ class TestReturnPicking(TestStockCommon):
                             "location_id": self.supplier_location.id,
                             "location_dest_id": self.stock_location.id,
                             "product_uom_qty": 10,
-                            "product_uom": self.uom_unit.id,
+                            "product_uom_id": self.uom_unit.id,
                         },
                     )
                 ],

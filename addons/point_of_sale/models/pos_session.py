@@ -975,7 +975,7 @@ class PosSession(models.Model):
                     product_accounts = move.product_id._get_product_accounts()
                     exp_key = product_accounts['expense']
                     stock_key = product_accounts['stock_valuation']
-                    signed_product_qty = move.product_uom._compute_quantity(move.quantity, move.product_id.uom_id, round=False)
+                    signed_product_qty = move.product_uom_id._compute_quantity(move.quantity, move.product_id.uom_id, round=False)
                     if move._is_in():
                         signed_product_qty *= -1
                     amount = signed_product_qty * move._get_price_unit()
@@ -1398,10 +1398,10 @@ class PosSession(models.Model):
         if product_id:
             product = self.env['product.product'].browse(product_id)
             product_name = product.display_name
-            product_uom = product.uom_id.id
+            product_uom_id = product.uom_id.id
         else:
             product_name = ""
-            product_uom = False
+            product_uom_id = False
         title = _('Sales') if sign == 1 else _('Refund')
         name = _('%s untaxed', title)
         if applied_taxes:
@@ -1414,7 +1414,7 @@ class PosSession(models.Model):
             'tax_tag_ids': [(6, 0, key['base_tag_ids'])],
             'product_id': product_id,
             'display_type': 'product',
-            'product_uom_id': product_uom,
+            'product_uom_id': product_uom_id,
             'currency_id': self.currency_id.id,
             'amount_currency': sale_vals['amount'],
             'balance': sale_vals['amount_converted'],
