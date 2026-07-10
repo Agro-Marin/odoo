@@ -189,6 +189,14 @@ class StockMove(models.Model):
         )
         if created_sl:
             return [(sl.order_id, sl.order_id.user_id, visited) for sl in created_sl]
+        # Prefer a genuine upstream document (the PO/MO bringing the goods, resolved by
+        # purchase_stock/mrp) over this move's own sale order: the sale order is a
+        # *downstream* consumer of a delivery move, not upstream. Returning it before
+        # `super()` (as before) hid the PO from cancel/decrease warning activities, so a
+        # cancelled MTO sale scheduled no activity on the buyer's purchase order.
+        documents = super()._get_upstream_documents_and_responsibles(visited)
+        if documents:
+            return documents
         if self.sale_line_id and self.sale_line_id.state != "cancel":
             return [
                 (
@@ -197,7 +205,7 @@ class StockMove(models.Model):
                     visited,
                 ),
             ]
-        return super()._get_upstream_documents_and_responsibles(visited)
+        return documents
 
     def _prepare_extra_move_vals(self, qty):
         vals = super()._prepare_extra_move_vals(qty)
