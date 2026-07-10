@@ -324,7 +324,6 @@ test("rpc: calls on mock server", async () => {
     await expect(rpc("/boom")).rejects.toThrow("RPC_ERROR: Boom");
     await expect(rpc("/boom/pure")).rejects.toThrow(ConnectionLostError);
 
-    // MockServer error handling with 'rpc'
     await expect(rpc("/unknown/route")).rejects.toThrow(
         "Unimplemented server route: /unknown/route",
     );
@@ -1734,7 +1733,6 @@ describe("groupby chain of fields", () => {
             ["name"],
             [],
         ];
-        // Compute expected result as a list of formatted_read_group for each groupby in grouping_sets
         const expected = [];
         for (const groupby of grouping_sets) {
             expected.push(

@@ -57,7 +57,6 @@ test("FloatFactorField in form view", async () => {
 test("FloatFactorField comma as decimal point", async () => {
     expect.assertions(2);
 
-    // patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: "" });
     defineParams({
         lang_parameters: {
             decimal_point: ",",

@@ -7,10 +7,7 @@ import { useOwnDebugContext } from "@web/services/debug/debug_context";
 import { DebugMenu } from "@web/services/debug/debug_menu";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/**
- * Dialog subclass for rendering action components (target="new").
- * Extends Dialog with an ActionComponent slot and debug menu integration.
- */
+/** Dialog subclass for action components (target="new"), with debug menu integration. */
 export class ActionDialog extends Dialog {
     static components = {
         .../** @type {any} */ (Dialog).components,

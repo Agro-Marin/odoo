@@ -4,26 +4,14 @@
 /** @module @web/model/relational_model/record_validator - Validation orchestration: unset-required scan, invalid-field set management, and notification routing */
 
 /**
- * Validation logic for Record field values.
- *
- * Two layers in one module:
- *
- *   1. **{@link findUnsetRequiredFields}** — pure function: determines
- *      which required fields are unset without mutating any state.
- *      Used by ``checkValidity`` below; exported so it can be
- *      unit-tested (and used directly by callers that want the scan
- *      without the side effects).
- *
- *   2. **Orchestration helpers** (``checkValidity``, ``setInvalidField``,
- *      ``resetFieldValidity``, ``removeInvalidFields``,
- *      ``displayInvalidFieldNotification``) — receive the
- *      RelationalRecord instance as first argument (delegation pattern)
- *      and mutate ``record._invalidFields`` / ``record._unsetRequiredFields``
- *      / ``record._closeInvalidFieldsNotification`` accordingly.
- *
- * The class methods on RelationalRecord remain as thin delegators so
- * sibling files (``dynamic_list.js``, ``record_save.js``, ``static_list.js``)
- * can still call ``record._checkValidity(...)`` without import churn.
+ * Validation logic for Record field values. {@link findUnsetRequiredFields} is
+ * a pure scan (exported for unit testing); the orchestration helpers below
+ * (checkValidity, setInvalidField, resetFieldValidity, removeInvalidFields,
+ * displayInvalidFieldNotification) take the RelationalRecord as first arg
+ * and mutate its `_invalidFields` / `_unsetRequiredFields` /
+ * `_closeInvalidFieldsNotification` state. RelationalRecord's own methods
+ * remain thin delegators so sibling files (dynamic_list.js, record_save.js,
+ * static_list.js) can still call `record._checkValidity(...)`.
  */
 
 import { toRaw } from "@odoo/owl";
@@ -31,11 +19,9 @@ import { toRaw } from "@odoo/owl";
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Determine which required fields in a record are unset or invalid.
- *
- * Iterates all active fields, skipping invisible and property-derived fields,
- * and checks each field type for "unset" conditions (empty string for html,
- * zero count for x2many, etc.).
+ * Determine which required fields are unset or invalid (empty string for
+ * html, zero count for x2many, etc.), skipping invisible and
+ * property-derived fields.
  *
  * @param {Object} activeFields
  * @param {Object} fields - field definitions
@@ -44,8 +30,8 @@ import { toRaw } from "@odoo/owl";
  * @param {(fieldName: string) => boolean} callbacks.isInvisible
  * @param {(fieldName: string) => boolean} callbacks.isRequired
  * @param {(fieldName: string, list: Object) => boolean} callbacks.isChildListValid
- *     Validates x2many child records. Called with the field name and the
- *     StaticList datapoint. Should return true if all child records are valid.
+ *     Validates x2many child records (field name + StaticList datapoint);
+ *     true if all children are valid.
  * @returns {Set<string>} field names of unset required fields
  */
 export function findUnsetRequiredFields(
@@ -120,55 +106,34 @@ export function findUnsetRequiredFields(
     return unsetRequiredFields;
 }
 
-// ---------------------------------------------------------------------------
-// Orchestration helpers (mutate ``record._invalidFields`` /
-// ``record._unsetRequiredFields`` / ``record._closeInvalidFieldsNotification``)
-// ---------------------------------------------------------------------------
+// Orchestration helpers (mutate `record._invalidFields` /
+// `record._unsetRequiredFields` / `record._closeInvalidFieldsNotification`)
 
 /**
- * Run the validation algorithm on a record and update its invalid-field
- * state in place. Optionally surface a UI notification when invalid
- * fields are detected.
+ * Run validation on a record and update its invalid-field state in place.
+ * Optionally surface a UI notification when invalid fields are detected.
  *
- * Three behavioural modes (mutually exclusive, controlled by options):
+ * Three mutually exclusive modes:
+ *   - **silent**: scan only, no mutation; returns whether no required field
+ *     is unset.
+ *   - **removeInvalidOnly**: prune stale entries from `_unsetRequiredFields`
+ *     (and matching `_invalidFields`) without touching invalid-input flags
+ *     set by {@link setInvalidField}. Used by `_applyChanges` to re-validate
+ *     after edits. Since it only prunes, the scan is scoped to
+ *     currently-flagged fields (further narrowed by `scopedFields` when
+ *     given) — safe because unset-required status is per-field-local, and
+ *     x2many fields are always re-checked (a child's validity can depend on
+ *     an invisible `parent.*` reference).
+ *   - **default**: replace `_unsetRequiredFields` with a fresh full scan;
+ *     invalid-input flags (set via {@link setInvalidField}) survive since
+ *     they live in `_invalidFields` but aren't tracked there.
  *
- *   - **silent**: scan only; return ``true`` if no unset-required field
- *     was detected, ``false`` otherwise. ``record`` state is not mutated.
- *   - **removeInvalidOnly**: prune fields from ``_unsetRequiredFields``
- *     (and the corresponding ``_invalidFields`` entries) that are no
- *     longer unset. Existing invalid-input flags (set by
- *     {@link setInvalidField}) are NOT touched — only the unset-required
- *     subset is reconciled. Used by ``_applyChanges`` to re-validate
- *     after edits without wiping user-input-validation flags.
- *
- *     Because this mode only ever *prunes* (never adds), the scan is
- *     scoped for performance: it re-evaluates only fields currently in
- *     ``_unsetRequiredFields`` — no other field can be pruned — and,
- *     when ``scopedFields`` is provided (from ``_applyChanges``), further
- *     skips flagged fields that provably cannot have changed status
- *     because neither their value nor any modifier they depend on was in
- *     the change set. x2many fields are always re-checked while flagged
- *     (a child's validity may depend on a ``parent.*`` reference that is
- *     invisible to the parent-level scope) — the isChildListValid
- *     recursion is itself scoped to avoid O(rows) cost (see below).
- *     Equivalence to the original full scan holds because unset-required
- *     status is per-field-local (own type/value/required/invisible, or —
- *     for x2many — its children).
- *   - **default**: replace the entire ``_unsetRequiredFields`` subset
- *     with the freshly scanned set. Invalid-input flags (set via
- *     {@link setInvalidField}) survive across the scan because they
- *     live in ``_invalidFields`` but are not tracked in
- *     ``_unsetRequiredFields`` — only this method's prior scan
- *     entries are cleared.
- *
- * Child x2many record validation is recursive via the child records'
- * own ``_checkValidity`` (class-method delegator), so any per-class
- * override at a deeper level remains in effect.
+ * Child x2many validation recurses through each child's own
+ * `_checkValidity`, so per-class overrides still apply.
  *
  * @param {RelationalRecord} record
  * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
- * @returns {boolean} ``true`` when the record has no invalid fields
- *  after the scan, ``false`` otherwise
+ * @returns {boolean} `true` when the record has no invalid fields after the scan
  */
 export function checkValidity(
     record,
@@ -182,15 +147,11 @@ export function checkValidity(
                 if (!r.dirty) {
                     return true;
                 }
-                // ``removeInvalidOnly`` only prunes stale invalid flags; an
-                // already-valid child has nothing to prune and cannot become
-                // invalid on this path, so it can be skipped. This is what
-                // turns the parent's post-commit re-validation from
-                // O(dirtyRows × rowFields) into O(dirtyRows) cheap checks plus
-                // a full re-scan of only the still-invalid row(s) — typically
-                // just the row that was edited. ``silent`` and default modes
-                // keep the exact full re-scan (they answer a fresh query /
-                // may add newly-invalid fields respectively).
+                // removeInvalidOnly only prunes; an already-valid child can't
+                // become invalid on this path, so skip it — turns
+                // re-validation from O(dirtyRows × rowFields) into
+                // O(dirtyRows) plus a rescan of only the still-invalid
+                // row(s). silent/default modes need the full rescan.
                 if (removeInvalidOnly && r.isValid) {
                     return true;
                 }
@@ -199,17 +160,15 @@ export function checkValidity(
     };
 
     if (removeInvalidOnly) {
-        // Prune-only, scoped path. Only fields already flagged in
-        // ``_unsetRequiredFields`` can be pruned, and of those only the ones
-        // whose status could have changed (in ``scopedFields``, or any x2many
-        // — conservative for ``parent.*`` child dependencies) need
-        // re-evaluation. Everything else provably keeps its flagged status.
+        // Prune-only, scoped path: only already-flagged fields can be
+        // pruned, and only those whose status could have changed
+        // (scopedFields, or any x2many — conservative for parent.*
+        // dependencies) need re-evaluation.
         const candidates = [];
         for (const fieldName of Array.from(record._unsetRequiredFields)) {
             if (!(fieldName in record.activeFields)) {
-                // No longer an active field: the original full scan (which only
-                // iterates activeFields) could never re-flag it, so it was
-                // pruned. Preserve that exactly.
+                // No longer active: the full scan (which only iterates
+                // activeFields) could never re-flag it, so preserve that pruning.
                 record._unsetRequiredFields.delete(fieldName);
                 record._invalidFields.delete(fieldName);
                 continue;
@@ -277,33 +236,25 @@ export function checkValidity(
 }
 
 /**
- * Flag a field as invalid following user input that failed type
- * validation. Multi-edit mode handles selection-side effects: when
- * the record is part of a multi-edit selection and is not the one
- * the user is actively discarding, the dialog is surfaced, the record
- * is discarded, and the mode is forced back to readonly so the
- * multi-edit cohort stays coherent.
+ * Flag a field invalid after user input failed type validation. In
+ * multi-edit, if the record is part of the selection and isn't the one
+ * being actively discarded, surfaces the notification, discards the
+ * record, and forces it back to readonly so the cohort stays coherent.
  *
- * Invariant I2 (synchronous dirty mark) is preserved at the
- * class-method call site (``setInvalidField`` calls
- * ``this._markDirty()`` synchronously before delegating here), not
- * inside this helper. The helper assumes ``record.dirty`` has already
- * been set when the caller intended.
- *
- * Skips re-adding when the field is already in ``_invalidFields``
- * (idempotency), and respects the ``onWillSetInvalidField`` lifecycle
- * hook's veto.
+ * Invariant I2 (synchronous dirty mark) is preserved at the class-method
+ * call site, not here — this helper assumes `record.dirty` is already set.
+ * Idempotent (no-op if already invalid) and respects the
+ * `onWillSetInvalidField` lifecycle hook's veto.
  *
  * @param {RelationalRecord} record
  * @param {string} fieldName
  * @returns {Promise<void>}
  */
 export async function setInvalidField(record, fieldName) {
-    // NB: intentionally NOT awaited. The sole consumer of this hook is
-    // synchronous, and introducing a microtask gap here changes the ordering
-    // of invalid-field notifications in multi-edit (a single invalid commit
-    // would surface two notifications). If an async veto consumer is ever
-    // added, revisit both this call and that ordering together.
+    // NB: intentionally NOT awaited — the sole consumer is synchronous, and
+    // awaiting here would reorder invalid-field notifications in multi-edit
+    // (a single invalid commit would surface two). Revisit if an async veto
+    // consumer is ever added.
     const canProceed = record.model.hooks.lifecycle.onWillSetInvalidField(
         record,
         fieldName,

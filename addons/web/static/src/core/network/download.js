@@ -74,18 +74,16 @@ function _download(data, filename, mimetype) {
 // -----------------------------------------------------------------------------
 
 /**
- * Download data as a file
+ * Download data as a file.
  *
  * @param {string | Blob | File} data
  * @param {String} filename
  * @param {String} mimetype
  * @returns {boolean | Promise<any>}
  *
- * Note: the actual implementation is certainly unconventional, but sadly
- * necessary to be able to test code using the download function (the
- * indirection through ``downloadFile._download`` lets tests patch the
- * implementation; ``_download`` returns ``Promise<any>`` and test patches
- * historically return ``true``).
+ * The indirection through ``downloadFile._download`` exists so tests can
+ * patch the implementation (``_download`` returns ``Promise<any>``; test
+ * patches historically return ``true``).
  */
 export function downloadFile(data, filename, mimetype) {
     return downloadFile._download(data, filename, mimetype);
@@ -93,13 +91,10 @@ export function downloadFile(data, filename, mimetype) {
 downloadFile._download = _download;
 
 /**
- * Download a file from form or server url
+ * Call a controller with some data (from a form or a server url) and download
+ * the response.
  *
- * This function is meant to call a controller with some data
- * and download the response.
- *
- * Note: the actual implementation is certainly unconventional, but sadly
- * necessary to be able to test code using the download function
+ * Indirection through ``download._download`` exists so tests can patch it.
  *
  * @param {*} options
  * @returns {Promise<any>}
@@ -169,8 +164,9 @@ function configureBlobDownloadXHR(
                 // Malformed Content-Disposition — fall back to no filename.
             }
         }
-        // In Odoo, the default mimetype, including for JSON errors is text/html (ref: http.py:Root.get_response )
-        // in that case, in order to also be able to download html files, we check if we get a proper filename to be able to download
+        // Odoo's default mimetype, including for JSON errors, is text/html
+        // (ref: http.py:Root.get_response); requiring a filename too lets us
+        // still support downloading actual HTML files.
         if (xhr.status === 200 && (mimetype !== "text/html" || filename)) {
             // Repackage as application/octet-stream so browsers (Safari, Chrome) do not
             // intercept the blob URL with their built-in PDF/office viewers and open it

@@ -4,25 +4,14 @@
 /** @module @web/core/utils/dependency_graph - Iterative DFS cycle detection and wave-based dependency resolution */
 
 /**
- * Dependency graph utilities.
- *
- * Two pure helpers with no OWL or DOM dependencies:
- *
- *   - ``findDependencyCycle(graph)``: iterative DFS that returns the first
- *     cycle path it finds, or null.  Used both by the service launcher
- *     (``env.js``) and the module loader to explain why a graph is stuck.
- *
- *   - ``createWaveResolver(options)``: O(N+E) ready-queue engine.  Tracks
- *     named entries with dependency lists, emits ``shift()``able names
- *     whose deps are all met, and accepts ``propagate(name)`` callbacks
- *     to unblock dependents as each entry finishes.  Used by the service
- *     launcher; the loader shim keeps an inlined copy because it runs
- *     before ESM can import this module.
+ * Two pure helpers (no OWL/DOM deps): iterative-DFS cycle detection and an
+ * O(N+E) wave-based dependency resolver. Used by the service launcher
+ * (env.js); module_loader.js keeps an inlined copy since it runs before ESM
+ * can import this module.
  *
  * @see env.js for the service-launcher integration
  * @see module_loader.js for the parallel inlined implementation (must be
- *      kept in sync with ``createWaveResolver`` — both share the same
- *      dedup/ready-queue semantics).
+ *      kept in sync — both share the same dedup/ready-queue semantics).
  */
 
 /**
@@ -95,7 +84,6 @@ export function findDependencyCycle(graph) {
                 continue;
             }
 
-            // Visit unvisited dep
             state.set(dep, IN_STACK);
             parent.set(dep, node);
             stack.push([dep, 0]);
@@ -139,9 +127,8 @@ function _reconstructCycle(parent, from, to) {
  * @property {() => boolean} hasReady
  *   Cheap check for whether ``shift()`` would return a value.
  * @property {(name: string) => void} untrack
- *   Remove an entry from the resolver without firing propagate().
- *   Called on successful start OR on failure — the two cases differ
- *   only in whether ``propagate()`` is also called.
+ *   Remove an entry from the resolver without firing propagate() (called on
+ *   both successful start and on failure).
  * @property {(name: string) => number | undefined} pendingOf
  *   Diagnostics: current unmet-dep count, or undefined if not tracked.
  * @property {() => IterableIterator<string>} trackedNames

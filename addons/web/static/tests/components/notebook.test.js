@@ -212,10 +212,8 @@ test("notebook pages rendered by a template component", async () => {
 });
 
 test("a programmatic page with index 0 is ordered first", async () => {
-    // A page requesting the first position (index: 0) must be placed before an
-    // unindexed page, even when it appears later in the `pages` array. The old
-    // `if (v.index)` check treated index 0 as "no index", dropping such a page
-    // into the unordered bucket.
+    // index 0 must sort before an unindexed page — the old `if (v.index)` check
+    // treated 0 as falsy and dropped it into the unordered bucket.
     class Page extends Component {
         static template = xml`<h3 t-esc="props.heading"/>`;
         static props = ["*"];

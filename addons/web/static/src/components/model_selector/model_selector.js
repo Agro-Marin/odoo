@@ -16,8 +16,7 @@ export class ModelSelector extends Component {
         id: { type: String, optional: true },
         value: { type: String, optional: true },
         placeholder: { type: String, optional: true },
-        // list of models technical name, if not set
-        // we will fetch all models we have access to
+        // list of model technical names; if not set, fetch all accessible models
         models: { type: Array, optional: true },
         nbVisibleModels: { type: Number, optional: true },
         autofocus: { type: Boolean, optional: true },

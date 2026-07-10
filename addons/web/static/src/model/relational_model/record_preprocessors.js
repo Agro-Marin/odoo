@@ -171,12 +171,10 @@ export async function preprocessX2manyChanges(record, changes) {
             continue;
         }
         const list = record.data[fieldName];
-        // Apply contiguous non-SET commands as a single batch. _applyCommands is
-        // designed to take a command list (every other caller passes a batch)
-        // and coalesces the records to fetch into one _loadRecords RPC; applying
-        // commands one at a time -- as this used to -- issued one RPC per LINK.
-        // SET is handled out-of-band via _replaceWith, so flush the pending
-        // batch before each SET to preserve the original command order.
+        // Batch contiguous non-SET commands: _applyCommands coalesces the records
+        // to fetch into one _loadRecords RPC instead of one per command. SET is
+        // handled separately via _replaceWith, so flush the batch before each SET
+        // to preserve the original command order.
         let batch = [];
         for (const command of value) {
             if (command[0] === x2ManyCommands.SET) {

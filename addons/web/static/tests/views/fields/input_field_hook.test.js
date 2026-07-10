@@ -31,9 +31,7 @@ import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-// ---------------------------------------------------------------------------
 // Shared model definitions
-// ---------------------------------------------------------------------------
 
 class Partner extends models.Model {
     _name = "res.partner";
@@ -48,9 +46,7 @@ class Partner extends models.Model {
 
 defineModels([Partner]);
 
-// ---------------------------------------------------------------------------
 // Commit via blur (onChange)
-// ---------------------------------------------------------------------------
 
 describe("blur commits value", () => {
     test("editing a char field and saving sends the new value to web_save", async () => {
@@ -90,9 +86,7 @@ describe("blur commits value", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Commit via Tab key (onKeydown)
-// ---------------------------------------------------------------------------
 
 describe("Tab key commits value", () => {
     test("pressing Tab after filling commits the value before explicit save", async () => {
@@ -120,9 +114,7 @@ describe("Tab key commits value", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Commit via Enter key (onKeydown)
-// ---------------------------------------------------------------------------
 
 describe("Enter key commits value", () => {
     test("pressing Enter after filling commits the value in a char input", async () => {
@@ -148,9 +140,7 @@ describe("Enter key commits value", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Parse error — invalid value for integer field
-// ---------------------------------------------------------------------------
 
 describe("parse error handling", () => {
     test("typing a non-numeric value in an integer field marks the field invalid", async () => {
@@ -196,9 +186,7 @@ describe("parse error handling", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Blur / Tab commit-decision consistency (shared hasValueChanged predicate)
-// ---------------------------------------------------------------------------
 
 describe("AGROMARINVERIFY blur/Tab equality contract", () => {
     test("blur: a dirty-but-parse-equal integer re-entry commits nothing", async () => {
@@ -236,9 +224,7 @@ describe("AGROMARINVERIFY blur/Tab equality contract", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Update rejection — the FIELD_IS_DIRTY(false) reset must not be skipped
-// ---------------------------------------------------------------------------
 
 describe("rejected update clears dirty-typing signal", () => {
     test("a rejected onchange still emits FIELD_IS_DIRTY(false) (try/finally guard)", async () => {

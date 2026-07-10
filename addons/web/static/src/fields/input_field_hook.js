@@ -9,10 +9,8 @@ import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
 
 /**
- * This hook is meant to be used by field components that use an input or
- * textarea to edit their value. Its purpose is to prevent that value from being
- * erased by an update of the model (typically coming from an onchange) when the
- * user is currently editing it.
+ * For field components backed by an input/textarea: prevents the value from
+ * being erased by a model update (e.g. an onchange) while the user is typing.
  *
  * @param {Object} params
  * @param {() => string} params.getValue a function that returns the value to write in
@@ -31,9 +29,9 @@ export function useInputField(params) {
     const shouldSave = params.shouldSave ?? (() => false);
 
     /*
-     * A field is dirty if it is no longer sync with the model
-     * More specifically, a field is no longer dirty after it has *tried* to update the value in the model.
-     * An invalid value will thefore not be dirty even if the model will not actually store the invalid value.
+     * A field is dirty if out of sync with the model. It stops being dirty once
+     * it has *tried* to update the model, even if the value was invalid and thus
+     * never actually stored.
      */
     let isDirty = false;
 
@@ -44,16 +42,12 @@ export function useInputField(params) {
     let lastSetValue = null;
 
     /**
-     * Track the fact that there is a change sent to the model that hasn't been acknowledged yet
-     * (e.g. because the onchange is still pending). This is necessary if we must do an urgent save,
-     * as we have to re-send that change for the write that will be done directly.
+     * Tracks a change sent to the model but not yet acknowledged (e.g. a pending
+     * onchange), so it can be re-sent on an urgent save.
      * FIXME: this could/should be handled by the model itself, when it will be rewritten
      */
     let pendingUpdate = false;
 
-    /**
-     * When a user types, we need to set the field as dirty.
-     */
     function onInput(ev) {
         isDirty = ev.target.value !== lastSetValue;
         if (params.preventLineBreaks && ev.inputType === "insertFromPaste") {
@@ -68,28 +62,23 @@ export function useInputField(params) {
     /**
      * Whether the parsed input value differs from the record's current value.
      *
-     * Uses the ORM falsy-empty convention (``?? false``) so that null/undefined
-     * and ``false`` are treated as the same "empty" value. Both commit paths —
-     * blur (``onChange``) and Tab/Enter/urgent (``commitChanges``) — share this
-     * one predicate; previously ``onChange`` used a strict ``!==`` while
-     * ``commitChanges`` used ``?? false``, so at the null-vs-false boundary blur
-     * could fire a redundant ``record.update`` (and onchange RPC) that Tab/Enter
-     * would not, or reset the input on one path but not the other.
+     * Uses the ORM falsy-empty convention (``?? false``) so null/undefined and
+     * ``false`` count as the same "empty" value. Shared by both commit paths
+     * (blur and Tab/Enter/urgent) — they used to diverge (strict ``!==`` vs.
+     * ``?? false``), causing a redundant ``record.update``/onchange RPC on one
+     * path but not the other at the null-vs-false boundary.
      */
     function hasValueChanged(val) {
         return (val ?? false) !== (component.props.record.data[fieldName] ?? false);
     }
 
     /**
-     * On blur, we consider the field no longer dirty, even if it were to be invalid.
-     * However, if the field is invalid, the new value will not be committed to the model.
-     *
-     * Delegates to ``commitChanges`` so blur and Tab/Enter/urgent share a single
-     * commit pipeline (parse → setInvalidField → hasValueChanged → update/reset).
-     * The two used to be hand-maintained copies and drifted (see
-     * ``hasValueChanged``). ``onInput`` maintains the invariant
-     * ``isDirty ⇔ inputRef.el.value !== lastSetValue``, so the dirty recompute
-     * inside ``commitChanges`` is equivalent to the old ``if (isDirty)`` guard.
+     * On blur, the field is no longer dirty even if invalid (an invalid value
+     * is never committed). Delegates to ``commitChanges`` so blur and
+     * Tab/Enter/urgent share one commit pipeline instead of drifting
+     * hand-maintained copies (see ``hasValueChanged``); ``onInput`` maintains
+     * ``isDirty ⇔ inputRef.el.value !== lastSetValue``, so recomputing it here
+     * is equivalent to the old ``if (isDirty)`` guard.
      */
     function onChange() {
         return commitChanges(false);
@@ -125,10 +114,8 @@ export function useInputField(params) {
     );
 
     /**
-     * Sometimes, a patch can happen with possible a new value for the field
-     * If the user was typing a new value (isDirty) or the field is still invalid,
-     * we need to do nothing.
-     * If it is not such a case, we update the field with the new value.
+     * A model patch may carry a new value for the field; skip it while the
+     * user is typing (isDirty) or the field is invalid, otherwise apply it.
      */
     useEffect(() => {
         // We need to call getValue before the condition to always observe

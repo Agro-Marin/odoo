@@ -67,9 +67,8 @@ export const sortableService = {
 
                 const cleanup = () => {
                     const boundElement = boundElements.get(element);
-                    // A previous cleanup() may already have removed the element
-                    // from boundElements (making get() return undefined). Guard
-                    // so a double cleanup() is a no-op rather than a TypeError.
+                    // Guard against a double cleanup(): a previous call may already
+                    // have removed the element (get() then returns undefined).
                     if (
                         boundElement &&
                         /** @type {any} */ (sortableId) in boundElement
@@ -82,7 +81,6 @@ export const sortableService = {
                     cleanupFunctions.forEach((fn) => fn());
                 };
 
-                // Setup hookParam
                 const setupHooks = {
                     wrapState: reactive,
                     throttle: throttleForAnimation,

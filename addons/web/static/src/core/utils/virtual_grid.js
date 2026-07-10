@@ -15,16 +15,11 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {ScrollPosition} [initialScroll={ left: 0, top: 0 }]
  *  the initial scroll position of the scrollable element
  * @property {(changed: Partial<VirtualGridIndexes>) => void} [onChange=() => this.render()]
- *  a callback called when the visible items change, i.e. when on scroll or resize.
- *  the default implementation is to re-render the component.
+ *  called when the visible items change (scroll/resize); defaults to re-rendering the component.
  * @property {number} [bufferCoef=1]
- *  the coefficient to calculate the buffer size around the visible area.
- *  The buffer size is equal to bufferCoef * windowSize.
- *  The default value is 1: it means that the buffer size takes one more window size on each side.
- *  So the whole area that will be rendered is 3 times the window size.
- *  If you use each direction, it could be up to 9 times the window size (3x3).
- *  Consider lowering this value if you have a costful rendering.
- *  A value of 0 means no buffer.
+ *  buffer size around the visible area, as a multiple of the window size on each side.
+ *  Default 1 renders 3x the window size (9x if buffered on both axes); 0 means no buffer.
+ *  Lower it for costly renders.
  */
 
 /**
@@ -36,11 +31,9 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
  * @typedef VirtualGridSetters
  * @property {(widths: number[]) => void} setColumnsWidths
- *  Use it to set the width of each column.
- *  Indexes should match the indexes of the columns.
+ *  Set the width of each column (indexes must match column indexes).
  * @property {(heights: number[]) => void} setRowsHeights
- *  Use it to set the height of each row.
- *  Indexes should match the indexes of the rows.
+ *  Set the height of each row (indexes must match row indexes).
  */
 
 /**
@@ -53,15 +46,15 @@ const BUFFER_COEFFICIENT = 1;
 
 /**
  * @typedef GetIndexesParams
- * @property {number[]} sizes contains the sizes of the items. Each size is the sum of the sizes of the previous items and the size of the current item.
- * @property {number} start it is the start position of the visible area, here it is the scroll position.
- * @property {number} span it is the size of the visible area, here it is the window size.
- * @property {number} [prevStartIndex] the previous start index, it is used to optimize the calculation.
- * @property {number} [bufferCoef=BUFFER_COEFFICIENT] the coefficient to calculate the buffer size.
+ * @property {number[]} sizes cumulative sizes of the items (each entry sums the previous sizes and the current item's size).
+ * @property {number} start start of the visible area (scroll position).
+ * @property {number} span size of the visible area (window size).
+ * @property {number} [prevStartIndex] previous start index, used to optimize the search.
+ * @property {number} [bufferCoef=BUFFER_COEFFICIENT] coefficient to calculate the buffer size.
  */
 
 /**
- * This function calculates the indexes of the visible items in a virtual list.
+ * Calculates the indexes of the visible items in a virtual list.
  *
  * @param {GetIndexesParams} param0
  * @returns {[number, number] | []} the indexes of the visible items with a surrounding buffer of totalSize on each side.

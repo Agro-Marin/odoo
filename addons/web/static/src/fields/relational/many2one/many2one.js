@@ -16,9 +16,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
 
-///////////////////////////////////////////////////////////////////////////////
 // UTILS
-///////////////////////////////////////////////////////////////////////////////
 
 /**
  * @param {Object} record - Raw record data with id and display_name/name
@@ -89,9 +87,7 @@ export function computeM2OProps(fieldProps) {
     };
 }
 
-///////////////////////////////////////////////////////////////////////////////
 // Components
-///////////////////////////////////////////////////////////////////////////////
 
 export class Many2One extends Component {
     static template = "web.Many2One";
@@ -350,7 +346,7 @@ export class Many2One extends Component {
             name: barcode,
             domain: this.props.domain(),
             operator: "ilike",
-            limit: 2, // If one result we set directly and if more than one we use normal flow so no need to search more
+            limit: 2, // limit 2: one result is set directly, more falls back to normal search flow
             context: this.props.context,
         });
         const validPairs = pairs.filter(([id]) => !!id);

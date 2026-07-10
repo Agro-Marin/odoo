@@ -75,10 +75,8 @@ export function useTransition({
             },
         };
     }
-    // We need to allow the element to be mounted in the enter state so that it
-    // will get the transition when we activate the enter-active class. This
-    // onNextPatch allows us to activate the class that we want the next time
-    // the component is patched.
+    // Mount in "enter" state first so the transition fires when we switch to
+    // enter-active on the next patch (via onNextPatch).
     let onNextPatch = null;
     useEffect(() => {
         if (onNextPatch) {
@@ -117,11 +115,9 @@ export function useTransition({
                 state.shouldMount = true;
             } else {
                 state.stage = "leave";
-                // Only schedule the unmount (and the onLeave callback) when the
-                // element is actually mounted. Otherwise the very first init
-                // assignment (`shouldMount = initialVisibility` with
-                // initialVisibility === false) would spuriously fire onLeave
-                // for an element that was never shown.
+                // Only schedule unmount/onLeave when actually mounted, else the
+                // initial `shouldMount = initialVisibility` (false) would
+                // spuriously fire onLeave for an element never shown.
                 if (state.shouldMount) {
                     timer = browser.setTimeout(() => {
                         state.shouldMount = false;
@@ -142,11 +138,11 @@ export function useTransition({
 }
 
 /**
- * A higher order component that handles a transition to be used within its
- * default slot. Generally, the useTransition hook is simpler to use, but the
- * HOC has the advantage that it can be spawned as needed during the render (eg:
- * in a t-foreach loop) without knowing at setup-time how many transitions need
- * to be created. @see useTransition
+ * HOC version of useTransition for its default slot. Unlike the hook, it can
+ * be spawned during render (e.g. in a t-foreach) without knowing at setup
+ * time how many transitions are needed.
+ *
+ * @see useTransition
  */
 export class Transition extends Component {
     static template = xml`<t t-slot="default" t-if="transition.shouldMount" className="transition.className"/>`;

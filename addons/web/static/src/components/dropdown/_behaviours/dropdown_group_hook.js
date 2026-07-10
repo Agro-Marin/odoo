@@ -13,10 +13,8 @@ import { DROPDOWN_GROUP } from "@web/components/dropdown/dropdown_group";
  */
 
 /**
- * Will add (and remove) a dropdown from a parent
- * DropdownGroup component, allowing it to know
- * if it's in a group and if the group is open.
- *
+ * Registers/unregisters a dropdown with its parent DropdownGroup so it knows
+ * whether it's in a group and whether the group is open.
  * @returns {DropdownGroupState}
  */
 export function useDropdownGroup() {

@@ -110,9 +110,9 @@ export function patch(objToPatch, extension) {
     }
 
     if (usedExtensions.has(extension)) {
-        // The extension has already been consumed by a live patch. Reusing it
-        // would corrupt the first patch's `super` chain (shared target) or throw
-        // an opaque "Cyclic __proto__ value" (same target). Fail clearly instead.
+        // Reusing an extension would corrupt the `super` chain (shared target)
+        // or throw an opaque "Cyclic __proto__" error (same target) — see
+        // `usedExtensions` above. Fail clearly instead.
         throw new Error(
             "patch(): extension object already used in a patch. Each patch() call " +
                 "needs its own fresh extension object (it is mutated to build the `super` chain).",
@@ -127,7 +127,6 @@ export function patch(objToPatch, extension) {
     for (const [key, newProperty] of Object.entries(properties)) {
         const oldProperty = Object.getOwnPropertyDescriptor(objToPatch, key);
         if (oldProperty) {
-            // Store the old property on the skeleton.
             Object.defineProperty(description.skeleton, key, oldProperty);
         }
 
@@ -143,16 +142,14 @@ export function patch(objToPatch, extension) {
         }
 
         if (Boolean(newProperty.get) !== Boolean(newProperty.set)) {
-            // get and set are defined together. If they are both defined
-            // in the previous descriptor but only one in the new descriptor
-            // then the other will be undefined so we need to apply the
-            // previous descriptor in the new one.
+            // get/set are defined together; if only one is present on the
+            // new descriptor, inherit the other from the previous one so it
+            // isn't clobbered to undefined.
             const ancestorProperty = findAncestorPropertyDescriptor(objToPatch, key);
             newProperty.get = newProperty.get ?? ancestorProperty?.get;
             newProperty.set = newProperty.set ?? ancestorProperty?.set;
         }
 
-        // Replace the old property by the new one.
         Object.defineProperty(objToPatch, key, newProperty);
     }
 
@@ -166,10 +163,9 @@ export function patch(objToPatch, extension) {
 
         for (const [key, property] of description.originalProperties) {
             if (property) {
-                // Restore the original property on the `objToPatch` object.
                 Object.defineProperty(objToPatch, key, property);
             } else {
-                // Or remove the property if it did not exist at first.
+                // `property` is undefined when the key didn't exist before patching.
                 delete (/** @type {Record<string, any>} */ (objToPatch)[key]);
             }
         }
@@ -187,21 +183,16 @@ export function patch(objToPatch, extension) {
 }
 
 /**
- * Diagnostic read accessor for the patch graph.
+ * Diagnostic read accessor for the patch graph: reports how an object has
+ * been patched so operators triaging a bug like "form_controller saves
+ * twice" can answer "which addons override that method, and in which
+ * order" without instrumenting the running session. DevTools/test helper
+ * only — no production code path calls it.
  *
- * Reports how an object has been patched so operators triaging a bug like
- * "form_controller saves twice" can answer "which addons override that
- * method, and in which order" without instrumenting the running session.
- *
- * Returns ``null`` for unpatched targets. For patched targets:
- * - ``extensions`` is the array of patch objects in original ``patch()``
- *   call order (the underlying ``Set`` preserves insertion order). The
- *   array is a fresh copy — mutating it never affects the patch graph.
- * - ``patchedKeys`` is the union of property keys any extension has
- *   touched, useful for "did *anyone* override ``save``?" queries.
- *
- * Note: this is a DevTools/test diagnostic helper — no production code
- * path calls it.
+ * Returns ``null`` for unpatched targets. ``extensions`` is the array of
+ * patch objects in ``patch()`` call order (a fresh copy — mutating it never
+ * affects the patch graph); ``patchedKeys`` is the union of keys any
+ * extension has touched.
  *
  * @param {object} target Same object handed to ``patch()`` (class
  *   prototype, class constructor, or plain object).

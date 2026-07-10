@@ -346,7 +346,7 @@ test(`width computation: editable list, overflowing table`, async () => {
                 id: 1,
                 titi: "Tiny text",
                 grosminet:
-                    // Just want to make sure that the table is overflowed
+                    // Ensure the table overflows.
                     `Lorem ipsum dolor sit amet, consectetur adipiscing elit.
                     Donec est massa, gravida eget dapibus ac, eleifend eget libero.
                     Suspendisse feugiat sed massa eleifend vestibulum. Sed tincidunt
@@ -883,12 +883,10 @@ test(`freeze widths: switch mode`, async () => {
     const startWidths = getColumnWidths();
     const startWidth = queryRect(`table`).width;
 
-    // start edition of first row
     await contains(`td:not(.o_list_record_selector)`).click();
     const editionWidths = getColumnWidths();
     const editionWidth = queryRect(`table`).width;
 
-    // leave edition
     await contains(`.o_list_button_save`).click();
     const readonlyWidths = getColumnWidths();
     const readonlyWidth = queryRect(`table`).width;
@@ -917,8 +915,7 @@ test(`freeze widths: switch mode (lot of fields)`, async () => {
     Foo._fields.foo = fields.Char({ translate: true });
     Foo._fields.boolean = fields.Boolean();
 
-    // the width is hardcoded to make sure we have the same condition
-    // between debug mode and non debug mode
+    // width hardcoded to ensure the same condition in debug and non-debug mode
     await resize({ width: 1200 });
     await mountView({
         resModel: "foo",
@@ -940,13 +937,11 @@ test(`freeze widths: switch mode (lot of fields)`, async () => {
     const startHeight = queryRect(`.o_data_row:eq(0)`).height;
     const startWidth = queryRect(`.o_data_row:eq(0)`).width;
 
-    // start edition of first row
     await contains(`.o_data_row > td:not(.o_list_record_selector)`).click();
     expect(`.o_data_row:eq(0)`).toHaveClass("o_selected_row");
     const editionHeight = queryRect(`.o_data_row:eq(0)`).height;
     const editionWidth = queryRect(`.o_data_row:eq(0)`).width;
 
-    // leave edition
     await contains(`.o_list_button_save`).click();
     const readonlyHeight = queryRect(`.o_data_row:eq(0)`).height;
     const readonlyWidth = queryRect(`.o_data_row:eq(0)`).width;
@@ -1119,11 +1114,9 @@ test(`freeze widths: add a record in empty list`, async () => {
     });
     const initialWidths = getColumnWidths();
 
-    // click on create button
     await contains(`.o_list_button_add`).click();
     expect(getColumnWidths()).toEqual(initialWidths);
 
-    // creating one record
     await contains(`.o_selected_row [name='foo'] input`).edit(
         "Some very very long value for a char field",
         { confirm: false },
@@ -1151,11 +1144,9 @@ test(`freeze widths: add a record in empty list with handle widget`, async () =>
     });
     const initialWidths = getColumnWidths();
 
-    // click on create button
     await contains(`.o_list_button_add`).click();
     expect(getColumnWidths()).toEqual(initialWidths);
 
-    // creating one record
     await contains(`.o_selected_row [name='foo'] input`).edit("test_foo", {
         confirm: false,
     });
@@ -1406,21 +1397,17 @@ test(`resize column, then resize window`, async () => {
 
     expect(getColumnWidths()).toEqual([40, 189, 571]);
 
-    // Resize column foo to middle of column int_field.
     await contains(`th:eq(1) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
     expect(getColumnWidths()).toEqual([40, 574, 570]);
 
-    // Resize the window
     resize({ width: 1200 });
     await runAllTimers();
     await animationFrame();
     expect(getColumnWidths()).toEqual([40, 189, 971]); // all available space should be used again
 
-    // Reduce size of column foo
     await contains(`th:eq(2) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
     expect(getColumnWidths()).toEqual([40, 189, 536]);
 
-    // Resize the window
     resize({ width: 1000 });
     await runAllTimers();
     await animationFrame();

@@ -7,60 +7,33 @@ import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
 /**
- * Public API:
- *
  *   import { featureFlag } from "@web/services/feature_flags";
  *
  *   if (featureFlag("perf_marks", { default: false })) {
  *       performance.mark("…");
  *   }
  *
- * Resolution cascade — first source that contains the flag wins:
- *
- *   1. URL query string ``?features=…``
- *      Comma- or semicolon-separated entries. Each entry is either
- *      ``name`` (sets to true), ``-name`` (sets to false), or
- *      ``name:value`` where ``value`` is parsed as JSON-ish
- *      (``true`` / ``false`` / ``null`` / number / fallback string).
- *      Highest priority — overrides every other source. Used for
- *      one-off A/B testing or reproducing a customer report.
- *
- *   2. ``localStorage["feature.<name>"]``
- *      Per-device persistent override. Value is parsed the same way
- *      as URL entries (``true`` / ``false`` / ``null`` / number / string).
- *      Survives reloads. Used by developers and on-call operators to
- *      pin a behaviour without changing the URL.
- *
- *   3. ``session.feature_flags[<name>]``
- *      Server-emitted defaults, sourced from ``ir.config_parameter``
- *      rows with the ``web.feature.`` prefix (see
+ * Resolution cascade — first source that has the flag wins:
+ *   1. URL ``?features=name,-name,name:value`` (comma/semicolon
+ *      separated; value parsed as JSON-ish: true/false/null/number/
+ *      string). Highest priority — for one-off A/B testing or
+ *      reproducing a report.
+ *   2. ``localStorage["feature.<name>"]`` — per-device override,
+ *      parsed the same way, survives reload.
+ *   3. ``session.feature_flags[<name>]`` — server-emitted default from
+ *      ``ir.config_parameter`` (``web.feature.`` prefix, see
  *      ``models/ir_http.py``). Deployment-wide rollout knob.
+ *   4. ``options.default`` (``false`` if omitted).
  *
- *   4. ``options.default`` (defaults to ``false``)
- *      Hard-coded fallback declared at the call site.
- *
- * Design notes:
- *
- *   - Pure function, no service. Feature flags are read on hot paths
- *     (boot, per-render, per-RPC); going through ``useService`` would
- *     force every call site to be inside a component setup. The pure
- *     function works in modules, services, components, and tests alike.
- *
- *   - URL + localStorage are read **eagerly** on first call and cached
- *     for the session, so subsequent calls are O(1) Map lookups. The
- *     server-side dict is captured at module load (via the ``session``
- *     import) and never refetched — page reload is the upgrade path.
- *
- *   - Flag names are free-form strings. Convention: ``snake_case`` and
- *     no dot/colon/comma (those are reserved for the URL parser).
- *     A future runtime validator could enforce these rules, but
- *     keeping the surface unrestricted lets addons introduce flags
- *     without coordination.
- *
- *   - The cache is keyed by ``name`` alone. If a single flag must
- *     hold different values for different sub-features, encode the
- *     dimension into the name (``web.perf_marks.boot``,
- *     ``web.perf_marks.render``) rather than threading parameters.
+ * Pure function, no service: flags are read on hot paths (boot,
+ * per-render, per-RPC) where routing through ``useService`` would force
+ * every call site into a component. URL and localStorage are read
+ * eagerly and cached for the session (O(1) lookups thereafter); the
+ * server dict is captured at module load and never refetched — reload
+ * is the upgrade path. Flag names are free-form (``snake_case``
+ * convention, no ``.``/``:``/``,`` — reserved for the URL parser). The
+ * cache is keyed by ``name`` alone — encode any sub-dimension into the
+ * name itself (``web.perf_marks.boot``) rather than threading params.
  */
 
 /** @typedef {boolean | number | string | null} FeatureFlagValue */

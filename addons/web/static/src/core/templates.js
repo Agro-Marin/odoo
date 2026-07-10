@@ -62,31 +62,15 @@ function getKey(args) {
 /**
  * Scoped registry for QWeb templates, their inheritance extensions, and
  * the processor pipeline that transforms parsed XML before it is cached.
+ * Replaces 12 module-level mutable bindings with instance state.
  *
- * Encapsulates the state that used to live as 12 module-level mutable
- * bindings (``templates``, ``info``, ``parsedTemplates``, ``processedTemplates``,
- * ``templateExtensions``, ``parsedTemplateExtensions``, ``registered``,
- * ``templateProcessors``, ``urlFilters``, plus the ``blockType`` / ``blockId``
- * cursors and the ``_inheritanceChain`` recursion guard).
+ * Anchored on ``globalThis`` (like ``core/registry.js``) so the esbuild
+ * bundles this module gets inlined into (``web.assets_web``,
+ * ``web.assets_unit_tests``, dynamic children) share one instance instead
+ * of splitting template registrations across copies.
  *
- * **Why a class.** The per-bundle registry (``core/registry.js``) is
- * already anchored on ``globalThis`` so sibling esbuild bundles share
- * one source of truth.  Templates need the same anchor for the same
- * reason — esbuild inlines this module into ``web.assets_web``,
- * ``web.assets_unit_tests``, and every manifest-declared
- * ``esm.dynamic_children`` child,
- * and a per-copy state map would split template registrations across
- * bundles.  Lifting the state onto an explicit class makes the anchor
- * explicit and unlocks scoped instances for embedded apps that want
- * their own template scope (a use case opened by ``.fork()`` —
- * see method below).
- *
- * **Backward compatibility.** The historical module-level functions
- * (``getTemplate``, ``registerTemplate``, ``registerTemplateExtension``,
- * ``registerTemplateProcessor``, ``checkPrimaryTemplateParents``,
- * ``setUrlFilters``, ``clearProcessedTemplates``) are kept as
- * thin wrappers that delegate to the canonical singleton below, so
- * the 28 import sites across the fork do not need to be touched.
+ * The historical module-level functions below delegate to the canonical
+ * singleton so the ~28 existing import sites don't need to change.
  */
 export class TemplateRegistry {
     constructor() {
@@ -276,13 +260,9 @@ export class TemplateRegistry {
         }
         this.templates[name] = templateString;
         this.info[name] = { blockId: this.blockId, url };
-        // A prior ``getTemplate(name)`` probe before this registration would
-        // have cached a ``null`` result (``_getTemplate`` returns null for an
-        // unknown name, and ``getTemplate`` memoises it behind a ``has()``
-        // guard).  That null is otherwise permanent: without this eviction a
-        // lazy bundle that registers ``name`` after something probed for it
-        // would serve ``null`` forever.  Drop the negative cache entry so the
-        // freshly-registered template is (re)built on next access.
+        // Evict a stale negative-cache entry: a prior getTemplate(name) probe
+        // before registration may have cached `null` permanently, which
+        // would make a lazy bundle serve `null` forever after this call.
         this.processedTemplates.delete(name);
 
         return () => {
@@ -290,14 +270,10 @@ export class TemplateRegistry {
             delete this.info[name];
             delete this.parsedTemplates[name];
             delete this.parsedTemplateExtensions[name];
-            // Drop the raw extensions registry slot.  ``templateExtensions``
-            // keeps a per-blockId array of extension descriptors keyed by
-            // the primary template name; once that primary is gone, any
-            // leftover (possibly already-spliced-to-empty) blockId entries
-            // are orphans that would still be iterated by ``_getTemplate``
-            // if the same ``name`` is later re-registered (e.g. between
-            // tests), causing stale, never-rebuilt parsed-extension state
-            // to leak.
+            // Drop leftover blockId entries in templateExtensions too, or
+            // they'd be iterated as orphans by _getTemplate if `name` is
+            // re-registered later (e.g. between tests), leaking stale
+            // parsed-extension state.
             delete this.templateExtensions[name];
             this.processedTemplates.delete(name);
             this.registered.delete(key);
@@ -341,12 +317,10 @@ export class TemplateRegistry {
             if (Number.isInteger(index) && index > -1) {
                 this.templateExtensions[inheritFrom][blockId].splice(index, 1);
             }
-            // Splicing the raw descriptor is not enough: the *parsed* copy of
-            // this block lives in ``parsedTemplateExtensions[inheritFrom][blockId]``
-            // and the compiled result in ``processedTemplates[inheritFrom]``.
-            // Left untouched, a later ``getTemplate(inheritFrom)`` re-applies
-            // the just-removed extension from that stale parse cache.  Mirror
-            // the primary-template unregister invalidation and drop both.
+            // Splicing the raw descriptor isn't enough: the parsed copy and
+            // compiled result are cached separately, and a later
+            // getTemplate(inheritFrom) would re-apply the removed extension
+            // from that stale cache if left untouched.
             delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
             this.processedTemplates.delete(inheritFrom);
             this.registered.delete(key);
@@ -409,14 +383,9 @@ export class TemplateRegistry {
 // ---------------------------------------------------------------------------
 
 /**
- * Anchor the canonical TemplateRegistry on ``globalThis`` for the same
- * reason ``core/registry.js`` does — esbuild inlines this module into
- * multiple bundles (``web.assets_web``, ``web.assets_unit_tests``, each
- * manifest-declared ``esm.dynamic_children`` child), and a per-copy
- * state map would split
- * template registrations across bundles.  Bundle-evaluation order is
- * deterministic; the first bundle to load creates the instance, all
- * subsequent bundles re-bind ``templates`` to the same object via
+ * Anchored on ``globalThis`` for the same bundle-sharing reason as the
+ * class doc above. Bundle-evaluation order is deterministic: the first
+ * bundle to load creates the instance, subsequent bundles rebind via
  * ``??=``.
  *
  * @type {TemplateRegistry}

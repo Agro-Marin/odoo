@@ -22,15 +22,8 @@ function match(normalizedPattern, strs) {
 }
 
 /**
- * This private function computes a score that represent the fact that the
- * string contains the pattern, or not
- *
- * - If the score is 0, the string does not contain the letters of the pattern in
- *   the correct order.
- * - if the score is > 0, it actually contains the letters.
- *
- * Better matches will get a higher score: consecutive letters are better,
- * and a match closer to the beginning of the string is also scored higher.
+ * Score how well `str` contains the letters of `pattern` in order (0 = no
+ * match). Consecutive letters and matches near the start score higher.
  *
  * @param {string} pattern an already-normalized pattern (normalized once at
  *  the entry points instead of once per candidate string)
@@ -60,9 +53,8 @@ function _match(pattern, str) {
 }
 
 /**
- * Return a list of things that matches a pattern, ordered by their 'score' (
- * higher score first). An higher score means that the match is better. For
- * example, consecutive letters are considered a better match.
+ * Return `list` filtered to fuzzy matches of `pattern`, ordered by score
+ * (higher = better match, e.g. consecutive letters).
  *
  * @template T
  * @param {string} pattern
@@ -87,7 +79,6 @@ export function fuzzyLookup(pattern, list, fn) {
     return results.map((r) => r.elem);
 }
 
-// Does `pattern` fuzzy match `string`?
 /**
  * @param {string} pattern
  * @param {string} string
@@ -98,14 +89,8 @@ export function fuzzyTest(pattern, string) {
 }
 
 /**
- * Performs fuzzy matching using a Levenshtein distance algorithm
- * to find matches within an error margin between a pattern
- * and a list of words.
- *
- * If the pattern is found directly inside an item,
- * it's treated as a perfect match (score 0).
- * Otherwise, the `getScore` function calculates the distance
- * between the pattern and each candidate
+ * Fuzzy-match `pattern` against `list` using Levenshtein distance within an
+ * error margin. A direct substring match scores 0 (perfect).
  *
  * @param {string} pattern - The string to match.
  * @param {string[]} list - The list of strings to compare against the pattern.

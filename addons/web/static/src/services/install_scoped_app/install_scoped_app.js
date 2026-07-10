@@ -24,8 +24,7 @@ export class InstallScopedApp extends Component {
             showInstallUI: false,
         });
         this.isDisplayStandalone = isDisplayStandalone();
-        // BeforeInstallPrompt event can take while before the browser triggers it. Some will display
-        // immediately, others will wait that the user has interacted for some time with the website.
+        // beforeinstallprompt can fire late or not at all — some browsers wait for user interaction first.
         this.isInstallationPossible = browser.BeforeInstallPromptEvent !== undefined;
         onMounted(async () => {
             this.state.manifest = await this.pwa.getManifest();

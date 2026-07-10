@@ -9,11 +9,8 @@ import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 export class PivotArchParser {
     /**
-     * Parse a pivot arch XML node into a structured descriptor.
-     *
-     * Extracts measures, row/column group-bys, default ordering, field
-     * attributes, widgets, and display flags from `<pivot>` and `<field>`
-     * elements.
+     * Parse a pivot arch XML node into measures, row/column group-bys,
+     * default ordering, field attributes, widgets, and display flags.
      *
      * @param {Element} arch - the root `<pivot>` XML element
      * @returns {{
@@ -30,12 +27,12 @@ export class PivotArchParser {
      */
     parse(arch) {
         const archInfo = {
-            activeMeasures: [], // store the defined active measures
-            colGroupBys: [], // store the defined group_by used on cols
+            activeMeasures: [],
+            colGroupBys: [],
             defaultOrder: null,
             fieldAttrs: {},
-            rowGroupBys: [], // store the defined group_by used on rows
-            widgets: {}, // wigdets defined in the arch
+            rowGroupBys: [],
+            widgets: {},
         };
 
         visitXML(arch, (node) => {

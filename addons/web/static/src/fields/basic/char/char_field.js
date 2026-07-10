@@ -84,16 +84,11 @@ export class CharField extends TextInputFieldBase {
 export const charField = {
     component: CharField,
     displayName: _t("Text"),
-    // ``char`` and ``text`` server types both render sensibly in a
-    // single-line input — line breaks in a stored ``text`` value are
-    // collapsed by the input element, which is the intended UX for
-    // short-string columns the user wants to surface compactly.  The
-    // overlap with ``textField.supportedTypes`` (which lists the same
-    // two types plus ``html``) is intentional polymorphism: either
-    // widget can render either field type, and the arch-author picks
-    // by aesthetic.  The ``getFieldFromRegistry`` warning at
-    // ``field.js:162`` only fires for genuinely incompatible
-    // combinations like ``widget="char"`` on an integer field.
+    // ``char`` and ``text`` both render sensibly in a single-line input (line
+    // breaks in ``text`` values collapse, which is fine for compact display).
+    // The overlap with ``textField.supportedTypes`` is intentional polymorphism —
+    // the arch-author picks by aesthetic; ``field.js:162``'s warning only fires
+    // for genuinely incompatible combinations like ``widget="char"`` on an integer.
     supportedTypes: ["char", "text"],
     supportedOptions: [
         {

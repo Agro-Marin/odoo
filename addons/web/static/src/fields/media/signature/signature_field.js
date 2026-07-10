@@ -136,11 +136,7 @@ export class SignatureField extends Component {
         });
     }
 
-    /**
-     * Upload the signature image if valid and close the dialog.
-     *
-     * @private
-     */
+    /** @private */
     uploadSignature({ signatureImage }) {
         return this.props.record.update({
             [this.props.name]: signatureImage.split(",")[1] || false,

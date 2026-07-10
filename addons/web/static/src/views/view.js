@@ -105,30 +105,12 @@ viewRegistry.addValidation({
     "*": true,
 });
 
-/**
- * Returns the default config to use if no config, or an incomplete config has
- * been provided in the env, which can happen with standalone views.
- */
+/** Default config used when env.config is absent or incomplete (standalone views). */
 export function getDefaultConfig() {
-    // Store the display name directly on the breadcrumb entry inside the
-    // ``breadcrumbs`` reactive — not on a sibling ``nameState`` reactive.
-    // Why this matters: OWL's reactive system tracks subscriptions through
-    // property reads on the SAME reactive proxy. When the Breadcrumbs
-    // component renders ``breadcrumb.name``, it subscribes to the
-    // ``breadcrumbs[0]`` proxy.  If ``name`` is a getter that internally
-    // reads from a DIFFERENT reactive (``nameState.displayName``), OWL
-    // does NOT propagate the subscription across the proxy boundary —
-    // updates to ``nameState`` notify nameState's observers, but the
-    // Breadcrumbs component is observing the breadcrumbs proxy and never
-    // sees the change. The form view's
-    // ``onRendered → setDisplayName(newName)`` would then update
-    // ``nameState`` but the breadcrumb in the DOM stayed stale (visible
-    // as ``MobileWebSuite.test_form/switching to another record``
-    // failing with breadcrumb "first record" instead of "second record").
-    // Pre-2026-05 the breadcrumbs array was poked via ``push(undefined);
-    // pop()`` to force a notification; that hack got removed when the
-    // value moved to ``nameState``.  Putting the value on the same proxy
-    // the component reads achieves the same effect without the hack.
+    // Store the display name on the SAME reactive proxy the Breadcrumbs
+    // component reads (breadcrumbs[0].name), not a sibling reactive: OWL
+    // doesn't propagate subscriptions across proxy boundaries, so a getter
+    // forwarding to a different reactive wouldn't notify observers here.
     const breadcrumbReactive = reactive([{ name: undefined }]);
     const config = {
         actionId: false,
@@ -314,7 +296,6 @@ export class View extends Component {
         }
         // searchViewId will remains undefined if loadSearchView=false
 
-        // prepare view description
         const { resModel, loadActionMenus, loadIrFilters } = props;
         const context = /** @type {Record<string, any>} */ (props.context ?? {});
         let {
@@ -332,16 +313,13 @@ export class View extends Component {
             (searchViewId !== undefined && !searchViewArch) ||
             (!irFilters && loadIrFilters);
 
-        // Widened to ``any`` because the initial literal narrows to
-        // ``{viewId, resModel, type}`` but the assignment below replaces it
-        // with a server-returned ViewDescription that has a different shape
-        // (arch, fields, model, etc.).
+        // Widened to `any`: the assignment below replaces the initial
+        // {viewId, resModel, type} literal with a server-returned ViewDescription.
         /** @type {any} */
         let viewDescription = { viewId, resModel, type };
         let searchViewDescription;
         if (loadView || loadSearchView) {
-            // view description (or search view description if required) is incomplete
-            // a loadViews is done to complete the missing information
+            // view (or search view) description is incomplete: loadViews fills it in
             const options = {
                 actionId: config.actionId,
                 loadActionMenus,
@@ -355,9 +333,7 @@ export class View extends Component {
                 { context, resModel, views },
                 options,
             );
-            // Note: if props.views is different from views, the cached descriptions
-            // will certainly not be reused! (but for the standard flow this will work as
-            // before)
+            // Note: if props.views differs from views, cached descriptions won't be reused.
             viewDescription = result.views[type];
             searchViewDescription = /** @type {any} */ (result.views).search;
             if (loadSearchView) {
@@ -421,7 +397,6 @@ export class View extends Component {
             searchViewId,
         };
 
-        // prepare the view props
         const viewProps = {
             info,
             arch: archXmlDoc,

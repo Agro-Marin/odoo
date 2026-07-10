@@ -8,11 +8,9 @@ import { FormCompiler } from "@web/views/form/form_compiler";
 import { isTextNode } from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";
 /**
- * Compiler for the settings form view arch.
- *
- * Transforms `<app>` and `<block>` XML elements into SettingsApp/SettingsBlock
- * components, wraps text nodes in HighlightText for search highlighting,
- * and collects module/anchor metadata for the SettingsPage tab navigation.
+ * Compiles `<app>`/`<block>` elements into SettingsApp/SettingsBlock, wraps
+ * text nodes in HighlightText for search, and collects module/anchor
+ * metadata for the SettingsPage tab navigation.
  */
 export class SettingsFormCompiler extends FormCompiler {
     setup() {
@@ -56,15 +54,10 @@ export class SettingsFormCompiler extends FormCompiler {
 
     compileApp(el, params) {
         if (el.getAttribute("notApp") === "1") {
-            //An app noted with notApp="1" is not rendered.
-
-            //This hack is used when a technical module defines settings, and we don't want to render
-            //the settings until the corresponding app is not installed.
-
-            // For example, when installing the module website_sale, the module sale is also installed,
-            // but we don't want to render its settings (notApp="1").
-            // On the contrary, when sale_management is installed, the module sale is also installed
-            // but in this case we want to see its settings (notApp="0").
+            // A technical module's settings shouldn't render until its
+            // "parent" app is installed (e.g. sale is a dep of both
+            // website_sale and sale_management, but its settings should
+            // only show under the latter).
             return;
         }
         const module = {

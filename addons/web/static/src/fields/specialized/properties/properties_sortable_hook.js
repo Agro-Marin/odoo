@@ -29,14 +29,10 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
  */
 
 /**
- * Install the two ``useSortable`` instances the properties field
- * needs: one for individual properties (with optional cross-group
- * connection) and one for property groups (column-style reordering).
- *
- * Both instances share the same ``enable`` predicate and the same
- * dragging-class bookkeeping, but their selectors and drop handlers
- * differ — bundling them in one hook keeps the wiring near the
- * shared drag-state classes (``o_property_dragging``,
+ * Install the two ``useSortable`` instances the properties field needs: one for
+ * individual properties (optional cross-group connection) and one for property
+ * groups (column-style reordering) — bundled here since both share the same
+ * ``enable`` predicate and drag-state classes (``o_property_dragging``,
  * ``o_property_drag_item``, ``o_property_drag_group``).
  *
  * @param {PropertiesSortableOptions} options

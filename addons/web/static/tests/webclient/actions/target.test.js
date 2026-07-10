@@ -590,7 +590,6 @@ describe("new", () => {
             ],
         });
 
-        // The list view has been opened in a dialog
         expect(".o_dialog .modal-dialog .o_list_view").toHaveCount(1);
 
         // click on a record in the dialog -> should do nothing as we can't switch view in the dialog

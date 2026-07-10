@@ -11,14 +11,8 @@ import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 /**
- * Loading Indicator
- *
- * When the user performs an action, it is good to give him some feedback that
- * something is currently happening.  The purpose of the Loading Indicator is to
- * display a small rectangle on the bottom right of the screen with just the
- * text 'Loading' and the number of currently running rpcs.
- *
- * After a delay of 3s, if a rpc is still not completed, we also block the UI.
+ * Shows a "Loading" rectangle with the count of running RPCs; blocks the UI
+ * if an RPC is still pending after 3s.
  */
 export class LoadingIndicator extends Component {
     static template = "web.LoadingIndicator";

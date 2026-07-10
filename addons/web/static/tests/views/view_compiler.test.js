@@ -1,16 +1,10 @@
 // @ts-check
 
 /**
- * Unit tests for views/view_compiler.js.
- *
- * Focuses on the cache coherence fix: useViewCompiler must register OWL
- * templates under a deterministic name (the arch-content key) so that
- * calling resetViewCompilerCache() and then re-compiling the same arch
- * overwrites the same globalTemplates slot instead of accumulating new
- * entries (the memory leak described in the original FIXME comment).
- *
- * These are pure unit tests — no OWL application lifecycle, no mock
- * environment, and no server calls are needed.
+ * Cache coherence: useViewCompiler must register OWL templates under a
+ * deterministic name (the arch-content key) so resetViewCompilerCache() +
+ * recompiling the same arch overwrites the same globalTemplates slot instead
+ * of accumulating entries (the leak from the original FIXME).
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -20,9 +14,7 @@ import {
     useViewCompiler,
 } from "@web/views/view_compiler";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Minimal ViewCompiler stub accepted by useViewCompiler.
@@ -63,9 +55,7 @@ function makeTemplates(specs) {
     return templates;
 }
 
-// ---------------------------------------------------------------------------
 // makeIsVisibleExpr — shared invisible->isVisible helper
-// ---------------------------------------------------------------------------
 
 describe("makeIsVisibleExpr", () => {
     test("falsy / 'False' / '0' modifiers map to the always-visible literal", () => {
@@ -95,9 +85,7 @@ describe("makeIsVisibleExpr", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Cache coherence — deterministic template names (the core fix)
-// ---------------------------------------------------------------------------
 
 describe("useViewCompiler — cache coherence after reset", () => {
     test("same arch returns the same OWL template name after resetViewCompilerCache", () => {
@@ -142,9 +130,7 @@ describe("useViewCompiler — cache coherence after reset", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Template name uniqueness
-// ---------------------------------------------------------------------------
 
 describe("useViewCompiler — template name uniqueness", () => {
     test("different arches produce different template names", () => {
@@ -197,9 +183,7 @@ describe("useViewCompiler — template name uniqueness", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Cache hit — no recompilation on repeated calls
-// ---------------------------------------------------------------------------
 
 describe("useViewCompiler — cache hits", () => {
     test("calling twice with the same arch compiles only once", () => {

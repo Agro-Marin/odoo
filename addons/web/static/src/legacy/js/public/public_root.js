@@ -27,22 +27,17 @@ function getLang() {
 }
 const lang = cookie.get("frontend_lang") || getLang(); // FIXME the cookie value should maybe be in the ctx?
 
-// One-shot guard: the interaction service patch below targets the service's
-// prototype, so it must only ever be applied once even if several PublicRoot
-// instances are created. The patch body must NOT close over a specific root:
-// it reads this module-level reference, which each PublicRoot.init reassigns,
-// so a later root (repeated createPublicRoot in tests, website edit/preview
-// flows) is the one whose widgets get started/stopped — not the first,
-// possibly destroyed, instance.
+// One-shot guard: the patch below targets the service prototype, so it must
+// apply only once. The body reads this module-level ref (not a closure) so
+// each PublicRoot.init reassigns it and a later root — not a stale one —
+// gets its widgets started/stopped.
 let interactionsServicePatched = false;
 /** @type {any} */
 let currentPublicRoot = null;
 
 /**
- * Element which is designed to be unique and that will be the top-most element
- * in the widget hierarchy. So, all other widgets will be indirectly linked to
- * this Class instance. Its main role will be to retrieve RPC demands from its
- * children and handle them.
+ * Top-most widget in the hierarchy; all other widgets link to it indirectly.
+ * Retrieves RPC demands from its children and handles them.
  */
 // Cast to any: Widget is a legacy OdooClass whose .extend() is dynamic
 export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
@@ -408,13 +403,9 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
 });
 
 /**
- * This widget is important, because the tour manager needs a root widget in
- * order to work. The root widget must be a service provider with the ajax
- * service, so that the tour manager can let the server know when tours have
- * been consumed.
- */
-/**
- * Creates and starts a PublicRoot widget, mounting it on document.body.
+ * Creates and starts a PublicRoot widget, mounting it on document.body. The
+ * tour manager needs this root as a service provider so it can report
+ * consumed tours back to the server.
  *
  * @param {typeof PublicRoot} RootWidget
  * @returns {Promise<InstanceType<typeof PublicRoot>>}

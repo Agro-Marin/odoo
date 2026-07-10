@@ -40,12 +40,10 @@ export const bottomSheetService = {
          */
         const add = (target, component, props = {}, options = {}) => {
             let closed = false;
-            // Count / body-class bookkeeping lives in the overlay ``onRemove``
-            // (not in the returned closer) so it runs on EVERY removal path —
-            // including OverlayContainer.handleError calling ``overlay.remove()``
-            // directly when a BottomSheet subtree crashes. Otherwise the count
-            // would never decrement and ``bottom-sheet-open`` would stick on
-            // <body> forever.
+            // Bookkeeping lives in onRemove (not the returned closer) so it fires on
+            // every removal path, including OverlayContainer.handleError's direct
+            // overlay.remove() when a subtree crashes — otherwise the count never
+            // decrements and bottom-sheet-open sticks on <body> forever.
             const onRemove = async (/** @type {any} */ removeParams) => {
                 // Close can be requested more than once (e.g. by concurrent
                 // animation listeners): only decrement the count once.

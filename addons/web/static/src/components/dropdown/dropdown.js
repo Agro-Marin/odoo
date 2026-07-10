@@ -54,13 +54,8 @@ export function getFirstElementOfNode(node) {
 }
 
 /**
- * The Dropdown component allows to define a menu that will
- * show itself when a target is toggled.
- *
- * Items are defined using DropdownItems. Dropdowns are
- * also allowed as items to be able to create nested
- * dropdown menus.
- *
+ * A menu that shows itself when a target is toggled. Items are DropdownItems;
+ * dropdowns can be nested as items to build nested menus.
  */
 export class Dropdown extends Component {
     static template = xml`<t t-slot="default"/>`;
@@ -166,11 +161,9 @@ export class Dropdown extends Component {
             ...deepMerge(this.nesting.navigationOptions, this.props.navigationOptions),
         });
 
-        // Expose the navigator to navigable children. Items rendered
-        // inside the popover (DropdownItem, AccordionItem, etc.) read
-        // ``this.env.navigation`` for keyboard navigation. The popover is
-        // mounted with the dropdown's ``childEnv``, so this key propagates
-        // through the portal to nested content.
+        // Exposed for navigable children (DropdownItem, AccordionItem, etc.), which
+        // read ``this.env.navigation``; propagates through the portal since the
+        // popover is mounted with the dropdown's ``childEnv``.
         useChildSubEnv({ navigation: this.navigation });
 
         this.uiService = useService("ui");
@@ -210,8 +203,7 @@ export class Dropdown extends Component {
         }
         this.popover = usePopover(DropdownPopover, options);
 
-        // As the popover is in another context we need to force
-        // its re-rendering when the dropdown re-renders
+        // Force the popover to re-render since it lives in a separate context.
         onRendered(() =>
             this.popoverRefresher ? this.popoverRefresher.token++ : null,
         );
@@ -404,14 +396,10 @@ export class Dropdown extends Component {
             items: this.props.items,
             slots: this.props.slots,
         };
-        // Restore-focus anchor. Prefer the element captured at the opening
-        // gesture (handleClick/handleMouseEnter, before the nesting cascade);
-        // fall back to the current active element for programmatic/manual opens.
-        // Either way, only keep it when it belongs to this dropdown's toggler —
-        // otherwise (a sibling that closed and restored its own focus while we
-        // were opening, e.g. via its click-away handler on the same pointerdown)
-        // anchor on the toggler so closing lands focus on the control that
-        // opened the menu instead of the sibling's old target.
+        // Restore-focus anchor: prefer the element captured at the opening gesture
+        // (before the nesting cascade), falling back to activeElement for
+        // programmatic opens. Keep it only if it belongs to this toggler — a
+        // sibling closing concurrently may have already claimed focus otherwise.
         const captured =
             this._pendingFocusEl !== undefined
                 ? this._pendingFocusEl

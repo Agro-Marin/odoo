@@ -21,9 +21,7 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
 const debugRegistry = registry.category("debug");
 
-//------------------------------------------------------------------------------
 // Get view
-//------------------------------------------------------------------------------
 
 /** Dialog that displays the computed (post-inheritance) arch XML of the current view. */
 class GetViewDialog extends Component {
@@ -57,9 +55,7 @@ export function getView({ component, env }) {
 
 debugRegistry.category("view").add("getView", /** @type {any} */ (getView));
 
-//------------------------------------------------------------------------------
 // Edit View
-//------------------------------------------------------------------------------
 
 /**
  * Debug menu item: open the current view's ir.ui.view record in the form view.
@@ -90,9 +86,7 @@ export function editView({ accessRights, component, env }) {
 
 debugRegistry.category("view").add("editView", /** @type {any} */ (editView));
 
-//------------------------------------------------------------------------------
 // Edit SearchView
-//------------------------------------------------------------------------------
 
 /**
  * Debug menu item: open the search view's ir.ui.view record in the form view.
@@ -124,9 +118,7 @@ debugRegistry
     .category("view")
     .add("editSearchView", /** @type {any} */ (editSearchView));
 
-// -----------------------------------------------------------------------------
 // View Metadata
-// -----------------------------------------------------------------------------
 
 /** Dialog displaying record metadata (XML ID, creator, timestamps, noupdate flag). */
 class GetMetadataDialog extends Component {
@@ -230,9 +222,7 @@ function sortKeysDeep(obj) {
     return obj;
 }
 
-// -----------------------------------------------------------------------------
 // View Raw Record Data
-// -----------------------------------------------------------------------------
 
 /** Dialog that displays a record's raw field data as pretty-printed JSON. */
 class RawRecordDialog extends Component {
@@ -292,9 +282,7 @@ export function viewRawRecord({ component, env }) {
 
 debugRegistry.category("form").add("viewRawRecord", /** @type {any} */ (viewRawRecord));
 
-// -----------------------------------------------------------------------------
 // Set Defaults
-// -----------------------------------------------------------------------------
 
 /** Dialog for setting default field values (ir.default) from the current record. */
 class SetDefaultDialog extends Component {
@@ -453,9 +441,7 @@ export function setDefaults({ component, env }) {
 }
 debugRegistry.category("form").add("setDefaults", /** @type {any} */ (setDefaults));
 
-//------------------------------------------------------------------------------
 // Manage Attachments
-//------------------------------------------------------------------------------
 
 /**
  * Debug menu item: manage ir.attachment records linked to the current record.

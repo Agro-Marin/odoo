@@ -59,13 +59,11 @@ test("AceEditorField mark as dirty as soon at onchange", async () => {
     const aceEditor = queryOne`.ace_editor`;
     expect(aceEditor).toHaveText(/yop/);
 
-    // edit the foo field
     ace.edit(aceEditor).setValue("blip");
     await animationFrame();
     expect(`.o_form_status_indicator_buttons`).toHaveCount(1);
     expect(`.o_form_status_indicator_buttons`).not.toHaveClass("invisible");
 
-    // revert edition
     ace.edit(aceEditor).setValue("yop");
     await animationFrame();
     expect(`.o_form_status_indicator_buttons`).toHaveCount(1);
@@ -87,7 +85,6 @@ test("AceEditorField on html fields works", async () => {
     expect(".o_field_code").toHaveText(/My little HTML Test/);
     expect.verifySteps(["get_views", "web_read"]);
 
-    // Modify foo and save
     await editAce("DEF");
     await clickSave();
     expect.verifySteps(["web_save"]);
@@ -177,10 +174,9 @@ test("AceEditorField only trigger onchanges when blurred", async () => {
 });
 
 test("AceEditorField commits its pending edit into the tab-close beacon", async () => {
-    // Regression: the WILL_SAVE_URGENTLY handler must push its commit promise
-    // into ev.detail.proms so the urgent-save coordinator awaits the re-commit
-    // before sendBeacon serialises _changes; otherwise a pending, un-blurred Ace
-    // edit is silently dropped from the beacon on tab close.
+    // Regression: WILL_SAVE_URGENTLY must push its commit promise into
+    // ev.detail.proms so the urgent-save coordinator awaits the re-commit before
+    // sendBeacon serializes _changes, or a pending un-blurred edit gets dropped.
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");

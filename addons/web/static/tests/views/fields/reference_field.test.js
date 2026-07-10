@@ -147,7 +147,6 @@ test("ReferenceField can quick create models", async () => {
 
     await clickSave();
 
-    // The name_create method should have been called
     expect.verifySteps([
         "get_views",
         "onchange",

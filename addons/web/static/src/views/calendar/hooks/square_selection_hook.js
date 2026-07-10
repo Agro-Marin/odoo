@@ -9,21 +9,17 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { closest } from "@web/core/utils/dom/ui";
 
-// v7 dropped the ``<table><tbody><tr><td>`` skeleton in favour of
-// ``<div role="row"><div role="gridcell">``.  ``.fc-day`` is layered onto
-// both body day cells (via ``dayCellClass``) and header cells (via
-// ``dayHeaderClass``) by our renderer, so explicitly exclude header
-// cells.  Rows used to be ``<tr role="row">``; in v7 they're plain
-// ``<div role="row">`` so the row selector is just the role attribute.
+// v7 layers ``.fc-day`` onto both body day cells and header cells (via
+// ``dayCellClass``/``dayHeaderClass``), so header cells must be excluded
+// explicitly. Rows are plain ``<div role="row">`` in v7, so the row
+// selector is just the role attribute.
 const CELL_SELECTOR = `.fc-day:not(.fc-col-header-cell)`;
 const ROW_SELECTOR = `[role="row"]`;
 const EVENT_CONTAINER_SELECTOR = ".fc-daygrid-event-harness";
-// v7 dropped ``.fc-more-cell`` (wrapper class) and ``.fc-more-popover``
-// (now ``.fc-popover``). Clicks on the "+N more" link in multi-create
-// mode must be ignored by the square-selection handler so FC's own
-// ``moreLinkClick`` can open the popover instead of being intercepted
-// as a date-range selection. Keep the v6 names for backward
-// compatibility — closest() returns falsy if no ancestor matches.
+// Clicks on the "+N more" link in multi-create mode must be ignored here so
+// FC's own moreLinkClick can open the popover instead of it being
+// intercepted as a date-range selection. v6 names kept for compat —
+// closest() returns falsy if no ancestor matches.
 const IGNORE_SELECTOR = [
     ".fc-event",
     ".fc-more-cell",
@@ -234,10 +230,9 @@ export function useSquareSelection(params = {}) {
         const { selectedCells } = getSelectedCellsInBlock(pseudoCtx);
         const selectedCell = selectedCells[0];
         // Read the modifier state straight off the click event rather than the
-        // window-tracked ``ctrlPressed`` / ``shiftPressed`` booleans: a key
-        // released while the window is blurred never delivers its ``keyup``,
-        // which would otherwise leave the boolean stuck ``true`` and make a
-        // plain click toggle instead of replace.
+        // window-tracked ``ctrlPressed`` boolean: a key released while the
+        // window is blurred never delivers its ``keyup``, which would
+        // otherwise leave the boolean stuck ``true``.
         if (prevSelectedCell && ev.shiftKey) {
             allSelectedCells = getSelectedCellsBetween2Cells(
                 pseudoCtx,
@@ -270,8 +265,6 @@ export function useSquareSelection(params = {}) {
 
     // Only the drag path (onDragStart) still reads this window-tracked
     // boolean — a drag callback has no originating click event to inspect.
-    // Clicks read modifiers directly from the event (see onClick above), and
-    // nothing reads Shift anymore.
     let ctrlPressed = false;
     function onWindowKeyDown(ev) {
         if (ev.key === "Control") {
@@ -286,8 +279,7 @@ export function useSquareSelection(params = {}) {
     }
 
     function onWindowBlur() {
-        // Losing focus swallows the pending ``keyup``, so drop the tracked
-        // state to avoid the modifier sticking ``true`` until the next keypress.
+        // Losing focus swallows the pending keyup; reset to avoid sticking.
         ctrlPressed = false;
     }
 

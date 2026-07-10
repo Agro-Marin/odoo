@@ -40,9 +40,7 @@ export class MultiRecordController extends Component {
     /** @type {any} */
     model;
 
-    // -------------------------------------------------------------------------
     // Setup
-    // -------------------------------------------------------------------------
 
     /** @type {any} */
     actionService;
@@ -121,9 +119,7 @@ export class MultiRecordController extends Component {
         this.deleteRecordsWithConfirmation = useDeleteRecords(this.model);
     }
 
-    // -------------------------------------------------------------------------
     // Getters
-    // -------------------------------------------------------------------------
 
     get actionMenuItems() {
         return buildActionMenuItems(
@@ -182,9 +178,7 @@ export class MultiRecordController extends Component {
         return {};
     }
 
-    // -------------------------------------------------------------------------
     // Action menu
-    // -------------------------------------------------------------------------
 
     getStaticActionMenuItems() {
         return {
@@ -231,9 +225,7 @@ export class MultiRecordController extends Component {
         };
     }
 
-    // -------------------------------------------------------------------------
     // Extension points
-    // -------------------------------------------------------------------------
 
     /** Override to provide view-specific exportable fields. */
     getExportableFields() {

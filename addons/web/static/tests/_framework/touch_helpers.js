@@ -19,10 +19,8 @@ import { contains } from "./dom_test_helpers.js";
 async function swipe(target, direction, dragOptions, moveToOptions) {
     const el = queryFirst(target);
     if (direction < 0) {
-        // The scrollable element is set at its right limit
         el.scrollLeft = el.scrollWidth - el.offsetWidth;
     } else {
-        // The scrollable element is set at its left limit
         el.scrollLeft = 0;
     }
 
@@ -41,7 +39,7 @@ async function swipe(target, direction, dragOptions, moveToOptions) {
 }
 
 /**
- * Will simulate a swipe left on the target element.
+ * Simulate a swipe left on the target element.
  *
  * @param {Target} target
  * @param {PointerOptions} [dragOptions]
@@ -53,7 +51,7 @@ export async function swipeLeft(target, dragOptions, moveToOptions) {
 }
 
 /**
- * Will simulate a swipe right on the target element.
+ * Simulate a swipe right on the target element.
  *
  * @param {Target} target
  * @param {PointerOptions} [dragOptions]

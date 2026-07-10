@@ -6,14 +6,9 @@
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
- * Base class for single-record and multi-record selector components.
- *
- * Provides shared infrastructure: nameService setup, lifecycle hooks that
- * trigger display-name loading, and the isAvatarModel heuristic.
- *
- * Subclasses must implement:
- *   - getIds(props)               — IDs to pass to nameService.loadDisplayNames
- *   - applyDisplayNames(props, displayNames) — write loaded names to component state
+ * Base class for single/multi-record selectors: sets up nameService and the
+ * lifecycle hooks that trigger display-name loading. Subclasses must implement
+ * getIds() and applyDisplayNames().
  */
 export class BaseRecordSelector extends Component {
     setup() {
@@ -24,7 +19,6 @@ export class BaseRecordSelector extends Component {
 
     /** @returns {boolean} whether the target model supports avatar images */
     get isAvatarModel() {
-        // bof
         return [
             "res.partner",
             "res.users",

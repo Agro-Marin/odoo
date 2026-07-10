@@ -358,15 +358,9 @@ function expectEventToBeOver(eventSelector, ranges) {
     const eventRects = queryAllRects(eventSelector);
     expect(eventRects.length).toBe(ranges.length);
 
-    // FC v7 renders day-grid events with a small visual margin so two
-    // consecutive events do not touch edge-to-edge. The event's
-    // ``getBoundingClientRect`` therefore extends a few pixels past
-    // the date-cell's nominal X range (measured at ~9px on the start
-    // side and ~5px on the end side in the create-event-in-month-mode
-    // tests). The intent of this assertion is "the event spans
-    // approximately these date cells", not pixel-perfect alignment.
-    // Allow a tolerance that covers v7's rendering offset without
-    // letting an event drift into a neighbouring date.
+    // FC v7 adds a small visual margin between adjacent day-grid events
+    // (~9px start / ~5px end, measured in create-event-in-month-mode tests);
+    // tolerate it rather than asserting pixel-perfect cell alignment.
     const PX_TOLERANCE = 16;
 
     let result = true;
@@ -385,13 +379,9 @@ function expectEventToBeOver(eventSelector, ranges) {
 }
 
 /**
- * FC v7 renders day-grid events with a small visual margin past the
- * nominal day-cell width — measured at ~1.5-4px per multi-day event
- * in headless Chrome. The fork's pre-v7 tests asserted pixel-perfect
- * ``eventWidth <= N * cellWidth``; under v7 those assertions need a
- * small tolerance. 8px covers the observed drift across single-day
- * and multi-day events without letting an event drift into an
- * unrelated date column.
+ * FC v7 renders day-grid events with ~1.5-4px of visual margin past the
+ * nominal cell width (measured in headless Chrome); the fork's pre-v7
+ * pixel-perfect assertions need this tolerance to survive the upgrade.
  */
 const FC_V7_EVENT_MARGIN_PX = 12;
 
@@ -439,7 +429,6 @@ test(`simple calendar rendering on desktop`, async () => {
         `,
     });
 
-    // test events in different scale
     expect(`.o_calendar_renderer .fc-view`).toHaveCount(1);
     expect(`.o_event`).toHaveCount(0, {
         message:
@@ -468,7 +457,6 @@ test(`simple calendar rendering on desktop`, async () => {
             "should display 7 events on the month (6 events + 2 week event - 1 'event 6' is filtered + 1 'Undefined event')",
     });
 
-    // test filters
     expect(`.o_calendar_sidebar .o_calendar_filter`).toHaveCount(2);
     expect(`.o_calendar_filter:eq(1)`).toBeVisible();
     expect(`.o_calendar_filter:eq(1) .o_calendar_filter_item`).toHaveCount(3);
@@ -493,7 +481,6 @@ test(`simple calendar rendering on desktop`, async () => {
     await toggleFilter("attendee_ids", "2");
     expect(`.o_event`).toHaveCount(0);
 
-    // test search bar in filter
     await contains(`.o_calendar_sidebar input[type=text]`).click();
     expect(`.dropdown-item`).toHaveCount(2);
     expect(queryAllTexts`.dropdown-item`).toEqual(["partner 3", "partner 4"]);
@@ -547,7 +534,6 @@ test(`simple calendar rendering on mobile`, async () => {
         `,
     });
 
-    // test events in different scale
     expect(`.o_calendar_renderer .fc-view`).toHaveCount(1);
     expect(`.o_event`).toHaveCount(0, {
         message:
@@ -574,7 +560,6 @@ test(`simple calendar rendering on mobile`, async () => {
             "should display 7 events on the month (6 events + 2 week event - 1 'event 6' is filtered + 1 'Undefined event')",
     });
 
-    // test filters
     await displayCalendarPanel();
     expect(`.o_calendar_sidebar .o_calendar_filter`).toHaveCount(2);
     expect(`.o_calendar_filter:eq(1)`).toBeVisible();
@@ -600,7 +585,6 @@ test(`simple calendar rendering on mobile`, async () => {
     await toggleFilter("attendee_ids", "2");
     expect(`.o_event`).toHaveCount(0);
 
-    // test search bar in filter
     await displayCalendarPanel();
     await contains(`.o_calendar_sidebar input[type=text]`).click();
     expect(`.dropdown-item`).toHaveCount(2);
@@ -805,7 +789,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
     expect(`${section} .o_calendar_filter_item`).toHaveCount(2);
     expect(queryAllTexts`.o_calendar_filter_item`).toEqual(["partner 1", "partner 2"]);
 
-    // Open the autocomplete dropdown
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(0);
     expect(`${section} .o-autocomplete--dropdown-item`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--input`).click();
@@ -824,7 +807,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
         "Search More...",
     ]);
 
-    // Change the search term
     await contains(`.o-autocomplete--input`).edit("foo", { confirm: false });
     await advanceTime(500);
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(1);
@@ -841,7 +823,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
         "Search More...",
     ]);
 
-    // Open the search more dialog
     expect(`.modal`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--dropdown-item:last-child`).click();
     expect(`.modal`).toHaveCount(1);
@@ -861,7 +842,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
     expect(`.modal .o_searchview_facet`).toHaveCount(1);
     expect(`.modal .o_searchview_facet`).toHaveText("Quick search: foo");
 
-    // Choose a record
     await contains(".o_data_row:nth-child(1) .o_list_record_selector").click();
     await contains(".o_data_row:nth-child(2) .o_list_record_selector").click();
     await contains(".o_dialog .o_select_button").click();
@@ -876,7 +856,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
         "partner 2",
     ]);
 
-    // Open the autocomplete dropdown
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(0);
     expect(`${section} .o-autocomplete--dropdown-item`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--input`).click();
@@ -895,7 +874,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
         "Search More...",
     ]);
 
-    // Change the search term
     await contains(`.o-autocomplete--input`).edit("foo", { confirm: false });
     await advanceTime(500);
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(1);
@@ -912,7 +890,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
         "Search More...",
     ]);
 
-    // Open the search more dialog
     expect(`.modal`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--dropdown-item:last-child`).click();
     expect(`.modal`).toHaveCount(1);
@@ -930,7 +907,6 @@ test(`add a filter with the search more dialog on desktop`, async () => {
     expect(`.modal .o_searchview_facet`).toHaveCount(1);
     expect(`.modal .o_searchview_facet`).toHaveText("Quick search: foo");
 
-    // Close the search more dialog without choosing a record
     await contains(`.modal .o_form_button_cancel`).click();
     expect(`.modal`).toHaveCount(0);
     expect(`${section} .o_calendar_filter_item`).toHaveCount(4);
@@ -1022,7 +998,6 @@ test(`add a filter with the search more dialog on mobile`, async () => {
     expect(`${section} .o_calendar_filter_item`).toHaveCount(2);
     expect(queryAllTexts`.o_calendar_filter_item`).toEqual(["partner 1", "partner 2"]);
 
-    // Open the autocomplete dropdown
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(0);
     expect(`${section} .o-autocomplete--dropdown-item`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--input`).click();
@@ -1041,7 +1016,6 @@ test(`add a filter with the search more dialog on mobile`, async () => {
         "Search More...",
     ]);
 
-    // Change the search term
     await contains(`.o-autocomplete--input`).edit("foo", { confirm: false });
     await advanceTime(500);
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(1);
@@ -1058,7 +1032,6 @@ test(`add a filter with the search more dialog on mobile`, async () => {
         "Search More...",
     ]);
 
-    // Open the search more dialog
     expect(`.modal`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--dropdown-item:last-child`).click();
     expect(`.modal`).toHaveCount(1);
@@ -1091,7 +1064,6 @@ test(`add a filter with the search more dialog on mobile`, async () => {
         "partner 2",
     ]);
 
-    // Open the autocomplete dropdown
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(0);
     expect(`${section} .o-autocomplete--dropdown-item`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--input`).click();
@@ -1110,7 +1082,6 @@ test(`add a filter with the search more dialog on mobile`, async () => {
         "Search More...",
     ]);
 
-    // Change the search term
     await contains(`.o-autocomplete--input`).edit("foo", { confirm: false });
     await advanceTime(500);
     expect(`${section} .o-autocomplete--dropdown-menu`).toHaveCount(1);
@@ -1127,7 +1098,6 @@ test(`add a filter with the search more dialog on mobile`, async () => {
         "Search More...",
     ]);
 
-    // Open the search more dialog
     expect(`.modal`).toHaveCount(0);
     await contains(`${section} .o-autocomplete--dropdown-item:last-child`).click();
     expect(`.modal`).toHaveCount(1);
@@ -1182,7 +1152,6 @@ test(`create and change events on desktop`, async () => {
     });
     expect(`.fc-dayGridMonth-view`).toHaveCount(1);
 
-    // click on an existing event to open the formViewDialog
     await clickEvent(4);
     expect(`.o_cw_popover`).toHaveCount(1);
     expect(`.o_cw_popover .o_cw_popover_edit`).toHaveCount(1);
@@ -1196,7 +1165,6 @@ test(`create and change events on desktop`, async () => {
     await contains(`.modal-footer .o_form_button_save`).click();
     expect(`.modal-body`).toHaveCount(0);
 
-    // create a new event, quick create only
     await clickDate("2016-12-13");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1216,7 +1184,6 @@ test(`create and change events on desktop`, async () => {
     // doesn't reliably parse when ``:not()`` contains a combinator.
     expect(`.o_event:contains("new event in quick create")`).toHaveCount(1);
 
-    // create a new event, quick create only (validated by pressing enter key)
     await clickDate("2016-12-13");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1228,7 +1195,6 @@ test(`create and change events on desktop`, async () => {
         "new event in quick create validated by pressing enter key.",
     );
 
-    // create a new event and edit it
     await clickDate("2016-12-27");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1243,7 +1209,6 @@ test(`create and change events on desktop`, async () => {
     await contains(`.modal-footer .o_form_button_save`).click();
     expect(`.o_event[data-event-id="10"]`).toHaveText("coucou");
 
-    // create a new event with 2 days
     await selectDateRange("2016-12-20", "2016-12-21");
     await contains(`.o-calendar-quick-create--input`).edit(
         "new event in quick create 2",
@@ -1268,7 +1233,6 @@ test(`create and change events on desktop`, async () => {
     );
     await closeCwPopOver();
 
-    // delete the a record
     await clickEvent(4);
     await contains(`.o_cw_popover_delete`).click();
     expect(`.modal-title`).toHaveText("Bye-bye, record!");
@@ -1277,7 +1241,6 @@ test(`create and change events on desktop`, async () => {
     expect(`.o_event[data-event-id="4"]`).toHaveCount(0);
     expect(`.o_event`).toHaveCount(10);
 
-    // move to next month
     await navigate("next");
     expect(`.o_event`).toHaveCount(0);
 
@@ -1309,7 +1272,6 @@ test(`create and change events on mobile`, async () => {
     });
     expect(`.fc-dayGridMonth-view`).toHaveCount(1);
 
-    // click on an existing event to open the formViewDialog
     await clickEvent(4);
     const container = ".modal";
     const closeButton = ".oi-arrow-left";
@@ -1325,7 +1287,6 @@ test(`create and change events on mobile`, async () => {
     await contains(`.modal-footer .o_form_button_save`).click();
     expect(`.modal-body`).toHaveCount(0);
 
-    // create a new event, quick create only
     await clickDate("2016-12-13");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1345,7 +1306,6 @@ test(`create and change events on mobile`, async () => {
     // doesn't reliably parse when ``:not()`` contains a combinator.
     expect(`.o_event:contains("new event in quick create")`).toHaveCount(1);
 
-    // create a new event, quick create only (validated by pressing enter key)
     await clickDate("2016-12-13");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1357,7 +1317,6 @@ test(`create and change events on mobile`, async () => {
         "new event in quick create validated by pressing enter key.",
     );
 
-    // create a new event and edit it
     await clickDate("2016-12-27");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1372,7 +1331,6 @@ test(`create and change events on mobile`, async () => {
     await contains(`.modal-footer .o_form_button_save`).click();
     expect(`.o_event[data-event-id="10"]`).toHaveText("coucou");
 
-    // create a new event with 2 days
     await selectDateRange("2016-12-20", "2016-12-21");
     await contains(`.o-calendar-quick-create--input`).edit(
         "new event in quick create 2",
@@ -1399,7 +1357,6 @@ test(`create and change events on mobile`, async () => {
 
     await closeCwPopOver();
 
-    // delete the a record
     await clickEvent(4);
     await contains(`.o_cw_popover_delete`).click();
     expect(`.modal-title`).toHaveText("Bye-bye, record!");
@@ -1408,7 +1365,6 @@ test(`create and change events on mobile`, async () => {
     expect(`.o_event[data-event-id="4"]`).toHaveCount(0);
     expect(`.o_event`).toHaveCount(10);
 
-    // move to next month
     await navigate("next");
 
     expect(`.o_event`).toHaveCount(0);
@@ -1453,7 +1409,6 @@ test(`quickcreate with custom create_name_field`, async () => {
         arch: `<calendar date_start="x_start_date" create_name_field="x_name" mode="month"/>`,
     });
 
-    // create a new event
     await clickDate("2016-12-13");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
@@ -1746,14 +1701,8 @@ test(`render popover with modifiers`, async () => {
 
 test.tags("desktop");
 test(`render popover: inside fullcalendar popover`, async () => {
-    // add 10 all-day records the same day so they render as block events
-    // (one per row) and trigger FC v7's ``dayMaxEventRows`` overflow into
-    // the "+N more" popover. Pre-v7 the fork's timed-event-in-month-view
-    // rendered as block too, but v7 routes timed events through
-    // ``o_event_dot`` styling (multiple dots per row) so 10 timed events
-    // fit in one row and never overflow. All-day events stay as blocks
-    // in both versions, so the test's "+N more" → popover flow keeps
-    // working.
+    // 10 all-day records on the same day render as blocks (one per row) and
+    // trigger FC v7's dayMaxEventRows overflow into the "+N more" popover.
     Event._records = Array.from({ length: 10 }).map((_, i) => ({
         id: i + 1,
         name: `event ${i + 1}`,
@@ -1789,14 +1738,9 @@ test(`render popover: inside fullcalendar popover`, async () => {
         `,
     });
 
-    // v7 keeps hidden overflow events in the DOM (not display:none —
-    // ``.o_event`` matches all 10). The "+6 more" link signals that
-    // only 4 are visible in the cell; FC routes the others to the
-    // popover-content when the user clicks the link. Test the
-    // user-visible state by counting events INSIDE the day-grid view
-    // (not in any popover) only when popover is absent. Simpler: the
-    // ``.fc-more-link``'s text already encodes the visible/hidden
-    // split.
+    // v7 keeps hidden overflow events in the DOM (not display:none), so
+    // ".o_event" matches all 10; the "+6 more" link's text is the simplest
+    // signal of how many are visible vs. routed to the overflow popover.
     expect(`.fc-more-link`).toHaveCount(1);
     expect(`.fc-more-link`).toHaveText("+6 more");
     expect(`.fc-popover`).toHaveCount(0);
@@ -1880,7 +1824,6 @@ test(`create event with timezone in week mode with formViewDialog`, async () => 
     await contains(`.o-calendar-quick-create--edit-btn`).click();
     expect(`.o_field_widget[name='start']`).toHaveText("Dec 13, 8:00 AM");
 
-    // Set is_all_day to true in formViewDialog
     await contains(`.modal .o_field_boolean[name='is_all_day'] input`).click();
     expect(`.o_field_widget[name='start_date']`).toHaveText("Dec 13");
 
@@ -1899,7 +1842,6 @@ test(`create event with timezone in week mode with formViewDialog`, async () => 
     expect.verifySteps(["web_save"]);
     expect(`.o_event[data-event-id="1"] .o_event_title`).toHaveText("new event");
 
-    // Move this event to another day
     await moveEventToTime(1, "2016-12-12 08:00:00");
     expect.verifySteps([
         [
@@ -1912,7 +1854,6 @@ test(`create event with timezone in week mode with formViewDialog`, async () => 
         ],
     ]);
 
-    // Move to "All day"
     await moveEventToAllDaySlot(1, "2016-12-12");
     expect.verifySteps([
         ["write", { is_all_day: true, start: "2016-12-12", stop: "2016-12-12" }],
@@ -1957,7 +1898,6 @@ test(`create event with timezone in week mode American locale`, async () => {
     expect(`.o_event[data-event-id="1"] .o_event_title`).toHaveText("new event");
     expect.verifySteps(["create"]);
 
-    // delete record
     await clickEvent(1);
     await contains(`.o_cw_popover_delete`).click();
     await contains(`.modal button.btn-primary`).click();
@@ -2668,7 +2608,6 @@ test(`readonly date_start field`, async () => {
     await contains(`.o_cw_popover_edit`).click();
     expect.verifySteps(["doAction"]);
 
-    // create a new event and edit it
     await clickDate("2016-12-27");
     await contains(`.o-calendar-quick-create--input`).edit("coucou", {
         confirm: false,
@@ -2721,7 +2660,6 @@ test(`readonly calendar view`, async () => {
     await contains(`.o_cw_popover_edit`).click();
     expect.verifySteps(["doAction"]);
 
-    // create a new event and edit it
     await clickDate("2016-12-27");
     await contains(`.o-calendar-quick-create--input`).edit("coucou", {
         confirm: false,
@@ -3399,12 +3337,10 @@ test(`create event with filters`, async () => {
         `,
     });
 
-    // By default only
     await toggleFilter("attendee_ids", 1);
     await checkFilterItems(4);
     expect(`.o_event`).toHaveCount(4);
 
-    // quick create a record
     await selectTimeRange("2016-12-15 06:00:00", "2016-12-15 08:00:00");
     await contains(`.o-calendar-quick-create--input`).edit("coucou", {
         confirm: false,
@@ -3413,14 +3349,12 @@ test(`create event with filters`, async () => {
     await checkFilterItems(5);
     expect(`.o_event`).toHaveCount(5);
 
-    // change default value for quick create an hide record
     Event._fields.user_id.default = 4;
     Event._fields.partner_id.default = 4;
 
     // Disable our filter to create a record without displaying it
     await toggleFilter("partner_id", 4);
 
-    // quick create and other record
     await selectTimeRange("2016-12-13 06:00:00", "2016-12-13 08:00:00");
     await contains(`.o-calendar-quick-create--input`).edit("coucou 2", {
         confirm: false,
@@ -3471,13 +3405,11 @@ test(`create event with filters (no quickCreate)`, async () => {
         `,
     });
 
-    // dislay all attendee calendars
     await toggleSectionFilter("attendee_ids");
     await toggleFilter("partner_id", 4);
     await checkFilterItems(4);
     expect(`.o_event`).toHaveCount(3);
 
-    // quick create a record
     await selectTimeRange("2016-12-15 06:00:00", "2016-12-15 08:00:00");
     await contains(`.o-calendar-quick-create--input`).edit("coucou", {
         confirm: false,
@@ -3536,7 +3468,6 @@ test(`Update event with filters on desktop`, async () => {
         `,
     });
 
-    // select needed partner filters
     await toggleFilter("attendee_ids", 1);
     await toggleFilter("partner_id", 4);
     expect(`.o_calendar_filter_item`).toHaveCount(4);
@@ -3561,16 +3492,12 @@ test(`Update event with filters on desktop`, async () => {
     expect(`.o_calendar_filter_item input:checked`).toHaveCount(3);
     expect(`.o_calendar_filter_item input:not(:checked)`).toHaveCount(2);
 
-    // Click to select all users
     await toggleSectionFilter("partner_id");
 
-    // should contains 4 events
     expect(`.o_event`).toHaveCount(4);
 
-    // Should have 4 checked boxes
     expect(`.o_calendar_filter_item input:checked`).toHaveCount(4);
 
-    // unselect all user
     await toggleSectionFilter("partner_id");
     expect(`.o_event`).toHaveCount(0);
     expect(`.o_calendar_filter_item input:checked`).toHaveCount(1);
@@ -3608,7 +3535,6 @@ test(`Update event with filters on mobile`, async () => {
             </calendar>
         `,
     });
-    // select needed partner filters
     await toggleFilter("attendee_ids", 1);
     await toggleFilter("partner_id", 4);
     await checkFilterItems(4);
@@ -3632,16 +3558,12 @@ test(`Update event with filters on mobile`, async () => {
     expect(`.o_calendar_filter_item input:not(:checked)`).toHaveCount(2);
     await hideCalendarPanel();
 
-    // Click to select all users
     await toggleSectionFilter("partner_id");
 
-    // should contains 4 events
     expect(`.o_event`).toHaveCount(4);
     await displayCalendarPanel();
-    // Should have 4 checked boxes
     expect(`.o_calendar_filter_item input:checked`).toHaveCount(4);
     await hideCalendarPanel();
-    // unselect all user
     await toggleSectionFilter("partner_id");
     expect(`.o_event`).toHaveCount(0);
     await displayCalendarPanel();
@@ -3696,7 +3618,6 @@ test(`change pager with filters`, async () => {
         `,
     });
 
-    // select filter for partner 1, 2 and 4
     await toggleSectionFilter("attendee_ids");
     await toggleFilter("partner_id", 4);
     await pickDate("2016-12-05");
@@ -3714,11 +3635,9 @@ test(`events starting at midnight on desktop`, async () => {
         arch: `<calendar date_start="start" mode="week"/>`,
     });
 
-    // Click on Tuesday 12am
     await selectTimeRange("2016-12-13 00:00:00", "2016-12-13 00:30:00");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
-    // Creating the event
     await contains(`.o-calendar-quick-create--input`).edit(
         "new event in quick create",
         {
@@ -3739,11 +3658,9 @@ test(`events starting at midnight on mobile`, async () => {
         arch: `<calendar date_start="start" mode="week"/>`,
     });
 
-    // Click on Tuesday 12am
     await selectTimeRange("2016-12-13 00:00:00", "2016-12-13 00:30:00");
     expect(`.o-calendar-quick-create`).toHaveCount(1);
 
-    // Creating the event
     await contains(`.o-calendar-quick-create--input`).edit(
         "new event in quick create",
         {
@@ -4305,8 +4222,8 @@ test(`drag and drop on month mode`, async () => {
 });
 
 test(`drag and drop on month mode with all_day mapping`, async () => {
-    // Same test as before but in calendarEventToRecord (calendar_model.js) there is
-    // different condition branching with all_day mapping or not
+    // Same as above but exercises the all_day-mapping branch in
+    // calendarEventToRecord (calendar_model.js).
 
     await mountView({
         resModel: "event",
@@ -4478,11 +4395,8 @@ test(`form_view_id attribute works (for creating events)`, async () => {
     });
 
     onRpc("create", () =>
-        // we simulate here the case where a create call with just
-        // the field name fails.  This is a normal flow, the server
-        // reject the create rpc (quick create), then the web client
-        // fall back to a form view. This happens typically when a
-        // model has required fields
+        // Simulate a create rpc rejection (e.g. a required field): the web
+        // client should fall back to opening a form view.
         Promise.reject("None shall pass!"),
     );
 
@@ -4546,11 +4460,8 @@ test(`calendar fallback to form view id in action if necessary`, async () => {
     });
 
     onRpc("create", () =>
-        // we simulate here the case where a create call with just
-        // the field name fails.  This is a normal flow, the server
-        // reject the create rpc (quick create), then the web client
-        // fall back to a form view. This happens typically when a
-        // model has required fields
+        // Simulate a create rpc rejection (e.g. a required field): the web
+        // client should fall back to opening a form view.
         Promise.reject("None shall pass!"),
     );
     await mountView({
@@ -4577,12 +4488,9 @@ test(`fullcalendar initializes with right locale`, async () => {
         type: "calendar",
         arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
     });
-    // The intent of this test is to verify the locale (French weekday
-    // abbreviations) is forwarded to FullCalendar.  v7 renders the day
-    // name + number on a single inline row (the previous fork CSS that
-    // stacked them via ``flex-direction: column`` on an inner ``<a>``
-    // no longer applies — v7 dropped the navLink wrapper).  Compare
-    // against the actual v7 textContent shape instead of the v6 one.
+    // Verify the French locale (weekday abbreviations) reaches FullCalendar.
+    // v7 renders day name + number inline (dropped the v6 navLink wrapper
+    // the fork's CSS used to stack them on), so compare against v7's shape.
     expect(queryAllTexts`.fc-col-header-cell`).toEqual([
         "dim. 11",
         "lun. 12",
@@ -4934,8 +4842,6 @@ test(`edit record and attempt to create a record with "create" attribute set to 
         arch: `<calendar event_open_popup="1" create="0" date_start="start" date_stop="stop" mode="month"/>`,
     });
 
-    // editing existing events should still be possible
-    // click on an existing event to open the formViewDialog
     await clickEvent(4);
     const popover = getMockEnv().isSmall ? ".modal" : ".o_cw_popover";
     const closeButton = getMockEnv().isSmall ? ".oi-arrow-left" : ".o_cw_popover_close";
@@ -4952,8 +4858,6 @@ test(`edit record and attempt to create a record with "create" attribute set to 
     expect(`.modal`).toHaveCount(0);
     expect.verifySteps(["save"]);
 
-    // creating an event should not be possible
-    // attempt to create a new event with create set to false
     await clickDate("2016-12-13");
     expect(`.modal`).toHaveCount(0, {
         message:
@@ -4975,7 +4879,6 @@ test(`attempt to create record with "create" and "quick_add" attributes set to f
 });
 
 test(`attempt to create multiples events and the same day and check the ordering on month view`, async () => {
-    // This test aims to verify that the order of the event in month view is coherent with their start date.
     mockDate("2020-03-12 08:00:00");
 
     Event._records = [
@@ -5197,7 +5100,6 @@ test(`toggle filters in year view`, async () => {
         `,
     });
 
-    // activate partner filter
     await toggleFilter("attendee_ids", 1);
     await toggleFilter("attendee_ids", 2);
     expect(`.fc-bg-event[data-event-id="1"]`).toHaveCount(1);
@@ -5358,7 +5260,6 @@ test(`create event in year view`, async () => {
         arch: `<calendar event_open_popup="1" date_start="start" date_stop="stop" all_day="is_all_day" mode="year"/>`,
     });
 
-    // Select the whole month of July
     await selectDateRange("2016-07-01", "2016-07-31");
     await contains(`.o-calendar-quick-create--input[name=title]`).edit("Whole July", {
         confirm: false,
@@ -5373,7 +5274,6 @@ test(`create event in year view`, async () => {
         },
     ]);
 
-    // get all rows for event 8
     expect(`.o_event[data-event-id='8']`).toHaveCount(6);
     expectEventToBeOver(`.o_event[data-event-id='8']`, [
         ["2016-07-01", "2016-07-02"],
@@ -5384,7 +5284,6 @@ test(`create event in year view`, async () => {
         ["2016-07-31", "2016-07-31"],
     ]);
 
-    // Select the whole month of November
     await selectDateRange("2016-11-01", "2016-11-30");
     await contains(`.o-calendar-quick-create--input[name=title]`).edit(
         "Whole November",
@@ -5402,7 +5301,6 @@ test(`create event in year view`, async () => {
         },
     ]);
 
-    // get all rows for event 9
     expect(`.o_event[data-event-id='9']`).toHaveCount(5);
     expectEventToBeOver(`.o_event[data-event-id='9']`, [
         ["2016-11-01", "2016-11-05"],
@@ -5668,11 +5566,9 @@ test(`calendar render properties in popover`, async () => {
 
     await clickEvent(1);
     const popover = getMockEnv().isSmall ? ".modal" : ".o_popover";
-    // Labels:
     expect(queryAllTexts(`${popover} .o_calendar_property_field span.fw-bold`)).toEqual(
         ["My Char", "My Selection"],
     );
-    // Values:
     expect(
         queryAllTexts(`${popover} .o_calendar_property_field div.text-truncate`),
     ).toEqual(["hello", "B"]);
@@ -5945,13 +5841,10 @@ test(`scroll to current hour when clicking on today`, async () => {
     expect(queryOne(".fc-scroller:last").scrollTop).toBe(0);
     mockDate("2016-12-12T20:00:00", 1);
     await contains(".o_calendar_button_today").click();
-    // The mocked instant is 20:00 at the +1h offset → 21:00 local, so the
-    // handler scrolls toward hour 19 (≈ 836px). That target exceeds the
-    // scrollable range of the fixture's timegrid viewport (scrollHeight
-    // 1056 − clientHeight ≈ 584 → max 472), so FC v7 clamps to the maximum,
-    // scrolling as far down as it can while keeping the current hour in
-    // view. Assert the clamped maximum rather than a fixed pixel target,
-    // which would depend on the viewport height.
+    // The mocked instant (20:00 at +1h -> 21:00 local) targets hour 19
+    // (~836px), which exceeds the fixture's scrollable range, so FC v7
+    // clamps to the maximum scroll. Assert the clamped max, not a fixed
+    // pixel target that would depend on viewport height.
     const scroller = queryOne(".fc-scroller:last");
     expect(scroller.scrollTop).toBe(scroller.scrollHeight - scroller.clientHeight);
 });
@@ -6100,15 +5993,12 @@ test("simple calendar rendering in mobile", async () => {
     ).toBeVisible({
         message: "today button should be visible",
     });
-    // Test all views
-    // displays month mode by default
     expect(".o_calendar_container .o_calendar_header .dropdown-toggle").toHaveText(
         "Week",
         {
             message: "should display the current week",
         },
     );
-    // switch to day mode
     await contains(".o_calendar_container .o_calendar_header .dropdown-toggle").click();
     await contains(".o-dropdown--menu .o_scale_button_day").click();
     await animationFrame();
@@ -6118,10 +6008,8 @@ test("simple calendar rendering in mobile", async () => {
             message: "should display the current day",
         },
     );
-    // switch to month mode
     await contains(".o_calendar_container .o_calendar_header .dropdown-toggle").click();
     await contains(".o-dropdown--menu .o_scale_button_month").click();
-    // await nextTick();
     expect(".o_calendar_container .o_calendar_header .dropdown-toggle").toHaveText(
         "Month",
         {
@@ -6129,10 +6017,8 @@ test("simple calendar rendering in mobile", async () => {
         },
     );
 
-    // switch to year mode
     await contains(".o_calendar_container .o_calendar_header .dropdown-toggle").click();
     await contains(".o-dropdown--menu .o_scale_button_year").click();
-    // await nextTick();
     expect(".o_calendar_container .o_calendar_header .dropdown-toggle").toHaveText(
         "Year",
         {
@@ -6211,7 +6097,6 @@ test("calendar: show and change other calendar", async () => {
     expect(".o_calendar_filter").toHaveCount(1);
     expect(".o_calendar_filter[data-name=partner_id]").toHaveCount(1);
 
-    // Toggle the whole section filters by unchecking the all items checkbox
     await hideCalendarPanel();
     await toggleSectionFilter("partner_id");
     await displayCalendarPanel();
@@ -6219,7 +6104,6 @@ test("calendar: show and change other calendar", async () => {
         message: "should contain 0 child nodes -> no filters selected",
     });
 
-    // Toggle again the other calendar panel should hide the sidebar and show the calendar view
     await contains(".o_other_calendar_panel").click();
     expect(".o_calendar_sidebar").toHaveCount(0);
     expect(".o_calendar_renderer").toHaveCount(1);
@@ -6249,7 +6133,6 @@ test('calendar: tap on "Free Zone" opens quick create', async () => {
     // non-interactive background rows, so tap the interactive time-grid column.
     await clickTimeSlot("2016-12-12 08:30:00");
 
-    // should open a Quick create modal view in mobile on short tap
     expect(".modal").toHaveCount(1);
     expect.verifySteps(["dateClick"]);
 });
@@ -6280,7 +6163,6 @@ test('calendar: select range on "Free Zone" opens quick create', async () => {
     // interactive time-grid columns (selectTimeRange targets them).
     await selectTimeRange("2016-12-12 08:00:00", "2016-12-12 09:00:00");
 
-    // should open a Quick create modal view in mobile on short tap
     expect(".modal").toHaveCount(1);
     expect.verifySteps(["select"]);
 });
@@ -6306,13 +6188,11 @@ test("calendar (year): select date range opens quick create", async () => {
     });
     expandCalendarView();
 
-    // Tap on a date
     await selectRange(
         ".fc-daygrid-day[data-date='2016-02-02']",
         ".fc-daygrid-day[data-date='2016-02-05']",
     );
 
-    // should open a Quick create modal view in mobile on short tap
     expect(".modal").toHaveCount(1);
     expect.verifySteps(["select"]);
 });
@@ -6326,37 +6206,31 @@ test("calendar (year): tap on date switch to day scale", async () => {
     });
     expandCalendarView();
 
-    // Should display year view
     expect(".fc-dayGridYear-view").toHaveCount(1);
     expect(".fc-month-container").toHaveCount(12);
 
-    // Tap on a date
     await click(".fc-daygrid-day[data-date='2016-02-05']");
     await animationFrame(); // switch renderer
     await animationFrame(); // await breadcrumb update
     expect(".o_calendar_container .o_calendar_header h5").toHaveText("5 February 2016");
 
-    // Should display day view
     expect(".fc-dayGridYear-view").toHaveCount(0);
     expect(".fc-timeGridDay-view").toHaveCount(1);
     expect(queryFirst(".fc-col-header-cell[data-date]").dataset.date).toBe(
         "2016-02-05",
     );
 
-    // Change scale to month
     await changeScale("month");
     expect(".o_calendar_container .o_calendar_header h5").toHaveCount(1);
     expect(".o_calendar_container .o_calendar_header h5").toHaveText("February 2016");
     expect(".fc-timeGridDay-view").toHaveCount(0);
     expect(".fc-dayGridMonth-view").toHaveCount(1);
 
-    // Tap on a date
     await click(".fc-daygrid-day[data-date='2016-02-10']");
     await animationFrame(); // await reload & render
     await animationFrame(); // await breadcrumb update
     expect(".o_calendar_container .o_calendar_header h5").toHaveText("February 2016");
 
-    // should open a Quick create modal view in mobile on short tap on date in monthly view
     expect(".modal").toHaveCount(1);
 });
 
@@ -6536,7 +6410,6 @@ test(`Hour format mirror event`, async () => {
     await changeScale("week");
 
     await selectTimeRange("2016-12-13 11:00:00", "2016-12-13 16:30:00");
-    // Verify highlighted event
     expect(`.fc-event-mirror`).toHaveText("11:00 - 16:30");
     await contains(`.o-calendar-quick-create--input`).edit("mirror_event", {
         confirm: false,

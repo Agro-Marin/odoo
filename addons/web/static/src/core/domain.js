@@ -43,7 +43,6 @@ export class Domain {
      * @returns {Domain}
      */
     static combine(domains, operator) {
-        // Normalize all inputs to Domain instances and filter out empty ones
         const nonEmpty = domains
             .map((d) => (d instanceof Domain ? d : new Domain(d)))
             .filter((d) => d.ast.value.length);
@@ -318,7 +317,6 @@ export class Domain {
      */
     toJson() {
         try {
-            // Attempt to evaluate the domain without context
             const evaluatedAsList = this.toList({});
             const evaluatedDomain = new Domain(evaluatedAsList);
             if (evaluatedDomain.toString() === this.toString()) {

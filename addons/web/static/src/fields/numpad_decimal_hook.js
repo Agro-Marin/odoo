@@ -30,19 +30,13 @@ function onFocus(/** @type {FocusEvent} */ ev) {
 }
 
 /**
- * This hook replaces the decimal separator of the numpad decimal key
- * by the decimal separator from the user's language setting when user
- * edits an input. The input is found using a t-ref="numpadDecimal"
- * reference in the current component. It can be placed directly on an
- * input or an element containing multiple inputs that require the
- * behavior
+ * Replace the numpad decimal key's separator with the locale's decimal
+ * separator on inputs under a t-ref="numpadDecimal" ref (single input or
+ * a container of several).
  *
- * NOTE: Special consideration for the input type = "number". In this
- * case, whatever the user types, we let the browser's default behavior.
- *
- * NOTE: On IOS devices, the inputmode attribute prevents the user from
- * entering a negative number (the minus sign is not on the virtual keyboard),
- * so we need to remove it.
+ * NOTE: input type="number" is left to the browser's default behavior.
+ * NOTE: on iOS, the inputmode attribute hides the minus sign on the virtual
+ * keyboard, so it is removed to allow negative numbers.
  */
 export function useNumpadDecimal() {
     const ref = useRef("numpadDecimal");

@@ -172,11 +172,9 @@ export class Notebook extends Component {
         const pages = [];
         /** @type {[string, any][]} */
         const pagesWithIndex = [];
-        // Merge slot descriptors (keyed by slot name) with programmatic pages
-        // (given as an array). Programmatic page descriptors are shallow-copied
-        // (with isVisible forced on) rather than mutated, and the two sources
-        // are kept as separate entries so a slot literally named "0" is never
-        // clobbered by the first array-indexed page.
+        // Slot descriptors and programmatic (array) pages are merged as separate
+        // entries, array pages shallow-copied with isVisible forced on, so a slot
+        // literally named "0" is never clobbered by the first array-indexed page.
         const entries = [
             ...Object.entries(props.slots || {}),
             ...(props.pages || []).map(

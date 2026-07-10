@@ -13,10 +13,6 @@ import { Dialog } from "@web/ui/dialog/dialog";
  * @property {() => void} onClose - callback after close
  */
 
-/**
- * Dialog component showing Safari-specific PWA installation instructions.
- * Displays different instructions for iOS (mobile Safari) vs macOS Safari.
- */
 export class InstallPrompt extends Component {
     static props = {
         close: true,

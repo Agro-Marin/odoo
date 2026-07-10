@@ -245,9 +245,8 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
         const { ArchParser } = views.get("form");
         const xmlDoc = parseXML(loadedViews.form.arch);
         formArchInfo = new ArchParser().parse(xmlDoc, relatedModels, comodel);
-        // Fields that need to be defined are the ones in the form view, this is natural,
-        // plus the ones that the list record has, that is, present in either the list arch
-        // or the kanban arch of the one2many field
+        // Fields needed = form view fields + list record fields (present in the
+        // list arch or the kanban arch of the one2many field)
         fields = { ...list.fields, ...formFields }; // FIXME: update in place?
     }
 

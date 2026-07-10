@@ -8,27 +8,20 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 /**
  * @typedef {object} KanbanSortableOptions
  * @property {{ el: HTMLElement | null }} rootRef OWL ref to the kanban root.
- * @property {() => boolean} getCanUseSortable One-time guard
- *   (e.g. ``!env.isSmall``). When false the hook is a no-op and no
- *   sortable listeners are installed. Checked once at setup time —
- *   mirrors the existing renderer behaviour where touch/mobile builds
- *   skip the drag layer entirely.
- * @property {() => boolean} getCanResequenceRecords Per-call gate
- *   from {@link useSortable} for the record-drag instance. Read on
- *   every drag start.
+ * @property {() => boolean} getCanUseSortable One-time guard (e.g.
+ *   ``!env.isSmall``); when false, no sortable listeners are installed.
+ * @property {() => boolean} getCanResequenceRecords Per-call gate from
+ *   {@link useSortable} for the record-drag instance.
  * @property {() => boolean} getCanResequenceGroups Per-call gate for
  *   the group-drag instance.
- * @property {() => boolean} getCanMoveRecords Whether records can
- *   cross column boundaries (false locks a record to its current
- *   group). Forwarded to ``useSortable``'s ``connectGroups``.
+ * @property {() => boolean} getCanMoveRecords Whether records can cross
+ *   column boundaries; forwarded to ``useSortable``'s ``connectGroups``.
  * @property {() => boolean} getIsGrouped Drives ``useSortable``'s
- *   ``groups`` selector — only kanbans with columns get the
- *   ``.o_kanban_group`` group-resolver wired up.
+ *   ``groups`` selector so only grouped kanbans get ``.o_kanban_group``
+ *   wired up.
  * @property {() => { length: number; forEach: (cb: (r: any) => void) => void } | null | undefined}
- *   getSelection Returns the list of currently-selected records so
- *   ``onDragStart`` can clear them (a multi-select drag picks up
- *   only the dragged card, not the entire selection). May return
- *   nullish if the list has no selection cluster.
+ *   getSelection Currently-selected records, cleared on drag start so a
+ *   multi-select drag only moves the dragged card. May be nullish.
  * @property {(params: any) => any} onSortStart
  * @property {(params: any) => any} onSortStop
  * @property {(params: any) => any} onSortRecordGroupEnter
@@ -38,12 +31,9 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
  */
 
 /**
- * Wire the two ``useSortable`` instances that the kanban renderer
- * needs: one for record drag (with optional cross-group connection),
- * one for column reorder.
- *
- * Both instances are skipped entirely when ``getCanUseSortable()``
- * returns false — same fast-path the renderer used before extraction.
+ * Wire the two ``useSortable`` instances the kanban renderer needs: one
+ * for record drag (with optional cross-group connection), one for
+ * column reorder. Both are skipped when ``getCanUseSortable()`` is false.
  *
  * @param {KanbanSortableOptions} options
  */
@@ -66,10 +56,8 @@ export function useKanbanSortable(options) {
         onSortGroupDrop,
     } = options;
 
-    // Drag-resolution context shared by both useSortable instances.
-    // Captured in onDragStart and read by onDrop because useSortable's
-    // params carry the drop target but not the original ``data-id``
-    // of the source — we need both to dispatch the resequence RPC.
+    // Shared by both useSortable instances: onDrop's params carry the drop
+    // target but not the source's original data-id, so we capture it here.
     let dataRecordId;
     let dataGroupId;
 
@@ -86,11 +74,8 @@ export function useKanbanSortable(options) {
             const { element, group } = params;
             dataRecordId = element.dataset.id;
             dataGroupId = group?.dataset.id;
-            // Clear any pre-existing selection so the drag affects only
-            // the dragged card. Multi-select drag was historically a
-            // sharp edge — records would seem to follow the drag but
-            // then drop in unexpected places — so we always reduce to
-            // the single dragged card.
+            // Clear any pre-existing selection so the drag affects only the
+            // dragged card, not the whole multi-select.
             const selection = getSelection();
             if (selection?.length) {
                 selection.forEach((record) => {

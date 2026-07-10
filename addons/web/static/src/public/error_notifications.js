@@ -3,8 +3,6 @@
 
 /** @module @web/public/error_notifications - Registers Odoo exception types as notification-style error handlers instead of dialogs */
 
-// This module makes it so that some errors only display a notification instead of an error dialog
-
 import { odooExceptionTitleMap } from "@web/components/errors/error_dialogs";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";

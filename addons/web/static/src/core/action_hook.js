@@ -14,12 +14,9 @@ const CONTENT_SELECTOR =
     ".o_component_with_search_panel > .o_renderer";
 
 /**
- * Registry that holds owner-keyed callbacks.
- *
- * Used by the action system to collect state (context, orderBy, globalState,
- * localState) from multiple nested components during action switches.
- * Each callback is associated with an owner (typically a component instance)
- * so it can be removed when the owner is destroyed.
+ * Registry of owner-keyed callbacks used by the action system to collect
+ * state (context, orderBy, globalState, localState) from nested components
+ * during action switches; each callback is removable via its owner.
  */
 export class CallbackRecorder {
     constructor() {
@@ -69,11 +66,9 @@ export function useCallbackRecorder(callbackRecorder, callback) {
 }
 
 /**
- * OWL hook that wires a component into the action lifecycle.
- *
- * Registers callbacks for beforeLeave, getGlobalState, getLocalState,
- * getContext, and getOrderBy on the matching env CallbackRecorders.
- * Also handles scroll position save/restore when `rootRef` is provided.
+ * OWL hook that wires a component into the action lifecycle: registers
+ * callbacks on the matching env CallbackRecorders and handles scroll
+ * position save/restore when `rootRef` is provided.
  *
  * @param {Object} [params]
  * @param {Function} [params.beforeVisibilityChange] - called on document visibilitychange

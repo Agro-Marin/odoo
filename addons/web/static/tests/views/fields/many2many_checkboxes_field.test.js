@@ -61,13 +61,11 @@ test("Many2ManyCheckBoxesField", async () => {
 
     expect("div.o_field_widget div.form-check input:disabled").toHaveCount(0);
 
-    // add a m2m value by clicking on input
     await contains("div.o_field_widget div.form-check input:eq(1)").click();
     await runAllTimers();
     await clickSave();
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
 
-    // remove a m2m value by clinking on label
     await contains("div.o_field_widget div.form-check > label").click();
     await runAllTimers();
     await clickSave();
@@ -213,12 +211,9 @@ test("Many2ManyCheckBoxesField: values are updated when domain changes", async (
 });
 
 test("Many2ManyCheckBoxesField with 40+ values", async () => {
-    // 40 is the default limit for x2many fields. However, the many2many_checkboxes is a
-    // special field that fetches its data through the fetchSpecialData mechanism, and it
-    // uses the name_search server-side limit of 100. This test comes with a fix for a bug
-    // that occurred when the user (un)selected a checkbox that wasn't in the 40 first checkboxes,
-    // because the piece of data corresponding to that checkbox hadn't been processed by the
-    // BasicModel, whereas the code handling the change assumed it had.
+    // many2many_checkboxes fetches data via fetchSpecialData (name_search limit of 100),
+    // not the default x2many limit of 40. Regression test: (un)selecting a checkbox beyond
+    // the first 40 used to crash because BasicModel hadn't processed that field yet.
     expect.assertions(3);
 
     const records = [];
@@ -248,7 +243,6 @@ test("Many2ManyCheckBoxesField with 40+ values", async () => {
         90,
     );
 
-    // toggle the last value
     await contains(".o_field_widget[name='timmy'] input[type='checkbox']:last").click();
     await runAllTimers();
 
@@ -259,11 +253,8 @@ test("Many2ManyCheckBoxesField with 40+ values", async () => {
 });
 
 test("Many2ManyCheckBoxesField with 100+ values", async () => {
-    // The many2many_checkboxes widget limits the displayed values to 100 (this is the
-    // server-side name_search limit). This test encodes a scenario where there are more than
-    // 100 records in the co-model, and all values in the many2many relationship aren't
-    // displayed in the widget (due to the limit). If the user (un)selects a checkbox, we don't
-    // want to remove all values that aren't displayed from the relation.
+    // Widget caps displayed values at 100 (name_search limit). With >100 records in the
+    // relation, (un)selecting a checkbox must not drop the values that aren't displayed.
     expect.assertions(5);
 
     const records = [];
@@ -296,7 +287,6 @@ test("Many2ManyCheckBoxesField with 100+ values", async () => {
     expect(".o_field_widget[name='timmy'] input[type='checkbox']").toHaveCount(100);
     expect(".o_field_widget[name='timmy'] input[type='checkbox']").toBeChecked();
 
-    // toggle the first value
     await contains(".o_field_widget[name='timmy'] input[type='checkbox']").click();
     await runAllTimers();
 
@@ -347,7 +337,6 @@ test("Many2ManyCheckBoxesField in a one2many", async () => {
 
     await contains(".o_data_cell").click();
 
-    // edit the timmy field by (un)checking boxes on the widget
     await contains(".modal .form-check-input:eq(0)").click();
     expect(".modal .form-check-input:eq(0)").toBeChecked();
     await contains(".modal .form-check-input:eq(1)").click();
@@ -429,9 +418,7 @@ test("Many2ManyCheckBoxesField batches successive changes", async () => {
 
     await contains("div.o_field_widget div.form-check input:eq(0)").click();
     await contains("div.o_field_widget div.form-check input:eq(1)").click();
-    // checkboxes are updated directly
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
-    // but no onchanges has been fired yet
     expect.verifySteps(["get_views", "web_read", "name_search"]);
     await runAllTimers();
     expect.verifySteps(["onchange"]);
@@ -468,12 +455,9 @@ test("Many2ManyCheckBoxesField sends batched changes on save", async () => {
 
     await contains("div.o_field_widget div.form-check input:eq(0)").click();
     await contains("div.o_field_widget div.form-check input:eq(1)").click();
-    // checkboxes are updated directly
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
-    // but no onchanges has been fired yet
     expect.verifySteps(["get_views", "web_read", "name_search"]);
     await runAllTimers();
-    // save
     await clickSave();
     expect.verifySteps(["onchange", "web_save"]);
 });
@@ -512,13 +496,10 @@ test("Many2ManyCheckBoxesField in a notebook tab", async () => {
 
     await contains("div.o_field_widget div.form-check input:eq(0)").click();
     await contains("div.o_field_widget div.form-check input:eq(1)").click();
-    // checkboxes are updated directly
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
-    // go to the other tab
     await contains(".o_notebook .nav-link:eq(1)").click();
     expect("div.o_field_widget[name=timmy]").toHaveCount(0);
     expect("div.o_field_widget[name=int_field]").toHaveCount(1);
-    // save
     await clickSave();
     expect.verifySteps(["get_views", "web_read", "name_search", "web_save"]);
 });

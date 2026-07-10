@@ -27,14 +27,10 @@ import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 const STICKY_CLASS = "o_mobile_sticky";
 
 /**
- * Build the default embedded infos used when the current action has no
- * embedded actions: template guards (and inheriting templates) can keep reading
- * `state.embeddedInfos.*` without any embedded machinery being set up.
- *
- * A factory (rather than a shared constant): the `embeddedActions` /
- * `visibleEmbeddedActions` arrays must be fresh per control panel — a shared
- * constant's nested arrays are aliased by every `{ ...CONST }` shallow copy, so
- * a single stray push would leak into every other control-panel instance.
+ * Default embedded infos so templates can safely read `state.embeddedInfos.*`
+ * when the action has no embedded actions. A factory, not a shared constant:
+ * shared nested arrays get aliased by every `{ ...CONST }` shallow copy, so a
+ * stray push would leak across control-panel instances.
  *
  * @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}}
  */
@@ -77,10 +73,8 @@ export class ControlPanel extends Component {
         slots: { type: Object, optional: true },
     };
 
-    // Class fields declared with @type so strictNullChecks treats them
-    // as initialized.  Real assignment happens in setup() and lifecycle
-    // hooks; OWL components don't use a constructor, so without these
-    // declarations TS marks every `this.X` access as possibly undefined.
+    // Declared with @type so strictNullChecks treats them as initialized; real
+    // assignment happens in setup()/lifecycle hooks (OWL components have no constructor).
     /** @type {any} */
     actionService;
     /** @type {any} */
@@ -297,9 +291,8 @@ export class ControlPanel extends Component {
     }
 
     /**
-     * Show or hide the control panel on the top screen.
-     * The function is throttled to avoid refreshing the scroll position more
-     * often than necessary.
+     * Show or hide the control panel on the top screen; throttled to avoid
+     * refreshing the scroll position more often than necessary.
      */
     onScrollThrottled() {
         if (this.isScrolling) {
@@ -335,9 +328,8 @@ export class ControlPanel extends Component {
     }
 
     /**
-     * Allow to switch from the current view to another.
-     * Called when a view is clicked in the view switcher
-     * and reset mobile search state on switch view.
+     * Switch from the current view to another, e.g. from the view switcher;
+     * resets mobile search state.
      *
      * @param {import("@web/views/view").ViewType} viewType
      */
@@ -397,9 +389,8 @@ export class ControlPanel extends Component {
             } else if (elStyles.getPropertyValue("display") === "none") {
                 continue;
             } else {
-                // ``elements`` comes from an HTMLCollection so each ``el`` is
-                // typed ``Element`` but at runtime it's always an HTMLElement
-                // (Bootstrap toolbar markup).
+                // ``elements`` is an HTMLCollection typed as ``Element``, but at
+                // runtime it's always an HTMLElement (Bootstrap toolbar markup).
                 boxed.push(/** @type {HTMLElement} */ (el));
             }
         }

@@ -5,7 +5,6 @@
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { highlightText } from "@web/core/utils/dom/html";
-/** Renders text with the current search term highlighted via markup. */
 export class HighlightText extends Component {
     static template = "web.HighlightText";
     static props = {

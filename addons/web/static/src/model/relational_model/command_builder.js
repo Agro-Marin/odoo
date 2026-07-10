@@ -17,9 +17,7 @@ import { x2ManyCommands } from "./commands.js";
 
 const { CREATE, UPDATE, LINK, SET } = x2ManyCommands;
 
-// ---------------------------------------------------------------------------
 // Command serialization
-// ---------------------------------------------------------------------------
 
 /**
  * Serialize pending x2many commands into server-ready ORM command tuples.
@@ -93,9 +91,7 @@ export function serializeCommands(commands, params) {
     return /** @type {[number, string | number, any?][]} */ (result);
 }
 
-// ---------------------------------------------------------------------------
 // Command deduplication / cancellation
-// ---------------------------------------------------------------------------
 
 /**
  * Determine whether a DELETE command should be emitted for a record,

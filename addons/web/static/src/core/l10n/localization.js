@@ -18,12 +18,10 @@
  */
 
 /**
- * This is the main object holding user specific data about the localization. Its basically
- * the JS counterpart of the "res.lang" model.
- * It is useful to directly access those data anywhere, even outside Components.
+ * Main object holding user-specific localization data (JS counterpart of "res.lang").
+ * Useful to access directly anywhere, even outside Components.
  *
- * Important Note: its data are actually loaded by the localization_service,
- * so a code like the following would not work:
+ * Its data are loaded by the localization_service, so the following would not work:
  *   import { localization } from "@web/core/l10n/localization";
  *   const dateFormat = localization.dateFormat; // dateFormat isn't set yet
  * @type {Localization}

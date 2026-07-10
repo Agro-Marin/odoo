@@ -57,13 +57,11 @@ export class GraphRenderer extends Component {
             await loadChartJS();
         });
 
-        // Rebuild the (heavyweight) Chart.js instance only when the inputs that
-        // actually define the chart change. Without a deps array this re-ran on
-        // EVERY render — destroying and recreating the chart (re-parsing config,
-        // replaying entry animations) on unrelated re-renders. GraphModel
-        // reassigns both `data` and `metaData` to new objects on each load/config
-        // change (and lineOverlayDataset is recomputed alongside `data`), so this
-        // captures every real change.
+        // Rebuild the (heavyweight) Chart.js instance only when inputs that define
+        // the chart change; without a deps array this re-ran (re-parsing config,
+        // replaying entry animations) on every render. GraphModel reassigns
+        // `data`/`metaData` (and recomputes lineOverlayDataset alongside `data`) on
+        // every load/config change, so these two deps capture every real change.
         useEffect(
             () => this.renderChart(),
             () => [this.model.data, this.model.metaData],
@@ -78,9 +76,8 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * This function aims to remove a suitable number of lines from the
-     * tooltip in order to make it reasonably visible. A message indicating
-     * the number of lines is added if necessary.
+     * Remove enough tooltip lines to keep it reasonably visible, appending a
+     * "..." indicator if any were removed.
      * @param {HTMLElement} tooltip
      * @param {number} maxTooltipHeight this the max height in pixels of the tooltip
      */
@@ -152,13 +149,9 @@ export class GraphRenderer extends Component {
             Math.floor(window.innerHeight - (viewContentTop + tooltipHeight)) - 2;
         const y = Math.floor(tooltipModel.y);
         if (minTopAllowed <= maxTopAllowed) {
-            // Here we know that the full tooltip can fit in the screen.
-            // We put it in the position where Chart.js would put it
-            // if two conditions are respected:
-            //  1: the tooltip is not cut (because we know it is possible to not cut it)
-            //  2: the tooltip does not hide the legend.
-            // If it is not possible to use the Chart.js proposition (y)
-            // we use the best approximated value.
+            // The tooltip fits on screen: position it where Chart.js proposes (y)
+            // if that keeps it uncut and not hiding the legend; otherwise clamp to
+            // the closest allowed value.
             if (y <= maxTopAllowed) {
                 if (y >= minTopAllowed) {
                     top = y;
@@ -169,9 +162,8 @@ export class GraphRenderer extends Component {
                 top = maxTopAllowed;
             }
         } else {
-            // Here we know that we cannot satisfy condition 1 above,
-            // so we position the tooltip at the minimal position and
-            // cut it the minimum possible.
+            // Cannot avoid cutting the tooltip: position it at the minimum and
+            // trim as little as possible.
             top = minTopAllowed;
             const maxTooltipHeight =
                 window.innerHeight - (viewContentTop + chartAreaTop) - 2;
@@ -384,9 +376,8 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * If the text of a legend item has been shortened and the user mouse
-     * hovers that item (actually the event type is mousemove), a tooltip
-     * with the item full text is displayed.
+     * Show a tooltip with the legend item's full text when its shortened text
+     * is hovered (event type is actually mousemove).
      * @param {Event} ev
      * @param {Object} legendItem
      */
@@ -394,10 +385,8 @@ export class GraphRenderer extends Component {
         ev = /** @type {any} */ (ev).native;
         this.canvasRef.el.style.cursor = "pointer";
         /**
-         * The string legendItem.text is an initial segment of legendItem.fullText.
-         * If the two coincide, no need to generate a tooltip. If a tooltip
-         * for the legend already exists, it is already good and does not
-         * need to be recreated.
+         * legendItem.text is a prefix of legendItem.fullText; skip if they
+         * match (nothing to show) or a tooltip already exists (already correct).
          */
         const { fullText, text } = legendItem;
         if (this.legendTooltip || text === fullText) {
@@ -418,20 +407,13 @@ export class GraphRenderer extends Component {
         this.legendTooltip = legendTooltip;
     }
 
-    /**
-     * If there's a legend tooltip and the user mouse out of the
-     * corresponding legend item, the tooltip is removed.
-     */
+    /** Remove the legend tooltip when the mouse leaves the legend item. */
     onLegendLeave() {
         this.canvasRef.el.style.cursor = "";
         this.removeLegendTooltip();
     }
 
-    /**
-     * Prepares options for the chart according to the current mode
-     * (= chart type). This function returns the parameter options used to
-     * instantiate the chart.
-     */
+    /** Build chart instantiation options for the current mode (chart type). */
     prepareOptions() {
         const { mode, stacked } = this.model.metaData;
         const options = {
@@ -482,9 +464,7 @@ export class GraphRenderer extends Component {
         }
     }
 
-    /**
-     * Removes the legend tooltip (if any).
-     */
+    /** Remove the legend tooltip, if any. */
     removeLegendTooltip() {
         if (this.legendTooltip) {
             this.legendTooltip.remove();
@@ -492,9 +472,7 @@ export class GraphRenderer extends Component {
         }
     }
 
-    /**
-     * Removes all existing tooltips (if any).
-     */
+    /** Remove all existing tooltips, if any. */
     removeTooltips() {
         if (this.tooltip) {
             this.tooltip.remove();
@@ -503,10 +481,7 @@ export class GraphRenderer extends Component {
         this.removeLegendTooltip();
     }
 
-    /**
-     * Instantiates a Chart (Chart.js lib) to render the graph according to
-     * the current config.
-     */
+    /** Instantiate a Chart.js chart from the current config. */
     renderChart() {
         if (this.chart) {
             this.chart.destroy();

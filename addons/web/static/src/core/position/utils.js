@@ -94,7 +94,7 @@ function getIFrame(popperEl, targetEl) {
  *  - Variant "start" and "end" are flipped to "end" and "start".
  *
  * @param {Direction} direction
- * @param {Variant} [variant="middle"] (default value is "middle")
+ * @param {Variant} [variant="middle"]
  * @returns {[Direction, Variant]}
  */
 export function reverseForRTL(direction, variant = "middle") {
@@ -110,23 +110,18 @@ export function reverseForRTL(direction, variant = "middle") {
 }
 
 /**
- * Returns the best positioning solution staying in the container or falls back
- * to the requested position.
- * The positioning data used to determine each possible position is based on
- * the target, popper, and container sizes.
- * Particularly, a popper must not overflow the container in any direction.
- * The popper will stay at `margin` distance from its target. One could also
- * use the CSS margins of the popper element to achieve the same result.
+ * Returns the best positioning solution that keeps the popper inside the
+ * container (falling back to the requested position), based on target/
+ * popper/container sizes, staying `margin` px from the target.
  *
- * Pre-condition: the popper element must have a fixed positioning
- *                with top and left set to 0px.
+ * Pre-condition: the popper element must have fixed positioning with top
+ * and left set to 0px.
  *
  * @param {HTMLElement} popper
  * @param {HTMLElement} target
  * @param {ComputePositionOptions} options
  * @returns {PositioningSolution} the best positioning solution, relative to
- *                                the containing block of the popper.
- *                                => can be applied to popper.style.(top|left)
+ *  the containing block of the popper (applicable to popper.style.(top|left))
  */
 function computePosition(
     popper,
@@ -279,9 +274,9 @@ function computePosition(
         result.top = positioning.top - popBox.top;
         result.left = positioning.left - popBox.left;
         if (d === "c") {
-            // Artificial way to say the center direction is a fallback to every other
-            // once there is a direction overflow since we can always shift the position
-            // in any direction in that case
+            // The center direction is a fallback for every other once there's
+            // a direction overflow, since we can shift the position in any
+            // direction in that case.
             malus = 1.001;
             result.top -= directionOverflow;
         } else if (shrink && malus) {
@@ -330,11 +325,8 @@ function computePosition(
 }
 
 /**
- * Repositions the popper element relatively to the target element (according to options).
- * The positioning strategy is always a fixed positioning with top and left.
- *
- * The positioning solution is returned by the `computePosition` function.
- * It will get applied to the popper element and then returned for convenience.
+ * Repositions the popper element relative to the target (fixed positioning,
+ * top/left), using the solution from `computePosition`.
  *
  * @param {HTMLElement} popper
  * @param {HTMLElement} target

@@ -86,10 +86,8 @@ test("prevents click default with href", async () => {
                 </Dropdown>`;
     }
     await mountWithCleanup(Parent);
-    // The item containing the link class contains an href prop,
-    // which will turn it into <a href=> So it must be defaultPrevented
-    // The other one not contain any href props, it must not be defaultPrevented,
-    // so as not to prevent the background change flow for example
+    // ".link" has an href prop so renders as <a href>, so its click must be
+    // defaultPrevented; ".nolink" has none, so its click must not be.
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     await click(".link");

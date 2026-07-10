@@ -6,10 +6,6 @@
 import { Component, onWillDestroy, xml } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
 
-// -----------------------------------------------------------------------------
-// ActionContainer (Component)
-// -----------------------------------------------------------------------------
-
 /**
  * Thin OWL wrapper that listens for ACTION_MANAGER:UPDATE events on `env.bus`
  * and renders the current action's component inside the `.o_action_manager` div.
@@ -23,16 +19,15 @@ export class ActionContainer extends Component {
           </div>
         </t>`;
 
-    /** Subscribe to ACTION_MANAGER:UPDATE events and re-render on each update. */
     setup() {
         /** @type {Record<string, any>} */
         this.info = {};
         /** @param {CustomEvent} event */
         this.onActionManagerUpdate = ({ detail: info }) => {
             this.info = info;
-            // Note: startViewTransition can't wrap owl's render() directly — it
-            // resolves before the actual DOM patch, so it would snapshot the
-            // pre-update UI (it must await the real patch, e.g. a mount deferred).
+            // startViewTransition can't wrap owl's render() directly — it resolves
+            // before the actual DOM patch, so it would snapshot the pre-update UI
+            // (it must await the real patch, e.g. a mount deferred).
             this.render();
         };
         this.env.bus.addEventListener(

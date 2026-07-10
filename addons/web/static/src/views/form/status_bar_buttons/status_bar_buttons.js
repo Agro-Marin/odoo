@@ -6,7 +6,6 @@
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-/** Renders action buttons inside the form status bar, with overflow dropdown for excess items. */
 export class StatusBarButtons extends Component {
     static template = "web.StatusBarButtons";
     static components = {

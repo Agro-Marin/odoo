@@ -133,16 +133,12 @@ export function makeDraggableHook(hookParams) {
     const paramKeys = Object.keys(allAcceptedParams);
 
     /**
-     * Computes the current param values, in `paramKeys` order.
-     *
-     * The result is used as the dependencies of the param-merge effect, so
-     * it MUST be a flat array of stable values: owl's `useEffect` compares
-     * deps element-wise with `!==`, and returning fresh wrappers (e.g. the
-     * previous `Object.entries(...)` pairs, or `toFunction(enable)` which
-     * allocates a new closure for non-function values) made every dep
-     * differ on every render, re-running the effect for all
-     * useDraggable/useSortable consumers on each patch. Wrapping `enable`
-     * with `toFunction` therefore happens in the effect body, not here.
+     * Computes the current param values, in `paramKeys` order. Must return a
+     * flat array of stable values: owl's `useEffect` compares deps with
+     * `!==`, so a fresh wrapper here (e.g. `toFunction(enable)`) would make
+     * every dep differ each render, re-running the effect for all consumers
+     * on every patch. `enable` is wrapped with `toFunction` in the effect
+     * body instead, not here.
      *
      * @param {Record<string, any>} params
      * @returns {any[]}
@@ -257,7 +253,6 @@ export function makeDraggableHook(hookParams) {
                 updateRects();
                 const { x, y, width, height } = ctx.current.elementRect;
 
-                // Adjusts the offset
                 ctx.current.offset = {
                     x: ctx.current.initialPosition.x - x,
                     y: ctx.current.initialPosition.y - y,
@@ -321,9 +316,8 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Main exit function to stop a drag sequence. Note that it can be called
-             * even if a drag sequence did not start yet to perform a cleanup of all
-             * current context variables.
+             * Main exit function to stop a drag sequence: can be called even if a
+             * drag sequence did not start yet, to clean up current context variables.
              * @param {HTMLElement | null} target
              * @param {boolean} [inErrorState] can be set to true when an error
              *  occurred to avoid falling into an infinite loop if the error
@@ -499,10 +493,9 @@ export function makeDraggableHook(hookParams) {
                     return;
                 }
 
-                // In FireFox: elements with `overflow: hidden` will prevent mouseenter and mouseleave
-                // events from firing on elements underneath them. This is the case when dragging a card
-                // by the heading. In such cases, we can prevent the default
-                // action on the pointerdown event to allow pointer events to fire properly.
+                // Firefox: `overflow: hidden` elements block mouseenter/mouseleave on
+                // elements underneath (e.g. dragging a card by its heading), so prevent
+                // default on pointerdown to let pointer events fire properly.
                 // https://bugzilla.mozilla.org/show_bug.cgi?id=1352061
                 // https://bugzilla.mozilla.org/show_bug.cgi?id=339293
                 safePrevent(ev);
@@ -570,8 +563,7 @@ export function makeDraggableHook(hookParams) {
                             ctx.current.element,
                         );
                         if (px < x || x + width < px || py < y || y + height < py) {
-                            // Pointer left the target
-                            // Note that the timeout is cleared in dragEnd
+                            // Pointer left the target (the timeout is cleared in dragEnd)
                             dragEnd(null);
                         }
                     }, initiationDelay);
@@ -631,7 +623,6 @@ export function makeDraggableHook(hookParams) {
                 const { width: ew, height: eh } = elementRect;
                 const { x: cx, y: cy, width: cw, height: ch } = containerRect;
 
-                // Updates the position of the dragged element.
                 dom.addStyle(element, {
                     left: `${clamp(ctx.pointer.x - offset.x, cx, cx + cw - ew)}px`,
                     top: `${clamp(ctx.pointer.y - offset.y, cy, cy + ch - eh)}px`,
@@ -899,12 +890,10 @@ export function makeDraggableHook(hookParams) {
                         addListener(el, "click", onClick);
                         if (hasTouch()) {
                             addListener(el, "contextmenu", safePrevent);
-                            // Adds a non-passive listener on touchstart: this allows
-                            // the subsequent "touchmove" events to be cancelable
-                            // and thus prevent parasitic "touchcancel" events to
-                            // be fired. Note that we DO NOT want to prevent touchstart
-                            // events since they're responsible of the native swipe
-                            // scrolling.
+                            // Non-passive touchstart listener: allows subsequent
+                            // "touchmove" events to be cancelable, preventing parasitic
+                            // "touchcancel" events. Don't prevent touchstart itself —
+                            // it drives native swipe scrolling.
                             addListener(el, "touchstart", () => {}, {
                                 passive: false,
                                 noAddedStyle: true,
@@ -922,16 +911,9 @@ export function makeDraggableHook(hookParams) {
             const throttledOnPointerMove = setupHooks.throttle(onPointerMove);
             /**
              * Attaches the global drag-following listeners ("pointermove",
-             * "pointerup", "pointercancel" and capture "keydown") for the
-             * duration of a single drag sequence.
-             *
-             * They are bound when a drag sequence is initiated (pointerdown on
-             * a valid draggable element) and removed by the cleanup manager at
-             * drag end/cancel/unmount, so that mounted-but-idle hook instances
-             * do zero work on pointer moves (the throttled handler allocates a
-             * promise and schedules an animation frame on each call).
-             *
-             * A single AbortController detaches all of them at once.
+             * "pointerup", "pointercancel", capture "keydown") for the duration
+             * of a single drag sequence, removed via a single AbortController at
+             * drag end/cancel/unmount so idle hook instances do zero pointer work.
              */
             const attachDragListeners = () => {
                 const controller = new AbortController();

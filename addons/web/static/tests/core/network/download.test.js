@@ -84,8 +84,7 @@ test("handles arbitrary error", async () => {
 
 test("handles success download", async () => {
     allowTranslations();
-    // This test relies on a implementation detail of the lowest layer of download
-    // That is, a link will be created with the download attribute
+    // Relies on an implementation detail: download creates a link with the download attribute.
 
     mockFetch((_, { body }) => {
         expect(body).toBeInstanceOf(FormData);
@@ -99,7 +98,6 @@ test("handles success download", async () => {
 
     const deferred = new Deferred();
 
-    // This part asserts the implementation detail in question
     const downloadOnClick = (ev) => {
         const target = ev.target;
         if (target.tagName === "A" && "download" in target.attributes) {

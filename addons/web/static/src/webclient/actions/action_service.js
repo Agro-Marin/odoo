@@ -46,10 +46,9 @@ import { SkeletonView } from "./skeleton_view.js";
 const actionHandlersRegistry = registry.category("action_handlers");
 const actionRegistry = registry.category("actions");
 
-// Client actions are either an OWL Component class (rendered in the controller
-// stack — see _executeClientAction's `prototype instanceof Component` branch)
-// or a plain function (executed for side-effects, may return an action
-// descriptor to chain). Both are `typeof === "function"`.
+// Client actions are either an OWL Component (rendered in the controller
+// stack) or a plain function run for side-effects that may return an action
+// descriptor to chain. Both are `typeof === "function"`.
 actionRegistry.addValidation((entry) => typeof entry === "function");
 
 // Server-action handlers keyed by `action.type` (e.g.
@@ -97,12 +96,9 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {number} [_actionDepth] internal — guards against runaway action chaining (see _executeAction)
  */
 
-// ``clearUncommittedChanges`` moved to ``action_clear_changes.js`` so
-// sibling action-layer modules can import it without creating a circular
-// dependency on this module.  Re-exported here to preserve the historical
-// import path for any external consumers
-// (``static/tests/webclient/actions/window_action.test.js`` is the
-// known one).
+// ``clearUncommittedChanges`` moved to ``action_clear_changes.js`` to avoid
+// a circular import; re-exported here to preserve the historical import
+// path for external consumers (known: window_action.test.js).
 export { clearUncommittedChanges };
 
 // -----------------------------------------------------------------------------
@@ -119,19 +115,12 @@ export { ControllerNotFoundError, standardActionServiceProps };
 
 /**
  * Action manager — routes ``doAction`` / button clicks / URL state changes
- * to the appropriate action executor (act_window, act_url, client, server,
- * report, close), maintains the breadcrumb controller stack, manages the
- * dialog overlay, and synchronizes URL state.
+ * to the appropriate action executor, maintains the breadcrumb controller
+ * stack, manages the dialog overlay, and synchronizes URL state.
  *
- * Lifted from a closure-based factory to a class in 2026-05; the public
- * surface returned by ``makeActionManager`` is unchanged because the class
- * instance exposes every method the historical return object did
- * (``doAction``, ``doActionButton``, ``switchView``, ``restore``,
- * ``loadState``, ``loadAction``, and the ``currentController`` /
- * ``currentAction`` getters).  External consumers
- * (``enterprise/web_studio/.../editor.js``) still call
- * ``makeActionManager(env, router)`` and receive an object with the same
- * method shape.
+ * Lifted from a closure-based factory to a class in 2026-05; kept API-
+ * compatible because external consumers (``enterprise/web_studio/.../editor.js``)
+ * still call ``makeActionManager(env, router)`` expecting the same method shape.
  */
 export class ActionManager {
     /**
@@ -168,15 +157,12 @@ export class ActionManager {
         // ``load_state``, ``action_button_executor``, ``controller_component``,
         // ``reports/report_executor``, ``action_loader``,
         // ``action_info_builders``) take the ActionManager instance directly
-        // as their last parameter — no curated ctx object is built here.
-        // Each module reads ``am.env`` / ``am.keepLast`` /
-        // ``am._makeController`` / etc. on demand, exactly mirroring the
+        // as their last parameter — no curated ctx object — mirroring the
         // closure-let semantics the pre-class factory provided.
         //
         // ``clearUncommittedChanges`` lives in ``action_clear_changes.js``
-        // (not on the class) so the executor modules that need it can
-        // import it directly without creating a circular dependency on
-        // this module.
+        // (not on the class) so executor modules can import it without a
+        // circular dependency on this module.
 
         /** @type {Record<string, (action: Object, options: ActionOptions) => Promise>} */
         this._actionExecutors = {
@@ -188,13 +174,11 @@ export class ActionManager {
             "ir.actions.report": (a, o) => this._executeReportAction(a, o),
         };
 
-        // Body lives in ``controller_component.js``.  Called exactly once
-        // per ActionManager lifetime so the returned class identity stays
-        // stable across renders — OWL's reconciler patches the existing
-        // instance instead of remounting.  This is the only sibling
-        // module that *writes* this manager's state (committing the new
-        // stack on mount, swapping ``dialog`` to ``nextDialog`` when
-        // ``target === "new"``); every other module only reads.
+        // Called once per ActionManager lifetime so the returned class
+        // identity stays stable across renders (OWL's reconciler patches
+        // instead of remounting). The only sibling module that *writes*
+        // this manager's state (committing the stack on mount, swapping
+        // ``dialog``↔``nextDialog``); every other module only reads.
         this.ControllerComponent = makeControllerComponent(this);
     }
 
@@ -209,21 +193,14 @@ export class ActionManager {
     /**
      * Removes the current dialog from the action service's state.
      *
-     * Lifecycle invariant: the manager's dialog slot is cleared *before* the
-     * user-provided ``onClose`` callback runs. The callback may itself
-     * dispatch actions (e.g. an inline follow-up whose ``_dispatchInline``
-     * calls ``dialog.closeAll()``, re-entering this method through the dialog
-     * service's ``onRemove``); those re-entrant calls must find
-     * ``this.dialog`` already null so ``onClose`` fires exactly once.
+     * Invariant: ``this.dialog`` is cleared *before* the user-provided
+     * ``onClose`` runs, so re-entrant calls (e.g. an inline follow-up's
+     * ``dialog.closeAll()``) find it already null and ``onClose`` fires once.
      *
-     * The dialog is removed from the dialog service (DOM) *after* ``onClose``
-     * resolves, so a button-action ``onClose`` that reloads the underlying
-     * view (view_button_hook) keeps the dialog visible until the reload
-     * completes — matching the cancel path (``dialogData.close()``, which
-     * awaits its onClose before removing) and the "wait the view reload
-     * before closing the dialog" regression tests. Re-entrant ``closeAll``
-     * during ``onClose`` is a no-op (``this.dialog`` is null), so the single
-     * removal below is authoritative.
+     * DOM removal happens *after* ``onClose`` resolves, so a button-action
+     * ``onClose`` that reloads the view keeps the dialog visible until the
+     * reload completes — matching the cancel path and the "wait for view
+     * reload before closing" regression tests.
      *
      * @return {Promise<void>}
      */
@@ -279,11 +256,9 @@ export class ActionManager {
     }
 
     /**
-     * Allocate the next monotonic id for ``controller_<n>`` / ``action_<n>``
-     * stamps and ``ACTION_MANAGER:UPDATE`` event ids.  Encapsulates the
-     * ``++this._id`` increment so sibling modules
-     * (``action_loader``, ``controller_component``) don't have to reach
-     * directly into the private slot.
+     * Allocate the next monotonic id (feeds controller_<n>/action_<n> stamps
+     * and ACTION_MANAGER:UPDATE ids). Encapsulates ``++this._id`` so sibling
+     * modules don't reach into the private slot directly.
      *
      * @returns {number} the post-increment value
      */
@@ -305,10 +280,9 @@ export class ActionManager {
 
     /**
      * Internal — called by sibling ``action_executors/*`` and
-     * ``action_info_builders.js`` modules that receive the ActionManager
-     * instance as ``this``. The underscore prefix marks the boundary
-     * socially; the ``@private`` JSDoc was incorrect (TS reads it as
-     * strict class-private, blocking sibling-module access).
+     * ``action_info_builders.js`` with the ActionManager instance as
+     * ``this``. No ``@private`` tag: TS reads it as strict class-private
+     * and would block sibling-module access.
      * @param {string} viewType
      * @throws {Error} if the current controller is not a view
      * @returns {any}
@@ -394,28 +368,23 @@ export class ActionManager {
     /**
      * Triggers a re-rendering with respect to the given controller.
      *
-     * Thin orchestrator: builds the shared ``controllerContext`` (which
-     * carries the outer Promise's ``resolve`` / ``reject`` to the
-     * eventual ``ControllerComponent`` mount), early-exits for the
-     * ``newWindow`` case, wires the controller's reactive config via
-     * {@link _prepareControllerConfig}, then dispatches to one of two
-     * paths:
+     * Thin orchestrator: builds the shared ``controllerContext`` (carries
+     * the outer Promise's ``resolve``/``reject`` to the eventual
+     * ``ControllerComponent`` mount), early-exits for ``newWindow``, wires
+     * the controller's reactive config via {@link _prepareControllerConfig},
+     * then dispatches to:
      *
      *  - {@link _dispatchTargetNew} for ``action.target === "new"``
      *    (renders the controller inside an ActionDialog).
-     *  - {@link _dispatchInline} for the default case (drives
-     *    ACTION_MANAGER:UPDATE on the bus so the action_container
-     *    swaps in the new controller).
+     *  - {@link _dispatchInline} otherwise (drives ACTION_MANAGER:UPDATE
+     *    so the action_container swaps in the new controller).
      *
-     * The split was 156-line → 4 methods of ~30/30/35/65 lines. The
-     * historical "DAM Remarks" TODO block on globalState handling
-     * survives in ``_dispatchInline`` where it semantically belongs.
+     * The historical "DAM Remarks" TODO on globalState handling survives
+     * in ``_dispatchInline`` where it semantically belongs.
      *
      * Internal — called by sibling ``action_executors/*`` and
-     * ``reports/report_executor.js`` modules that receive the
-     * ActionManager instance as ``this``. ``@private`` removed
-     * because TS reads it as strict class-private, blocking
-     * sibling-module access.
+     * ``reports/report_executor.js`` with the ActionManager instance as
+     * ``this``. No ``@private`` tag: TS reads it as strict class-private.
      *
      * @param {Controller} controller
      * @param {Object} [options]
@@ -872,7 +841,7 @@ export class ActionManager {
             const { action, exportedState, view, views } = controller;
             const props = { ...controller.props };
             if (exportedState && "resId" in exportedState) {
-                // When restoring, we want to use the last exported ID of the controller
+                // Use the last exported ID of the controller when restoring
                 props.resId = exportedState.resId;
             }
             Object.assign(controller, this._getViewInfo(view, action, views, props));

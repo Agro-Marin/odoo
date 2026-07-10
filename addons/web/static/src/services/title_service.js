@@ -11,7 +11,6 @@
  * @property {(parts: Record<string, string | null>) => void} setParts - set title segments
  */
 
-/** Service that manages the document title with named parts and notification counters. */
 import { registry } from "@web/core/registry";
 export const titleService = {
     /** @returns {TitleServiceAPI} */

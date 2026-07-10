@@ -30,17 +30,10 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
 /**
  * Pivot Model
  *
- * The pivot model keeps an in-memory representation of the pivot table that is
- * displayed on the screen.  The exact layout of this representation is not so
- * simple, because a pivot table is at its core a 2-dimensional object, but
- * with a 'list' component: some rows/cols can be expanded so we zoom into the
- * structure.
- *
- * However, we need to be able to manipulate the data in a somewhat efficient
- * way, and to transform it into a list of lines to be displayed by the renderer.
- *
- * Basicaly the pivot table presents aggregated values for various groups of records
- * in one domain.
+ * The pivot model keeps an in-memory representation of the pivot table shown on
+ * screen. A pivot table is at its core a 2-dimensional object with a 'list'
+ * component: rows/cols can be expanded to zoom into the structure. It presents
+ * aggregated values for various groups of records in one domain.
  *
  * Let us consider a simple example and let us fix the vocabulary:
  * __________________________________________________________________________

@@ -6,7 +6,6 @@
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-/** Dropdown selector for choosing which numeric measures to display in pivot/graph report views. */
 export class ReportViewMeasures extends Component {
     static template = "web.ReportViewMeasures";
     static components = {

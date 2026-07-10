@@ -284,9 +284,8 @@ test("items are focused only on mousemove, not on mouseenter", async () => {
 });
 
 test("non-navigable dom update does NOT cause re-focus", async () => {
-    // An issue could be cause when for example the ALT key is pressed
-    // to show the hotkeys, which would cause a DOM update and a refocus
-    // of one of the navigable item.
+    // Guards against a DOM update (e.g. ALT key showing hotkeys) causing an
+    // unwanted refocus of a navigable item.
 
     class Parent extends Component {
         static props = [];

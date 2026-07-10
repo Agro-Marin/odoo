@@ -10,10 +10,8 @@ import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 /**
- * Hook encapsulating selection/checkbox logic and touch-triggered selection for the list view.
- *
- * Manages shift-key range selection, long-touch selection on mobile, and click-capture
- * behavior in selection mode.
+ * Hook for list-view selection: shift-key range selection, long-touch
+ * selection on mobile, and click-capture behavior in selection mode.
  *
  * @param {object} options
  * @param {() => import("./list_renderer").ListRendererProps} options.getProps

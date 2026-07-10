@@ -3,14 +3,6 @@
 
 /** @module @web/webclient/actions/breadcrumb_manager - Breadcrumb building, display-name loading, and virtual controller reconstruction for the action service */
 
-/**
- * Breadcrumb management functions for the action service.
- *
- * Handles building breadcrumb items from the controller stack, loading
- * display names for breadcrumb entries, and reconstructing virtual
- * controllers from router state.
- */
-
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -49,10 +41,8 @@ export function buildBreadcrumbs(stack, am) {
 }
 
 /**
- * Load breadcrumbs for an array of controllers. Adds display names to
- * controllers that the current user has access to and for which the view
- * (and record) exist. Controllers that correspond to a deleted record or
- * a record/view that the user can't access are removed.
+ * Load breadcrumbs for controllers with view/record access, adding display
+ * names; controllers for deleted/inaccessible records are removed.
  *
  * @param {Object[]} controllers controllers whose breadcrumbs should be loaded
  * @param {Object} breadcrumbCache mutable cache object (shared by reference)
@@ -87,10 +77,9 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
             const key = JSON.stringify(info);
             breadcrumbCache[key] = req.then(
                 (res) => {
-                    // Only cache a successful resolution. A per-action ``{error}``
-                    // result (e.g. transient ACL race) must NOT be cached, or the
-                    // controller is dropped from the breadcrumb/URL for the rest
-                    // of the session; evict so a later view re-fetches it.
+                    // Only cache a successful resolution: caching a per-action
+                    // {error} (e.g. transient ACL race) would drop the controller
+                    // for the rest of the session, so evict it instead.
                     if (res[i] && "display_name" in res[i]) {
                         breadcrumbCache[key] = res[i];
                     } else {
@@ -209,12 +198,9 @@ export async function controllersFromState(state, am) {
         state.resId &&
         controllers.at(-1)?.action?.id === state.action
     ) {
-        // When loading the state on a form view, we will need to load the action for it,
-        // and this will give us the display name of the corresponding multi-record view in
-        // the breadcrumb.
-        // By marking the last controller as a lazyController, we can in some cases avoid
-        // loadBreadcrumbs from doing any network request as the breadcrumbs may only contain
-        // the form view and the multi-record view.
+        // Loading state on a form view needs the action loaded too, to get the
+        // multi-record view's display name for the breadcrumb. Marking the last
+        // controller lazy lets loadBreadcrumbs sometimes skip that network call.
         const bcControllers = await loadBreadcrumbs(
             controllers.slice(0, -1),
             am.breadcrumbCache,

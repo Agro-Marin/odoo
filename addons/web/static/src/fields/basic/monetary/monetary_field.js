@@ -92,11 +92,10 @@ export class MonetaryField extends NumericInputFieldBase {
     /** @returns {string|number} */
     get formattedValue() {
         if (this.props.inputType === "number" && !this.props.readonly) {
-            // A `<input type="number">` cannot hold a locale-formatted string
-            // (e.g. "0,00" in a comma-decimal locale makes the browser blank
-            // the field), so emit the raw number. `false` (unset) becomes ""
-            // while `0` is preserved rather than falling through to
-            // formatMonetary (same fix as FloatField.formattedValue).
+            // A `<input type="number">` can't hold a locale-formatted string (e.g.
+            // "0,00" blanks the field in comma-decimal locales), so emit the raw
+            // number: `false` (unset) becomes "", `0` is preserved (same fix as
+            // FloatField.formattedValue).
             return this.value === false ? "" : this.value;
         }
         return formatMonetary(this.value, {

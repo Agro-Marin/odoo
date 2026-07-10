@@ -31,15 +31,9 @@ function camelToPascal(name) {
 }
 
 /**
- * This function spawns a 2-level process to create field definitions: it's a function
- * returning a function returning a field descriptor.
- *
- * - this function ("generator") is called at the end of this file with pre-defined
- * parameters to configure the "constructor" functions, i.e. the ones that will
- * be called in the tests model definitions;
- *
- * - those "constructor" functions will then be called in model definitions and will
- * return the actual field descriptors.
+ * Two-level factory: this "generator" is called once per field type below to
+ * produce a "constructor" function; that constructor is what test model
+ * definitions call to build the actual field descriptor.
  *
  * @template {FieldType} T
  * @template [R=never]
@@ -66,7 +60,6 @@ function makeFieldGenerator(type, { aggregator, requiredKeys = [] } = {}) {
          * @param {Partial<FieldDefinitionsByType[T] & MockFieldProperties>} [properties]
          */
         [constructorFnName](properties) {
-            // Creates a pre-version of the field definition
             const field = {
                 ...defaultDef,
                 ...properties,

@@ -67,8 +67,7 @@ export class CheckBox extends Component {
         this.id = `checkbox-comp-${CheckBox.nextId++}`;
         this.rootRef = useRef("root");
 
-        // Make it toggleable through the Enter hotkey
-        // when the focus is inside the root element
+        // Toggle via Enter when focus is inside the root element.
         useHotkey(
             "Enter",
             ({ area }) => {

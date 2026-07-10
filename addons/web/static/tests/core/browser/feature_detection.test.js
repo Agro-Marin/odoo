@@ -21,9 +21,7 @@ import {
 
 describe.current.tags("headless");
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const UA_CHROME_MAC =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -57,10 +55,6 @@ function patchUA(ua, extra = {}) {
     });
 }
 
-// ---------------------------------------------------------------------------
-// Chrome
-// ---------------------------------------------------------------------------
-
 describe("isBrowserChrome", () => {
     test("detects Chrome on Mac", () => {
         patchUA(UA_CHROME_MAC);
@@ -83,10 +77,6 @@ describe("isBrowserChrome", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Firefox
-// ---------------------------------------------------------------------------
-
 describe("isBrowserFirefox", () => {
     test("detects Firefox", () => {
         patchUA(UA_FIREFOX_LINUX);
@@ -99,10 +89,6 @@ describe("isBrowserFirefox", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Edge
-// ---------------------------------------------------------------------------
-
 describe("isBrowserMicrosoftEdge", () => {
     test("detects Edge", () => {
         patchUA(UA_EDGE_WINDOWS);
@@ -114,10 +100,6 @@ describe("isBrowserMicrosoftEdge", () => {
         expect(isBrowserMicrosoftEdge()).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Safari
-// ---------------------------------------------------------------------------
 
 describe("isBrowserSafari", () => {
     test("detects Safari (not Chrome-based)", () => {
@@ -136,10 +118,6 @@ describe("isBrowserSafari", () => {
         expect(isBrowserSafari()).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// macOS
-// ---------------------------------------------------------------------------
 
 describe("isMacOS", () => {
     test("detects macOS from Chrome UA", () => {
@@ -163,10 +141,6 @@ describe("isMacOS", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Android
-// ---------------------------------------------------------------------------
-
 describe("isAndroid", () => {
     test("detects Android", () => {
         patchUA(UA_ANDROID_CHROME);
@@ -178,10 +152,6 @@ describe("isAndroid", () => {
         expect(isAndroid()).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// iOS
-// ---------------------------------------------------------------------------
 
 describe("isIOS", () => {
     test("detects iPhone", () => {
@@ -205,10 +175,6 @@ describe("isIOS", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Mobile OS
-// ---------------------------------------------------------------------------
-
 describe("isMobileOS", () => {
     test("detects Android as mobile", () => {
         patchUA(UA_ANDROID_CHROME);
@@ -231,10 +197,6 @@ describe("isMobileOS", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Other mobile OS
-// ---------------------------------------------------------------------------
-
 describe("isOtherMobileOS", () => {
     test("detects BlackBerry", () => {
         patchUA(UA_BLACKBERRY);
@@ -247,9 +209,7 @@ describe("isOtherMobileOS", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Odoo mobile apps
-// ---------------------------------------------------------------------------
 
 describe("isIosApp", () => {
     test("detects Odoo iOS app", () => {
@@ -275,9 +235,7 @@ describe("isAndroidApp", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Cache invalidation — critical for test isolation
-// ---------------------------------------------------------------------------
 
 describe("UA cache", () => {
     test("returns updated result when UA changes between calls", () => {
@@ -303,9 +261,7 @@ describe("UA cache", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Touch / non-UA features (not cached — left as-is)
-// ---------------------------------------------------------------------------
 
 describe("hasTouch", () => {
     test("detects touch via ontouchstart", () => {

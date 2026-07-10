@@ -273,9 +273,8 @@ export class SearchModel extends EventBus {
         // prepare search panel sections
 
         /** @type Map<number,Section> */
-        // ``sections`` from the parser is a flat array of section descriptors;
-        // ``SearchArchParser.parse`` returns them in an entries-compatible
-        // shape but the typedef hasn't tracked that. Cast at the boundary.
+        // sections from the parser is an entries-compatible array; the typedef
+        // hasn't tracked that, so cast at the boundary.
         this.sections = new Map(/** @type {[number, Section][]} */ (sections || []));
         this.display = this._getDisplay(config.display);
 
@@ -515,11 +514,9 @@ export class SearchModel extends EventBus {
      * @returns {Object[]}
      */
     getSearchItems(predicate) {
-        // Memoised like _groups/_facets: enriching every search item (query
-        // lookups, period options, invisible evaluation) rebuilds the same
-        // data within a query cycle and SearchBarMenu reads this several
-        // times per render. Cleared in _reset() and whenever search items
-        // are created outside a query cycle.
+        // Memoised like _groups/_facets: enriching every item is costly and
+        // SearchBarMenu reads this several times per render. Cleared in
+        // _reset() and whenever items are created outside a query cycle.
         if (!this._enrichedSearchItems) {
             const domainEvalContext = this.domainEvalContext;
             const enrichedSearchItems = [];
@@ -707,10 +704,9 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Returns null or a copy of the provided filter with additional information
-     * used only outside of the control panel model, like in search bar or in the
-     * various menus. The value null is returned if the filter should not appear
-     * for some reason.
+     * Return null, or a copy of the filter enriched with info used only
+     * outside the control panel model (search bar, menus). Null means the
+     * filter should not appear.
      */
     _enrichItem(searchItem) {
         return enrichSearchItem(
@@ -746,9 +742,8 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Computes and returns the domain based on the current active
-     * categories. If "excludedCategoryId" is provided, the category with
-     * that id is not taken into account in the domain computation.
+     * Domain based on the current active categories; excludedCategoryId, if
+     * given, is left out of the computation.
      * @param {number} [excludedCategoryId]
      * @returns {Array[]}
      */
@@ -785,11 +780,9 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Returns which components are displayed in the current action. Components
-     * are opt-out, meaning that they will be displayed as long as a falsy
-     * value is not provided. With the search panel, the view type must also
-     * match the given (or default) search panel view types if the search model
-     * is instanciated in a view (this doesn't apply for any other action type).
+     * Which components are displayed in the current action. Components are
+     * opt-out (shown unless a falsy value is given); the search panel must
+     * also match the view type when instantiated in a view.
      * @private
      * @param {Object} [display={}]
      * @returns {{ controlPanel: Object | false, searchPanel: boolean }}
@@ -857,16 +850,9 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Computes and returns the domain based on the current checked
-     * filters. The values of a single filter are combined using a simple
-     * rule: checked values within a same group are combined with an "OR"
-     * operator (this is expressed as single condition using a list) and
-     * groups are combined with an "AND" operator (expressed by
-     * concatenation of conditions).
-     * If a filter has no group, its checked values are implicitely
-     * considered as forming a group (and grouped using an "OR").
-     * If excludedFilterId is provided, the filter with that id is not
-     * taken into account in the domain computation.
+     * Domain from currently checked filters: values within a group are
+     * OR'd, groups are AND'd (an ungrouped filter's values form an implicit
+     * group). excludedFilterId, if given, is left out of the computation.
      * @param {number} [excludedFilterId]
      * @returns {Array[]}
      */
@@ -875,13 +861,9 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Return the concatenation of groupBys comming from the active filters of
-     * type 'favorite' and 'groupBy'.
-     * The result respects the appropriate logic: the groupBys
-     * coming from an active favorite (if any) come first, then come the
-     * groupBys comming from the active filters of type 'groupBy' in the order
-     * defined in this.query. If no groupBys are found, one tries to
-     * find some groupBys in this.globalGroupBy or this.defaultGroupBy.
+     * Concatenation of groupBys from active 'favorite' and 'groupBy' filters:
+     * favorite's groupBys first, then 'groupBy' filters in query order.
+     * Falls back to globalGroupBy / defaultGroupBy if none are found.
      * @param {Object} [options={}]
      * @param {boolean} [options.fallbackOnDefault=true]
      * @returns {string[]}
@@ -900,12 +882,8 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Returns a domain or an object of domains used to complement
-     * the filter domains to accurately describe the constrains on
-     * records when computing record counts associated to the filter
-     * values (if a groupBy is provided). The idea is that the checked
-     * values within a group should not impact the counts for the other
-     * values in the same group.
+     * Domain(s) that complement the filter domain so record counts per
+     * filter value aren't skewed by other checked values in the same group.
      * @param {Filter} filter
      * @returns {Object<string, Array[]> | Array[] | null}
      */
@@ -918,11 +896,9 @@ export class SearchModel extends EventBus {
      * @returns {Object[]}
      */
     _getGroups() {
-        // Memoised within a query cycle: this is rebuilt up to 5x per _notify
-        // (_getContext/_getDomain/_getFacets/_getGroupBy/_getOrderBy) from the
-        // same query/searchItems state, and getQueryGroups is O(query x groups).
-        // Cleared in _reset() -- same lifetime as the other derived memos -- and
-        // every consumer treats the returned groups as read-only.
+        // Memoised within a query cycle: rebuilt up to 5x per _notify from the
+        // same state, and getQueryGroups is O(query x groups). Cleared in
+        // _reset(); consumers treat the result as read-only.
         if (!this._groups) {
             this._groups = getQueryGroups(this.query, this.searchItems);
         }

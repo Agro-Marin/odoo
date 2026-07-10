@@ -4,13 +4,9 @@
 /** @module @web/views/list/list_grid_state - Pure state object materializing flat row arrays for index-based list view grid navigation */
 
 /**
- * Pure JS state object for list view grid navigation.
- *
- * Materializes a flat array of rows (groups + records interleaved) and provides
- * index-based navigation — replacing DOM-walking for arrow key movement.
- * Zero OWL/framework dependency; testable without a browser.
- *
- * Inspired by AG Grid's CellCtrl/RowCtrl separation pattern.
+ * Materializes a flat array of rows (groups + records interleaved), replacing
+ * DOM-walking for arrow-key navigation. Zero framework dependency; testable
+ * without a browser. Inspired by AG Grid's CellCtrl/RowCtrl separation.
  */
 
 /**

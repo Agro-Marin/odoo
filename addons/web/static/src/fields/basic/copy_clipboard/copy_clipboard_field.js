@@ -85,8 +85,6 @@ export class CopyClipboardURLField extends CopyClipboardField {
     }
 }
 
-// ----------------------------------------------------------------------------
-
 /**
  * @param {{ string?: string, attrs: Record<string, string> }} fieldInfo
  * @returns {{ string?: string, disabledExpr?: string }}

@@ -5,7 +5,6 @@
 
 import { Component } from "@odoo/owl";
 
-/** Systray indicator shown when profiling is active. */
 class ProfilingSystrayItem extends Component {
     static template = "web.ProfilingSystrayItem";
     static props = {};

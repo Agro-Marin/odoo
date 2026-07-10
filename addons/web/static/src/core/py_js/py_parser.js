@@ -7,9 +7,7 @@ import { ASTType } from "./ast_type.js";
 import { binaryOperators, comparators } from "./py_tokenizer.js";
 import { TokenType } from "./token_type.js";
 
-// -----------------------------------------------------------------------------
 // Types
-// -----------------------------------------------------------------------------
 
 /**
  * @typedef { import("./py_tokenizer").Token } Token
@@ -26,9 +24,7 @@ import { TokenType } from "./token_type.js";
 
 class ParserError extends Error {}
 
-// -----------------------------------------------------------------------------
 // Constants and helpers
-// -----------------------------------------------------------------------------
 
 const chainedOperators = new Set(comparators);
 const infixOperators = new Set([...binaryOperators, ...comparators]);
@@ -233,11 +229,10 @@ function parsePrefix(current, cur) {
                         }
                         cur.next();
                         const value = _parse(cur, 0);
-                        // defineProperty: a literal '__proto__' key must
-                        // become a plain OWN entry, not a [[Prototype]] write
-                        // that swallows it. (A null-prototype dict would fix
-                        // this too but breaks Object-typed consumers, e.g.
-                        // OWL props validation of evaluated options dicts.)
+                        // A literal '__proto__' key must become a plain OWN entry
+                        // via defineProperty, not a [[Prototype]] write that
+                        // swallows it. (A null-prototype dict would also fix this
+                        // but breaks Object-typed consumers, e.g. OWL props validation.)
                         Object.defineProperty(dict, /** @type {any} */ (key).value, {
                             value,
                             writable: true,
@@ -410,9 +405,7 @@ function _parse(cur, bpVal = 0) {
     return expr;
 }
 
-// -----------------------------------------------------------------------------
 // Parse function
-// -----------------------------------------------------------------------------
 
 /**
  * Parse a list of tokens.

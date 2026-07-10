@@ -6,19 +6,12 @@
 /** @import { ActionManager } from "../action_service.js" */
 
 /**
- * Execute an action of type ``ir.actions.act_window_close``.
+ * Execute an ``ir.actions.act_window_close`` action: close the open dialog
+ * if any, otherwise call the caller-supplied ``options.onClose`` (used by
+ * ``ir.actions.act_url`` flows tearing down a previous dialog on redirect).
  *
- * Two paths:
- *   - A modal dialog is open → close it (the dialog's own ``onClose``
- *     fires from inside ``_removeDialog``).
- *   - No dialog → invoke the caller-supplied ``options.onClose`` (used by
- *     ``ir.actions.act_url`` flows that want to tear down a previous
- *     dialog after redirecting).
- *
- * Reading ``am.dialog`` directly (rather than capturing a value at
- * call-construction time) is required because the action manager holds
- * the dialog reference as mutable instance state; the value at
- * executor-call time is what matters.
+ * ``am.dialog`` is read live, not captured earlier, since the action
+ * manager mutates it as instance state.
  *
  * @param {ActionManager} am
  * @param {{ infos?: any }} [action]

@@ -146,10 +146,9 @@ test("column widths: dont overflow color picker in list", async () => {
     const int_field_column_width = queryAll(
         '.o_list_table thead th[data-name="int_field"]',
     )[0].style.width.replace("px", "");
-    // Default values for date and int fields are: date: '92px', integer: '74px'
-    // With the screen growing, the proportion is kept and thus int_field would remain smaller than date if
-    // the color_picker wouldn't have widthInList set to '1'. With that property set, int_field size will be bigger
-    // than date's one.
+    // Default widths: date ~92px, integer ~74px. Without `widthInList: '1'` on
+    // the color_picker, int_field would stay narrower than date as the screen
+    // grows; with it, int_field ends up wider.
     expect(parseFloat(date_column_width)).toBeLessThan(
         parseFloat(int_field_column_width),
         {

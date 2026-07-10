@@ -10,26 +10,17 @@ import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
 /**
- * Patience threshold in milliseconds. 5 s is the cliff most usability
- * research uses as the "user starts to wonder if it's broken" mark.
- *
- * Exposed as a mutable config object so deployment-time tuning can land
- * without an API change (next step: read from `slow_rpc.threshold_ms`
- * ir.config_parameter via `session_info`), and so tests can lower it
- * to fire on a 1 ms `advanceTime`.
+ * Patience threshold in ms — 5 s is the usual "user wonders if it's broken"
+ * cliff. Exposed as a mutable object so deployment-time tuning (future:
+ * read `slow_rpc.threshold_ms` via session_info) and tests can override it.
  */
 export const SLOW_RPC_CONFIG = { thresholdMs: 5000 };
 
 /**
- * Listens passively on `rpcBus` and shows a toast notification when
- * any non-silent RPC exceeds {@link SLOW_RPC_CONFIG}.thresholdMs.
- * Disposes the toast as soon as the matching `RPC:RESPONSE` event
- * arrives — success, error, abort, and timeout responses all clear
- * the timer.
- *
- * Pairs with the existing `silent` setting: silent RPCs (boot-time
- * field metadata, action loads, retry-internal calls) opt out of the
- * patience UI just as they opt out of error dialogs.
+ * Shows a toast when a non-silent RPC exceeds {@link SLOW_RPC_CONFIG}.thresholdMs;
+ * clears it on the matching `RPC:RESPONSE` (success, error, abort, or timeout).
+ * Silent RPCs (boot-time metadata, action loads, retries) opt out, same as
+ * they do for error dialogs.
  */
 export const slowRpcService = {
     dependencies: ["notification"],
@@ -47,8 +38,7 @@ export const slowRpcService = {
                 return;
             }
             const { data, settings } = detail;
-            // ``silent`` requests already opt out of error dialogs;
-            // patience UI follows the same rule for consistency.
+            // Same silent opt-out as error dialogs.
             if (settings?.silent) {
                 return;
             }

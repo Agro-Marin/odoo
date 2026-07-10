@@ -13,11 +13,6 @@ import { user } from "@web/services/user";
 import { BurgerUserMenu } from "./burger_user_menu/burger_user_menu.js";
 import { MobileSwitchCompanyMenu } from "./mobile_switch_company_menu/mobile_switch_company_menu.js";
 
-/**
- * This file includes the widget Menu in mobile to render the BurgerMenu which
- * opens fullscreen and displays the user menu and the current app submenus.
- */
-
 const SWIPE_ACTIVATION_THRESHOLD = 100;
 
 export class BurgerMenu extends Component {

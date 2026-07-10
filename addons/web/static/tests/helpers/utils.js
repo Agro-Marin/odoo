@@ -41,9 +41,7 @@ import { registerCleanup } from "./cleanup.js";
  */
 
 /**
- * Patch the native Date object
- *
- * Note that it will be automatically unpatched at the end of the test
+ * Patch the native Date object. Automatically unpatched at the end of the test.
  *
  * @param {number} [year]
  * @param {number} [month]
@@ -193,9 +191,7 @@ export function findElement(el, selector) {
     return target;
 }
 
-//-----------------------------------------------------------------------------
 // Event init attributes mappers
-//-----------------------------------------------------------------------------
 
 /** @param {EventInit} [args] */
 const mapBubblingEvent = (args) => ({ ...args, bubbles: true });
@@ -402,11 +398,8 @@ export function triggerEvents(el, selector, eventDefs, options = {}) {
 }
 
 /**
- * Triggers a scroll event on the given target
- *
- * If the target cannot be scrolled or an axis has reached
- * the end of the scrollable area, the event can be transmitted
- * to its nearest parent until it can be triggered
+ * If the target cannot be scrolled, or an axis has reached the end of its
+ * scrollable area, the event is transmitted to its nearest parent instead.
  *
  * @param {Element} target target of the scroll event
  * @param {Object} coordinates
@@ -554,9 +547,8 @@ export async function clickDiscard(htmlElement) {
 }
 
 /**
- * Trigger pointerenter and mouseenter events on the given target. If no
- * coordinates are given, the event is located by default
- * in the middle of the target to simplify the test process
+ * Trigger pointerenter and mouseenter events on the given target. Defaults to
+ * the target's center when no coordinates are given.
  *
  * @param {Element} el
  * @param {string} selector
@@ -743,8 +735,7 @@ export function mockTimeout() {
             timeouts.clear();
         },
         async advanceTime(duration) {
-            // wait here so all microtasktick scheduled in this frame can be
-            // executed and possibly register their own timeout
+            // Let microtasks queued this frame run first; they may register their own timeout.
             await nextTick();
             currentTime += duration;
             for (const { fn, scheduledFor, id } of timeouts.values()) {
@@ -781,8 +772,7 @@ export function mockAnimationFrame() {
             callbacks.clear();
         },
         async advanceFrame(count = 1) {
-            // wait here so all microtasktick scheduled in this frame can be
-            // executed and possibly register their own timeout
+            // Let microtasks queued this frame run first; they may register their own timeout.
             await nextTick();
             currentTime += 16 * count;
             for (const { fn, scheduledFor, id } of callbacks.values()) {
@@ -902,22 +892,10 @@ function getDifferentParents(n1, n2) {
 }
 
 /**
- * Helper performing a drag and drop sequence.
- *
- * - 'from' is used to determine the element on which the drag will start;
- * - 'target' will determine the element on which the first one will be dropped.
- *
- * The first element will be dragged by its center, and will be dropped on the
- * bottom-right inner pixel of the target element. This behavior covers both
- * cases of appending the first element to the end of a list (toSelector =
- * target list) or moving it at the position of another element, effectively
- * placing the first element before the second (toSelector = other element).
- *
- * A position can be given to drop the first element above, below, or on the
- * side of the second (default is inside, as specified above).
- *
- * Note that only the last event is awaited, since all the others are
- * considered to be synchronous.
+ * Drags 'from' by its center and drops it on the bottom-right inner pixel of 'to',
+ * covering both appending to a list and moving before another element. Pass
+ * `position` to drop above/below/beside 'to' instead of inside it. Only the last
+ * event is awaited; the others are synchronous.
  *
  * @param {Element | string} from
  * @param {Element | string} to
@@ -929,14 +907,7 @@ export async function dragAndDrop(from, to, position) {
 }
 
 /**
- * Helper performing a drag.
- *
- * - the 'from' selector is used to determine the element on which the drag will
- *  start;
- * - the 'target' selector will determine the element on which the dragged element will be
- * moved.
- *
- * Returns a drop function
+ * Starts a drag from 'from'. Returns a drop function to move/release it on a target.
  *
  * @param {Element | string} from
  */
@@ -1024,17 +995,14 @@ export async function drag(from, pointerType = "mouse") {
             return;
         }
 
-        // Recompute target position
         targetPosition = getTargetPosition(position);
 
-        // Move, enter and drop the element on the target
         await triggerEvent(source, null, "pointermove", {
             ...targetPosition,
             button: -1,
         });
 
-        // "pointerenter" is fired on every parent of `target` that do not contain
-        // `from` (typically: different parent lists).
+        // "pointerenter" fires on every parent of `target` not containing `from` (different parent lists).
         for (const parent of getDifferentParents(source, target)) {
             triggerEvent(parent, null, "pointerenter", targetPosition);
         }
@@ -1053,7 +1021,6 @@ export async function drag(from, pointerType = "mouse") {
     let target;
     let targetPosition;
 
-    // Pointer down on main target
     await triggerEvent(source, null, "pointerdown", {
         pointerType,
         clientX: sourceRect.x + sourceRect.width / 2,
@@ -1125,9 +1092,6 @@ export function getNodesTextContent(nodes) {
     return Array.from(nodes).map((n) => n.textContent);
 }
 
-/**
- * Click to open the dropdown on a many2one
- */
 export async function clickOpenM2ODropdown(el, fieldName, selector) {
     const m2oSelector = `${selector || ""} .o_field_many2one[name=${fieldName}] input`;
     const matches = el.querySelectorAll(m2oSelector);
@@ -1141,9 +1105,6 @@ export async function clickOpenM2ODropdown(el, fieldName, selector) {
     return matches[0];
 }
 
-/**
- * Click on the active (highlighted) selection in a m2o dropdown.
- */
 // TO FIX
 export async function clickM2OHighlightedItem(el, fieldName, selector) {
     const m2oSelector = `${selector || ""} .o_field_many2one[name=${fieldName}] input`;

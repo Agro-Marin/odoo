@@ -23,13 +23,9 @@ export function getFirstAndLastTabableElements(el) {
 }
 
 /**
- * This hook will set the UI active element
- * when the caller component will mount/patch and
- * only if the t-reffed element has some tabable elements
- * or is itself focusable.
- *
- * The caller component could pass a `t-ref` value of its template
- * to delegate the UI active element to another element than itself.
+ * Sets the UI active element when the caller component mounts/patches, if
+ * the t-reffed element has tabable elements or is itself focusable. Pass a
+ * `t-ref` name to delegate to another element than the caller itself.
  *
  * @param {string} refName
  */
@@ -101,12 +97,10 @@ export function useActiveElement(refName) {
                     el.removeEventListener("keydown", trapFocus);
 
                     /**
-                     * In some cases, the current active element is not
-                     * anymore in el (e.g. with ConfirmationDialog, the
-                     * confirm button is disabled when clicked, so the
-                     * focus is lost). In that case, we also want to restore
-                     * the focus to the previous active element so we
-                     * check if the current active element is the body
+                     * The active element may no longer contain the focus
+                     * (e.g. ConfirmationDialog disables its confirm button
+                     * on click, losing focus) — restore it to the previous
+                     * active element in that case too.
                      */
                     if (
                         el.contains(document.activeElement) ||

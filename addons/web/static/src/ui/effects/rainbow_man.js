@@ -7,11 +7,9 @@ import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 /**
  * @typedef Common
- * @property {string} [fadeout='medium'] Delay for rainbowman to disappear.
- *  - 'fast' will make rainbowman dissapear quickly,
- *  - 'medium' and 'slow' will wait little longer before disappearing
- *      (can be used when props.message is longer),
- *  - 'no' will keep rainbowman on screen until user clicks anywhere outside rainbowman
+ * @property {string} [fadeout='medium'] Delay before disappearing: 'fast' is
+ *  quick, 'medium'/'slow' wait longer (for longer messages), 'no' keeps it
+ *  until the user clicks outside.
  * @property {string} [imgUrl] URL of the image to be displayed
  *
  * @typedef Simple
@@ -25,13 +23,9 @@ import { browser } from "@web/core/browser/browser";
  */
 
 /**
- * The RainbowMan Component is meant to display a 'fun/rewarding' message.  For
- * example, when the user marked a large deal as won, or when he cleared its inbox.
- *
- * This component is mostly a picture and a message with a rainbow animation around.
- * If you want to display a RainbowMan, you probably do not want to do it by
- * importing this file.  The usual way to do that would be to use the effect
- * service.
+ * Displays a rewarding message (e.g. large deal won, inbox cleared) as a
+ * picture with a rainbow animation. Prefer the effect service over
+ * importing this file directly.
  */
 export class RainbowMan extends Component {
     static template = "web.RainbowMan";

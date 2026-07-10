@@ -7,10 +7,6 @@ import { PyDate } from "@web/core/py_js/py_date";
 
 describe.current.tags("headless");
 
-//-------------------------------------------------------------------------
-// Basic properties
-//-------------------------------------------------------------------------
-
 describe("Basic Properties", () => {
     test("empty", () => {
         expect(new Domain([]).contains({})).toBe(true);
@@ -67,11 +63,8 @@ describe("Basic Properties", () => {
     });
 
     test("'any'/'not any'/hierarchy operators in contains()", () => {
-        // contains() has no access to the related/hierarchy records these
-        // operators need, so it approximates: `any`, `child_of`, `parent_of`
-        // always match, and `not any` is defined as the strict dual of `any`
-        // (never matches) so client-side negation stays consistent with the
-        // server's De Morgan handling. This test locks that contract.
+        // No access to related/hierarchy records here, so `any`, `child_of`,
+        // `parent_of` always match, and `not any` is their strict dual (never matches).
         const value = [["id", "=", 1]];
         expect(new Domain([["line_ids", "any", value]]).contains({})).toBe(true);
         expect(new Domain([["parent_id", "child_of", 1]]).contains({})).toBe(true);
@@ -471,8 +464,6 @@ describe("Basic Properties", () => {
     });
 
     test("Check that there is no dependency between two domains", () => {
-        // The purpose of this test is to verify that a domain created on the basis
-        // of another one does not share any dependency.
         const domain1 = new Domain(`[('date', '!=', False)]`);
         const domain2 = new Domain(domain1);
         expect(domain1.toString()).toBe(domain2.toString());
@@ -607,9 +598,7 @@ describe("Basic Properties", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Client/server matching parity (matchCondition / operator handling)
-// ---------------------------------------------------------------------------
 describe("Matching parity", () => {
     test("Domain.not([]) is FALSE and matches nothing (no crash)", () => {
         // Empty domain is TRUE; server maps ~TRUE -> FALSE. The old code
@@ -674,9 +663,6 @@ describe("Matching parity", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Normalization
-// ---------------------------------------------------------------------------
 describe("Normalization", () => {
     test("return simple (normalized) domains", () => {
         const domains = ["[]", `[("a", "=", 1)]`, `["!", ("a", "=", 1)]`];
@@ -698,9 +684,6 @@ describe("Normalization", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Combining domains
-// ---------------------------------------------------------------------------
 describe("Combining domains", () => {
     test("combining zero domain", () => {
         expect(Domain.combine([], "AND").toString()).toBe("[]");
@@ -775,9 +758,6 @@ describe("Combining domains", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// OPERATOR AND / OR / NOT
-// ---------------------------------------------------------------------------
 describe("Operator and - or - not", () => {
     test("combining two domains with and/or", () => {
         expect(Domain.and([`[("a", "=", 1)]`, "[]"]).toString()).toBe(

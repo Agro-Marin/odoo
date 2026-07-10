@@ -331,8 +331,6 @@ function getCurrentConnector(index, target) {
     return connectorText.includes("all") ? "all" : connectorText;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 /**
  * @param {number} [index=0]
  * @param {Target} [target]
@@ -359,8 +357,6 @@ export function isNotSupportedValue(index, target) {
     const valueEditor = queryAt(SELECTORS.valueEditor, index, target);
     return Boolean(queryOne(SELECTORS.clearNotSupported, { root: valueEditor }));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 /**
  * @param {number} [index=0]
@@ -443,8 +439,6 @@ export async function addNewRule(index, target) {
 export async function toggleArchive() {
     await contains(SELECTORS.toggleArchive).click();
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 /**
  * @param {number} [index=0]

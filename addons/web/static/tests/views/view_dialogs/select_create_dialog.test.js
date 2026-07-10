@@ -277,7 +277,6 @@ test("SelectCreateDialog list view is readonly", async () => {
         resModel: "partner",
     });
     await animationFrame();
-    // select first row
     await contains(".o_list_view tbody tr td:first").click();
     expect(".o_data_row_selected").toHaveCount(1);
     // click on it to see if the list is editable
@@ -396,7 +395,6 @@ test("SelectCreateDialog cascade x2many in create mode on desktop", async () => 
     expect(".modal .modal-lg").toHaveCount(1);
     expect(".modal .o_data_cell").toHaveText("Awsome");
 
-    // click on modal save button
     await clickSave({ index: 1 });
 });
 
@@ -475,7 +473,6 @@ test("SelectCreateDialog cascade x2many in create mode on mobile", async () => {
     expect(".modal .modal-lg").toHaveCount(2);
     expect(".modal .o_data_cell").toHaveText("Awsome");
 
-    // click on modal save button
     await clickSave({ index: 1 });
 });
 
@@ -527,13 +524,11 @@ test("SelectCreateDialog: save current search on desktop", async () => {
 
     expect(".o_data_row").toHaveCount(3, { message: "should contain 3 records" });
 
-    // filter on bar
     await toggleSearchBarMenu();
     await toggleMenuItem("Bar");
 
     expect(".o_data_row").toHaveCount(2, { message: "should contain 2 records" });
 
-    // save filter
     await toggleSaveFavorite();
     await editFavoriteName("some name");
     await saveFavorite();
@@ -590,7 +585,6 @@ test("SelectCreateDialog: save current search on mobile", async () => {
         message: "should contain 3 records",
     });
 
-    // filter on bar
     await toggleSearchBarMenu();
     await toggleMenuItem("Bar");
 
@@ -598,7 +592,6 @@ test("SelectCreateDialog: save current search on mobile", async () => {
         message: "should contain 2 records",
     });
 
-    // save filter
     await toggleSaveFavorite();
     await editFavoriteName("some name");
     await saveFavorite();
@@ -956,13 +949,11 @@ test("SelectCreateDialog: clear selection on mobile", async () => {
     });
     await contains(".modal-dialog.modal-lg:eq(0) .o_form_button_cancel").click();
 
-    // Select a product
     await contains('.o_field_widget[name="product_id"] input').click();
     await contains(
         ".modal-dialog.modal-lg:eq(0) .o_kanban_record:nth-child(1)",
     ).click();
 
-    // Remove the product
     await contains('.o_field_widget[name="product_id"] input').click();
     expect(".modal-dialog.modal-lg:eq(0) .btn.o_clear_button").toHaveCount(1, {
         message: "there should be a Clear button",

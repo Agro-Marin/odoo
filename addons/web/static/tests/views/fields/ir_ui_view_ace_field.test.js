@@ -41,7 +41,6 @@ class IrUiView extends models.Model {
 }
 defineModels([IrUiView]);
 
-// Preload necessary bundles and prevent ResizeObserver errors
 preloadBundle("web.ace_lib");
 preventResizeObserverError();
 

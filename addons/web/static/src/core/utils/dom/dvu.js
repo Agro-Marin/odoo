@@ -4,31 +4,13 @@
 /** @module @web/core/utils/dom/dvu - Dynamic viewport units with virtual keyboard and visualViewport tracking */
 
 /**
- * Dynamic Viewport Units (DVU)
+ * Tracks visualViewport (not just window innerWidth/innerHeight) so
+ * dimensions reflect virtual-keyboard appearance, pinch-zoom, and mobile
+ * browser UI changes — none of which reliably affect innerWidth/innerHeight.
+ * Falls back to window dimensions when visualViewport/VirtualKeyboard APIs
+ * are unavailable (older browsers, some embedded webviews).
  *
- * Provides viewport measurement tools focusing on:
- * - Viewport change tracking for responsive components
- * - Viewport dimensions that respond to virtual keyboard
- *
- * Key differences between visualViewport and standard window dimensions:
- * - On mobile, when virtual keyboards appear, visualViewport.height decreases while
- *   innerHeight often doesn't
- * - During pinch-zoom on mobile, visualViewport dimensions change, while innerWidth/innerHeight
- *   remain static
- * - When mobile browser UI elements (address bars, toolbars) appear/disappear, visualViewport
- *   reflects these changes
- *
- * Enhanced with VirtualKeyboard API support:
- * - Reacts to the keyboard's appearance/disappearance via the geometrychange event
- * - Automatically updates viewport dimensions when keyboard visibility changes
- * - Triggers viewport change listeners when keyboard visibility changes
- *
- * The module will fall back to standard window dimensions when visualViewport API is not
- * available (primarily older browsers or some embedded webviews).
- *
- * References:
- * - https://www.w3.org/blog/CSS/2021/07/15/css-values-4-viewport-units/
- * - https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API
  */
 
 import { onWillUnmount } from "@odoo/owl";
@@ -55,15 +37,11 @@ const viewport = {
         };
     },
 
-    /**
-     * Notify all listeners of viewport changes
-     */
     notifyListeners() {
         this.listeners.forEach((listener) => listener());
     },
 };
 
-// Initialize viewport tracking
 if (typeof window !== "undefined") {
     const throttledUpdate = throttleForAnimation(() => viewport.notifyListeners());
 

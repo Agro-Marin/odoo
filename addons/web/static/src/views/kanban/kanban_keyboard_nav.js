@@ -56,9 +56,8 @@ export function useKanbanKeyboardNavigation(options) {
         "Enter",
         ({ target: _target }) => {
             const target = /** @type {HTMLElement} */ (_target);
-            // A card with the bulk-select checkbox active swallows
-            // Enter — pressing Enter while the checkbox has focus
-            // should toggle it (browser default), not open the record.
+            // A card with the bulk-select checkbox active swallows Enter — the
+            // checkbox should get the browser's default toggle, not open the record.
             if (target.closest(".o_kanban_selection_active") !== null) {
                 return;
             }
@@ -69,9 +68,8 @@ export function useKanbanKeyboardNavigation(options) {
                 target.click();
                 return;
             }
-            // ``canOpenRecords`` is false (e.g. settings card with no
-            // detail form) — surface the first interactive element
-            // inside the card instead so Enter still does something.
+            // ``canOpenRecords`` is false (e.g. no detail form) — surface the first
+            // interactive element in the card instead so Enter still does something.
             const firstLink = target.querySelector("a, button");
             if (firstLink) {
                 /** @type {HTMLElement} */ (firstLink).click();
@@ -95,11 +93,9 @@ export function useKanbanKeyboardNavigation(options) {
     );
 
     const arrowsOptions = { area, allowRepeat: true };
-    // ArrowUp card navigation must always be available, even when the
-    // kanban mounts without a search context (x2many kanban in a form,
-    // dialogs). Only the ``focus-search`` fallback — handing focus to
-    // the search bar when ArrowUp leaves the top row — depends on the
-    // searchModel; guard just that so card nav never disappears.
+    // ArrowUp card nav must always work, even without a search context
+    // (x2many kanban in a form/dialog). Only the ``focus-search`` fallback
+    // depends on searchModel, so guard just that.
     useHotkey(
         "ArrowUp",
         ({ area: el }) => {

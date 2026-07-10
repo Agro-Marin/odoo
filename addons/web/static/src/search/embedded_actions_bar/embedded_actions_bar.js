@@ -282,9 +282,8 @@ export class EmbeddedActions {
     /** @param {boolean} showEmbedded target visibility being persisted */
     async _applyBarVisibility(showEmbedded) {
         if (showEmbedded && !this.configHandler.hasEmbeddedActionsConfig()) {
-            // If there are embedded actions and no config has been found in the settings, we will fetch it from DB
-            // We need to fetch because it's possible that the config from DB was changed while it wasn't in the browser user settings
-            // We then need to keep the browser user settings up to date with the DB
+            // No local config yet: fetch from DB (it may have changed from
+            // another browser session) and sync the browser cache with it.
             const embeddedSettings =
                 await this.configHandler.fetchEmbeddedActionsConfig();
             if (this.configHandler.embeddedActionsKey in embeddedSettings) {
@@ -337,9 +336,8 @@ export class EmbeddedActions {
     }
 
     /**
-     * The selected action is put into (or removed from) the user settings and its visibility changes.
-     * The state variable visibleEmbeddedActions keeps track of the visible actions to avoid having to parse
-     * the user settings values every time we want to access them.
+     * Toggles an action's visibility in the cached visibleEmbeddedActions
+     * list (avoids re-parsing user settings on every access) and persists it.
      * @param {number|false} actionId
      */
     toggleActionVisibility(actionId) {

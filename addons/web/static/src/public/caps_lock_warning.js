@@ -23,18 +23,16 @@ export class CapsLockWarning extends Interaction {
     }
 
     /**
-     * Captures keydown events to detect the CAPS LOCK state and toggle the
-     * CAPS LOCK warning accordingly
+     * Detects Caps Lock state on keydown and toggles the warning.
      *
      * @private
      * @param {KeyboardEvent} ev
      */
     _onInputKeyDown(ev) {
-        // FALSE when we first hit the CAPS-LOCK
-        // at this point, the CAPS-LOCK is yet to TURN ON.
+        // FALSE on the keydown that first turns CAPS-LOCK on (state hasn't flipped yet).
         const state = ev.getModifierState?.("CapsLock");
 
-        // FALSE value REMOVES the `invisible` class while TRUE ADDS it.
+        // FALSE removes the `invisible` class, TRUE adds it.
         this.isWarningHidden = ev.key === "CapsLock" ? state : !state;
     }
 }

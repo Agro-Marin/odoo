@@ -142,11 +142,9 @@ export class FormController extends Component {
             this.display.controlPanel = false;
         }
 
-        // Wait to be mounted before displaying dialog/notification for onchange warnings returned
-        // by the first onchange, for 2 reasons:
-        //  1) we don't want to show twice the warning if the component is destroyed before being
-        //     mounted and re-created
-        //  2) for form views in dialogs, this causes an infinite loop if willStart calls dialog.add
+        // Wait until mounted to show onchange warnings: avoids a double-show if the
+        // component is destroyed/recreated first, and avoids an infinite loop for
+        // form views in dialogs (willStart calling dialog.add).
         const mountedProm = new Promise((r) => onMounted(/** @type {any} */ (r)));
         this.onWillDisplayOnchangeWarning = () => mountedProm;
 
@@ -184,18 +182,14 @@ export class FormController extends Component {
             new FormSaveCoordinator(this.model, {
                 onSaveError: (error, callbacks) =>
                     this._renderSaveErrorDialog(error, callbacks),
-                // No pre/post-save hooks at the coordinator level:
-                //   - pre-save vetoes belong to the model-level
-                //     ``onWillSaveRecord`` hook (see
-                //     modelParams.hooks.lifecycle), which the model fires
-                //     AFTER validation, BEFORE web_save — a coordinator
-                //     hook would fire twice and before validation.
-                //   - post-save ``props.onSave`` is invoked explicitly by
-                //     the 4 entry points that historically called it
-                //     (beforeLeave, beforeExecuteActionButton, save,
-                //     saveButtonClicked), not by every requestSave.
-                // The coordinator used to carry unwired onWillSave/onSaved
-                // hooks for these; they were removed as dead code.
+                // No pre/post-save hooks here: pre-save vetoes belong to the
+                // model-level ``onWillSaveRecord`` hook (fires after validation,
+                // before web_save — a coordinator hook would double-fire and
+                // run pre-validation). Post-save ``props.onSave`` is invoked
+                // explicitly by the 4 call sites that historically called it
+                // (beforeLeave, beforeExecuteActionButton, save,
+                // saveButtonClicked), not by every requestSave. The old unwired
+                // onWillSave/onSaved hooks here were removed as dead code.
                 onUrgentSaveFailed: () => this._onUrgentSaveFailed(),
                 recoverFromSaveError: (error, model) =>
                     this.multiCompanyRecovery.recoverFromSaveError(error, model),
@@ -378,8 +372,7 @@ export class FormController extends Component {
     }
 
     /**
-     * onWillLoadRoot is a callback that will be executed before (re)loading the
-     * data necessary for the root record datapoint. Note that this.model.root
+     * Called before (re)loading the root record datapoint. ``this.model.root``
      * may not exist yet at this point, if this is the first load.
      */
     onWillLoadRoot() {
@@ -387,10 +380,8 @@ export class FormController extends Component {
     }
 
     /**
-     * onRecordSaved is a callBack that will be executed after the save
-     * if it was done. It will therefore not be executed if the record
-     * is invalid, if a server error is thrown, or if there are no
-     * changes to save.
+     * Called after a successful save; skipped if the record was invalid, a
+     * server error was thrown, or there were no changes to save.
      * @param {any} record
      */
     async onRecordSaved(record, changes) {
@@ -412,30 +403,25 @@ export class FormController extends Component {
     }
 
     /**
-     * onWillSaveRecord is a callback that will be executed before the
-     * record save if the record is valid.
-     * If it returns false, it will prevent the save.
+     * Called before saving the record, if it is valid. Returning false
+     * prevents the save.
      */
     async onWillSaveRecord() {}
 
     /**
      * Render the save-error dialog UX (``FormErrorDialog`` with discard /
-     * redirect / stay choices).  Wired into the save coordinator's
-     * ``onSaveError`` hook; called only when ``recoverFromSaveError``
-     * returned false (the coordinator pre-checks recovery itself, so
-     * this method does not).
+     * redirect / stay choices). Wired into the coordinator's ``onSaveError``
+     * hook; called only when ``recoverFromSaveError`` already returned false.
      *
-     * Contract: ``error`` always carries a server payload (``error.data``,
-     * i.e. an ``RPCError``) — ``FormErrorDialog`` requires ``props.data``.
-     * The coordinator's dialog-mode ``onError`` rethrows payload-less
-     * errors (``ConnectionLostError``, timeouts) before this hook, so
-     * they never reach the dialog (see ``_buildOnError``).
+     * Contract: ``error.data`` (an ``RPCError``) is always present —
+     * payload-less errors (``ConnectionLostError``, timeouts) are rethrown
+     * earlier by the coordinator's dialog-mode ``onError`` (see
+     * ``_buildOnError``) and never reach here.
      *
-     * Historical context: this used to be ``onSaveError(error, opts,
-     * showErrorDialog)`` — a tri-mode method that did recovery +
-     * dialog-or-rethrow based on a positional boolean.  The semantics
-     * drifted across its 5+ call sites (renamed in 2026-05).  The
-     * coordinator now owns the dispatch, so this method is single-purpose.
+     * Historical: replaces the old tri-mode ``onSaveError(error, opts,
+     * showErrorDialog)``, whose semantics drifted across 5+ call sites
+     * (renamed 2026-05); the coordinator now owns dispatch, so this method
+     * is single-purpose.
      *
      * @param {Object} error - the RPC error
      * @param {{ discard: Function, retry: Function }} callbacks
@@ -623,11 +609,9 @@ export class FormController extends Component {
         const dirty = await this.model.root.isDirty();
         if ((dirty || this.model.root.isNew) && !item.skipSave) {
             const saved = await this.saveCoordinator.requestSave();
-            // Block the menu action if the save errored at all — even
-            // when the dialog UX resolved it via "discard".  Historical
-            // behavior preserved: action menus (Duplicate, Archive,
-            // etc.) should not run when the in-flight save hit a server
-            // error, regardless of how the user dismissed the dialog.
+            // Block the menu action if the save errored, even if the dialog
+            // UX resolved it via "discard": action menus (Duplicate, Archive,
+            // etc.) never run after an in-flight save hit a server error.
             return saved !== false && !this.saveCoordinator.lastError;
         }
         return true;
@@ -665,13 +649,11 @@ export class FormController extends Component {
                 // lifecycle for special="save" buttons.
                 saved = await this.props.saveRecord(record, clickParams);
             } else {
-                // Plain save without dirty pre-check, no error dialog UX
-                // (the action button caller surfaces its own error
-                // handling via ``useViewButtons``).  Errors propagate so
-                // ``executeButtonCallback`` can release the UI lock and
-                // show a server-error notification.  Reload is conditional
-                // on whether we'll close the embedding dialog after the
-                // action.
+                // Plain save, no dirty pre-check, no error dialog (the caller
+                // handles errors via ``useViewButtons``): errors must propagate
+                // so ``executeButtonCallback`` can release the UI lock and show
+                // a server-error notification. Reload only if we won't close
+                // the embedding dialog afterwards.
                 saved = await this.saveCoordinator.requestSave({
                     reload: !(this.env.inDialog && clickParams.close),
                     errorMode: "rethrow",

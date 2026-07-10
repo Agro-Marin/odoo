@@ -22,13 +22,9 @@ export class KanbanCoverImageDialog extends Component {
     static props = {
         record: Object,
         fieldName: String,
-        // ``autoOpen`` is a Boolean from programmatic callers but a String
-        // when emitted by ``kanban_compiler.js`` (``extractAttributes`` reads
-        // the XML ``auto-open`` attribute as a string and forwards it
-        // verbatim through ``triggerAction``). The consumer at line ``setup``
-        // does a truthy check so both shapes work; the typed contract
-        // reflects reality. Tightening this further would require fixing the
-        // compiler to coerce — out of scope for the props-tightening pass.
+        // Boolean from programmatic callers, but a String when emitted by
+        // kanban_compiler.js (extractAttributes reads the XML auto-open
+        // attribute as a string). setup() does a truthy check so both work.
         autoOpen: { type: [Boolean, String], optional: true },
         close: Function,
     };

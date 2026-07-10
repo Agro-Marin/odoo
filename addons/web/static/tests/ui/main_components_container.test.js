@@ -38,14 +38,10 @@ test("simple rendering", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    // ``clearRegistry`` removes our test additions but doesn't (and can't)
-    // unregister system-level main components that modules attach when
-    // their JS loads: ``o-overlay-container``, ``o_notification_manager``,
-    // ``o-mail-ChatHub``, ``editor_notification_manager``,
-    // ``o_upload_progress_toast`` etc.  Asserting the exact innerHTML
-    // therefore couples this test to whichever modules happen to be
-    // loaded in the unit-test bundle — every new system component
-    // breaks it.  Verify just that OUR two registry entries render.
+    // ``clearRegistry`` can't unregister system-level main components other
+    // modules attach (ChatHub, notification managers, etc.), so asserting
+    // exact innerHTML would couple this test to the unit-test bundle's
+    // contents. Verify just that OUR two registry entries render.
     expect(".o-main-components-container > span:first-child").toHaveText(
         "MainComponentA",
     );
@@ -109,10 +105,9 @@ test("unmounts erroring main component", async () => {
     ]);
     expect.verifyErrors(["BOOM"]);
 
-    // After MainComponentA errors out, only MainComponentB should be
-    // left as a direct ``<span>`` child of the container.  System
-    // components (ChatHub, notification managers …) render as
-    // ``<div>``s, so the span count is still a safe discriminator.
+    // After MainComponentA errors out, only MainComponentB is left as a
+    // direct ``<span>`` child — system components render as ``<div>``s, so
+    // the span count is still a safe discriminator.
     expect(".o-main-components-container > span").toHaveCount(1);
     expect(".o-main-components-container > span").toHaveText("MainComponentB");
 });

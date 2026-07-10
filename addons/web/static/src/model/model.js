@@ -40,18 +40,13 @@ export class Model extends SignalStore {
      */
     constructor(env, params, services) {
         // ``super()`` returns ``reactive(this)`` (SignalStore semantics), so
-        // every assignment below — including ``this.bus``, ``this.data``,
-        // ``this.config``, and the ``this.root`` set by subclass ``load()``
-        // implementations — goes through the OWL reactive Proxy and notifies
-        // observers automatically. Consumers that wrap the model with
-        // ``useState(...)`` (form, list, kanban, calendar, graph, pivot)
-        // therefore re-render on any mutation without needing an explicit
-        // ``model.notify()`` call. The bus + ``notify()`` API is preserved
-        // for legacy and cross-addon consumers (FIELD_IS_DIRTY,
-        // WILL_SAVE_URGENTLY, NEED_LOCAL_CHANGES, PROPERTY_FIELD:EDIT,
-        // SCROLL_TO_CURRENT_HOUR, and the ModelEvent.UPDATE listeners in
-        // ``x2many_dialog`` and ``calendar_controller``) but is no longer
-        // load-bearing for the local re-render path.
+        // every assignment below goes through OWL's reactive Proxy and
+        // notifies consumers that wrap the model in ``useState()``
+        // automatically — no explicit ``notify()`` needed for local
+        // mutations. The bus + ``notify()`` API remains for legacy/cross-addon
+        // consumers (FIELD_IS_DIRTY, WILL_SAVE_URGENTLY, NEED_LOCAL_CHANGES,
+        // PROPERTY_FIELD:EDIT, SCROLL_TO_CURRENT_HOUR, and the
+        // ModelEvent.UPDATE listeners in x2many_dialog / calendar_controller).
         super();
         this.env = env;
         this.orm = services.orm;
@@ -100,21 +95,11 @@ export class Model extends SignalStore {
         /** @type {Deferred} */
         this.whenReady = new Deferred();
         this.whenReady.then(() => {
-            // Idempotent: ``RelationalModel.load`` already sets
-            // ``isReady = true`` in the SAME synchronous block as its
-            // ``root`` / ``config`` writes (so OWL batches all three
-            // reactive invalidations into a single render — the previous
-            // out-of-band write in this ``.then()`` callback fired in a
-            // later microtask separated by ``await onRootLoaded`` and
-            // produced an extra render visible to ``onRendered`` step
-            // assertions).  For subclasses that DON'T set ``isReady`` in
-            // ``load`` (PivotModel, GraphModel, CalendarModel), this is
-            // still the only place that flips the flag, so the search-
-            // panel/pivot integration in test_search keeps working.
-            // ``notify()`` is intentionally NOT called here — the
-            // reactive write to ``isReady`` and the subclass-emitted
-            // writes during ``load`` already invalidate every consumer
-            // that wraps the model in ``useState``.
+            // No-op for RelationalModel (``load()`` already sets isReady in the
+            // same sync block as root/config, avoiding an extra render); still
+            // the only place that flips it for Pivot/Graph/Calendar models,
+            // which don't set isReady in ``load()``. ``notify()`` isn't needed:
+            // the reactive write to isReady already invalidates useState consumers.
             this.isReady = true;
         });
         this.setup(params, services);
@@ -156,11 +141,10 @@ export class Model extends SignalStore {
     async load(_params) {}
 
     /**
-     * This function is meant to be overriden by models that want to implement
-     * the sample data feature. It should return true iff the last loaded state
-     * actually contains data. If not, another load will be done (if the sample
-     * feature is enabled) with the orm service substituted by another using the
-     * SampleServer, to have sample data to display instead of an empty screen.
+     * Override to implement sample data: return true iff the last loaded
+     * state contains data. If false (and the feature is enabled), another
+     * load is done with the orm substituted by a SampleServer-backed one,
+     * to show sample data instead of an empty screen.
      *
      * @returns {boolean}
      */
@@ -169,8 +153,8 @@ export class Model extends SignalStore {
     }
 
     /**
-     * This function is meant to be overriden by models that want to combine
-     * sample data with real groups that exist on the server.
+     * Override to combine sample data with real groups that exist on the
+     * server.
      *
      * @returns {boolean}
      */
@@ -234,20 +218,15 @@ function getSearchParams(props) {
 }
 
 /**
- * Cached one-shot check.  Validation is opt-in (off in production by
- * default to keep the boundary path free of allocation overhead on
- * every load).  Three activation sources, in order:
+ * Cached one-shot check. Validation is opt-in (off by default in production
+ * to avoid per-load overhead). Three activation sources, in order:
  *
- *   1. ``odoo.debug`` mode — any debug truthy value auto-enables so
- *      developers don't need to remember the flag.
- *   2. ``featureFlag("search_params_validation")`` — explicit opt-in
- *      for staged rollout. Resolution honors the URL > localStorage >
- *      server cascade documented in ``services/feature_flags``.
- *   3. Both ``false`` → validator skipped entirely.
+ *   1. ``odoo.debug`` truthy → auto-enables.
+ *   2. ``featureFlag("search_params_validation")`` — explicit opt-in for
+ *      staged rollout (URL > localStorage > server cascade).
+ *   3. Both ``false`` → validator skipped.
  *
- * Cached because the answer never changes within a session — URL and
- * localStorage are read once by the feature-flags resolver, and
- * ``odoo.debug`` is fixed for the page lifetime.
+ * Cached because the answer never changes within a session.
  *
  * @returns {boolean}
  */
@@ -334,17 +313,13 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
 
     const model = new ModelClass(/** @type {any} */ (component.env), params, services);
 
-    // Legacy deep-render listener. CAUTION: despite the controllers
-    // wrapping their model in ``useState(...)``, this listener IS
-    // load-bearing for any renderer that (a) receives the model as a
-    // stable prop (OWL's props-equality skips it on reactive controller
-    // renders) and (b) snapshots derived state in ``onWillUpdateProps``
-    // or ``useEffect`` deps — pivot/graph did exactly that until they
-    // migrated to ``useReactiveModel`` and opted out via
-    // ``static reactiveRenderers = true``. Still depending on it:
-    // calendar, plus enterprise ``web_map``, ``web_cohort``,
-    // ``web_grid``, ``web_gantt``, ``social``. Audit a view's full
-    // renderer tree against (a)+(b) before opting its model out.
+    // Legacy deep-render listener. CAUTION: still load-bearing for any
+    // renderer that (a) receives the model as a stable prop (OWL's
+    // props-equality skips reactive controller renders) and (b) snapshots
+    // derived state in onWillUpdateProps/useEffect deps — pivot/graph did
+    // until migrating to useReactiveModel + ``reactiveRenderers = true``.
+    // Still depends on it: calendar, enterprise web_map/web_cohort/
+    // web_grid/web_gantt/social. Audit (a)+(b) before opting a model out.
     if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
         const onUpdate = () => component.render(true);
         model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);

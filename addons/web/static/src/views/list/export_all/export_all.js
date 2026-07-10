@@ -13,20 +13,13 @@ import { user } from "@web/services/user";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
-/**
- * 'Export All' menu
- *
- * This component is used to export all the records for particular model.
- * @extends Component
- */
+/** @extends Component */
 export class ExportAll extends Component {
     static template = "web.ExportAll";
     static components = { DropdownItem };
     static props = {};
 
-    //---------------------------------------------------------------------
     // Protected
-    //---------------------------------------------------------------------
 
     /** Trigger a direct XLSX export of all records via the search model event bus. */
     async onDirectExportData() {

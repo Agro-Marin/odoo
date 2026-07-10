@@ -3,32 +3,17 @@
 import { after, describe, expect, test } from "@odoo/hoot";
 
 /**
- * ``module_loader.js`` has been in continuous simplification since the
- * fork-wide ESM migration completed.  The pre-2026 AMD behaviors
- * (``define()``, dependency-graph resolution, cycle detection, lazy
- * jobs, error reporter) were removed in the "shrink module_loader to
- * ESM-native surface" refactor because the esbuild-generated entry
- * exercises exactly one method — ``registerNativeModules`` — and no
- * other caller exists across the whole fork (verified: zero
- * ``odoo.define()`` calls in core, enterprise, design-themes,
- * agromarin).
+ * ``module_loader.js``'s pre-2026 AMD behaviors (``define()``, dependency-graph
+ * resolution, cycle detection, lazy jobs, error reporter) were removed once the
+ * fork-wide ESM migration completed: the esbuild entry exercises only
+ * ``registerNativeModules``, and no ``odoo.define()`` calls remain anywhere in
+ * the fork.
  *
- * These tests cover the remaining surface:
- *   • ``modules`` Map lifecycle
- *   • ``registerNativeModules`` population + overwrite semantics
- *   • ``bus`` rebind events (different-namespace re-registration)
- *   • Idempotent install (``globalThis.odoo.loader`` not recreated by
- *     a sibling shim)
- *
- * ``module_loader.js`` is an inline pre-ESM shim, so it can't ``export``
- * its class — tests recover it from the live ambient instance via
- * ``odoo.loader.constructor``.  That handle is correct whether the page
- * installed the production ``new OdooModuleLoader()`` directly or (should
- * Hoot ever wrap it for isolated test-module graphs) a subclass: a
- * subclass inherits the full public surface these tests drive.  Using
+ * ``module_loader.js`` is an inline pre-ESM shim that can't ``export`` its
+ * class, so tests recover it via ``odoo.loader.constructor``. Using
  * ``Object.getPrototypeOf`` of the constructor would instead yield
  * ``Function.prototype`` for the shipped direct-instance shape and throw
- * "is not a constructor" — so we deliberately don't.
+ * "is not a constructor".
  */
 
 /** @type {typeof OdooModuleLoader} */
@@ -137,12 +122,10 @@ test("registerNativeModules: subsequent calls accumulate entries", () => {
 });
 
 test("ambient odoo.loader exposes the full loader contract", () => {
-    // Guard the idempotent-install contract in module_loader.js —
-    // parallel bundle inlining on the same page must NOT replace the
-    // loader with something that doesn't expose its surface.  Asserting
-    // the structural contract (rather than ``instanceof ModuleLoader``,
-    // which is tautological once ModuleLoader === odoo.loader.constructor)
-    // also covers the hypothetical subclass shape.
+    // Guard idempotent install: parallel bundle inlining must not replace the
+    // loader with something lacking its surface. Assert the structural shape
+    // rather than `instanceof ModuleLoader` (tautological here), which also
+    // covers a hypothetical subclass.
     expect(odoo.loader.modules).toBeInstanceOf(Map);
     expect(odoo.loader.bus).toBeInstanceOf(EventTarget);
     expect(typeof odoo.loader.registerNativeModules).toBe("function");

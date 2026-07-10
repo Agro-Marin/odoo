@@ -7,25 +7,15 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
 /**
- * The Odoo backend tags AccessErrors raised cross-company with a
- * ``suggested_company`` entry in the error context, signalling the
- * client that activating that company would resolve the access check.
- * This service centralizes the matching predicate and the two
- * recovery strategies (with reload, without reload) that views need.
- *
- * The previous home of this logic was inline in ``FormController``
- * (lifecycle ``onError`` and ``onSaveError`` paths); duplication
- * across the two sites had drifted in subtle ways (different shape
- * checks, different reload semantics, different idempotency
- * guards).  Centralizing here removes the drift and makes the
- * server-driven recovery protocol testable in isolation.
+ * The backend tags cross-company AccessErrors with a `suggested_company` in the
+ * error context; this service centralizes the matching predicate and both
+ * recovery strategies (with/without reload), replacing logic that used to be
+ * duplicated (and had drifted) between FormController's onError/onSaveError.
  */
 
 /**
- * The OWL component lifecycle wraps thrown errors in an ``OwlError``
- * with the original on ``.cause``.  RPC error_service handlers see
- * the unwrapped error directly.  Read both shapes so callers don't
- * have to know which path they're on.
+ * OWL lifecycle errors wrap the original in `.cause`; RPC error_service errors
+ * don't. Read both shapes so callers don't need to know which path they're on.
  *
  * @param {any} error
  * @returns {any} the inner data object, or undefined if neither shape matches
@@ -57,18 +47,11 @@ export const multiCompanyRecoveryService = {
     start(env) {
         return {
             /**
-             * Recover from an error raised during a component's
-             * willStart / mounted / render lifecycle.  Form data is
-             * unrecoverable at this point, so this strategy reloads
-             * the page after activating the suggested company.
-             *
-             * Caller must pass its own ``env`` (typically
-             * ``this.env`` from inside a component) so that
-             * ``pushStateBeforeReload`` — injected via
-             * ``useChildSubEnv`` in ``ControllerComponent`` — is
-             * actually visible.  The service's own ``start(env)``
-             * closure captures the ROOT env, which does NOT carry
-             * the controller-scoped sub-env keys.
+             * Reloads the page after activating the suggested company (form data
+             * is unrecoverable at this lifecycle point). Caller must pass its own
+             * `env` (e.g. `this.env`) — `pushStateBeforeReload`, injected via
+             * `useChildSubEnv` in `ControllerComponent`, isn't visible from the
+             * service's root-env closure.
              *
              * @param {any} error
              * @param {{ inDialog?: boolean, env?: import("@web/env").OdooEnv }} [options]
@@ -88,10 +71,9 @@ export const multiCompanyRecoveryService = {
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
                 if (activeCompanyIds.includes(suggestedCompany.id)) {
-                    // Already active.  Activating + reloading again would just
-                    // re-raise the same AccessError, spinning an infinite reload
-                    // loop; this is not our recovery path.  (Mirrors the
-                    // save-error guard below.)
+                    // Already active: reactivating would just re-raise the same
+                    // error and loop forever. Not our recovery path (mirrors the
+                    // save-error guard below).
                     return false;
                 }
                 /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
@@ -101,12 +83,10 @@ export const multiCompanyRecoveryService = {
             },
 
             /**
-             * Recover from a save error WITHOUT reloading.  The user
-             * has unsaved input on screen; reloading would discard
-             * it.  Instead, mutate the model's context to include
-             * the suggested company and activate it client-side
-             * with reload disabled.  Caller is expected to invoke
-             * the save retry callback after this returns true.
+             * Recovers from a save error without reloading (unsaved input would
+             * be lost): adds the suggested company to the model's context and
+             * activates it client-side. Caller should retry the save after this
+             * returns true.
              *
              * @param {any} error
              * @param {{ config: { context: { allowed_company_ids: number[] } } }} model
@@ -120,8 +100,8 @@ export const multiCompanyRecoveryService = {
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
                 if (activeCompanyIds.includes(suggestedCompany.id)) {
-                    // Already active.  Save failed for a different
-                    // reason; not our recovery path.
+                    // Already active: save failed for a different reason, not
+                    // our recovery path.
                     return false;
                 }
                 model.config.context.allowed_company_ids ??= [];

@@ -12,16 +12,14 @@ import { browser } from "@web/core/browser/browser";
 preloadBundle("web.assets_emoji");
 
 test("frequent emojis with unknown codepoints do not crash the picker", async () => {
-    // Simulate a stale localStorage entry: codepoints persisted by a previous
-    // version of the emoji data that no longer exist in the current bundle.
+    // Simulate a stale localStorage entry with codepoints no longer in the current bundle.
     browser.localStorage.setItem(
         "web.emoji.frequent",
         JSON.stringify({ "<removed codepoints>": 5, "😀": 2 }),
     );
     await mountWithCleanup(EmojiPicker, { props: { onSelect: () => {} } });
     expect(".o-EmojiPicker").toHaveCount(1);
-    // Only the emoji still present in the data shows up in "Frequently used"
-    // (the recent category has sortId 0).
+    // Only the emoji still present in the data shows up in "Frequently used" (sortId 0).
     expect(".o-EmojiPicker-content .o-Emoji[data-category='0']").toHaveCount(1);
     expect(".o-EmojiPicker-content .o-Emoji[data-category='0']").toHaveText("😀");
 });

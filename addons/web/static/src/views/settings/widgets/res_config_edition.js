@@ -10,10 +10,6 @@ import { session } from "@web/session";
 import { Setting } from "@web/views/form/setting/setting";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
-/**
- * Widget in the settings that handles a part of the "About" section.
- * Contains info about the odoo version, database expiration date and copyrights.
- */
 class ResConfigEdition extends Component {
     static template = "res_config_edition";
     static components = { Setting };

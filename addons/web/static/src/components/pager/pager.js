@@ -101,8 +101,8 @@ export class Pager extends Component {
         return parts.join("-");
     }
     /**
-     * Note: returns false if we received the props "updateTotal", as in this case we don't know
-     * the real total so we can't assert that there's a single page.
+     * Returns false if the "updateTotal" prop was passed, since then the real
+     * total is unknown and a single page can't be asserted.
      * @returns {boolean} true if there is only one page
      */
     get isSinglePage() {

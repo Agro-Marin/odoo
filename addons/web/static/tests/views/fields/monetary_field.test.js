@@ -578,9 +578,7 @@ test("should keep the focus when being edited in x2many lists", async () => {
 });
 
 test("MonetaryField with currency set by an onchange", async () => {
-    // this test ensures that the monetary field can be re-rendered with and
-    // without currency (which can happen as the currency can be set by an
-    // onchange)
+    // must re-render correctly when currency is set/unset by an onchange
     Partner._onChanges = {
         int_field: function (obj) {
             obj.currency_id = obj.int_field ? 2 : null;

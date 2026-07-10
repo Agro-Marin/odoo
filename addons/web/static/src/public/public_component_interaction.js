@@ -18,9 +18,8 @@ export class PublicComponentInteraction extends Interaction {
 
     setup() {
         const props = JSON.parse(this.el.getAttribute("props") || "{}");
-        // clear owl-component content to make sure we don't have any leftover
-        // html from a previous page edit, where owl-components were not properly
-        // cleaned up while saving
+        // Clear leftover html from a previous page edit whose owl-components
+        // weren't properly cleaned up on save.
         this.el.replaceChildren();
         this.mountComponent(
             this.el,

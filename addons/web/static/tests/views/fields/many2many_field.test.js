@@ -856,12 +856,8 @@ test("many2many list: create action disabled", async () => {
 });
 
 test("fieldmany2many list comodel not writable", async () => {
-    /**
-     * Many2Many List should behave as the m2m_tags
-     * that is, the relation can be altered even if the comodel itself is not CRUD-able
-     * This can happen when someone has read access alone on the comodel
-     * and full CRUD on the current model
-     */
+    // Many2Many list behaves like m2m_tags: the relation can be altered even when
+    // the comodel itself isn't CRUD-able (e.g. read-only access to the comodel).
     expect.assertions(12);
 
     PartnerType._views = {

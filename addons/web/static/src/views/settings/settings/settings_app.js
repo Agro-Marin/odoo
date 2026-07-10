@@ -5,7 +5,6 @@
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 
-/** Container for a single app's settings tab content (hidden when search yields no matches). */
 export class SettingsApp extends Component {
     static template = "web.SettingsApp";
     static props = {

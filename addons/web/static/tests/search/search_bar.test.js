@@ -166,9 +166,8 @@ test("computeState is null-safe when the input is not rendered", async () => {
         searchMenuTypes: [],
         searchViewId: false,
     });
-    // Simulate the input being unrendered (collapsed search bar, or a resize
-    // that collapsed the bar while a loadMore promise was still resolving):
-    // inputRef.el is null. computeState must not throw when writing the value.
+    // Simulate a collapsed/resized search bar where inputRef.el is null:
+    // computeState must not throw when writing the value.
     searchBar.inputRef = { el: null };
     await searchBar.computeState({ query: "First", expanded: [], subItems: [] });
     expect(searchBar.state.query).toBe("First");
@@ -186,11 +185,11 @@ test("navigation with facets", async () => {
     expect(`.o_searchview .o_searchview_facet`).toHaveCount(1);
     expect(queryFirst`.o_searchview input`).toBeFocused();
 
-    await keyDown("ArrowLeft"); // press left to focus the facet
+    await keyDown("ArrowLeft");
     await animationFrame();
     expect(queryFirst`.o_searchview .o_searchview_facet`).toBeFocused();
 
-    await keyDown("ArrowRight"); // press right to focus the input
+    await keyDown("ArrowRight");
     await animationFrame();
     expect(queryFirst`.o_searchview input`).toBeFocused();
 });
@@ -210,22 +209,18 @@ test("navigation with facets (2)", async () => {
     expect(`.o_searchview .o_searchview_facet`).toHaveCount(2);
     expect(queryFirst`.o_searchview input`).toBeFocused();
 
-    // press left to focus the rightmost facet
     await keyDown("ArrowLeft");
     await animationFrame();
     expect(queryFirst`.o_searchview .o_searchview_facet:nth-child(2)`).toBeFocused();
 
-    // press left to focus the leftmost facet
     await keyDown("ArrowLeft");
     await animationFrame();
     expect(queryFirst`.o_searchview .o_searchview_facet:nth-child(1)`).toBeFocused();
 
-    // press left to focus the input
     await keyDown("ArrowLeft");
     await animationFrame();
     expect(queryFirst`.o_searchview input`).toBeFocused();
 
-    // press left to focus the leftmost facet
     await keyDown("ArrowRight");
     await animationFrame();
     expect(queryFirst`.o_searchview .o_searchview_facet:nth-child(1)`).toBeFocused();
@@ -243,7 +238,6 @@ test("navigation should move forward from search bar filter", async () => {
     expect(`.o_searchview .o_searchview_facet`).toHaveCount(1);
     expect(queryFirst`.o_searchview input`).toBeFocused();
 
-    // press tab to navigate forward to the toggler
     await keyDown("Tab");
     await animationFrame();
     expect(queryFirst`.o_searchview_dropdown_toggler`).toBeFocused();
@@ -261,7 +255,6 @@ test("navigation should move backward from search bar filter", async () => {
     expect(`.o_searchview .o_searchview_facet`).toHaveCount(1);
     expect(queryFirst`.o_searchview input`).toBeFocused();
 
-    // press shift+tab to navigate backward to the search icon button
     await keyDown("Shift");
     await press("Tab");
     await animationFrame();
@@ -362,7 +355,7 @@ test("autocomplete menu clickout interactions", async () => {
         `,
     });
 
-    // Create an input outside of the search panel to simulate another input outside of the search panel
+    // Input outside the search panel, used as a clickout target below.
     await mountWithCleanup(/* xml */ `<input id="foo"/>`);
 
     expect(`.o_searchview_autocomplete`).toHaveCount(0);
@@ -423,7 +416,6 @@ test("select an autocomplete field with `context` key", async () => {
         searchViewId: false,
     });
 
-    // 'r' key to filter on bar "First Record"
     await editSearch("record");
     await keyDown("ArrowDown");
     await animationFrame();
@@ -441,7 +433,6 @@ test("select an autocomplete field with `context` key", async () => {
     expect(searchBar.env.searchModel.domain).toEqual([["bar", "=", 1]]);
     expect(searchBar.env.searchModel.context.bar).toEqual([1]);
 
-    // 'r' key to filter on bar "Second Record"
     await editSearch("record");
     await keyDown("ArrowDown");
     await animationFrame();
@@ -505,7 +496,6 @@ test("selecting (no result) triggers a search bar rendering", async () => {
 
     await editSearch("hello there");
 
-    // 'a' key to filter nothing on bar
     await keyDown("ArrowRight");
     await animationFrame();
     await runAllTimers();
@@ -520,9 +510,8 @@ test("selecting (no result) triggers a search bar rendering", async () => {
 });
 
 test("update suggested filters in autocomplete menu with Japanese IME", async () => {
-    // The goal here is to simulate as many events happening during an IME
-    // assisted composition session as possible. Some of these events are
-    // not handled but are triggered to ensure they do not interfere.
+    // Simulate as many events as possible during an IME composition session;
+    // unhandled ones are triggered to ensure they don't interfere.
     const TEST = "TEST";
     const TEST_JP = "テスト";
 
@@ -534,7 +523,6 @@ test("update suggested filters in autocomplete menu with Japanese IME", async ()
 
     await click(".o_searchview input");
 
-    // Simulate typing "TEST" on search view.
     await edit(TEST, { composition: true });
     await animationFrame();
     expect(`.o_searchview_autocomplete`).toHaveCount(1);
@@ -565,7 +553,6 @@ test("open search view autocomplete on paste value using mouse", async () => {
         searchViewId: false,
     });
 
-    // Simulate paste text through the mouse.
     await navigator.clipboard.writeText("ABC");
     await pointerDown(".o_searchview input");
     await press(["ctrl", "v"]);
@@ -638,7 +625,6 @@ test("autocompletion with a boolean field", async () => {
         "Search Bool for: Yes",
     );
 
-    // select "Yes"
     await contains(
         ".o_searchview_autocomplete .o-dropdown-item:nth-last-child(2)",
     ).click();
@@ -653,7 +639,6 @@ test("autocompletion with a boolean field", async () => {
         "Search Bool for: No",
     );
 
-    // select "No"
     await contains(
         ".o_searchview_autocomplete .o-dropdown-item:nth-last-child(2)",
     ).click();
@@ -686,12 +671,10 @@ test("autocompletion with a selection field", async () => {
     expect(`.o_searchview_autocomplete .o-dropdown-item:first`).toHaveText(
         "Search Selection Field for: a",
     );
-    // expand results
     await contains(".o_searchview_autocomplete .o-dropdown-item:first").click();
     expect(`.o_searchview_autocomplete .o-dropdown-item`).toHaveCount(4);
     expect(`.o_searchview_autocomplete .o-dropdown-item:eq(1)`).toHaveText("ABC");
     expect(`.o_searchview_autocomplete .o-dropdown-item:eq(2)`).toHaveText("AEF");
-    // select "AEF"
     await contains(`.o_searchview_autocomplete .o-dropdown-item:eq(2)`).click();
     expect(searchBar.env.searchModel.domain).toEqual([["selection_field", "=", "aef"]]);
 
@@ -703,12 +686,10 @@ test("autocompletion with a selection field", async () => {
     expect(`.o_searchview_autocomplete .o-dropdown-item:first`).toHaveText(
         "Search Selection Field for: h",
     );
-    // expand results
     await contains(".o_searchview_autocomplete .o-dropdown-item:first").click();
     expect(`.o_searchview_autocomplete .o-dropdown-item`).toHaveCount(3);
     expect(`.o_searchview_autocomplete .o-dropdown-item:eq(1)`).toHaveText("GHI");
 
-    // select "GHI"
     await contains(`.o_searchview_autocomplete .o-dropdown-item:eq(1)`).click();
     expect(searchBar.env.searchModel.domain).toEqual([["selection_field", "=", "ghi"]]);
 });
@@ -1634,7 +1615,7 @@ test("edit a field", async () => {
     ).toHaveCount(1);
 
     await editSearch("def");
-    await keyDown("Enter"); // select
+    await keyDown("Enter");
     await animationFrame();
     expect(getFacetTexts()).toEqual(["Foo\nabc\nor\ndef"]);
 

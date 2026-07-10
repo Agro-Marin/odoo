@@ -4,10 +4,6 @@
 /** @module @web/webclient/actions/action_views - View lookup and action display mode resolution for the action service */
 
 /**
- * View lookup and action mode resolution for the action service.
- */
-
-/**
  * Find a view descriptor matching the given type and multi-record flag.
  *
  * @param {Object[]} views - available view descriptors

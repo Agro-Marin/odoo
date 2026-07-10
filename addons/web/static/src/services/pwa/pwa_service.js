@@ -212,10 +212,6 @@ export const pwaService = {
             return _manifest;
         }
 
-        // This function don't guarantee the scope is still currently installed on the device
-        // The only way to know that is by relying on the BeforeInstallPrompt event from the
-        // page linking the app manifest. This only serves to indicate that the app has previously
-        // been installed
         /**
          * Check if a scope was previously installed (based on localStorage state).
          * Does not guarantee the app is still installed on the device.

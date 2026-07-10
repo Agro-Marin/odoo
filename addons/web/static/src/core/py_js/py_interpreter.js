@@ -57,9 +57,8 @@ const BLOCKED_PROPERTIES = new Set([
 const MAX_EVAL_DEPTH = 100;
 
 /**
- * We want to maintain this order:
- *   None < number (boolean) < dict < string < list
- * So, each type is mapped to a number to represent that order
+ * Order: None < number (boolean) < dict < string < list. Each type maps to
+ * an index representing that order.
  *
  * @param {any} val
  * @returns {number} index type
@@ -778,24 +777,20 @@ export function evaluate(ast, context = {}) {
     /** @type {any} */
     let pyContext;
     let evalDepth = 0;
-    // Name resolution reads directly from ``context`` rather than from a
-    // null-proto *copy* of it. The previous implementation ran
-    // ``Object.assign(Object.create(null), context)`` on every ``evaluate``
-    // call, which is O(number-of-keys) — and a record's eval context carries
-    // every field value (see ``RelationalRecord._setEvalContext``), so a
-    // single modifier like ``state == 'draft'`` paid to shallow-copy ~50
-    // unrelated fields per record per render. Reading from ``context``
-    // directly makes a name lookup O(1) and removes the per-call allocation.
+    // Name resolution reads directly from ``context`` rather than a null-proto
+    // *copy* of it — the previous ``Object.assign(Object.create(null), context)``
+    // per ``evaluate`` call was O(fields), and a record's eval context carries
+    // every field (see ``RelationalRecord._setEvalContext``), so a single
+    // modifier like ``state == 'draft'`` paid to copy ~50 unrelated fields per
+    // render. Reading ``context`` directly is O(1) with no per-call allocation.
     //
-    // Two invariants of the old copy are preserved explicitly in the Name
-    // case below:
-    //   • null-proto semantics — name resolution uses ``Object.hasOwn`` so a
-    //     name like ``toString``/``constructor`` never resolves to an
-    //     inherited ``Object.prototype`` member; it falls through to a
-    //     builtin or raises, exactly as before.
-    //   • the lazy ``context`` self-reference — referencing ``context`` in an
-    //     expression yields ``toPyDict(context)`` UNLESS the caller supplied
-    //     its own ``context`` key, in which case the caller's value wins.
+    // Two invariants of the old copy are preserved explicitly in the Name case:
+    //   • null-proto semantics — ``Object.hasOwn`` so a name like
+    //     ``toString``/``constructor`` never resolves via ``Object.prototype``;
+    //     it falls through to a builtin or raises, as before.
+    //   • the lazy ``context`` self-reference — referencing ``context`` yields
+    //     ``toPyDict(context)`` unless the caller supplied its own ``context``
+    //     key, in which case the caller's value wins.
     const callerProvidesContext = Object.hasOwn(context, "context");
 
     /**

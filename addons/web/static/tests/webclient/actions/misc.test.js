@@ -584,15 +584,11 @@ test("stores and restores scroll position (in kanban)", async () => {
     container.style.height = "250px";
     getFixture().appendChild(container);
     await mountWithCleanup(WebClient, { target: container });
-    // execute a first action
     await getService("action").doAction(10);
     expect(".o_content").toHaveProperty("scrollTop", 0);
-    // simulate a scroll
     await scroll(".o_content", { top: 100 });
-    // execute a second action (in which we don't scroll)
     await getService("action").doAction(4);
     expect(".o_content").toHaveProperty("scrollTop", 0);
-    // go back using the breadcrumbs
     await contains(".o_control_panel .breadcrumb a").click();
     expect(".o_content").toHaveProperty("scrollTop", 100);
 });
@@ -607,16 +603,12 @@ test("stores and restores scroll position (in list)", async () => {
     container.style.height = "250px";
     getFixture().appendChild(container);
     await mountWithCleanup(WebClient, { target: container });
-    // execute a first action
     await getService("action").doAction(3);
     expect(".o_content").toHaveProperty("scrollTop", 0);
     expect(queryOne(".o_list_renderer").scrollTop).toBe(0);
-    // simulate a scroll
     queryOne(".o_list_renderer").scrollTop = 100;
-    // execute a second action (in which we don't scroll)
     await getService("action").doAction(4);
     expect(".o_content").toHaveProperty("scrollTop", 0);
-    // go back using the breadcrumbs
     await contains(".o_control_panel .breadcrumb a").click();
     expect(".o_content").toHaveProperty("scrollTop", 0);
     expect(queryOne(".o_list_renderer").scrollTop).toBe(100);

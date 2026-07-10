@@ -456,8 +456,6 @@ export function useColorPicker(refName, props, options = {}) {
 }
 
 /**
- * Checks if a given string is a color combination.
- *
  * @param {string} color
  * @returns {boolean}
  */

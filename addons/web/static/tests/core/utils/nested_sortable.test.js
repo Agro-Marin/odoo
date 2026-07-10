@@ -1236,19 +1236,15 @@ test("Ignore specified elements", async () => {
     // Drag root item element
     await dragAndDrop(".item:first-child", ".item:nth-child(2)");
     expect.verifySteps(["drag"]);
-    // Drag ignored element
     await dragAndDrop(".item:first-child .not-ignored", ".item:nth-child(2)");
     expect.verifySteps(["drag"]);
-    // Drag non-ignored element
     await dragAndDrop(".item:first-child .ignored", ".item:nth-child(2)");
     expect.verifySteps([]);
 });
 
 test("works in a non-webclient container and honors inertSelectors", async () => {
-    // Regression: this core util used to hardcode `.o_navbar` /
-    // `.o_action_manager` (webclient chrome). In a non-webclient embedding
-    // those selectors match nothing, so nothing outside the container was made
-    // inert. Callers can now pass their own `inertSelectors`.
+    // Regression: this util used to hardcode `.o_navbar`/`.o_action_manager`
+    // (webclient chrome), matching nothing outside a webclient. Callers now pass `inertSelectors`.
     class NestedSortable extends Component {
         static props = ["*"];
         static template = xml`

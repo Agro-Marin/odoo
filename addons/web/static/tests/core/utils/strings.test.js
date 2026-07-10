@@ -180,7 +180,6 @@ describe("hashCode", () => {
         const combined = hashCode("a", "b");
         expect(combined).not.toBe(hashCode("a"));
         expect(combined).not.toBe(hashCode("b"));
-        // Consistent with itself
         expect(combined).toBe(hashCode("a", "b"));
     });
 

@@ -3,13 +3,6 @@
 
 /** @module @web/webclient/actions/reports/report_executor - Executes ir.actions.report as HTML preview or PDF/text download */
 
-/**
- * Report action executor functions for the action service.
- *
- * Handles execution of ir.actions.report actions, including HTML previews
- * (via ReportAction client component) and PDF/text downloads.
- */
-
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
@@ -95,10 +88,9 @@ export async function executeReportAction(action, options, am) {
             if (action.context) {
                 Object.assign(downloadContext, action.context);
             }
-            // WeasyPrint always produces the file or throws; there is no
-            // wkhtmltopdf fallback to fall back onto, so downloadReport resolves
-            // with nothing on success and rejects (surfaced by the error
-            // service) on failure.
+            // WeasyPrint always produces the file or throws (no wkhtmltopdf
+            // fallback): downloadReport resolves on success, rejects (via
+            // the error service) on failure.
             await downloadReport(rpc, action, type, downloadContext);
         } finally {
             am.env.services.ui.unblock();

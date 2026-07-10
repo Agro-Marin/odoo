@@ -80,7 +80,7 @@ test("render following an onchange", async () => {
     Product._fields.name = fields.Char({
         onChange: (record) => {
             expect.step("onchange");
-            record.description = "Content ".repeat(100); // long text
+            record.description = "Content ".repeat(100);
         },
     });
     Product._records = [{ id: 1, description: "Description as text" }];
@@ -308,8 +308,8 @@ test("text field without line breaks", async () => {
     expect(".o_field_text textarea").toHaveValue("Description as text");
 
     await contains(".o_field_text textarea").clear({ confirm: false });
-    await navigator.clipboard.writeText("text\nwith\nline\nbreaks\n"); // copy
-    await press(["ctrl", "v"]); // paste
+    await navigator.clipboard.writeText("text\nwith\nline\nbreaks\n");
+    await press(["ctrl", "v"]);
     expect(".o_field_text textarea").toHaveValue("text with line breaks ", {
         message: "no line break should appear",
     });

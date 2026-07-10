@@ -1,10 +1,8 @@
 // @ts-check
 
 /**
- * Pure unit tests for record_utils.js.
- *
- * These tests run without OWL, without a browser DOM, and without any
- * mock server. They verify the pure domain logic extracted from Record.
+ * Pure unit tests for record_utils.js: no OWL, no DOM, no mock server —
+ * exercises the domain logic extracted from Record directly.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -15,10 +13,6 @@ import {
     isFieldReadonly,
     isFieldRequired,
 } from "@web/model/relational_model/record_utils";
-
-// ---------------------------------------------------------------------------
-// evaluateFieldAttr
-// ---------------------------------------------------------------------------
 
 describe("evaluateFieldAttr", () => {
     test("returns false for falsy expression", () => {
@@ -63,10 +57,6 @@ describe("evaluateFieldAttr", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// isFieldInvisible / isFieldReadonly / isFieldRequired
-// ---------------------------------------------------------------------------
-
 describe("isFieldInvisible", () => {
     test("returns false when no invisible expression", () => {
         expect(isFieldInvisible({ invisible: false }, {})).toBe(false);
@@ -101,10 +91,6 @@ describe("isFieldRequired", () => {
         expect(isFieldRequired(activeField, {})).toBe(true);
     });
 });
-
-// ---------------------------------------------------------------------------
-// computeChangeset
-// ---------------------------------------------------------------------------
 
 describe("computeChangeset", () => {
     const fields = {

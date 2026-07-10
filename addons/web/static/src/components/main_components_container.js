@@ -34,7 +34,6 @@ export class MainComponentsContainer extends Component {
 
     /**
      * Remove the faulty component from the registry snapshot and re-render.
-     * The error is re-thrown asynchronously so Owl finishes its render cycle first.
      * @param {Error} error - the error thrown by the child component
      * @param {[string, {Component: typeof Component, props?: Object}]} C - registry entry
      */

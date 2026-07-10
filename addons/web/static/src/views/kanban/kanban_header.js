@@ -27,11 +27,8 @@ class KanbanHeaderTooltip extends Component {
 }
 
 /**
- * Header component for a kanban column (group).
- *
- * Renders the group title, record count, optional progress bar, cog menu
- * (fold/edit/delete/archive), tooltip on hover for many2one groups, and
- * quick-create trigger button.
+ * Kanban column header: title, count, progress bar, cog menu (fold/edit/
+ * delete/archive), many2one hover tooltip, and quick-create trigger.
  */
 export class KanbanHeader extends Component {
     static template = "web.KanbanHeader";
@@ -83,9 +80,7 @@ export class KanbanHeader extends Component {
         this.popover.close();
     }
 
-    // ------------------------------------------------------------------------
     // Getters
-    // ------------------------------------------------------------------------
 
     /** @returns {Object} Props for the GroupConfigMenu dropdown (fold, edit, delete, archive). */
     get configMenuProps() {
@@ -130,9 +125,7 @@ export class KanbanHeader extends Component {
         return progressBarState.getAggregateValue(group, sumField);
     }
 
-    // ------------------------------------------------------------------------
     // Tooltip methods
-    // ------------------------------------------------------------------------
 
     /** @returns {boolean} Whether this group header should show a tooltip on hover. */
     get hasTooltip() {

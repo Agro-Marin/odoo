@@ -12,9 +12,7 @@ import {
 import { FileInput } from "@web/components/file_input/file_input";
 import { session } from "@web/session";
 
-// -----------------------------------------------------------------------------
 // Helpers
-// -----------------------------------------------------------------------------
 
 async function createFileInput({ mockPost, mockAdd, props }) {
     mockService("notification", {
@@ -26,9 +24,7 @@ async function createFileInput({ mockPost, mockAdd, props }) {
     await mountWithCleanup(FileInput, { props });
 }
 
-// -----------------------------------------------------------------------------
 // Tests
-// -----------------------------------------------------------------------------
 
 beforeEach(() => {
     patchWithCleanup(odoo, { csrf_token: "dummy" });
@@ -149,7 +145,7 @@ test("uploading a file that is too heavy will send a notification", async () => 
         mockPost: (_, params) => JSON.stringify([{ name: params.ufile[0].name }]),
         mockAdd: (message) => {
             expect.step("notification");
-            // Message is a bit weird because values (2 and 4 bytes) are simplified to 2 decimals in regards to megabytes
+            // Byte values (2, 4) are simplified to 2 decimals when shown as MB
             expect(message).toBe(
                 "The selected file (4B) is larger than the maximum allowed file size (2B).",
             );
@@ -174,12 +170,10 @@ test("Upload button is disabled if attachment upload is not finished", async () 
         },
         props: {},
     });
-    //enable button
     await contains(".o_file_input input", { visible: false }).click();
     await setInputFiles([]);
     await animationFrame();
 
-    //disable button
     expect(".o_file_input input").not.toBeEnabled({
         message: "the upload button should be disabled on upload",
     });

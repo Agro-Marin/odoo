@@ -7,40 +7,13 @@
  * Group rendering cohort extracted from ``ListRenderer``.
  *
  * Same prototype-mixin pattern as ``list_styling.js``: methods land on
- * ``ListRenderer.prototype`` so subclasses' ``super.<method>(...)``
- * keeps resolving to the canonical implementation.
+ * ``ListRenderer.prototype`` so subclasses' ``super.<method>(...)`` keeps
+ * resolving to the canonical implementation. Field initializations stay in
+ * the renderer's setup; only method bodies move here.
  *
- * Cohort scope:
- *   - Group-aware mutation entry points (``addInGroup``,
- *     ``addNewGroup``, ``editGroupRecord``).
- *   - Aggregate-column / colspan computations
- *     (``getAggregateColumns``, ``getGroupNameCellColSpan``,
- *     ``getGroupPagerCellColspan``) — these are thin wrappers over the
- *     shared utility functions in ``list_group_layout.js`` that adapt
- *     the renderer's ``this.columns`` / ``this.fields`` /
- *     ``this.hasSelectors`` / ``this.hasOpenFormViewColumn`` shape plus
- *     the group's ``aggregates`` to the utilities' parameter list.
- *   - Group-pager rendering (``getGroupPagerProps``,
- *     ``showGroupPager``).
- *   - Group menu config (``getGroupConfigMenuProps``,
- *     ``showGroupConfigMenu``, ``canCreateGroup``).
- *   - Group click + toggle (``onGroupHeaderClicked``, ``toggleGroup``).
- *   - Aggregate value formatting (``formatGroupAggregate`` —
- *     delegates to ``this.agg`` from ``useListAggregates``).
- *   - Misc (``nbRecordsInGroup``, ``getGroupLevel``).
- *
- * The methods read from ``this`` (renderer instance):
- *   - ``this.props.list`` / ``this.props.activeActions`` / ``this.props.archInfo``
- *   - ``this.props.editable`` / ``this.props.readonly``
- *   - ``this.actionService`` (for ``editGroupRecord``)
- *   - ``this.columns`` / ``this.fields``
- *   - ``this.hasSelectors`` / ``this.hasOpenFormViewColumn``
- *   - ``this.dialogClose``
- *   - ``this.agg`` (the ``useListAggregates`` hook result)
- *   - ``this.state.showGroupInput`` (mutated by ``addNewGroup``)
- *
- * Field initializations stay in the renderer's setup; only method
- * bodies move here.
+ * Covers group mutation (add/edit/create group), aggregate-column/colspan
+ * computation (thin wrappers over ``list_group_layout.js`` utilities),
+ * group-pager rendering, group menu config, and click/toggle handling.
  */
 
 import { registry } from "@web/core/registry";
@@ -159,13 +132,9 @@ export const listGroupRenderingMixin = {
     // -----------------------------------------------------------------
     // Aggregate-column / colspan computations
     //
-    // The three methods below are shape-adapters that take the
-    // renderer's ``this.columns`` / ``this.fields`` plus the group's
-    // ``aggregates`` and a few feature flags (``hasSelectors``,
-    // ``hasOpenFormViewColumn``) and call into the pure utilities in
-    // ``list_group_layout.js``.  They exist as overridable methods
-    // because subclasses (e.g. ``stock``, ``hr_recruitment``)
-    // pre-process columns or aggregates before dispatch.
+    // Shape-adapters over the pure utilities in ``list_group_layout.js``,
+    // kept as overridable methods because subclasses (``stock``,
+    // ``hr_recruitment``) pre-process columns/aggregates before dispatch.
     //
     // Group-header layout the helpers cooperatively render:
     //   TH TH TH TH TH AGG AGG TH AGG AGG TH TH TH

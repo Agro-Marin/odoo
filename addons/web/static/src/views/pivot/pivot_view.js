@@ -15,12 +15,8 @@ import { PivotSearchModel } from "./pivot_search_model.js";
 const viewRegistry = registry.category("views");
 
 /**
- * Pivot view descriptor.
- *
- * Registers the pivot view type with its Controller, Renderer, Model,
- * ArchParser and SearchModel. The `props` factory parses the arch and
- * builds `modelParams` (with `metaData` and optional `data`) consumed
- * by `PivotModel`.
+ * Pivot view descriptor. The `props` factory parses the arch and builds
+ * `modelParams` (with `metaData` and optional `data`) consumed by `PivotModel`.
  */
 export const pivotView = {
     type: "pivot",
@@ -45,7 +41,6 @@ export const pivotView = {
         } else {
             const { arch, fields, resModel } = genericProps;
 
-            // parse arch
             const archInfo = new view.ArchParser().parse(arch);
 
             if (!archInfo.activeMeasures.length || archInfo.displayQuantity) {

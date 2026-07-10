@@ -88,7 +88,6 @@ OdooClass.extend = function () {
     const prototype = new This();
     initializing = false;
 
-    // Copy the properties over onto the new prototype
     for (const name of Object.keys(prop)) {
         // Check if we're overwriting an existing function
         prototype[name] =
@@ -97,12 +96,10 @@ OdooClass.extend = function () {
                       return function () {
                           const tmp = this._super;
 
-                          // Add a new ._super() method that is the same
-                          // method but on the super-class
+                          // Bind ._super() to the super-class implementation for this call
                           this._super = _super[name];
 
-                          // The method only need to be bound temporarily, so
-                          // we remove it when we're done executing
+                          // Only bound for the duration of this call; restore after
                           const ret = fn.apply(this, arguments);
                           this._super = tmp;
 
@@ -112,7 +109,6 @@ OdooClass.extend = function () {
                 : prop[name];
     }
 
-    // The dummy class constructor
     function Class() {
         if (this.constructor !== OdooClass) {
             throw new Error(
@@ -171,13 +167,11 @@ OdooClass.extend = function () {
         }
     };
 
-    // Populate our constructed prototype object
     Class.prototype = prototype;
 
     // Enforce the constructor to be what we expect
     Class.constructor = Class;
 
-    // And make this class extendable
     Class.extend = this.extend;
 
     return Class;

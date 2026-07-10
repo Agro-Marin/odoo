@@ -11,32 +11,19 @@ import { RainbowMan } from "./rainbow_man.js";
 
 const effectRegistry = registry.category("effects");
 
-// -----------------------------------------------------------------------------
 // RainbowMan effect
-// -----------------------------------------------------------------------------
 
 /**
- * Handles effect of type "rainbow_man". If the effects aren't disabled, returns
- * the RainbowMan component to instantiate and its props. If the effects are
- * disabled, displays the message in a notification.
+ * Handles effect of type "rainbow_man": returns the RainbowMan component and
+ * props to instantiate, or (if effects are disabled) shows a notification.
  *
  * @param {import("@web/env").OdooEnv} env
  * @param {Object} [params={}]
- * @param {string} [params.message="Well Done!"]
- *    The message in the notice the rainbowman holds or the content of the notification if effects are disabled
- *    Can be a simple a string
- *    Can be a string representation of html (prefer component if you want interactions in the DOM)
- * @param {string} [params.img_url="/web/static/img/smile.svg"]
- *    The url of the image to display inside the rainbow
- * @param {"slow"|"medium"|"fast"|"no"} [params.fadeout="medium"]
- *    Delay for rainbowman to disappear
- *    'fast' will make rainbowman dissapear quickly
- *    'medium' and 'slow' will wait little longer before disappearing (can be used when options.message is longer)
- *    'no' will keep rainbowman on screen until user clicks anywhere outside rainbowman
- * @param {import("@odoo/owl").ComponentConstructor} [params.Component]
- *    Custom Component class to instantiate inside the Rainbow Man
- * @param {Object} [params.props]
- *    If params.Component is given, its props can be passed with this argument
+ * @param {string} [params.message="Well Done!"] Notice text (or HTML string) the rainbowman holds, or the notification content if effects are disabled.
+ * @param {string} [params.img_url="/web/static/img/smile.svg"] Image shown inside the rainbow.
+ * @param {"slow"|"medium"|"fast"|"no"} [params.fadeout="medium"] Delay before the rainbowman disappears; "no" keeps it until the user clicks outside it.
+ * @param {import("@odoo/owl").ComponentConstructor} [params.Component] Custom component to instantiate inside the Rainbow Man.
+ * @param {Object} [params.props] Props for `params.Component`, if given.
  */
 function rainbowMan(env, params = {}) {
     let message = params.message;
@@ -63,16 +50,12 @@ function rainbowMan(env, params = {}) {
 }
 effectRegistry.add("rainbow_man", rainbowMan);
 
-// Effects are bare functions called as ``effect(env, params)`` by the service
-// at line 81. A non-function entry would surface there as a downstream
-// ``TypeError: effect is not a function``; the predicate catches the bad
-// registration earlier with a more specific message. Throws in debug, warns
-// in production (see ``core/registry.js validateSchema``).
+// Effects are called as `effect(env, params)`; validating here turns a bad
+// registration into a clear error instead of a downstream `TypeError`.
+// Throws in debug, warns in production (see `registry.js validateSchema`).
 effectRegistry.addValidation((v) => typeof v === "function");
 
-// -----------------------------------------------------------------------------
 // Effect service
-// -----------------------------------------------------------------------------
 
 /** Service for triggering visual effects (e.g. rainbow man) via the effects registry. */
 export const effectService = {

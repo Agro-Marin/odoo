@@ -5,14 +5,11 @@
 
 import { browser } from "./browser.js";
 
-// -----------------------------------------------------------------------------
 // UA-based detection cache
-// -----------------------------------------------------------------------------
 //
-// All user-agent–based checks are pure functions of a single immutable input
-// (navigator.userAgent), which never changes during a page lifecycle. We compute
-// all results once per unique UA string and cache them. The cache auto-invalidates
-// when the UA changes — this only happens in tests that patch browser.navigator.
+// UA-based checks are pure functions of a single immutable input (navigator.userAgent).
+// Results are computed once per unique UA string and cached; the cache only
+// invalidates in tests that patch browser.navigator to a different UA.
 
 /** @type {string | undefined} */
 let _cachedUA;
@@ -55,9 +52,7 @@ function _getUA() {
     return /** @type {NonNullable<typeof _uaResults>} */ (_uaResults);
 }
 
-// -----------------------------------------------------------------------------
 // Feature detection
-// -----------------------------------------------------------------------------
 
 /**
  * True if the browser is based on Chromium (Google Chrome, Opera, Edge).

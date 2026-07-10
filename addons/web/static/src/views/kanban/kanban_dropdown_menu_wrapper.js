@@ -1,16 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_dropdown_menu_wrapper - Wrapper adding keyboard navigation classes and close-on-click to kanban dropdown menus */
-
 import { Component, useEffect, useRef } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
-/**
- * Wrapper around kanban record dropdown menus.
- *
- * Adds the `o-navigable` CSS class to all `.dropdown-item` elements so
- * keyboard navigation works, and closes the parent dropdown on item click.
- */
+
+/** Adds `o-navigable` to dropdown items (for keyboard nav) and closes the parent dropdown on item click. */
 export class KanbanDropdownMenuWrapper extends Component {
     static template = "web.KanbanDropdownMenuWrapper";
     static props = {
@@ -26,8 +20,7 @@ export class KanbanDropdownMenuWrapper extends Component {
         });
     }
 
-    /**
-     * Close all ancestor dropdowns when a menu item is clicked.
+    /** Close all ancestor dropdowns on item click.
      * @param {MouseEvent} ev
      */
     onClick(ev) {

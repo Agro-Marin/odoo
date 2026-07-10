@@ -169,18 +169,13 @@ test(`can start two independant asynchronous services in parallel`, async () => 
 });
 
 test(`startServices: skips services with unreachable deps and warns (no throw)`, async () => {
-    // Behavior change (2026-05-22): previously this branch threw
-    // "Some services could not be started: ... Missing dependencies: ...".
-    // The branch fires whenever a service is registered before a declared
-    // dependency — in the lazy-loaded test bundle (a consumer imported
-    // without its provider) AND in lazy-loaded production bundles (native
-    // ESM evaluates modules across microtasks, so a consumer can register
-    // before its provider). Skipping (not throwing) lets the run continue;
-    // a provider that arrives later is recovered by the next startServices
-    // pass (see the recovery assertion below), and a dep that never arrives
-    // leaves its consumer to fail at the precise use site. Callers that must
-    // read a lazy bundle's service synchronously await ensureServicesStarted
-    // after loadBundle rather than relying on the background pass.
+    // Behavior change (2026-05-22): previously threw on missing deps. Now
+    // skips (a provider registering after its dependent happens in both lazy
+    // test bundles and production ESM microtask ordering) so the run
+    // continues; a late-arriving provider recovers on the next
+    // startServices pass, a dep that never arrives fails at its use site.
+    // Callers needing a lazy bundle's service synchronously should await
+    // ensureServicesStarted after loadBundle instead of relying on this.
     const env = makeEnv();
     after(() => env.disposeServiceRegistryListener?.());
     registerService("b", ["a"], () => "b");
@@ -280,12 +275,10 @@ async function captureWarns(body) {
 }
 
 test(`debug-mode dep validator: warns when a service is added with a missing dep`, async () => {
-    // Early-detection sibling to the env.js cascade-skip: instead of
-    // waiting until startServices to surface a missing-dep, the
-    // dev-mode validator fires a console.warn at registration time
-    // so the developer sees the bug at the point of their edit.
-    // The check is microtask-deferred so sibling synchronous adds
-    // can land first (matches the convention in _startServices).
+    // Early-detection sibling to the env.js cascade-skip: warns at
+    // registration time (not waiting for startServices) so the dev sees
+    // the bug at the point of their edit. Microtask-deferred so sibling
+    // synchronous adds can land first (matches _startServices convention).
     patchWithCleanup(odoo, { debug: "1" });
 
     const warns = await captureWarns(async () => {
@@ -392,12 +385,10 @@ test(`mountComponent creates an env and sets the application as root when no env
     const app = await mountComponent(Root, getFixture());
     after(() => {
         delete odoo.__WOWL_DEBUG__;
-        // mountComponent created its own env (isRoot=true) and called
-        // startServices on it, which attaches a UPDATE listener to the
-        // singleton service registry. The env bypasses makeMockEnv so the
-        // global afterEach cleanup in env_test_helpers does not see it —
-        // dispose explicitly to keep listeners from leaking into the next
-        // test.
+        // mountComponent creates its own env (isRoot=true) + startServices,
+        // attaching a registry UPDATE listener. It bypasses makeMockEnv so
+        // the global afterEach cleanup doesn't see it — dispose explicitly
+        // to avoid leaking into the next test.
         app.env.disposeServiceRegistryListener?.();
     });
     const { env } = app;

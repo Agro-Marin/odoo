@@ -327,8 +327,7 @@ test("char field translatable", async () => {
 
 test("translation dialog should close if field is not there anymore", async () => {
     expect.assertions(4);
-    // In this test, we simulate the case where the field is removed from the view
-    // this can happen for example if the user click the back button of the browser.
+    // Simulates the field disappearing from the view (e.g. browser back button).
     Partner._fields.name.translate = true;
 
     serverState.lang = "en_US";
@@ -426,8 +425,7 @@ test("html field translatable", async () => {
         return true;
     });
 
-    // this will not affect the translate_fields effect until the record is
-    // saved but is set for consistency of the test
+    // Doesn't affect translate_fields until saved; set here for test consistency.
     await fieldInput("name").edit("<p>first paragraph</p><p>second paragraph</p>");
     await contains(".o_field_char .btn.o_field_translate").click();
     expect(".modal").toHaveCount(1, {
@@ -568,7 +566,6 @@ test("input field: change value before pending onchange returns (2)", async () =
         message: "should contain the correct value",
     });
 
-    // trigger a deferred onchange
     await fieldInput("int_field").edit("7");
     await fieldInput("name").edit("test", { confirm: false });
 
@@ -589,9 +586,8 @@ test("input field: change value before pending onchange returns (2)", async () =
 
 test.tags("desktop");
 test("input field: change value before pending onchange returns (with fieldDebounce)", async () => {
-    // this test is exactly the same as the previous one, except that in
-    // this scenario the onchange return *before* we validate the change
-    // on the input field (before the "change" event is triggered).
+    // Same as the previous test, but here the onchange resolves *before* the
+    // input's "change" event is validated.
     Partner._onChanges.product_id = (obj) => {
         obj.int_field = obj.product_id ? 7 : false;
     };
@@ -675,13 +671,11 @@ test("input field: change value before pending onchange renaming", async () => {
     });
     await contains(".o-autocomplete--input").click();
     await contains(".o-autocomplete--dropdown-item").click();
-    // set name before onchange
     await fieldInput("name").edit("tralala");
     await expect(".o_field_widget[name='name'] input").toHaveValue("tralala", {
         message: "should contain tralala",
     });
 
-    // complete the onchange
     def.resolve();
     await animationFrame();
     expect(".o_field_widget[name='name'] input").toHaveValue("tralala", {
@@ -828,7 +822,6 @@ test("input field: set and remove value, then wait for onchange", async () => {
     await fieldInput("name").edit("test", { confirm: false });
     await fieldInput("name").clear({ confirm: false });
 
-    // trigger the onchange by setting a product
     await contains(".o-autocomplete--input").click();
     await contains(".o-autocomplete--dropdown-item").click();
     expect(".o_field_widget[name=name] input").toHaveValue("onchange value", {

@@ -30,7 +30,6 @@ import { Popover } from "@web/ui/popover/popover";
  * @typedef {ReturnType<popoverService["start"]>["add"]} PopoverServiceAddFunction
  */
 
-/** Service for programmatically attaching popover components to target elements. */
 export const popoverService = {
     dependencies: ["overlay"],
     /**

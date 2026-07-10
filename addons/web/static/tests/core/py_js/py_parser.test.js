@@ -354,10 +354,6 @@ test("cannot parse []a", () => {
     expect(() => parseExpr("[]a b")).toThrow(/Error: Token\(s\) unused/);
 });
 
-// ---------------------------------------------------------------------------
-// AST cache tests
-// ---------------------------------------------------------------------------
-
 describe("AST cache", () => {
     test("parseExpr returns identical AST for repeated calls", () => {
         const ast1 = parseExpr("1 + 2");

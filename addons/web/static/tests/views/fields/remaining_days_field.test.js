@@ -91,7 +91,7 @@ test("RemainingDaysField on a date field in list view", async () => {
 
 test.tags("desktop");
 test("RemainingDaysField on a date field in multi edit list view", async () => {
-    mockDate("2017-10-08 15:35:11"); // October 8 2017, 15:35:11
+    mockDate("2017-10-08 15:35:11");
 
     Partner._records = [
         { id: 1, date: "2017-10-08" }, // today
@@ -107,7 +107,6 @@ test("RemainingDaysField on a date field in multi edit list view", async () => {
 
     expect(queryAllTexts(".o_data_cell").slice(0, 2)).toEqual(["Today", "Tomorrow"]);
 
-    // select two records and edit them
     await click(".o_data_row:eq(0) .o_list_record_selector input:first");
     await animationFrame();
     await click(".o_data_row:eq(1) .o_list_record_selector input:first");
@@ -138,7 +137,7 @@ test("RemainingDaysField on a date field in multi edit list view", async () => {
 
 test.tags("desktop");
 test("RemainingDaysField, enter wrong value manually in multi edit list view", async () => {
-    mockDate("2017-10-08 15:35:11"); // October 8 2017, 15:35:11
+    mockDate("2017-10-08 15:35:11");
     Partner._records = [
         { id: 1, date: "2017-10-08" }, // today
         { id: 2, date: "2017-10-09" }, // tomorrow
@@ -157,7 +156,6 @@ test("RemainingDaysField, enter wrong value manually in multi edit list view", a
     expect(cells[0]).toHaveText("Today");
     expect(cells[1]).toHaveText("Tomorrow");
 
-    // select two records and edit them
     await click(".o_list_record_selector input", { root: rows[0] });
     await animationFrame();
     await click(".o_list_record_selector input", { root: rows[1] });
@@ -177,7 +175,7 @@ test("RemainingDaysField, enter wrong value manually in multi edit list view", a
 });
 
 test("RemainingDaysField on a date field in form view", async () => {
-    mockDate("2017-10-08 15:35:11"); // October 8 2017, 15:35:11
+    mockDate("2017-10-08 15:35:11");
     Partner._records = [
         { id: 1, date: "2017-10-08" }, // today
     ];
@@ -224,7 +222,7 @@ test("RemainingDaysField on a date field on a new record in form", async () => {
 });
 
 test("RemainingDaysField in form view (readonly)", async () => {
-    mockDate("2017-10-08 15:35:11"); // October 8 2017, 15:35:11
+    mockDate("2017-10-08 15:35:11");
     Partner._records = [
         { id: 1, date: "2017-10-08", datetime: "2017-10-08 10:00:00" }, // today
     ];
@@ -253,7 +251,7 @@ test("RemainingDaysField in form view (readonly)", async () => {
 });
 
 test("RemainingDaysField on a datetime field in form view", async () => {
-    mockDate("2017-10-08 15:35:11"); // October 8 2017, 15:35:11
+    mockDate("2017-10-08 15:35:11");
     Partner._records = [
         { id: 1, datetime: "2017-10-08 10:00:00" }, // today
     ];
@@ -281,7 +279,7 @@ test("RemainingDaysField on a datetime field in form view", async () => {
 });
 
 test("RemainingDaysField on a datetime field in list view in UTC", async () => {
-    mockDate("2017-10-08 15:35:11", 0); // October 8 2017, 15:35:11
+    mockDate("2017-10-08 15:35:11", 0);
     Partner._records = [
         { id: 1, datetime: "2017-10-08 20:00:00" }, // today
         { id: 2, datetime: "2017-10-09 08:00:00" }, // tomorrow
@@ -326,7 +324,7 @@ test("RemainingDaysField on a datetime field in list view in UTC", async () => {
 });
 
 test("RemainingDaysField on a datetime field in list view in UTC+6", async () => {
-    mockDate("2017-10-08 15:35:11", +6); // October 8 2017, 15:35:11, UTC+6
+    mockDate("2017-10-08 15:35:11", +6); // UTC+6
 
     Partner._records = [
         { id: 1, datetime: "2017-10-08 20:00:00" }, // tomorrow
@@ -356,7 +354,7 @@ test("RemainingDaysField on a datetime field in list view in UTC+6", async () =>
 });
 
 test("RemainingDaysField on a date field in list view in UTC-6", async () => {
-    mockDate("2017-10-08 15:35:11", -6); // October 8 2017, 15:35:11, UTC-6
+    mockDate("2017-10-08 15:35:11", -6); // UTC-6
 
     Partner._records = [
         { id: 1, date: "2017-10-08" }, // today
@@ -385,7 +383,7 @@ test("RemainingDaysField on a date field in list view in UTC-6", async () => {
 });
 
 test("RemainingDaysField on a datetime field in list view in UTC-8", async () => {
-    mockDate("2017-10-08 15:35:11", -8); // October 8 2017, 15:35:11, UTC-8
+    mockDate("2017-10-08 15:35:11", -8); // UTC-8
 
     Partner._records = [
         { id: 1, datetime: "2017-10-08 20:00:00" }, // today

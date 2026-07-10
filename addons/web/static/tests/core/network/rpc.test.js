@@ -345,7 +345,6 @@ test("Dedup composes with cache: cache hit skips the fetch", async () => {
         return { result: { x: 42 } };
     });
 
-    // Prime the cache.
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ x: 42 });
     expect.verifySteps(["Fetch"]);
 
@@ -439,7 +438,6 @@ test("Cache: abort on a cache hit is a safe no-op", async () => {
         return { result: { x: 7 } };
     });
 
-    // Prime the cache.
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ x: 7 });
     expect.verifySteps(["Fetch"]);
 
@@ -550,9 +548,7 @@ test("Retry: abort during backoff cancels the scheduled retry", async () => {
     expect.verifySteps([]);
 });
 
-// ----------------------------------------------------------------------------
 // Plan-C envelope versioning (Phase 3)
-// ----------------------------------------------------------------------------
 //
 // The server-side ``@versioned_envelope`` decorator stashes a content hash on
 // ``request._response_version``; the JSON-RPC dispatcher lifts it as a

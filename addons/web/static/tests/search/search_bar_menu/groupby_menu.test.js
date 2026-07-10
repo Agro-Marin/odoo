@@ -279,7 +279,6 @@ test("default groupbys can be ordered", async () => {
         context: { search_default_birthday: 2, search_default_date: 1 },
     });
 
-    // the default groupbys should be activated in the right order
     expect(searchBar.env.searchModel.groupBy).toEqual([
         "date_field:week",
         "birthday:month",

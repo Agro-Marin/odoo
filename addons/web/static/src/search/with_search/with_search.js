@@ -15,10 +15,7 @@ import { SearchModel } from "@web/search/search_model";
 // Re-export for backward compatibility — canonical location is @web/core/constants
 export { SEARCH_KEYS };
 
-/**
- * Wrapper component that creates a SearchModel, injects it into the sub-environment,
- * and re-renders its children whenever the search state changes.
- */
+/** Creates a SearchModel, injects it into the sub-env, and re-renders children on search-state change. */
 export class WithSearch extends Component {
     static template = "web.WithSearch";
     static props = {

@@ -81,7 +81,6 @@ test("keyboard navigation", async () => {
             colorPrefix: "",
         },
     });
-    // select the first color
     await click(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
     );
@@ -90,20 +89,17 @@ test("keyboard navigation", async () => {
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
     ).toBeFocused();
 
-    // move to the second color
     await press("arrowright");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:nth-of-type(2)",
     ).toBeFocused();
 
-    // select the second color using Enter key
     await press("enter");
     await animationFrame();
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:nth-of-type(2)",
     ).toHaveClass("selected");
 
-    // move back to the first color
     await press("arrowleft");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
@@ -115,37 +111,31 @@ test("keyboard navigation", async () => {
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
     ).toBeFocused();
 
-    // move the color below
     await press("arrowdown");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:nth-of-type(9)",
     ).toBeFocused();
 
-    // move back to the first color
     await press("arrowup");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
     ).toBeFocused();
 
-    // select the last color of the first row
     await click(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:nth-of-type(8)",
     );
     await animationFrame();
 
-    // move to the first color of the second row
     await press("arrowright");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:nth-of-type(9)",
     ).toBeFocused();
 
-    // move back to the last color of the first row
     await press("arrowleft");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:nth-of-type(8)",
     ).toBeFocused();
 
-    // select the last color
     await click(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:last-of-type",
     );

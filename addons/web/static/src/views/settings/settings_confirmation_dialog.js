@@ -6,7 +6,6 @@
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
-/** Three-way dialog: Save / Discard / Stay Here for unsaved settings changes. */
 export class SettingsConfirmationDialog
     extends /** @type {any} */ (ConfirmationDialog)
 {

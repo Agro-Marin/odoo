@@ -75,11 +75,7 @@ const supportedInfoEntryShape = {
         },
         optional: true,
     },
-    /**
-     * If true, the listed fields come from the relation.
-     * e.g.: the field is a relational one like many2many_tags, so
-     * property 'field' will search on the relation.
-     * */
+    /** If true, listed fields come from the relation (e.g. many2many_tags: 'field' searches on the relation). */
     isRelationalField: { type: Boolean, optional: true },
     placeholder: { type: String, optional: true },
     "*": true,
@@ -90,9 +86,8 @@ const supportedInfoValidation = {
     optional: true,
     element: [
         { type: Object, shape: supportedInfoEntryShape },
-        // stock_action_field composes its supportedOptions with a nested
-        // Object.values(...) array (not spread) — tolerate one level of
-        // nesting rather than quarantining that widget.
+        // stock_action_field composes supportedOptions via a nested
+        // Object.values(...) (not spread) — tolerate one level of nesting.
         {
             type: Array,
             element: { type: Object, shape: supportedInfoEntryShape },
@@ -127,11 +122,9 @@ fieldRegistry.addValidation({
         optional: true,
     },
     relatedFields: {
-        // Function forms (e.g. many2ManyTagsField) are opaque to the
-        // schema — only array literals are shape-checked. Entries are
-        // field descriptions merged into the model spec, so ``"*": true``
-        // keeps legitimate extra description keys from quarantining the
-        // widget; ``name`` is the only key every declaration provides.
+        // Function forms (e.g. many2ManyTagsField) are opaque to the schema —
+        // only array literals are shape-checked. ``"*": true`` tolerates extra
+        // description keys; ``name`` is the only universal one.
         type: [
             Function,
             {
@@ -272,9 +265,8 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
 export function getPropertyFieldInfo(propertyField) {
     const { name, relatedPropertyField, string, type, widget } = propertyField;
 
-    // ``field`` is assigned below from ``getFieldFromRegistry``; TS infers
-    // the literal type without it and complains at the return. Widen with
-    // ``any`` so the post-assignment shape matches the declared return.
+    // ``field`` is assigned below via ``getFieldFromRegistry``; without the
+    // widen, TS infers a literal type here and complains at the return.
     /** @type {any} */
     const fieldInfo = {
         name,
@@ -382,9 +374,8 @@ export class Field extends Component {
             }
         }
 
-        // generate field decorations classNames (only if field-specific decorations
-        // have been defined in an attribute, e.g. decoration-danger="other_field = 5")
-        // only handle the text-decoration.
+        // Decoration classNames from arch attrs (e.g. decoration-danger="other_field = 5");
+        // only text-decoration is handled here.
         if (fieldInfo?.decorations) {
             const { decorations } = fieldInfo;
             for (const decoName of Object.keys(decorations)) {
@@ -430,14 +421,12 @@ export class Field extends Component {
                     fieldInfo.attrs.placeholder ||
                     fieldInfo.options.placeholder_field
                 ) {
-                    // ``fieldInfo`` is the parsed arch node, cached and shared by
-                    // every Field instance for this node (e.g. all rows of a list
-                    // column). The placeholder is record-specific
-                    // (``record.data[placeholder_field]``), so assigning
-                    // ``fieldInfo.placeholder`` in place would pollute the shared
-                    // node across records (and would trigger render loops if the
-                    // arch node were ever made reactive). Shallow-copy instead —
-                    // only when a placeholder is actually in play.
+                    // ``fieldInfo`` is the parsed arch node, shared across every
+                    // Field instance for this node (e.g. all rows of a list column).
+                    // The placeholder is record-specific, so mutating it in place
+                    // would pollute the shared node (and could trigger render loops
+                    // if the arch node became reactive) — shallow-copy instead, only
+                    // when a placeholder is actually in play.
                     fieldInfo = {
                         ...fieldInfo,
                         placeholder:

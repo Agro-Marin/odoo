@@ -3,7 +3,6 @@
 
 /** @module @web/views/settings/widgets/demo_data_service - Service that checks whether demo data is active in the current database */
 
-/** Service that checks whether demo data is active in the current database. */
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 export const demoDataService = {

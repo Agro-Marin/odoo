@@ -49,11 +49,9 @@ export function openActionInNewWindow(action, state, am) {
     // https://html.spec.whatwg.org/multipage/webstorage.html#webstorage
     const currentAction = browser.sessionStorage.getItem("current_action");
     const currentState = browser.sessionStorage.getItem("current_state");
-    // Store on the session the action for the new window
     browser.sessionStorage.setItem("current_action", action._originalAction || "{}");
     browser.sessionStorage.setItem("current_state", JSON.stringify(state));
     openURL(am.router.stateToUrl(state), am);
-    // Restore the current action of the originating window
     if (currentAction !== null) {
         browser.sessionStorage.setItem("current_action", currentAction);
     } else {

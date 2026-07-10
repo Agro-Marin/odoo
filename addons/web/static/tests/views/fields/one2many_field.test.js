@@ -445,12 +445,9 @@ test("do not send context in unity spec if field is invisible", async () => {
 });
 
 test("O2M List with pager, decoration and default_order: add and cancel adding", async () => {
-    // The decoration on the list implies that its condition will be evaluated
-    // against the data of the field (actual records *displayed*)
-    // If one data is wrongly formed, it will crash
-    // This test adds then cancels a record in a paged, ordered, and decorated list
-    // That implies prefetching of records for sorting
-    // and evaluation of the decoration against *visible records*
+    // Decoration conditions evaluate against the *displayed* records, so this test
+    // adds then cancels a record in a paged, ordered, decorated list to force
+    // prefetching and decoration evaluation against visible records only.
 
     Partner._records[0].p = [2, 4];
     await mountView({
@@ -7252,9 +7249,8 @@ test("one2many list editable, onchange and required field", async () => {
 
 test.tags("desktop");
 test("one2many list editable: trigger onchange when row is valid", async () => {
-    // should omit require fields that aren't in the view as they (obviously)
-    // have no value, when checking the validity of required fields
-    // shouldn't consider numerical fields with value 0 as unset
+    // Required-field validity check must omit required fields absent from the view,
+    // and must not treat a numerical field with value 0 as unset.
     Turtle._fields.turtle_foo = fields.Char({ required: true });
     Turtle._fields.turtle_bar = fields.Boolean({ required: true });
     Turtle._fields.turtle_int = fields.Integer({ required: true, default: 0 }); // required int field (default 0)
@@ -7396,10 +7392,8 @@ test("one2many list editable: 'required' modifiers is properly working, part 2",
 
 test.tags("desktop");
 test("one2many list editable: add new line before onchange returns", async () => {
-    // If the user adds a new row (with a required field with onchange), selects
-    // a value for that field, then adds another row before the onchange returns,
-    // the editable list must wait for the onchange to return before trying to
-    // unselect the first row, otherwise it will be detected as invalid.
+    // Adding a second row before the first row's onchange (required field) returns
+    // must wait for that onchange, otherwise the first row is wrongly seen as invalid.
     Turtle._onChanges = {
         turtle_trululu: function () {},
     };
@@ -7475,13 +7469,9 @@ test("editable list: multiple clicks on Add an item do not create invalid rows",
 });
 
 test("editable list: value reset by an onchange", async () => {
-    // this test reproduces a subtle behavior that may occur in a form view:
-    // the user adds a record in a one2many field, and directly clicks on a
-    // datetime field of the form view which has an onchange, which totally
-    // erases the value from the one2many (command 2 + command 0). The handler
-    // that switches the edited row to readonly is then called after the
-    // new value of the one2many field is applied (the one returned by the
-    // onchange), so the row that must go to readonly doesn't exist anymore.
+    // Adding a o2m row then clicking a datetime field whose onchange replaces the
+    // o2m value (command 2 + 0) must not crash when the readonly-switch handler for
+    // the edited row later runs against a row that no longer exists.
     Partner._onChanges = {
         datetime: function (obj) {
             if (obj.turtles.length) {
@@ -7899,8 +7889,7 @@ test("onchange and required fields with override in arch", async () => {
 });
 
 test("onchange on a one2many containing a one2many", async () => {
-    // the purpose of this test is to ensure that the onchange specs are
-    // correctly and recursively computed
+    // Onchange specs must be computed correctly and recursively.
     expect.assertions(1);
 
     Partner._onChanges = {
@@ -8800,13 +8789,9 @@ test("one2many with sequence field and text field", async () => {
 });
 
 test("one2many with several pages, onchange and default order", async () => {
-    // This test reproduces a specific scenario where a one2many is displayed
-    // over several pages, and has a default order such that a record that
-    // would normally be on page 1 is actually on another page. Moreover,
-    // there is an onchange on that one2many which converts all commands 4
-    // (LINK_TO) into commands 1 (UPDATE), which is standard in the ORM.
-    // This test ensures that the record displayed on page 2 is never fully
-    // read.
+    // Default order can push a record that would normally land on page 1 to another
+    // page; with an onchange converting LINK_TO commands to UPDATE, the record shown
+    // on page 2 must never be fully read.
 
     Partner._records[0].turtles = [1, 2, 3];
     Turtle._records[0].partner_ids = [1];
@@ -8859,13 +8844,9 @@ test("one2many with several pages, onchange and default order", async () => {
         "get_views",
         "web_read [1]", // main record
         "onchange",
-        // this test's purpose is to assert that this rpc isn't
-        // done, but yet it is. Actually, it wasn't before because mockOnChange
-        // returned [1] as command list, instead of [[6, false, [1]]], so basically
-        // this value was ignored. Now that mockOnChange properly works, the value
-        // is taken into account but the basicmodel doesn't care it concerns a
-        // record of the second page, and does the read. I don't think we
-        // introduced a regression here, this test was simply wrong...
+        // Ideally this read shouldn't happen, but it does: the model doesn't check
+        // that the record belongs to the second page. Not a regression — mockOnChange
+        // used to silently ignore this value; now that it works correctly, the read follows.
     ]);
 });
 
@@ -9788,10 +9769,9 @@ test("one2many shortcut tab should not crash when there is no input widget", asy
 
     // add a row, fill it, then trigger the tab shortcut
     await contains(".o_field_x2many_list_row_add a").click();
-    // This is not how it should happen but non trusted event listeners are called sooner than
-    // trusted ones so the update is called after the list's tab listener in which case the field is
-    // not dirty when we press tab, therefore we need to set it dirty through onChange before pressing tab
-    // so in practice we could only run the following line but it wont work since the tab keydown event is not trusted
+    // Non-trusted event listeners fire before trusted ones, so the field isn't yet
+    // dirty when tab is pressed here; edit with confirm: false alone won't work
+    // because the tab keydown itself is not trusted.
     // await contains("[name=turtle_foo] textarea").edit("ninja", { confirm: false });
     await contains("[name=turtle_foo] textarea").edit("ninja", { confirm: "blur" });
     await contains("[name=turtle_foo]:eq(2)").click();
@@ -9828,10 +9808,9 @@ test("o2m add a line custom control create editable with 'tab'", async () => {
         resId: 1,
     });
     await contains(".o_data_row .o_data_cell").click();
-    // This is not how it should happen but non trusted event listeners are called sooner than
-    // trusted ones so the update is called after the list's tab listener in which case the field is
-    // not dirty when we press tab, therefore we need to set it dirty through onChange before pressing tab
-    // so in practice we could only run the following line but it wont work since the tab keydown event is not trusted
+    // Non-trusted event listeners fire before trusted ones, so the field isn't yet
+    // dirty when tab is pressed here; edit with confirm: false alone won't work
+    // because the tab keydown itself is not trusted.
     // await contains("[name=turtle_foo] textarea").edit("Test", { confirm: false });
     await contains("[name=turtle_foo] input").edit("Test", { confirm: "blur" });
     await contains("[name=turtle_foo]").click();
@@ -10401,11 +10380,9 @@ test("two one2many fields with same relation and _onChanges", async () => {
 
 test.tags("desktop");
 test("one2many reset by onchange (of another field) while being edited", async () => {
-    // In this test, we have a many2one and a one2many. The many2one has an onchange that
-    // updates the value of the one2many. We set a new value to the many2one (name_create)
-    // such that the onchange is delayed. During the name_create, we click to add a new row
-    // to the one2many. After a while, we unlock the name_create, which triggers the onchange
-    // and resets the one2many. At the end, we want the row to be in edition.
+    // The many2one's onchange resets the one2many; while it's delayed behind a
+    // pending name_create, a row is added to the o2m. Once the onchange finally runs
+    // and resets the o2m, that row must still end up in edition.
 
     const def = new Deferred();
     Partner._onChanges = {
@@ -10443,14 +10420,9 @@ test("one2many reset by onchange (of another field) while being edited", async (
 });
 
 test("one2many with many2many_tags in list and list in form with a limit", async () => {
-    // This test encodes a limitation of the current model architecture:
-    // we have an nested x2manys, and the inner one is displayed as tags
-    // in the list, and as a list in the form. As both the list and the
-    // form will use the same Record datapoint, the config of their static
-    // list will be the same. We obviously don't want to see the limit
-    // applied on the tags (in the background) when opening the form. So
-    // the stategy is to keep the initial config, and to ignore the
-    // limit set on the list
+    // Limitation: the tags and the form's list share the same Record datapoint, so
+    // their static-list config is shared too. The list's limit must not leak onto the
+    // tags when the form opens — keep the initial config and ignore the list's limit.
     Partner._records[0].p = [1];
     Partner._records[0].turtles = [1, 2, 3];
 
@@ -10644,13 +10616,8 @@ test("reorder one2many with many2many_tags in list and list in form", async () =
 });
 
 test("nested one2many, onchange, no command value", async () => {
-    // This test ensures that we always send all values to onchange rpcs for nested
-    // one2manys, even if some field hasn't changed. In this particular test case,
-    // a first onchange returns a value for the inner one2many, and a second onchange
-    // removes it, thus restoring the field to its initial empty value. From this point,
-    // the nested one2many value must still be sent to onchange rpcs (on the main record),
-    // as it might be used to compute other fields (so the fact that the nested o2m is empty
-    // must be explicit).
+    // A nested one2many restored to its initial empty value by a second onchange must
+    // still be sent explicitly in later onchange rpcs, since other fields may depend on it.
     expect.assertions(1);
 
     Turtle._fields.o2m = fields.One2many({
@@ -13150,10 +13117,9 @@ test("pressing tab before an onchange is resolved", async () => {
     });
 
     await contains(".o_field_x2many_list_row_add a").click();
-    // This is not how it should happen but non trusted event listeners are called sooner than
-    // trusted ones so the update is called after the list's tab listener in which case the field is
-    // not dirty when we press tab, therefore we need to set it dirty through onChange before pressing tab
-    // so in practice we could only run the following line but it wont work since the tab keydown event is not trusted
+    // Non-trusted event listeners fire before trusted ones, so the field isn't yet
+    // dirty when tab is pressed here; edit with confirm: false alone won't work
+    // because the tab keydown itself is not trusted.
     // await contains(".o_field_widget[name='name'] input").edit("gold", { confirm: false });
     await contains(".o_field_widget[name='name'] input").edit("gold", {
         confirm: "blur",
@@ -13168,10 +13134,8 @@ test("pressing tab before an onchange is resolved", async () => {
 });
 
 test("add a row to an x2many and ask canBeRemoved twice", async () => {
-    // This test simulates that the view is asked twice to save its changes because the user
-    // is leaving. Before the corresponding fix, the changes in the x2many field weren't
-    // removed after the save, and as a consequence they were saved twice (i.e. the row was
-    // created twice).
+    // Simulates the view being asked twice to save (user leaving): before the fix, x2many
+    // changes weren't cleared after the first save, so the row was created twice.
 
     const def = new Deferred();
     Partner._views = {
@@ -13659,12 +13623,9 @@ test("one2many custom which can be edited in dialog or on the line", async () =>
 });
 
 test("x2many kanban with float field in form (non inline) but not in kanban", async () => {
-    // In this test, the form view contains an extra float field and isn't inline. When we open
-    // a record, we add the form fields to the list of activeFields, and we load the
-    // corresponding data (for that record only). Afterwards, we force a re-rendering of the
-    // x2many kanban to ensure that the other record can still be rendered. Before the fix coming
-    // with this test, it wasn't the case, because those records had extra activeFields, but no
-    // entry in data for those fields.
+    // Opening a record adds the non-inline form's fields to activeFields and loads data for
+    // that record only. Other records then have those extra activeFields but no data for them
+    // — re-rendering the kanban afterwards must still render those other records fine.
     Partner._records[0].turtles = [2, 3];
     Turtle._views = {
         form: `

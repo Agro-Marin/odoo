@@ -18,9 +18,8 @@ export class SearchBarToggler extends Component {
 }
 
 /**
- * OWL hook that manages responsive search bar visibility.
- * Automatically shows the search bar on large screens and provides
- * a toggle function for small screens.
+ * OWL hook managing responsive search bar visibility: shown automatically on
+ * large screens, toggleable on small screens.
  * @returns {{ state: { isSmall: boolean, showSearchBar: boolean }, component: typeof SearchBarToggler, props: Object }}
  */
 export function useSearchBarToggler() {

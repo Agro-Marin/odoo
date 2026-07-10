@@ -22,7 +22,6 @@ const PICKER_COLS = 7;
  * }} expectedParams
  */
 export function assertDateTimePicker(expectedParams) {
-    // Check for picker in DOM
     if (expectedParams) {
         expect(".o_datetime_picker").toHaveCount(1);
     } else {

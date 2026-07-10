@@ -8,9 +8,7 @@ import { useSortable as nativeUseSortable } from "@web/core/utils/dnd/sortable";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
- * Set of default `useSortable` setup hooks that makes use of Owl lifecycle
- * and reactivity hooks to properly set up, update and tear down the elements and
- * listeners added by the draggable hook builder.
+ * `useSortable` setup hooks wired to Owl's lifecycle and reactivity.
  *
  * @see {nativeUseSortable}
  * @type {typeof nativeUseSortable}

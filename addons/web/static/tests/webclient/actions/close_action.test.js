@@ -77,10 +77,8 @@ defineActions([
 
 test("close the currently opened dialog", async () => {
     await mountWithCleanup(WebClient);
-    // execute an action in target="new"
     await getService("action").doAction(5);
     expect(".o_technical_modal .o_form_view").toHaveCount(1);
-    // execute an 'ir.actions.act_window_close' action
     await getService("action").doAction({
         type: "ir.actions.act_window_close",
     });
@@ -90,7 +88,6 @@ test("close the currently opened dialog", async () => {
 
 test("close dialog by clicking on the header button", async () => {
     await mountWithCleanup(WebClient);
-    // execute an action in target="new"
     function onClose() {
         expect.step("on_close");
     }
@@ -100,29 +97,25 @@ test("close dialog by clicking on the header button", async () => {
     expect(".o_dialog").toHaveCount(0);
     expect.verifySteps(["on_close"]);
 
-    // execute an 'ir.actions.act_window_close' action
-    // should not call 'on_close' as it was already called.
+    // should not call on_close again: it was already called.
     await getService("action").doAction({ type: "ir.actions.act_window_close" });
     expect.verifySteps([]);
 });
 
 test('execute "on_close" only if there is no dialog to close', async () => {
     await mountWithCleanup(WebClient);
-    // execute an action in target="new"
     await getService("action").doAction(5);
     function onClose() {
         expect.step("on_close");
     }
     const options = { onClose };
-    // execute an 'ir.actions.act_window_close' action
-    // should not call 'on_close' as there is a dialog to close
+    // should not call on_close: there is still a dialog to close.
     await getService("action").doAction(
         { type: "ir.actions.act_window_close" },
         options,
     );
     expect.verifySteps([]);
-    // execute again an 'ir.actions.act_window_close' action
-    // should call 'on_close' as there is no dialog to close
+    // should call on_close now that there is no dialog to close.
     await getService("action").doAction(
         { type: "ir.actions.act_window_close" },
         options,
@@ -192,7 +185,6 @@ test("history back called within on_close", async () => {
         list.env.config.historyBack();
         expect.step("on_close");
     }
-    // open a new dialog form
     await getService("action").doAction(5, { onClose });
 
     await contains(".modal-header button.btn-close").click();
@@ -216,8 +208,7 @@ test("web client is not deadlocked when a view crashes", async () => {
     });
     await mountWithCleanup(WebClient);
     await getService("action").doAction(3);
-    // open first record in form view. this will crash and will not
-    // display a form view
+    // open first record in form view: this will crash, no form view shown
     await contains(".o_list_view .o_data_cell").click();
     readOnFirstRecordDef.reject(new Error("not working as intended"));
     await animationFrame();

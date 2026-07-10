@@ -50,7 +50,6 @@ export function computeAppsAndMenuItems(menuTree) {
                     menuItem.webIcon || ""
                 ).split(",");
                 if (backgroundColor !== undefined) {
-                    // Could split in three parts?
                     item.webIcon = { iconClass, color, backgroundColor };
                 } else {
                     item.webIconData = "/web/static/img/default_icon_app.png";
@@ -96,6 +95,6 @@ export function reorderApps(apps, order) {
         if (bIndex === -1) {
             return 1;
         }
-        return aIndex - bIndex; // sort by order array
+        return aIndex - bIndex;
     });
 }

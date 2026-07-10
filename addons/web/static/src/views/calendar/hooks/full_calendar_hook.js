@@ -13,10 +13,8 @@ import {
 } from "@odoo/owl";
 import { Settings } from "@web/core/l10n/luxon";
 /**
- * OWL hook that manages a FullCalendar instance lifecycle.
- *
- * Loads the FullCalendar library bundle, creates and renders the calendar on
- * mount, refreshes events on patch, and destroys the instance on unmount.
+ * OWL hook that manages a FullCalendar instance lifecycle: loads the bundle,
+ * creates/renders on mount, refreshes on patch, destroys on unmount.
  *
  * @param {string} refName - OWL template ref name for the calendar container element
  * @param {Object} params - FullCalendar configuration options (functions are bound to the component)
@@ -27,41 +25,15 @@ import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
 /**
  * Returns a time-zone identifier safe to pass to ``new Calendar({ timeZone })``.
  *
- * FullCalendar v7 forwards an IANA-name string to
- * ``new Intl.DateTimeFormat({ timeZone })`` unchanged.  Intl only accepts
- * IANA names (``UTC``, ``Europe/Brussels``, ``Etc/GMT-2``, …).  Luxon's
- * ``Settings.defaultZone`` may be:
- *
- *   - an IANA-named zone (``Europe/Brussels``)
- *   - the literal ``"UTC"``
- *   - a ``FixedOffsetZone`` whose ``.name`` is ``"UTC+1"`` / ``"UTC-9"``
- *     — Intl rejects these names; Luxon's ``DateTime#toISO`` still emits
- *     the matching offset in the ISO string.
- *
- * For the IANA / UTC cases we pass the name straight through so FC's
- * day boundaries align with Luxon's local rendering.  For a
- * ``FixedOffsetZone``, we translate the offset into the matching POSIX
- * ``Etc/GMT±N`` IANA name.  Two earlier strategies and their failure
- * modes (kept here as warnings to future hands):
- *
- *   - Returning ``"UTC"`` broke ``initialDate`` / event-range
- *     alignment whenever the offset was non-zero — events serialized
- *     with ``+01:00`` fell outside FC's UTC-midnight day window.
- *   - Returning the magic value ``"local"`` made FC use native
- *     ``Date`` arithmetic for date math but Intl's local-zone
- *     formatting for ``eventTimeFormat``.  The two diverged in marker
- *     mode: a 06:00-UTC marker for "06:00 local" formatted as
- *     ``getTimezoneOffset() + 06:00`` in local time, shifting every
- *     event-time text by the mock offset (visible as the "10:00 -
- *     12:00" vs expected "08:00 - 10:00" symptom in
- *     ``create event with timezone in week mode European locale``).
- *
- * ``Etc/GMT-N`` is a real IANA zone with no DST and a fixed offset
- * that POSIX inverts (``Etc/GMT-2`` is UTC+2, not UTC-2 — see the
- * POSIX spec footnote in the IANA tzdata).  This keeps FC's date
- * arithmetic AND its Intl-based formatting on the same zone, so
- * markers round-trip through select / display / serialise without
- * the +N-hour drift.
+ * FullCalendar v7 forwards the value to ``Intl.DateTimeFormat({ timeZone })``,
+ * which only accepts IANA names (``UTC``, ``Europe/Brussels``, ...) — not Luxon's
+ * ``FixedOffsetZone`` names like ``"UTC+1"``. For those we translate the
+ * offset into the equivalent POSIX ``Etc/GMT±N`` IANA name (sign inverted:
+ * UTC+2 -> ``Etc/GMT-2``), keeping FC's date arithmetic and Intl-based
+ * formatting on the same zone so markers round-trip without drift. Earlier
+ * attempts returning ``"UTC"`` or the magic ``"local"`` unchanged broke
+ * day-boundary alignment / event-time formatting for non-zero offsets —
+ * kept here as a warning against reintroducing them.
  *
  * :return: a time-zone identifier accepted by FullCalendar v7
  * :rtype: string
@@ -72,21 +44,11 @@ export function getFullCalendarTimeZone() {
     if (typeof name === "string" && (name === "UTC" || name.includes("/"))) {
         return name;
     }
-    // FixedOffsetZone: ``zone.offset(0)`` returns the offset in
-    // minutes from UTC for any instant (no DST). POSIX inverts the
-    // sign in ``Etc/GMT±N``, so UTC+2 (offset = +120) → ``Etc/GMT-2``.
-    //
-    // IANA's ``Etc/GMT±N`` covers integer-hour offsets in the
-    // ``[-12, +14]`` range (per ``Etc/zone.tab`` in the canonical
-    // tzdata). For offsets outside that range — typically tests with
-    // ``mockTimeZone(±40)`` to exercise extreme-offset edge cases —
-    // fall back to ``"local"``. The fallback re-enables the
-    // marker-Date convention (display strings drift by the mocked
-    // offset, but date arithmetic stays consistent with Hoot's mocked
-    // ``getTimezoneOffset``), which is what those tests rely on for
-    // ``write``/``create`` payload assertions. The fork-local
-    // ``fcEventToRecord`` already handles the marker conversion when
-    // the returned zone is ``"local"``.
+    // zone.offset(0): minutes from UTC (no DST). IANA's ``Etc/GMT±N`` only
+    // covers integer-hour offsets in [-12, +14] (``Etc/zone.tab``); outside
+    // that range (e.g. ``mockTimeZone(±40)`` in tests) fall back to
+    // ``"local"`` — ``fcEventToRecord`` already handles marker conversion
+    // for that case.
     if (typeof zone.offset === "function") {
         const offsetMinutes = zone.offset(0);
         if (Number.isFinite(offsetMinutes) && offsetMinutes % 60 === 0) {
@@ -136,26 +98,17 @@ export function dayCellClassNames(info) {
     if (info?.isDisabled) {
         classes.push("fc-day-disabled");
     }
-    // v6 used ``fc-daygrid-day`` on every day cell — both the proper
-    // day-grid cells in month view and the all-day strip cells at the
-    // top of a timegrid week/day view (which is a single-row daygrid
-    // internally).  v7 dropped the class entirely; we layer it back on
-    // unconditionally because:
-    //   1. Tests select compound classes like
-    //      ``.fc-daygrid-day.o_calendar_disabled`` from both contexts.
-    //   2. The ``fc-day`` already distinguishes day cells from non-day
-    //      content; ``fc-daygrid-day`` is just the v6 alias.
-    // Timegrid SLOT cells (hour rows in the time grid body) use
+    // v6 carried ``fc-daygrid-day`` on every day cell (month-view cells and
+    // the all-day strip cells of a timegrid week/day view); v7 dropped it.
+    // Re-add unconditionally: tests select compound selectors like
+    // ``.fc-daygrid-day.o_calendar_disabled`` from both contexts, and
+    // ``fc-day`` alone doesn't cover that. Timegrid SLOT cells use
     // ``dayLaneClass`` instead — they don't hit this generator.
     classes.push("fc-daygrid-day");
-    // v6 also carried ``fc-day-<short-weekday>`` (sun/mon/tue/wed/thu/
-    // fri/sat) on every day cell, derived from the cell date.  v7
-    // dropped these but exposes ``info.dow`` (0=Sunday..6=Saturday) in
-    // its render-props payload — see ``fullcalendar.esm.js:8367``
-    // (``getDateMeta`` populating the spread used by
-    // ``dayCellRenderProps``).  Re-inject the v6 short-name suffix
-    // from ``dow`` directly to stay independent of timezone-marker
-    // gymnastics on ``info.date``.
+    // v6 also carried ``fc-day-<short-weekday>`` per cell. v7 dropped it but
+    // exposes ``info.dow`` (0=Sunday..6=Saturday) — see
+    // ``fullcalendar.esm.js:8367`` (``getDateMeta``). Derive the suffix from
+    // ``dow`` directly, independent of timezone-marker handling on ``info.date``.
     if (Number.isInteger(info?.dow) && info.dow >= 0 && info.dow < 7) {
         const SHORT_WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
         classes.push(`fc-day-${SHORT_WEEKDAY[info.dow]}`);
@@ -194,13 +147,10 @@ export function dayHeaderClassNames(info) {
  * Resolve one of FullCalendar v7's build-hashed internal class names
  * (e.g. ``"internalScroller"`` -> ``"fc-7a"``) for the loaded library build.
  *
- * v7 hashes its structural class names and regenerates those hashes on every
- * build, so hard-coding them (``".fc-1i"``) silently breaks on each library
- * bump. The public ``ProtectedStyles`` export carries the live name->hash map
- * for the loaded build, so resolving through it keeps the fork's stable-v6-name
- * re-injection working across upgrades with no code changes. Must be called
- * after ``web.fullcalendar_lib`` has loaded (e.g. from a renderer's
- * mount/refresh handler), when the ``FullCalendar`` global is available.
+ * v7 regenerates these hashes on every build, so hard-coding them
+ * (``".fc-1i"``) breaks on each bump; resolve through the public
+ * ``ProtectedStyles`` name->hash map instead. Must be called after
+ * ``web.fullcalendar_lib`` has loaded, when ``FullCalendar`` is available.
  *
  * @param {string} name internal class-name key from FC's ``classNames`` map
  * @returns {string} the hashed class name for the loaded build
@@ -267,19 +217,13 @@ export function useFullCalendar(refName, paramsOrGetter) {
 
     onMounted(() => {
         try {
-            // v7's exported ``Calendar`` is a thin wrapper that already
-            // pre-injects the five default plugins (dayGrid/timeGrid/
-            // interaction/list/multiMonth — see lines ~16956-16973 of
-            // ``fullcalendar.esm.js``).  Callers do NOT need to pass
-            // ``plugins`` — v6's auto-registration is now built into the
-            // wrapper's constructor.
-            // Mark the FC root as the portal host BEFORE constructing the
-            // calendar so the fork-local override in
-            // ``lib/fullcalendar/fullcalendar.esm.js`` (function
-            // ``getAppendableRoot``) routes MorePopover and ElementMirror
-            // into this element instead of <body>.  Without this, FC
-            // portals to document.body which sits outside the test
-            // fixture's query scope and the Odoo overlay tree.
+            // v7's ``Calendar`` wrapper already pre-injects the five default
+            // plugins (dayGrid/timeGrid/interaction/list/multiMonth — see
+            // fullcalendar.esm.js:16956-16973); callers don't pass ``plugins``.
+            // Mark the FC root as portal host BEFORE construction so the
+            // fork-local ``getAppendableRoot`` override (fullcalendar.esm.js)
+            // routes MorePopover/ElementMirror here instead of <body>, which
+            // sits outside the test fixture's query scope.
             ref.el.setAttribute("data-fc-portal-host", "true");
             const mountParams = boundParams();
             instance = new FullCalendar.Calendar(ref.el, mountParams);
@@ -301,24 +245,14 @@ export function useFullCalendar(refName, paramsOrGetter) {
     onPatched(() => {
         const params = currentParams();
         instance.setOption("weekends", component.props.isWeekendVisible);
-        // v6 used to react to ``initialView`` changes implicitly; v7's
-        // ``Calendar`` only honours options that mutate via the explicit
-        // API.  Switch the view when the OWL component's scale prop
-        // changes so events re-render in the right grid layout.
+        // v7 only honours options that mutate via the explicit API, so switch
+        // the view manually when the OWL component's scale prop changes.
         //
-        // Order matters in v7:
-        //   1. ``changeView(view, date)`` atomically swaps the view AND
-        //      sets the focused date — passing both in one call ensures
-        //      the new view mounts at the right date.  Separate
-        //      ``changeView`` + ``gotoDate`` calls in v7 trigger TWO
-        //      render passes, and the first one (after ``changeView``
-        //      alone) lands the view on the WRONG date (the previous
-        //      view's date), which clears any events fetched into the
-        //      out-of-range window.
-        //   2. ``refetchEvents`` runs last so the events callback fires
-        //      for the correct date range.  In v6, ``refetchEvents``
-        //      before view/date changes worked because the fetch was
-        //      view-agnostic — v7 ranges fetches by date window.
+        // Order matters: ``changeView(view, date)`` must set both atomically
+        // — separate ``changeView`` + ``gotoDate`` calls trigger two render
+        // passes, briefly landing on the wrong (previous) date and dropping
+        // out-of-range events. ``refetchEvents`` runs last so it fetches for
+        // the correct, post-change date window.
         const currentViewType = instance.view?.type;
         const targetView =
             typeof params.initialView === "string" ? params.initialView : null;
@@ -341,21 +275,13 @@ export function useFullCalendar(refName, paramsOrGetter) {
             }
             instance.__lastInitialDate = targetDate;
         } else if (targetDate && targetDate !== instance.__lastInitialDate) {
-            // v7's ``gotoDate`` triggers a ``componentDidUpdate`` cycle in
-            // ``TimeGridLayoutContents`` that calls ``resetScroll()`` when
-            // the ``dateProfile`` changes AND ``scrollTimeReset`` is truthy
-            // (FC default).  Calling ``gotoDate`` with the SAME date as the
-            // current view still produces a new ``dateProfile`` instance
-            // and resets the timegrid scroll back to ``scrollTime`` (06:00
-            // by default).  That clobbers any ``scrollToTime`` we issue
-            // alongside a no-op date change (e.g. clicking "Today" while
-            // already on today, or any ``model.load`` that leaves the date
-            // unchanged like a filter toggle).
-            //
-            // Track the last issued ``initialDate`` and skip the redundant
-            // ``gotoDate`` so the scroll position is preserved.  A scale
-            // change still goes through ``changeView`` above, which sets
-            // ``__lastInitialDate`` to the new view's anchor.
+            // v7's ``gotoDate`` resets the timegrid scroll to ``scrollTime``
+            // even when called with the SAME date (FC's ``scrollTimeReset``
+            // still produces a new ``dateProfile``), clobbering any
+            // ``scrollToTime`` on a no-op date change (e.g. "Today" while
+            // already on today). Track the last issued date and skip the
+            // redundant call to preserve scroll position; a scale change
+            // still updates ``__lastInitialDate`` via ``changeView`` above.
             try {
                 instance.gotoDate(targetDate);
                 instance.__lastInitialDate = targetDate;
@@ -366,20 +292,14 @@ export function useFullCalendar(refName, paramsOrGetter) {
         const eventsBefore =
             component.props.model.scale === "year" ? eventSetFingerprint(instance) : "";
         instance.refetchEvents();
-        // Year view renders events as ``display: "background"``.  After a
-        // filter toggle v7 schedules the bg-event re-render asynchronously,
-        // so ``refetchEvents`` alone leaves the previous ``.fc-bg-event``
-        // nodes (and their ``data-event-id``) in the DOM until the next
-        // frame — observable as stale events right after an awaited filter
-        // change.  Force a synchronous re-render so the DOM matches the model
-        // within the OWL patch.  (The earlier ``params.weekNumbers`` guard
-        // never fired: the year renderer sets ``weekNumbers: false``.)
+        // Year view renders events as background events; v7 schedules their
+        // re-render asynchronously, so after a filter toggle stale
+        // ``.fc-bg-event`` nodes linger until the next frame unless we force
+        // a synchronous destroy+render here.
         //
         // Gated on an actual event-set change: the year renderer holds 12
-        // hook instances and EVERY OWL patch (weekend toggle, unusual-days
-        // arrival, any model notify) lands here — an unconditional
-        // destroy+render meant 12 full FullCalendar teardown/rebuild cycles
-        // per patch. Prop-only patches now skip the rebuild.
+        // hook instances, and an unconditional destroy+render on every OWL
+        // patch meant 12 full FC rebuild cycles per patch.
         if (
             component.props.model.scale === "year" &&
             eventsBefore !== eventSetFingerprint(instance)

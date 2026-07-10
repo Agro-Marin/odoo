@@ -4,8 +4,6 @@
 /** @module @web/search/search_split_domain - Domain-splitting logic that decomposes compound filters into individual search items */
 
 /**
- * Extracted domain-splitting logic for SearchModel.
- *
  * Receives the SearchModel instance as first argument (delegation pattern),
  * preserving subclass polymorphism for all internal method calls.
  */

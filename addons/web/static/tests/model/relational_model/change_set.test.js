@@ -82,7 +82,6 @@ test("replace receives a fresh-references object — callers can mutate their so
     const captured = { name: "Alice" };
     cs.replace(captured);
 
-    // Caller mutates their source after handing it over.
     captured.name = "Bob";
 
     // The ChangeSet preserves the reference (this is the intentional

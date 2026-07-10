@@ -31,12 +31,8 @@ const ParentedMixin = {
         this.__parentedParent = null;
     },
     /**
-     * Set the parent of the current object. When calling this method, the
-     * parent will also be informed and will return the current object
-     * when its getChildren() method is called. If the current object did
-     * already have a parent, it is unregistered before, which means the
-     * previous parent will not return the current object anymore when its
-     * getChildren() method is called.
+     * Set the parent of the current object, unregistering it from any
+     * previous parent first (updating both parents' getChildren() results).
      */
     setParent(parent) {
         if (this.getParent()) {
@@ -199,14 +195,10 @@ class Events {
 }
 
 /**
- * Mixin containing an event system. Events are also registered by specifying
- * the target object (the object which will receive the event when raised). Both
- * the event-emitting object and the target object store or reference to each
- * other. This is used to correctly remove all reference to the event handler
- * when any of the object is destroyed (when the destroy() method from
- * ParentedMixin is called). Removing those references is necessary to avoid
- * memory leak and phantom events (events which are raised and sent to a
- * previously destroyed object).
+ * Mixin containing an event system. Emitter and target store a reference to
+ * each other so all handler references can be cleaned up when either is
+ * destroyed (via ParentedMixin.destroy()), avoiding leaks and phantom events
+ * sent to already-destroyed objects.
  *
  * @name EventDispatcherMixin
  * @mixin
@@ -223,19 +215,10 @@ const EventDispatcherMixin = Object.assign({}, ParentedMixin, {
         this._delegateCustomEvents();
     },
     /**
-     * Proxies a method of the object, in order to keep the right ``this`` on
-     * method invocations.
-     *
-     * This method is similar to ``Function.prototype.bind`` with a fundamental
-     * difference: the resolution of the method being called is lazy, meaning
-     * it will use the
-     * method as it is when the proxy is called, not when the proxy is created.
-     *
-     * Other methods will fix the bound method to what it is when creating the
-     * binding/proxy, which is fine in most javascript code but problematic in
-     * Odoo where developers may want to replace existing callbacks with theirs.
-     *
-     * The semantics of this precisely replace closing over the method call.
+     * Proxies a method of the object, keeping the right ``this`` on invocation.
+     * Unlike ``Function.prototype.bind``, resolution is lazy: the method is
+     * looked up at call time, not at proxy-creation time, so Odoo code can
+     * still replace the callback later.
      *
      * @param {String|Function} method function or name of the method to invoke
      * @returns {Function} proxied method
@@ -527,10 +510,9 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
      * through the `selector` attribute by only considering those which contain
      * at least an element which matches this `selectorHas` selector.
      *
-     * Note that this is the equivalent of setting up a `selector` using the
-     * `:has` pseudo-selector but that pseudo-selector is known to not be fully
-     * supported in all browsers. To prevent useless crashes, using this
-     * `selectorHas` attribute should be preferred.
+     * Equivalent to using a `selector` with the `:has` pseudo-selector, which
+     * this attribute is preferred over since `:has` isn't fully supported in
+     * all browsers.
      *
      * @type {string|false}
      */
@@ -570,11 +552,8 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
         this.options = options || {};
     },
     /**
-     * Method called between @see init and @see start. Performs asynchronous
-     * calls required by the rendering and the start method.
-     *
-     * This method should return a Promise which is resolved when start can be
-     * executed.
+     * Called between @see init and @see start to perform async work needed
+     * before rendering/start; must return a Promise resolved when start can run.
      *
      * @returns {Promise}
      */
@@ -601,14 +580,10 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
         return Promise.all(proms);
     },
     /**
-     * Method called after rendering. Mostly used to bind actions, perform
-     * asynchronous calls, etc...
-     *
-     * By convention, this method should return an object that can be passed to
-     * Promise.resolve() to inform the caller when this widget has been initialized.
-     *
-     * Note that, for historic reasons, many widgets still do work in the start
-     * method that would be more suited to the willStart method.
+     * Called after rendering; typically binds actions and performs async calls.
+     * By convention, should return a value passable to Promise.resolve() to
+     * signal the widget is initialized. For historic reasons, many widgets
+     * still do work here that would better belong in willStart.
      *
      * @returns {Promise}
      */
@@ -616,10 +591,8 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
         return Promise.resolve();
     },
     /**
-     * Destroys the widget and basically restores the target to the state it
-     * was before the start method was called (unlike standard widget, the
-     * associated el DOM is not removed, if this was instantiated thanks to the
-     * selector property).
+     * Destroys the widget, restoring the target to its pre-start state (the
+     * el itself is kept if this was instantiated via the selector property).
      */
     destroy: function () {
         EventDispatcherMixin.destroy.call(this);
@@ -831,20 +804,15 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
             }
         };
         Object.entries(this.events || {}).forEach(([event, method]) => {
-            // If the method is a function, use the default Widget system
             if (typeof method !== "string") {
                 _delegateEvent(self.proxy(method), event);
                 return;
             }
-            // If the method is only a function name without options, use the
-            // default Widget system
             const methodOptions = method.split(" ");
             if (methodOptions.length <= 1) {
                 _delegateEvent(self.proxy(method), event);
                 return;
             }
-            // If the method has no meaningful options, use the default Widget
-            // system
             const isAsync = methodOptions.includes("async");
             if (!isAsync) {
                 _delegateEvent(self.proxy(method), event);
@@ -853,13 +821,12 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
 
             method = self.proxy(methodOptions[methodOptions.length - 1]);
             if (String(event).startsWith("click")) {
-                // Protect click handler to be called multiple times by
-                // mistake by the user and add a visual disabling effect
-                // for buttons.
+                // Guard against accidental double-clicks and add a visual
+                // disabling effect for buttons.
                 method = makeButtonHandler(method);
             } else {
-                // Protect all handlers to be recalled while the previous
-                // async handler call is not finished.
+                // Guard against re-triggering while a previous async call
+                // is still in flight.
                 method = makeAsyncHandler(method);
             }
             _delegateEvent(method, event);
@@ -952,8 +919,6 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
         });
     },
 });
-
-//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 /**
  * The registry object contains the list of widgets that should be instantiated

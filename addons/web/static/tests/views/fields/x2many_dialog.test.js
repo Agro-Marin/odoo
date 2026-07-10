@@ -1,14 +1,9 @@
 // @ts-check
 
 /**
- * Integration tests for the X2ManyFieldDialog component.
- *
- * Covers the dialog lifecycle: opening from a one2many field, saving a new
- * record, discarding changes, verifying the dialog title, and the delete flow.
- * All tests use a form view with a non-editable one2many field so that
- * clicking "Add a line" or a data row opens the X2ManyFieldDialog.
- *
- * Module under test: fields/relational/x2many_dialog.js
+ * Integration tests for X2ManyFieldDialog: open (add/edit), save, discard,
+ * title, and the delete flow, using a non-editable one2many field so rows
+ * open in the dialog. Module under test: fields/relational/x2many_dialog.js
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -26,9 +21,7 @@ import {
 
 describe.current.tags("desktop");
 
-// ---------------------------------------------------------------------------
 // Shared model definitions
-// ---------------------------------------------------------------------------
 
 class Partner extends models.Model {
     name = fields.Char();
@@ -51,9 +44,7 @@ class Turtle extends models.Model {
 
 defineModels([Partner, Turtle]);
 
-// ---------------------------------------------------------------------------
 // Helper arch — a one2many field without editable so rows open in dialog
-// ---------------------------------------------------------------------------
 const ARCH = `
     <form>
         <field name="turtles">
@@ -67,9 +58,7 @@ const ARCH = `
         </field>
     </form>`;
 
-// ---------------------------------------------------------------------------
 // Dialog open
-// ---------------------------------------------------------------------------
 
 describe("dialog open", () => {
     test("clicking Add a line opens the dialog with an empty form", async () => {
@@ -91,9 +80,7 @@ describe("dialog open", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Dialog save
-// ---------------------------------------------------------------------------
 
 describe("dialog save", () => {
     test("saving a new record in the dialog adds it to the one2many list", async () => {
@@ -121,9 +108,7 @@ describe("dialog save", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Dialog discard
-// ---------------------------------------------------------------------------
 
 describe("dialog discard", () => {
     test("discarding the dialog leaves the one2many list unchanged", async () => {
@@ -149,9 +134,7 @@ describe("dialog discard", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Dialog title
-// ---------------------------------------------------------------------------
 
 describe("dialog title", () => {
     test("dialog title reads 'Create <relation_string>' for a new record", async () => {
@@ -164,9 +147,7 @@ describe("dialog title", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Delete from dialog
-// ---------------------------------------------------------------------------
 
 describe("delete from list", () => {
     test("clicking the trash icon in the one2many list generates a DELETE command on parent save", async () => {
@@ -180,7 +161,6 @@ describe("delete from list", () => {
         // Click the trash icon in the list row (one2many always shows delete per row)
         await contains(".o_list_record_remove").click();
 
-        // Row removed from list
         expect(".o_data_row").toHaveCount(0);
 
         await clickSave();

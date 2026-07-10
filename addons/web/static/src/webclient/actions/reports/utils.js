@@ -35,18 +35,11 @@ export function getReportUrl(action, type, userContext) {
 }
 
 /**
- * Launches download action of the report.
+ * Launches download action of the report. With the WeasyPrint migration there
+ * is no wkhtmltopdf fallback — download either succeeds or throws.
  *
- * With the WeasyPrint migration there is no longer a wkhtmltopdf fallback, so
- * the download either succeeds or throws — there is nothing to report back to
- * the caller and no HTML-preview fallback to trigger.
- *
- * The leading ``rpc`` parameter is unused (the download goes through the
- * ``download`` helper, not an RPC). It is retained only so the point_of_sale
- * ``report_service`` caller keeps working without changes; new callers may pass
- * ``undefined``.
- *
- * @param {Function} rpc unused — kept for positional back-compat (see above)
+ * @param {Function} rpc unused — kept for positional back-compat; point_of_sale's
+ *  report_service still passes it, new callers may pass ``undefined``.
  * @param {Object} action the report action
  * @param {"pdf"|"text"} type the type of the report to download
  * @param {Object} userContext the user context

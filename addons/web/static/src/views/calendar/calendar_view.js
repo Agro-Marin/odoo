@@ -9,7 +9,6 @@ import { CalendarArchParser } from "./calendar_arch_parser.js";
 import { CalendarController } from "./calendar_controller.js";
 import { CalendarModel } from "./calendar_model.js";
 import { CalendarRenderer } from "./calendar_renderer.js";
-/** Calendar view descriptor registered in the view registry. */
 export const calendarView = {
     type: "calendar",
 

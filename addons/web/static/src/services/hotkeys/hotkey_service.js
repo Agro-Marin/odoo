@@ -27,9 +27,9 @@ export { getActiveHotkey };
  * @property {(target: HTMLElement) => boolean} [isAvailable]
  *  adds a validation before calling the hotkey registration's callback
  * @property {() => HTMLElement} [withOverlay]
- *  provides the element on which the overlay should be displayed
- *  Please note that if provided the hotkey will only work with
- *  the overlay access key, similarly to all [data-hotkey] DOM attributes.
+ *  provides the element on which the overlay should be displayed;
+ *  if provided, the hotkey only fires via the overlay access key,
+ *  like all [data-hotkey] DOM attributes.
  *
  * @typedef {HotkeyOptions & {
  *  hotkey: string,
@@ -40,8 +40,7 @@ export { getActiveHotkey };
 
 export const hotkeyService = {
     dependencies: ["ui"],
-    // Be aware that all odoo hotkeys are designed with this modifier in mind,
-    // so changing the overlay modifier may conflict with some shortcuts.
+    // All odoo hotkeys assume this modifier; changing it may conflict with existing shortcuts.
     overlayModifier: "alt",
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -62,8 +61,7 @@ export const hotkeyService = {
 
         /**
          * Whether the hotkey contains every part of the overlay modifier —
-         * the precondition for both the [accesskey] takeover and the DOM
-         * [data-hotkey] registrations.
+         * the precondition for the [accesskey] takeover and DOM [data-hotkey] registrations.
          * @param {string} hotkey
          * @returns {boolean}
          */
@@ -93,19 +91,13 @@ export const hotkeyService = {
         }
 
         /**
-         * Handler for keydown events.
-         * Verifies if the keyboard event can be dispatched or not.
-         * Rules sequence to forbid dispatching :
-         * - UI is blocked
-         * - the pressed key is not whitelisted
-         *
+         * Dispatch guard: bails out if UI is blocked or the key isn't whitelisted.
          * @param {KeyboardEvent} event
          */
         function onKeydown(event) {
             if (event.code?.startsWith("Numpad") && /^\d$/.test(event.key)) {
-                // Ignore all number keys from the Keypad because of a certain input method
-                // of (advance-)ASCII characters on Windows OS: ALT+[numerical code from keypad]
-                // See https://support.microsoft.com/en-us/office/insert-ascii-or-unicode-latin-based-symbols-and-characters-d13f58d3-7bcb-44a7-a4d5-972ee12e50e0#bm1
+                // Ignore Keypad number keys — Windows ALT+[numeric code] inputs ASCII/Unicode
+                // chars this way. See https://support.microsoft.com/en-us/office/insert-ascii-or-unicode-latin-based-symbols-and-characters-d13f58d3-7bcb-44a7-a4d5-972ee12e50e0#bm1
                 return;
             }
 
@@ -115,16 +107,13 @@ export const hotkeyService = {
             }
             const { activeElement, isBlocked } = ui;
 
-            // Do not dispatch if UI is blocked
             if (isBlocked) {
                 return;
             }
 
-            // Replace all [accesskey] attrs by [data-hotkey] on all elements.
-            // This is needed to take over on the default accesskey behavior
-            // and also to avoid any conflict with it.  Only overlay-modifier
-            // presses can reach those elements (overlays and DOM dispatch
-            // both require it), so skip the full-document scan otherwise.
+            // Replace [accesskey] attrs with [data-hotkey] to take over the default accesskey
+            // behavior and avoid conflicts. Only overlay-modifier presses reach these elements,
+            // so skip the full-document scan otherwise.
             if (includesOverlayModifier(hotkey)) {
                 const elementsWithAccessKey = document.querySelectorAll("[accesskey]");
                 for (const el of elementsWithAccessKey) {
@@ -142,7 +131,6 @@ export const hotkeyService = {
                 return;
             }
 
-            // Is the pressed key NOT whitelisted ?
             const singleKey = hotkey.split("+").pop();
             if (!AUTHORIZED_KEYS.includes(singleKey)) {
                 return;
@@ -160,7 +148,6 @@ export const hotkeyService = {
                 !(/** @type {HTMLElement} */ (event.target).dataset.allowHotkeys) &&
                 singleKey !== "escape";
 
-            // Finally, prepare and dispatch.
             const infos = {
                 activeElement,
                 hotkey,
@@ -170,14 +157,12 @@ export const hotkeyService = {
             };
             const dispatched = dispatch(infos);
             if (dispatched) {
-                // Only if event has been handled.
-                // Purpose: prevent browser defaults
+                // Prevent browser defaults
                 event.preventDefault();
-                // Purpose: stop other window keydown listeners (e.g. home menu)
+                // Stop other window keydown listeners (e.g. home menu)
                 event.stopImmediatePropagation();
             }
 
-            // Finally, always remove overlays at that point
             if (overlaysVisible) {
                 removeHotkeyOverlays();
                 event.preventDefault();
@@ -204,22 +189,19 @@ export const hotkeyService = {
             const { activeElement, hotkey, isRepeated, target, shouldProtectEditable } =
                 infos;
 
-            // Only registrations indexed under this exact hotkey can match;
-            // DOM [data-hotkey] registrations additionally require the
-            // overlay modifier, so bail out early when neither can apply.
+            // Only registrations under this exact hotkey can match; DOM [data-hotkey]
+            // registrations also need the overlay modifier — bail out early otherwise.
             const matchingRegistrations = registrationsByHotkey.get(hotkey);
             if (!matchingRegistrations?.size && !includesOverlayModifier(hotkey)) {
                 return false;
             }
 
-            // Prepare registrations (newest first) and the common filter
             const reversedRegistrations = matchingRegistrations
                 ? Array.from(matchingRegistrations).reverse()
                 : [];
             const domRegistrations = getDomRegistrations(hotkey, activeElement);
             const allRegistrations = [...reversedRegistrations, ...domRegistrations];
 
-            // Find all candidates
             const candidates = allRegistrations.filter(
                 (reg) =>
                     (reg.allowRepeat || !isRepeated) &&
@@ -233,7 +215,6 @@ export const hotkeyService = {
                             reg.area().contains(/** @type {Node} */ (target)))),
             );
 
-            // First candidate
             let winner = candidates.shift();
             if (winner?.area) {
                 // If there is an area, find the closest one
@@ -244,7 +225,6 @@ export const hotkeyService = {
                 }
             }
 
-            // Dispatch actual hotkey to the matching registration
             if (winner) {
                 winner.callback({
                     area: winner.area?.(),
@@ -300,10 +280,9 @@ export const hotkeyService = {
             // Gather the hotkeys to overlay registered through the useHotkey hook.
             const hotkeysFromHookToHighlight = [];
             for (const [, registration] of registrations) {
-                // Only highlight hotkeys that ``dispatch`` would actually route
-                // to this active element (same filter): a hotkey registered
-                // behind a now-open dialog won't dispatch, so showing its badge
-                // would be misleading.
+                // Only highlight hotkeys ``dispatch`` would actually route to this active
+                // element (same filter): a hotkey behind a now-open dialog won't dispatch,
+                // so showing its badge would be misleading.
                 if (
                     !registration.global &&
                     registration.activeElement !== activeElement
@@ -372,9 +351,6 @@ export const hotkeyService = {
             overlaysVisible = true;
         }
 
-        /**
-         * Remove all the hotkey overlays.
-         */
         function removeHotkeyOverlays() {
             for (const overlay of document.querySelectorAll(".o_web_hotkey_overlay")) {
                 const parent = overlay.parentElement;
@@ -396,7 +372,6 @@ export const hotkeyService = {
          * @returns {number} registration token
          */
         function registerHotkey(hotkey, callback, options = {}) {
-            // Validate some informations
             if (!hotkey || !hotkey.length) {
                 throw new Error(
                     "You must specify an hotkey when registering a registration.",
@@ -431,7 +406,6 @@ export const hotkeyService = {
                 );
             }
 
-            // Add registration
             const token = nextToken++;
             /** @type {HotkeyRegistration} */
             const registration = {
@@ -465,8 +439,6 @@ export const hotkeyService = {
         }
 
         /**
-         * Unsubscribes the token corresponding registration.
-         *
          * @param {number} token
          */
         function unregisterHotkey(token) {

@@ -870,7 +870,7 @@ test("no value, select date without handler", async () => {
     await click(getPickerCell("12"));
     await animationFrame();
 
-    expect.verifySteps([]); // This test just asserts that nothing happens
+    expect.verifySteps([]); // No handler passed; nothing happens
 });
 
 test("no value, select date", async () => {
@@ -1283,9 +1283,8 @@ test("disable show week numbers", async () => {
 });
 
 test("AGROMARINVERIFY grid is reused on hover, rebuilt on focus change", async () => {
-    // Regression guard for the grid-cache optimization: hovering a day cell only
-    // mutates state.hoveredDate (for the range highlight) and must NOT rebuild the
-    // 6×7 grid; changing the focused month MUST rebuild it.
+    // Regression guard: hovering only mutates hoveredDate (range highlight) and
+    // must not rebuild the grid; changing the focused month must rebuild it.
     const picker = await mountWithCleanup(DateTimePicker, {
         props: { value: DateTime.fromObject({ day: 5 }) },
     });

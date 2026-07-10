@@ -35,9 +35,8 @@ test("fuzzyLookup", () => {
 test("fuzzyLevenshteinLookup", () => {
     const words = ["apple", "apply", "ape", "maple", "application", "banana"];
 
-    // Exact substrings (score 0) first, then fuzzy matches sorted by edit
-    // distance.  "ape" is 1 edit from "app" (p→e) — equal-length candidates
-    // are NOT excluded; the Levenshtein threshold handles false positives.
+    // Exact substrings (score 0) first, then fuzzy matches by edit distance.
+    // Equal-length candidates like "ape" (1 edit: p→e) are not excluded.
     expect(fuzzyLevenshteinLookup("app", words)).toEqual([
         "apple",
         "apply",

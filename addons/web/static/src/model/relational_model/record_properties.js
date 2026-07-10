@@ -6,46 +6,32 @@
 /**
  * Properties-field expansion logic.
  *
- * When a record carries a "properties" field, the server returns an array
- * of property definitions where each entry describes a sub-field
- * (name, type, value, optional comodel/selection/tags, etc.). This
- * helper walks that array and:
+ * The server returns an array of property definitions for a "properties"
+ * field (name, type, value, optional comodel/selection/tags, etc.). This
+ * helper walks it and, for each property:
  *
- *   1. **Splices the per-property field into ``record.fields``** under the
- *      composite name ``${parentFieldName}.${property.name}``, with the
- *      ``relatedPropertyField`` back-pointer and the right ``sortable``
- *      flag (false for relational/tag types so the UI hides the sort
- *      affordance for those columns).
- *   2. **Registers the activeField** via
- *      {@link field_metadata.createPropertyActiveField}, then patches in
- *      the ``relatedPropertyField`` with the parent m2o's id and
- *      display_name so the view can render the breadcrumb back to the
- *      definition record.
- *   3. **Shapes the per-property value** by type — m2m builds a
- *      StaticList datapoint via ``record._createStaticListDatapoint``,
- *      m2o handles the "No Access" placeholder (server returns ``null``
- *      for ``display_name`` when the user can read the id but not the
- *      target record), and scalars pass through unchanged.
+ *   1. Splices the field into ``record.fields`` under
+ *      ``${parentFieldName}.${property.name}``, with the
+ *      ``relatedPropertyField`` back-pointer and ``sortable: false`` for
+ *      relational/tag types (the UI hides sorting for those columns).
+ *   2. Registers the activeField via
+ *      {@link field_metadata.createPropertyActiveField}, patching in the
+ *      parent m2o's id/display_name so the view can render the breadcrumb
+ *      back to the definition record.
+ *   3. Shapes the value by type: m2m builds a StaticList datapoint, m2o
+ *      handles the "No Access" placeholder (server sends ``null``
+ *      ``display_name`` when the id is readable but the record isn't),
+ *      scalars pass through unchanged.
  *
  * Returns a flat ``{ "<parentFieldName>.<propertyName>": value, ... }``
- * bag that the caller (``parseServerValues`` in record_value_transforms,
- * or ``preprocessPropertiesChanges`` in record_preprocessors) merges
- * into the parsed values object.
+ * bag merged into the parsed values by the caller (``parseServerValues``
+ * or ``preprocessPropertiesChanges``).
  *
- * Following the convention established in Phase 1–3, the helper receives
- * the ``RelationalRecord`` as its first argument and calls back into
- * instance-level methods (``record._createStaticListDatapoint``) and
- * state (``record.fields``, ``record.activeFields``) directly.
- *
- * **Why ``hasCurrentValues`` toggles the field overwrite.**  When the
- * helper is invoked from a *change*-driven path (``preprocessPropertiesChanges``,
- * which always passes a non-empty ``record.data``), the server may have
- * sent revised property definitions that need to replace the previously-
- * registered schema — so the field/activeField entries are rewritten
- * unconditionally. When invoked from an *initial-load* path (e.g.
- * ``parseServerValues``), the field/activeField are only created if
- * not already present, preserving any patches downstream code may have
- * applied to the definition since the last load.
+ * ``hasCurrentValues`` gates whether the field/activeField entries are
+ * rewritten: on a *change*-driven call (non-empty ``record.data``) the
+ * server may have sent revised definitions that must replace the
+ * registered schema, so they're always rewritten; on *initial-load* they're
+ * only created if absent, preserving any patches applied since last load.
  */
 
 import { _t } from "@web/core/l10n/translation";

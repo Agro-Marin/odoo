@@ -63,13 +63,11 @@ test("JsonCheckBoxesField", async () => {
 
     expect("div.o_field_widget div.form-check input:disabled").toHaveCount(0);
 
-    // check a value by clicking on input
     await contains("div.o_field_widget div.form-check input:eq(1)").click();
     await runAllTimers();
     await clickSave();
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
 
-    // uncheck a value by clicking on label
     await contains("div.o_field_widget div.form-check > label").click();
     await runAllTimers();
     await clickSave();

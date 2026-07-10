@@ -149,18 +149,11 @@ export function useListKeyboardNavigation(tableRef, options) {
          * Uses index-based navigation via ListGridState when data-row-index attributes are
          * present; falls back to DOM-walking for rows without index attributes (legacy path).
          *
-         * The result discriminates the three possible outcomes so that callers
-         * can tell "no target at all" apart from "target exists but is not
-         * rendered yet":
-         *
-         * - `{ el }` — the target cell is rendered: focus this element.
-         * - `{ pending: true }` — the target row exists but is virtualized out
-         *   of the DOM. Virtualization has been asked to scroll it into view
-         *   and focus is scheduled for the next patch (see
-         *   `resolvePendingVirtFocus`). Callers must treat the event as
-         *   handled and must NOT fall back to boundary behaviors (focusing
-         *   the search bar, default browser scroll).
-         * - `null` — grid boundary: no target row/cell in that direction.
+         * Discriminates three outcomes: `{ el }` (target cell rendered, focus it),
+         * `{ pending: true }` (target row is virtualized out; scroll requested and
+         * focus scheduled for the next patch via `resolvePendingVirtFocus` — callers
+         * must treat the event as handled, not fall back to search-bar/scroll boundary
+         * behavior), or `null` (grid boundary, no target row/cell in that direction).
          *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
@@ -179,10 +172,10 @@ export function useListKeyboardNavigation(tableRef, options) {
                         : [...row.children].indexOf(cell);
                 const next = gridState.moveFocus(rowIndex, colIndex, direction);
                 if (next) {
-                    // Group header rows always force colIndex=0 (they span all
-                    // columns). Skip updating lastKnownIndex for them so the
-                    // legacy DOM-walking path still lands on the correct column
-                    // when navigation reaches the grid boundary (e.g. thead).
+                    // Group header rows force colIndex=0 (span all columns); skip
+                    // updating lastKnownIndex for them so the legacy DOM-walking
+                    // path still lands on the correct column at the grid boundary
+                    // (e.g. thead).
                     if (gridState._flatRows[next.rowIndex]?.type !== "group") {
                         lastKnownIndex = next.colIndex;
                     }
@@ -305,14 +298,11 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Element-or-null facade over `findFocusMove`.
-         *
-         * Kept because `ListRenderer.findFocusFutureCell` delegates here and
-         * downstream renderers override that method expecting an element (or
-         * null) — see e.g. the documents and account_accountant list
-         * renderers. This facade cannot distinguish a grid boundary from a
-         * pending virtualized focus; internal arrow handlers use
-         * `findFocusMove` instead.
+         * Element-or-null facade over `findFocusMove`, kept because
+         * `ListRenderer.findFocusFutureCell` delegates here and downstream
+         * renderers (e.g. documents, account_accountant) override it expecting
+         * an element or null. Cannot distinguish a boundary from a pending
+         * virtualized focus — internal handlers use `findFocusMove` directly.
          *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
@@ -579,9 +569,8 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
     };
 
-    // Compose edit-mode handlers onto self (from list_keyboard_edit.js).
-    // Edit handlers close over `self` and call nav methods (focus,
-    // findNextFocusableOnRow, etc.) at invocation time via late binding.
+    // Edit handlers (from list_keyboard_edit.js) close over `self` and call nav
+    // methods (focus, findNextFocusableOnRow, etc.) via late binding.
     Object.assign(self, makeEditHandlers(self, tableRef, options));
 
     // Track field dirtiness for edit-mode navigation decisions.

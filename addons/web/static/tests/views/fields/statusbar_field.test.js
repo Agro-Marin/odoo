@@ -294,7 +294,7 @@ test("statusbar with required modifier", async () => {
     expect(".o_form_editable").toHaveCount(1, {
         message: "view should still be in edit",
     });
-    // should display an 'invalid fields' notificationaveCount(1, { message: "view should still be in edit" });
+    // should display an 'invalid fields' notification
     expect.verifySteps(["Show error message"]);
 });
 
@@ -992,7 +992,6 @@ test("statusbar is rendered correctly on small devices", async () => {
     });
     expect(".o_statusbar_status button.dropdown-toggle:visible").toHaveText("aaa");
 
-    // open the dropdown
     await contains(".o_statusbar_status .dropdown-toggle").click();
 
     expect(".o-dropdown--menu").toHaveCount(1, {
@@ -1054,7 +1053,6 @@ test("clickable statusbar widget on mobile view", async () => {
             `,
     });
 
-    // Open dropdown
     click(queryFirst(".o_statusbar_status .dropdown-toggle", { visible: true }));
     await animationFrame();
 

@@ -8,11 +8,9 @@ import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
 /**
- * Inline quick-create widget for adding new kanban columns (groups).
- *
- * Appears at the end of the kanban board when grouped by a supported field.
- * Supports fold/unfold toggling, Enter-to-validate, Escape-to-close, and
- * closes automatically on outside clicks.
+ * Inline quick-create widget for kanban columns (groups): appears at the end
+ * of the board when grouped by a supported field. Supports fold/unfold,
+ * Enter-to-validate, Escape-to-close, and closes on outside click.
  */
 export class KanbanColumnQuickCreate extends Component {
     static template = "web.KanbanColumnQuickCreate";
@@ -35,8 +33,8 @@ export class KanbanColumnQuickCreate extends Component {
 
         // Close on outside click
         useExternalListener(window, "mousedown", (/** @type {Event} */ ev) => {
-            // This target is kept in order to impeach close on outside click behavior if the click
-            // has been initiated from the quickcreate root element (mouse selection in an input...)
+            // Track where the click started: a drag that begins inside the
+            // root (e.g. selecting input text) shouldn't count as "outside".
             this.mousedownTarget = ev.target;
         });
         useExternalListener(

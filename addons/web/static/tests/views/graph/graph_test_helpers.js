@@ -211,20 +211,12 @@ export async function clickOnLegend(view, text) {
 }
 
 /**
- * Helper to call at the start of a test suite using the Chart.js lib.
- *
- * It will:
- * - pre-load the Chart.js lib before tests are run;
- * - disable all animations in the lib.
+ * Pre-loads Chart.js and disables its animations, for test suites that render charts.
  */
 export function setupChartJsForTests() {
-    // Load Chart.js (the ESM lib resolved through the import map) and disable
-    // its animations in a SINGLE awaited hook. The two steps must not be split
-    // across separate `before()` callbacks: `patch(Chart.defaults, …)` reads the
-    // live-bound `Chart`, which is `null` until `loadChartJS()` resolves, so a
-    // separate sync patch hook could run first and leave animations ON —
-    // making `getCenterPoint()`-based click hit-tests race the bar animation
-    // and miss the element.
+    // Load and patch in a SINGLE awaited hook: a separate sync patch hook could
+    // run before loadChartJS() resolves, leaving animations on and racing
+    // getCenterPoint()-based click hit-tests against the bar animation.
     before(async () => {
         const Chart = await loadChartJS();
         patch(Chart.defaults, { animation: false });

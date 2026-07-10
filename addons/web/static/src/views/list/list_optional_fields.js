@@ -6,10 +6,8 @@
 /** @odoo-module native */
 
 /**
- * Hook encapsulating optional field visibility management for the list view.
- *
- * Handles reading/writing the localStorage-backed set of visible optional columns,
- * as well as the debug "open form view" toggle.
+ * Reads/writes the localStorage-backed set of visible optional columns,
+ * plus the debug "open form view" toggle.
  *
  * @param {string} keyOptionalFields - localStorage key for optional field state
  * @param {string} keyDebugOpenView - localStorage key for debug open-view toggle
@@ -34,10 +32,9 @@ export function useListOptionalFields(
     keyDebugOpenView,
     { getAllColumns, getOptionalActiveFields, onSave },
 ) {
-    // `computeOptionalActiveFields` is consulted on every render (the column set
-    // may change across renders, e.g. property fields), so cache the synchronous
-    // localStorage read and refresh the cache only when this hook itself writes
-    // to localStorage (toggle/save paths).
+    // `computeOptionalActiveFields` runs every render (column set can change,
+    // e.g. property fields), so cache the localStorage read and refresh it
+    // only when this hook itself writes (toggle/save paths).
     let optionalFieldsStorageValue = browser.localStorage.getItem(keyOptionalFields);
     const self = {
         debugOpenView: exprToBoolean(browser.localStorage.getItem(keyDebugOpenView)),

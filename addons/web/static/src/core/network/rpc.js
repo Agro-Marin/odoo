@@ -26,12 +26,10 @@ import { isObject, omit } from "@web/core/utils/collections/objects";
  */
 
 /**
- * Structured payload Odoo embeds in ``JsonRpcError.data``. The shape is
- * stable in practice — every downstream consumer (``error_handlers``,
- * ``error_dialogs``, ``form_controller`` error rendering,
- * ``file_upload_service`` failure messaging, ``domain_field`` KeyError
- * narrowing) reads from this fixed surface, even though server code
- * may append addon-specific keys via the index signature.
+ * Structured payload Odoo embeds in ``JsonRpcError.data``. Stable in practice —
+ * downstream consumers (``error_handlers``, ``error_dialogs``,
+ * ``form_controller``, ``file_upload_service``, ``domain_field``) read this
+ * fixed surface, though server code may append addon-specific keys.
  *
  * @typedef {{
  *  name?: string;
@@ -85,16 +83,12 @@ import { isObject, omit } from "@web/core/utils/collections/objects";
 
 // ── Cross-bundle singleton state ─────────────────────────────────────────
 //
-// ``rpcBus``, the in-flight dedup map, and the ``rpcCache`` slot MUST be
-// shared by every ESM bundle in the document, for the same reason
-// ``registry.js`` (``__odooRegistry__``), ``templates.js``
-// (``__odooTemplates__``) and ``l10n/translation.js`` anchor their state
-// on ``globalThis``: esbuild inlines this module into ``web.assets_web``
-// and every dynamic child bundle, and per-copy module state would give
-// each bundle its own bus (listeners in one bundle never see RPCs fired
-// from another), its own dedup map (no dedup across bundles), and its own
-// cache slot (``rpc.setCache`` from the parent leaves satellites
-// uncached).  ``??=`` keeps the FIRST bundle's instance authoritative.
+// ``rpcBus``, the in-flight dedup map, and the ``rpcCache`` slot are anchored
+// on ``globalThis`` (like ``registry.js``'s ``__odooRegistry__`` and
+// ``templates.js``'s ``__odooTemplates__``) because esbuild inlines this
+// module into every bundle; per-copy state would fragment the bus, dedup map,
+// and cache slot across bundles. ``??=`` keeps the FIRST bundle's instance
+// authoritative.
 const _RPC_STATE_KEY = "__odoo_rpc_state__";
 /** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number }} */
 const _rpcState = /** @type {any} */ (
@@ -103,13 +97,10 @@ const _rpcState = /** @type {any} */ (
         inflightDedup: new Map(),
         rpcCache: undefined,
         busListenersAttached: false,
-        // Monotonic ``data.id`` source shared across every ESM bundle in the
-        // document.  MUST live on the cross-bundle singleton (not a module-level
-        // ``let``): esbuild inlines this module into every child bundle, so a
-        // per-copy counter would restart at 0 in each bundle while they all share
-        // one ``rpcBus`` — two live RPCs from different bundles would then collide
-        // on the same ``data.id``, conflating them for every bus observer that
-        // keys by ``data.id`` (loading_indicator, slow_rpc_service).
+        // Monotonic ``data.id`` source shared across bundles via the singleton —
+        // a module-level ``let`` would restart at 0 per bundle, colliding ids
+        // between bundles for observers that key by ``data.id`` (loading_indicator,
+        // slow_rpc_service).
         rpcId: 0,
     }
 );
@@ -138,9 +129,7 @@ function validateRPCSettings(settings) {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Errors
-// -----------------------------------------------------------------------------
 
 /** Base class for all network communication failures. Catch this to handle any RPC or connection error. */
 export class NetworkError extends Error {}
@@ -190,16 +179,11 @@ export class ConnectionLostError extends NetworkError {
 
 /**
  * Raised when the server returned a non-JSON response (typically a
- * werkzeug-rendered HTML error page from ``PoolError``,
- * ``OperationalError``, or other unhandled controller exception).
- *
- * Distinct from ``ConnectionLostError`` (which carries the same
- * meaning to legacy callers that don't branch on the subclass) so
- * that retry logic can apply a longer backoff floor — retrying too
- * fast against an overloaded backend contributes to the overload.
- *
- * Extends ``ConnectionLostError`` for backward compatibility: every
- * existing ``e instanceof ConnectionLostError`` catch still matches.
+ * werkzeug-rendered HTML error page from ``PoolError``, ``OperationalError``,
+ * or other unhandled controller exception). Kept distinct from
+ * ``ConnectionLostError`` so retry logic can apply a longer backoff floor,
+ * but extends it for backward compatibility so existing
+ * ``e instanceof ConnectionLostError`` catches still match.
  */
 export class ServerOverloadError extends ConnectionLostError {
     /**
@@ -269,9 +253,7 @@ export function makeErrorFromResponse(response) {
     return error;
 }
 
-// -----------------------------------------------------------------------------
 // Cache RPC method
-// -----------------------------------------------------------------------------
 
 /**
  * @param {RPCCache} cache
@@ -291,18 +273,12 @@ if (!_rpcState.busListenersAttached) {
         /** @type {{ tables?: string[]; model?: string } | string | string[] | undefined} */
         const detail = /** @type {CustomEvent<any>} */ (event).detail;
         if (isObject(detail)) {
-            // ``isObject`` is more selective than ``typeof === "object"``
-            // (rejects Map/Set/Date/Array) but TS doesn't see it as a type
-            // predicate. Re-cast to the model-scoped shape so the property
-            // accesses below typecheck.
-            //
-            // Note: ``tables`` is cast as ``string[]`` (non-optional) — the
-            // contract documented at every emit site is "if model is set,
-            // tables is set" (see ``RESULT_SET_TABLES`` in
-            // ``services/result_set_cache_invalidator_service.js``). The
-            // cache's ``invalidateByModel`` iterates ``tables`` and would
-            // throw on ``undefined`` regardless, so preserving the old
-            // throw-on-malformed-emit behavior is correct.
+            // ``isObject`` rejects Map/Set/Date/Array (stricter than
+            // typeof === "object") but isn't a type predicate to TS, hence the
+            // re-cast. ``tables`` is cast non-optional per the emit-site contract
+            // ("if model is set, tables is set" — see ``RESULT_SET_TABLES`` in
+            // ``services/result_set_cache_invalidator_service.js``);
+            // ``invalidateByModel`` would throw on ``undefined`` regardless.
             const objDetail = /** @type {{ tables: string[]; model?: string }} */ (
                 detail
             );
@@ -314,24 +290,18 @@ if (!_rpcState.busListenersAttached) {
                 return;
             }
         }
-        // ``detail`` is either ``string`` (single table — most emit sites
-        // pass a literal table name like ``"get_views"``), ``string[]``
-        // (rare, accepted by the cache for batch clearing), or
-        // ``undefined`` (full-cache nuke from ``webclient.js`` after
-        // service-worker registration). The cache's ``invalidate``
+        // ``detail`` is a single table name (most emit sites), a ``string[]``
+        // (rare, batch clearing), or ``undefined`` (full-cache nuke from
+        // ``webclient.js`` after service-worker registration) — ``invalidate``
         // accepts all three.
         _rpcState.rpcCache?.invalidate(
             /** @type {string | string[] | null} */ (detail ?? null),
         );
     });
 
-    // -----------------------------------------------------------------------
-    // Observability — passive bus listeners that mirror every RPC into the
-    // rpcLog namespace.  Activated by ``localStorage.setItem("debug.rpc", "1")``
-    // (or ``?debug=rpc``).  When disabled the listener body short-circuits on
-    // rpcLog.enabled() before any payload construction — cost is one event
-    // dispatch per RPC, negligible against the network round-trip itself.
-    // -----------------------------------------------------------------------
+    // Observability — passive listeners mirroring RPCs into rpcLog, enabled via
+    // ``localStorage.setItem("debug.rpc", "1")`` (or ``?debug=rpc``); the body
+    // short-circuits on ``rpcLog.enabled()`` when disabled (one event dispatch/RPC).
 
     rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
         if (!rpcLog.enabled()) {
@@ -362,9 +332,7 @@ if (!_rpcState.busListenersAttached) {
     });
 }
 
-// -----------------------------------------------------------------------------
 // Retry helpers
-// -----------------------------------------------------------------------------
 
 /**
  * @typedef {{ retries: number; baseMs: number; maxMs: number }} RetryConfig
@@ -372,11 +340,9 @@ if (!_rpcState.busListenersAttached) {
 
 /**
  * Normalize the user-supplied ``retry`` setting to a full {@link RetryConfig}.
- *
- * Accepts either a number (interpreted as ``retries``) or a partial
- * config object.  Defaults are tuned for transient infrastructure
- * failures (proxy hiccup, pool exhaustion, worker restart): three
- * attempts on top of the first, ramping from 200ms up to 2s.
+ * Accepts a number (as ``retries``) or a partial config; defaults suit
+ * transient infra failures (proxy hiccup, pool exhaustion, worker restart):
+ * three retries, ramping 200ms → 2s.
  *
  * @param {number | Partial<RetryConfig>} retry
  * @returns {RetryConfig}
@@ -391,11 +357,9 @@ function normalizeRetry(retry) {
 }
 
 /**
- * Minimum delay applied between retries against an overloaded backend
- * (``ServerOverloadError``).  Retrying too aggressively against a
- * server that is already returning HTML error pages contributes to
- * the overload; the floor gives the worker pool / DB connections
- * time to drain before the next attempt.
+ * Minimum delay between retries against an overloaded backend
+ * (``ServerOverloadError``) — gives the worker pool / DB connections time to
+ * drain before the next attempt instead of piling on.
  */
 const SERVER_OVERLOAD_BACKOFF_FLOOR_MS = 1000;
 
@@ -434,26 +398,18 @@ function isRetryable(err) {
     return err instanceof ConnectionLostError || err instanceof ConnectionTimeoutError;
 }
 
-// -----------------------------------------------------------------------------
 // In-flight deduplication
-// -----------------------------------------------------------------------------
 
 /**
- * Shared in-flight promises keyed by ``buildKey(url, params)``.  Used by the
- * ``settings.dedup`` branch of ``rpc._rpc`` so two concurrent callers
- * issuing the same request (e.g., a form and its sidebar both reading
- * ``res.partner`` [42]) share a single fetch instead of firing twice.
- * Entries evict on settle (success OR rejection); a subsequent call
- * after settle fires fresh.
+ * Shared in-flight promises keyed by ``buildKey(url, params)``, used by the
+ * ``settings.dedup`` branch of ``rpc._rpc`` so concurrent callers issuing the
+ * same request (e.g. a form and its sidebar both reading ``res.partner`` [42])
+ * share a single fetch. Entries evict on settle (success or rejection).
  *
- * Abort semantics are intentionally shared across deduped callers: if
- * any caller aborts the returned promise, the underlying fetch is
- * canceled and every other caller observing the same promise sees a
- * ``ConnectionAbortedError``.  This matches the common case — when
- * navigation cancels one in-flight read, the other component reading
- * the same record is usually on the same page being torn down — but
- * callers that need independent abort lifecycles must not opt in to
- * ``dedup``.
+ * Abort is shared across deduped callers: aborting the returned promise
+ * cancels the underlying fetch, and every other caller sees a
+ * ``ConnectionAbortedError`` too. Callers needing independent abort
+ * lifecycles must not opt in to ``dedup``.
  *
  * Anchored on ``globalThis`` (see ``_rpcState``) so concurrent identical
  * requests dedupe across bundles too.
@@ -463,25 +419,22 @@ function isRetryable(err) {
 const inflightDedup = _rpcState.inflightDedup;
 
 /**
- * Fingerprint the behaviour-affecting settings so two concurrent callers
- * with identical ``(url, params)`` but DIFFERENT settings do NOT join onto
- * the same in-flight promise.  Without this, the second caller silently
- * inherits the FIRST caller's settings AND behaviour — e.g. a non-silent
- * caller deduped onto a ``silent`` one gets no loading indicator and no
- * error dialog, and a caller expecting ``retry``/``timeout`` gets the
- * other's policy instead.
+ * Fingerprint the behaviour-affecting settings so concurrent callers with the
+ * same ``(url, params)`` but DIFFERENT settings don't join the same in-flight
+ * promise — otherwise the second caller would silently inherit the first's
+ * settings (e.g. a non-silent caller deduped onto a ``silent`` one loses its
+ * loading indicator and error dialog).
  *
- * The ``dedup`` flag itself is excluded (always set on this path).
- * ``headers`` is normalised to sorted entries so a plain-object and a
- * ``Headers`` spelling of the same headers still match.  A
- * ``cache.callback`` function is dropped by ``JSON.stringify`` on purpose:
- * it does not change the fetch, only cache-hit notification, and callback
- * isolation is handled inside the cache layer.
+ * ``dedup`` itself is excluded (always set on this path). ``headers`` is
+ * normalised to sorted entries so a plain-object and a ``Headers`` spelling
+ * still match. ``cache.callback`` is dropped by ``JSON.stringify`` on
+ * purpose — it only affects cache-hit notification, isolated in the cache
+ * layer.
  *
- * Only failure mode that matters is a COLLISION (two callers that must not
- * share getting the same fingerprint).  A coarse fingerprint that instead
- * SPLITS callers that could have shared is safe — it merely costs a
- * redundant fetch — so this errs deliberately on the side of splitting.
+ * Only a COLLISION (callers that must not share getting the same
+ * fingerprint) is a real failure; a coarse fingerprint that SPLITS callers
+ * that could have shared just costs a redundant fetch, so this errs toward
+ * splitting.
  *
  * @param {{[key: string]: any}} settings
  * @returns {string}
@@ -501,9 +454,7 @@ function dedupSettingsFingerprint(settings) {
     return parts.join("&");
 }
 
-// -----------------------------------------------------------------------------
 // Main RPC
-// -----------------------------------------------------------------------------
 /**
  * @param {string} url
  * @param {{[key: string]: any}} [params]
@@ -524,11 +475,10 @@ rpc._rpc = function (url, params, settings) {
     validateRPCSettings(settings);
     if (settings.dedup) {
         // Outermost layer: identical concurrent (url, params) AND matching
-        // settings share one promise.  Composes with cache and retry (they
-        // run inside this branch via the recursive ``rpc._rpc`` call with
-        // ``dedup`` stripped).  The settings fingerprint is folded into the
-        // key so callers differing only by ``silent``/``cache``/``retry``/
-        // ``timeout``/``headers`` never inherit each other's behaviour.
+        // settings share one promise. Composes with cache and retry via the
+        // recursive ``rpc._rpc`` call with ``dedup`` stripped; the settings
+        // fingerprint keeps differing callers from inheriting each other's
+        // behaviour.
         const key = `${buildKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
         const existing = inflightDedup.get(key);
         if (existing) {
@@ -536,14 +486,10 @@ rpc._rpc = function (url, params, settings) {
         }
         const promise = rpc._rpc(url, params, omit(settings, "dedup"));
         inflightDedup.set(key, promise);
-        // Evict on settle.  We use ``.then(onSettle, onSettle)`` instead of
-        // ``.finally`` because the chained promise must not propagate the
-        // rejection — callers handle the original ``promise``'s rejection
-        // themselves, and a parallel unhandled chained rejection would
-        // surface as an ``unhandledRejection`` event (which hoot reports
-        // as an unverified error).  Both handlers return undefined, so
-        // the derivative resolves cleanly regardless of outcome.  The
-        // identity guard handles pathological re-entrancy where a
+        // ``.then(onSettle, onSettle)`` instead of ``.finally`` so the chained
+        // promise doesn't propagate the rejection (callers handle the original
+        // ``promise``'s rejection; a parallel unhandled one would surface as an
+        // unhandledRejection). The identity guard covers re-entrancy where a
         // synchronous re-registration could displace the entry.
         const onSettle = () => {
             if (inflightDedup.get(key) === promise) {
@@ -551,15 +497,11 @@ rpc._rpc = function (url, params, settings) {
             }
         };
         promise.then(onSettle, onSettle);
-        // Silent abort path (``abort(false)``) cancels the underlying fetch
-        // but leaves the outer promise pending — onSettle would never fire
-        // via the then-chain, leaking this entry forever.  Wrap abort so
-        // it evicts the dedup slot synchronously.  Without this, a
-        // subsequent identical request would be deduped onto a
-        // forever-pending promise (its fetch already canceled) and the
-        // new caller would never see data.  ``abort(true)`` still works
-        // via the rejection-handler arm of the then-chain; the wrapper
-        // is idempotent because onSettle guards on identity.
+        // Silent abort (``abort(false)``) leaves the outer promise pending, so
+        // onSettle never fires via the then-chain and would leak this entry
+        // forever. Wrap abort to evict the dedup slot synchronously.
+        // ``abort(true)`` still works via the rejection-handler arm; the
+        // wrapper is idempotent since onSettle guards on identity.
         const innerAbort = /** @type {any} */ (promise).abort;
         if (typeof innerAbort === "function") {
             /** @type {any} */ (promise).abort = function (rejectError = true) {
@@ -570,30 +512,22 @@ rpc._rpc = function (url, params, settings) {
         return promise;
     }
     if (settings.cache && _rpcState.rpcCache) {
-        // Thread ``params.model`` into the cache settings so the entry
-        // joins the per-table model→keys reverse index.  This makes
-        // ``invalidateByModel`` O(1) instead of scanning + parsing
-        // every key.  ``params.model`` is undefined for non-call_kw
-        // endpoints (session_info, /web/action/load, get_views, ...);
-        // those entries simply skip indexing and remain reachable only
-        // via ``invalidate(table)``, which is how they're invalidated
-        // today regardless.
+        // Thread ``params.model`` into the cache settings so the entry joins
+        // the per-table model→keys reverse index, making ``invalidateByModel``
+        // O(1) instead of scanning every key. Non-call_kw endpoints (e.g.
+        // session_info, get_views) have no model and stay reachable only via
+        // ``invalidate(table)``.
         const cacheSettings =
             typeof settings.cache === "boolean" ? {} : { ...settings.cache };
         if (params?.model && cacheSettings.model === undefined) {
             cacheSettings.model = params.model;
         }
-        // Preserve the ``RpcPromise`` contract on the cache path: the typedef
-        // promises ``.abort()`` on EVERY ``rpc()`` return, but ``cache.read``
-        // yields a plain promise with no ``abort`` — so a caller doing
-        // ``prom.abort(false)`` on a cache-enabled call (e.g.
-        // record_autocomplete.js) would crash on ``undefined``.  We capture
-        // the underlying fallback's abort (created only on a cache MISS) and
-        // forward to it.  On a cache HIT the fallback never runs, so ``abort``
-        // is a safe no-op — there is no in-flight fetch to cancel.  ``bind``
-        // snapshots the real abort before we overwrite ``.abort`` below, so
-        // even if ``read`` returns the fallback promise itself there is no
-        // self-recursion.
+        // Preserve the ``RpcPromise`` contract on the cache path: ``cache.read``
+        // yields a plain promise with no ``abort``, which would crash a caller
+        // doing ``prom.abort(false)``. Capture the fallback's abort (only
+        // created on a cache MISS) and forward to it; on a cache HIT it's a
+        // safe no-op. ``bind`` snapshots the real abort before we overwrite
+        // ``.abort`` below, avoiding self-recursion.
         /** @type {((rejectError?: boolean) => void) | null} */
         let innerAbort = null;
         const fallback = () => {
@@ -643,15 +577,14 @@ function _rpcOnce(url, params, settings) {
     // or a Headers; Content-Type always wins so JSON-RPC stays JSON.
     const requestHeaders = new Headers(settings.headers || {});
     requestHeaders.set("Content-Type", "application/json");
-    // Outer promise drives caller-visible state.  We don't return the
-    // raw fetch promise because abort(false) must leave the caller's
-    // promise un-resolved, which fetch's AbortError doesn't model.
+    // Outer promise drives caller-visible state; we don't return the raw
+    // fetch promise because abort(false) must leave the caller's promise
+    // un-resolved, which fetch's AbortError doesn't model.
     const controller = new AbortController();
     let aborted = false;
-    // Optional opt-in timeout.  Combine the caller-controlled abort
-    // signal with ``AbortSignal.timeout(ms)`` so either source can
-    // cancel the fetch.  We distinguish in the catch handler by
-    // checking ``timeoutSignal.aborted``.
+    // Optional opt-in timeout: combine the caller-controlled abort signal
+    // with ``AbortSignal.timeout(ms)`` and distinguish the source in the
+    // catch handler via ``timeoutSignal.aborted``.
     /** @type {AbortSignal | null} */
     const timeoutSignal = settings.timeout
         ? AbortSignal.timeout(settings.timeout)
@@ -660,11 +593,10 @@ function _rpcOnce(url, params, settings) {
         ? AbortSignal.any([controller.signal, timeoutSignal])
         : controller.signal;
     const { promise, resolve, reject } = Promise.withResolvers();
-    // ``settled`` gates the outer promise's terminal state.  Once the fetch
-    // has resolved/rejected (or a previous abort settled it), ``abort`` must
-    // become a no-op: firing another ``RPC:RESPONSE`` for this ``data.id``
-    // would double-emit to observers that pair REQUEST/RESPONSE by id
-    // (loading_indicator, slow_rpc_service), corrupting their bookkeeping.
+    // ``settled`` gates the outer promise's terminal state: once settled,
+    // ``abort`` must become a no-op, since a second ``RPC:RESPONSE`` for this
+    // ``data.id`` would double-emit to id-pairing observers (loading_indicator,
+    // slow_rpc_service).
     let settled = false;
     const settleResolve = (/** @type {any} */ value) => {
         settled = true;
@@ -704,13 +636,10 @@ function _rpcOnce(url, params, settings) {
                 settleReject(error);
                 return;
             }
-            // Server-overload detection: a non-JSON content type signals that
-            // the server returned an error page (typically werkzeug's HTML
-            // traceback for ``PoolError`` / ``OperationalError``) rather than
-            // a JSON-RPC envelope.  Classifying it as ``ServerOverloadError``
-            // (subclass of ``ConnectionLostError`` for backward compat) lets
-            // the retry layer apply a longer backoff floor so retries don't
-            // pile onto an already-struggling backend.
+            // A non-JSON content type signals a werkzeug HTML error page
+            // (``PoolError``/``OperationalError``) rather than a JSON-RPC
+            // envelope; classify it as ``ServerOverloadError`` so the retry
+            // layer applies a longer backoff floor.
             const contentType = response.headers.get("content-type") || "";
             if (contentType && !/application\/json/i.test(contentType)) {
                 const error = new ServerOverloadError(url, response.status);
@@ -722,26 +651,21 @@ function _rpcOnce(url, params, settings) {
             try {
                 parsed = await response.json();
             } catch {
-                // Genuinely-malformed JSON body despite an
-                // ``application/json`` content-type header, or no content-type
-                // at all.  Treated as transient connectivity failure: the
-                // server didn't produce a recognisable response and a retry
-                // with default backoff is reasonable.
+                // Malformed JSON body (or missing content-type). Treated as
+                // transient connectivity failure — a retry with default
+                // backoff is reasonable.
                 const error = new ConnectionLostError(url);
                 rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
                 settleReject(error);
                 return;
             }
             if (!parsed.error) {
-                // Plan-C envelope versioning: server methods decorated with
-                // ``@versioned_envelope`` (web/models/_versioning.py) stash a
-                // content hash on ``request._response_version``, which the
-                // dispatcher lifts to ``parsed.version`` sibling-of-result.  We
-                // re-attach it as ``result.__version`` so the rpc cache's
-                // ``payloadChanged`` sees the same field whether the server
-                // used in-payload (@versioned) or out-of-band (@versioned_envelope)
-                // stamping.  Skips primitives (no place to attach a property)
-                // and dicts that already carry ``__version`` (in-payload path).
+                // Plan-C envelope versioning: ``@versioned_envelope`` methods
+                // (web/models/_versioning.py) lift a content hash to
+                // ``parsed.version`` sibling-of-result. Re-attach it as
+                // ``result.__version`` so the rpc cache's ``payloadChanged``
+                // sees the same field regardless of in-payload vs out-of-band
+                // stamping. Skips primitives and dicts already carrying it.
                 const result = parsed.result;
                 if (
                     parsed.version !== undefined &&
@@ -801,10 +725,8 @@ function _rpcOnce(url, params, settings) {
      */
     /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) {
         if (settled || aborted) {
-            // Already settled (fetch resolved/rejected) or already aborted:
-            // do nothing.  Firing a second RPC:RESPONSE for this data.id here
-            // would double-emit to id-keyed observers (loading_indicator,
-            // slow_rpc_service); the pairing invariant must hold exactly once.
+            // A second RPC:RESPONSE for this data.id would double-emit to
+            // id-keyed observers (loading_indicator, slow_rpc_service).
             return;
         }
         aborted = true;
@@ -814,8 +736,8 @@ function _rpcOnce(url, params, settings) {
         if (rejectError) {
             settleReject(error);
         }
-        // rejectError=false: outer promise stays pending — caller asked
-        // to silently cancel without surfacing an error to the UI.
+        // rejectError=false: outer promise stays pending — caller asked to
+        // silently cancel without surfacing an error to the UI.
     };
     return /** @type {RpcPromise<any>} */ (promise);
 }
@@ -842,19 +764,17 @@ function _rpcWithRetry(url, params, settings) {
     let aborted = false;
     let settled = false;
     /**
-     * The current in-flight attempt, or ``null`` between attempts (during
-     * the backoff wait) and after settle.  ``abort`` forwards ONLY to a
-     * genuinely in-flight attempt — calling ``.abort()`` on an already-settled
-     * attempt would emit a stray RPC:RESPONSE for its (already-paired)
-     * data.id.
+     * The current in-flight attempt, or ``null`` between attempts and after
+     * settle. ``abort`` forwards only to a genuinely in-flight attempt —
+     * aborting an already-settled one would emit a stray RPC:RESPONSE.
      *
      * @type {RpcPromise<unknown> | null}
      */
     let currentInner = null;
     /**
-     * Handle of the scheduled backoff retry, or ``null`` when no retry is
-     * pending.  ``abort`` must ``clearTimeout`` it, otherwise the retry fires
-     * after the caller aborted and issues a fresh, unwanted RPC.
+     * Handle of the scheduled backoff retry, or ``null`` when none is
+     * pending. ``abort`` must ``clearTimeout`` it, or the retry fires after
+     * the caller aborted and issues an unwanted RPC.
      *
      * @type {ReturnType<typeof browser.setTimeout> | null}
      */

@@ -1,31 +1,10 @@
 // @ts-check
 
 /**
- * Pure unit tests for FormSaveCoordinator.
- *
- * Tests the state machine and dispatch logic that centralizes the form
- * controller's 9 save-related entry points.  Uses plain mock objects
- * (delegation pattern, mirrors record_save.test.js) — no component mount.
- *
- * Coverage:
- *   - Initial status is ``clean``.
- *   - ``requestSave`` clean+checkDirty short-circuits without invoking
- *     ``record.save``.
- *   - ``requestSave`` dirty path transitions ``clean → saving → clean``
- *     when the save succeeds, or ``→ error`` when it fails.
- *   - ``errorMode`` flag selects between dialog UX, re-throw, and silent
- *     swallowing.
- *   - ``saveOverride`` (used by ``props.saveRecord`` delegation) is
- *     invoked instead of ``record.save`` when supplied.
- *   - ``requestUrgentSave`` uses the urgent (sendBeacon) path on the
- *     record and surfaces the ``onUrgentSaveFailed`` hook when sendBeacon
- *     fails.
- *   - ``requestDiscard`` calls ``record.discard`` and returns to clean.
- *   - Multi-company recovery is invoked transparently before the dialog UX.
- *   - Dialog mode rethrows payload-less (non-RPC) errors instead of
- *     routing them to ``FormErrorDialog``.
- *   - Epoch ownership: overlapping saves/discards in either order — the
- *     later requester owns the settlement, the earlier one is a no-op.
+ * Pure unit tests for FormSaveCoordinator: the state machine and dispatch
+ * logic centralizing the form controller's 9 save-related entry points.
+ * Uses plain mock objects (delegation pattern, mirrors record_save.test.js)
+ * — no component mount.
  *
  * Module under test: views/form/form_save_coordinator.js
  */
@@ -168,10 +147,8 @@ describe("FormSaveCoordinator — requestSave (status transitions)", () => {
         const { coordinator } = makeContext({ save: async () => false });
         const result = await coordinator.requestSave();
         expect(result).toBe(false);
-        // false from record.save means validation failed pre-RPC; coordinator
-        // returns to clean (or stays dirty) — NOT error, since no exception
-        // was raised.  Settled on "dirty" so the form can show invalid-fields
-        // UX without flagging a hard error.
+        // false means validation failed pre-RPC (no exception) — coordinator
+        // settles to "dirty" (not "error") so the form can show invalid-fields UX.
         expect(coordinator.status).toBe("dirty");
     });
 });
@@ -185,9 +162,8 @@ describe("FormSaveCoordinator — errorMode", () => {
         let onSaveErrorCalls = 0;
         let capturedError = null;
         let onErrorPassedToSave = null;
-        // RPC-shaped: the dialog path is reserved for errors carrying a
-        // server payload (``error.data``); payload-less errors are
-        // rethrown before the hook (see the dedicated test below).
+        // RPC-shaped: dialog path is reserved for errors carrying a server
+        // payload (``error.data``); payload-less errors rethrow before the hook.
         const fakeError = Object.assign(new Error("rpc-failed"), {
             data: { message: "rpc-failed" },
         });
@@ -219,29 +195,21 @@ describe("FormSaveCoordinator — errorMode", () => {
         // false from onSaveError means "block the caller's operation" —
         // coordinator returns that value.
         expect(result).toBe(false);
-        // lastError is recorded even when the dialog UX resolved it,
-        // so callers like shouldExecuteAction can block menu actions
-        // on any save error regardless of dialog resolution.
+        // lastError is recorded even when dialog UX resolved it, so callers
+        // like shouldExecuteAction can block menu actions on any save error.
         expect(coordinator.lastError).toBe(fakeError);
     });
 
     test("errorMode='dialog' rethrows payload-less errors instead of opening the dialog", async () => {
-        // ``ConnectionLostError`` / ``ConnectionTimeoutError`` (and any
-        // non-RPC throw) carry no ``.data``: ``FormErrorDialog`` requires
-        // ``props.data``, so routing such an error to the dialog hook
-        // would TypeError inside the controller and mask the original
-        // failure (offline save via breadcrumb → no dialog, undefined
-        // navigation state).  The coordinator must keep it out of the
-        // dialog path: rethrow into ``requestSave``'s catch, which
-        // settles status to "error", records the original error in
-        // ``lastError`` and resolves false so navigation cleanly blocks.
+        // Connection errors carry no `.data`, which FormErrorDialog requires;
+        // routing them to the dialog hook would TypeError. The coordinator
+        // rethrows instead so status settles to "error" and navigation blocks.
         let dialogCalls = 0;
         const connectionError = new Error("Connection lost"); // no ``.data``
         const { coordinator } = makeContext({
             save: async ({ onError } = {}) =>
-                // Mirror record_save.js: the raised error is routed
-                // through the caller-provided onError callback; a throw
-                // from the callback propagates out of ``record.save()``.
+                // Mirror record_save.js: the error routes through the caller-provided
+                // onError callback; a throw from it propagates out of record.save().
                 await onError(connectionError, {
                     discard: () => {},
                     retry: () => true,
@@ -539,13 +507,10 @@ describe("FormSaveCoordinator — transition guard", () => {
 
 describe("FormSaveCoordinator — concurrent saves", () => {
     test("a second requestSave during an in-flight save supersedes the first's terminal", async () => {
-        // Scenario: form view's ``beforeLeave`` calls ``requestSave`` while
-        // a user-initiated save is still in flight (e.g. clicking Save then
-        // immediately clicking a breadcrumb).  Without epoch invalidation,
-        // the first save's terminal ``_transition("ok")`` would fire AFTER
-        // the second save has settled the state back to "clean", throwing
-        // ``InvalidFormSaveTransitionError`` from inside an async catch
-        // that propagates as an unhandled rejection in the test.
+        // Scenario: beforeLeave calls requestSave while a user-initiated save is
+        // still in flight. Without epoch invalidation, the first save's stale
+        // "ok" would fire after the second has settled to "clean", throwing
+        // InvalidFormSaveTransitionError as an unhandled rejection.
         let resolveFirst, resolveSecond;
         const firstPromise = new Promise((r) => (resolveFirst = r));
         const secondPromise = new Promise((r) => (resolveSecond = r));
@@ -553,10 +518,8 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         let firstSaveEnteredAt = null;
         let secondSaveEnteredAt = null;
         let coordinator;
-        // ``save`` is the ONLY post-begin observation point that doesn't
-        // race the awaits in requestSave.  Capture (status, epoch) the
-        // moment each call lands inside save() — at that point ``begin``
-        // has fired.
+        // `save` is the only post-begin observation point that doesn't race the
+        // awaits in requestSave; capture (status, epoch) as soon as each call lands.
         ({ coordinator } = makeContext({
             save: () => {
                 const which = ++call;
@@ -596,13 +559,10 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("a concurrent save's failure does not corrupt the winner's outcome", async () => {
-        // Symmetric to the previous test: the FIRST save throws, but the
-        // SECOND save (which has overtaken the epoch) eventually succeeds.
-        // The first's ``_transition("failed")`` must be suppressed —
-        // otherwise it would land on ``error`` and the successor save's
-        // ``begin`` would be ``error → saving`` (allowed) → ``ok`` →
-        // ``clean``, but the user-visible "lastError" would carry the
-        // stale failure across an otherwise-successful save.
+        // Symmetric to the previous test: the FIRST save throws but the SECOND
+        // (which has overtaken the epoch) succeeds. The first's "failed" transition
+        // must be suppressed, or lastError would carry a stale failure across an
+        // otherwise-successful save.
         let resolveSecond;
         const secondPromise = new Promise((r) => (resolveSecond = r));
         let call = 0;
@@ -626,10 +586,9 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("requestDiscard mid-save invalidates the in-flight save's terminal", async () => {
-        // The form controller may discard a dirty form mid-save (e.g. a
-        // multi-company recovery dialog chose "discard").  ``requestDiscard``
-        // bumps the epoch so the in-flight save's ``ok`` becomes a no-op
-        // instead of clobbering the post-discard ``clean`` status.
+        // The form controller may discard mid-save (e.g. multi-company recovery
+        // chose "discard"). requestDiscard bumps the epoch so the in-flight save's
+        // "ok" becomes a no-op instead of clobbering post-discard "clean".
         let resolveSave;
         const savePromise = new Promise((r) => (resolveSave = r));
         let statusInsideSave = null;
@@ -657,15 +616,10 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("requestSave mid-discard supersedes the discard's settlement", async () => {
-        // Mirror of the previous test: the user clicks Discard on a dirty
-        // record whose ``root.discard()`` is held up by the model mutex
-        // (e.g. a slow onchange), then clicks Save.  The save's ``begin``
-        // claims a newer epoch, so when the discard finally resolves it
-        // must NOT apply its ``discard`` transition — that would settle
-        // ``saving → clean`` under the in-flight save, whose terminal
-        // ``ok`` would then be an invalid transition from ``clean`` (and
-        // the rescue ``failed`` would throw again from ``clean``, escaping
-        // ``requestSave`` regardless of errorMode).
+        // Mirror of the previous test: Discard is held up by the model mutex while
+        // the user clicks Save. Save's "begin" claims a newer epoch, so the
+        // discard's stale "discard" transition must be a no-op — applying it would
+        // leave the in-flight save's terminal transition invalid from "clean".
         let resolveDiscard, resolveSave;
         const discardPromise = new Promise((r) => (resolveDiscard = r));
         const savePromise = new Promise((r) => (resolveSave = r));

@@ -379,13 +379,9 @@ test("does not store loadFields calls in cache when failed", async () => {
 });
 
 test("async method loadFields is protected", async () => {
-    // The default ``useServiceProtectMethodHandling.fn`` in tests is
-    // ``.mocked`` (returns an unresolved promise so post-teardown RPCs
-    // don't crash other tests).  This test specifically verifies the
-    // production behavior — a rejected ``Component is destroyed``
-    // promise — so swap to ``.original`` for the duration.  Without
-    // this, the second ``await callFieldService()`` below hangs
-    // forever and the test times out.
+    // Tests default to ``.mocked`` (an unresolved promise, so post-teardown
+    // RPCs don't crash other tests); swap to ``.original`` to observe the
+    // real rejected "Component is destroyed" promise, or the call below hangs.
     patchWithCleanup(useServiceProtectMethodHandling, {
         fn: useServiceProtectMethodHandling.original,
     });

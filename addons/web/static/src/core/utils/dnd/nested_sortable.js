@@ -14,17 +14,16 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
  *
  * OPTIONAL
  *
- * @property {(HTMLElement) => boolean} [preventDrag] function receiving a
- *  the current target for dragging (element) and returning a boolean, whether
- *  the element can be effectively dragged or not.
+ * @property {(HTMLElement) => boolean} [preventDrag] returns whether the
+ *  given target element can be dragged.
  * @property {boolean | () => boolean} [nest] whether elements are nested or not.
  * @property {string | () => string} [listTagName] type of lists ("ul" or "ol").
  * @property {number | () => number} [nestInterval] Horizontal distance needed to trigger
  * a change in the list hierarchy (i.e. changing parent when moving horizontally)
  * @property {number | () => number} [maxLevels] The maximum depth of nested items
  * the list can accept. If set to '0' the levels are unlimited. Default: 0
- * @property {(DraggableHookContext) => boolean} [isAllowed] You can specify a custom function
- * to verify if a drop location is allowed. return True by default
+ * @property {(DraggableHookContext) => boolean} [isAllowed] Custom function
+ * validating whether a drop location is allowed. Defaults to always true.
  * @property {boolean} [useElementSize] The placeholder use the dragged element size instead
  * of the small 8px lines. Default:false
  * @property {string[] | (() => string[])} [inertSelectors] selectors of the elements that
@@ -94,19 +93,14 @@ export const useNestedSortable = /** @type {any} */ (
                     params,
                 },
             ) {
-                // Group selector
                 ctx.groupSelector = params.groups || null;
                 if (ctx.groupSelector) {
                     ctx.fullSelector = [ctx.groupSelector, ctx.fullSelector].join(" ");
                 }
-                // Connection across groups
                 ctx.connectGroups = params.connectGroups;
-                // Nested elements
                 ctx.nest = params.nest;
-                // List tag name
                 ctx.listTagName = params.listTagName;
-                // Horizontal distance needed to trigger a change in the list hierarchy
-                // (i.e. changing parent when moving horizontally)
+                // Horizontal distance to trigger a parent change on horizontal move.
                 ctx.nestInterval = params.nestInterval;
                 ctx.isRTL = localization.direction === "rtl";
                 ctx.maxLevels = params.maxLevels || 0;
@@ -154,20 +148,17 @@ export const useNestedSortable = /** @type {any} */ (
                 addCleanup(() => ctx.current.placeHolder.remove());
             },
 
-            // Make the placeholder take the place of the moving row, and add style on
-            // different elements to provide feedback that there is an ongoing dragging
-            // sequence.
+            // Move the placeholder into place and style elements to give feedback
+            // that a drag sequence is ongoing.
             onDragStart(
                 /** @type {{ ctx: Record<string, any>, addStyle: Function }} */ {
                     ctx,
                     addStyle,
                 },
             ) {
-                // Horizontal position which will be used to detect row changes when moving vertically, so that
-                // we do not need to be on the row to trigger row changes (only the vertical position matters).
-                // Nested rows are shorter than "root" rows, and do not start at the same horizontal position.
-                // However, every row ends at the same horizontal position. Therefore, we use the end of the
-                // current element - 1 as horizontal position.
+                // Detect row changes using only vertical position: nested rows start
+                // at different horizontal offsets but all end at the same one, so
+                // track the (edge - 1) of the current element as the fixed x reference.
                 ctx.selectorX = ctx.isRTL
                     ? ctx.current.elementRect.left + 1
                     : ctx.current.elementRect.right - 1;
@@ -176,14 +167,13 @@ export const useNestedSortable = /** @type {any} */ (
                 ctx.current.element.after(ctx.current.placeHolder);
                 addStyle(ctx.current.element, { opacity: 0.5 });
 
-                // Remove pointer-events style added by draggable_hook_builder and set
-                // it on the view elements instead as in our case we want to show the
-                // ctx.cursor style on the whole screen, not only in the ref el.
+                // Remove the pointer-events style added by draggable_hook_builder and
+                // set it on the view elements instead, so ctx.cursor shows across the
+                // whole screen rather than just over the ref el.
                 addStyle(document.body, { "pointer-events": "auto" });
-                // Make the caller-provided inert zones non-interactive. These
-                // default to the webclient chrome but are configurable so core
-                // does not depend on a specific layout; unmatched selectors are
-                // simply skipped (addStyle is a no-op on null).
+                // Make the caller-provided inert zones non-interactive. Configurable
+                // (default: webclient chrome) so core stays layout-agnostic; unmatched
+                // selectors are simply skipped (addStyle is a no-op on null).
                 for (const selector of ctx.inertSelectors) {
                     addStyle(document.querySelector(selector), {
                         "pointer-events": "none",
@@ -276,10 +266,8 @@ export const useNestedSortable = /** @type {any} */ (
                  * @return {HTMLElement} list
                  */
                 const getChildList = (/** @type {Element} */ el) => {
-                    // The list element is a <ul>/<ol> tag, so the queried match
-                    // is an HTMLElement. Split the create path from the lookup
-                    // path so neither return reassigns through `Element | null`
-                    // (which would defeat flow-narrowing on the later append).
+                    // Split create/lookup paths so neither return reassigns through
+                    // `Element | null`, which would defeat flow-narrowing below.
                     const existing = el.querySelector(ctx.listTagName);
                     if (existing) {
                         return /** @type {HTMLElement} */ (existing);
@@ -378,12 +366,8 @@ export const useNestedSortable = /** @type {any} */ (
                     const eRect = element.getBoundingClientRect();
                     const pos =
                         ctx.current.placeHolder.compareDocumentPosition(element);
-                    // Place placeholder before the hovered element in its parent's
-                    // list. If the cursor is in the upper part of the element and
-                    // if the placeholder is currently after or inside the hovered
-                    // element. If the position is not allowed but nesting is allowed,
-                    // place the placeholder as the last child of the previous sibling
-                    // instead.
+                    // Place placeholder before the hovered element if the cursor is in
+                    // its upper part and the placeholder is currently after/inside it.
                     if (currentTop - eRect.y < 10) {
                         if (
                             pos & Node.DOCUMENT_POSITION_PRECEDING &&
@@ -398,13 +382,10 @@ export const useNestedSortable = /** @type {any} */ (
                         currentTop - eRect.y > 15 &&
                         pos === Node.DOCUMENT_POSITION_FOLLOWING
                     ) {
-                        // Place placeholder after the hovered element in its parent's
-                        // list if the cursor is not in the upper part of the
-                        // element and if the placeholder is currently before the
-                        // hovered element.
-                        // If nesting is allowed and if the element has at least one
-                        // child, place the placeholder above the first child of the
-                        // hovered element instead.
+                        // Place placeholder after the hovered element if the cursor is
+                        // below its upper part and the placeholder is currently before
+                        // it. If nesting is allowed and the element already has a
+                        // child, place the placeholder above that first child instead.
                         if (ctx.nest) {
                             const elementChildList = getChildList(element);
                             if (elementChildList.querySelector(ctx.elementSelector)) {

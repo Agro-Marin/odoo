@@ -534,10 +534,6 @@ test("parseDate (various entries)", async () => {
         dateTimeFormat: `${dateFormat} ${timeFormat}`,
     });
 
-    /**
-     * Type of testSet key: string
-     * Type of testSet value: string | undefined
-     */
     const testSet = new Map([
         ["10101010101010", undefined],
         ["1191111", "1191-04-21T00:00:00.000Z"], // day 111 of year 1191
@@ -647,10 +643,6 @@ test("parseDateTime (various entries)", async () => {
         dateTimeFormat: `${dateFormat} ${timeFormat}`,
     });
 
-    /**
-     * Type of testSet key: string
-     * Type of testSet value: string | undefined
-     */
     const testSet = new Map([
         ["10101010101010", "1010-10-10T10:10:10.000Z"],
         ["1191111", "1191-04-21T00:00:00.000Z"], // day 111 of year 1191

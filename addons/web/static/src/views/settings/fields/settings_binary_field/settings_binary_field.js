@@ -3,7 +3,6 @@
 
 /** @module @web/views/settings/fields/settings_binary_field/settings_binary_field - BinaryField variant resolving download URLs via the related field's relation */
 
-/** BinaryField variant that resolves download URLs via the related field's relation. */
 import { registerField } from "@web/fields/_registry";
 import { BinaryField, binaryField } from "@web/fields/media/binary/binary_field";
 export class SettingsBinaryField extends BinaryField {

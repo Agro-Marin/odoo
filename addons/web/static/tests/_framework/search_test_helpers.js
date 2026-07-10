@@ -26,11 +26,9 @@ const ensureSearchBarMenu = async () => {
 };
 
 /**
- * This function is aim to be used only in the tests.
- * It will filter the props that are needed by the Component.
- * This is to avoid errors of props validation. This occurs for example, on ControlPanel tests.
- * In production, View use WithSearch for the Controllers, and the Layout send only the props that
- * need to the ControlPanel.
+ * Test-only: filter `props` down to those the Component declares, to avoid
+ * props-validation errors (e.g. ControlPanel tests) — in production, View
+ * uses WithSearch/Layout to only send each component the props it needs.
  *
  * @param {Component} Component
  * @param {Object} props

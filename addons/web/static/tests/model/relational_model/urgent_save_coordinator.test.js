@@ -65,9 +65,7 @@ test("awaitUnlessUrgent returns undefined when active (does not await)", async (
     // Promise that would block forever if awaited
     let resolved = false;
     const slow = new Promise((r) => {
-        // Never resolved synchronously; we just want to assert the await
-        // is skipped.  setTimeout would still complete the test, so use a
-        // promise that resolves but lets us detect whether we awaited it.
+        // Resolves asynchronously via setTimeout, so we can detect whether it was awaited.
         setTimeout(() => {
             resolved = true;
             r("eventually");

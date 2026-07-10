@@ -40,9 +40,7 @@ export function applyCommands(
 ) {
     const { CREATE, UPDATE, DELETE, UNLINK, LINK } = x2ManyCommands;
 
-    // For performance reasons, we split commands by record ids, such that we have quick access
-    // to all commands concerning a given record. At the end, we re-build the list of commands
-    // from this structure.
+    // Split commands by record id for O(1) lookup; re-built into the final list below.
     let lastCommandIndex = -1;
     const commandsByIds = {};
     function addOwnCommand(command) {
@@ -60,8 +58,7 @@ export function applyCommands(
         addOwnCommand(command);
     }
 
-    // For performance reasons, we accumulate removed ids (commands DELETE and UNLINK), and at
-    // the end, we filter once list.records and list._currentIds to remove them.
+    // Accumulate removed ids (DELETE/UNLINK) and filter records/_currentIds once at the end.
     const removedIds = {};
     const currentIdsSet = new Set(list._currentIds);
     const recordsToLoad = [];
@@ -88,18 +85,15 @@ export function applyCommands(
                 }
                 const record = list._cache[command[1]];
                 if (!record) {
-                    // the record isn't in the cache, it means it is on a page we haven't loaded
-                    // so we say the record is "unknown", and store all update commands we
-                    // receive about it in a separated structure, s.t. we can easily apply them
-                    // later on after loading the record, if we ever load it.
+                    // Record is on an unloaded page: mark it "unknown" and stash update
+                    // commands to replay later if it's ever loaded.
                     if (!(command[1] in list._unknownRecordCommands)) {
                         list._unknownRecordCommands[command[1]] = [];
                     }
                     list._unknownRecordCommands[command[1]].push(command);
                 } else if (command[1] in list._unknownRecordCommands) {
-                    // this case is more tricky: the record is in the cache, but it isn't loaded
-                    // yet, as we are currently loading it (see below, where we load missing
-                    // records for the current page)
+                    // Record is cached but still loading (see the page-fill load below);
+                    // keep stashing updates until it lands.
                     list._unknownRecordCommands[command[1]].push(command);
                 } else {
                     const changes = {};
@@ -188,7 +182,6 @@ export function applyCommands(
         }
     }
 
-    // Re-generate the new list of commands
     list._commands = Object.values(commandsByIds)
         .flat()
         .sort((x, y) => x.index - y.index)
@@ -218,9 +211,8 @@ export function applyCommands(
         list.count = list._currentIds.length;
     }
 
-    // Fill the page if it isn't full w.r.t. the limit. This may happen if we aren't on the last
-    // page and records of the current have been removed, or if we applied commands to remove
-    // some records and to add others, but we were on the limit.
+    // Fill the page if it's below the limit — can happen when records were removed while not
+    // on the last page, or when removals/additions land exactly at the limit.
     const nbMissingRecords = list.limit - list.records.length;
     if (nbMissingRecords > 0) {
         const lastRecordIndex = list.limit + list.offset;

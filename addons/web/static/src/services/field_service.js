@@ -55,16 +55,11 @@ export const fieldService = {
             if (typeof resModel !== "string" || !resModel) {
                 throw new Error(`Invalid model name: ${resModel}`);
             }
-            // Cold-cache fields_get failure cascades: form/list/kanban
-            // for the affected model can't render without field metadata,
-            // so a transient 503 here breaks every screen on that model
-            // until the user reloads.  fields_get is idempotent and the
-            // disk cache already accepts staleness — one retry smooths
-            // the cold-fetch path while capping persistent-outage delay
-            // at a single backoff interval.
-            // ``immutable``: warm hits share the deep-frozen cached payload
-            // instead of paying a structuredClone per hit — consumers must
-            // treat field definitions as read-only.
+            // A transient fields_get failure breaks every view for the model until
+            // reload; fields_get is idempotent, so one retry smooths a cold-fetch
+            // failure without masking a persistent outage.
+            // ``immutable``: warm hits share the frozen cached payload instead of
+            // cloning per hit — consumers must treat field defs as read-only.
             return orm
                 .cache({ type: "disk", immutable: true })
                 .retry(1)

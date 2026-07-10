@@ -4,10 +4,8 @@
 /** @module @web/webclient/actions/action_button_executor - Executes action buttons (type=object/action/special) with RPC, context filtering, and UI blocking */
 
 /**
- * Extracted action-button execution logic.
- *
- * Takes an {@link ActionManager} instance and accesses the service's
- * methods/state through it.
+ * Extracted action-button execution logic; takes an {@link ActionManager}
+ * instance and accesses the service's methods/state through it.
  */
 
 import { markup } from "@odoo/owl";
@@ -25,14 +23,11 @@ import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js"
 export class InvalidButtonParamsError extends Error {}
 
 /**
- * Sentinel resolved when a ``keepLast``-guarded button task is superseded by a
- * newer task on the same {@link KeepLast} (e.g. a programmatic ``doAction``
- * fired while the button's RPC was still in flight). KeepLast silently discards
- * the superseded wrapper — it never resolves nor rejects — so awaiting it
- * directly hangs the caller and, critically, skips the ``finally`` that releases
- * a ``block-ui`` overlay, stranding the full-screen spinner until a page reload.
- * Staying internal to this module, the sentinel is a plain resolve value and
- * never reaches the error service.
+ * Sentinel for a {@link KeepLast}-guarded button task superseded by a newer
+ * task on the same KeepLast (e.g. a ``doAction`` fired while the RPC was in
+ * flight). KeepLast silently discards the superseded wrapper — never
+ * resolving nor rejecting — so awaiting it directly hangs and skips the
+ * ``finally`` that releases the ``block-ui`` overlay.
  *
  * @type {unique symbol}
  */
@@ -50,11 +45,10 @@ const SUPERSEDED = Symbol("action button superseded");
  * @returns {Promise<T | typeof SUPERSEDED>}
  */
 function addOrSupersede(keepLast, promise) {
-    // `keepLast.add` registers its `.then` on `promise` first; the guard below
-    // registers second, so on a non-superseded settlement the wrapper resolves
-    // `guarded` before the sentinel is produced and `guarded` wins the race
-    // (an extra microtask makes that ordering robust). When superseded, the
-    // wrapper stays pending forever and the sentinel resolves instead.
+    // `keepLast.add` registers its `.then` first, so on a non-superseded
+    // settlement `guarded` resolves before the sentinel and wins the race
+    // (an extra microtask makes that robust). When superseded, `guarded`
+    // stays pending forever and the sentinel resolves instead.
     const guarded = keepLast.add(promise);
     return Promise.race([
         guarded,
@@ -78,9 +72,8 @@ export function buildCallButtonArgs(params) {
     if (params.args) {
         let additionalArgs;
         try {
-            // arch `args` is a Python-literal list (e.g. args="[1, 'foo']").
-            // evaluateExpr parses Python literals natively, so single-quoted
-            // strings and apostrophes inside strings round-trip correctly.
+            // arch `args` is a Python-literal list (e.g. args="[1, 'foo']");
+            // evaluateExpr parses Python literals natively so quoting round-trips.
             additionalArgs = evaluateExpr(params.args);
         } catch (error) {
             throw new InvalidButtonParamsError(
@@ -139,7 +132,6 @@ export async function executeActionButton(
     if (!params.name && !params.special) {
         return;
     }
-    // determine the action to execute according to the params
     let action;
     if (!isEmbeddedAction) {
         for (const key of EMBEDDED_ACTIONS_CTX_KEYS) {
@@ -151,13 +143,10 @@ export async function executeActionButton(
     if (blockUi) {
         am.env.services.ui.block();
     }
-    // Everything below runs inside a single try/finally so a `block-ui` overlay
-    // is always released, whatever exit path is taken: a rejected
-    // call_button/_loadAction RPC, an invalid-args or missing-type throw, or the
-    // embedded-action early return. Without it, those paths stranded the
-    // full-screen overlay (blockCount stuck at 1) until a page reload. `effect`
-    // is declared here and triggered after the finally so the spinner is removed
-    // before the effect plays.
+    // The whole block runs in try/finally so the `block-ui` overlay is always
+    // released, whatever exit path is taken (rejected RPC, invalid-args throw,
+    // embedded-action early return). `effect` is declared here and triggered
+    // after the finally so the spinner is removed before the effect plays.
     let effect;
     try {
         if (params.special) {
@@ -259,9 +248,7 @@ export async function executeActionButton(
                 return;
             }
         }
-        // filter out context keys that are specific to the current action, because:
-        //  - wrong default_* and search_default_* values won't give the expected result
-        //  - wrong group_by values will fail and forbid rendering of the destination view
+        // filter out context keys specific to the current action (see filterActionContext)
         const currentCtx = filterActionContext(params.context);
         const activeCtx = { active_model: params.resModel };
         if (params.resId) {

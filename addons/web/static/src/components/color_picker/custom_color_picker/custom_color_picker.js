@@ -58,11 +58,9 @@ export class CustomColorPicker extends Component {
         this.pickerFlag = false;
         this.sliderFlag = false;
         this.opacitySliderFlag = false;
-        // Derive display values from props WITHOUT mutating them. OWL props are
-        // owned by the parent and must stay read-only; the previous in-place
-        // mutation was also non-idempotent — a parent reusing the same props
-        // object (or re-instantiation against retained props) would scale
-        // defaultOpacity ×100 twice and append the opacity hex twice.
+        // Derive display values from props without mutating them (OWL props are
+        // read-only); reusing retained props would otherwise double-scale
+        // defaultOpacity and duplicate the opacity hex.
         this.defaultOpacity =
             this.props.defaultOpacity > 0 && this.props.defaultOpacity <= 1
                 ? this.props.defaultOpacity * 100
@@ -94,9 +92,8 @@ export class CustomColorPicker extends Component {
         this.opacitySliderRef = useRef("opacitySlider");
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
-        // Need to be bound on all documents to work in all possible cases (we
-        // have to be able to start dragging/moving from the colorpicker to
-        // anywhere on the screen, crossing iframes).
+        // Bind on every document (including iframes) so drag/move tracking survives
+        // moving the pointer off the colorpicker.
         const documents = [
             window.top,
             ...Array.from(window.top.frames).filter((frame) => {
@@ -171,8 +168,6 @@ export class CustomColorPicker extends Component {
     }
 
     /**
-     * Sets the currently selected color
-     *
      * @param {string} color rgb[a]
      */
     setSelectedColor(color) {
@@ -209,7 +204,7 @@ export class CustomColorPicker extends Component {
      * @param {Object} [options]
      * @param {number} [options.min=0]
      * @param {number} [options.max=100]
-     * @param {number} [options.defaultStep=10] - default step
+     * @param {number} [options.defaultStep=10]
      * @param {number} [options.modifierStep=1] - step when holding ctrl+key
      * @param {number} [options.leap=20] - step for pageup / pagedown
      * @returns {number} updated and clamped value
@@ -330,10 +325,9 @@ export class CustomColorPicker extends Component {
         if (!rgb) {
             return;
         }
-        // A 6-digit hex carries no alpha, yet convertCSSColorToRgba fills in
-        // opacity: 100. Assigning that would silently reset a user-set opacity,
-        // contradicting this method's contract ("Opacity is left unchanged").
-        // Only honor the parsed opacity for an 8-digit (alpha-carrying) hex.
+        // convertCSSColorToRgba fills opacity:100 for a 6-digit (alpha-less) hex,
+        // which would wrongly reset a user-set opacity — only honor the parsed
+        // opacity for an 8-digit (alpha-carrying) hex.
         const rgbToApply = { ...rgb };
         if (hex.replace("#", "").length !== 8) {
             delete rgbToApply.opacity;
@@ -415,8 +409,6 @@ export class CustomColorPicker extends Component {
         this._updateCssColor();
     }
     /**
-     * Updates color opacity.
-     *
      * @private
      * @param {number} a
      */
@@ -442,8 +434,6 @@ export class CustomColorPicker extends Component {
         this.props.onColorSelect(this.colorComponents);
     }
     /**
-     * Updates css color representation.
-     *
      * @private
      */
     _updateCssColor() {

@@ -1,17 +1,9 @@
 // @ts-check
 
-/**
- * Pure unit tests for rpc_dedup.js.
- *
- * Tests deduplication of concurrent RPC calls without OWL or DOM.
- */
+/** Pure unit tests for rpc_dedup.js: dedup of concurrent RPC calls, no OWL/DOM. */
 
 import { describe, expect, test } from "@odoo/hoot";
 import { buildKey } from "@web/core/network/rpc_dedup";
-
-// ---------------------------------------------------------------------------
-// buildKey
-// ---------------------------------------------------------------------------
 
 describe("buildKey", () => {
     test("produces identical keys for identical inputs", () => {

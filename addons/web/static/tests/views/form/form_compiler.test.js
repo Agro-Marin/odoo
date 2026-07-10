@@ -470,12 +470,10 @@ test("form with t-translation directive", () => {
     expect.verifySteps([]); // should no log any warning
 });
 
-// ---------------------------------------------------------------------------
 // makeIsVisibleExpr wiring — the three literal forms across the three
 // slot-based compilers (button box, group, notebook) all route through the
 // shared helper. compileInvisibleNodes keeps the always-hidden ("false") nodes
 // in the output so the third literal form is observable.
-// ---------------------------------------------------------------------------
 
 test("button box routes each stat button through makeIsVisibleExpr", () => {
     const arch = /*xml*/ `
@@ -529,9 +527,7 @@ test("notebook routes each page slot through makeIsVisibleExpr", () => {
     expect(visibles).toEqual([DYNAMIC_IS_VISIBLE, "true", "false"]);
 });
 
-// ---------------------------------------------------------------------------
 // appendToExpr — preserve literal text around an existing interpolation
-// ---------------------------------------------------------------------------
 
 test("appendToExpr wraps a bare string when there is no existing expression", () => {
     expect(appendToExpr("", "x")).toBe("{{x }}");

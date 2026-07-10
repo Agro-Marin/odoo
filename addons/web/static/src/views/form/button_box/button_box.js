@@ -7,7 +7,7 @@ import { Component, onWillRender } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useService } from "@web/core/utils/hooks";
-/** Responsive container for stat buttons at the top of form views, with overflow dropdown. */
+
 export class ButtonBox extends Component {
     static template = "web.Form.ButtonBox";
     static components = { Dropdown, DropdownItem };

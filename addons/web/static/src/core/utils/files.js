@@ -95,24 +95,20 @@ export function resizeBlobImg(blob, params = {}) {
                 const canvas = document.createElement("canvas");
                 canvas.width = width;
                 canvas.height = height;
-                // A freshly-created canvas always provides a 2d context; the
-                // null case only occurs if the platform lacks canvas support
-                // (in which case nothing here works). Assert it so the
-                // known-non-null context typechecks.
+                // getContext("2d") is always non-null on a fresh canvas; assert it
+                // so the known-non-null context typechecks.
                 const ctx = /** @type {CanvasRenderingContext2D} */ (
                     canvas.getContext("2d")
                 );
                 ctx.imageSmoothingQuality = "high";
                 ctx.imageSmoothingEnabled = true;
 
-                // Keep src image's aspect ratio
-                // while drawing in dest image with different ratio
+                // Keep src image's aspect ratio while scaling into dest image
                 const srcRatio = img.width / img.height;
                 const dWidth = Math.min(Math.floor(height * srcRatio), width);
                 const dHeight = Math.min(Math.floor(width / srcRatio), height);
 
-                // Start drawing at some proportion from the edges
-                // 0.5 means the image is centered on the image's shortest axis
+                // offsetX/offsetY of 0.5 centers on the image's shortest axis
                 const dx = Math.round((width - dWidth) * offsetX);
                 const dy = Math.round((height - dHeight) * offsetY);
 

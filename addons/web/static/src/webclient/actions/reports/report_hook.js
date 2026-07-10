@@ -6,10 +6,8 @@
 import { useComponent, useEffect } from "@odoo/owl";
 
 /**
- * Hook used to enrich html and provide automatic links to action.
- * Dom elements must have those attrs [res-id][res-model][view-type]
- * Each element with those attrs will become a link to the specified resource.
- * Works with Iframes.
+ * Enrich DOM elements with `[res-id][res-model][view-type]` attrs into
+ * clickable action links. Iframe-aware (waits for `onload`).
  *
  * @param {{ el: HTMLElement | null }} ref - Owl ref to the element to enrich
  * @param {string | null} [selector] - Selector to apply to the element resolved by the ref
@@ -32,14 +30,12 @@ export function useEnrichWithActionLinks(ref, selector = null) {
 function enrich(component, targetElement, selector, isIFrame = false) {
     let doc = window.document;
 
-    // If we are in an iframe, we need to take the right document
-    // both for the element and the doc
+    // In an iframe, resolve both element and doc against its own document.
     if (isIFrame) {
         targetElement = targetElement.contentDocument;
         doc = targetElement;
     }
 
-    // If there are selector, we may have multiple blocks of code to enrich
     const targets = [];
     if (selector) {
         targets.push(...targetElement.querySelectorAll(selector));
@@ -47,7 +43,6 @@ function enrich(component, targetElement, selector, isIFrame = false) {
         targets.push(targetElement);
     }
 
-    // Search the elements with the selector, update them and bind an action.
     for (const currentTarget of targets) {
         const elementsToWrap = currentTarget.querySelectorAll(
             "[res-id][res-model][view-type]",

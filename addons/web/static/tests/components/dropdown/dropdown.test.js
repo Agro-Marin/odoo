@@ -263,10 +263,8 @@ test("hold position on hover", async () => {
 
     const menuBox1 = queryOne(DROPDOWN_MENU).getBoundingClientRect();
 
-    // Pointer enter the dropdown menu
     await hover(DROPDOWN_MENU);
 
-    // Add a filler to the parent
     expect(".filler").toHaveCount(0);
     parentState.filler = true;
     await animationFrame();
@@ -275,7 +273,6 @@ test("hold position on hover", async () => {
     const menuBox2 = queryOne(DROPDOWN_MENU).getBoundingClientRect();
     expect(menuBox2.top - menuBox1.top).toBe(0);
 
-    // Pointer leave the dropdown menu
     await leave();
 
     const menuBox3 = queryOne(DROPDOWN_MENU).getBoundingClientRect();
@@ -303,12 +300,10 @@ test("unlock position after close", async () => {
     // Pointer enter the dropdown menu to lock the menu
     await hover(DROPDOWN_MENU);
 
-    // close the menu
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // and reopen it
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
@@ -383,7 +378,6 @@ test("dropdowns keynav", async () => {
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Reopen dropdown
     await press("alt+m");
     await tick();
     await animationFrame();
@@ -395,7 +389,6 @@ test("dropdowns keynav", async () => {
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Reopen dropdown
     await press("alt+m");
     await tick();
     await animationFrame();
@@ -466,10 +459,8 @@ test("refocus toggler on close with keynav", async () => {
 
 test.tags("desktop");
 test("opening a dropdown over another restores focus to its own toggler", async () => {
-    // Manual states let us open B *without* an outside pointerdown, so A is
-    // closed only by the nesting bus during B's open cascade — the exact
-    // ordering that used to make B capture A's restored focus target. (A real
-    // click on B's toggler focuses it first and masks the race.)
+    // Open B via state (no outside pointerdown) so A closes through the nesting
+    // bus mid-cascade — the exact ordering that used to leak A's focus target to B.
     let parent;
     class Parent extends Component {
         static components = { Dropdown, DropdownItem };
@@ -503,9 +494,8 @@ test("opening a dropdown over another restores focus to its own toggler", async 
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(".toggler-a").toBeFocused();
 
-    // Open B while A is open and focus is still on A's toggler. A closes via
-    // the nesting bus and restores focus to its own toggler mid-cascade; B must
-    // still anchor its restore-focus on its own toggler, not on A's target.
+    // A closes via the nesting bus mid-cascade; B's restore-focus must still
+    // anchor on its own toggler, not on A's.
     parent.stateB.open();
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
@@ -623,13 +613,11 @@ test("direction class set to default when closed", async () => {
     expect(DROPDOWN_TOGGLE).not.toHaveClass("show");
     expect(DROPDOWN_TOGGLE).toHaveClass("dropdown");
 
-    // open
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_TOGGLE).toHaveClass("show");
     expect(DROPDOWN_TOGGLE).toHaveClass("dropup");
 
-    // close
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_TOGGLE).not.toHaveClass("show");
@@ -782,8 +770,7 @@ test("Dropdown with CheckboxItem: toggle value", async () => {
 test("don't close dropdown outside the active element", async () => {
     const env = await makeMockEnv();
 
-    // This test checks that if a dropdown element opens a dialog with a dropdown inside,
-    // opening this dropdown will not close the first dropdown.
+    // Opening a dropdown inside a dialog spawned from another dropdown must not close the latter.
     class CustomDialog extends Component {
         static components = { Dialog, Dropdown, DropdownItem };
         static props = { close: true };
@@ -880,12 +867,10 @@ test("t-if t-else as toggler", async () => {
     await mountWithCleanup(Parent);
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Open
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Close
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
@@ -1079,7 +1064,6 @@ test("multi-level dropdown: parent closing modes on item selection", async () =>
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Reopen second level dropdown
     await click(".dropdown-b");
     await animationFrame();
 
@@ -1421,12 +1405,10 @@ test("multi-level dropdown: submenu keeps position when patched", async () => {
     await mountWithCleanup(Parent);
     expect.verifySteps([]);
 
-    // Open the menu
     await click(".one");
     await animationFrame();
     expect.verifySteps(["submenu mounted"]);
 
-    // Open the submenu
     await click(".two");
     await animationFrame();
     // Change submenu content
@@ -1466,19 +1448,16 @@ test("multi-level dropdown: mouseentering a dropdown item should close any subdr
         message: "menus are closed at the start",
     });
 
-    // Open main dropdown
     await click(".main");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1, {
         message: "1st menu is opened",
     });
 
-    // Mouse enter sub dropdown
     await hover(".sub");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(2);
 
-    // Mouse enter the adjacent dropdown item
     await hover(".item");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1, {
@@ -1567,7 +1546,6 @@ test("multi-level dropdown: unsubscribe all keynav when root destroyed", async (
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(3);
 
-    // Close third
     await press("escape");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(2);
@@ -1576,7 +1554,6 @@ test("multi-level dropdown: unsubscribe all keynav when root destroyed", async (
     // Reset hover
     await hover(getFixture());
 
-    // Reopen second
     await hover(".third");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(3);

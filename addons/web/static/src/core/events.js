@@ -83,24 +83,16 @@ export const RouterEvent = Object.freeze({
 });
 
 /**
- * Events dispatched on a model's local bus (``model.bus``).
- *
- * Each ``Model`` instance owns its own ``EventBus``; these constants
- * name the cross-component contract that field widgets and view
- * controllers rely on. They are NOT for ``env.bus`` — model events are
- * scoped to one model lifecycle (one form view, one list view, etc.).
+ * Events dispatched on a model's local bus (``model.bus``). Scoped to one
+ * model lifecycle (not ``env.bus``); field widgets and view controllers rely
+ * on this contract.
  *
  * Usage:
  *   import { ModelEvent } from "@web/core/events";
  *   useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, () => ...);
  *
- * **Convention for addons**: Addons that maintain their own model-like
- * bus (e.g. web_studio's ``reportEditorModel.bus``) and want to
- * participate in the same contracts (urgent-save coordination, etc.)
- * should reuse these constants on their own bus. The events are
- * identified by string value, so the constant is just typed sugar —
- * untyped emitters / listeners that use the literal string keep
- * working alongside the typed sites.
+ * Addons with their own model-like bus (e.g. web_studio's
+ * ``reportEditorModel.bus``) can reuse these string constants directly.
  */
 export const ModelEvent = Object.freeze({
     /** Model finished loading/notifying — consumers should re-render. */
@@ -131,13 +123,9 @@ export const ModelEvent = Object.freeze({
 });
 
 /**
- * Events dispatched on the search model's bus (``env.searchModel``).
- *
- * Each ``SearchModel`` instance extends ``EventBus``; these constants
- * name the contract between the search layer (control panel, search
- * bar, search panel) and the views (list, kanban, ...). They are NOT
- * for ``env.bus`` — search model events are scoped to one view's
- * search model lifecycle.
+ * Events dispatched on the search model's bus (``env.searchModel``), scoped
+ * to one view's search-model lifecycle (not ``env.bus``). Contract between
+ * the search layer (control panel, search bar, search panel) and the views.
  *
  * Usage:
  *   import { SearchModelEvent } from "@web/core/events";

@@ -561,11 +561,9 @@ test(`decoration works on widgets`, async () => {
 });
 
 test(`form with o2m having a many2many fields using the many2many_tags widget along the color_field option`, async () => {
-    // In this scenario, the x2many form view isn't inline, so when we click on the record,
-    // it does an independant getView, which doesn't return all fields of the model. In the
-    // x2many list view, there's a field with a many2many_tags widget with the color option,
-    // and the color field (color) in our case, isn't in the form view.
-    // This test ensures that we can open the form view in this situation.
+    // The x2many form view isn't inline, so clicking a record does an independent getView,
+    // which doesn't return all fields (here, the color_field used by the many2many_tags
+    // widget). Ensures the form view can still open in this situation.
     Partner._records[0].type_ids = [12, 14];
     Partner._views = {
         form: `
@@ -608,11 +606,9 @@ test(`form with o2m having a many2many fields using the many2many_tags widget al
 });
 
 test(`form with o2m having a field with fieldDependencies`, async () => {
-    // In this scenario, the x2many form view isn't inline, so when we click on the record,
-    // it does an independant getView, which doesn't return all fields of the model. In the
-    // x2many list view, there's a field with fieldDependencies, and the dependency field
-    // (int_field) in our case, isn't in the form view. This test ensures that we can open
-    // the form view in this situation.
+    // The x2many form view isn't inline, so clicking a record does an independent getView,
+    // which doesn't return all fields (here, the fieldDependencies of a widget). Ensures the
+    // form view can still open in this situation.
     class MyField extends CharField {}
     fieldsRegistry.add("my_widget", {
         component: MyField,
@@ -889,11 +885,8 @@ test(`group with formLabel`, async () => {
 });
 
 test(`group containing both a field and a group`, async () => {
-    // The purpose of this test is to check that classnames defined in a
-    // field widget and those added by the form renderer are correctly
-    // combined. For instance, the renderer adds className 'o_group_col_x'
-    // on outer group's children (an outer group being a group that contains
-    // at least a group).
+    // Checks that classnames from a field widget and those added by the form renderer
+    // (e.g. 'o_group_col_x' on an outer group's children) are correctly combined.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -956,10 +949,9 @@ test(`Form and subview with _view_ref contexts`, async () => {
     Product._records = [{ id: 1, name: "Tromblon", type_ids: [12, 14] }];
     Partner._records[0].product_id = 1;
 
-    // This is an old test, written before "get_views" (formerly "load_views") automatically
-    // inlines x2many subviews. As the purpose of this test is to assert that the js fetches
-    // the correct sub view when it is not inline (which can still happen in nested form views),
-    // we bypass the inline mecanism of "get_views" by setting widget="one2many" on the field.
+    // Predates "get_views" auto-inlining x2many subviews. Asserts the js fetches the correct
+    // sub view when not inline (still possible in nested form views) by bypassing the inline
+    // mechanism via widget="one2many".
     Partner._views = {
         form: `
             <form>
@@ -2185,10 +2177,8 @@ test(`label is not rendered when invisible and not at top-level in a group`, asy
 });
 
 test(`input ids for multiple occurrences of fields in form view`, async () => {
-    // A same field can occur several times in the view, but its id must be
-    // unique by occurrence, otherwise there is a warning in the console (in
-    // edit mode) as we get several inputs with the same "id" attribute, and
-    // several labels the same "for" attribute.
+    // A field can occur several times in the view; its id must be unique per occurrence,
+    // otherwise inputs/labels collide on the same "id"/"for" attribute.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -2214,10 +2204,8 @@ test(`input ids for multiple occurrences of fields in form view`, async () => {
 });
 
 test(`input ids for multiple occurrences of fields in sub form view (inline)`, async () => {
-    // A same field can occur several times in the view, but its id must be
-    // unique by occurrence, otherwise there is a warning in the console (in
-    // edit mode) as we get several inputs with the same "id" attribute, and
-    // several labels the same "for" attribute.
+    // A field can occur several times in the view; its id must be unique per occurrence,
+    // otherwise inputs/labels collide on the same "id"/"for" attribute.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -2256,10 +2244,8 @@ test(`input ids for multiple occurrences of fields in sub form view (inline)`, a
 
 test.tags("desktop");
 test(`input ids for multiple occurrences of fields in sub form view (not inline)`, async () => {
-    // A same field can occur several times in the view, but its id must be
-    // unique by occurrence, otherwise there is a warning in the console (in
-    // edit mode) as we get several inputs with the same "id" attribute, and
-    // several labels the same "for" attribute.
+    // A field can occur several times in the view; its id must be unique per occurrence,
+    // otherwise inputs/labels collide on the same "id"/"for" attribute.
     Partner._views = {
         list: `<list><field name="foo"/></list>`,
         form: `
@@ -3399,12 +3385,9 @@ test(`buttons in form view, new record`, async () => {
 });
 
 test(`buttons in form view, new record, with field id in view`, async () => {
-    // buttons in form view are one of the rare example of situation when we
-    // save a record without reloading it immediately, because we only care
-    // about its id for the next step.  But at some point, if the field id
-    // is in the view, it was registered in the changes, and caused invalid
-    // values in the record (data.id was set to null)
-
+    // Buttons save a record without reloading it immediately (only the id matters for the
+    // next step). If field "id" is in the view, it used to get registered in the changes,
+    // causing data.id to be set to null.
     let resId = null;
     mockService("action", {
         doActionButton(params) {
@@ -4875,10 +4858,8 @@ test(`discard changes on a dirty form view`, async () => {
 });
 
 test(`discard changes on a dirty form view (for date field)`, async () => {
-    // this test checks that the relational model properly handles date object
-    // when they are discarded and saved.  This may be an issue because
-    // dates are saved as luxon instances, and were at one point stringified,
-    // then parsed into string, which is wrong.
+    // Dates are saved as luxon instances; they were once stringified then re-parsed,
+    // which broke discard/save. Checks the relational model handles date objects properly.
     Partner._fields.date = fields.Date({ default: "2017-01-25" });
 
     await mountView({
@@ -4887,10 +4868,8 @@ test(`discard changes on a dirty form view (for date field)`, async () => {
         arch: `<form><field name="date"></field></form>`,
     });
 
-    // also focus the buttons before clicking on them to precisely reproduce what
-    // really happens (mostly because the datepicker lib need that focus
-    // event to properly focusout the input, otherwise it crashes later on
-    // when the 'blur' event is triggered by the re-rendering)
+    // Focus the button before clicking: the datepicker lib needs that focus event to
+    // properly focusout the input, otherwise it crashes later on the re-render 'blur'.
     await contains(`.o_form_button_cancel`).click();
 
     await contains(`.o_form_button_save`).click();
@@ -7578,10 +7557,8 @@ test(`non inline subview and create=0 in action context`, async () => {
 });
 
 test(`readonly fields with modifiers may be saved`, async () => {
-    // the readonly property on the field description only applies on view,
-    // this is not a DB constraint. It should be seen as a default value,
-    // that may be overridden in views, for example with modifiers. So
-    // basically, a field defined as readonly may be edited.
+    // The readonly property on the field description isn't a DB constraint, only a default
+    // that a view (e.g. via modifiers) may override, so a readonly field may still be edited.
     Partner._fields.foo = fields.Char({ readonly: true });
 
     onRpc("web_save", ({ args }) => {
@@ -9589,12 +9566,9 @@ test(`display tooltips for buttons (debug = true)`, async () => {
 });
 
 test(`reload event is handled only once`, async () => {
-    // In this test, several form controllers are nested (all of them are
-    // opened in dialogs). When the users clicks on save in the last
-    // opened dialog, a 'reload' event is triggered up to reload the (direct)
-    // parent view. If this event isn't stopPropagated by the first controller
-    // catching it, it will crash when the other one will try to handle it,
-    // as this one doesn't know at all the dataPointID to reload.
+    // Nested form controllers, all opened in dialogs. Saving in the last dialog fires a
+    // 'reload' event up to the direct parent; if not stopPropagated by the first controller
+    // catching it, the next handler crashes since it doesn't know the dataPointID to reload.
     Partner._views = {
         form: `<form><field name="name"/><field name="parent_id"/></form>`,
     };
@@ -10181,16 +10155,10 @@ test(`keep editing after call_button fail`, async () => {
 });
 
 test(`no deadlock when saving with uncommitted changes`, async () => {
-    // Before saving a record, all field widgets are asked to commit their changes (new values
-    // that they wouldn't have sent to the model yet). This test is added alongside a bug fix
-    // ensuring that we don't end up in a deadlock when a widget actually has some changes to
-    // commit at that moment. By chance, this situation isn't reached when the user clicks on
-    // 'Save' (which is the natural way to save a record), because by clicking outside the
-    // widget, the 'change' event (this is mainly for InputFields) is triggered, and the widget
-    // notifies the model of its new value on its own initiative, before being requested to.
-    // In this test, we try to reproduce the deadlock situation by forcing the field widget to
-    // commit changes before the save. We thus manually call 'saveRecord', instead of clicking
-    // on 'Save'.
+    // Before saving, all field widgets are asked to commit uncommitted changes. Clicking
+    // 'Save' normally avoids this path (blur already notified the model), so this test forces
+    // a widget to commit changes at save time by calling 'saveRecord' directly, reproducing a
+    // fixed deadlock bug.
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
@@ -10228,11 +10196,8 @@ test(`saving with invalid uncommitted changes`, async () => {
 });
 
 test(`save record with onchange on one2many with required field`, async () => {
-    // in this test, we have a one2many with a required field, whose value is
-    // set by an onchange on another field ; we manually set the value of that
-    // first field, and directly click on Save (before the onchange RPC returns
-    // and sets the value of the required field)
-
+    // A one2many has a required field set by an onchange on another field; set that other
+    // field and click Save before the onchange RPC returns and sets the required value.
     Partner._fields.foo = fields.Char();
     Partner._onChanges = {
         name(record) {
@@ -10558,11 +10523,9 @@ test(`form view with inline list view with optional fields and local storage moc
     expect(`th[data-name="foo"]`).toBeVisible();
     expect(`th[data-name="bar"]`).not.toHaveCount();
 
-    // optional fields
     await contains(`.o_optional_columns_dropdown .dropdown-toggle`).click();
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(1);
 
-    // enable optional field
     await contains(`.o-dropdown--menu input[name="bar"]`).click();
     // Only a setItem: the toggle refreshes the cached localStorage value, so
     // the ensuing render does not re-read optional_fields/debug_open_view.
@@ -10611,9 +10574,8 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     await mountView({
         resModel: "partner",
         type: "form",
-        // we add a widget= as a bit of a hack. Without widget, the views are inlined by the server.
-        // the mock server doesn't replicate fully this behavior.
-        // Putting a widget prevent the inlining.
+        // widget= is a hack to prevent inlining: the mock server doesn't fully replicate the
+        // real server's auto-inlining of views without a widget.
         arch: `
             <form>
                 <field name="float_field"/>
@@ -10632,11 +10594,9 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     expect(`th[data-name="foo"]`).not.toHaveCount();
     expect(`th[data-name="bar"]`).toBeVisible();
 
-    // optional fields
     await contains(`.o_optional_columns_dropdown .dropdown-toggle`).click();
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(1);
 
-    // enable optional field
     await contains(`.o-dropdown--menu input[name="foo"]`).click();
     // Only a setItem: the toggle refreshes the cached localStorage value, so
     // the ensuing render does not re-read optional_fields/debug_open_view.
@@ -11514,12 +11474,9 @@ test(`status indicator: invalid state`, async () => {
         arch: `<form><field name="foo" required="1"/></form>`,
         resId: 1,
     });
-    // Assert on the visible danger icon, not the indicator's full text
-    // content: the visually-hidden ``aria-live`` span (added for screen-
-    // reader announcements) populates the indicator with status text in
-    // dirty/invalid modes by design.  ``toHaveText("")`` on the parent
-    // would conflate that intentional announcement with the visual
-    // "error icon present" condition this test actually means to check.
+    // Assert on the visible danger icon, not the indicator's full text: the hidden
+    // ``aria-live`` span intentionally populates status text in dirty/invalid modes, which
+    // ``toHaveText("")`` would conflate with the "error icon present" condition under test.
     expect(`.o_form_status_indicator .text-danger`).toHaveCount(0);
 
     await contains(`.o_field_widget input`).edit("");
@@ -13557,10 +13514,8 @@ test(`cached web_read - don't loose changes`, async () => {
 });
 
 test(`cached web_read - record stays dirty when revalidation lands after an edit`, async () => {
-    // Regression: the keepChanges reload path used to reset the reactive
-    // ``dirty`` flag while preserving ``_changes``; every isDirty() gate
-    // (pager, action buttons, save button) then silently discarded the
-    // pending edit.
+    // Regression: the keepChanges reload path used to reset the reactive ``dirty`` flag
+    // while preserving ``_changes``, so every isDirty() gate silently discarded the edit.
     let def = null;
     onRpc("web_read", async () => def);
     onRpc("web_save", ({ args }) => {
@@ -13609,13 +13564,11 @@ test(`cached web_read - record stays dirty when revalidation lands after an edit
 });
 
 test(`cached web_read - invalid input survives revalidation`, async () => {
-    // Regression: the keepChanges reload path used to derive ``dirty`` from
-    // ``_changes`` alone and to wipe ``_invalidFields``. A record whose only
-    // modification was invalid input (Invariant 2: dirty=true, ``_changes``
-    // empty) flipped back to pristine when the revalidation web_read landed:
-    // the invalid flag and the "unsaved changes" indicator vanished while the
-    // DOM input still held the rejected text, and every isDirty() gate would
-    // silently drop it.
+    // Regression: the keepChanges reload path used to derive ``dirty`` from ``_changes``
+    // alone and wipe ``_invalidFields``. A record whose only modification was invalid input
+    // (Invariant 2: dirty=true, ``_changes`` empty) flipped back to pristine when the
+    // revalidation web_read landed, silently dropping the rejected input from every
+    // isDirty() gate even though the DOM still held it.
     let def = null;
     onRpc("web_read", async () => def);
 
@@ -13669,16 +13622,13 @@ test(`cached web_read - invalid input survives revalidation`, async () => {
 });
 
 test(`cached web_read - savepoint survives revalidation`, async () => {
-    // Regression: the keepChanges reload path used to wipe ``_savePoint``
-    // while preserving ``_changes``. A savepoint snapshots the pending-edit
-    // layer when a sub-flow opens (``extendRecord``, e.g. an x2many form
-    // dialog); if a cache revalidation landed while the sub-flow was open,
-    // the later Discard fell into the no-savepoint branch and cleared ALL
-    // pending changes — including the pre-sub-flow edits the savepoint was
-    // supposed to protect. The savepoint is installed with the production
-    // API (``_addSavePoint``, see record_savepoint.js) because
-    // ``extendRecord`` only targets x2many children, which the monorecord
-    // revalidation callback never reaches directly.
+    // Regression: the keepChanges reload path used to wipe ``_savePoint`` while preserving
+    // ``_changes``. A savepoint snapshots the pending-edit layer when a sub-flow opens
+    // (``extendRecord``, e.g. an x2many form dialog); if a cache revalidation landed while
+    // the sub-flow was open, Discard fell into the no-savepoint branch and cleared ALL
+    // pending changes, including the pre-sub-flow edits the savepoint should protect. Uses
+    // the production ``_addSavePoint`` API (see record_savepoint.js) since ``extendRecord``
+    // only targets x2many children, which the monorecord revalidation callback never reaches.
     let def = null;
     onRpc("web_read", async () => def);
 

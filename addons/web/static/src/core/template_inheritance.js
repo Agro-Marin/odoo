@@ -61,12 +61,10 @@ export function applyContextToTextNode() {
  * @returns {Node}
  */
 export function deepClone(node) {
-    // Native deep clone; O(n) in C++ instead of a per-node JS recursion that
-    // spread childNodes at every level. The only reason the old recursion
-    // existed was to carry over the `contextByTextNode` entries onto the
-    // clones — so we replay just that mapping with a parallel TreeWalker, and
-    // only when the map actually holds entries (the common boot path has an
-    // empty map, so this is skipped entirely).
+    // Native deep clone is O(n) in C++ vs. a per-node JS recursion. The only
+    // reason the old recursion existed was to carry `contextByTextNode`
+    // entries onto the clones, so replay just that mapping with a parallel
+    // TreeWalker, and only when the map actually holds entries.
     const clone = node.cloneNode(true);
     if (contextByTextNode.size) {
         remapTextNodeContexts(node, clone);
@@ -105,10 +103,9 @@ function remapTextNodeContexts(original, clone) {
 }
 
 /**
- * The child nodes of operation represent new content to create before target or
- * or other elements to move before target from the target tree (tree from which target is part of).
- * Some processing of text nodes has to be done in order to normalize the situation.
- * Note: we assume that target has a parent element.
+ * The child nodes of operation are new content to create before target, or
+ * elements to move before target from the tree target belongs to. Text nodes
+ * are normalized accordingly. Assumes target has a parent element.
  * @param {Element} target
  * @param {Element} operation
  */
@@ -135,9 +132,8 @@ function addBefore(target, operation) {
 }
 
 /**
- * element is part of a tree. Here we return the root element of that tree.
- * Note: this root element is not necessarily the documentElement of the ownerDocument
- * of element (hence the following code).
+ * Return the root element of the tree element belongs to. Not necessarily
+ * the documentElement of element's ownerDocument.
  * @param {Element} element
  * @returns {Element}
  */
@@ -167,9 +163,9 @@ function getXpath(operation) {
             );
         }
     }
-    // hasclass does not exist in XPath 1.0 but is a custom function defined server side (see _hasclass) usable in lxml.
-    // Here we have to replace it by a complex condition (which is not nice).
-    // Note: we assume that classes do not contain the 2 chars , and )
+    // hasclass does not exist in XPath 1.0; it's a custom function defined
+    // server side (see _hasclass) usable in lxml, so replace it with an
+    // equivalent condition. Assumes classes don't contain the chars , or )
     return xpath.replaceAll(HASCLASS_REGEXP, (_, capturedGroup) =>
         capturedGroup
             .split(",")
@@ -189,11 +185,9 @@ function getXpath(operation) {
 function getNode(element, operation) {
     const root = getRoot(element);
     // `doc.evaluate` (below) requires `root` to be attached to a document.
-    // `root` is normally already the documentElement of its own Document
-    // (getClone / applyInheritance keep it that way), so re-adopting it into a
-    // fresh Document on every operation — O(tree) × hundreds of operations at
-    // boot — is pure waste. Adopt only when `root` is actually detached, i.e.
-    // right after it's been replaced (replace/outer builds a fresh root).
+    // `root` is normally already its own Document's documentElement, so only
+    // adopt it into a fresh Document when actually detached (right after
+    // being replaced by replace/outer) — avoids O(tree) waste per operation.
     if (root.ownerDocument?.documentElement !== root) {
         new Document().appendChild(root);
     }

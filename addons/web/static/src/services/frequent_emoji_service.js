@@ -13,7 +13,6 @@ import { registry } from "@web/core/registry";
  * @property {(limit?: number) => string[]} getMostFrequent
  */
 
-/** Service that tracks frequently used emojis in localStorage. */
 export const frequentEmojiService = {
     /** @returns {FrequentEmojiState} */
     start() {

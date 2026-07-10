@@ -56,8 +56,7 @@ test("parseFloatTime", () => {
     expect(() => parseFloatTime("1:a")).toThrow();
     expect(() => parseFloatTime("1:1:")).toThrow();
     expect(() => parseFloatTime(":1:1")).toThrow();
-    // The minutes component must be in [0, 59]: "1:90" is not 2.5 hours, and
-    // the sign belongs to the whole value, never to the minutes part.
+    // Minutes must be in [0, 59]; the sign applies to the whole value, never the minutes part.
     expect(() => parseFloatTime("1:60")).toThrow();
     expect(() => parseFloatTime("1:90")).toThrow();
     expect(() => parseFloatTime("1:-30")).toThrow();

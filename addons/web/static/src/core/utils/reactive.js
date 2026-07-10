@@ -75,17 +75,10 @@ export function effect(cb, deps) {
 /**
  * Same as {@link effect}, but returns a function to dispose of the effect.
  *
- * A plain ``effect`` subscribes forever: if the observed reactive objects
- * outlive the observer (e.g. a component observing state owned by its
- * parent), the callback keeps firing after the observer is gone. Prefer
- * ``disposableEffect`` in that case and call the returned function when
- * the observer is torn down (e.g. in ``onWillDestroy``).
- *
- * Release semantics: OWL's reactivity drops a callback's subscriptions
- * whenever that callback runs without observing any reactive key. After
- * disposal, the next notification runs the callback as a no-op that reads
- * nothing, which releases all of its subscriptions; it is never called
- * again afterwards.
+ * Unlike a plain ``effect``, which keeps firing after its observer is gone,
+ * this stops once disposed — call the returned function on teardown (e.g.
+ * ``onWillDestroy``). Disposal works by making the callback read no reactive
+ * key on its next run, which releases OWL's subscriptions for good.
  *
  * @template {object[]} T
  * @param {(...args: [...T]) => any} cb callback for the effect

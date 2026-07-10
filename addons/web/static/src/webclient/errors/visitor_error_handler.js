@@ -8,10 +8,6 @@ import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 /**
- * We don't want to show tracebacks to non internal users. This handler swallows
- * all errors if we're not an internal user (except in debug or test mode).
- */
-/**
  * Swallow all errors for non-internal users (except in debug/test mode).
  * @param {import("@web/env").OdooEnv} env
  * @param {Error} error - The wrapped error

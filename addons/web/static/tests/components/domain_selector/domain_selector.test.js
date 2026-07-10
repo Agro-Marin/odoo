@@ -99,46 +99,31 @@ test("creating a domain from scratch", async () => {
         isDebugMode: true,
     });
 
-    // As we gave an empty domain, there should be a visible button to add
-    // the first domain part
     expect(SELECTORS.addNewRule).toHaveCount(1);
 
-    // Clicking on that button should add a visible field selector in the
-    // component so that the user can change the field chain
     await addNewRule();
     expect(".o_model_field_selector").toHaveCount(1);
 
-    // Focusing the field selector input should open a field selector popover
     await openModelFieldSelectorPopover();
     expect(".o_model_field_selector_popover").toHaveCount(1, {
         message: "field selector popover should be visible",
     });
-    // The field selector popover should contain the list of "partner"
-    // fields. "Bar" should be among them. "Bar" result li will display the
-    // name of the field and some debug info.
     expect(
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name:first",
     ).toHaveText("Bar\nbar (boolean)", {
         message: "field selector popover should contain the 'Bar' field",
     });
 
-    // Clicking the "Bar" field should change the internal domain and this
-    // should be displayed in the debug textarea
     await contains(
         ".o_model_field_selector_popover .o_model_field_selector_popover_item_name",
     ).click();
     expect(SELECTORS.debugArea).toHaveValue(`[("bar", "!=", False)]`);
 
-    // There should be a "+" button to add a domain part; clicking on it
-    // should add the default "('id', '=', 1)" domain
     await addNewRule();
     expect(SELECTORS.debugArea).toHaveValue(
         `["&", ("bar", "!=", False), ("bar", "!=", False)]`,
     );
 
-    // There should be two "Add branch" buttons to add a domain "branch"; clicking on
-    // the first one, should add this group with defaults "('id', '=', 1)"
-    // domains and the "|" operator
     expect(SELECTORS.buttonAddBranch).toHaveCount(2);
     await clickOnButtonAddBranch();
     expect(SELECTORS.debugArea).toHaveValue(
@@ -151,9 +136,6 @@ test("creating a domain from scratch", async () => {
         `["&", "&", ("bar", "!=", False), "|", ("bar", "!=", False), ("bar", "!=", False), ("bar", "!=", False)]`,
     );
 
-    // There should be five buttons to remove domain part; clicking on
-    // the two last ones, should leave a domain with only the "bar" and
-    // "foo" fields, with the initial "&" operator
     expect(SELECTORS.buttonDeleteNode).toHaveCount(5);
     await clickOnButtonDeleteNode(-1);
     await clickOnButtonDeleteNode(-1);
@@ -163,7 +145,6 @@ test("creating a domain from scratch", async () => {
 });
 
 test("creating domain for binary field", async () => {
-    // Add a binary field to the Partner model
     Partner._fields.image = fields.Binary({
         string: "Image",
         searchable: true,
@@ -173,16 +154,13 @@ test("creating domain for binary field", async () => {
         isDebugMode: true,
     });
 
-    // Add new rule to select field
     await addNewRule();
     await openModelFieldSelectorPopover();
 
-    // Find and select the binary field
     await contains(
         ".o_model_field_selector_popover_item_name:contains('Image')",
     ).click();
 
-    // Check that the operator options are limited to 'set' and 'not set'
     expect(getOperatorOptions()).toEqual(["is set", "is not set"]);
 });
 
@@ -197,21 +175,17 @@ test("building a domain with a datetime", async () => {
         },
     });
 
-    // Check that there is a datepicker to choose the date
     expect(".o_datetime_input").toHaveCount(1, {
         message: "there should be a datepicker",
     });
 
-    // The input field should display the date and time in the user's timezone
     expect(".o_datetime_input").toHaveValue("03/27/2017 16:42:00");
 
-    // Change the date in the datepicker
     await contains(".o_datetime_input").click();
     await contains(getPickerCell("26", true)).click();
     await press("enter");
     await animationFrame();
 
-    // The input field should display the date and time in the user's timezone
     expect(".o_datetime_input").toHaveValue("03/26/2017 16:42:00");
 });
 
@@ -521,7 +495,6 @@ test("multi selection", async () => {
         }
     }
 
-    // Create the domain selector and its mock environment
     const comp = await mountWithCleanup(Parent);
     expect(comp.domain).toBe(`[("state", "in", ["a", "b", "c"])]`);
     expect(queryAllTexts(SELECTORS.tag)).toEqual(["a", "b", "c"]);

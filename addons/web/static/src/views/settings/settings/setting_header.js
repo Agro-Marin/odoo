@@ -3,7 +3,6 @@
 
 /** @module @web/views/settings/settings/setting_header - Setting variant for header-type fields displayed in the app header row */
 
-/** Setting variant for header-type fields (displayed in the app header row). */
 import { Setting } from "@web/views/form/setting/setting";
 export class SettingHeader extends Setting {
     static template = "web.HeaderSetting";

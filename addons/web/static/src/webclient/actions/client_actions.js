@@ -94,8 +94,8 @@ async function home() {
 registry.category("actions").add("home", home);
 
 /**
- * Client action to refresh the session context (making sure HTTP requests will
- * have the right one). It simply reloads the page.
+ * Client action to refresh the session context so subsequent HTTP requests
+ * carry the right one.
  *
  * @param {Object} env
  * @param {Object} action

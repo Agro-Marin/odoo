@@ -195,7 +195,6 @@ test("handle CONNECTION_LOST_ERROR", async () => {
     patchWithCleanup(Math, {
         random: () => 0,
     });
-    // wait for timeouts
     await advanceTime(2000);
     await advanceTime(3500);
     expect.verifySteps([

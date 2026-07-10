@@ -110,17 +110,10 @@ export const viewService = {
                 ),
             );
 
-            // Cold-cache get_views failure cascades the same way as
-            // fields_get: no view (form/list/kanban/calendar/graph/pivot)
-            // for the requested model can render without its arch + field
-            // metadata.  get_views is idempotent and the disk cache
-            // already accepts staleness, so one retry smooths the
-            // cold-fetch path while capping persistent-outage delay
-            // at a single backoff interval.
-            // NOT ``immutable``: view consumers pervasively extend the
-            // returned field dicts in place (``addFieldDependencies``,
-            // ``addPropertyFieldDefs``, property definitions, ...), so the
-            // payload must stay a per-hit copy.
+            // get_views failure blocks every view (form/list/kanban/...) for the
+            // model, so retry(1) smooths cold-cache misses. NOT ``immutable``:
+            // consumers (addFieldDependencies, addPropertyFieldDefs, ...) mutate
+            // the returned field dicts in place, so each hit must stay a copy.
             const result = await orm
                 .cache({ type: "disk" })
                 .retry(1)

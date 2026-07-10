@@ -1,12 +1,9 @@
 // @ts-check
 
 /**
- * Pure unit tests for record_value_transforms.js.
- *
- * Tests formatServerValue, getDefaultValues, getTextValues, and
- * computeDataContext without OWL, DOM, or a mock server.
- *
- * Date/datetime paths use luxon.DateTime (globally available in Hoot).
+ * Pure unit tests for record_value_transforms.js: formatServerValue,
+ * getDefaultValues, getTextValues, and computeDataContext — no OWL, DOM, or
+ * mock server. Date/datetime paths use luxon.DateTime (global in Hoot).
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -21,9 +18,7 @@ import {
 
 const { DateTime } = luxon;
 
-// ---------------------------------------------------------------------------
 // formatServerValue
-// ---------------------------------------------------------------------------
 
 describe("formatServerValue — char / text", () => {
     test("passes through a non-empty char value", () => {
@@ -187,9 +182,7 @@ describe("formatServerValue — default passthrough", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getDefaultValues
-// ---------------------------------------------------------------------------
 
 describe("getDefaultValues", () => {
     const fields = {
@@ -245,9 +238,7 @@ describe("getDefaultValues", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getTextValues
-// ---------------------------------------------------------------------------
 
 describe("getTextValues", () => {
     const fields = {
@@ -293,9 +284,7 @@ describe("getTextValues", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // computeDataContext
-// ---------------------------------------------------------------------------
 
 describe("computeDataContext", () => {
     const fields = {
@@ -405,7 +394,6 @@ describe("computeDataContext", () => {
     });
 });
 
-// ===========================================================================
 // parseServerValues — added in Phase 3 of the model-layer decomposition.
 //
 // Tests dispatch by field type (scalar, m2o, x2many record/id/command list,
@@ -413,7 +401,6 @@ describe("computeDataContext", () => {
 // record._createStaticListDatapoint and record._processProperties as
 // instance-level callbacks (per the established Phase 1 convention); the
 // mock supplies stubs that capture their arguments for assertion.
-// ===========================================================================
 
 /**
  * Builds the minimum record shape consumed by parseServerValues.
@@ -461,9 +448,7 @@ function makeParseRecord({
     return record;
 }
 
-// ---------------------------------------------------------------------------
 // parseServerValues — empty input and active-field filtering
-// ---------------------------------------------------------------------------
 
 describe("parseServerValues — empty input and filtering", () => {
     test("returns empty object when serverValues is undefined", () => {
@@ -502,9 +487,7 @@ describe("parseServerValues — empty input and filtering", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // parseServerValues — scalar / m2o delegation
-// ---------------------------------------------------------------------------
 
 describe("parseServerValues — scalar / m2o", () => {
     test("char value passes through parseServerValue unchanged", () => {
@@ -535,9 +518,7 @@ describe("parseServerValues — scalar / m2o", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // parseServerValues — x2many: list-of-records path
-// ---------------------------------------------------------------------------
 
 describe("parseServerValues — x2many record list", () => {
     test("forwards a list of records to _createStaticListDatapoint as-is", () => {
@@ -576,9 +557,7 @@ describe("parseServerValues — x2many record list", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // parseServerValues — x2many: command-list paths
-// ---------------------------------------------------------------------------
 
 describe("parseServerValues — x2many command list", () => {
     test("new datapoint + command list: creates empty list then applies INITIAL commands", () => {
@@ -659,9 +638,7 @@ describe("parseServerValues — x2many command list", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // parseServerValues — properties dispatch
-// ---------------------------------------------------------------------------
 
 describe("parseServerValues — properties", () => {
     test("delegates to _processProperties and merges its return into the parsed bag", () => {

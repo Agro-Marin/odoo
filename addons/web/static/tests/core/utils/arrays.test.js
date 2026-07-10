@@ -37,7 +37,6 @@ describe("groupby", () => {
     });
 
     test("groupBy (no criterion)", () => {
-        // criterion = default
         expect(groupBy(["a", "b", 1, true])).toEqual({
             1: [1],
             a: ["a"],

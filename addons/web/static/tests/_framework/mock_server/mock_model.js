@@ -125,12 +125,9 @@ function assignArray(target, ...arrays) {
 }
 
 /**
- * Converts an Object representing a record to actual return Object of the
- * python `onchange` method.
- * Specifically, it reads `display_name` on many2one's and transforms raw id
- * list in orm command lists for x2many's.
- * For x2m fields that add or update records (ORM commands 0 and 1), it is
- * recursive.
+ * Converts a record to the return shape of Python's `onchange` method: reads
+ * `display_name` on many2one's and turns raw ids into ORM commands for
+ * x2many's, recursively for created/updated (commands 0/1) sub-records.
  *
  * @param {Model} model
  * @param {ModelRecord} values
@@ -229,12 +226,10 @@ function findView(model, viewType, viewId) {
     let viewKey = getViewKey(viewType, viewId);
     if (!(viewKey in availableViews)) {
         if (typeof viewId === "number") {
-            // No direct match & explicit view ID:
-            // -> throw an error
+            // No direct match & explicit view ID -> throw an error
             throw viewNotFoundError(model._name, viewType, viewId);
         }
-        // No direct match & falsy ID:
-        // -> no error, returns the first available view
+        // No direct match & falsy ID -> return the first available view
         viewKey = /** @type {ViewKey} */ (
             Object.keys(availableViews)
                 .filter((key) => key.startsWith(viewType))
@@ -647,15 +642,11 @@ function isValidId(id, field, record) {
     if (!Number.isInteger(id)) {
         return false;
     }
-    // Accept any positive integer as a valid FK.  Checking that the
-    // target record actually exists in the comodel is overly strict for
-    // mock data: fixtures frequently reference admin/system ids (1, 2,
-    // 7…) that the current test's res.users set doesn't populate, and
-    // production-style referential integrity is enforced at the DB
-    // level, not by the client-facing mock.  Returning true here
-    // eliminates ~3500 spurious "Invalid value for field" errors and
-    // the cascaded "cannot access fixture outside of a test" failures
-    // they trigger in Hoot.
+    // Accept any positive integer as a valid FK: checking it exists in the comodel
+    // is overly strict for mock data (fixtures often reference admin/system ids
+    // like 1, 2, 7 that the test's res.users set doesn't populate), and referential
+    // integrity is a DB-level concern, not this client-facing mock's. This avoids
+    // ~3500 spurious "Invalid value for field" errors and their cascaded failures.
     return true;
 }
 
@@ -747,20 +738,17 @@ function orderByField(model, orderBy, records) {
     const [fieldNameSpec, direction = "ASC"] = safeSplit(orderBys.pop(), " ");
     const field = getOrderByField(model.env[model._name], fieldNameSpec);
 
-    // Prepares a values map if needed to easily retrieve the ordering
-    // factor associated to a certain id or value.
+    // Values map for quick ordering-factor lookup by id/value, when needed.
     let valuesMap;
     if (field.type in DEFAULT_RELATIONAL_FIELD_VALUES) {
         let valueLength;
         const coModel = getRelation(field);
         const coField = getOrderByField(coModel);
         if (isX2MField(field)) {
-            // O2M & M2M use the joined list of comodel field values
-            // -> they need to be sorted
+            // O2M & M2M use the joined list of comodel values -> sort them first
             orderByField(coModel);
             if (["float", "integer"].includes(coField.type)) {
-                // Value needs to be padded for numeric types because of
-                // the way stringified numbers are sorted.
+                // Numeric types need padding since stringified numbers sort lexicographically.
                 valueLength = coModel.reduce(
                     (longest, record) =>
                         Math.max(longest, String(record[coField.name]).length),
@@ -817,8 +805,7 @@ function orderByField(model, orderBy, records) {
             }
             case "many2many":
             case "one2many": {
-                // Co-records have already been sorted -> comparing the joined
-                // list of each of them will yield the proper result.
+                // Co-records are already sorted -> comparing their joined id lists works.
                 v1 &&= v1.map((id) => valuesMap.get(id)).join("");
                 v2 &&= v2.map((id) => valuesMap.get(id)).join("");
                 break;
@@ -1057,8 +1044,7 @@ function searchPanelDomainImage(
     let groupIdName;
     if (isM2OField(field)) {
         groupIdName = (value) => value || [false, undefined];
-        // formatted_read_group does not take care of the condition [fieldName, '!=', false]
-        // in the domain defined below!!!
+        // formatted_read_group ignores the [fieldName, '!=', false] condition in the domain below.
     } else if (field.type === "selection") {
         const selection = {};
         for (const [value, label] of model._fields[fieldName].selection) {
@@ -1952,7 +1938,7 @@ export class Model extends Array {
         );
         ({ domain, groupby, aggregates, having, offset, limit, order } = kwargs);
 
-        // TODO: having is not implemented now. Because it is not used right now.
+        // TODO: having not implemented (unused for now).
 
         const records = this._filter(domain);
         const aggregatedFields = /** @type {AggregatedField[]} */ (
@@ -1990,8 +1976,8 @@ export class Model extends Array {
                 const value = formatFieldValue(field.type, groupbySpec, recordValue);
 
                 if (field.type == "many2many" && value) {
-                    // groups by many2many duplicate recordGroupsValues for each values and record
-                    // can be inside multiple groups
+                    // many2many groupby duplicates recordGroupsValues per value; a record
+                    // can land in multiple groups
                     for (const group of [...recordGroupsValues]) {
                         for (const [index, id] of Object.entries(value)) {
                             if (/** @type {any} */ (index) == 0) {
@@ -2082,8 +2068,8 @@ export class Model extends Array {
                                         format: "HH:00 dd MMM yyyy",
                                     });
                                     endDate = startDate.plus({ hours: 1 });
-                                    // Remove the year from the result value of the group. It was needed
-                                    // to compute the startDate and endDate.
+                                    // Drop the year from the result value; it was only needed
+                                    // to compute startDate/endDate.
                                     group[groupbySpec] =
                                         startDate.toFormat("HH:00 dd MMM");
                                     break;
@@ -2291,7 +2277,6 @@ export class Model extends Array {
     }
 
     /**
-    /**
      * @param {any} ids
      * @param {Record<string, any>} values
      * @param {any} fieldNames
@@ -2331,8 +2316,7 @@ export class Model extends Array {
                 /** @type {any} */ (kwargs),
             )[0];
         } else if (firstOnChange) {
-            // It is the new semantics: no field in arguments means we are in
-            // a default_get + onchange situation
+            // New semantics: no field in arguments means default_get + onchange.
             fieldNames = fieldsFromView;
             for (const fieldName of fieldNames) {
                 if (!(fieldName in serverValues) && fieldName !== "id") {
@@ -3452,8 +3436,7 @@ export class Model extends Array {
         for (const record of this) {
             const [value, field] = this._followRelation(record, fieldNames);
             if (!field) {
-                // The related field is not found on the record, so we
-                // remove the compute function.
+                // Related field not found on record -> drop the compute function.
                 this.env[this._name]._related.delete(fieldName);
                 return;
             }
@@ -3468,9 +3451,8 @@ export class Model extends Array {
     }
 
     /**
-     * Get all records from a model matching a domain.  The only difficulty is
-     * that if we have an 'active' field, we implicitely add active = true in
-     * the domain.
+     * Returns all records matching domain; implicitly adds active = true
+     * when the model has an 'active' field.
      *
      * @private
      * @param {DomainListRepr} [domain]
@@ -3537,8 +3519,7 @@ export class Model extends Array {
             return this;
         }
         domain = domain.map((criterion) => {
-            // 'child_of' operator isn't supported by domain.js, so we replace
-            // in by the 'in' operator (with the ids of children)
+            // domain.js has no 'child_of' operator -> replace with 'in' over the children ids
             if (criterion[1] === "child_of") {
                 let oldLength = 0;
                 const childIds = [criterion[2]];
@@ -3786,8 +3767,7 @@ export class Model extends Array {
                         if (!relatedFields) {
                             continue;
                         }
-                        // the field isn't necessarily in the view, so get the model by looking
-                        // in "db"
+                        // field may not be in the view -> look up the model from the db record
                         const dbRecord = this.find((r) => r.id === record.id);
                         const model = dbRecord[field.model_field];
                         record[fieldName] = {};
@@ -3879,8 +3859,8 @@ export class Model extends Array {
             }
             if (isX2MField(field)) {
                 let ids = record[fieldName] ? record[fieldName].slice() : [];
-                // if a field has been modified, its value must always be sent to the server for onchange and write.
-                // take into account that the value can be a empty list of commands.
+                // Modified field values must always be sent to the server (onchange/write),
+                // even as an empty command list.
                 if (Array.isArray(value) && value.length) {
                     if (
                         value.reduce(
@@ -3895,12 +3875,11 @@ export class Model extends Array {
                     // delete all command
                     value = [[5, false, false]];
                 }
-                // interpret commands
                 for (const command of value || []) {
                     const coModel = getRelation(field, record);
                     if (command[0] === 0) {
                         // CREATE
-                        const inverseData = command[2]; // write in place instead of copy, because some tests rely on the object given being updated
+                        const inverseData = command[2]; // write in place (not copy): some tests rely on the given object being mutated
                         const inverseFieldName =
                             field.inverse_fname_by_model_name?.[coModel._name];
                         if (inverseFieldName) {

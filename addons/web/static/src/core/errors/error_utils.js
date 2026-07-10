@@ -63,14 +63,10 @@ export async function fullAnnotatedTraceback(error) {
     if (error.annotatedTraceback) {
         return error.annotatedTraceback;
     }
-    // If we don't call preventDefault  synchronously while handling the error
-    // event, the error will be logged in the console with an unannotated
-    // traceback. This is a problem because annotating a traceback cannot be
-    // done synchronously. To work around this issue, we always call
-    // preventDefault, which means it is never logged but we rethrow the error
-    // after annotating its traceback, which will cause the error to be handled
-    // again after the traceback has been annotated, and this function will be
-    // called again and return synchronously (see above)
+    // preventDefault must be called synchronously or the browser logs an
+    // unannotated traceback (annotation is async). So we always preventDefault,
+    // then rethrow after annotating — re-triggering error handling, which then
+    // hits the early-return above since annotatedTraceback is now cached.
     if (error.errorEvent) {
         error.errorEvent.preventDefault();
     }
@@ -134,9 +130,8 @@ export function getErrorTechnicalName(error) {
 }
 
 /**
- * Format the traceback of an error. Basically, we just add the error message
- * in the traceback if necessary (Chrome already does it by default, but not
- * other browser.)
+ * Format the traceback of an error, adding the error message if the
+ * browser's stack doesn't already include it (Chrome does by default).
  *
  * @param {Error} error
  * @returns {string}
@@ -144,7 +139,7 @@ export function getErrorTechnicalName(error) {
 function formatTraceback(error) {
     const stack = error.stack ?? "";
     const errorName = getErrorTechnicalName(error);
-    // ensure the proper error name and error message are present in the traceback, no matter the browser's error.stack formatting.
+    // Ensure error name/message are present regardless of the browser's stack formatting.
     // Stack example:
     // Error: Mock: Can't write value
     //     _onOpenFormView@http://localhost:8069/web/content/425-baf33f1/web.assets.js:1064:30
@@ -158,10 +153,8 @@ function formatTraceback(error) {
 }
 
 /**
- * Returns an annotated traceback from an error. This is asynchronous because
- * it needs to fetch the sourcemaps for each script involved in the error,
- * then compute the correct file/line numbers and add the information to the
- * correct line.
+ * Annotate a traceback with source-mapped file/line info (async: fetches
+ * sourcemaps for each script involved in the error).
  *
  * @param {Error} error
  * @returns {Promise<string>}

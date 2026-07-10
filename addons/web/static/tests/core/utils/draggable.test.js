@@ -102,7 +102,6 @@ test("Simple dragging in single group", async () => {
     expect(".o_dragged").toHaveCount(0);
     expect.verifySteps([]);
 
-    // First item after 2nd item
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
     expect(".item").toHaveCount(3);
@@ -139,7 +138,6 @@ test("Dynamically disable draggable feature", async () => {
 
     expect.verifySteps([]);
 
-    // First item before last item
     await contains(".item:first-child").dragAndDrop(".item:last-child");
 
     // Drag should have occurred
@@ -148,7 +146,6 @@ test("Dynamically disable draggable feature", async () => {
     state.enableDrag = false;
     await animationFrame();
 
-    // First item before last item
     await contains(".item:first-child").dragAndDrop(".item:last-child");
 
     // Drag shouldn't have occurred

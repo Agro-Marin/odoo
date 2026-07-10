@@ -8,10 +8,8 @@ export class ResLang extends ServerModel {
     _records = [{ id: 1, code: "en_US", name: "English (US)", direction: "ltr" }];
 
     /**
-     * Default ``get_installed`` mock matching the production endpoint shape:
-     * a list of ``[code, name]`` tuples for every active language. Tests that
-     * need richer data should ``onRpc("res.lang", "get_installed", () => […])``
-     * to override this.
+     * Mocks the production shape: ``[code, name]`` tuples for active languages.
+     * Override via ``onRpc("res.lang", "get_installed", () => […])`` if needed.
      */
     get_installed() {
         return /** @type {any} */ (this._records).map((r) => [r.code, r.name]);

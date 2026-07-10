@@ -4,12 +4,8 @@
 /** @module @web/search/search_properties - Property-field search logic for lazy-loading definitions and creating search items */
 
 /**
- * Extracted property-field search logic for SearchModel.
- *
- * Handles lazy loading of properties definitions, creation of
- * property-based search items and group-by items. All functions
- * receive the SearchModel instance as first argument (delegation
- * pattern), preserving subclass polymorphism.
+ * All functions take the SearchModel instance as first argument (delegation
+ * pattern) to preserve subclass polymorphism.
  */
 
 /** SearchModel widened so this delegate module can read instance state
@@ -17,11 +13,7 @@
 /** @typedef {any} SearchModel */
 
 /**
- * Generate search items corresponding to properties of a field.
- *
- * Fetches property definitions for the given search item's field,
- * creates or updates field_property search items, and returns
- * the matching items.
+ * Generate (or refresh) property-based search items for a "properties" field.
  *
  * @param {SearchModel} searchModel - the SearchModel instance
  * @param {Object} searchItem - a search item of type "field" with fieldType "properties"
@@ -55,9 +47,8 @@ export async function getSearchItemsProperties(searchModel, searchItem) {
             }
             const existingSearchItem = existingFieldProperties[definition.name];
             if (existingSearchItem) {
-                // already in the list, can happen if we unfold the properties field
-                // open a form view, edit the property and then go back to the search view
-                // the label of the property might have been changed
+                // Already in the list (e.g. unfold properties, edit in a form, come
+                // back): the label may have changed, so refresh the description.
                 existingSearchItem.description = `${definition.string} (${definitionRecordName})`;
                 searchItemIds.add(existingSearchItem.id);
                 continue;
@@ -90,10 +81,8 @@ export async function getSearchItemsProperties(searchModel, searchItem) {
 }
 
 /**
- * Lazily populate search view items for properties fields.
- *
- * Fetches property definitions via RPC and creates group-by items
- * for each property, also registering them in searchViewFields.
+ * Lazily populate search view items for properties fields: fetch definitions
+ * via RPC, create group-by items for each, and register them in searchViewFields.
  *
  * @param {SearchModel} searchModel - the SearchModel instance
  */
@@ -137,17 +126,15 @@ export async function fillSearchViewItemsProperty(searchModel) {
                     ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                     !groupNames.includes(searchItem.name)
                 ) {
-                    // we can not just remove the element from the list because index are used as id
-                    // so we use a different type to hide it everywhere (until the user refresh his
-                    // browser and the item won't be created again)
+                    // Can't just remove the element (index doubles as id); retype
+                    // it instead so it's hidden everywhere until the user refreshes.
                     searchItem.type = "group_by_property_deleted";
                 }
             });
 
             for (const definition of definitions) {
-                // we need the definition of the "field" (fake field, property) to be
-                // in searchViewFields to be able to have the type, it's description, etc
-                // the name of the property is stored as "<properties field name>.<property name>"
+                // Register a fake "field" definition in searchViewFields (type,
+                // string, etc.) keyed as "<properties field name>.<property name>".
                 const fullName = `${field.name}.${definition.name}`;
                 searchModel.searchViewFields[fullName] = {
                     name: fullName,
@@ -186,10 +173,9 @@ export async function fillSearchViewItemsProperty(searchModel) {
         }
     }
 
-    // Items may have been soft-deleted (retyped to
-    // "group_by_property_deleted") above without going through
-    // _createGroupOfSearchItems: invalidate the enriched-items memo so the
-    // Group By menu doesn't keep listing them from a stale snapshot.
+    // Items may have been soft-deleted (retyped to "group_by_property_deleted")
+    // above without going through _createGroupOfSearchItems: invalidate the
+    // memo so the Group By menu doesn't list them from a stale snapshot.
     searchModel._enrichedSearchItems = null;
 }
 
@@ -207,8 +193,7 @@ export async function fetchPropertiesDefinition(searchModel, resModel, fieldName
     // on every access); only `active_id` is read here.
     const activeId = searchModel._rawContext.active_id;
     if (activeId) {
-        // assume the active id is the definition record
-        // and show only its properties
+        // Assume the active id is the definition record; show only its properties.
         domain.push(["id", "=", activeId]);
     }
 

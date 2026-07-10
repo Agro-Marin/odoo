@@ -76,7 +76,6 @@ test("Signature widget renders a Sign button on desktop", async () => {
     expect(".modal-dialog").toHaveCount(0, {
         message: "Should not have any modal",
     });
-    // Clicks on the sign button to open the sign modal.
     await click(".o_widget_signature button.o_sign_button");
     await waitFor(".modal .modal-body");
     expect(".modal-dialog").toHaveCount(1, {
@@ -114,7 +113,6 @@ test("Signature widget renders a Sign button on mobile", async () => {
     expect(".modal-dialog").toHaveCount(0, {
         message: "Should not have any modal",
     });
-    // Clicks on the sign button to open the sign modal.
     await click(".o_widget_signature button.o_sign_button");
     await waitFor(".modal .modal-body");
     expect(".modal-dialog").toHaveCount(1, {
@@ -143,7 +141,6 @@ test("Signature widget: full_name option on desktop", async () => {
             <field name="display_name"/>
         </form>`,
     });
-    // Clicks on the sign button to open the sign modal.
     await click("span.o_sign_label");
     await waitFor(".modal .modal-body");
     expect(".modal .modal-body a.o_web_sign_auto_button").toHaveCount(1);
@@ -173,7 +170,6 @@ test("Signature widget: full_name option on mobile", async () => {
     });
 
     await contains(`.o_cp_action_menus button:has(.fa-cog)`).click();
-    // Clicks on the sign button to open the sign modal.
     await click("span.o_sign_label");
     await waitFor(".modal .modal-body");
     expect(".modal .modal-body a.o_web_sign_auto_button").toHaveCount(1);
@@ -198,7 +194,6 @@ test("Signature widget: highlight option on desktop", async () => {
         message: `The button must have the 'btn-primary' class as "highlight=1"`,
     });
 
-    // Clicks on the sign button to open the sign modal.
     await click(".o_widget_signature button.o_sign_button");
     await waitFor(".modal .modal-body");
     expect(".modal .modal-body a.o_web_sign_auto_button").toHaveCount(0);
@@ -223,7 +218,6 @@ test("Signature widget: highlight option on mobile", async () => {
         message: `The button must have the 'btn-primary' class as "highlight=1"`,
     });
 
-    // Clicks on the sign button to open the sign modal.
     await click(".o_widget_signature button.o_sign_button");
     await waitFor(".modal .modal-body");
     expect(".modal .modal-body a.o_web_sign_auto_button").toHaveCount(0);
@@ -260,7 +254,6 @@ test("Signature widget works inside of a dropdown", async () => {
     // change display_name to enable auto-sign feature
     await contains(".o_field_widget[name=display_name] input").edit("test");
 
-    // open the signature dialog
     await contains(".o_statusbar_buttons button:has(.oi-ellipsis-v").click();
     await contains(".o_widget_signature button.o_sign_button").click();
     await waitFor(".modal .modal-body");
@@ -278,7 +271,6 @@ test("Signature widget works inside of a dropdown", async () => {
 
     expect(maxDelay).toBeGreaterThan(0, { message: "Timeout exceeded" });
 
-    // close the dialog and save the signature
     await clickModalButton({ text: "Adopt & Sign" });
 
     expect(".modal-dialog").toHaveCount(0, { message: "Should have no modal opened" });

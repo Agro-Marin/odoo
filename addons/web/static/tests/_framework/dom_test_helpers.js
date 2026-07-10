@@ -426,11 +426,9 @@ export async function editAce(value) {
 }
 
 /**
- * Dragging methods taking into account the fact that it's the top of the
- * dragged element that triggers the moves (not the position of the cursor),
- * and the fact that during the first move, the dragged element is replaced by
- * a placeholder that does not have the same height. The moves are done with
- * the same x position to prevent triggering horizontal moves.
+ * Dragging helpers that account for the drag anchor being the top of the
+ * dragged element (not the cursor), and for the first move swapping in a
+ * shorter placeholder. Moves use a fixed x to avoid horizontal drift.
  *
  * @param {Target} from
  * @param {DragAndDropOptions} [options]

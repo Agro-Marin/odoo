@@ -171,12 +171,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         !record.model.env.inDialog &&
         record.resId // sendBeacon cannot return the new ID for creation
     ) {
-        // We are trying to save urgently because the user is closing the page. To
-        // ensure that the save succeeds, we can't do a classic rpc, as these requests
-        // can be cancelled (payload too heavy, network too slow, computer too fast...).
-        // We instead use sendBeacon, which isn't cancellable. However, it has limited
-        // payload (typically < 64k). So we try to save with sendBeacon, and if it
-        // doesn't work, we will prevent the page from unloading.
+        // The page is closing: a classic RPC can be cancelled (payload too
+        // heavy, network too slow, tab closing too fast), so use sendBeacon
+        // instead — not cancellable, but payload-limited (~64k). If it fails,
+        // block the unload instead so the user's work isn't lost.
         const route = `/web/dataset/call_kw/${record.resModel}/web_save`;
         // Field-scoped optimistic locking: mirror the normal-save path so the
         // server can reject a genuine concurrent edit even when the save was

@@ -878,10 +878,10 @@ test(`AGROMARINVERIFY re-setting a many2one to its current value records no chan
     const changes = { foo: { id: 1, display_name: "bar1" } };
     await record.update(changes);
 
-    // No real parent change is recorded (the no-op m2o is filtered out) ...
+    // No-op m2o change is filtered out: no parent change recorded.
     expect.verifySteps([]);
-    // ... and _update no longer mutates the caller's object in place: the key
-    // survives (previously the in-place `delete changes.foo` removed it).
+    // _update no longer mutates the caller's object in place (previously
+    // deleted the key via `delete changes.foo`).
     expect("foo" in changes).toBe(true);
     // The record value is unchanged.
     expect(record.data.foo).toEqual({ id: 1, display_name: "bar1" });

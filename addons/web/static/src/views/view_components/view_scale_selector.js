@@ -6,7 +6,7 @@
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-/** Dropdown for switching between time scales (day/week/month/year) in calendar and gantt views. */
+
 export class ViewScaleSelector extends Component {
     static components = {
         Dropdown,

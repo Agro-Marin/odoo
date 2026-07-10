@@ -13,7 +13,6 @@ import { SettingHeader } from "./settings/setting_header.js";
 import { SettingsApp } from "./settings/settings_app.js";
 import { SettingsBlock } from "./settings/settings_block.js";
 import { SettingsPage } from "./settings/settings_page.js";
-/** FormRenderer subclass that registers settings-specific sub-components. */
 export class SettingsFormRenderer extends FormRenderer {
     static components = {
         .../** @type {any} */ (FormRenderer).components,

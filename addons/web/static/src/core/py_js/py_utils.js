@@ -7,9 +7,7 @@ import { ASTType } from "./ast_type.js";
 import { PyDate, PyDateTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
 
-// -----------------------------------------------------------------------------
 // Types
-// -----------------------------------------------------------------------------
 
 /**
  * AST node — a discriminated union keyed on the literal ``type`` tag (see
@@ -17,9 +15,7 @@ import { bp } from "./py_parser.js";
  * @typedef {import("./ast_type.js").AST} AST
  */
 
-// -----------------------------------------------------------------------------
 // Utils
-// -----------------------------------------------------------------------------
 
 /**
  * Represent any value as a primitive AST

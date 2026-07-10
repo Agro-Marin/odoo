@@ -13,14 +13,11 @@ import { extractInfoFromGroupData } from "./field_values.js";
 /**
  * @typedef {object} PostprocessReadGroupDeps
  * @property {(config: RelationalModelConfig, propertyFullName: string) => Promise<void>}
- *   getPropertyDefinition Async loader for property field
- *   definitions. Forwarded straight to ``RelationalModel._getPropertyDefinition``
- *   so the property arch can be lazily fetched the first time the
- *   user groups by a property.
+ *   getPropertyDefinition Forwarded to ``RelationalModel._getPropertyDefinition``
+ *   to lazily fetch the property arch the first time the user groups by it.
  * @property {Record<string, { activeFields: Record<string, any>; fields: Record<string, any> }>} groupByInfo
- *   Per-groupBy record-spec overrides. Same shape used by
- *   {@link buildWebReadGroupParams}; passed in so the postprocessor
- *   stays decoupled from the model class.
+ *   Per-groupBy record-spec overrides, same shape as {@link buildWebReadGroupParams};
+ *   passed in so the postprocessor stays decoupled from the model class.
  * @property {number} initialLimit Per-group default record limit at
  *   the deepest groupBy level.
  * @property {number} initialGroupsLimit Per-group default group limit
@@ -31,29 +28,22 @@ import { extractInfoFromGroupData } from "./field_values.js";
  */
 
 /**
- * Postprocess a ``web_read_group`` response into the shape the
- * client model expects.
+ * Postprocess a ``web_read_group`` response into the shape the client model
+ * expects. Two responsibilities:
  *
- * Two responsibilities:
+ *   1. **Per-group config seeding** — every server group is mapped back to a
+ *      cached ``config.groups[<value>]`` entry, seeded fresh or patched in
+ *      place so reload doesn't reset pagination state the user opened
+ *      manually.
  *
- *   1. **Per-group config seeding** — every server group is mapped
- *      back to a cached ``config.groups[<value>]`` entry. New entries
- *      get a full ``commonConfig`` seed with the right limit
- *      (records vs groups) for their depth. Existing entries are
- *      patched in place so reload doesn't reset pagination state
- *      that the user opened manually.
+ *   2. **Sticky-empty insertion** — if the same query re-runs and a group
+ *      drops out of the response (e.g. records moved out via kanban drag),
+ *      re-insert it with empty records / zeroed aggregates so the column
+ *      doesn't vanish mid-flow. Gated on the ``params`` hash matching — a
+ *      fresh filter/sort starts clean.
  *
- *   2. **Sticky-empty insertion** — when the same query is re-run
- *      and a group disappears from the server response (e.g. all
- *      records moved out via a kanban drag), the previous group is
- *      re-inserted with empty records / zeroed aggregates so the
- *      column doesn't vanish mid-flow. This is gated on the
- *      ``params`` hash matching — a fresh filter / sort starts
- *      clean.
- *
- * The function MUTATES ``config.groups`` and ``config.currentGroups``
- * — same contract as the original method. It returns the public
- * ``{ groups, length }`` shape that controllers consume.
+ * MUTATES ``config.groups`` and ``config.currentGroups`` (same contract as
+ * the original method); returns the public ``{ groups, length }`` shape.
  *
  * @param {RelationalModelConfig} config
  * @param {{ groups: any[]; length: number }} response
@@ -180,11 +170,9 @@ export async function postprocessReadGroup(config, response, deps) {
 
     groups = await extractGroups(config, groups);
 
-    // Sticky-empty pass: when the same (domain, groupBy, offset,
-    // limit, orderBy) tuple is reloaded and a group dropped out of
-    // the server response, re-inject it with empty records so the
-    // UI doesn't lose the column mid-flow (kanban drag, list group
-    // toggle). A different params hash starts clean.
+    // Sticky-empty pass (see docstring): reloading the same (domain, groupBy,
+    // offset, limit, orderBy) tuple re-injects any group that dropped out of
+    // the response, so the UI doesn't lose the column mid-flow.
     const params = JSON.stringify([
         config.domain,
         config.groupBy,

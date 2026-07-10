@@ -157,7 +157,6 @@ const toWeekItem = (weekDayItems) => ({
 });
 
 /**
- * Precision levels
  * @type {Map<PrecisionLevel, PrecisionInfo>}
  */
 const PRECISION_LEVELS = new Map()
@@ -180,7 +179,6 @@ const PRECISION_LEVELS = new Map()
             let startOfNextWeek = getStartOfWeek(monthRange[0]);
             for (let w = 0; w < WEEKS_PER_MONTH; w++) {
                 const weekDayItems = [];
-                // Generate all days of the week
                 for (let d = 0; d < DAYS_PER_WEEK; d++) {
                     const day = startOfNextWeek.plus({ day: d });
                     /** @type {DateRange} */
@@ -202,7 +200,6 @@ const PRECISION_LEVELS = new Map()
                 weeks.push(toWeekItem(weekDayItems));
             }
 
-            // Generate days of week labels
             const daysOfWeek = weeks[0].days.map((d) => [
                 d.range[0].weekdayShort,
                 d.range[0].weekdayLong,
@@ -453,13 +450,9 @@ export class DateTimePicker extends Component {
         const precision = this.activePrecisionLevel;
         const effShowWeekNumbers = showWeekNumbers ?? !range;
 
-        // The grid (title + items) depends only on focusDate / precision /
-        // limits / validity — NOT on hoveredDate. Every pointerenter on a day
-        // cell mutates ``state.hoveredDate`` and re-renders, which previously
-        // rebuilt the full 6×7 luxon grid (getItems) on every hover — pure waste,
-        // most visible during a range drag-selection mouse sweep. Recompute the
-        // grid only when a grid input actually changes; the hovered-range
-        // highlight below stays cheap and is always recomputed.
+        // Grid (title + items) depends only on focusDate/precision/limits/validity, not
+        // hoveredDate — skip the expensive 6×7 luxon rebuild on every hover (e.g. during
+        // a range drag) and only recompute when a grid input actually changes.
         const gridKey = [
             focusDate?.ts,
             precision,
@@ -536,9 +529,8 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * Returns various flags indicating what ranges the current date item belongs
-     * to. Note that these ranges are computed differently according to the current
-     * value mode (range or single date). This is done to simplify CSS selectors.
+     * Returns flags indicating which ranges the current date item belongs to.
+     * Ranges differ by value mode (range vs. single date) to simplify CSS selectors.
      * - Selected Range:
      *      > range: current values with hovered date applied
      *      > single date: just the hovered date
@@ -643,7 +635,6 @@ export class DateTimePicker extends Component {
      */
     validateAndSelect(value, valueIndex, unit) {
         if (!this.props.onSelect) {
-            // No onSelect handler
             return false;
         }
 
@@ -660,7 +651,6 @@ export class DateTimePicker extends Component {
             });
         }
         if (!isInRange(result[valueIndex], [this.minDate, this.maxDate])) {
-            // Date is outside range defined by min and max dates
             return false;
         }
         this.props.onSelect(result.length === 2 ? result : result[0], unit);
@@ -701,11 +691,9 @@ export class DateTimePicker extends Component {
      */
     zoomOrSelect(dateItem) {
         if (!dateItem.isValid) {
-            // Invalid item
             return;
         }
         if (this.zoomIn(dateItem.range[0])) {
-            // Zoom was successful
             return;
         }
         const [value] = dateItem.range;

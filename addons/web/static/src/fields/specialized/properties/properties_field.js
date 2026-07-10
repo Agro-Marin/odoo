@@ -192,9 +192,8 @@ export class PropertiesField extends Component {
      * -------------------------------------------------------- */
 
     /**
-     * Return the number of columns we have to render
-     * (The properties can be split in many column,
-     * to follow the layout of the form view)
+     * Return the number of columns to render (properties can be split
+     * across columns to follow the form view's layout).
      *
      * @returns {object}
      */
@@ -203,11 +202,9 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return the current properties value.
-     *
-     * Make a deep copy of this properties values, so when we will modify it
-     * in the events, we won't re-use same object (can lead to issue, e.g. if we
-     * discard a form view, we should be able to restore the old props).
+     * Return a deep copy of the properties values, so mutating them in
+     * event handlers doesn't touch the record's stored objects (e.g. so
+     * discarding the form view still restores the original props).
      *
      * @returns {array}
      */
@@ -223,13 +220,9 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return the current properties value splitted in multiple groups/columns.
-     * Each properties are splitted in groups, thanks to the separators, and
-     * groups are splitted in columns (the columns property is the number of groups
-     * we have on a row).
-     *
-     * The groups are created with the separators (special type of property) so
-     * the order mater in the group creation.
+     * Split the properties into groups (by separator), then split the
+     * groups into columns. Order matters since separators define the
+     * group boundaries.
      *
      * @returns {any[]}
      */
@@ -310,13 +303,10 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return true if we should close the popover containing the
-     * properties definition based on the target received.
-     *
-     * If we edit the datetime, it will open a popover with the date picker
-     * component, but this component won't be a child of the current popover.
-     * So when we will click on it to select a date, it will close the definition
-     * popover. It's the same for other similar components (many2one modal, etc).
+     * Whether the properties-definition popover should close for the given
+     * click target. Widgets like the datetime picker or many2one modal
+     * render outside the popover's DOM subtree, so clicks inside them must
+     * not close it.
      *
      * @param {HTMLElement} target
      * @returns {boolean}
@@ -429,9 +419,8 @@ export class PropertiesField extends Component {
             propertiesValues.length / this.renderedColumnsCount,
         );
 
-        // if we have no separator at first, we might want to create some
-        // to keep the initial column separation (only if needed, if we move properties
-        // inside the same column we do nothing)
+        // Create separators to preserve the initial column split, but only
+        // when moving across columns (moving inside the same column is a no-op).
         if (
             this.renderedColumnsCount > 1 &&
             !propertiesValues.some(
@@ -501,7 +490,6 @@ export class PropertiesField extends Component {
             throw new Error("Something went wrong");
         }
 
-        // find the next separator index
         const getNextSeparatorIndex = (startIndex) => {
             const nextSeparatorIndex = propertiesValues.findIndex(
                 (property, index) =>
@@ -793,11 +781,8 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Move the popover to the given property id.
-     * Used when we change the position of the properties.
-     *
-     * We change the popover position after the DOM has been updated (see @useEffect)
-     * because if we update it after changing the component properties,
+     * Move the popover to the given property id, used when the position of
+     * properties changes. Runs after the DOM update (see the useEffect below).
      */
     _movePopoverIfNeeded() {
         if (!this.movePopoverToProperty) {
@@ -824,11 +809,9 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Regenerate a new name if needed or restore the original one.
-     * (see @_saveInitialPropertiesValues).
-     *
-     * If the type / model are the same, restore the original name to not reset the
-     * children otherwise, generate a new value so all value of the record are reset.
+     * Regenerate the property name if the type/comodel changed (so children
+     * reset), or restore the original name otherwise (see
+     * _saveInitialPropertiesValues).
      *
      * @param {object} newDefinition
      * @param {object} oldDefinition
@@ -850,12 +833,8 @@ export class PropertiesField extends Component {
             // to another model) never reset values on other records.
             oldDefinition.comodel !== newDefinition.comodel
         ) {
-            // Generate a new name to reset all values on other records.
-            // because the name has been changed on the definition,
-            // the old name on others record won't match the name on the definition
-            // and the python field will just ignore the old value.
-            // Store the new generated name to be able to restore it
-            // if needed.
+            // Regenerate the name so other records' stale values (keyed by
+            // the old name) are ignored; keep the mapping to restore it later.
             const newName = this.generatePropertyName(newDefinition.type);
             this.initialValues[newName] = initialValues;
             newDefinition.name = newName;
@@ -863,11 +842,8 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Find the index of the given property in the list.
-     *
-     * Care about new name generation, if the name changed (because
-     * the type of the property, the model, etc changed), it will
-     * still find the index of the original property.
+     * Find the index of the given property, resolving through name
+     * regeneration if the type/model changed (see _regeneratePropertyName).
      *
      * @params {string} propertyName
      * @returns {integer}
@@ -880,17 +856,11 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * If we change the type / model of a property, we will regenerate it's name
-     * (like if it was a new property) in order to reset the value of the children.
-     *
-     * But if we reset the old model / type, we want to be able to discard this
-     * modification (even if we save) and restore the original name.
-     *
-     * For that purpose, we save the original properties values.
+     * Save the original property values so a type/model change can later
+     * be discarded (even after save) and the original name restored (see
+     * _regeneratePropertyName).
      */
     _saveInitialPropertiesValues() {
-        // initial properties values, if the type or the model changed, the
-        // name will be regenerated in order to reset the value on the children
         this.initialValues = {};
         for (const propertiesValues of this.props.record.data[this.props.name] || []) {
             this.initialValues[propertiesValues.name] = {

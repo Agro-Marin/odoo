@@ -51,10 +51,8 @@ export const errorService = {
          */
         function handleError(/** @type {any} */ uncaughtError) {
             function shouldLogError() {
-                // Only log errors that are relevant business-wise, following the heuristics:
-                // Error.event and Error.traceback have been assigned
-                // in one of the two error event listeners below.
-                // If preventDefault was already executed on the event, don't log it.
+                // Only log business-relevant errors: event/traceback are set by
+                // one of the two listeners below, and skip if already prevented.
                 return (
                     uncaughtError.event &&
                     !uncaughtError.event.defaultPrevented &&
@@ -78,12 +76,9 @@ export const errorService = {
                         break;
                     }
                 } catch (e) {
-                    // A crashing handler must neither silence the original
-                    // error nor starve the handlers registered after it. Log
-                    // the handler's own failure unconditionally in short form
-                    // (the original traceback is logged exactly once by the
-                    // fallback below — don't duplicate it here) and move on
-                    // so the remaining handlers still get a chance to run.
+                    // A crashing handler must not silence the original error or
+                    // block later handlers. Log its failure briefly (the original
+                    // traceback is logged once by the fallback below) and continue.
                     console.error(
                         `@web/services/error_service: handler "${name}" failed with "${
                             e?.cause || e
@@ -100,10 +95,9 @@ export const errorService = {
 
         browser.addEventListener("error", async (ev) => {
             const { colno, error, filename, lineno, message } = ev;
-            // We never want to display the following ResizeObserver error to the end-user. It
-            // simply indicates that the browser delayed notifications to the next frame to prevent
-            // infinite loop, which is how it's supposed to behave. However, it would be interesting
-            // to track places from where this error could be thrown, and try to fix them.
+            // Never surface this ResizeObserver error to the user: it just means the
+            // browser deferred notifications a frame to prevent an infinite loop —
+            // expected behavior, though worth tracking down the trigger sites.
             // https://trackjs.com/javascript-errors/resizeobserver-loop-completed-with-undelivered-notifications/
             const resizeObserverError =
                 "ResizeObserver loop completed with undelivered notifications.";
@@ -151,17 +145,14 @@ export const errorService = {
 
             if (error && error.type === "error" && "eventPhase" in error) {
                 // https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/error_event
-                // See also MDN's img, script and iframe docs. The error Event *doesn't* bubble.
-                // We sometimes reject a promise with the Event dispatched by the "error" handler
-                // of an HTMLElement. If the code throwing that at us doesn't wrap the event in an
-                // actual Error, there is no reason to do more than the spec: we do not handle
-                // this error bubbling to us via the Promise being rejected.
+                // The error Event doesn't bubble. We sometimes reject a promise with the
+                // Event from an HTMLElement's "error" handler; if it isn't wrapped in an
+                // actual Error, there's nothing more to do than the spec requires.
                 if (!error.bubbles) {
                     ev.preventDefault();
                     return;
                 }
-                // If for some reason the error Event bubbles then do something
-                // a bit meaningful.
+                // If the error Event does bubble, build a meaningful message.
                 let message;
                 if (error.target) {
                     message = `${HTMLElementLoadingError.message}: ${error.target.nodeName}`;
@@ -171,13 +162,10 @@ export const errorService = {
 
             let traceback;
             if (isBrowserChrome() && ev instanceof CustomEvent && error === undefined) {
-                // This fix is ad-hoc to a bug in the Honey Paypal extension
-                // They throw a CustomEvent instead of the specified PromiseRejectionEvent
+                // Ad-hoc fix for the Honey Paypal extension bug: it throws a CustomEvent
+                // instead of the spec'd PromiseRejectionEvent (Chrome doesn't sandbox
+                // extensions enough to keep this out of the page). Ignore unless debugging.
                 // https://developer.mozilla.org/en-US/docs/Web/API/Window/unhandledrejection_event
-                // Moreover Chrome doesn't seem to sandbox enough the extension, as it seems irrelevant
-                // to have extension's errors in the main business page.
-                // We want to ignore those errors as they are not produced by us, and are parasiting
-                // the navigation. We do this according to the heuristic expressed in the if.
                 if (!env.debug) {
                     return;
                 }

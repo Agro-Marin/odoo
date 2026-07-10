@@ -32,16 +32,15 @@ function _normalizeIconClass(iconClass) {
     ) {
         return iconClass; // Already FA7 — no-op
     }
-    // Bare FA4 name: "fa-folder" → "fa-solid fa-folder"
-    // Also handles legacy "fa-solid fa-folder" → "fa-solid fa-folder" (strip base class)
+    // "fa-folder" → "fa-solid fa-folder"; legacy "fa fa-folder" →
+    // "fa-solid fa-folder" (strip base class)
     const name = iconClass.startsWith("fa fa-") ? iconClass.slice(3) : iconClass;
     return `fa-solid ${name}`;
 }
 
 /**
- * Returns the split 'group_by' key from the given context attribute.
- * This helper accepts any invalid context or one that does not have
- * a valid 'group_by' key, and falls back to an empty list.
+ * Split the 'group_by' key from a context attribute; falls back to an
+ * empty list for an invalid context or a missing 'group_by' key.
  * @param {string} context
  * @returns {string[]}
  */
@@ -190,9 +189,8 @@ export class SearchArchParser {
         if (node.hasAttribute("name")) {
             const name = node.getAttribute("name");
             if (!this.fields[name]) {
-                // Field not available (e.g. group-restricted or removed by
-                // a module override). Skip gracefully instead of crashing
-                // the entire search view.
+                // Field not available (group-restricted or removed by a
+                // module override): skip gracefully instead of crashing.
                 return;
             }
             const fieldType = this.fields[name].type;
@@ -208,9 +206,8 @@ export class SearchArchParser {
                     if (node.hasAttribute("widget")) {
                         type = node.getAttribute("widget");
                     }
-                    // Note: many2one as a default filter will have a
-                    // numeric value instead of a string => we want "="
-                    // instead of "ilike".
+                    // many2one as a default filter has a numeric value
+                    // instead of a string, so we want "=" not "ilike".
                     if (
                         ["char", "html", "many2many", "one2many", "text"].includes(type)
                     ) {
@@ -237,11 +234,10 @@ export class SearchArchParser {
                 } else if (fieldType === "many2one") {
                     this.labels.push(async (orm) => {
                         // The record may no longer exist or be inaccessible
-                        // (stale id in the action context): `read` REJECTS
-                        // with MissingError/AccessError in that case (it does
-                        // not resolve to []), so the fallback must catch —
-                        // otherwise SearchModel.load() rejects and the entire
-                        // search view crashes.
+                        // (stale id in the action context): `read` REJECTS with
+                        // MissingError/AccessError (not []), so the fallback
+                        // must catch — otherwise SearchModel.load() rejects and
+                        // crashes the entire search view.
                         let results;
                         try {
                             results = await orm.silent.call(
@@ -345,8 +341,8 @@ export class SearchArchParser {
                     customOptions: [],
                 };
                 // Current month (offset 0) clamped into the window — clamp's
-                // signature is (num, min, max); the previous argument order
-                // always yielded endMonth for any non-default window.
+                // signature is (num, min, max); the previous arg order always
+                // yielded endMonth for any non-default window.
                 const defaultOffset = clamp(
                     0,
                     optionsParams.startMonth,
@@ -371,9 +367,8 @@ export class SearchArchParser {
             preSearchItem.invisible = node.getAttribute("invisible");
             const fieldName = preSearchItem.fieldName;
             if (fieldName && !this.fields[fieldName]) {
-                // In some case when a field is limited to specific groups
-                // on the model, we need to ensure to discard related filter
-                // as it may still be present in the view (in 'invisible' state)
+                // A field limited to specific groups may still appear in the
+                // view (in 'invisible' state); discard the related filter.
                 return;
             }
         }
@@ -525,20 +520,16 @@ export class SearchArchParser {
         }
 
         /**
-         * Category counters are automatically disabled if a filter domain is found
-         * to avoid inconsistencies with the counters. The underlying problem could
-         * actually be solved by reworking the search panel and the way the
-         * counters are computed, though this is not the current priority
-         * considering the time it would take, hence this quick "fix".
+         * Category counters are auto-disabled when a filter domain exists, to
+         * avoid inconsistent counts. Quick fix; a proper solution would rework
+         * the search panel's counter computation.
          */
         if (hasCategoryWithCounters && hasFilterWithDomain) {
-            // If incompatibilities are found -> disables all category counters
             for (const section of this.sections) {
                 if (section[1].type === "category") {
                     section[1].enableCounters = false;
                 }
             }
-            // ... and triggers a warning
             console.warn(
                 "Warning: categories with counters are incompatible with filters having a domain attribute.",
                 "All category counters have been disabled to avoid inconsistencies.",

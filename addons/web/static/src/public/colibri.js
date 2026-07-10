@@ -31,13 +31,9 @@ export class Colibri {
         this.dynamicAttrs = [];
         this.tOuts = [];
         this.cleanups = [];
-        // Index of the per-node event-listener removers that live in
-        // `cleanups`, keyed by node. The removers stay in `cleanups` (so the
-        // documented reverse-order, interleaved-with-registerCleanup teardown
-        // is preserved); this map only lets `refreshNodes` splice out the
-        // entries of nodes that leave the DOM, instead of letting them
-        // accumulate in the append-only array (a leak + detached-node
-        // retention under dynamic-content churn).
+        // Index into `cleanups`, keyed by node, so `refreshNodes` can splice
+        // out entries for nodes that leave the DOM (avoids unbounded growth /
+        // detached-node retention under dynamic-content churn).
         /** @type {Map<Node, Array<() => void>>} */
         this.nodeCleanups = new Map();
         this.listeners = new Map();
@@ -269,11 +265,9 @@ export class Colibri {
      * @param {any} value
      * @param {any} [initialValue]
      * @param {boolean} [restoring] true when restoring initial content during
-     *  destroy(): interactions in the replaced content are still stopped, but
-     *  the restored content is not scanned for interactions to start. During
-     *  a global stopInteractions(), starting them would resurrect
-     *  interactions mid-stop; after a targeted stop, the caller decides what
-     *  to start next (e.g. website edit mode re-activates its own set).
+     *  destroy(): interactions in the replaced content are stopped but not
+     *  rescanned for restart, since a global stopInteractions() must not
+     *  resurrect them mid-stop.
      * @returns {void}
      */
     applyTOut(el, value, initialValue, restoring = false) {
@@ -665,10 +659,8 @@ export class Colibri {
     }
 
     /**
-     * Patchable mechanism to handle context-specific protection of a specific
-     * chunk of synchronous code after returning from an asynchronous one.
-     * This should typically be used around code that follows an
-     * await waitFor(...).
+     * Patchable hook for protecting synchronous code that runs after an
+     * await (e.g. after `await waitFor(...)`).
      *
      * @param {Interaction} interaction
      * @param {string} name method name (used by patches for identification)

@@ -820,20 +820,16 @@ test("multi_create: avoid trigger add/del event on specific element", async () =
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 
-    // v7 dropped ``.fc-more-cell`` (the wrapper) and emits the link
-    // directly with ``.fc-more-link`` (re-injected via our
-    // ``columnMoreLinkClass``).  The popover that shows on click is
-    // tagged ``.fc-popover`` in v7; ``.fc-more-popover`` was v6 only.
+    // v7 dropped the ``.fc-more-cell`` wrapper: the link is now ``.fc-more-link``
+    // directly, and its popover is ``.fc-popover`` (``.fc-more-popover`` was v6 only).
     await click(".fc-more-link");
     await animationFrame();
     expect(".fc-popover").toHaveCount(1);
     expect(".o_multi_selection_buttons").toHaveCount(0);
 
-    // v7 dropped ``.fc-popover-title`` (no class hook on the title
-    // element).  The title is now a ``<div>`` whose ``id`` ends in
-    // ``-title`` (FC v7 builds it as ``popoverId + '-title'`` for
-    // ``aria-labelledby``); see fullcalendar.esm.js:9573-9579.
-    // Match by id-suffix to stay v7-correct.
+    // v7 dropped ``.fc-popover-title``; the title is now a ``<div>`` whose id
+    // ends in ``-title`` (built as ``popoverId + '-title'``, see
+    // fullcalendar.esm.js:9573-9579). Match by id-suffix to stay v7-correct.
     await click(`.fc-popover [id$="-title"]`);
     await animationFrame();
     expect(".fc-popover").toHaveCount(1);
@@ -1105,12 +1101,10 @@ test("multi_create: click uses the event's ctrl state, not stale window state", 
     await selectDateRange("2019-03-04", "2019-03-06");
     expect(".fc-day.o-highlight").toHaveCount(3);
 
-    // Simulate Ctrl held on the window but NOT reflected on the click event — a
-    // keydown whose matching keyup was swallowed while the window was blurred.
-    // manuallyDispatchProgrammaticEvent dispatches a raw event without touching
-    // hoot's synthetic modifier state, so the following click's ev.ctrlKey is
-    // false. The old code trusted the stale window boolean and toggled; reading
-    // ev.ctrlKey makes the click replace, collapsing the selection to one day.
+    // Ctrl's keyup was swallowed during a blur, so window state is stale; this raw
+    // dispatch bypasses hoot's modifier tracking, so ev.ctrlKey is false below.
+    // Old code trusted the stale window flag and toggled; reading ev.ctrlKey
+    // instead makes the click replace, collapsing the selection to one day.
     await manuallyDispatchProgrammaticEvent(window, "keydown", { key: "Control" });
     await contains(".fc-day[data-date='2019-03-13']").click();
     await manuallyDispatchProgrammaticEvent(window, "keyup", { key: "Control" });

@@ -73,7 +73,6 @@ test("StateSelectionField in form view", async () => {
         message: "there should not be a dropdown",
     });
 
-    // Click on the status button to make the dropdown appear
     await click(".o_field_widget.o_field_state_selection .o_status");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(1, {
@@ -86,7 +85,6 @@ test("StateSelectionField in form view", async () => {
         message: "current value has a checkmark",
     });
 
-    // Click on the first option, "Normal"
     await click(".o-dropdown--menu .dropdown-item");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
@@ -129,14 +127,12 @@ test("StateSelectionField in form view", async () => {
             "should still have one grey status since selection is the first, normal state",
     });
 
-    // Click on the status button to make the dropdown appear
     await click(".o_field_widget.o_field_state_selection .o_status");
     await animationFrame();
     expect(".o-dropdown--menu .dropdown-item").toHaveCount(3, {
         message: "there should be three options in the dropdown",
     });
 
-    // Click on the last option, "Done"
     await click(".o-dropdown--menu .dropdown-item:last-child");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
@@ -155,7 +151,6 @@ test("StateSelectionField in form view", async () => {
             "should have one green status since selection is the third, done state",
     });
 
-    // save
     await click(".o_form_button_save");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
@@ -191,16 +186,13 @@ test("Check role attribute for dropdown items", async () => {
         resId: 1,
     });
 
-    // Open the dropdown
     click(".o_field_widget.o_field_state_selection .o_status");
     await animationFrame();
 
-    // Assert that the dropdown is open
     expect(".o-dropdown--menu").toHaveCount(1, {
         message: "there should be a dropdown",
     });
 
-    // Assert that each dropdown item has role="checkbox"
     expect(queryFirst(".o-dropdown--menu .dropdown-item")).toHaveAttribute(
         "role",
         "menuitemcheckbox",
@@ -313,7 +305,6 @@ test("StateSelectionField in editable list view", async () => {
         message: "there should not be a dropdown",
     });
 
-    // Click on the status button to make the dropdown appear
     let cell = queryFirst("tbody td.o_state_selection_cell");
     await click(".o_state_selection_cell .o_field_state_selection span.o_status");
     await animationFrame();
@@ -328,7 +319,6 @@ test("StateSelectionField in editable list view", async () => {
         message: "there should be three options in the dropdown",
     });
 
-    // Click on the first option, "Normal"
     await click(".o-dropdown--menu .dropdown-item");
     await animationFrame();
     expect(
@@ -349,7 +339,6 @@ test("StateSelectionField in editable list view", async () => {
         message: "should not be in edit mode",
     });
 
-    // switch to edit mode and check the result
     cell = queryFirst("tbody td.o_state_selection_cell");
     await click(cell);
     await animationFrame();
@@ -371,7 +360,6 @@ test("StateSelectionField in editable list view", async () => {
         message: "there should not be a dropdown",
     });
 
-    // Click on the third status button to make the dropdown appear
     await click(".o_state_selection_cell .o_field_state_selection span.o_status:eq(2)");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(1, "there should be a dropdown".msg);
@@ -379,7 +367,6 @@ test("StateSelectionField in editable list view", async () => {
         message: "there should be three options in the dropdown",
     });
 
-    // Click on the last option, "Done"
     await click(".o-dropdown--menu .dropdown-item:last-child");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
@@ -400,7 +387,6 @@ test("StateSelectionField in editable list view", async () => {
         message: "there should not be a dropdown",
     });
 
-    // save
     await click(".o_control_panel_main_buttons .o_list_button_save");
     await animationFrame();
     expect(
@@ -432,7 +418,6 @@ test("StateSelectionField line stay in edit mode when StateSelectionField is ope
         `,
     });
 
-    // Click on the status button to make the dropdown appear
     await click(".o_state_selection_cell .o_field_state_selection span.o_status");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(1, {
@@ -442,7 +427,6 @@ test("StateSelectionField line stay in edit mode when StateSelectionField is ope
         message: "there should be three options in the dropdown",
     });
 
-    // Click on another row
     const lastCell = queryAll("tbody td.o_state_selection_cell")[4];
     await click(lastCell);
     await animationFrame();

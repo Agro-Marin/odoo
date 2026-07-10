@@ -8,7 +8,7 @@ test("expressionFromTree", () => {
     const options = {
         getFieldDef: (name) => {
             if (["foo", "bar"].includes(name)) {
-                return { type: "any" }; // any field
+                return { type: "any" };
             }
             if (["foo_ids", "bar_ids"].includes(name)) {
                 return { type: "many2many" };

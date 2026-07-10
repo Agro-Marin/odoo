@@ -2,11 +2,8 @@
 
 /**
  * Integration tests for the X2ManyField component (one2many and many2many).
- *
- * Covers the core CRUD lifecycle — inline add/remove for one2many, and
- * link/unlink for many2many — and verifies the ORM command objects written
- * to web_save. Also tests that clicking a row in a non-editable one2many opens
- * the X2ManyFieldDialog.
+ * Covers inline add/remove, link/unlink, and the ORM command objects written
+ * to web_save, plus opening X2ManyFieldDialog from a non-editable one2many.
  *
  * Module under test: fields/relational/x2many/x2many_field.js
  */
@@ -186,7 +183,6 @@ describe("many2many LINK / UNLINK", () => {
             arch: `<form><field name="timmy" widget="many2many_tags"/></form>`,
         });
 
-        // Click the × button on the "gold" tag
         await contains(".o_field_many2many_tags .badge .o_delete").click();
         await clickSave();
 

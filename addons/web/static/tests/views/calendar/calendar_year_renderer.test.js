@@ -32,10 +32,9 @@ test(`mount a CalendarYearRenderer`, async () => {
     await start();
     expect(`.fc-month-container`).toHaveCount(12);
 
-    // check "title format" — v7 only emits a chunk for the configured
-    // section (center: "title"), so there's a single ``.fc-toolbar-chunk``
-    // per mini calendar.  v6 also rendered placeholder chunks for the
-    // empty start / end sections, making the title chunk ``:nth-child(2)``.
+    // v7 emits a single chunk per configured section (center: "title"); v6
+    // also emitted placeholder start/end chunks, making the title chunk
+    // ``:nth-child(2)``.
     expect(`.fc-toolbar-chunk .fc-toolbar-title`).toHaveCount(12);
     expect(queryAllTexts`.fc-toolbar-chunk .fc-toolbar-title`).toEqual([
         "January 2021",
@@ -52,7 +51,6 @@ test(`mount a CalendarYearRenderer`, async () => {
         "December 2021",
     ]);
 
-    // check day header format
     expect(`.fc-month:eq(0) .fc-col-header-cell`).toHaveCount(7);
     expect(queryAllTexts`.fc-month:eq(0) .fc-col-header-cell`).toEqual([
         "S",

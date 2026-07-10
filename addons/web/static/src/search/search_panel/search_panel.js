@@ -42,13 +42,9 @@ const nameOfCheckedValues = (values) => {
 };
 
 /**
- * Search panel
- *
- * Represent an extension of the search interface located on the left side of
- * the view. It is divided in sections defined in a "<searchpanel>" node located
- * inside of a "<search>" arch. Each section is represented by a list of different
- * values (categories or ungrouped filters) or groups of values (grouped filters).
- * Its state is directly affected by its model (@see SearchModel).
+ * Sidebar filter panel, divided into sections defined by a "<searchpanel>"
+ * node inside the "<search>" arch. Each section holds categories or filter
+ * values (grouped or ungrouped), driven by @see SearchModel.
  */
 export class SearchPanel extends Component {
     static template = "web.SearchPanel";
@@ -178,9 +174,7 @@ export class SearchPanel extends Component {
         return this.dropdownStates[sectionId];
     }
 
-    /**
-     * Expands category values holding the default value of a category.
-     */
+    /** Expand category values holding a category's default (active) value. */
     expandDefaultValue() {
         if (this.hasImportedState) {
             return;
@@ -248,8 +242,7 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Returns a formatted version of the active categories to populate
-     * the selection banner of the control panel summary.
+     * Return active categories formatted for the control panel selection banner.
      * @returns {Object[]}
      */
     getCategorySelection() {
@@ -273,8 +266,7 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Returns a formatted version of the active filters to populate
-     * the selection banner of the control panel summary.
+     * Return active filters formatted for the control panel selection banner.
      * @returns {Object[]}
      */
     getFilterSelection() {
@@ -297,8 +289,8 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Checks if the section matching the provided id has at least one active selection.
-     * If no id is provided, checks if at least one section has an active selection.
+     * Check whether the given section (or any section, if omitted) has an
+     * active selection.
      * @param {Number} sectionId
      */
     hasSelection(sectionId = 0) {
@@ -315,8 +307,8 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Clears all active selection in the section which id was provided.
-     * If no id is provided, clears the selection of all sections.
+     * Clear the active selection in the given section (or all sections, if
+     * omitted).
      * @param {Number} sectionId
      */
     clearSelection(sectionId = 0) {
@@ -411,10 +403,7 @@ export class SearchPanel extends Component {
         }
     }
 
-    /**
-     * Updates the "checked" or "indeterminate" state of each of the group
-     * headers according to the state of their values.
-     */
+    /** Update each group header's checked/indeterminate state from its values. */
     updateGroupHeadersChecked() {
         const container = this.root.el;
         if (!container) {
@@ -439,8 +428,7 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Handles the resize feature on the sidebar
-     *
+     * Start the sidebar resize drag.
      * @private
      * @param {PointerEvent} ev
      */
@@ -454,7 +442,6 @@ export class SearchPanel extends Component {
         const initialWidth = this.root.el.offsetWidth;
         const resizeStoppingEvents = ["keydown", "pointerdown", "pointerup"];
 
-        // Pointermove event : resize header
         const resizePanel = (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
@@ -466,10 +453,8 @@ export class SearchPanel extends Component {
         };
         document.addEventListener("pointermove", resizePanel, true);
 
-        // Pointer or keyboard events : stop resize
         const stopResize = (ev) => {
-            // Ignores the initial 'left mouse button down' event in order
-            // to not instantly remove the listener
+            // Ignore the initial mousedown so the listener isn't removed instantly.
             if (ev.type === "pointerdown" && ev.button === 0) {
                 return;
             }
@@ -480,12 +465,11 @@ export class SearchPanel extends Component {
             resizeStoppingEvents.forEach((stoppingEvent) => {
                 document.removeEventListener(stoppingEvent, stopResize, true);
             });
-            // we remove the focus to make sure that the there is no focus inside
-            // the panel. If that is the case, there is some css to darken the whole
-            // thead, and it looks quite weird with the small css hover effect.
+            // Remove focus from inside the panel: a lingering focus triggers a
+            // CSS darken-on-hover style that looks wrong here.
             /** @type {HTMLElement} */ (document.activeElement).blur();
         };
-        // We have to listen to several events to properly stop the resizing function. Those are:
+        // Listen for several events to reliably stop resizing:
         // - pointerdown (e.g. pressing right click)
         // - pointerup : logical flow of the resizing feature (drag & drop)
         // - keydown : (e.g. pressing 'Alt' + 'Tab' or 'Windows' key)

@@ -356,15 +356,10 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * Handle keyboard navigation within the popover.
-     *
-     * The handler is bound on the popover root so that Escape closes it from
-     * any focused element, but the virtual-focus list navigation (arrows +
-     * Enter) is meaningful only for the search input. Keydowns bubbling up from
-     * the debug input (or a focused field button) must NOT be reinterpreted as
-     * search navigation — otherwise e.g. ArrowLeft at caret 0 in the debug input
-     * would call goToPreviousPage(), and Enter on a relation button would
-     * double-fire selectField() on top of the button's own activation.
+     * Bound on the popover root so Escape always closes it, but virtual-focus
+     * nav (arrows/Enter) applies only within the search input — bubbling
+     * keydowns from the debug input or a field button must not be
+     * reinterpreted as nav, or goToPreviousPage/selectField could double-fire.
      *
      * @param {KeyboardEvent} ev
      * @returns {Promise<void>}

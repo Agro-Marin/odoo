@@ -88,13 +88,10 @@ let loadPromise = null;
 /**
  * Lazily load pdf.js, then populate the live-bound {@link pdfjsLib} export.
  *
- * The library is a real ES module resolved through the `pdfjs-dist`
- * import-map external bare specifier — replacing the old
- * `loadJS(".../pdf.js")` + `window.pdfjsLib` global pattern, which also
- * evaluated the 2.2 MB `pdf.worker.js` ON THE MAIN THREAD merely to seed
- * pdf.js's "fake worker" fallback.  `GlobalWorkerOptions.workerSrc` is set
- * centrally here instead: pdf.js spawns the worker itself (as a module
- * worker) and PDFs are parsed off the UI thread.
+ * Resolved via the `pdfjs-dist` import-map specifier — replaces the old
+ * `loadJS()` + `window.pdfjsLib` pattern, which evaluated the 2.2 MB
+ * `pdf.worker.js` on the main thread. `workerSrc` is set centrally so
+ * pdf.js spawns its own module worker instead.
  *
  * @returns {Promise<any>} the pdf.js namespace
  */

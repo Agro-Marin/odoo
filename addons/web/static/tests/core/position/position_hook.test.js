@@ -318,7 +318,6 @@ test("reposition popper when a scroll event occurs", async () => {
 
 test("is positioned relative to its containing block", async () => {
     const fixtureBox = getFixture().getBoundingClientRect();
-    // offset the container
     const margin = 15;
     let pos1, pos2;
     let TestComp = getTestComponent(
@@ -706,11 +705,8 @@ test("iframe: default container is the popper owner's document", async () => {
                 position: "top-start",
                 onPositioned: (_, { direction, variant }) => {
                     expect(`${direction}-${variant}`).toBe("top-start");
-                    // the style setup in this test leaves enough space in the inner iframe
-                    // for the popper to be positioned at top-middle, but this is exactly
-                    // what we want to avoid: the popper's base container should not be the
-                    // inner iframe, but the outer iframe, so the popper should be positioned
-                    // at top-start.
+                    // The inner iframe alone would fit top-middle, but the popper's base
+                    // container must be the outer iframe, hence top-start.
                 },
             });
         }
@@ -1042,7 +1038,6 @@ function getRepositionTest(from, to, containerStyleChanges, extendedFlipping = f
     };
 }
 
-// -----------------------------------------------------------------------------
 test(
     "reposition from top-start to top",
     getRepositionTest("top-start", "bottom-start", "top"),
@@ -1059,7 +1054,6 @@ test(
     "reposition from top-start to right",
     getRepositionTest("top-start", "top-end", "right"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from top-middle to top",
     getRepositionTest("top-middle", "bottom-middle", "top"),
@@ -1068,7 +1062,6 @@ test(
     "reposition from top-middle to slimfit bottom",
     getRepositionTest("top-middle", "top-middle", "slimfit bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from top-end to top left",
     getRepositionTest("top-end", "bottom-start", "top left"),
@@ -1085,7 +1078,6 @@ test(
     "reposition from top-end to slimfit bottom",
     getRepositionTest("top-end", "top-end", "slimfit bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from left-start to left",
     getRepositionTest("left-start", "right-start", "left"),
@@ -1102,7 +1094,6 @@ test(
     "reposition from left-start to bottom",
     getRepositionTest("left-start", "left-end", "bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from left-middle to left",
     getRepositionTest("left-middle", "right-middle", "left"),
@@ -1111,7 +1102,6 @@ test(
     "reposition from left-middle to slimfit bottom",
     getRepositionTest("left-middle", "left-middle", "slimfit bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from left-end to left top",
     getRepositionTest("left-end", "right-start", "left top"),
@@ -1128,7 +1118,6 @@ test(
     "reposition from left-end to slimfit bottom",
     getRepositionTest("left-end", "left-end", "slimfit bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from bottom-start to slimfit top",
     getRepositionTest("bottom-start", "bottom-start", "slimfit top"),
@@ -1145,7 +1134,6 @@ test(
     "reposition from bottom-start to bottom right",
     getRepositionTest("bottom-start", "top-end", "bottom right"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from bottom-middle to slimfit top",
     getRepositionTest("bottom-middle", "bottom-middle", "slimfit top"),
@@ -1154,7 +1142,6 @@ test(
     "reposition from bottom-middle to bottom",
     getRepositionTest("bottom-middle", "top-middle", "bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from bottom-end to left",
     getRepositionTest("bottom-end", "bottom-start", "left"),
@@ -1171,7 +1158,6 @@ test(
     "reposition from bottom-end to bottom",
     getRepositionTest("bottom-end", "top-end", "bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from right-start to slimfit top",
     getRepositionTest("right-start", "right-start", "slimfit top"),
@@ -1188,7 +1174,6 @@ test(
     "reposition from right-start to right bottom",
     getRepositionTest("right-start", "left-end", "right bottom"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from right-middle to slimfit bottom",
     getRepositionTest("right-middle", "right-middle", "slimfit bottom"),
@@ -1197,7 +1182,6 @@ test(
     "reposition from right-middle to right",
     getRepositionTest("right-middle", "left-middle", "right"),
 );
-// -----------------------------------------------------------------------------
 test(
     "reposition from right-end to top",
     getRepositionTest("right-end", "right-start", "top"),

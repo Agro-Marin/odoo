@@ -3,14 +3,10 @@
 /**
  * Pure unit tests for search/search_query_mutations.js.
  *
- * Each exported function receives a SearchModel as its first argument
- * (delegation pattern). Tests build a minimal plain-object mock instead of
- * mounting a full OWL component tree. The mock wires delegation methods back
- * to the real exported functions so the full call chain is exercised.
- *
- * spawnCustomFilterDialog and createIrFilters are not tested here:
- * the former requires a dialog service; the latter requires a live ORM call
- * and rpcBus side effects — both are covered by existing integration tests.
+ * Each exported function takes a SearchModel as its first arg (delegation
+ * pattern); tests use a minimal mock instead of mounting a full OWL tree.
+ * spawnCustomFilterDialog and createIrFilters aren't tested here — they need
+ * a dialog service / live ORM+rpcBus and are covered by integration tests.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -34,17 +30,12 @@ import {
     SPECIAL,
 } from "@web/search/search_state";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
- * Build a minimal SearchModel mock.
- *
- * Delegation methods (`deactivateGroup`, `clearQuery`, etc.) are wired to the
- * real exported functions so that compound operations (e.g. clearFilters calling
- * deactivateGroup, createNewFavorite calling clearQuery) exercise the full chain.
- *
+ * Minimal SearchModel mock; delegation methods (deactivateGroup, clearQuery,
+ * etc.) call the real exported functions so compound operations exercise the
+ * full chain.
  * @param {Object} [overrides]
  * @returns {Object}
  */
@@ -115,9 +106,7 @@ function addItem(model, id, item, activate = false) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // addAutoCompletionValues
-// ---------------------------------------------------------------------------
 
 describe("addAutoCompletionValues", () => {
     test("adds a new autocomplete value to query", () => {
@@ -176,9 +165,7 @@ describe("addAutoCompletionValues", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // clearQuery
-// ---------------------------------------------------------------------------
 
 describe("clearQuery", () => {
     test("empties the query array", () => {
@@ -199,9 +186,7 @@ describe("clearQuery", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // clearFilters
-// ---------------------------------------------------------------------------
 
 describe("clearFilters", () => {
     test("removes non-groupBy facets from query", () => {
@@ -253,9 +238,7 @@ describe("clearFilters", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // withNotificationsBlocked
-// ---------------------------------------------------------------------------
 
 describe("withNotificationsBlocked", () => {
     test("suppresses notifications inside the window", () => {
@@ -293,9 +276,7 @@ describe("withNotificationsBlocked", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // deactivateGroup
-// ---------------------------------------------------------------------------
 
 describe("deactivateGroup", () => {
     test("removes all query elements with matching groupId", () => {
@@ -329,9 +310,7 @@ describe("deactivateGroup", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // toggleSearchItem
-// ---------------------------------------------------------------------------
 
 describe("toggleSearchItem", () => {
     test("activates an inactive filter", () => {
@@ -398,9 +377,7 @@ describe("toggleSearchItem", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // toggleDateGroupBy
-// ---------------------------------------------------------------------------
 
 describe("toggleDateGroupBy", () => {
     test("adds intervalId entry to query when not present", () => {
@@ -441,9 +418,7 @@ describe("toggleDateGroupBy", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // toggleDateFilter
-// ---------------------------------------------------------------------------
 
 describe("toggleDateFilter", () => {
     test("custom generatorId: replaces any existing entries for the item", () => {
@@ -508,9 +483,7 @@ describe("toggleDateFilter", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // switchGroupBySort
-// ---------------------------------------------------------------------------
 
 describe("switchGroupBySort", () => {
     test("starts at false, first switch → Desc", () => {
@@ -538,9 +511,7 @@ describe("switchGroupBySort", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // createNewFilters
-// ---------------------------------------------------------------------------
 
 describe("createNewFilters", () => {
     test("creates filter items and activates them in query", () => {
@@ -589,9 +560,7 @@ describe("createNewFilters", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // createNewGroupBy
-// ---------------------------------------------------------------------------
 
 describe("createNewGroupBy", () => {
     test("non-date field: creates groupBy item and activates it", () => {
@@ -663,9 +632,7 @@ describe("createNewGroupBy", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // createNewFavorite
-// ---------------------------------------------------------------------------
 
 describe("createNewFavorite", () => {
     test("creates a favorite item and returns serverSideId", async () => {

@@ -43,14 +43,13 @@ const SHORT_SCALE_TO_HEADER_FORMAT = {
     month: { weekday: "short" },
 };
 /**
- * Format a Luxon DateTime as a bare, offset-less ISO string suitable for
- * FullCalendar's ``initialDate`` option.
+ * Format a Luxon DateTime as a bare, offset-less ISO string for FullCalendar's
+ * ``initialDate`` option.
  *
- * FC v7 parses an offset-bearing ISO into an absolute moment then re-derives
- * the day in its declared ``timeZone`` — which, in a fixed-offset/marker zone
- * (or in tests), can cross a UTC boundary and land on the previous day when the
- * source is local midnight. Emitting wall-clock time with no offset tells FC to
- * interpret the value in its configured zone, which is what callers mean.
+ * FC v7 re-derives the day from an offset-bearing ISO in its declared
+ * ``timeZone``, which can cross a UTC boundary and land on the previous day
+ * for local midnight in a fixed-offset/marker zone. Wall-clock time with no
+ * offset tells FC to interpret it in its configured zone as callers intend.
  *
  * @param {import("@web/core/l10n/luxon").DateTime} dt
  * @returns {string}
@@ -100,26 +99,24 @@ export class CalendarCommonRenderer extends Component {
     };
 
     setup() {
-        // Pass a GETTER, not the snapshot.  v7 needs fresh ``initialView``
-        // / ``initialDate`` / ``editable`` / ... on every ``onPatched``;
-        // capturing the object once at setup time strands the hook on
-        // stale values when the OWL scale/date props change.
+        // Pass a GETTER, not the snapshot — v7 needs fresh initialView/
+        // initialDate/editable on every onPatched, and a snapshot captured
+        // once at setup would go stale when scale/date props change.
         this.fc = useFullCalendar("fullCalendar", () => this.options);
         this.clickTimeoutId = null;
-        // The single-click timer (250ms, see onEventClick) would otherwise fire
-        // onClick on a destroyed renderer when the user navigates/changes scale
-        // within the window — this renderer remounts on scale/date change.
+        // The single-click timer (250ms, see onEventClick) would otherwise
+        // fire on a destroyed renderer when scale/date changes remount it
+        // within the window.
         onWillUnmount(() => browser.clearTimeout(this.clickTimeoutId));
         this.popover = useCalendarPopover(
             /** @type {any} */ (this.constructor).components.Popover,
         );
         this.timeFormat = is24HourFormat() ? "HH:mm" : "hh:mm a";
         useBus(this.props.model.bus, ModelEvent.SCROLL_TO_CURRENT_HOUR, () => {
-            // Subtract 2h so the current hour lands near the top of the
-            // visible area, leaving prior context above.  Clamp to 0
-            // because FC v7's ``createDuration`` rejects negative time
-            // strings and ``scrollToTime`` becomes a silent no-op
-            // otherwise — observed when the local hour is 0 or 1.
+            // Subtract 2h so the current hour lands near the top with prior
+            // context visible; clamp to 0 since FC v7's createDuration
+            // rejects negative time strings, making scrollToTime a silent
+            // no-op otherwise (seen when the local hour is 0 or 1).
             const targetHour = Math.max(0, DateTime.local().hour - 2);
             this.fc.api.scrollToTime(`${targetHour}:00:00`);
         });
@@ -131,45 +128,28 @@ export class CalendarCommonRenderer extends Component {
 
     get options() {
         return {
-            // v7 minifies the root and view class names into per-build
-            // hashes — the legacy ``fc`` / ``fc-timeGridDay-view``
-            // / ``fc-dayGridMonth-view`` class hooks are gone.  Tests
-            // (and downstream CSS/JS selectors throughout the fork) still
-            // target those names, so we re-inject them via v7's
-            // ``class`` (root) and ``viewClass`` (per-view) class-name
-            // generators.  ``viewClass`` receives a renderProps object
-            // with ``view.type`` so we mirror v6's ``fc-<viewName>-view``
-            // pattern exactly.
+            // v7 hashes root/view class names; tests and fork CSS still
+            // target the legacy fc / fc-<viewName>-view hooks, so re-inject
+            // them via v7's class/viewClass generators (mirroring v6's
+            // fc-<viewName>-view pattern).
             class: "fc",
             viewClass: ({ view }) =>
                 view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
-            // v7 dropped all the human-readable ``fc-*`` class hooks
-            // (``fc-day``, ``fc-col-header-cell``, ``fc-event-main``…)
-            // in favour of per-build hashed names.  Re-inject the
-            // ones the fork's CSS and tests depend on through v7's
-            // per-element class-name-generator options
-            // (``dayCellClass``, ``dayHeaderClass``, …).  Each generator
-            // is called per render and its return value joined onto
-            // whatever v7 produces, so layering is non-destructive.
-            //
-            // ``dayCellClass`` accepts a function (cell-info → string|string[]
-            // returned by FC's ``generateClassName`` helper) so we can
-            // recover the v6 state-suffix hooks (``fc-day-other`` on cells
-            // outside the displayed month, ``fc-day-disabled`` on disabled
-            // cells, etc.).  Tests and CSS selectors throughout the fork
-            // depend on these.
+            // v7 hashes former fc-* class hooks (fc-day, fc-col-header-cell,
+            // fc-event-main…); re-inject the ones fork CSS/tests depend on
+            // via v7's per-element class-name generators, layered
+            // non-destructively onto v7's own output.
+            // dayCellClass also recovers v6 state suffixes (fc-day-other,
+            // fc-day-disabled) that tests/CSS select on.
             dayCellClass: this.dayCellClass,
             dayCellInnerClass: "fc-daygrid-day-frame",
             dayCellTopClass: "fc-daygrid-day-top",
             dayCellTopInnerClass: "fc-daygrid-day-number",
             dayHeaderClass: dayHeaderClassNames,
-            // ``eventClass`` is layered onto every event element.  The
-            // body-event-specific subclasses (``fc-daygrid-event``,
-            // ``fc-timegrid-event``) used to differentiate dayGrid vs
-            // timeGrid events in v6; v7 hashed them.  Tests select by
-            // both the generic ``.fc-event`` (still emitted via our
-            // generator) and the grid-specific subclasses (re-injected
-            // through ``rowEventClass`` / ``columnEventClass``).
+            // eventClass layers onto every event element. v6's
+            // fc-daygrid-event/fc-timegrid-event subclasses are hashed in
+            // v7; re-inject them via rowEventClass/columnEventClass so
+            // tests can select both the generic and grid-specific classes.
             eventClass: "fc-event",
             eventInnerClass: "fc-event-main",
             rowEventClass: "fc-daygrid-event",
@@ -183,46 +163,29 @@ export class CalendarCommonRenderer extends Component {
             toolbarClass: "fc-toolbar",
             toolbarSectionClass: "fc-toolbar-chunk",
             toolbarTitleClass: "fc-toolbar-title",
-            // v7 still renders a popover for "+N more" overflow; the
-            // tests close it via ``.o_cw_popover_close`` which is the
-            // Odoo close button injected by the popover content.  v7
-            // exposes its own ``fc-popover-close`` hook too.
+            // v7 still renders a "+N more" popover; tests close it via
+            // .o_cw_popover_close (Odoo's injected button); v7 also exposes
+            // its own fc-popover-close hook.
             popoverClass: "fc-popover",
             popoverCloseClass: "fc-popover-close",
-            // v7's timegrid axis cell for the week label is otherwise
-            // hashed.  ``weekNumberHeaderClass`` lands on the cell and
-            // ``weekNumberHeaderInnerClass`` on the inner span; tests
-            // target ``.fc-week-number`` for the text content.  This
-            // is the only v7 element that gets the ``Week N`` label in
-            // timegrid views, so it does NOT clash with the daygrid
-            // inline week-number (which renders only in month view).
+            // v7 hashes the timegrid axis week-label cell; re-inject via
+            // weekNumberHeaderClass (cell) / weekNumberHeaderInnerClass
+            // (inner span). Tests target .fc-week-number; this doesn't
+            // clash with the daygrid inline week-number (month view only).
             weekNumberHeaderClass: "fc-week-number",
             inlineWeekNumberClass: "fc-daygrid-week-number",
-            // v6 daygrid-body / row hooks.  ``tableBodyClass`` is
-            // applied to every daygrid-style body wrapper (main month
-            // body AND the all-day strip in timegrid views).  Tests
-            // distinguish contexts via the parent view class —
-            // ``.fc-timeGridWeek-view .fc-daygrid-body`` picks the
-            // all-day strip; ``.fc-dayGridMonth-view .fc-daygrid-body``
-            // picks the main body.  Compound-class tests that don't
-            // scope to a view (``.fc-daygrid-body .fc-event``) need
-            // updating to use ``.fc-daygrid-event`` (our
-            // ``rowEventClass`` injection) to target the all-day strip
-            // events specifically.
+            // v6 daygrid-body/row hooks. tableBodyClass applies to every
+            // daygrid-style body wrapper (month body AND timegrid all-day
+            // strip); tests disambiguate via the parent view class
+            // (.fc-timeGridWeek-view vs .fc-dayGridMonth-view .fc-daygrid-body).
             tableBodyClass: "fc-daygrid-body",
             dayRowClass: "fc-daygrid-row",
-            // v6 timegrid hooks.  Both the slot lane (the half-hour
-            // cells in the body) AND the slot header (the time-of-day
-            // label in the axis) had ``fc-timegrid-slot`` in v6; tests
-            // disambiguate via ``-lane`` vs ``-label`` suffixes.  The
-            // label is what carries the visible text (``"8am"``,
-            // ``"11pm"``…); re-inject the v6 class so tests asserting on
-            // the label text by data-time keep finding the right node.
-            // v7 exposes the major/minor distinction via the className
-            // generator's ``renderProps`` (``isMinor`` is true for the
-            // unlabeled half-hour lanes). A static string would drop the v6
-            // ``fc-timegrid-slot-minor`` marker that tests target to tap/select
-            // a sub-hour slot, so generate it per lane.
+            // v6's fc-timegrid-slot covered both the slot lane (half-hour
+            // body cells) and slot header (axis time label); tests
+            // disambiguate via -lane/-label suffixes. v7 exposes the
+            // major/minor distinction via renderProps.isMinor, so generate
+            // the class per lane to keep the fc-timegrid-slot-minor marker
+            // tests use to target sub-hour slots.
             slotLaneClass: (renderProps) =>
                 renderProps.isMinor
                     ? "fc-timegrid-slot fc-timegrid-slot-lane fc-timegrid-slot-minor"
@@ -253,12 +216,10 @@ export class CalendarCommonRenderer extends Component {
             eventMouseEnter: this.onEventMouseEnter,
             eventMouseLeave: this.onEventMouseLeave,
             eventDidMount: this.onEventDidMount,
-            // v7 routes ``display: "background"`` events through a
-            // separate ``backgroundEventDidMount`` callback rather than
-            // ``eventDidMount`` — without this, ``data-event-id`` and
-            // the ``o_event*`` modifier classes never land on the
-            // background event elements (used for all-day events that
-            // span timegrid columns).
+            // v7 routes display:"background" events through
+            // backgroundEventDidMount rather than eventDidMount; without
+            // this, data-event-id and o_event* classes never land on
+            // background events (all-day events spanning timegrid columns).
             backgroundEventDidMount: this.onEventDidMount,
             eventContent: this.onEventContent,
             eventResizableFromStart: true,
@@ -268,14 +229,11 @@ export class CalendarCommonRenderer extends Component {
             firstDay: this.props.model.firstDayOfWeek,
             headerToolbar: false,
             height: "100%",
-            // ``slotMinHeight`` is treated as the per-slot floor by FC v7's
-            // ``computeSlatHeight``: ``Math.max(slatInnerHeight + 1,
-            // explicitSlatMinHeight)``.  Setting 22px matches the natural
-            // slot height in this fork's UX (label line-height + padding)
-            // and pairs with the fork-local patch in
-            // ``lib/fullcalendar/fullcalendar.esm.js`` that uses this
-            // value as a fall-back when label measurement is delayed (HOOT
-            // tests with deferred layout, ResizeObserver pending, etc.).
+            // slotMinHeight is FC v7's computeSlatHeight floor
+            // (Math.max(slatInnerHeight + 1, explicitSlatMinHeight)). 22px
+            // matches this fork's natural slot height and pairs with the
+            // fork-local fullcalendar.esm.js patch that falls back to it
+            // when label measurement is delayed (deferred layout in tests).
             slotMinHeight: 22,
             locale: Settings.defaultLocale,
             longPressDelay: 500,
@@ -306,29 +264,20 @@ export class CalendarCommonRenderer extends Component {
             eventTimeFormat: is24HourFormat() ? HOUR_FORMATS[24] : HOUR_FORMATS[12],
             viewDidMount: this.viewDidMount,
             fixedWeekCount: false,
-            // FC v7's ``StandardEvent.render`` only mounts the after-class
-            // <div> (which carries the ``fc-event-resizer-end`` re-injected
-            // by the fork patch at ``fullcalendar.esm.js`` line 9020)
-            // when ``afterClassName || afterContent`` is truthy.  Without
-            // a non-empty class generator for column/row events, the div
-            // is omitted entirely and the resize handle disappears even
-            // when ``isEndResizable`` is true.  Provide a stable, content-
-            // neutral class so the slot exists for every event; the
-            // resize-end / resize-start variants of ``isStartResizable`` /
-            // ``isEndResizable`` then add the cursor + resizer classes
-            // onto it.  Same rationale on the start side (line 9015) for
-            // ``eventResizableFromStart: true`` to take visible effect.
+            // FC v7's StandardEvent.render only mounts the after-class div
+            // (carries the fork-patched fc-event-resizer-end,
+            // fullcalendar.esm.js:9020) when afterClassName||afterContent is
+            // truthy, so without a non-empty generator the resize handle
+            // vanishes even when isEndResizable is true. Same rationale on
+            // the start side (line 9015) for eventResizableFromStart.
             columnEventAfterClass: "o_event_after",
             rowEventAfterClass: "o_event_after",
             columnEventBeforeClass: "o_event_before",
             rowEventBeforeClass: "o_event_before",
-            // FC v7 stopped attaching the v6 ``fc-highlight`` class to
-            // the date-range selection overlay (it now uses internal hashed
-            // classes via ``classNames.fill``).  Tests and CSS still target
-            // ``.fc-highlight`` for select-range visibility, so re-inject
-            // via the public ``highlightClass`` option.  The class is
-            // applied wherever FC renders a ``fillType === 'highlight'``
-            // segment — including ``selectMirror`` overlays.
+            // FC v7 dropped the v6 fc-highlight class on the date-range
+            // selection overlay (now uses internal hashed classNames.fill
+            // classes); re-inject via highlightClass so tests/CSS targeting
+            // .fc-highlight keep working, including selectMirror overlays.
             highlightClass: "fc-highlight",
         };
     }
@@ -340,42 +289,34 @@ export class CalendarCommonRenderer extends Component {
     }
 
     viewDidMount({ el, view, options }) {
-        // v7 dropped ``view.calendar.currentData.options`` — the same
-        // calendar options now arrive directly as the ``options`` field
-        // of the didMount payload (see ``fullcalendar.esm.js:5358``
-        // for the actual ``didMount({ ...renderProps, el })`` call).
-        // ``view`` itself only exposes ``{ type, getCurrentData, dateEnv }``
-        // in v7, so the old ``view.calendar`` reach-through is gone.
+        // v7 dropped view.calendar.currentData.options; the same options
+        // now arrive directly as the options field of the didMount payload
+        // (fullcalendar.esm.js:5358). view itself is just { type,
+        // getCurrentData, dateEnv } in v7.
         if (!options) {
             return; // v6-shape fallback or unexpected payload
         }
-        // FC v7's didMount payload echoes only a subset of options (the
-        // toolbars), not weekNumbers/weekTextShort. Read the week-number config
-        // from the renderer's own FullCalendar options rather than the partial
-        // didMount payload, which would otherwise leave showWeek undefined and
-        // skip the mobile week-number column entirely.
+        // The didMount payload only echoes a subset of options (toolbars),
+        // not weekNumbers/weekTextShort, so read those from this.options
+        // instead — otherwise showWeek is undefined and the mobile
+        // week-number column is skipped entirely.
         const showWeek = this.options.weekNumbers;
         const weekText = options.weekTextShort ?? this.options.weekText ?? "";
         const weekColumn = !this.customOptions.weekNumbersWithinDays;
         if (showWeek && weekColumn) {
             makeWeekColumn(/** @type {any} */ ({ el, weekText }));
         }
-        // v6 exposed ``fc-scroller`` (and ``fc-scroller-liquid-y``) on
-        // every Scroller wrapper. v7 hashes those class names —
-        // ``internalScroller`` for the wrapper and ``liquid`` for the
-        // growing vertical scroller — and regenerates the hashes on every
-        // build, so they're resolved at runtime via ``fcInternalClassName``
-        // rather than hard-coded. Tests, fork CSS in
-        // ``calendar_renderer.scss``, and downstream addons still target the
-        // v6 names; re-inject them in-place so the stable name lives next to
-        // the hashed one without overriding FC's internal styling.
+        // v6 exposed fc-scroller/fc-scroller-liquid-y on every Scroller
+        // wrapper; v7 hashes those (internalScroller/liquid, regenerated
+        // per build), resolved at runtime via fcInternalClassName. Tests
+        // and fork CSS/downstream addons still target the v6 names, so
+        // re-inject them alongside the hashed ones without overriding FC's
+        // internal styling.
         //
-        // Two scrollers per timegrid view: the day-name column header
-        // (horizontal, no overflow growth, not ``liquid``) and the time
-        // body (vertical, growing content, ``liquid``). Only the vertical
-        // scroller is auto-scrolled to ``scrollTime`` by ``applyTimeScroll``
-        // and is therefore the meaningful test anchor for
-        // ``[data-time="06:00:00"]`` alignment assertions.
+        // Two scrollers per timegrid view: the day-name header (horizontal,
+        // not liquid) and the time body (vertical, liquid) — only the
+        // latter is auto-scrolled by applyTimeScroll and is the meaningful
+        // anchor for [data-time="06:00:00"] alignment assertions.
         const scrollerClass = fcInternalClassName("internalScroller");
         const liquidClass = fcInternalClassName("liquid");
         for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
@@ -456,12 +397,10 @@ export class CalendarCommonRenderer extends Component {
         return [];
     }
     /**
-     * v7 ``dayCellClass`` generator — combines base v6 day-cell hooks
-     * (``fc-day``, grid-specific suffixes, state suffixes from cell
-     * render-props) with model-driven classes like ``o_calendar_disabled``
-     * for unusual days.  Declarative classes survive re-renders, unlike
-     * classes added imperatively in ``dayCellDidMount`` which v7 may wipe
-     * on partial updates.
+     * v7 dayCellClass generator — combines base v6 day-cell hooks with
+     * model-driven classes like o_calendar_disabled. Declarative classes
+     * survive re-renders, unlike imperative dayCellDidMount edits which v7
+     * may wipe on partial updates.
      *
      * :param info: cell render-props supplied by FullCalendar
      * :return: space-joined day-cell class names
@@ -496,7 +435,7 @@ export class CalendarCommonRenderer extends Component {
         }
         const record = this.props.model.records[event.id];
         if (record) {
-            // This is needed in order to give the possibility to change the event template.
+            // Allows subclasses to override the event template.
             const fragment = renderToFragment(
                 /** @type {any} */ (this.constructor).eventTemplate,
                 {
@@ -531,11 +470,10 @@ export class CalendarCommonRenderer extends Component {
             if (record.duration <= 0.25) {
                 classesToAdd.push("o_event_oneliner");
             }
-            // All-day records normalize ``end`` to ``end.startOf("day")``, so a
-            // single-day all-day event's ``end`` is midnight of that same day —
-            // comparing against it would grey the event out for its whole last
-            // day. Treat an all-day event as past only once its final day is
-            // fully over (i.e. at the start of the following day).
+            // All-day end is normalized to startOf("day"), so a single-day
+            // event's end is midnight that same day — comparing directly
+            // would grey it out all last day. Treat it as past only once its
+            // final day is fully over (start of the following day).
             const pastThreshold = record.isAllDay
                 ? record.end.plus({ days: 1 })
                 : record.end;
@@ -553,10 +491,8 @@ export class CalendarCommonRenderer extends Component {
     }
     onDayCellDidMount(info) {
         const classes = this.getDayCellClassNames(info);
-        // v7's renderProps shape varies between cell contexts (timegrid
-        // vs daygrid vs multimonth); ``info.el`` is the cell element
-        // when present.  Guard so a single bad payload doesn't take
-        // down the whole mount.
+        // v7's renderProps shape varies by cell context (timegrid/daygrid/
+        // multimonth); guard so a single bad payload doesn't crash the mount.
         if (classes.length && info.el) {
             info.el.classList.add(...classes);
         }
@@ -565,13 +501,12 @@ export class CalendarCommonRenderer extends Component {
     /**
      * Render the mobile month-view week-number cell.
      *
-     * FullCalendar v7 suppresses its inline week number on "micro" cells
-     * (``cellWidth <= 60px``, always the case on a phone-width month grid), so
-     * the dedicated week column the mobile layout expects never appears. This
-     * hook fires for every day cell on every render -- unlike ``viewDidMount``,
-     * which runs once and whose imperative edits FullCalendar discards on the
-     * next body re-render -- so injecting here keeps the column stable. The
-     * companion ``.o-fc-week-header`` is added by ``makeWeekColumn``.
+     * FC v7 suppresses its inline week number on "micro" cells (cellWidth
+     * <= 60px, always true on a phone-width month grid). This hook fires per
+     * day cell on every render — unlike viewDidMount (runs once; FC discards
+     * its imperative edits on the next body re-render) — so injecting here
+     * keeps the column stable. Companion .o-fc-week-header is added by
+     * makeWeekColumn.
      *
      * @param {Object} info - FullCalendar dayCellDidMount payload ({ el, date })
      */
@@ -676,43 +611,31 @@ export class CalendarCommonRenderer extends Component {
      */
     fcEventToRecord(event) {
         const { id, allDay, date, start, end } = event;
-        // FullCalendar v7 emits two different Date conventions to the
-        // ``select`` / ``eventDrop`` / ``eventResize`` callbacks depending
-        // on the ``timeZone`` option:
-        //   - IANA / named zone (e.g. ``"Africa/Algiers"``): real-epoch
-        //     Date — getTime() is the wall-clock instant.  ``fromJSDate``
-        //     reads correctly: the local zone applied by Luxon matches
-        //     FC's interpretation.
-        //   - ``"local"`` (returned by ``getFullCalendarTimeZone()`` for
-        //     ``FixedOffsetZone`` defaults like ``mockTimeZone(N)``): a
-        //     **marker** Date — its UTC components encode the visible
-        //     local-clock components, not the real wall-clock instant.
-        //     A click at local 06:00 with ``mockTimeZone(2)`` arrives as
-        //     ``new Date("2016-12-13T06:00:00Z")`` (the UTC encoding of
-        //     06:00 local), *not* ``"2016-12-13T04:00:00Z"`` (the real
-        //     UTC instant).  ``fromJSDate`` mis-adds the offset twice and
-        //     lands the record at 08:00 local / 06:00 UTC instead of
-        //     06:00 local / 04:00 UTC.
+        // FC v7 emits two different Date conventions to select/eventDrop/
+        // eventResize depending on timeZone:
+        //   - IANA/named zone: real-epoch Date — fromJSDate reads correctly.
+        //   - "local" (from getFullCalendarTimeZone() for FixedOffsetZone
+        //     defaults like mockTimeZone(N)): a MARKER Date whose UTC
+        //     components encode the visible local-clock time, not the real
+        //     instant. A click at local 06:00 with mockTimeZone(2) arrives
+        //     as "2016-12-13T06:00:00Z", not the real UTC "...T04:00:00Z" —
+        //     fromJSDate would mis-add the offset twice and land at 08:00
+        //     local instead of 06:00.
         //
-        // Detect the ``"local"`` case by re-querying the timezone string
-        // and rebuild the DateTime from UTC components in the local zone
-        // so serializers produce the user-visible clock time.  See
-        // ``fullcalendar.esm.js:1767-1789`` (``timestampToMarker`` /
-        // ``toDate``) for the FC-side conversion this mirrors.
+        // Detect the "local" case and rebuild the DateTime from UTC
+        // components in the local zone so serializers produce the
+        // user-visible clock time. See fullcalendar.esm.js:1767-1789
+        // (timestampToMarker/toDate) for the FC-side conversion mirrored here.
         const isMarkerMode = getFullCalendarTimeZone() === "local";
         const Lux = DateTime;
         const fromFcDate = (d) => {
             if (!isMarkerMode) {
                 return Lux.fromJSDate(d);
             }
-            // Marker dates from FC v7's drag/drop can pick up
-            // sub-minute drift when the test harness's ``Date.now()``
-            // is mocked but continues to advance during the gesture —
-            // a moved event arrives with ``HH:mm:01.123Z`` instead of
-            // ``HH:mm:00.000Z``. Snap to the calendar's
-            // ``snapDuration`` (15 minutes) by truncating seconds and
-            // milliseconds; sub-minute precision is meaningless for a
-            // drag-drop on a 15-minute grid anyway.
+            // Marker dates from FC v7 drag/drop can pick up sub-minute
+            // drift when the mocked Date.now() advances during the gesture
+            // (HH:mm:01.123Z instead of :00.000Z). Truncate to snapDuration
+            // (15min) — sub-minute precision is meaningless on this grid.
             return Lux.fromObject({
                 year: d.getUTCFullYear(),
                 month: d.getUTCMonth() + 1,

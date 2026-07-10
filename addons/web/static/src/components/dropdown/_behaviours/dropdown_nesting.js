@@ -72,12 +72,9 @@ class DropdownNestingState {
 }
 
 /**
- * This hook is used to manage communication between dropdowns.
- *
- * When a dropdown is open, every other dropdown that is not a parent
- * is closed. It also uses the current's ui active element to only
- * close itself when the active element is the same as the current
- * dropdown to separate dropdowns in different dialogs.
+ * Closes every open dropdown that isn't a parent of this one when this one
+ * opens. Scoped to dropdowns sharing the same UI active element, so
+ * dropdowns in different dialogs don't interfere.
  *
  * @param {import("@web/components/dropdown/dropdown_hooks").DropdownState} state
  * @returns
@@ -90,7 +87,7 @@ export function useDropdownNesting(state) {
         close: () => state.close(),
     });
 
-    // Set up UI active element related behavior ---------------------------
+    // Set up UI active element related behavior
     const uiService = useService("ui");
     useEffect(
         () => {

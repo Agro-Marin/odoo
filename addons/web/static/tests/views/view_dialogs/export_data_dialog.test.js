@@ -489,7 +489,6 @@ test("Export dialog: compatible and export type options", async () => {
     def.resolve();
     await animationFrame();
     await contains(".o_select_button").click();
-    // download file has been called with the correct url
     expect.verifySteps(["/web/export/wow"]);
 });
 
@@ -523,7 +522,6 @@ test("toggling import compatibility after adding an expanded field", async () =>
     await contains(".o_import_compat input").click();
     await contains("[data-field_id='activity_ids']").click();
     await contains(".o_select_button").click();
-    // download file has been called with the correct url
     expect.verifySteps(["/web/export/csv"]);
 });
 

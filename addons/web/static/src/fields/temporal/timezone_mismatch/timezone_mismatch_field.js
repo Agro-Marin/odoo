@@ -69,12 +69,8 @@ export class TimezoneMismatchField extends SelectionField {
                     (Number.parseInt(offset[2], 10) * 60 +
                         Number.parseInt(offset[3], 10));
                 const browserOffset = -new Date().getTimezoneOffset();
-                // UTC time of the user's selected timezone.
-                // E.g.
-                // - current time in UTC, say equal to 2021-01-01T00:00:00Z
-                // - userOffset of +0300 = 180 minutes
-                // - browserOffset of +0200 = -new Date().getTimezoneOffset() = 120 minutes
-                // - userUTCDatetime is then 2021-01-01T01:00:00Z
+                // UTC time of the user's selected timezone, e.g. UTC 00:00 with
+                // userOffset +0300 and browserOffset +0200 gives 01:00.
                 const userUTCDatetime = DateTime.utc().plus({
                     minutes: userOffset - browserOffset,
                 });

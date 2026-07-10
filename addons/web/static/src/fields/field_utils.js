@@ -14,8 +14,6 @@
 export const isFalseEmpty = (record, fieldName) => record.data[fieldName] === false;
 
 /**
- * Extract digits precision from field attrs or options.
- *
  * The digits parameter is available as both an XML attribute (JSON string)
  * and a widget option (array). The attribute takes precedence.
  *
@@ -38,10 +36,9 @@ export function extractDigits({ attrs, options }) {
 }
 
 /**
- * Extract common numeric field props shared by float and integer fields.
- *
- * Covers formatting toggle, human-readable mode, input type, step size,
- * and decimal precision — the five props duplicated across both extractProps.
+ * Extract numeric field props shared by float and integer fields (formatting
+ * toggle, human-readable mode, input type, step size, decimal precision) to
+ * avoid duplicating them across both extractProps.
  *
  * @param {{ options: Record<string, any> }} params
  * @returns {{ formatNumber: boolean, humanReadable: boolean, inputType: string | undefined, step: number | undefined, decimals: number }}

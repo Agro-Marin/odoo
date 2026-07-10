@@ -5,7 +5,6 @@
 
 import { Component } from "@odoo/owl";
 
-/** Simple tooltip component rendered by the tooltip service. */
 export class Tooltip extends Component {
     static template = "web.Tooltip";
     static props = {

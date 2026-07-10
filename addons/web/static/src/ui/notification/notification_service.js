@@ -24,7 +24,6 @@ import { NotificationContainer } from "./notification_container.js";
  * @property {NotificationButton[]} [buttons]
  */
 
-/** Service that manages toast notifications displayed in the top-right corner. */
 export const notificationService = {
     notificationContainer: NotificationContainer,
 

@@ -180,7 +180,6 @@ test("widget many2many_tags_avatar in list view", async () => {
         ".o_data_row:eq(0) .o_field_many2many_tags_avatar .o_avatar img",
     ).toHaveCount(2);
 
-    // Edit first row
     await contains(".o_data_row:nth-child(1) .o_data_cell").click();
 
     // Only the first row should have tags with delete buttons.
@@ -201,7 +200,6 @@ test("widget many2many_tags_avatar list view - don't crash on keyboard navigatio
             `,
     });
 
-    // Edit second row
     await contains(".o_data_row:nth-child(2) .o_data_cell").click();
 
     // Pressing left arrow should focus on the right-most (second) tag.
@@ -303,20 +301,16 @@ test("widget many2many_tags_avatar in kanban view", async () => {
     await animationFrame();
     expect(".o-overlay-container input").toBeFocused();
     expect(".o-overlay-container .o_tag").toHaveCount(4);
-    // delete inside the popover
     await contains(".o-overlay-container .o_tag .o_delete:eq(0)", {
         visible: false,
         displayed: true,
     }).click();
     expect(".o-overlay-container .o_tag").toHaveCount(3);
     expect(".o_kanban_record:nth-child(3) .o_tag").toHaveCount(3);
-    // select first non selected input
     await contains(".o-overlay-container .o-autocomplete--dropdown-item:eq(4)").click();
     expect(".o-overlay-container .o_tag").toHaveCount(4);
     expect(".o_kanban_record:nth-child(3) .o_tag").toHaveCount(2);
-    // load more
     await contains(".o-overlay-container .o_m2o_dropdown_option_search_more").click();
-    // first non already selected item
     await contains(".o_dialog .o_list_table .o_data_row .o_data_cell:eq(3)").click();
     expect(".o-overlay-container .o_tag").toHaveCount(5);
     expect(".o_kanban_record:nth-child(3) .o_tag").toHaveCount(2);
@@ -351,7 +345,6 @@ test("widget many2many_tags_avatar add/remove tags in kanban view", async () => 
     await contains(".o_kanban_record:eq(0) .o_quick_assign", {
         visible: false,
     }).click();
-    // add and directly remove an item
     await contains(".o_popover .o-autocomplete--dropdown-item:eq(0)").click();
     await contains(".o_popover .o_tag .o_delete", { visible: false }).click();
     expect.verifySteps(["web_save: 4-1", "web_save: 3-1"]);
@@ -400,7 +393,6 @@ test("widget many2many_tags_avatar quick add tags and close in kanban view with 
     await contains(".o_kanban_record:eq(0) .o_quick_assign", {
         visible: false,
     }).click();
-    // add and directly close the dropdown
     await press("Tab");
     await press("Enter");
     await animationFrame();

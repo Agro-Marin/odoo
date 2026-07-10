@@ -34,11 +34,9 @@ export class CalendarSidePanel extends Component {
                             (scales.indexOf(this.props.model.scale) + 1) % scales.length
                         ];
                 } else {
-                    // Check if dates are on the same week. Luxon's
-                    // hasSame(b, "week") always treats the week as starting on
-                    // Monday, so bucket both dates by the locale's own week
-                    // start instead: two dates share a week iff their local
-                    // week starts fall on the same day.
+                    // Luxon's hasSame(b, "week") assumes Monday-start weeks, so bucket by
+                    // the locale's own week start instead: two dates share a week iff
+                    // their local week starts fall on the same day.
                     const currentWeekStart = getStartOfLocalWeek(this.props.model.date);
                     const pickedWeekStart = getStartOfLocalWeek(date);
                     if (currentWeekStart.hasSame(pickedWeekStart, "day")) {

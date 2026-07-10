@@ -7,39 +7,19 @@ import { SignalStore } from "@web/core/utils/reactive";
 
 /**
  * Observable state machine for the sample-data axis of a {@link Model}.
+ * Replaces the bare ``model.useSampleModel`` boolean with the Coordinator
+ * pattern used elsewhere in the model layer ({@link UrgentSaveCoordinator}).
+ * The *load* axis of RelationalModel has no equivalent coordinator — it's
+ * governed by ``loadId`` epochs in ``_loadData``/``_getCacheParams`` instead.
  *
- * Replaces the bare ``model.useSampleModel`` boolean with the
- * Coordinator pattern used elsewhere in the model layer
- * ({@link UrgentSaveCoordinator}, ``FormSaveCoordinator`` in
- * views/form). Note that the *load* axis of RelationalModel has no
- * coordinator: it is governed by ``loadId`` epochs stamped in
- * ``_loadData`` plus the root-swap / ``loadId`` guards in
- * ``_getCacheParams`` (with ``keepLast`` cancelling stale loads).
+ * ``Model`` keeps ``useSampleModel`` as a getter/setter delegating to this
+ * coordinator for backward compatibility with existing read/write sites
+ * ({@link PivotModel}, {@link GraphModel} write via {@link enter}/{@link exit}).
  *
- * **Backward compatibility**: ``Model`` keeps ``useSampleModel`` as
- * a getter/setter pair that delegates to this coordinator. The
- * historical 11 read-sites across the views layer (pivot_controller,
- * list_renderer, list_keyboard_nav, list_controller, kanban
- * renderer, etc.) continue to work unchanged via the getter; the
- * two write-sites in {@link PivotModel} and {@link GraphModel}
- * route through the setter into {@link enter} / {@link exit}.
- *
- * **Scope** — what this coordinator does AND does NOT do:
- *
- *   - **Does**: own the active / off flag for the sample-data mode,
- *     expose ``isActive`` for readers, and serve as the singleton
- *     event surface that future debug tooling can subscribe to.
- *
- *   - **Does NOT** own the sample-server instance (``sample_server.js``)
- *     or decide *when* sample mode should activate — those remain on
- *     the specific Model subclass (RelationalModel, PivotModel,
- *     GraphModel each have their own activation policy).
- *
- * The state machine is intentionally simpler than the load axis of
- * RelationalModel (which needs ``loadId`` epochs to detect superseded
- * loads): only ``off ⇄ active`` with no epoch counter, because sample
- * mode is set/cleared from synchronous code paths (no async race
- * between concurrent entries to worry about).
+ * Owns only the active/off flag and ``isActive``; does NOT own the
+ * sample-server instance or decide when sample mode activates — that stays
+ * on each Model subclass. State is just ``off ⇄ active`` (no epoch counter)
+ * since sample mode is always set/cleared synchronously.
  *
  * @typedef {"off" | "active"} SampleStatus
  */
@@ -67,11 +47,8 @@ export class SampleDataCoordinator extends SignalStore {
     }
 
     /**
-     * Mirror ``useSampleModel = bool`` assignment for the two write
-     * sites in PivotModel / GraphModel that currently do
-     * ``this.useSampleModel = false``.  Truthy values activate, falsy
-     * deactivate — same semantics as the underlying boolean.
-     *
+     * Mirror ``useSampleModel = bool`` assignment used by PivotModel/GraphModel
+     * write sites. Truthy activates, falsy deactivates.
      * @param {boolean} value
      */
     set(value) {

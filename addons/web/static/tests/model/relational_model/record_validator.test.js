@@ -168,7 +168,7 @@ describe("findUnsetRequiredFields — html", () => {
 
     test("flags required html when length is 0", () => {
         const activeFields = { body: {} };
-        const data = { body: "" }; // length 0
+        const data = { body: "" };
         const result = findUnsetRequiredFields(
             activeFields,
             fields,
@@ -398,7 +398,6 @@ describe("findUnsetRequiredFields — properties", () => {
             data,
             makeCallbacks({ required: ["derived_prop"] }),
         );
-        // relatedPropertyField is always skipped
         expect(result.has("derived_prop")).toBe(false);
     });
 });
@@ -406,14 +405,10 @@ describe("findUnsetRequiredFields — properties", () => {
 // ===========================================================================
 // Orchestration helpers — added in Phase 2 of the model-layer decomposition
 // (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
-//
-// These tests target the helpers directly with a hand-rolled mock record.
-// The mock supplies only the surface each helper reads — invalidFields Set,
-// unsetRequiredFields Set, model.hooks namespaces, multiEdit hooks, etc.
-//
-// Imports for these helpers live at the top of this file (consolidated with
-// the existing findUnsetRequiredFields import) to satisfy ES-module
-// top-level-import semantics.
+// Tests target the helpers directly with a hand-rolled mock record exposing
+// only the surface each helper reads (invalidFields Set, unsetRequiredFields
+// Set, model.hooks, multiEdit hooks, etc.). Imports are consolidated at the
+// top of the file per ES-module top-level-import semantics.
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -422,11 +417,8 @@ describe("findUnsetRequiredFields — properties", () => {
 
 /**
  * Builds the minimum record shape consumed by the orchestration helpers.
- *
- * Defaults exercise the happy path:
- *   - no invalid fields, no unset required fields
- *   - hooks return undefined (allow), notification hook returns a no-op closer
- *   - not selected, multiEdit off
+ * Defaults exercise the happy path: no invalid/unset-required fields, hooks
+ * allow by default, not selected, multiEdit off.
  *
  * @param {Object} [opts]
  * @param {Object} [opts.activeFields={}]

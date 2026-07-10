@@ -69,11 +69,9 @@ describe("enabled()", () => {
     });
 
     test("disabled by default (no localStorage flag, no debug substring)", () => {
-        // We can't reliably scrub odoo.debug here (tests may run with it
-        // set), so only assert on the namespaces whose substrings are
-        // unlikely to appear in odoo.debug (rpc, action, model). The
-        // asset namespace is allowed to be enabled if the test runner
-        // itself ran with ?debug=assets.
+        // odoo.debug can't be reliably scrubbed here, so only assert on namespaces
+        // whose substrings are unlikely to appear in it (rpc, action, model); asset
+        // may already be enabled if the test runner ran with ?debug=assets.
         if (!globalThis.localStorage.getItem("debug.rpc")) {
             expect(rpcLog.enabled()).toBe(false);
         }
@@ -128,9 +126,8 @@ describe("enabled()", () => {
 describe("log emission", () => {
     test("short-circuits to no-op when disabled", () => {
         const calls = captureConsoleDebug(() => {
-            // Ensure all four namespaces are quiet (caller's own
-            // localStorage may have set flags; scope each call by
-            // clearing only the affected key).
+            // Ensure all four namespaces are quiet; scope each call to clear only
+            // its own key in case the caller's localStorage set others.
             withLocalStorage("debug.rpc", "", () => rpcLog("test", "x"));
             withLocalStorage("debug.action", "", () => actionLog("test", "x"));
             withLocalStorage("debug.model", "", () => modelLog("test", "x"));

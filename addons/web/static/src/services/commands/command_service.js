@@ -178,7 +178,6 @@ export const commandService = {
                 return;
             }
 
-            // Open Command Palette dialog
             isPaletteOpened = true;
             currentOnClose = onClose;
             dialog.add(

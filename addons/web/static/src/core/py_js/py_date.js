@@ -52,11 +52,9 @@ function strftime(format, converters) {
 export class PyDate {
     /**
      * The current date in the USER's timezone. Date fields are timezone-
-     * naive (stored and shipped as-is, no UTC conversion), so a
-     * ``date_field >= today`` domain/modifier must use the date the user
-     * perceives as today. (Datetime comparison is different — see
-     * ``PyDateTime.now``, which is UTC.) ``context_today()`` is an alias of
-     * this (py_builtin.js).
+     * naive (stored/shipped as-is), so a ``date_field >= today`` domain
+     * must use the user-perceived today — unlike ``PyDateTime.now``, which
+     * is UTC. ``context_today()`` (py_builtin.js) aliases this.
      *
      * @returns {PyDate}
      */
@@ -166,10 +164,9 @@ export class PyDate {
     }
 
     /**
-     * Ordering protocol: JS relational operators (``<``, ``>``, ...) coerce
-     * objects through ToPrimitive, which calls ``valueOf``. Returning the
-     * ordinal day number makes two dates compare chronologically (equality
-     * stays on the ``isEqual`` hook and is unaffected).
+     * Ordering protocol: relational operators (``<``, ``>``) coerce via
+     * ToPrimitive → ``valueOf``. Returning the ordinal makes dates compare
+     * chronologically; equality still goes through ``isEqual``.
      *
      * @returns {number}
      */
@@ -185,12 +182,10 @@ const UNIX_EPOCH_ORDINAL = 719163;
 
 export class PyDateTime {
     /**
-     * The current datetime in UTC — matching how the SERVER evaluates
-     * ``datetime.now()`` in domains/modifiers, and directly comparable to
-     * datetime record values (which are UTC strings in eval contexts).
-     * Comparing a LOCAL now against UTC record values made every
-     * ``deadline < now``-style decoration/domain drift by the user's UTC
-     * offset.
+     * The current datetime in UTC — matches how the SERVER evaluates
+     * ``datetime.now()`` in domains/modifiers, directly comparable to UTC
+     * datetime record values. Using LOCAL now made ``deadline < now``-style
+     * checks drift by the user's UTC offset.
      *
      * @returns {PyDateTime}
      */
@@ -340,8 +335,6 @@ export class PyDateTime {
     }
 
     /**
-     * Subtract a timedelta or another datetime from this datetime.
-     *
      * @param {PyTimeDelta | PyDateTime} other
      * @returns {PyDateTime | PyTimeDelta}
      */
@@ -564,11 +557,10 @@ export class PyRelativeDelta {
             throw new NotSupportedError();
         }
 
-        // First pass: resolve the target year and month from the year/month
-        // arithmetic, then clamp the day to the length of the target month.
-        // dateutil semantics: a day past the end of the target month lands on
-        // its last day, e.g. 2020-01-31 + relativedelta(months=1) is
-        // 2020-02-29 — it must not roll over into 2020-03-02.
+        // First pass: resolve target year/month, then clamp day to the
+        // target month's length. dateutil semantics: a day past month-end
+        // lands on the last day (2020-01-31 + months=1 → 2020-02-29, never
+        // rolling over into 2020-03-02).
         let year = (delta.year ?? date.year) + delta.years;
         let month = (delta.month ?? date.month) + delta.months;
         if (month < 1 || month > 12) {
@@ -683,9 +675,8 @@ export class PyRelativeDelta {
      * @param {PyRelativeDelta} other
      */
     isEqual(other) {
-        // For now we don't do normalization in the constructor (or create method).
-        // That is, we only compute the overflows at the time we add or subtract.
-        // This is why we can't support isEqual for now.
+        // Normalization only happens on add/subtract, not in the
+        // constructor, so isEqual can't be supported yet.
         throw new NotSupportedError();
     }
 }

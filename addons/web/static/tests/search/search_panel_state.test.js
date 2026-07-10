@@ -24,9 +24,7 @@ import {
     toggleFilterValues,
 } from "@web/search/search_panel/search_panel_state";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Build a minimal SearchModel mock for search panel state functions.
@@ -83,9 +81,7 @@ function makeFilter(id, valueEntries = [], overrides = {}) {
     };
 }
 
-// ---------------------------------------------------------------------------
 // toggleCategoryValue
-// ---------------------------------------------------------------------------
 
 describe("toggleCategoryValue", () => {
     test("sets activeValueId on the category", () => {
@@ -118,9 +114,7 @@ describe("toggleCategoryValue", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // toggleFilterValues
-// ---------------------------------------------------------------------------
 
 describe("toggleFilterValues", () => {
     test("toggles checked state of given value IDs", () => {
@@ -178,9 +172,7 @@ describe("toggleFilterValues", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // clearSections
-// ---------------------------------------------------------------------------
 
 describe("clearSections", () => {
     test("resets category activeValueId to false", () => {
@@ -223,9 +215,7 @@ describe("clearSections", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // getSections
-// ---------------------------------------------------------------------------
 
 describe("getSections", () => {
     test("returns sections in Map insertion order (arch order)", () => {
@@ -299,9 +289,7 @@ describe("getSections", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // ensureCategoryValue
-// ---------------------------------------------------------------------------
 
 describe("ensureCategoryValue", () => {
     test("keeps activeValueId when it is in valueIds", () => {
@@ -329,9 +317,7 @@ describe("ensureCategoryValue", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // createCategoryTree
-// ---------------------------------------------------------------------------
 
 describe("createCategoryTree", () => {
     test("populates values Map from server result", () => {
@@ -431,9 +417,7 @@ describe("createCategoryTree", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // createFilterTree
-// ---------------------------------------------------------------------------
 
 describe("createFilterTree", () => {
     test("populates values from flat server result", () => {
@@ -482,9 +466,7 @@ describe("createFilterTree", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // shouldWaitForData
-// ---------------------------------------------------------------------------
 
 describe("shouldWaitForData", () => {
     test("returns true when categories exist AND any filter has non-empty domain", () => {

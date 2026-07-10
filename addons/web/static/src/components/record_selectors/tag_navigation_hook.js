@@ -6,10 +6,8 @@
 import { useRef } from "@odoo/owl";
 import { useNavigation } from "@web/services/navigation/navigation";
 /**
- * This hook allows to navigate between tags in a record selector. It also
- * allows to delete tags with the backspace key.
- * It is meant to be used in component which contains both the components
- * `Autocomplete` and `TagList`.
+ * Navigate between tags in a record selector with arrow keys and delete them
+ * with backspace. Used in components containing both `Autocomplete` and `TagList`.
  *
  * @param {string} refName Name of the t-ref which contains the `Autocomplete` and `TagList` components.
  * @param {object} [options]

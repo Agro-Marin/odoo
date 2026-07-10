@@ -394,10 +394,8 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Fetch and process graph data.  It is basically a(some) read_group(s)
-     * with correct fields for each domain.  We have to do some light processing
-     * to separate date groups in the field list, because they can be defined
-     * with an aggregation function, such as my_date:week.
+     * Fetch and process graph data via read_group(s), with light processing to
+     * separate date groups, which may carry an aggregation function (e.g. my_date:week).
      * @protected
      * @param {Object} metaData
      * @returns {Promise<any[]>}
@@ -566,7 +564,6 @@ export class GraphModel extends Model {
                 datasetId: groupId,
                 cumulatedStart: cumulatedStartValue[groupId] || 0,
             };
-            // There is a currency aggregate
             if (monetaryAggregates) {
                 const currencies = group[monetaryAggregates[0]];
                 dataPoint.currencyId = currencies[0];

@@ -32,11 +32,9 @@ favoriteMenuRegistry.addValidation({
 });
 
 /**
- * Dropdown menu that groups Filter, Group By, and Favorites panels.
- *
- * Renders within the search bar and provides the UI for toggling filters,
- * date filters, group-bys, custom group-bys, property group-bys,
- * favorites, and registry-provided favorite menu items.
+ * Dropdown menu, rendered in the search bar, that groups the Filter,
+ * Group By (incl. custom/property group-bys), and Favorites panels, plus
+ * registry-provided favorite menu items.
  */
 export class SearchBarMenu extends Component {
     static template = "web.SearchBarMenu";

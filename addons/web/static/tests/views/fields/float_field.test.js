@@ -277,7 +277,6 @@ test("float field in editable list view", async () => {
             </list>`,
     });
 
-    // switch to edit mode
     await contains("tr.o_data_row td:not(.o_list_record_selector)").click();
 
     expect('div[name="float_field"] input').toHaveCount(1, {
@@ -418,7 +417,6 @@ test("field with enable_formatting option as false in editable list view", async
             </list>`,
     });
 
-    // switch to edit mode
     await contains("tr.o_data_row td:not(.o_list_record_selector)").click();
 
     expect('div[name="float_field"] input').toHaveCount(1, {

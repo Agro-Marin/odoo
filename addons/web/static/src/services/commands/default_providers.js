@@ -62,8 +62,8 @@ commandProviderRegistry.add("command", {
         const commands = env.services.command
             .getCommands(options.activeElement)
             .map((/** @type {Record<string, any>} */ cmd) => ({
-                // Copy: mutating cmd.category in place would permanently rewrite
-                // the registered command object's category.
+                // Copy — mutating cmd.category in place would rewrite the
+                // registered command object.
                 ...cmd,
                 category: commandCategoryRegistry.contains(cmd.category)
                     ? cmd.category
@@ -102,15 +102,14 @@ commandProviderRegistry.add("data-hotkeys", {
             registry.category("services").get("hotkey")
         ).overlayModifier;
         // The hotkey service only replaces [accesskey] attrs by [data-hotkey]
-        // when an overlay-modifier key is pressed: convert the pending ones
-        // now so their commands appear without requiring a prior ALT press.
+        // on an overlay-modifier keypress: convert pending ones now so their
+        // commands appear without requiring a prior ALT press.
         for (const el of document.querySelectorAll("[accesskey]")) {
             if (el instanceof HTMLElement) {
                 el.dataset.hotkey = el.accessKey;
                 el.removeAttribute("accesskey");
             }
         }
-        // Also retrieve all hotkeyables elements
         for (const el of getVisibleElements(
             options.activeElement,
             "[data-hotkey]:not(:disabled)",

@@ -248,14 +248,10 @@ export function isMarkup(content) {
  */
 export function odoomark(text) {
     /**
-     * Mapping of patterns - replacer functions to apply to odoomarked strings.
-     *
-     * For the content passed directly to `markup` (e.g. **bold** or ``tagged``):
-     * the content is considered safe, as it directly comes from {@link htmlReplaceAll}
-     * which uses {@link htmlEscape}.
-     *
-     * Note: this list is declared inline in the `odoomark` function to avoid other
-     * functions using the marked-up replacers for injection.
+     * Mapping of patterns to replacer functions for odoomarked strings. Content
+     * passed to `markup` here is safe because it comes from {@link htmlReplaceAll}
+     * (which uses {@link htmlEscape}). Declared inline so other functions can't
+     * reuse these marked-up replacers for injection.
      */
     const replacers = [
         // Line break

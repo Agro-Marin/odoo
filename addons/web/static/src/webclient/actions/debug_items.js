@@ -112,7 +112,6 @@ function manageFilters({ action, env }) {
         type: "item",
         description,
         callback: async () => {
-            // manage_filters
             await env.services.action.doAction({
                 res_model: "ir.filters",
                 name: description,

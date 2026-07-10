@@ -18,24 +18,23 @@ const _allScriptsLoaded = new Promise((resolve) => {
 
 const retriggeringWaitingProms = [];
 /**
- * Function to use as an event handler to replay the incoming event after the
- * whole lazy JS has been loaded. Note that blocking the incoming event is left
- * up to the caller (i.e. a potential wrapper, @see waitLazy).
+ * Event handler that replays the incoming event once the lazy JS has
+ * loaded. Blocking the incoming event is left to the caller (a potential
+ * wrapper, @see waitLazy).
  *
  * @param {Event} ev
  * @returns {Promise<void>}
  */
 async function waitForLazyAndRetrigger(ev) {
-    // Wait for the lazy JS to be loaded before re-triggering the event.
     const targetEl = /** @type {HTMLElement} */ (ev.target);
     await _allScriptsLoaded;
     // Loaded scripts were able to add a delay to wait for before re-triggering
     // events: we wait for it here.
     await Promise.all(retriggeringWaitingProms);
 
-    // At the end of the current execution queue, retrigger the event. Note that
-    // the event is reconstructed: this is necessary in some cases, e.g. submit
-    // buttons. Probably because the event was originally defaultPrevented.
+    // At the end of the current execution queue, retrigger the event. The
+    // event is reconstructed — necessary in some cases (e.g. submit
+    // buttons), probably because the original event was defaultPrevented.
     setTimeout(() => {
         // Extra safety check: the element might have been removed from the DOM
         if (targetEl.isConnected) {
@@ -64,15 +63,12 @@ function registerLoadingEffectHandler(el, type, handler) {
 let waitingLazy = false;
 
 /**
- * Automatically adds a loading effect on clicked buttons (that were not marked
- * with a specific class). Once the whole JS has been loaded, the events will be
- * triggered again.
+ * Adds a loading effect on clicked buttons (unless opted out via a specific
+ * class); once the whole JS has loaded, the events are retriggered.
  *
- * For forms, we automatically prevent submit events (since can be triggered
- * without click on a button) but we do not retrigger them (could be duplicate
- * with re-trigger of a click on a submit button otherwise). However, submitting
- * a form in any way should most of the time simulate a click on the submit
- * button if any anyway.
+ * Form submits are prevented but not retriggered (would duplicate a submit
+ * button's click retrigger) — submitting a form should usually simulate a
+ * click on its submit button anyway.
  *
  * @see stopWaitingLazy
  */
@@ -92,20 +88,15 @@ function waitLazy() {
     ]
         // We target all buttons but...
         .filter((el) => {
-            // ... we allow to disable the effect by adding a specific class if
-            // needed. Note that if some non-lazy loaded code is adding an event
-            // handler on some buttons, it means that if they do not have that
-            // class, they will show a loading effect and not do anything until
-            // lazy JS is loaded anyway. This is not ideal, especially since
-            // this was added as a stable fix/imp, but this is a compromise: on
-            // next page visits, the cache should limit to effect of the lazy
-            // loading anyway.
+            // ... allow disabling the effect via that class. Buttons without
+            // it that get handlers from non-lazy code will show a stuck
+            // loading effect until lazy JS loads — a known compromise (added
+            // as a stable fix), mitigated by caching on later page visits.
             return (
                 !el.classList.contains("o_no_wait_lazy_js") &&
-                // ... we also allow do not consider links with a href which is
-                // not "#". They could be linked to handlers that prevent their
-                // default behavior but we consider that following the link
-                // should still be relevant in that case.
+                // ... also exclude links with an href other than "#" — even
+                // if a handler prevents their default, following the link is
+                // still likely relevant.
                 !(
                     el.nodeName === "A" &&
                     el.getAttribute("href") &&
@@ -192,14 +183,12 @@ if (document.readyState === "complete") {
 }
 
 // Maximum time to wait for a single lazy script to settle ("load" or
-// "error") before unblocking the page anyway. A request that hangs (stalled
-// connection, unresponsive server) fires neither event: without this
-// watchdog, the allScriptsLoaded promise would never resolve, so
-// @see stopWaitingLazy would never run and every button/form blocked by
-// @see waitLazy would stay unusable forever. 60s is far beyond any sane
-// bundle load time (a legitimately slow load is thus never cut short in
-// practice) and matches the module loader's one-reload-per-minute self-heal
-// guard window.
+// "error") before unblocking the page anyway. A hung request (stalled
+// connection, unresponsive server) fires neither event, so without this
+// watchdog @see stopWaitingLazy would never run and every button/form
+// blocked by @see waitLazy would stay unusable forever. 60s is far beyond
+// any sane bundle load time and matches the module loader's
+// one-reload-per-minute self-heal guard window.
 const SCRIPT_LOAD_TIMEOUT_DELAY = 60000;
 /** @type {number | undefined} */
 let scriptLoadWatchdogTimer;

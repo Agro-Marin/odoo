@@ -44,10 +44,7 @@ export class JournalDashboardGraphField extends Component {
         );
     }
 
-    /**
-     * Instantiates a Chart (Chart.js lib) to render the graph according to
-     * the current config.
-     */
+    /** Instantiates the Chart.js chart for the current config. */
     renderChart() {
         if (this.chart) {
             this.chart.destroy();

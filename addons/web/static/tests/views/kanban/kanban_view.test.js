@@ -542,9 +542,7 @@ test("basic grouped rendering", async () => {
     // focuses the search bar and closes the dropdown
     await click(".o_searchview input");
 
-    // the next line makes sure that reload works properly.  It looks useless,
-    // but it actually test that a grouped local record can be reloaded without
-    // changing its result.
+    // Looks useless, but tests that a grouped local record can be reloaded without changing its result.
     await validateSearch();
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(3);
     expect.verifySteps(["rendered"]);
@@ -1348,9 +1346,8 @@ test("pager, ungrouped, with count limit reached, edit pager", async () => {
     ]);
 
     await contains("span.o_pager_value").click();
-    // FIXME: we have to click out instead of confirming, because somehow if the
-    // web_search_read calls come back too fast when pressing "Enter", another
-    // RPC is triggered right after.
+    // FIXME: click out instead of confirming, because if web_search_read calls come back
+    // too fast when pressing "Enter", another RPC is triggered right after.
     await contains("input.o_pager_value").edit("2-4", { confirm: "blur" });
 
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(3);
@@ -3370,12 +3367,9 @@ test("quick create record: cancel when modal is opened", async () => {
     await click(".o_m2o_dropdown_option_create_edit"); // open create and edit dialog
     await animationFrame();
 
-    // When focusing out of the many2one, a modal to add a 'product' will appear.
-    // The following assertions ensures that a click on the body element that has 'modal-open'
-    // will NOT close the quick create.
-    // This can happen when the user clicks out of the input because of a race condition between
-    // the focusout of the m2o and the global 'click' handler of the quick create.
-    // Check odoo/odoo#61981 for more details.
+    // Focusing out of the many2one opens a modal to add a 'product'; clicking the resulting
+    // 'modal-open' body must NOT close the quick create (race between the m2o focusout and
+    // the quick create's global click handler). See odoo/odoo#61981.
     expect(".o_dialog").toHaveCount(1, {
         message: "modal should be opening after m2o focusout",
     });
@@ -4529,12 +4523,9 @@ test("Do not open record when clicking on `a` with `href`", async () => {
         message: "link inside kanban record should have non-empty href",
     });
 
-    // Prevent the browser default behaviour when clicking on anything.
-    // This includes clicking on a `<a>` with `href`, so that it does not
-    // change the URL in the address bar.
-    // Note that we should not specify a click listener on 'a', otherwise
-    // it may influence the kanban record global click handler to not open
-    // the record.
+    // Prevent the default browser behaviour for any click, including on a `<a href>` (so the
+    // address bar URL doesn't change). Don't add a click listener on 'a' itself, or it may
+    // interfere with the kanban record's global click handler and keep the record from opening.
     const testLink = queryFirst(".o_kanban_record a");
     testLink.addEventListener("click", (ev) => {
         expect(ev.defaultPrevented).toBe(false, {
@@ -4928,18 +4919,10 @@ test("drag and drop a record, grouped by selection", async () => {
 
 test.tags("desktop");
 test("prevent drag and drop of record if grouped by readonly", async () => {
-    // Whether the kanban is grouped by state, foo, bar or product_id
-    // the user must not be able to drag and drop from one group to another,
-    // as state, foo bar, product_id are made readonly one way or another.
-    // state must not be draggable:
-    // state is not readonly in the model. state is passed in the arch specifying readonly="1".
-    // foo must not be draggable:
-    // foo is readonly in the model fields. foo is passed in the arch but without specifying readonly.
-    // bar must not be draggable:
-    // bar is readonly in the model fields. bar is not passed in the arch.
-    // product_id must not be draggable:
-    // product_id is readonly in the model fields. product_id is passed in the arch specifying readonly="0",
-    // but the readonly in the model takes over.
+    // Grouping by state, foo, bar or product_id must all disable drag & drop, each via
+    // a different readonly source: state via arch readonly="1"; foo via a readonly model
+    // field with no arch override; bar via a readonly model field absent from the arch;
+    // product_id via a readonly model field overriding the arch's readonly="0".
     Partner._fields.foo = fields.Char({ readonly: true });
     Partner._fields.bar = fields.Boolean({ readonly: true });
     Partner._fields.product_id = fields.Many2one({
@@ -9478,9 +9461,8 @@ test("d&d records grouped by date with progressbar with aggregates", async () =>
     Partner._records[2].date = "2010-10-30";
     Partner._records[3].date = "2010-10-30";
 
-    // Usually kanban views grouped by a date, cannot drag and drop.
-    // There are some overrides that allow the drag and drop of dates (CRM forecast for instance).
-    // This patch is done to simulate these overrides.
+    // Kanban views grouped by date normally can't drag & drop; simulate an override that
+    // allows it (e.g. CRM forecast).
     patchWithCleanup(KanbanRenderer.prototype, {
         isMovableField() {
             return true;
@@ -12495,11 +12477,9 @@ test("keep focus in cp when pressing arrowdown and no kanban card", async () => 
     expect(".o_kanban_quick_create").toHaveCount(1);
     expect(".o_kanban_record").toHaveCount(0);
 
-    // Somehow give the focus in the control panel, i.e. in the search view
-    // Note that a simple click in the control panel should normally close the quick
-    // create, so in order to give the focus in the search input, the user would
-    // normally have to right-click on it then press escape. These are behaviors
-    // handled through the browser, so we simply call focus directly here.
+    // Give focus to the search input directly: a plain click there would normally close the
+    // quick create, and reaching it without one requires browser-handled behaviors (e.g.
+    // right-click then escape) that we can't simulate, hence the direct focus() call.
     queryFirst(".o_searchview_input").focus();
 
     // Make sure no async code will have a side effect on the focused element
@@ -13219,10 +13199,9 @@ test("Can't use KanbanRecord implementation details in arch", async () => {
 
 test.tags("desktop");
 test("rerenders only once after resequencing records", async () => {
-    // Actually it's not once, because we must render directly after the drag&drop s.t. the dropped
-    // record remains where it has been dropped, once again after saving/reloading the record as
-    // we rebuild record.data, and finally after the call to resequence, to re-enable the resequence
-    // feature on the record (canResequence props).
+    // Despite the name, it renders 3 times: right after drag&drop so the record stays where
+    // dropped, again after save/reload rebuilds record.data, and again after resequence
+    // re-enables the record's canResequence prop.
     let saveDef = new Deferred();
     let resequenceDef = new Deferred();
     const renderCounts = {};
@@ -13805,10 +13784,8 @@ test("group by properties and drag and drop", async () => {
 });
 
 test("kanbans with basic and custom compiler, same arch", async () => {
-    // In this test, the exact same arch will be rendered by 2 different kanban renderers:
-    // once with the basic one, and once with a custom renderer having a custom compiler. The
-    // purpose of the test is to ensure that the template is compiled twice, once by each
-    // compiler, even though the arch is the same.
+    // The same arch is rendered by 2 different kanban renderers (basic and a custom one with
+    // a custom compiler), to ensure it gets compiled once by each despite being identical.
     class MyKanbanCompiler extends KanbanCompiler {
         setup() {
             super.setup();
@@ -13896,10 +13873,9 @@ test("grouped on field with readonly expression depending on context", async () 
 
 test.tags("desktop");
 test("grouped on field with readonly expression depending on fields", async () => {
-    // Fields are not available in the current context as the drag and drop must be enabled globally
-    // for the view, it's not a per record thing.
-    // So if the readonly expression contains fields, it will resolve to readonly === false and
-    // the drag and drop will be enabled.
+    // Fields aren't available in this context since drag & drop is enabled globally for the
+    // view, not per record: a readonly expression referencing fields resolves to false, so
+    // drag & drop stays enabled.
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -15017,10 +14993,8 @@ test(`cache web_read_group (no data, change)`, async () => {
 });
 
 test(`cache web_read_group (group_expand: groups, then no group)`, async () => {
-    // this test simulates that we are on a grouped kanban, with the group_expand feature, i.e.
-    // empty groups are shown, and when we first go to the view, there are groups, but empty, so
-    // sample data is displayed. Then, when we come back, we retrieve the data from the cache, but
-    // the rpc returns no group, so the view must be properly updated.
+    // Grouped kanban with group_expand: first visit has empty groups so sample data shows;
+    // coming back serves the cache, but the rpc now returns no group, so the view must update.
     let def;
     let withGroups = true;
     onRpc("web_read_group", async () => {
@@ -15101,14 +15075,10 @@ test(`cache web_read_group (group_expand: groups, then no group)`, async () => {
 });
 
 test(`cache web_read_group (group_expand: groups, then more groups)`, async () => {
-    // this test simulates that we are on a grouped kanban, with the group_expand feature, i.e.
-    // empty groups are shown, and when we first go to the view, there are groups, but empty, so
-    // sample data is displayed. Then, when we come back, we retrieve the data from the cache, but
-    // the rpc returns more (or less, but still some) groups. Theoretically, we should remain in
-    // sample mode and display the updated groups. We do correctly display the groups, but the
-    // sample mode is left, because it is a quite complex usecase to deal with, and we don't think
-    // it would be worth the complexity. This test simply encodes the current behavior, that we may
-    // change in the future if we want to.
+    // Grouped kanban with group_expand: first visit has empty groups so sample data shows;
+    // coming back serves the cache, but the rpc now returns a different (still non-empty) set
+    // of groups. Ideally we'd stay in sample mode; instead we leave it, since handling that
+    // case isn't worth the complexity. This test just encodes the current behavior.
     let def;
     const groups = [
         {
@@ -15335,9 +15305,8 @@ test("Cache: unfolded is now folded", async () => {
 
 test.tags("desktop");
 test("Cache: kanban view progressbar, filter, open a record, edit, come back", async () => {
-    // This test encodes a very specify scenario involving a kanban with progressbar, where the
-    // filter was lost when coming back due to the cache callback, which removed the groups
-    // information.
+    // Regression: a progressbar filter was lost when coming back, because the cache callback
+    // removed the groups information.
     Product._records[1].fold = false;
 
     let def;

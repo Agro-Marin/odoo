@@ -12,20 +12,14 @@ import { profilingSystrayItem } from "./profiling_systray_item.js";
 const systrayRegistry = registry.category("systray");
 
 /**
- * Service for toggling Python profiling (sql, traces) from the debug menu.
- * Manages profiling session state, collector toggles, and the systray indicator.
- *
  * Profile state (``profile_session``, ``profile_collectors``, ``profile_params``)
- * is fetched lazily via the ``lazy_session`` service after ``WEB_CLIENT_READY``.
- * Until the fetch resolves the service runs with defaults (no active session,
- * default collector list, empty params) — acceptable because profiling is a
- * debug-only feature and the systray indicator simply appears a moment after
- * boot if a profiling session was already active.
+ * is fetched lazily via the ``lazy_session`` service after ``WEB_CLIENT_READY``;
+ * until then the service runs with defaults — acceptable since profiling is
+ * debug-only and the systray indicator just appears a moment after boot.
  */
 export const profilingService = {
     dependencies: ["orm", "lazy_session"],
     start(env, { orm, lazy_session }) {
-        // Only set up profiling when in debug mode
         if (!env.debug) {
             return;
         }

@@ -206,7 +206,7 @@ test("statusbar stay visible when scrolling (sticky)", async () => {
         scrollRect.top,
         scrollRect.bottom,
     );
-    scrollTarget.scrollTop = scrollTarget.scrollHeight; // scroll to bottom
+    scrollTarget.scrollTop = scrollTarget.scrollHeight;
     expect(statusBar.getBoundingClientRect().top).toBeWithin(
         scrollRect.top,
         scrollRect.bottom,
@@ -243,7 +243,7 @@ test("statusbar is non-sticky on mobile", async () => {
         scrollRect.top,
         scrollRect.bottom,
     );
-    scrollTarget.scrollTop = scrollTarget.scrollHeight; // scroll to bottom
+    scrollTarget.scrollTop = scrollTarget.scrollHeight;
     expect(statusBar.getBoundingClientRect().top).not.toBeWithin(
         scrollRect.top,
         scrollRect.bottom,

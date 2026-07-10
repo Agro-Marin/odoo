@@ -63,8 +63,7 @@ export class DebugMenuBasic extends Component {
     }
 
     /**
-     * Get the display label for a debug menu section.
-     * @param {string} section - the section key
+     * @param {string} section
      * @returns {string}
      */
     getSectionLabel(section) {

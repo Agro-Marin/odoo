@@ -6,8 +6,7 @@
 import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
- * This hook will register/unregister the given registration
- * when the caller component will mount/unmount.
+ * Register the hotkey on mount and unregister it on unmount.
  *
  * @param {string} hotkey
  * @param {import("./hotkey_service").HotkeyCallback} callback

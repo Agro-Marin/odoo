@@ -56,10 +56,8 @@ const useDialogDraggable = makeDraggableHook(
 );
 
 /**
- * Base dialog component that renders a Bootstrap modal with header, body, and footer slots.
- *
- * Supports dragging (via header handle), escape-to-dismiss, ctrl+enter to
- * confirm, fullscreen on mobile, and stacked dialog z-ordering.
+ * Bootstrap modal with header/body/footer slots: draggable via header handle,
+ * escape to dismiss, ctrl+enter confirms, fullscreen on mobile, stacked z-ordering.
  */
 export class Dialog extends Component {
     static template = "web.Dialog";

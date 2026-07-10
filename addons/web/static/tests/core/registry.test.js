@@ -244,10 +244,9 @@ test("can validate the values from a schema", () => {
     expect(() =>
         friendsRegistry.add("chris", { name: "chris", city: "Namur" }),
     ).toThrow();
-    // addValidation is idempotent (first-schema-wins): with the
-    // ``globalThis``-anchored shared registry, multiple bundles each inline
-    // and re-evaluate the source file that declares the schema, so a second
-    // call must be a silent no-op. See registry.js::addValidation.
+    // addValidation is idempotent (first-schema-wins): the globalThis-anchored
+    // shared registry is re-evaluated by each bundle, so a repeat call must be
+    // a silent no-op. See registry.js::addValidation.
     expect(() => friendsRegistry.addValidation({ something: Number })).not.toThrow();
     expect(friendsRegistry.validationSchema).toBe(schema);
 });
@@ -298,30 +297,19 @@ test("function predicate validates existing entries on addValidation", async () 
     expect(() => fnRegistry.addValidation((v) => typeof v === "function")).toThrow();
 });
 
-// NOTE: The debug-mode collision warning added to ``Registry.add`` (the
-// branch at registry.js:168-176 that fires ``console.warn(...)`` when a
-// duplicate key is added with a different value in debug mode) cannot be
-// covered here. The Hoot test framework patches
-// ``Registry.prototype.add`` in ``static/tests/_framework/module_set.hoot.js``
-// to inject ``force: true`` for every call so fixture overrides work;
-// that patch bypasses the entire ``if (!force && key in this.content)``
-// branch the warning lives in. Out-of-tree verification of the branch:
-// ``/tmp/registry_warn_test.mjs`` (inlines the production class and
-// exercises the branch under Node).
-//
-// The same limitation applies to the sibling warning for a duplicate add
-// with the SAME value but a DIFFERENT sequence (registry.js: the branch that
-// warns "…same value but a different sequence (kept X, ignored Y)"). It also
-// lives inside the ``!force`` branch and is therefore only reachable — and
-// verifiable — out-of-tree under Node with the unpatched class.
+// NOTE: Hoot patches ``Registry.prototype.add`` (in
+// ``module_set.hoot.js``) to force ``force: true`` on every call so fixture
+// overrides work, which bypasses the ``!force`` branch that fires the
+// debug-mode collision warnings (registry.js:168-176 — both the
+// "different value" and "same value, different sequence" cases). Untestable
+// here; verified out-of-tree under Node via ``/tmp/registry_warn_test.mjs``
+// (inlines the production class).
 
 test("non-debug: refuses (quarantines) an invalid entry without throwing", async () => {
-    // 2026-06 onward: in production a schema-invalid registration is
-    // REFUSED (quarantined, not inserted) rather than inserted-and-warned.
-    // The page still cannot crash (no throw), but the registry never serves
-    // a schema-violating value — reading the key fails cleanly instead of
-    // returning corrupt data. Throwing remains the dev behavior (covered by
-    // "can validate the values from a schema" above).
+    // 2026-06 onward: production REFUSES (quarantines) a schema-invalid
+    // registration instead of inserting-and-warning — no throw, but the key
+    // never resolves to corrupt data. Dev-mode still throws (see "can
+    // validate the values from a schema" above).
     const schema = { name: String };
     const registry = new Registry();
     registry.addValidation(schema);
@@ -345,9 +333,8 @@ test("non-debug: refuses (quarantines) an invalid entry without throwing", async
 });
 
 test("non-debug: addValidation retroactively quarantines invalid existing entries", async () => {
-    // Adding a schema to an already-populated registry must enforce the
-    // invariant retroactively: pre-existing entries that violate the new
-    // schema are removed (production) rather than left in place.
+    // addValidation on an already-populated registry enforces the schema
+    // retroactively: pre-existing violating entries are removed (production).
     const registry = new Registry();
     registry.add("good", { name: "ok" });
     registry.add("bad", { name: 123 }); // no schema yet → accepted

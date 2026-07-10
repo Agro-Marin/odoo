@@ -135,18 +135,15 @@ test("Many2ManyTagsField with and without color on desktop", async () => {
     });
     await contains(".o_field_many2many_selection input").click();
     await runAllTimers();
-    // Add a tag to first field
     expect("[name=partner_ids] .o_tag").toHaveCount(0);
     await contains(".o-autocomplete--dropdown-item:eq(0)").click();
     expect("[name=partner_ids] .o_tag").toHaveCount(1);
 
-    // Show the color list
     expect(".o_colorlist").toHaveCount(0);
     await contains("[name=partner_ids] .o_tag").click();
     expect(".o_colorlist").toHaveCount(1);
     await contains(getFixture()).click();
 
-    // Add a tag to second field
     expect("[name=timmy] .o_tag").toHaveCount(0);
     await clickFieldDropdown("timmy");
     expect("[name='timmy'] .o-autocomplete.dropdown li").toHaveCount(3, {
@@ -159,7 +156,6 @@ test("Many2ManyTagsField with and without color on desktop", async () => {
         "gold",
     ]);
 
-    // Show the color list
     expect(".o_colorlist").toHaveCount(0);
     await contains("[name=timmy] .o_tag").click();
     expect(".o_colorlist").toHaveCount(0);
@@ -195,18 +191,15 @@ test("Many2ManyTagsField with and without color on mobile", async () => {
     });
     await contains(".o_field_many2many_selection input").click();
     await runAllTimers();
-    // Add a tag to first field
     expect("[name=partner_ids] .o_tag").toHaveCount(0);
     await contains("article.o_kanban_record:eq(0)").click();
     expect("[name=partner_ids] .o_tag").toHaveCount(1);
 
-    // Show the color list
     expect(".o_colorlist").toHaveCount(0);
     await contains("[name=partner_ids] .o_tag").click();
     expect(".o_colorlist").toHaveCount(1);
     await contains(getFixture()).click();
 
-    // Add a tag to second field
     expect("[name=timmy] .o_tag").toHaveCount(0);
     await clickFieldDropdown("timmy");
     expect("article.o_kanban_record").toHaveCount(2, {
@@ -218,7 +211,6 @@ test("Many2ManyTagsField with and without color on mobile", async () => {
         "gold",
     ]);
 
-    // Show the color list
     expect(".o_colorlist").toHaveCount(0);
     await contains("[name=timmy] .o_tag").click();
     expect(".o_colorlist").toHaveCount(0);
@@ -259,7 +251,6 @@ test("Many2ManyTagsField with color: rendering and edition on desktop", async ()
     expect(".badge:eq(0)").toHaveClass("o_tag_color_2");
     expect(".o_field_many2many_tags .o_delete").toHaveCount(2);
 
-    // add an other existing tag
     await contains("div[name='timmy'] .o-autocomplete.dropdown input").click();
     expect(`.dropdown-item .fw-bold`).toHaveCount(2);
     expect(queryAllTexts`.dropdown-item .fw-bold`).toEqual(["gold", "silver"]);
@@ -637,7 +628,7 @@ test("Many2ManyTagsField: update color", async () => {
         resId: 1,
     });
 
-    // First checks that default color 0 is rendered as 0 color
+    // default color 0 is rendered as color 0
     const badgeNode = queryOne(".o_tag.badge");
     expect(badgeNode).toHaveAttribute("data-color", "0");
 
@@ -724,14 +715,12 @@ test("Many2ManyTagsField in editable list", async () => {
     });
     expect(".o_data_row:nth-child(1) .o_field_many2many_tags .badge").toHaveCount(1);
 
-    // edit first row
     await contains(".o_data_row:nth-child(1) .o_many2many_tags_cell").click();
 
     expect(
         ".o_data_row:nth-child(1) .o_many2many_tags_cell .o_field_many2many_selection",
     ).toHaveCount(1);
 
-    // add a tag
     await selectFieldDropdownItem("timmy", "silver");
 
     expect(".o_data_row:nth-child(1) .o_field_many2many_tags .badge").toHaveCount(2);
@@ -827,7 +816,6 @@ test("Many2ManyTagsField: toggle colorpicker with multiple tags", async () => {
 
     expect(".o_colorpicker").toHaveCount(0);
 
-    // click on the badge to open colorpicker
     await contains(".o_field_many2many_tags .badge").click();
     expect(".o_colorlist").toHaveCount(1);
 
@@ -862,18 +850,15 @@ test("Many2ManyTagsField: toggle colorpicker multiple times", async () => {
     expect(".o_field_many2many_tags .badge").toHaveAttribute("data-color", "0");
     expect(".o_colorpicker").toHaveCount(0);
 
-    // click on the badge to open colorpicker
     await contains(".o_field_many2many_tags .badge").click();
 
     expect(".o_colorlist").toHaveCount(1);
 
-    // click on the badge again to close colorpicker
     await contains(".o_field_many2many_tags .badge").click();
 
     expect(".o_field_many2many_tags .badge").toHaveAttribute("data-color", "0");
     expect(".o_colorlist").toHaveCount(0);
 
-    // click on the badge to open colorpicker
     await contains(".o_field_many2many_tags .badge").click();
 
     expect(".o_colorlist").toHaveCount(1);
@@ -949,7 +934,6 @@ test("input and remove text without selecting any tag or option on desktop", asy
 
     expect(".o_field_many2many_tags .badge").toHaveCount(0);
 
-    // enter some text
     await contains(".o_field_many2many_tags input").edit("go", { confirm: false });
     await runAllTimers();
 
@@ -1000,7 +984,6 @@ test("Many2ManyTagsField in one2many with name on desktop", async () => {
 
     expect(queryAllTexts(".o_data_cell")).toEqual(["second record\naaa"]);
 
-    // open the x2m form view
     await contains('.o_field_one2many[name="turtles"] .o_data_cell').click();
     expect(queryAllTexts(".modal .o_data_cell")).toEqual([
         "blip",
@@ -1070,7 +1053,6 @@ test("Many2ManyTagsField: select multiple records on desktop", async () => {
     expect(".o_dialog .o_list_renderer .o_list_record_selector input").toHaveCount(
         MockServer.env["partner.type"].length + 1,
     );
-    //multiple select tag
     await contains(".o_dialog .o_list_renderer .o_list_record_selector input").click();
     await animationFrame(); // necessary for the button to be switched to enabled.
     expect(".o_dialog .o_select_button").toBeEnabled();
@@ -1109,7 +1091,6 @@ test("Many2ManyTagsField: select multiple records doesn't show already added tag
         MockServer.env["partner.type"].length + 1,
     );
 
-    //multiple select tag
     await contains(".o_dialog .o_list_renderer .o_list_record_selector input").click();
     await animationFrame(); // necessary for the button to be switched to enabled.
     await contains(".o_dialog .o_select_button").click();
@@ -1952,7 +1933,6 @@ test("Many2ManyTagsField with edit_tags option", async () => {
     await contains(".o_tag.badge").click();
     expect(".o_dialog").toHaveCount(1);
 
-    // Edit name of tag
     await fieldInput("name").edit("new");
     await clickSave();
 });
@@ -1996,7 +1976,6 @@ test("Many2ManyTagsField with edit_tags option overrides color edition", async (
     await contains(".o_tag.badge").click();
     expect(".o_dialog").toHaveCount(1);
 
-    // Edit name of tag
     await fieldInput("name").edit("new");
     await clickSave();
 

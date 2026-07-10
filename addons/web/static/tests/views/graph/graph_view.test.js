@@ -865,8 +865,6 @@ test("Cumulative prop and cumulated start", async () => {
 });
 
 test("displaying line chart with only 1 data point", async () => {
-    // this test makes sure the line chart does not crash when only one data
-    // point is displayed.
     Foo._records = Foo._records.filter((id) => id === 1);
 
     await mountView({
@@ -1255,8 +1253,7 @@ test("process arch with non stored field tags of type measure", async () => {
 });
 
 test("displaying chart data with three groupbys", async () => {
-    // this test makes sure the line chart shows all data labels (X axis) when
-    // it is grouped by several fields
+    // all X axis labels must be shown, even grouped by several fields
     const view = await mountView({
         type: "graph",
         resModel: "foo",
@@ -1548,7 +1545,6 @@ test("a measure changed in-session survives a reload with a favorite context", a
     expect(getGraphModelMetaData(view).measure).toBe("foo");
     expect(getYAxisLabel(view)).toBe("Foo");
 
-    // the user switches the measure through the Measures menu
     await toggleMenu("Measures");
     await toggleMenuItem("Revenue");
     expect(getGraphModelMetaData(view).measure).toBe("revenue");
@@ -2286,7 +2282,7 @@ test("graph view with invisible attribute on field", async () => {
 });
 
 test("graph view reserved word", async () => {
-    // Check that the use of reserved words does not interfere with the view.
+    // reserved words (e.g. "constructor") must not interfere with the view
     Product._records.push({ id: 150, name: "constructor" });
     Foo._records.at(-1).product_id = 150;
 
@@ -2341,7 +2337,6 @@ test("graph view sort by measure", async () => {
     expect(".fa-arrow-down-wide-short").not.toHaveClass("active");
     checkDatasets(view, "data", { data: [4, 1, 3] });
 
-    // set line mode
     await selectMode("line");
     expect(".fa-arrow-down-short-wide").toHaveCount(1);
     expect(".fa-arrow-down-wide-short").toHaveCount(1);
@@ -2686,7 +2681,6 @@ test("concurrent reloads: add a filter, and directly toggle a measure", async ()
         label: "Count",
     });
 
-    // Toggle a measure
     await toggleMenu("Measures");
     await toggleMenuItem("Foo");
 
@@ -2739,7 +2733,6 @@ test("change graph mode while loading a filter", async () => {
     });
     checkModeIs(view, "line");
 
-    // Change graph mode
     await selectMode("bar");
 
     checkDatasets(view, ["data", "label"], {

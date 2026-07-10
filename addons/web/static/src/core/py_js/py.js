@@ -19,19 +19,15 @@ export { formatAST } from "./py_utils.js";
  */
 
 /**
- * Bounded cache for parsed ASTs. Expressions in Odoo domains, modifiers, and
- * QWeb conditionals are highly repetitive — the same string (e.g.,
- * "state == 'draft'") is evaluated once per record × per field. Caching the
- * parsed AST eliminates redundant tokenize + parse work (~2,400 calls reduced
- * to ~10 unique parses per 80-row list render).
+ * Bounded cache for parsed ASTs. Domain/modifier/QWeb expressions are highly
+ * repetitive (e.g. "state == 'draft'" evaluated once per record × field);
+ * caching avoids redundant tokenize+parse work (~2,400 calls reduced to ~10
+ * unique parses per 80-row list render).
  *
- * Eviction is FIFO (insertion-order), NOT LRU: a hit does not refresh recency,
- * and eviction always drops the oldest-inserted key. This is intentional — a
- * cache hit is the hottest path here, and true-LRU would add a Map delete+set
- * on every one of those ~2,400 hits/render for a benefit that only materializes
- * once a session exceeds the 512-entry cap (the working set is ~10 expressions,
- * so the cap is effectively never reached). If ``_AST_CACHE_MAX`` is ever
- * lowered enough to be hit in practice, revisit this trade-off.
+ * Eviction is FIFO, not LRU: a hit never refreshes recency. True LRU would add
+ * a Map delete+set on every one of those hot-path hits for a benefit that
+ * never materializes — the ~10-expression working set never hits the 512-entry
+ * cap. Revisit if ``_AST_CACHE_MAX`` is ever lowered enough to be hit in practice.
  *
  * @type {Map<string, AST>}
  */
@@ -110,22 +106,17 @@ export function evaluateBooleanExpr(expr, context = {}) {
 }
 
 /**
- * Recursively collect the free-variable *root* names referenced by an AST node
- * into ``acc``.
+ * Recursively collect free-variable *root* names from an AST node into ``acc``.
  *
- * A "root name" is the top-level identifier of a reference: for a plain
- * ``ASTName`` it is the name itself; for an attribute access (``ASTObjLookup``,
- * e.g. ``parent.state``) it is the base name (``parent``) — attribute keys are
- * stored as plain strings on the node, never as ``ASTName`` children, so they
- * are naturally excluded. Function-call callees (``bool``, ``len``, …) are
- * ``ASTName`` nodes and therefore included; callers that only care about a
- * bounded universe (e.g. field names) filter those out downstream.
+ * A root name is the top-level identifier: for a plain ``ASTName`` it's the
+ * name itself; for attribute access (e.g. ``parent.state``) it's the base name
+ * — attribute keys are plain strings, never ``ASTName`` children, so they're
+ * excluded automatically. Call callees (``bool``, ``len``, …) are ``ASTName``
+ * nodes and included; callers wanting a bounded universe filter downstream.
  *
- * The walk is intentionally structural and type-agnostic: any object carrying a
- * numeric ``type`` discriminant is treated as an AST node and all of its
- * non-``type`` properties are traversed (arrays, dictionary/kwargs value maps,
- * and nested nodes alike). This keeps the walker correct across every
- * {@link ASTType} without an exhaustive per-type switch.
+ * The walk is structural and type-agnostic (dispatches on the numeric ``type``
+ * discriminant rather than switching per {@link ASTType}), so it stays correct
+ * as node types are added.
  *
  * @param {any} node
  * @param {Set<string>} acc
@@ -160,20 +151,15 @@ function collectFreeVariables(node, acc) {
 }
 
 /**
- * Extract the set of free-variable root names referenced by a Python
- * expression, reusing the bounded AST cache in {@link parseExpr}.
- *
- * Attribute accesses collapse to their base name (``parent.state`` →
- * ``"parent"``, ``context.foo`` → ``"context"``) and subscripts contribute both
- * operands (``a[b]`` → ``"a"``, ``"b"``). Builtins referenced as call callees
- * (``bool``, ``len``) are included; downstream callers filter against their own
- * name universe.
+ * Extract free-variable root names from a Python expression, reusing the
+ * bounded AST cache in {@link parseExpr}. Attribute accesses collapse to their
+ * base name (``parent.state`` → ``"parent"``); subscripts contribute both
+ * operands (``a[b]`` → ``"a"``, ``"b"``).
  *
  * @param {string} expr
  * @returns {Set<string>}
- * @throws re-throws the tokenizer/parser error from {@link parseExpr} when
- *  ``expr`` cannot be parsed — callers that want a conservative fallback
- *  should catch it and treat the dependency set as unknown.
+ * @throws re-throws the tokenizer/parser error from {@link parseExpr} on
+ *  malformed input — callers wanting a conservative fallback should catch it.
  */
 export function getExprFreeVariables(expr) {
     const ast = parseExpr(expr);

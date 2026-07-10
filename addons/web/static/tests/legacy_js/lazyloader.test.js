@@ -5,18 +5,12 @@ import { advanceTime } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import lazyloader from "@web/legacy/js/public/lazyloader";
 
-// `lazyloader` (src/legacy/js/public/lazyloader.js) is production code shipped
-// in `web.assets_frontend_minimal`: it blocks button/form events until the
-// lazy `<script data-src>` chain has loaded (waitLazy), then replays them once
-// the module-level `allScriptsLoaded` promise resolves (stopWaitingLazy).
-//
-// Those page singletons run at import time and settle within a tick on the
-// test runner page (which has no `script[data-src]` node), so they cannot be
-// re-armed from a test. The chain function is therefore exercised through its
-// `onAllScriptsDone` seam — the very callback that production defaults to
-// `allScriptsLoadedResolve`, whose only consumer is the one-line wiring
-// `allScriptsLoaded.then(stopWaitingLazy)`: proving the callback fires proves
-// the page gets unblocked.
+// `lazyloader` (src/legacy/js/public/lazyloader.js) ships in
+// `web.assets_frontend_minimal`: it blocks button/form events until the lazy
+// `<script data-src>` chain loads, then replays them via
+// `allScriptsLoaded.then(stopWaitingLazy)`. Those page-level singletons settle
+// before a test can re-arm them, so tests drive the chain through the
+// `onAllScriptsDone` seam instead — proving it fires proves the page unblocks.
 
 describe.current.tags("headless");
 

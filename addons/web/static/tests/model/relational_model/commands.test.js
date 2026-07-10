@@ -1,17 +1,11 @@
 // @ts-check
 
-/**
- * Pure unit tests for commands.js.
- *
- * Tests x2ManyCommands constants and factory functions without OWL or DOM.
- */
+// Pure unit tests for commands.js: constants and factory functions, no OWL or DOM.
 
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 describe("x2ManyCommands constants", () => {
     test("has correct numeric values", () => {
@@ -25,9 +19,7 @@ describe("x2ManyCommands constants", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Factory functions
-// ---------------------------------------------------------------------------
 
 describe("x2ManyCommands.create", () => {
     test("returns [CREATE, virtualId, values]", () => {

@@ -148,21 +148,17 @@ export const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayLimitNotification: () => {},
 });
 
-// The RESULT_SET_REMOVING_METHODS set and the RPC:RESPONSE → CLEAR-CACHES
-// bridge that used to live here moved to
-// ``@web/services/result_set_cache_invalidator_service`` so the wiring is
-// owned by env lifecycle (one listener per page in prod, one per test in
-// Hoot) instead of being a module-load side effect. See that file for the
-// full rationale.
+// RESULT_SET_REMOVING_METHODS and the RPC:RESPONSE → CLEAR-CACHES bridge
+// moved to ``@web/services/result_set_cache_invalidator_service``, owned by
+// env lifecycle instead of a module-load side effect; see that file for
+// the full rationale.
 
 export class RelationalModel extends Model {
-    // Only ``orm`` is needed by the model itself. Earlier revisions injected
-    // ``action`` / ``dialog`` / ``notification`` for in-model UI side effects;
-    // those callsites now flow through controller-supplied hooks
-    // (``makeModelUIHooks`` in ``views/view_utils``), so the model layer no
-    // longer reaches into the UI service registry. Verified 2026-05-21: zero
-    // ``model.{action,dialog,notification}`` accesses across core, enterprise,
-    // and agromarin.
+    // Only ``orm`` is needed here; UI side effects (action/dialog/notification)
+    // now flow through controller-supplied hooks (``makeModelUIHooks`` in
+    // ``views/view_utils``) instead of direct service access. Verified
+    // 2026-05-21: zero ``model.{action,dialog,notification}`` accesses across
+    // core, enterprise, and agromarin.
     static services = ["orm"];
     static Record = RelationalRecord;
     static Group = Group;
@@ -432,11 +428,9 @@ export class RelationalModel extends Model {
                         return;
                     }
                     if (root.id !== this.root.id) {
-                        // The root id might have changed, either because:
-                        //  1) the user already changed the domain and a second load has been done
-                        //  2) there was no data, so we reloaded directly with the sample orm
-                        // In the first case, there's nothing to do, we can ignore this update. We
-                        // have to deal with the second case:
+                        // The root id might have changed: (1) the domain changed and a
+                        // second load already happened — nothing to do; or (2) there was
+                        // no data and we reloaded via the sample orm — handle that below:
                         if (this.useSampleModel) {
                             // We displayed sample data from the cache, but the rpc returned records
                             // or groups => leave sample mode, forget previous groups and update
@@ -473,11 +467,9 @@ export class RelationalModel extends Model {
 
                     // multi record case: either grouped or ungrouped
                     if (root.records.some((r) => r.isInEdition || r.dirty)) {
-                        // A record is being edited (see ``editedRecord``) or
-                        // has unsaved changes: _setData would rebuild all
-                        // record datapoints, thus destroy the edition state
-                        // (row in edition, pending changes) => ignore this
-                        // update.
+                        // A record is being edited or has unsaved changes: _setData
+                        // would rebuild all record datapoints and destroy edition
+                        // state => ignore this update.
                         return;
                     }
                     if (root.config.groupBy.length) {
@@ -760,11 +752,8 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * When grouped by a many2many field, the same record may be displayed in
-     * several groups. When one of these records is edited, we want all other
-     * occurrences to be updated. The purpose of this function is to find and
-     * update all occurrences of a record that has been reloaded, in a grouped
-     * list view.
+     * When grouped by a many2many field, the same record may appear in several
+     * groups; propagate a reloaded record's values to all its other occurrences.
      *
      * @param {RelationalRecord} reloadedRecord
      * @param {Record<string, unknown>} serverValues
@@ -801,13 +790,11 @@ export class RelationalModel extends Model {
             params,
         );
         if (!this.initialSampleGroups) {
-            // These groups are only consumed in sample-data mode (see
-            // ``load()`` above), where the SampleServer only reads the group
-            // headers and the *presence* of ``__records`` (to know which
-            // groups are open) — it regenerates the record payloads itself
-            // (see ``_mockWebReadGroup`` in sample_server.js). Strip the
-            // heavy ``__records`` payloads before deep copying, as this runs
-            // on every first grouped load, sample mode or not.
+            // Consumed only in sample-data mode (see ``load()`` above): SampleServer
+            // reads just the group headers + presence of ``__records`` and regenerates
+            // record payloads itself (``_mockWebReadGroup`` in sample_server.js). Strip
+            // the heavy ``__records`` payload before deep copying — this runs on every
+            // first grouped load, sample mode or not.
             this.initialSampleGroups = deepCopy(
                 result.groups.map((group) =>
                     "__records" in group ? { ...group, __records: [] } : group,

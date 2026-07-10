@@ -129,7 +129,6 @@ test("PriorityField in form view", async () => {
     expect(".o_field_widget .o_priority a.o_priority_star.fa-solid").toHaveCount(1);
     expect(".o_field_widget .o_priority a.o_priority_star.fa-regular").toHaveCount(1);
 
-    // click on the second star in edit mode
     await click(".o_field_widget .o_priority a.o_priority_star.fa-regular:last");
     await animationFrame();
 
@@ -160,7 +159,6 @@ test("PriorityField hover a star in form view", async () => {
     expect(".o_field_widget .o_priority a.o_priority_star.fa-solid").toHaveCount(1);
     expect(".o_field_widget .o_priority a.o_priority_star.fa-regular").toHaveCount(1);
 
-    // hover last star
     const star = ".o_field_widget .o_priority a.o_priority_star.fa-regular:last";
     await hover(star);
     await animationFrame();
@@ -250,7 +248,6 @@ test("PriorityField in editable list view", async () => {
         message: "should have one empty star since the value is the second value",
     });
 
-    // switch to edit mode and check the result
     await click("tbody td:not(.o_list_record_selector)");
     await animationFrame();
 
@@ -269,7 +266,6 @@ test("PriorityField in editable list view", async () => {
         message: "should have one empty star since the value is the second value",
     });
 
-    // save
     await click(".o_control_panel_main_buttons .o_list_button_save");
     await animationFrame();
 
@@ -288,7 +284,6 @@ test("PriorityField in editable list view", async () => {
         message: "should have one empty star since the value is the second value",
     });
 
-    // click on the first star in readonly mode
     await click(".o_priority a.o_priority_star.fa-solid");
     await animationFrame();
 
@@ -306,7 +301,7 @@ test("PriorityField in editable list view", async () => {
         message: "should now have two empty stars since the value is the first value",
     });
 
-    // re-enter edit mode to force re-rendering the widget to check if the value was correctly saved
+    // re-enter edit mode to force a re-render and verify the value persisted
     await click("tbody td:not(.o_list_record_selector)");
     await animationFrame();
 
@@ -324,7 +319,6 @@ test("PriorityField in editable list view", async () => {
         message: "should now have two empty stars since the value is the first value",
     });
 
-    // Click on second star in edit mode
     await click(".o_priority a.o_priority_star.fa-regular:last");
     await animationFrame();
 
@@ -344,7 +338,6 @@ test("PriorityField in editable list view", async () => {
         message: "should now have no empty star since the value is the third value",
     });
 
-    // save
     await click(".o_control_panel_main_buttons .o_list_button_save");
     await animationFrame();
 
@@ -390,7 +383,6 @@ test("PriorityField hover in editable list view", async () => {
         message: "should have one empty star since the value is the second value",
     });
 
-    // hover last star
     const star =
         ".o_data_row:first-child .o_priority a.o_priority_star.fa-regular:last";
     await hover(star);

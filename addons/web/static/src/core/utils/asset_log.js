@@ -4,28 +4,19 @@
 /** @module @web/core/utils/asset_log - Debug-gated namespaced logger (asset/rpc/action/model) */
 
 /**
- * Build a namespaced ``console.debug`` logger with its own activation toggle.
- *
- * The asset/esm/boot tracing surface has been generalised: any subsystem can
- * carve its own observability namespace (RPC, action, model, ...) without
- * inventing its own opt-in mechanism. Every namespace shares the same three-
- * channel activation:
- *
- *   • ``?debug=<flagSubstring>`` (substring match against ``odoo.debug``)
- *   • ``localStorage.setItem("debug.<flagSubstring>", "1")``
- *   • ``globalThis[extraGlobalFlag]`` (optional legacy escape hatch)
- *
- * The returned function is shaped like ``log(category, ...parts)`` and exposes
- * ``.enabled()`` for the rare callers that want to skip expensive payload
+ * Build a namespaced ``console.debug`` logger with its own activation toggle,
+ * so any subsystem (RPC, action, model, ...) can add tracing without inventing
+ * its own opt-in. A namespace activates via ``?debug=<flagSubstring>``,
+ * ``localStorage.setItem("debug.<flagSubstring>", "1")``, or a truthy
+ * ``globalThis[extraGlobalFlag]``. The returned ``log(category, ...parts)``
+ * exposes ``.enabled()`` for callers that want to skip expensive payload
  * construction before logging.
  *
  * @param {string} prefix          Log-line prefix, e.g. ``"asset"`` → ``[asset.boot] ...``.
  * @param {string} flagSubstring   Token matched in ``odoo.debug`` and used as
  *                                 the ``debug.<flagSubstring>`` localStorage key.
- *                                 Often equal to ``prefix``; the asset namespace
- *                                 historically uses ``"asset"`` for the prefix
- *                                 but ``"assets"`` for the flag — preserved
- *                                 for back-compat.
+ *                                 The asset namespace uses ``"asset"`` for the
+ *                                 prefix but ``"assets"`` for the flag (back-compat).
  * @param {string} [extraGlobalFlag] Optional ``globalThis`` property name that
  *                                 also activates the namespace when truthy.
  * @returns {((category: string, ...parts: any[]) => void) & { enabled: () => boolean }}
@@ -33,10 +24,8 @@
 function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
     const flagKey = `debug.${flagSubstring}`;
     const enabled = () => {
-        // The result is not cached: debug flag can flip at runtime (e.g.
-        // the debug menu toggle, or DevTools localStorage edits). The
-        // check is O(1) string ops and runs only when something tries
-        // to log.
+        // Not cached: debug flag can flip at runtime (menu toggle, DevTools
+        // edit). Check is O(1) string ops, run only when something logs.
         try {
             const o = /** @type {any} */ (globalThis).odoo;
             if (o && typeof o.debug === "string" && o.debug.includes(flagSubstring)) {
@@ -66,60 +55,24 @@ function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
     return log;
 }
 
-// ---------------------------------------------------------------------------
 // Public namespace logs
-// ---------------------------------------------------------------------------
 
-/**
- * Asset / bundle / ESM tracing — the historical surface.
- *
- * Activation:
- *   • ``?debug=assets`` (or any debug mode containing the substring ``"assets"``)
- *   • ``localStorage.setItem("debug.assets", "1")``
- *   • ``window.__ODOO_ASSET_TRACE__ = true``
- */
+/** Asset / bundle / ESM tracing — the historical surface. Flag: ``assets``, also ``window.__ODOO_ASSET_TRACE__``. */
 export const assetLog = _makeNamespacedLog("asset", "assets", "__ODOO_ASSET_TRACE__");
 
-/**
- * RPC lifecycle tracing — request / response / error / abort / timeout.
- *
- * Activation:
- *   • ``?debug=rpc``
- *   • ``localStorage.setItem("debug.rpc", "1")``
- */
+/** RPC lifecycle tracing — request / response / error / abort / timeout. Flag: ``rpc``. */
 export const rpcLog = _makeNamespacedLog("rpc", "rpc");
 
-/**
- * Action manager tracing — doAction dispatch, executor routing, breadcrumb
- * stack mutations.
- *
- * Activation:
- *   • ``?debug=action``
- *   • ``localStorage.setItem("debug.action", "1")``
- */
+/** Action manager tracing — doAction dispatch, executor routing, breadcrumb stack mutations. Flag: ``action``. */
 export const actionLog = _makeNamespacedLog("action", "action");
 
-/**
- * Relational-model tracing — root load, save, discard, onchange.
- *
- * Activation:
- *   • ``?debug=model``
- *   • ``localStorage.setItem("debug.model", "1")``
- */
+/** Relational-model tracing — root load, save, discard, onchange. Flag: ``model``. */
 export const modelLog = _makeNamespacedLog("model", "model");
 
-/**
- * Localization tracing — translation fetch, cache hits, application.
- *
- * Activation:
- *   • ``?debug=l10n``
- *   • ``localStorage.setItem("debug.l10n", "1")``
- */
+/** Localization tracing — translation fetch, cache hits, application. Flag: ``l10n``. */
 export const l10nLog = _makeNamespacedLog("l10n", "l10n");
 
-// ---------------------------------------------------------------------------
 // Scoped logger factories (partial application by category)
-// ---------------------------------------------------------------------------
 
 /**
  * @param {string} category

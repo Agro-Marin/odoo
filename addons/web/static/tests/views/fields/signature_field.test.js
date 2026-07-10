@@ -59,7 +59,6 @@ test("signature can be drawn", async () => {
         message: "should have a valid signature widget",
     });
 
-    // Click on the widget to open signature modal
     await click("div[name=sign] div.o_signature");
     await waitFor(".modal .modal-body");
     expect(".modal .modal-body .o_web_sign_name_and_signature").toHaveCount(1);
@@ -80,7 +79,7 @@ test("signature can be drawn", async () => {
         },
         relative: true,
     });
-    await animationFrame(); // await owl rendering
+    await animationFrame();
     expect(".modal .btn.btn-primary:not([disabled])").toHaveCount(1);
 
     // Click on "Adopt and Sign" button
@@ -119,7 +118,6 @@ test("Set simple field in 'full_name' node option", async () => {
     expect("div[name=sign] div.o_signature svg").toHaveCount(1, {
         message: "should have a valid signature widget",
     });
-    // Click on the widget to open signature modal
     await click("div[name=sign] div.o_signature");
     await animationFrame();
     expect(".modal .modal-body a.o_web_sign_auto_button").toHaveCount(1, {
@@ -155,7 +153,6 @@ test("Set m2o field in 'full_name' node option", async () => {
         message: "should have a valid signature widget",
     });
 
-    // Click on the widget to open signature modal
     await click("div[name=sign] div.o_signature");
     await waitFor(".modal .modal-body");
 

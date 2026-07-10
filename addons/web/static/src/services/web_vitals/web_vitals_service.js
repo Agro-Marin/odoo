@@ -16,18 +16,9 @@ const ENDPOINT = "/web/observability/cwv";
  * ``record_save.js:85`` for urgent saves.
  *
  * Captures: LCP (Largest Contentful Paint), FCP (First Contentful Paint),
- * CLS (Cumulative Layout Shift), TTFB (Time To First Byte), INP (Interaction
- * to Next Paint — reported as the worst-observed interaction duration over
- * the page lifetime).
- *
- * INP note: the canonical Chromium definition of INP is the **P98** of
- * grouped interaction durations.  Computing P98 client-side requires the
- * sliding-window logic that lives in the ``web-vitals`` library.  Here we
- * report the **worst-observed** interaction (P100), which is a strict
- * upper bound on the canonical INP — actionable as a regression signal
- * even if absolute values run slightly hot.  When the team vendors
- * ``web-vitals``, swap the worst-observed reducer for the proper P98 one
- * without touching the wire protocol (``metrics.inp`` stays a number).
+ * CLS (Cumulative Layout Shift), TTFB (Time To First Byte), and INP
+ * (Interaction to Next Paint — reported as the worst-observed interaction
+ * duration; see the P100-vs-P98 note near the INP observer below).
  */
 export const webVitalsService = {
     /** Service has no dependencies; runs once at startup, then passively observes. */

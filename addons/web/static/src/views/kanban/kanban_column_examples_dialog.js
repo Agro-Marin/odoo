@@ -17,11 +17,9 @@ const random = (min, max) => Math.floor(Math.random() * (max - min) + min);
 /** Renders a single example tab with randomized placeholder records. */
 class KanbanExamplesNotebookTemplate extends Component {
     static template = "web.KanbanExamplesNotebookTemplate";
-    // Receives an entire example descriptor via ``props: eg`` spread in the
-    // parent (see ``KanbanColumnExamplesDialog.setup`` below). The template
-    // only reads ``columns`` / ``foldedColumns`` / ``bullets``, but example
-    // descriptors carry arbitrary metadata (``name``, ``description``, etc.)
-    // that we must forward without warnings — hence the ``"*": true`` tail.
+    // Receives the whole example descriptor via `props: eg` spread (see
+    // `KanbanColumnExamplesDialog.setup` below); descriptors carry metadata
+    // beyond columns/foldedColumns/bullets, hence the catch-all `"*": true`.
     static props = {
         columns: { type: Array, element: String, optional: true },
         foldedColumns: { type: Array, element: String, optional: true },
@@ -57,10 +55,8 @@ class KanbanExamplesNotebookTemplate extends Component {
 }
 
 /**
- * Dialog that presents predefined column layout examples for kanban views.
- *
- * Users pick an example tab and click "Apply" to auto-create columns
- * matching the selected layout. Used when a grouped kanban has no columns yet.
+ * Dialog presenting predefined column layouts a user can apply to
+ * auto-create columns on a grouped kanban that has none yet.
  */
 export class KanbanColumnExamplesDialog extends Component {
     static template = "web.KanbanColumnExamplesDialog";

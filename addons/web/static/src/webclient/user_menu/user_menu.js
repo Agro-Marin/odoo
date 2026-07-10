@@ -20,10 +20,6 @@ const userMenuRegistry = registry.category("user_menuitems");
 // entry with the env and treats the returned object as the menu item.
 userMenuRegistry.addValidation((entry) => typeof entry === "function");
 
-/**
- * Systray dropdown displaying the current user's avatar, name, and
- * menu items from the "user_menuitems" registry (preferences, log out, etc.).
- */
 export class UserMenu extends Component {
     static template = "web.UserMenu";
     static components = { DropdownGroup, Dropdown, DropdownItem, CheckBox };
@@ -35,13 +31,9 @@ export class UserMenu extends Component {
     }
 
     /**
-     * Build the avatar URL lazily. Returning "" while ``user.partnerId`` is
-     * still undefined avoids server requests with ``id=undefined``, which
-     * the test runner catches as 500/404 noise (and which a non-test page
-     * would render as a broken-image icon during the first paint).
-     * The render-without-waiting-for-menus refactor makes this transient
-     * window observable; without the guard, every initial mount fires a
-     * doomed RPC.
+     * Avatar URL, built lazily. Returns "" while `user.partnerId` is not yet
+     * set, avoiding RPCs with `id=undefined` during the initial paint
+     * (before menus load).
      */
     get source() {
         const { partnerId, writeDate } = user;

@@ -12,15 +12,11 @@ import { UPDATE_METHODS } from "@web/services/orm_service";
 /** Service that reloads currencies when res.currency records are mutated. */
 export const currencyService = {
     dependencies: ["orm"],
-    // ``async`` lookup is by exact key on the returned object — entries
-    // here must match the camelCase method names below.  Pre-fix this
-    // listed ``"reload_currencies"`` (snake_case typo) so the
-    // destroy-protection wrapper in ``hooks.js:_protectMethod`` walked
-    // ``service["reload_currencies"]`` → undefined → no wrap.  The
-    // single live consumer (``account_online_synchronization``'s
-    // OdooFin connector at ``odoo_fin_connector.js:55``) was therefore
-    // calling the raw promise-returning method, leaking results into
-    // destroyed components.
+    // ``async`` lookup matches by exact key — must match the camelCase
+    // method name below. A former snake_case typo here made the
+    // destroy-protection wrapper in ``hooks.js:_protectMethod`` skip
+    // wrapping, so ``odoo_fin_connector.js`` leaked results from the raw
+    // promise into destroyed components.
     async: ["reloadCurrencies"],
     /**
      * @param {import("@web/env").OdooEnv} env

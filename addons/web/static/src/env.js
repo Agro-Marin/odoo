@@ -19,9 +19,7 @@ import { session } from "@web/session";
 
 const log = makeAssetLog("env");
 
-// -----------------------------------------------------------------------------
 // Types
-// -----------------------------------------------------------------------------
 
 /**
  * @typedef {{
@@ -34,9 +32,7 @@ const log = makeAssetLog("env");
  * }} OdooEnv
  */
 
-// -----------------------------------------------------------------------------
 // makeEnv
-// -----------------------------------------------------------------------------
 
 /**
  * Return a value Odoo Env object
@@ -60,9 +56,7 @@ export function makeEnv() {
     });
 }
 
-// -----------------------------------------------------------------------------
 // Service Launcher
-// -----------------------------------------------------------------------------
 
 const serviceRegistry = registry.category("services");
 
@@ -76,28 +70,11 @@ serviceRegistry.addValidation({
     "*": true,
 });
 
-// Debug-mode early-detection of missing service dependencies.
-//
-// Catches typos at ``registry.add()`` time for synchronously-loaded
-// services: instead of waiting until ``startServices`` runs and the
-// cascade-skip silently drops a misconfigured service, the developer
-// sees a warning at the point of registration.  Lazy-loaded services
-// (registered after the first microtask) are still handled by the
-// cascade-skip in ``_startServices`` — this validator just adds a
-// faster signal for the common case where the typo is in a file the
-// debug-mode developer just edited.
-//
-// Production stays silent: the cascade-skip is the source of truth
-// for runtime behavior, and third-party addons may legitimately
-// declare deps that load later in production bundles.  Generating a
-// console.warn for every such case in user environments would only
-// add noise.
-//
-// The listener defers one microtask before checking, matching the
-// convention used by ``_startServices`` at line ~99
-// (``await Promise.resolve()``) so that sibling synchronous
-// registrations have a chance to land before we declare a dep
-// missing.
+// Debug-mode early-detection of missing service dependencies: catches typos
+// at registration time instead of waiting for the cascade-skip in
+// ``_startServices``. Silent in production (third-party addons may register
+// deps that load later). Defers one microtask so sibling sync registrations
+// land before we declare a dep missing.
 serviceRegistry.addEventListener("UPDATE", (ev) => {
     if (!odoo.debug) {
         return;
@@ -128,52 +105,35 @@ serviceRegistry.addEventListener("UPDATE", (ev) => {
 let startServicesPromise = null;
 
 /**
- * Module-scope dedup state for the cascade-skip warning emitted by
- * ``_startServices``.  Each test in a Hoot run typically calls
- * ``startServices`` once via ``makeMockEnv`` / ``mountComponent``, so a
- * single misconfigured service (e.g. ``spreadsheet_dashboard_loader``
- * registering without ``geo_json_service``) would trigger one warning
- * per test — 327+ identical lines in the ``@web/core`` suite.
- *
- * Keying by ``(sorted-skipped-set | sorted-missing-set)`` collapses
- * those identical warnings to one per unique combination.  Different
- * shapes (a new service joins the skipped set, a different missing dep
- * appears) get their own warning, so genuinely new misconfigurations
- * still surface.
- *
- * The Set is process-scoped; tests that need to re-observe the warning
- * (e.g. unit tests for this very dedup behaviour) clear it via the
- * exported ``_resetCascadeWarningCache`` helper.
+ * Dedup state for the cascade-skip warning below: without it, a single
+ * misconfigured service re-warns on every ``startServices`` call (327+
+ * identical lines in a Hoot run of ``@web/core``). Keyed by
+ * (sorted-skipped-set | sorted-missing-set); process-scoped, cleared via
+ * ``_resetCascadeWarningCache`` for tests.
  *
  * @type {Set<string>}
  */
 const _seenCascadeWarnings = new Set();
 
 /**
- * Test-only escape hatch: clear the cascade-skip warning dedup cache so
- * a subsequent ``startServices`` with the same misconfiguration warns
- * again.  Not part of the public env API — production code never needs
- * it (the same misconfiguration repeating is exactly what dedup is for).
+ * Test-only: clear the cascade-skip warning dedup cache so a repeated
+ * misconfiguration warns again. Not part of the public env API.
  */
 export function _resetCascadeWarningCache() {
     _seenCascadeWarnings.clear();
 }
 
 /**
- * Start all services registered in the service registry, while making sure
- * each service dependencies are properly fulfilled.
+ * Start all services registered in the service registry, resolving
+ * dependencies first.
  *
- * The UPDATE listener installed on the singleton service registry to handle
- * late-arriving services (lazy-loaded bundles registering services after
- * startup) is owned by ``env``: callers that create and dispose envs (test
- * infrastructure) MUST invoke ``env.disposeServiceRegistryListener()`` on
- * cleanup. Without it, every prior env's listener stays attached to the
- * shared registry and re-fires on every future ``serviceRegistry.add``,
- * re-running services against stale envs — observable as expect.step()
- * pollution between tests and false "Circular service dependency" errors.
- *
- * Production code creates exactly one env that lives for the page lifetime,
- * so the cleanup hook is a no-op there.
+ * The UPDATE listener installed on the singleton registry is owned by
+ * ``env``: callers that create/dispose envs (test infra) MUST call
+ * ``env.disposeServiceRegistryListener()`` on cleanup, or stale listeners
+ * keep re-running services against dead envs — causing expect.step()
+ * pollution and false "Circular service dependency" errors between tests.
+ * Production creates one env for the page lifetime, so this is a no-op
+ * there.
  *
  * @param {OdooEnv} env
  * @returns {Promise<void>}
@@ -220,23 +180,18 @@ export async function startServices(env) {
 }
 
 /**
- * Force a complete service-startup pass over the current registry and resolve
- * once every service whose dependencies are met has started.
+ * Force a complete service-startup pass and resolve once every service whose
+ * dependencies are met has started.
  *
- * ``loadBundle`` resolves as soon as a (possibly lazy) bundle's modules have
- * been evaluated — which only *registers* the services they declare. Actually
- * *starting* those services happens asynchronously afterwards, driven by the
- * registry UPDATE listener installed by ``startServices``. A caller that
- * lazy-loads a bundle and then immediately mounts a component that reads one
- * of its services in ``setup`` (``useService`` throws if the service is not
- * yet in ``env.services``) can therefore race that background startup.
- *
- * Awaiting this after ``loadBundle`` closes that race deterministically:
- * services with met dependencies are guaranteed started before the next line
- * runs. Services whose deps are genuinely unregistered are left to the
- * cascade-skip as usual (no throw, no hang); re-entrant calls are serialized
- * via ``startServicesPromise``. This does NOT install a registry listener, so
- * it is safe to call repeatedly over the page lifetime.
+ * ``loadBundle`` only *registers* a lazy bundle's services; actually
+ * starting them happens asynchronously via the registry UPDATE listener. A
+ * caller that lazy-loads a bundle and immediately mounts a component reading
+ * one of its services in ``setup`` (``useService`` throws if not yet in
+ * ``env.services``) can race that background startup — awaiting this after
+ * ``loadBundle`` closes the race deterministically. Services with genuinely
+ * unregistered deps are left to the cascade-skip; re-entrant calls serialize
+ * via ``startServicesPromise``. Installs no listener, safe to call
+ * repeatedly.
  *
  * @param {OdooEnv} env
  * @returns {Promise<void>}
@@ -250,11 +205,9 @@ export async function ensureServicesStarted(env) {
 
 /**
  * Start all services in `toStart`, resolving dependencies with O(N+E)
- * dependency-counting and reverse-edge propagation.
- *
- * Services are started in waves: each wave starts all services whose
- * dependencies are met, waits for their (possibly async) results, then
- * propagates to unlock the next wave.
+ * dependency-counting and reverse-edge propagation. Waves: each wave starts
+ * services whose deps are met, waits for results, then propagates to unlock
+ * the next wave.
  *
  * @param {OdooEnv} env
  * @param {Map<string, any>} toStart
@@ -273,10 +226,9 @@ async function _startServices(env, toStart) {
         }
     }
 
-    // O(N+E) dependency resolution — shared implementation in
-    // ``@web/core/utils/dependency_graph``.  The resolver does the
-    // pending-count / reverse-edge bookkeeping; this file drives it
-    // and does the actual service.start() work each wave.
+    // O(N+E) dependency resolution — shared impl in
+    // ``@web/core/utils/dependency_graph`` (pending-count/reverse-edge
+    // bookkeeping); this file drives waves and calls service.start().
     const resolver = createWaveResolver({
         isLoaded: (dep) => dep in services,
     });
@@ -299,8 +251,8 @@ async function _startServices(env, toStart) {
         _trackService(name);
     }
 
-    // Start services in waves: each wave starts all ready services in
-    // parallel, waits for their results, then propagates to dependents.
+    // Start services in waves: ready services run in parallel, then
+    // propagate to unlock dependents.
     let _wave = 0;
     async function start() {
         // Track any new services added via registry UPDATE listener
@@ -334,9 +286,9 @@ async function _startServices(env, toStart) {
             waveStarted.push(name);
             proms.push(
                 Promise.resolve(value).then((val) => {
-                    // Use ?? (not ||) so a service that legitimately resolves to a
-                    // falsy-but-valid value (0, "", false) is preserved rather than
-                    // coerced to null; only undefined/null collapse to null.
+                    // Use ?? (not ||): a service resolving to a falsy-but-valid
+                    // value (0, "", false) must be preserved; only null/undefined
+                    // collapse to null.
                     services[name] = val ?? null;
                     resolver.propagate(name);
                 }),
@@ -367,45 +319,22 @@ async function _startServices(env, toStart) {
             }
         }
         if (missingDeps.size) {
-            // Cascade-skip services whose declared dependencies are not in
-            // the registry. A dependency can legitimately be absent here for
-            // two reasons — NOT only the test-bundle case originally assumed:
+            // Cascade-skip services whose deps aren't in the registry. A dep
+            // can legitimately be absent because of a lazy-loaded TEST bundle
+            // (provider never imported) or a lazy-loaded PRODUCTION bundle
+            // (e.g. ``spreadsheet.o_spreadsheet``) where ESM import order lets
+            // a consumer register before its provider — self-healing on the
+            // next registry UPDATE. A caller that lazy-loads such a bundle
+            // and synchronously reads one of its services in ``setup`` must
+            // await ``ensureServicesStarted(env)`` after ``loadBundle`` —
+            // see ``addSpreadsheetActionLazyLoader``.
             //
-            //   1. Lazy-loaded TEST bundle (``web.assets_unit_tests``): a
-            //      test file statically imports a consumer service, but no
-            //      file in the running set imports the provider, so the
-            //      provider's ``registry.add(...)`` never executes.
-            //   2. Lazy-loaded PRODUCTION bundle (e.g.
-            //      ``spreadsheet.o_spreadsheet``): under native ESM a
-            //      bundle's modules execute in import-graph order across
-            //      microtasks rather than in one synchronous pass, so a
-            //      consumer can register a microtask before its provider.
-            //      The provider DOES arrive shortly after, and the next
-            //      registry UPDATE re-runs this function and starts both —
-            //      the skip is transient and self-healing.
-            //
-            // The original code asserted case 2 was "structurally impossible
-            // in production". It is not — that false assumption let a real
-            // production failure (blank spreadsheet dashboard:
-            // ``spreadsheet_dashboard_loader`` skipped, so ``dashboard_action``
-            // crashed on ``useService(...)``) be mis-triaged as test-only.
-            // A caller that lazy-loads such a bundle and then synchronously
-            // reads one of its services in a component ``setup`` must await
-            // ``ensureServicesStarted(env)`` after ``loadBundle`` to force a
-            // complete startup pass before mounting — see
-            // ``addSpreadsheetActionLazyLoader``.
-            //
-            // Pre-2026-05-22 this branch threw, cascade-failing every test in
-            // the run. Skipping (rather than throwing) is still correct:
-            //   1. A dep that never arrives (typo / never-loaded provider)
-            //      leaves its consumer unstarted; consumers that need it fail
-            //      at the precise use site, not as a global startup error.
-            //   2. A dep that arrives later is recovered by the next
-            //      startServices pass (a registry UPDATE, or an explicit
-            //      ensureServicesStarted call).
-            //   3. Genuine circular dependencies still throw below — the
-            //      cascade only removes services with truly missing deps,
-            //      so leftover entries are guaranteed cyclical.
+            // Skipping (not throwing) is correct: a dep that never arrives
+            // just leaves its consumer unstarted (fails at the use site, not
+            // globally); a dep that arrives later is recovered by the next
+            // startServices/ensureServicesStarted pass; genuine circular
+            // deps still throw below since the cascade only removes services
+            // with truly missing deps.
             const skipped = [];
             let changed = true;
             while (changed) {
@@ -422,10 +351,9 @@ async function _startServices(env, toStart) {
                 }
             }
             if (skipped.length) {
-                // Dedup by (skipped-set, missing-set) so the same
-                // misconfiguration repeated across tests only warns once.
-                // See `_seenCascadeWarnings` declaration above for the
-                // rationale (avoids 327+ identical warnings in @web/core).
+                // Dedup by (skipped-set, missing-set) so a misconfiguration
+                // repeated across tests only warns once (see
+                // `_seenCascadeWarnings` declaration above).
                 const dedupKey =
                     [...skipped].sort().join(",") +
                     "|" +
@@ -452,12 +380,10 @@ async function _startServices(env, toStart) {
             }
         }
         if (toStart.size) {
-            // After the cascade-skip (and after the wave-resolver has
-            // run to fixpoint earlier), anything still pending has all
-            // its declared deps registered: the resolver couldn't make
-            // progress on it, so it must be part of a circular
-            // dependency.  This remains a hard error in all environments
-            // (genuine programming bug).
+            // After the cascade-skip (and wave-resolver fixpoint earlier),
+            // anything still pending has all its deps registered but the
+            // resolver couldn't progress on it — a circular dependency.
+            // This remains a hard error (genuine programming bug).
             const depGraph = new Map();
             for (const [name, service] of toStart) {
                 depGraph.set(name, service.dependencies || []);
@@ -479,14 +405,10 @@ async function _startServices(env, toStart) {
 }
 
 export const customDirectives = {
-    // t-custom-click="handler"
-    // This custom directive adds two event listeners ("click"; "auxclick") and calls the global value "click".
-    // The global value "click" calls the handler with two parameters:
-    //      - ev (the original event)
-    //      - isMiddleClick (boolean: user middle-clicked or ctrl+clicked)
-    //
-    // "stop" and "prevent" modifiers are resolved at compile time into boolean
-    // flags, avoiding runtime JSON.parse + array iteration on every click.
+    // t-custom-click="handler": adds "click"/"auxclick" listeners that call
+    // the global "click" handler with (ev, isMiddleClick). "stop"/"prevent"
+    // modifiers are resolved at compile time into boolean flags, avoiding
+    // runtime JSON.parse + array iteration on every click.
     click: (node, value, modifiers) => {
         let mods = "";
         if (modifiers.includes("synthetic")) {

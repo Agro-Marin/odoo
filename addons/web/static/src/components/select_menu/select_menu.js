@@ -407,9 +407,8 @@ export class SelectMenu extends Component {
     // ==========================================================================================
 
     /**
-     * Filters the choices based on the searchString and
-     * slice the result to display a reasonable amount to
-     * try to prevent any delay when opening the select.
+     * Filters choices by ``searchString``, slicing the result to a
+     * reasonable amount to avoid delay when opening the select.
      *
      * @param {String} searchString
      */
@@ -487,8 +486,7 @@ export class SelectMenu extends Component {
     // ==========================================================================================
 
     /**
-     * If the user scrolls to the end of the dropdown,
-     * more choices are loaded.
+     * Loads more choices as the user scrolls to the end of the dropdown.
      *
      * @param {*} event
      */
@@ -511,9 +509,8 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Finds the selected choice and set [displayOptions] to at
-     * least show the selected choice and [defaultCount] more
-     * or show at least the [defaultDisplayCount].
+     * Sets ``displayedOptions`` so the selected choice is visible, showing
+     * at least ``defaultCount`` options overall.
      */
     sliceDisplayedOptions() {
         const selectedIndex = this.getSelectedOptionIndex();

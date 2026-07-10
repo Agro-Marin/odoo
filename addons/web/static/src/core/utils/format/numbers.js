@@ -20,9 +20,8 @@ export function clamp(num, min, max) {
 }
 
 /**
- * A function to create flexibly-numbered lists of integers, handy for each and map loops.
- * step defaults to 1.
- * Returns a list of integers from start (inclusive) to stop (exclusive), incremented (or decremented) by step.
+ * Returns a list of integers from start (inclusive) to stop (exclusive),
+ * incremented (or decremented) by step. Handy for each/map loops.
  * @param {number} start default 0
  * @param {number} stop
  * @param {number} step default 1
@@ -188,8 +187,8 @@ export function insertThousandsSep(number, thousandsSep = ",", grouping = []) {
 }
 
 /**
- * Format a number to a human readable format. For example, 3000 could become 3k.
- * Or massive number can use the scientific exponential notation.
+ * Format a number to a human readable format, e.g. 3000 -> "3k". Very large
+ * numbers use scientific exponential notation instead.
  *
  * @param {number} number to format
  * @param {Object} [options] Options to format
@@ -247,8 +246,8 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
 }
 
 /**
- * Returns a string representing a float.  The result takes into account the
- * user settings (to display the correct decimal separator).
+ * Returns a string representing a float, using the user's locale settings
+ * (e.g. the correct decimal separator).
  *
  * @param {number} value the value that should be formatted
  * @param {Object} [options]

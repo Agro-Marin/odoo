@@ -382,9 +382,8 @@ export const treeProcessorService = {
                 ];
             } else {
                 const rawValues = Array.isArray(value) ? value : [value];
-                // Only append the "..." ellipsis when the list is actually
-                // longer than ``limit``. A list of exactly ``limit`` elements is
-                // shown in full — nothing is truncated.
+                // Only truncate (append "...") when the list is longer than
+                // ``limit``; a list of exactly ``limit`` elements is shown in full.
                 const truncated = rawValues.length > limit;
                 values = rawValues
                     .slice(0, truncated ? limit - 1 : limit)

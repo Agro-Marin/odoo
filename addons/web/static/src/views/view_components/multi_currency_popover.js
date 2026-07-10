@@ -33,10 +33,9 @@ export class MultiCurrencyPopover extends Component {
             this.state.rates = await getCurrencyRates();
         });
         useExternalListener(window, "mouseover", (ev) => {
-            // Close only when the pointer leaves BOTH the anchor and the
-            // popover itself. An identity check (ev.target !== target) closed
-            // the popover the instant the pointer entered the popover body or
-            // any child of the anchor.
+            // Close only when the pointer leaves BOTH anchor and popover; a
+            // naive `ev.target !== target` check fired as soon as the
+            // pointer entered the popover or any child of the anchor.
             const popoverEl = this.rootRef.el;
             if (
                 !this.props.target.contains(ev.target) &&

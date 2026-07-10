@@ -18,14 +18,12 @@ import { TranslationDialog } from "./translation_dialog.js";
 const _langCache = { code: undefined, language: "" };
 
 /**
- * Prepares a function that will open the dialog that allows to edit translation
- * values for a given field.
+ * Prepares a function that opens the dialog to edit a field's translation
+ * values. Factored out of legacy_fields for reuse until folded into
+ * TranslationButton.
  *
- * It is mainly a factorization of the feature that is also used
- * in legacy_fields. We expect it to be fully implemented in TranslationButton
- * when legacy code is removed.
+ * @returns {(params: { record: Object, fieldName: string }) => Promise<void>}
  */
-/** @returns {(params: { record: Object, fieldName: string }) => Promise<void>} Opens translation dialog */
 export function useTranslationDialog() {
     const addDialog = useOwnedDialogs();
 

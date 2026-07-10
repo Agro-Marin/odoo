@@ -166,7 +166,6 @@ export class KanbanRenderer extends Component {
                 }
                 const firstCard = this.rootRef.el?.querySelector(".o_kanban_record");
                 if (firstCard) {
-                    // Focus first kanban card
                     firstCard.focus();
                 }
             });
@@ -184,9 +183,8 @@ export class KanbanRenderer extends Component {
 
         useKanbanSelection(this.state);
 
-        // After a group is unfolded through onGroupClick, we want to scroll towards
-        // the next group if it exists and is folded, and to the unfolded group
-        // itself otherwise
+        // After unfolding a group, scroll to the next group if it's folded, else to
+        // the unfolded group itself.
         onPatched(() => {
             if (this.lastOpenedGroupId) {
                 const groups = this.getGroupsOrRecords();
@@ -562,9 +560,8 @@ export class KanbanRenderer extends Component {
             parent?.dataset.id === element.parentElement?.dataset.id
         ) {
             if (!this.props.list.records.find((r) => r.id === dataRecordId)) {
-                // Race condition: a new rendering has been scheduled/is ongoing but hasn't been
-                // applied to the DOM yet, so the user dropped a record that is no longer referenced
-                // in the model. In that case, we can't to anything else than abort.
+                // Race: a pending render hasn't reached the DOM yet and the dropped
+                // record is no longer referenced in the model — abort.
                 return;
             }
             this.toggleProcessing(dataRecordId, true);
@@ -582,9 +579,8 @@ export class KanbanRenderer extends Component {
                 !!targetGroupId &&
                 targetGroupId !== dataGroupId;
             if (isGroupMove) {
-                // Let the progress bars reconcile the two affected groups
-                // locally when the move is saved, instead of refetching all
-                // counts over the full domain.
+                // Let progress bars reconcile the two affected groups locally on save,
+                // instead of refetching counts over the full domain.
                 this.props.progressBarState?.registerRecordMove(
                     dataRecordId,
                     dataGroupId,
@@ -601,8 +597,8 @@ export class KanbanRenderer extends Component {
             } finally {
                 this.toggleProcessing(dataRecordId, false);
                 if (isGroupMove) {
-                    // No-op if consumed by the post-save reconcile; drops the
-                    // registration if the move failed or was reverted.
+                    // No-op if consumed by the post-save reconcile; otherwise drops the
+                    // registration (move failed or was reverted).
                     this.props.progressBarState?.cancelRecordMove(dataRecordId);
                 }
             }
@@ -675,9 +671,8 @@ export class KanbanRenderer extends Component {
                 break;
             }
         }
-        // The focused card belongs to no rendered group (e.g. it was filtered
-        // out or the DOM changed under us): iGroup has run past the end of
-        // ``cards``, so any ``cards[iGroup]`` access below would throw. Bail.
+        // Focused card belongs to no rendered group (filtered out / DOM changed under
+        // us): iGroup ran past ``cards``, so ``cards[iGroup]`` below would throw. Bail.
         if (iCard === -1) {
             return;
         }

@@ -43,8 +43,6 @@ export class UrlField extends Component {
             const regex = /^((ftp|http)s?:\/)?\//i; // http(s)://... ftp(s)://... /...
             value = !regex.test(value) ? `http://${value}` : value;
         }
-        // Drop unsafe targets (javascript:/data:, protocol-relative //host) so
-        // they never reach the rendered t-att-href.
         return isSafeUrlScheme(value) ? value : "";
     }
 }

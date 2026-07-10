@@ -46,7 +46,6 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
             category.values.get(parentId).childrenIds.push(value.id);
         }
     }
-    // collect rootIds
     category.rootIds = [false];
     for (const value of values) {
         const { parentId } = category.values.get(value.id);
@@ -54,7 +53,6 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
             category.rootIds.push(value.id);
         }
     }
-    // Set active value from context
     const valueIds = [false, ...values.map((val) => val.id)];
     ensureCategoryValue(category, valueIds);
 }
@@ -73,7 +71,6 @@ export function createFilterTree(filter, result) {
         values = [];
     }
 
-    // restore checked property
     values.forEach((value) => {
         const oldValue = filter.values.get(value.id);
         value.checked = oldValue ? oldValue.checked : false;
@@ -97,7 +94,6 @@ export function createFilterTree(filter, result) {
                     sequence: value.group_sequence,
                     color_index: value.color_index,
                 });
-                // restore former checked state
                 const oldGroup = filter.groups && filter.groups.get(groupId);
                 groups.get(groupId).state = oldGroup?.state || false;
             }

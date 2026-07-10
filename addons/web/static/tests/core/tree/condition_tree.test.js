@@ -83,7 +83,7 @@ test("domainFromExpression", () => {
     const options = {
         getFieldDef: (name) => {
             if (["foo", "bar"].includes(name)) {
-                return { type: "any" }; // any field
+                return { type: "any" };
             }
             if (name === "foo_ids") {
                 return { type: "many2many" };
@@ -240,7 +240,7 @@ test("expressionFromTree . treeFromExpression", () => {
     const options = {
         getFieldDef: (name) => {
             if (["foo", "bar"].includes(name)) {
-                return { type: "any" }; // any field
+                return { type: "any" };
             }
             if (name === "foo_ids") {
                 return { type: "many2many" };
@@ -489,7 +489,7 @@ test("evaluation . expressionFromTree = contains . domainFromTree", () => {
     const options = {
         getFieldDef: (name) => {
             if (name === "foo") {
-                return { type: "any" }; // any field
+                return { type: "any" };
             }
             if (name === "foo_ids") {
                 return { type: "many2many" };

@@ -18,12 +18,8 @@ const isScrollSwipable = (scrollables) => ({
 });
 
 /**
- * Action Swiper
- *
- * This component is intended to perform action once a user has completed a touch swipe.
- * You can choose the direction allowed for such behavior (left, right or both).
- * The action to perform must be passed as a props. It is possible to define a condition
- * to allow the swipe interaction conditionnally.
+ * Performs an action once the user completes a touch swipe (left, right, or
+ * both), optionally gated by a condition.
  * @extends Component
  */
 export class ActionSwiper extends Component {

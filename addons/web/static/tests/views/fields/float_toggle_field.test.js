@@ -55,8 +55,7 @@ test("basic flow in form view", async () => {
         message: "The value should be rendered correctly on the button.",
     });
 
-    // note, 0 will not be written, it's kept in the _changes of the datapoint.
-    // because save has not been clicked.
+    // 0 isn't written yet: it's still in the datapoint's _changes since save hasn't been clicked.
 
     await contains("button.o_field_float_toggle").click();
 

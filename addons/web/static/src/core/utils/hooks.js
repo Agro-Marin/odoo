@@ -207,9 +207,8 @@ export function useService(serviceName) {
 // -----------------------------------------------------------------------------
 
 /**
- * To avoid elements to keep their spellcheck appearance when they are no
- * longer in focus. We only add this attribute when needed. To disable this
- * behavior, use the spellcheck attribute on the element.
+ * Enables spellcheck only while an element is focused, so the red squiggles
+ * don't linger once it loses focus. Opt out via the spellcheck attribute.
  *
  * @param {{ refName?: string }} [params]
  * @returns {void}
@@ -322,10 +321,9 @@ export function useOwnedDialogs() {
     return addDialog;
 }
 /**
- * Manages an event listener on a ref. Useful for hooks that want to manage
- * event listeners, especially more than one. Prefer using t-on directly in
- * components. If your hook only needs a single event listener, consider simply
- * returning it from the hook and letting the user attach it with t-on.
+ * Manages one or more event listeners on a ref — for hooks that need several.
+ * Prefer t-on directly in components; for a single listener, return it from
+ * the hook and let the caller attach it with t-on.
  *
  * @param {Ref} ref
  * @param  {...any} listener addEventListener arguments (eventName, handler, options)

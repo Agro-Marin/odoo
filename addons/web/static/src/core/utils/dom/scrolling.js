@@ -174,7 +174,6 @@ export function scrollTo(element, options = {}) {
     }
 
     if (elementRect.bottom > scrollRect.bottom && !isAnchor) {
-        // The scroll place the element at the bottom border of the scrollable
         scrollPromises.push(
             awaitScroll(
                 scrollable.scrollTop +
@@ -185,7 +184,6 @@ export function scrollTo(element, options = {}) {
             ),
         );
     } else if (elementRect.top < scrollRect.top || isAnchor) {
-        // The scroll place the element at the top of the scrollable
         scrollPromises.push(
             awaitScroll(
                 scrollable.scrollTop - scrollRect.top + elementRect.top + offset,
@@ -193,7 +191,6 @@ export function scrollTo(element, options = {}) {
         );
 
         if (options.isAnchor) {
-            // If the scrollable is within a scrollable, another scroll should be done
             const parentScrollable = closestScrollableY(scrollable.parentElement);
             if (parentScrollable) {
                 scrollPromises.push(
@@ -219,7 +216,6 @@ export function compensateScrollbar(
     if (!el) {
         return;
     }
-    // Compensate scrollbar
     const scrollableEl = isScrollElement ? el : closestScrollableY(el.parentElement);
     if (!scrollableEl) {
         return;

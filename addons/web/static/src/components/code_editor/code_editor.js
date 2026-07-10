@@ -59,10 +59,7 @@ export class CodeEditor extends Component {
     /** @type {string[]} Supported editor themes (empty string = default) */
     static THEMES = ["", "monokai"];
 
-    /**
-     * Initialize the Ace editor instance, session management, and reactive
-     * effects for theme/mode/readonly/value synchronization.
-     */
+    /** Sets up the Ace editor instance, sessions, and theme/mode/readonly reactive effects. */
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLElement>} */
         this.editorRef = useRef("editorRef");

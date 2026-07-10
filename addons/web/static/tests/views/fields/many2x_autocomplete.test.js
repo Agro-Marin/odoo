@@ -26,9 +26,7 @@ import {
 
 describe.current.tags("desktop");
 
-// ---------------------------------------------------------------------------
 // Shared model definitions
-// ---------------------------------------------------------------------------
 
 class Partner extends models.Model {
     name = fields.Char();
@@ -63,9 +61,7 @@ class ResUsers extends models.Model {
 
 defineModels([Partner, Product, ResUsers]);
 
-// ---------------------------------------------------------------------------
 // web_name_search — search RPC
-// ---------------------------------------------------------------------------
 
 describe("search RPC", () => {
     test("typing triggers web_name_search with the typed text", async () => {
@@ -110,9 +106,7 @@ describe("search RPC", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Create restrictions — no_create, no_quick_create
-// ---------------------------------------------------------------------------
 
 describe("create restrictions", () => {
     test("no_create hides both quick-create and create-and-edit options", async () => {
@@ -155,9 +149,7 @@ describe("create restrictions", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Quick create — calls name_create and updates the field
-// ---------------------------------------------------------------------------
 
 describe("quick create", () => {
     test("selecting Create option calls name_create and sets the field value", async () => {
@@ -185,10 +177,8 @@ describe("quick create", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Empty-search memoization — skips redundant RPCs but must be invalidated
 // whenever a record can come into existence (quick create, dialog create)
-// ---------------------------------------------------------------------------
 
 describe("empty-search memoization", () => {
     const INPUT_SELECTOR = ".o_field_widget[name=product_id] input";
@@ -283,9 +273,7 @@ describe("empty-search memoization", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // Search more — opens SelectCreateDialog
-// ---------------------------------------------------------------------------
 
 describe("search more", () => {
     test("Search more... opens SelectCreateDialog with the field's label in the title", async () => {

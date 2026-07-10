@@ -52,8 +52,6 @@ export class CopyButton extends Component {
         } else {
             content = this.props.content;
         }
-        // any kind of content can be copied into the clipboard using
-        // the appropriate native methods
         if (typeof content === "string" || content instanceof String) {
             write = (value) => browser.navigator.clipboard.writeText(value);
         } else {

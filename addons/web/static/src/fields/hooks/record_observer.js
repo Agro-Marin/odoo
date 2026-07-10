@@ -11,19 +11,15 @@ import { disposableEffect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
 /**
- * This hook should only be used in a component field because it
- * depends on the record props.
- * The callback will be executed once during setup and each time
- * a record value read in the callback changes.
+ * Use only in a component field (depends on record props). Runs once at
+ * setup and again whenever a record value read in the callback changes.
  * @param {(record: any, props?: any) => void | Promise<void>} callback
  */
 export function useRecordObserver(callback) {
     const component = useComponent();
     let currentId;
-    // Disposer of the currently-active reactive effect. Each record swap and
-    // the component teardown dispose the previous effect, so a superseded
-    // effect no longer fires (and no longer allocates a batched rAF) on every
-    // mutation of a record this component no longer observes.
+    // Disposer for the active effect. Disposed on each record swap and on
+    // teardown so a superseded effect stops firing (no wasted batched rAF).
     let disposeEffect;
     const observeRecord = (props) => {
         currentId = uniqueId();
@@ -35,13 +31,11 @@ export function useRecordObserver(callback) {
         const def = new Deferred();
         const effectId = currentId;
         let firstCall = true;
-        // A single batched instance so that all effect notifications within the
-        // same animation frame coalesce into one callback invocation.
+        // Coalesce all effect notifications within one animation frame.
         const batchedCallback = batched(
             (record) => {
                 if (effectId !== currentId) {
-                    // effect doesn't clean up when the component is unmounted.
-                    // We must do it manually.
+                    // disposableEffect doesn't clean up on unmount; guard manually.
                     return;
                 }
                 return Promise.resolve(callback(record, props))

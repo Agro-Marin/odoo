@@ -91,13 +91,10 @@ export class ListController extends MultiRecordController {
             ),
         );
 
-        // In multi edition, we save or notify invalidity directly when a field is updated, which
-        // occurs on the change event for input fields. But we don't want to do it when clicking on
-        // "Discard". So we set a flag on mousedown (which triggers the update) to block the multi
-        // save or invalid notification.
-        // However, if the mouseup (and click) is done outside "Discard", we finally want to do it.
-        // We use `nextActionAfterMouseup` for this purpose: it registers a callback to execute if
-        // the mouseup following a mousedown on "Discard" isn't done on "Discard".
+        // Multi-edit save/invalidity checks fire on field change, which also fires on
+        // mousedown — including a mousedown on "Discard". Track that with a flag to
+        // suppress the save, and replay it via `nextActionAfterMouseup` if the mouseup
+        // lands elsewhere (i.e. "Discard" wasn't actually clicked).
         this.hasMousedownDiscard = false;
         this.nextActionAfterMouseup = null;
 
@@ -185,13 +182,9 @@ export class ListController extends MultiRecordController {
     /**
      * Build the params object passed to the relational model constructor.
      *
-     * Merges arch-extracted fields, groupBy info, limits, ordering, and
-     * hook callbacks into a single configuration object.  The shared
-     * skeleton (state restoration, countLimit, defaultOrderBy,
-     * activeIdsLimit, hooks merge) is delegated to
-     * ``buildMultiRecordModelParams``; this getter only owns the
-     * list-specific bits (groupByInfo construction, multiEdit flag,
-     * limit fallbacks, list-specific save hooks).
+     * Merges arch-extracted fields, groupBy info, limits, ordering, and hook
+     * callbacks; the shared skeleton is delegated to `buildMultiRecordModelParams`,
+     * this getter only adds list-specific bits (groupByInfo, multiEdit, limit fallbacks).
      *
      * @returns {Record<string, any>}
      */
@@ -275,8 +268,7 @@ export class ListController extends MultiRecordController {
             .map((fieldName) => fields[fieldName])
             .filter(Boolean)
             .filter((field) => {
-                // Export a sub-property only when its own optional
-                // column is currently shown.
+                // Export a sub-property only when its own optional column is shown.
                 if (field.relatedPropertyField) {
                     return this.optionalActiveFields[field.name];
                 }
@@ -313,17 +305,14 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * onRecordSaved is a callBack that will be executed after the save
-     * if it was done. It will therefore not be executed if the record
-     * is invalid or if a server error is thrown.
+     * Called after a successful save; skipped if the record was invalid or the
+     * server raised an error.
      * @param {any} record
      */
     async onRecordSaved(record) {}
 
     /**
-     * onWillSaveRecord is a callBack that will be executed before the
-     * record save if the record is valid.
-     * If it returns false, it will prevent the save.
+     * Called before saving a valid record; returning false prevents the save.
      * @param {any} record
      */
     async onWillSaveRecord(record) {}

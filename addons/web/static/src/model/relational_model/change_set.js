@@ -6,43 +6,27 @@
 import { markRaw } from "@odoo/owl";
 
 /**
- * Pending-edit accumulator for a single record.
+ * Pending-edit accumulator for a single record. Owns the markRaw
+ * ``_changes`` bag that {@link RelationalRecord} used to expose directly.
+ * Contract rules from ``STATE_MANAGEMENT.md`` "Record State Architecture":
  *
- * Owns the markRaw ``_changes`` object that {@link RelationalRecord}
- * exposed directly as a public field before this extraction.  Codifies
- * the three contract rules the field-level invariants from
- * ``STATE_MANAGEMENT.md`` "Record State Architecture" demanded:
+ *   1. The bag is intentionally non-reactive (``markRaw``) — the record's
+ *      reactive surface is the merged ``data`` getter + ``dirty`` flag, not
+ *      this accumulator. A reactive bag would re-render on every keystroke.
  *
- *   1. The change bag is **intentionally non-reactive** (``markRaw``).
- *      The record's reactive surface is the merged ``data`` getter +
- *      ``dirty`` flag, not the raw change accumulator. Mutations to a
- *      reactive bag would re-render the world on every keystroke.
+ *   2. ``dirty`` stays on the Record (read/written directly by
+ *      ``form_compiler.js`` and ``stock_move_line_x2_many_field.js``); any
+ *      bag reset must reset it atomically via ``Record._clearChanges()``,
+ *      the only sanctioned reset entry point.
  *
- *   2. Whenever the bag is reset, the record's reactive ``dirty`` flag
- *      MUST be reset on the same atomic step. This collaborator does
- *      NOT own ``dirty`` — the Record retains it as its public reactive
- *      field (consumers like ``form_compiler.js`` and
- *      ``stock_move_line_x2_many_field.js`` read/write ``record.dirty``
- *      directly). The atomicity is enforced by the paired
- *      ``Record._clearChanges()`` helper, which is the only sanctioned
- *      bag-reset entry point.
+ *   3. ``Object.keys``/``in`` must keep working on the bag — the save flow,
+ *      ``_getChanges``, and ``_applyChanges`` undo logic rely on
+ *      plain-object semantics, hence ``raw`` returns it directly.
  *
- *   3. ``Object.keys`` enumeration and ``key in changes`` membership
- *      checks must keep working against the underlying object — the
- *      save flow, the ``_getChanges`` filter, and ``_applyChanges``
- *      undo logic all rely on plain-object semantics. The ``raw``
- *      getter returns the bag directly so existing call sites that
- *      walk ``record._changes`` via the Record's getter keep working
- *      unchanged.
- *
- * What this class does NOT own:
- *   - ``dirty`` (Record's public reactive field — see invariant 2)
- *   - ``_textValues`` (separate Char/Text/Html flow for distinguishing
- *     ``false`` from ``""`` in the eval context)
- *   - ``_invalidFields`` / ``_unsetRequiredFields`` (validation lifecycle)
- *
- * Mixing those into ChangeSet would add coupling the field-level edit
- * flow does not need.
+ * Does NOT own ``dirty`` (see rule 2), ``_textValues`` (Char/Text/Html
+ * false-vs-"" flow), or ``_invalidFields``/``_unsetRequiredFields``
+ * (validation lifecycle) — mixing those in would add coupling the
+ * field-level edit flow doesn't need.
  */
 export class ChangeSet {
     constructor() {
@@ -76,12 +60,11 @@ export class ChangeSet {
     }
 
     /**
-     * The underlying markRaw bag. Returned by reference so existing
+     * The underlying markRaw bag, returned by reference so existing
      * consumers that iterate keys, spread into ``data``, or call
-     * ``_getChanges(this._changes, opts)`` keep working unchanged.
-     *
-     * Callers MUST NOT replace the bag wholesale via this getter —
-     * use ``replace()`` / ``clear()`` so the markRaw invariant is held.
+     * ``_getChanges(this._changes, opts)`` keep working unchanged. Callers
+     * MUST NOT replace it wholesale via this getter — use ``replace()`` /
+     * ``clear()`` so the markRaw invariant is held.
      *
      * @returns {Record<string, any>}
      */

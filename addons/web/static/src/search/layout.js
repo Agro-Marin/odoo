@@ -19,7 +19,6 @@ export function extractLayoutComponents(params) {
     return layoutComponents;
 }
 
-/** Top-level view layout that assembles ControlPanel, SearchPanel, and content slots. */
 export class Layout extends Component {
     static template = "web.Layout";
     static props = {

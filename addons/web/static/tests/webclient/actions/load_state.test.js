@@ -865,7 +865,6 @@ describe(`new urls`, () => {
             "Update the state without updating URL, nextState: actionStack,resId,action",
         ]);
 
-        // go back to List
         await contains(`.o_control_panel .breadcrumb a`).click();
         expect(`.o_list_view`).toHaveCount(1);
         expect(`.o_form_view`).toHaveCount(0);
@@ -907,7 +906,6 @@ describe(`new urls`, () => {
             "pushState http://example.com/odoo/action-4/action-3/2",
         ]);
 
-        // go back to previous action
         await contains(`.o_control_panel .breadcrumb .o_back_button a`).click();
         expect(queryAllTexts`.breadcrumb-item, .o_breadcrumb .active`).toEqual([
             "Partners Action 4",
@@ -1401,7 +1399,6 @@ describe(`new urls`, () => {
             message: "url did not change",
         });
 
-        // Open the dialog
         await contains(`.clickMe`).click();
         await animationFrame();
         expect(`.o_dialog .o_form_view`).toHaveCount(1);
@@ -1410,10 +1407,8 @@ describe(`new urls`, () => {
             message: "url did not change",
         });
 
-        // Close te dialog
         await contains(`.o_dialog .o_form_button_cancel`).click();
 
-        // Go back to the multi-record view
         await contains(`.breadcrumb-item`).click();
         await animationFrame();
         expect(`.o_list_view`).toHaveCount(1);
@@ -1914,7 +1909,7 @@ describe(`new urls`, () => {
         expect(`.o_form_view`).toHaveCount(1);
 
         await contains(".o_field_widget[name=foo] input").edit("");
-        browser.history.back(); // Click on back button
+        browser.history.back();
         await animationFrame();
         expect(`.o_form_view`).toHaveCount(1);
         expect(`.o_field_widget[name=foo]`).toHaveClass("o_field_invalid");
@@ -2267,7 +2262,6 @@ describe(`legacy urls`, () => {
             "Second record",
         ]);
 
-        // go back to List
         await contains(`.o_control_panel .breadcrumb a`).click();
         expect(`.o_list_view`).toHaveCount(1);
         expect(`.o_form_view`).toHaveCount(0);

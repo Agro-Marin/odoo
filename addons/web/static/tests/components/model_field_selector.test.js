@@ -97,12 +97,10 @@ test("creating a field chain from scratch", async () => {
     expect("input.o_input[placeholder='Search...']").toBeFocused();
     expect(".o_model_field_selector_popover").toHaveCount(1);
 
-    // The field selector popover should contain the list of "partner"
-    // fields. "Bar" should be among them.
     expect(".o_model_field_selector_popover_item_name:first").toHaveText("Bar");
 
-    // Clicking the "Bar" field should close the popover and set the field
-    // chain to "bar" as it is a basic field
+    // "Bar" is a basic field, so clicking it closes the popover and sets the
+    // chain directly to "bar".
     await contains(".o_model_field_selector_popover_item_name").click();
     expect(".o_model_field_selector_popover").toHaveCount(0);
     expect(getValueFromDOM()).toBe("Bar");
@@ -111,16 +109,12 @@ test("creating a field chain from scratch", async () => {
 
     await openModelFieldSelectorPopover();
     expect(".o_model_field_selector_popover").toHaveCount(1);
-    // The field selector popover should contain the list of "partner"
-    // fields. "Product" should be among them.
     expect(
         ".o_model_field_selector_popover .o_model_field_selector_popover_relation_icon",
     ).toHaveCount(1, {
         message: "field selector popover should contain the 'Product' field",
     });
 
-    // Clicking on the "Product" field should update the popover to show
-    // the product fields (so only "Product Name" and the default fields should be there)
     await followRelation();
     expect(".o_model_field_selector_popover_item_name").toHaveCount(5);
     expect(queryAllTexts(".o_model_field_selector_popover_item_name").at(-1)).toBe(
@@ -241,14 +235,12 @@ test("default `showSearchInput` option", async () => {
         "Product",
     ]);
 
-    // search 'xx'
     await contains(
         ".o_model_field_selector_popover .o_model_field_selector_popover_search input",
     ).edit("xx", { confirm: false });
     await runAllTimers();
     expect(getDisplayedFieldNames()).toBeEmpty();
 
-    // search 'Pro'
     await contains(
         ".o_model_field_selector_popover .o_model_field_selector_popover_search input",
     ).edit("Pro", { confirm: false });
@@ -557,14 +549,13 @@ test("start on complex path and click prev", async () => {
     });
 
     await openModelFieldSelectorPopover();
-    // viewing third page
-    // mother is selected on that page
+    // Third page, with "Mother" pre-selected.
     expect(getTitle()).toBe("... > Father");
     expect(getFocusedFieldName()).toBe("Mother");
     expect(getModelFieldSelectorValues()).toEqual(["Mother", "Father", "Mother"]);
 
-    // select Father on third page and go to next page
-    // no selection on fourth page --> first item is focused
+    // Select "Father" and go to the fourth page: nothing is selected there,
+    // so the first item gets focused.
     await followRelation();
     expect(getTitle()).toBe("... > Father");
     expect(getFocusedFieldName()).toBe("Created on");

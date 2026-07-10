@@ -39,8 +39,6 @@ export function renderToFragment(template, context = {}) {
 }
 
 /**
- * renders a template with an (optional) context and outputs it as a string
- *
  * @param {string} template
  * @param {Object} context
  * @returns string: the html of the template
@@ -79,9 +77,7 @@ function render(template, context = {}) {
 }
 
 /**
- * renders a template with an (optional) context and returns a Markup string,
- * suitable to be inserted in a template with a t-out directive
- *
+ * Suitable to be inserted in a template with a t-out directive.
  * @param {string} template
  * @param {Object} context
  * @returns {ReturnType<markup>} the html of the template, as a markup string

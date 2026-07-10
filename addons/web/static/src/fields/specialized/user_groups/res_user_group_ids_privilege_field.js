@@ -42,13 +42,11 @@ class ResUserGroupIdsPrivilegeField extends Component {
      * @returns {Object | false}
      */
     get group() {
-        // Read from record.data directly (source of truth, synchronously updated
-        // by the SelectionField / BooleanField on user change) rather than from
-        // ``env.resUserGroupsInfo.groups[gid].selected``, which is a derived
-        // flag the parent ResUserGroupIdsField only refreshes during its
-        // ``onWillRender``.  When the user picks a group in the dropdown and
-        // immediately clicks the info button (tour, fast user), that render
-        // has not yet committed and the derived flag still reads ``false``.
+        // Read from record.data (synchronously updated by Selection/BooleanField)
+        // rather than the derived ``env.resUserGroupsInfo.groups[gid].selected``
+        // flag, which the parent only refreshes on ``onWillRender``: a fast
+        // pick-then-click-info (e.g. a tour) can race ahead of that render and
+        // still read stale ``false``.
         const value = this.props.record.data[this.props.name];
         if (!value) {
             return false;
@@ -160,15 +158,11 @@ class ResUserGroupIdsPrivilegeField extends Component {
             this.popover.close();
             return;
         }
-        // Guard against opening with no group context: ``this.group`` and
-        // ``this.impliedGroup`` are getters that return ``false`` when the
-        // lookup fails, so the literal ternary ``this.group.id : this.impliedGroup.id``
-        // resolves to ``false.id`` → ``undefined``, which the popover's
-        // strict props (``groupId: [Number, Boolean]``) rejects, and its
-        // ``setup()`` would dereference ``this.privileges[this.group.privilege_id]``
-        // on an undefined group anyway.  The info button is ``invisible``
-        // in this state via CSS, but tests and edge timings can still reach
-        // the handler; refuse the open here instead of crashing downstream.
+        // Guard against opening with no group context: ``this.group``/``this.impliedGroup``
+        // return ``false`` when absent, so a bare ternary would resolve to ``undefined``
+        // and fail the popover's strict ``groupId`` prop (or crash its ``setup()`` on an
+        // undefined group). CSS hides the button in this state, but tests/edge timings
+        // can still reach the handler, so refuse here instead of crashing downstream.
         const groupId =
             (this.group && this.group.id) ||
             (this.impliedGroup && this.impliedGroup.id);
