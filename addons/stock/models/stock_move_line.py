@@ -615,7 +615,6 @@ class StockMoveLine(models.Model):
                     lot_id=ml.lot_id,
                     package_id=ml.package_id,
                     owner_id=ml.owner_id,
-                    strict=True,
                 )
         moves = self.mapped("move_id")
         packages = self.env["stock.package"].browse(

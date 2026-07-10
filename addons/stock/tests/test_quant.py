@@ -737,7 +737,7 @@ class TestStockQuant(TestStockCommon):
             len(self.gather_relevant(self.productA, self.stock_location)), 1
         )
         self.env["stock.quant"]._update_reserved_quantity(
-            self.productA, self.stock_location, -10.0, strict=True
+            self.productA, self.stock_location, -10.0
         )
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
@@ -794,7 +794,7 @@ class TestStockQuant(TestStockCommon):
             0.0,
         )
         self.env["stock.quant"]._update_reserved_quantity(
-            self.productA, self.stock_location, -2.0, strict=True
+            self.productA, self.stock_location, -2.0
         )
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
@@ -857,7 +857,7 @@ class TestStockQuant(TestStockCommon):
         )
 
         self.env["stock.quant"]._update_reserved_quantity(
-            self.product_serial, self.stock_location, 1.0, lot_id=lot1, strict=True
+            self.product_serial, self.stock_location, 1.0, lot_id=lot1
         )
 
         self.assertEqual(
@@ -880,7 +880,7 @@ class TestStockQuant(TestStockCommon):
         )
 
         self.env["stock.quant"]._update_reserved_quantity(
-            self.product_serial, self.stock_location, -1.0, lot_id=lot1, strict=True
+            self.product_serial, self.stock_location, -1.0, lot_id=lot1
         )
 
         self.assertEqual(
