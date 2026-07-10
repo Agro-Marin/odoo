@@ -7,7 +7,7 @@ from json import loads
 from odoo.fields import Command
 from odoo.tests import Form, TransactionCase
 from odoo.tools import mute_logger
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class TestProcRule(TransactionCase):
@@ -82,6 +82,10 @@ class TestProcRule(TransactionCase):
         )
         reception_route = warehouse.reception_route_id
         self.product.is_storable = True
+        # Pin the product to the reception route so the looping rule created below is the
+        # one selected, independent of buy/manufacture routes from co-installed modules.
+        reception_route.product_selectable = True
+        self.product.route_ids = reception_route
 
         # Creates a delivery for this product, that way, this product will be to resupply.
         picking_form = Form(self.env["stock.picking"])
@@ -386,6 +390,11 @@ class TestProcRule(TransactionCase):
         # add a delay [i.e. lead days] so procurement will be triggered based on forecasted stock
         rule.delay = 9.0
 
+        # Pin the orderpoint to the reception route carrying the supplier pull rule, so
+        # replenishment is deterministic regardless of buy/manufacture routes contributed
+        # by co-installed modules (this test targets the plain stock receipt path).
+        orderpoint.route_id = warehouse.reception_route_id
+
         delivery_move = self.env["stock.move"].create(
             {
                 "date": datetime.today() + timedelta(days=5),
@@ -439,7 +448,7 @@ class TestProcRule(TransactionCase):
         orderpoint_form.product_max_qty = 5.0
         orderpoint = orderpoint_form.save()
 
-        self.env["stock.warehouse.orderpoint"].create(
+        orderpoint_b = self.env["stock.warehouse.orderpoint"].create(
             {
                 "name": "ProductB RR",
                 "product_id": self.productB.id,
@@ -460,6 +469,11 @@ class TestProcRule(TransactionCase):
                 "picking_type_id": warehouse.in_type_id.id,
             }
         )
+
+        # Pin both orderpoints to the reception route's supplier pull rule so
+        # replenishment stays deterministic regardless of buy/manufacture routes from
+        # co-installed modules (this test targets the plain stock receipt path).
+        (orderpoint | orderpoint_b).route_id = warehouse.reception_route_id
 
         delivery_picking = self.env["stock.picking"].create(
             {
@@ -864,7 +878,7 @@ class TestProcRule(TransactionCase):
 
     def test_replenishment_order_to_max(self):
         warehouse = self.env["stock.warehouse"].search(
-            [("company_id", "=", self.env.user.id)], limit=1
+            [("company_id", "=", self.env.company.id)], limit=1
         )
         self.product.is_storable = True
         self.env["stock.quant"]._update_available_quantity(
@@ -878,6 +892,20 @@ class TestProcRule(TransactionCase):
                 "product_max_qty": 200,
             }
         )
+        # Deterministic supplier pull rule + pin, so force-to-max replenishment creates a
+        # stock receipt regardless of buy/manufacture routes from co-installed modules.
+        self.env["stock.rule"].create(
+            {
+                "name": "Rule Supplier",
+                "route_id": warehouse.reception_route_id.id,
+                "location_dest_id": warehouse.lot_stock_id.id,
+                "location_src_id": self.env.ref("stock.stock_location_suppliers").id,
+                "action": "pull",
+                "procure_method": "make_to_stock",
+                "picking_type_id": warehouse.in_type_id.id,
+            }
+        )
+        orderpoint.route_id = warehouse.reception_route_id
         self.assertEqual(orderpoint.qty_forecast, 10.0)
         # above minimum qty => nothing to order
         orderpoint.action_replenish()
@@ -1264,6 +1292,57 @@ class TestProcRule(TransactionCase):
             [curve_line_val["y"] for curve_line_val in graph_data["curve_line_vals"]],
             [40, 20, 40, 20, 40, 20],
         )
+
+    def test_replenishment_graph_has_no_side_effect_on_orderpoint(self):
+        """Rendering the forecast graph must never write back to the orderpoint.
+
+        Regression guard: ``_compute_json_replenishment_graph`` used to clamp and
+        *persist* ``product_max_qty`` on the orderpoint as a side effect of
+        computing a JSON field. Recompute the graph and assert the orderpoint is
+        left untouched.
+        """
+        self.product.is_storable = True
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": self.product.id,
+                "product_min_qty": 10,
+                "product_max_qty": 50,
+            }
+        )
+        info = self.env["stock.replenishment.info"].create(
+            {"orderpoint_id": orderpoint.id}
+        )
+        # Force a fresh recompute, then flush so any stray write would hit the DB.
+        info.invalidate_recordset(["json_replenishment_graph"])
+        self.assertTrue(info.json_replenishment_graph)
+        info.flush_recordset()
+        orderpoint.invalidate_recordset(["product_max_qty", "product_min_qty"])
+        self.assertEqual(orderpoint.product_max_qty, 50)
+        self.assertEqual(orderpoint.product_min_qty, 10)
+
+    def test_prepare_graph_data_is_pure(self):
+        """``_prepare_graph_data`` derives its result purely from its arguments."""
+        Info = self.env["stock.replenishment.info"]
+        # No demand -> flat placeholder axis, no ordering period.
+        ordering_period, data = Info._prepare_graph_data(10, 50, daily_demand=0)
+        self.assertEqual(ordering_period, 0)
+        self.assertEqual(data["x_axis_vals"], ["", " "])
+        self.assertEqual(data["curve_line_vals"], [])
+        self.assertEqual([p["y"] for p in data["max_line_vals"]], [50, 50])
+        self.assertEqual([p["y"] for p in data["min_line_vals"]], [10, 10])
+        # Equal min/max must not divide by zero (qty_diff falls back to 1).
+        ordering_period, _data = Info._prepare_graph_data(20, 20, daily_demand=5)
+        self.assertEqual(ordering_period, 1)
+
+    def test_replenishment_info_rejects_negative_percent_factor(self):
+        """A negative percentage factor is meaningless and must be rejected."""
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {"product_id": self.product.id, "product_min_qty": 10, "product_max_qty": 50}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["stock.replenishment.info"].create(
+                {"orderpoint_id": orderpoint.id, "percent_factor": -5}
+            )
 
 
 class TestProcRuleLoad(TransactionCase):

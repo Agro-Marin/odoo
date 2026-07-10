@@ -54,7 +54,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         so_line, _ = self.env['sale.order.line'].create([{
             'name': product.name,
             'product_id': product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'price_unit': product.list_price,
             'tax_ids': False,
             'order_id': so.id,
@@ -71,7 +71,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
 
         # salesperson writes on the SO
         so.write({
-            'line_ids': [(1, so_line.id, {'product_uom_qty': 0.9})]
+            'line_ids': [(1, so_line.id, {'product_qty': 0.9})]
         })
 
         self.assertIn(so.name, po.activity_ids.note)
@@ -104,7 +104,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
             'line_ids': [
                 (0, 0, {
                     'product_id': product.id,
-                    'product_uom_qty': 10,
+                    'product_qty': 10,
                     'price_unit': product.list_price,
                 })]
         })
@@ -113,7 +113,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
         self.assertEqual(po.line_ids[0].product_qty, 10)
         so.line_ids = [Command.create({
             'product_id': product.id,
-            'product_uom_qty': 11,
+            'product_qty': 11,
             'price_unit': product.list_price,
         })]
 
