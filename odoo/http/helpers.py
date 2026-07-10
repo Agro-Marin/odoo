@@ -122,17 +122,24 @@ def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
 
 def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     """
-    Return the subset of ``dbs`` that match the dbfilter or the dbname
+    Return the subset of ``dbs`` that match the dbfilter and/or the dbname
     server configuration. In case neither are configured, return ``dbs``
     as-is.
 
+    ``--database`` (``db_name``) is treated as an explicit allowlist that
+    *further constrains* the ``dbfilter`` result when both are set — NOT as a
+    mutually-exclusive alternative that ``dbfilter`` overrides. Otherwise a
+    permissive ``dbfilter`` (e.g. ``.*``) would silently re-expose databases the
+    operator pinned away with ``-d``, so a ``-d X`` run on a host that has
+    several databases resolves ambiguously (``db_monodb`` returns ``None``) and
+    every db-bound route 404s — which is exactly what broke HttpCase tests and
+    would break any single-DB deployment that also sets a dbfilter.
+
     Result ordering depends on which mode is active:
 
-    * ``dbfilter`` regex set → preserves the input order of ``dbs`` (which
-      is itself the order returned by :func:`~odoo.service.db.list_dbs`,
-      typically alphabetical from PostgreSQL).
-    * ``db_name`` set (no ``dbfilter``) → sorted alphabetically (set
-      intersection plus explicit ``sorted``).
+    * ``dbfilter`` set (optionally with ``db_name``) → preserves the input order
+      of ``dbs`` (itself the order from :func:`~odoo.service.db.list_dbs`).
+    * ``db_name`` set (no ``dbfilter``) → sorted alphabetically.
     * Neither set → preserves the input order.
 
     Callers that need a stable, mode-independent order should sort the
@@ -144,6 +151,7 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     :returns: The original list filtered.
     :rtype: list[str]
     """
+    dbs = list(dbs)
     if config["dbfilter"]:
         if host is None:
             host = request.httprequest.environ.get("HTTP_HOST", "")
@@ -151,14 +159,19 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
         # (``www.``/``:port``) share one compiled-regex entry.
         host = _normalize_dbfilter_host(host)
         dbfilter_re = _compiled_dbfilter(config["dbfilter"], host)
-        return [db for db in dbs if dbfilter_re.match(db)]
+        dbs = [db for db in dbs if dbfilter_re.match(db)]
+        if config["db_name"]:
+            # --database also set: intersect (see docstring).
+            exposed = set(config["db_name"])
+            dbs = [db for db in dbs if db in exposed]
+        return dbs
 
     if config["db_name"]:
         # In case --db-filter is not provided and --database is passed, Odoo will
         # use the value of --database as a comma separated list of exposed databases.
         return sorted(set(config["db_name"]).intersection(dbs))
 
-    return list(dbs)
+    return dbs
 
 
 def _get_rpc_dispatcher(service_name: str) -> Callable:

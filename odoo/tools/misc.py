@@ -40,7 +40,7 @@ CANONICAL IMPORT LOCATIONS
 +----------------------------------+------------------------------------------+
 | OrderedSet, LastOrderedSet       | from odoo.libs.collections import ...    |
 | frozendict, freehash             | from odoo.libs.collections import ...    |
-| Collector, StackMap, Reverse     | from odoo.libs.collections import ...    |
+| Collector, StackMap              | from odoo.libs.collections import ...    |
 | ConstantMapping, ReadonlyDict    | from odoo.libs.collections import ...    |
 | DotDict, submap                  | from odoo.libs.collections import ...    |
 +----------------------------------+------------------------------------------+
@@ -107,7 +107,6 @@ from odoo.libs.collections import (
     LastOrderedSet,  # Set ordered by last insertion (re-adding moves to end)
     OrderedSet,  # Set that preserves insertion order
     ReadonlyDict,  # Immutable dict (not even updatable via update())
-    Reverse,  # Wrap a value to reverse its sort order
     ReversedIterable,  # Reversed iterable type
     StackMap,  # Dict with stack-like shadowing
     freehash,  # Hash for unhashable objects
@@ -230,7 +229,6 @@ __all__ = [
     "DotDict",
     "LastOrderedSet",
     "OrderedSet",
-    "Reverse",
     "babel_locale_parse",
     "clean_context",
     "consteq",
@@ -312,6 +310,7 @@ class Callbacks:
 
 
         callbacks.add(foo)
+
 
         # add bar
         @callbacks.add

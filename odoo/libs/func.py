@@ -1,9 +1,8 @@
 """Function and decorator utilities, including lazy evaluation."""
 
 import functools
-import warnings
 from collections.abc import Callable
-from inspect import Parameter, getsourcefile, signature
+from inspect import getsourcefile
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -12,11 +11,9 @@ if TYPE_CHECKING:
 __all__ = [
     "classproperty",
     "conditional",
-    "filter_kwargs",
     "frame_codeinfo",
     "lazy",
     "lazy_classproperty",
-    "lazy_property",
     "locked",
     "reset_cached_properties",
     "synchronized",
@@ -30,29 +27,6 @@ def reset_cached_properties(obj: object) -> None:
     for name in list(obj_dict):
         if isinstance(getattr(cls, name, None), functools.cached_property):
             del obj_dict[name]
-
-
-class lazy_property(functools.cached_property):
-    """Deprecated cached property; use :func:`functools.cached_property`."""
-
-    def __init__(self, func: Callable) -> None:
-        """Warn about deprecation and initialize the cached property."""
-        super().__init__(func)
-        warnings.warn(
-            "lazy_property is deprecated since Odoo 19, use `functools.cached_property`",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-
-    @staticmethod
-    def reset_all(instance: object) -> None:
-        """Reset all cached properties on ``instance`` (deprecated)."""
-        warnings.warn(
-            "lazy_property is deprecated since Odoo 19, use `reset_cached_properties` directly",
-            stacklevel=2,
-            category=DeprecationWarning,
-        )
-        reset_cached_properties(instance)
 
 
 def conditional[T](condition: Any, decorator: Callable[[T], T]) -> Callable[[T], T]:
@@ -70,25 +44,6 @@ def conditional[T](condition: Any, decorator: Callable[[T], T]) -> Callable[[T],
         return lambda fn: fn
 
 
-def filter_kwargs(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Filter keyword arguments to those accepted by ``func``.
-
-    Return only the keyword arguments that bind to the function's signature.
-    """
-    leftovers = set(kwargs)
-    for p in signature(func).parameters.values():
-        if p.kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY):
-            leftovers.discard(p.name)
-        elif p.kind == Parameter.VAR_KEYWORD:  # **kwargs
-            leftovers.clear()
-            break
-
-    if not leftovers:
-        return kwargs
-
-    return {key: kwargs[key] for key in kwargs if key not in leftovers}
-
-
 def synchronized(
     lock_attr: str = "_lock",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -97,6 +52,7 @@ def synchronized(
     The decorated method holds ``getattr(self, lock_attr)`` (default
     ``"_lock"``) for the duration of each call.
     """
+
     def synchronized_lock(func: Callable[..., Any], /) -> Callable[..., Any]:
         @functools.wraps(func)
         def locked(inst: Any, *args: Any, **kwargs: Any) -> Any:
@@ -154,7 +110,7 @@ class classproperty[T]:
 
 
 class lazy_classproperty[T](classproperty[T]):
-    """Similar to :class:`lazy_property`, but for classes."""
+    """A classproperty that caches its value on the owner class on first access."""
 
     def __get__(self, cls: Any, owner: type | None = None, /) -> T:
         """Compute the value, cache it on the owner class, and return it."""

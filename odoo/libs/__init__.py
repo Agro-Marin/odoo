@@ -31,7 +31,6 @@ from .collections import (
     freehash,
     Collector,
     StackMap,
-    Reverse,
     ReversedIterable,
     ConstantMapping,
     ReadonlyDict,
@@ -82,7 +81,6 @@ __all__ = [
     # Collections
     "OrderedSet",
     "ReadonlyDict",
-    "Reverse",
     "ReversedIterable",
     "Sentinel",
     "StackMap",

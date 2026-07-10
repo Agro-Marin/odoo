@@ -714,6 +714,34 @@ class TestCommand(BaseCase):
             "db names would let unrelated databases through.",
         )
 
+    def test_db_filter_database_constrains_permissive_dbfilter(self):
+        """`--database` must further constrain a `--db-filter`, not be overridden.
+
+        With a permissive dbfilter (``.*``) and several databases on the host, a
+        `-d X` run must still resolve to exactly X — otherwise db_monodb is
+        ambiguous and every db-bound route 404s (this broke HttpCase tests).
+        """
+        from odoo.http import db_filter
+
+        dbs = ["alpha", "beta", "prod", "test_db"]
+        with mock.patch.dict(
+            config.options, {"dbfilter": ".*", "db_name": ["test_db"]}
+        ):
+            self.assertEqual(db_filter(dbs, host="localhost"), ["test_db"])
+        # dbfilter alone still filters by pattern only
+        with mock.patch.dict(config.options, {"dbfilter": "^al", "db_name": []}):
+            self.assertEqual(db_filter(dbs, host="localhost"), ["alpha"])
+        # db_name alone still intersects (sorted)
+        with mock.patch.dict(
+            config.options, {"dbfilter": "", "db_name": ["beta", "alpha"]}
+        ):
+            self.assertEqual(db_filter(dbs, host="localhost"), ["alpha", "beta"])
+        # both set: intersection of the two
+        with mock.patch.dict(
+            config.options, {"dbfilter": "^(alpha|prod)$", "db_name": ["prod", "beta"]}
+        ):
+            self.assertEqual(db_filter(dbs, host="localhost"), ["prod"])
+
     def test_obfuscate_excludes_ir_tables_via_starts_with(self):
         """Source-level guard: get_all_fields must filter ir_* tables via
         starts_with, not LIKE — the latter treats '_' as a wildcard and

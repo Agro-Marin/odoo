@@ -72,7 +72,9 @@ if not any(
 # mechanism instead of a mix of constants, env vars and config.  Per-instance
 # copies live on ``self`` (see ``__init__``); nothing reads these at module level.
 _DEFAULT_MAX_IDLE = 60 * 10  # keep an idle pooled connection up to 10 min
-_DEFAULT_MAX_LIFETIME = 3600  # recycle each pooled connection hourly (stale prep caches)
+_DEFAULT_MAX_LIFETIME = (
+    3600  # recycle each pooled connection hourly (stale prep caches)
+)
 # Wall-clock budget for one borrow(): the semaphore wait and the per-DSN
 # getconn() both draw from this window (a shared deadline, so they can't drift).
 _DEFAULT_BORROW_TIMEOUT = 30.0
@@ -305,7 +307,9 @@ class ConnectionPool:
         """
         # Merge URI components with explicit kwargs (kwargs win) via the shared
         # expander, which also folds away any embedded ``dsn`` key.
-        maint = _expand_conninfo({"dsn": conninfo, **kwargs}) if conninfo else dict(kwargs)
+        maint = (
+            _expand_conninfo({"dsn": conninfo, **kwargs}) if conninfo else dict(kwargs)
+        )
         db_name = kwargs.get("dbname") or maint.get("dbname")
         # Nothing to check, or the target *is* the maintenance DB (circular).
         if not db_name or db_name == "postgres":
@@ -519,15 +523,31 @@ class ConnectionPool:
             self._last_reap_check = now
             reap_keys = self._collect_reapable_pools_locked()
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
-        for rp in reaped_pools:
-            self._safe_close(rp)
         if reaped_pools:
-            _logger.info(
-                "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
-                self,
-                len(reaped_pools),
-                self._reap_idle_ttl,
-            )
+            # Close the reaped pools OFF the caller's thread: pool.close() joins
+            # ~4 worker threads (up to ~5s), and this runs on the cursor-close
+            # hot path (give_back <- Cursor._close), so closing inline would add
+            # multi-second tail latency to one unlucky request. The pools are
+            # already detached from self._pools under the lock above, so a
+            # background close is safe. Reaps are throttled to
+            # _reap_check_interval, so at most one such thread runs per interval.
+            threading.Thread(
+                target=self._close_reaped_pools,
+                args=(reaped_pools,),
+                name="odoo.db.pool-reaper",
+                daemon=True,
+            ).start()
+
+    def _close_reaped_pools(self, pools: list[_PsycopgPool]) -> None:
+        """Close idle pools reaped on the return path (runs on a daemon thread)."""
+        for rp in pools:
+            self._safe_close(rp)
+        _logger.info(
+            "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
+            self,
+            len(pools),
+            self._reap_idle_ttl,
+        )
 
     def borrow(
         self, connection_info: dict, key: frozenset | None = None

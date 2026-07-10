@@ -419,7 +419,13 @@ class Json2Dispatcher(Dispatcher):
                 "State-changing json2 requests must use the 'application/json' "
                 "Content-Type (CSRF protection)."
             )
-        if self.request.httprequest.content_length:
+        # Gate on the actual body, not content_length: a chunked request
+        # (Transfer-Encoding: chunked) has content_length None, so gating on it
+        # dropped the body and ran the endpoint with path args only — a
+        # state-changing json2 route would silently execute with defaults.
+        # get_data() reads (and caches) the full body regardless of framing;
+        # get_json_data() below reuses that cache.
+        if httprequest.get_data(cache=True):
             try:
                 self.jsonrequest = self.request.get_json_data()
             except ValueError as exc:

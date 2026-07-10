@@ -1,9 +1,8 @@
 """Miscellaneous collection types and adapters."""
 
-__all__ = ["Collector", "Reverse", "ReversedIterable", "StackMap"]
+__all__ = ["Collector", "ReversedIterable", "StackMap"]
 
 from collections.abc import Iterable, Iterator, MutableMapping, Reversible
-from typing import Any
 
 
 class Collector[K, T](dict[K, tuple[T, ...]]):
@@ -109,52 +108,3 @@ class ReversedIterable[T](Reversible[T]):
     def __reversed__(self) -> Iterator[T]:
         """Iterate over the wrapped iterable in its original order."""
         return iter(self.iterable)
-
-
-class Reverse:
-    """Wraps a value and reverses its ordering.
-
-    Useful in key functions when mixing ascending and descending sort
-    on non-numeric data as the ``reverse`` parameter can not do
-    piecemeal reordering.
-    """
-
-    __slots__ = ["val"]
-
-    def __init__(self, val: Any) -> None:
-        """Wrap ``val`` so that its ordering is reversed."""
-        self.val = val
-
-    def __eq__(self, other: object) -> bool:
-        """Return whether the wrapped values are equal."""
-        if not isinstance(other, Reverse):
-            # Comparing to a non-Reverse must not AttributeError on ``other.val``;
-            # NotImplemented lets Python fall back to identity comparison.
-            return NotImplemented
-        return self.val == other.val
-
-    def __hash__(self) -> int:
-        """Return the hash of the wrapped value."""
-        return hash(self.val)
-
-    def __ne__(self, other: object) -> bool:
-        """Return whether the wrapped values differ."""
-        if not isinstance(other, Reverse):
-            return NotImplemented
-        return self.val != other.val
-
-    def __ge__(self, other: Reverse) -> bool:
-        """Return whether this value sorts at or after ``other`` (reversed)."""
-        return self.val <= other.val
-
-    def __gt__(self, other: Reverse) -> bool:
-        """Return whether this value sorts after ``other`` (reversed)."""
-        return self.val < other.val
-
-    def __le__(self, other: Reverse) -> bool:
-        """Return whether this value sorts at or before ``other`` (reversed)."""
-        return self.val >= other.val
-
-    def __lt__(self, other: Reverse) -> bool:
-        """Return whether this value sorts before ``other`` (reversed)."""
-        return self.val > other.val
