@@ -323,7 +323,7 @@ class ReportStockReport_Reception(models.AbstractModel):
 
     def action_assign(self, move_ids, qtys, in_ids):
         """Assign picking move(s) [i.e. link] to other moves (i.e. make them MTO)
-        :param move_id ids: the ids of the moves to make MTO
+        :param move_ids ids: the ids of the moves to make MTO
         :param qtys list: the quantities that are being assigned to the move_ids (in same order as move_ids)
         :param in_ids ids: the ids of the moves that are to be assigned to move_ids
         """

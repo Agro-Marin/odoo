@@ -2142,15 +2142,15 @@ Please change the quantity done or the rounding precision in your settings.""",
 
     def _action_assign(self, force_qty=False):
         """Reserve stock moves by creating their stock move lines. A stock move is
-        considered reserved once the sum of `reserved_qty` for all its move lines is
-        equal to its `product_qty`. If it is less, the stock move is considered
-        partially available.
+        considered reserved once the sum of `quantity_product_uom` for all its move
+        lines is equal to its `product_qty`. If it is less, the stock move is
+        considered partially available.
         """
         StockMove = self.env["stock.move"]
         assigned_moves_ids = OrderedSet()
         partially_available_moves_ids = OrderedSet()
-        # Read the `reserved_availability` field of the moves out of the loop to prevent unwanted
-        # cache invalidation when actually reserving the move.
+        # Snapshot each move's `quantity` before the loop to avoid cache invalidation
+        # when the reservation writes below run.
         reserved_availability = {move: move.quantity for move in self}
 
         roundings = {move: move.product_id.uom_id.rounding for move in self}
