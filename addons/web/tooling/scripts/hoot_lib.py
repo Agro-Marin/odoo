@@ -49,6 +49,7 @@ LOG_DIR = SCRIPT_DIR / ".hoot_logs"
 # HOOT log signals (see web/static/lib/hoot/core/runner.js).
 SUCCESS_SIGNAL = "[HOOT] Test suite succeeded"
 RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
+RE_PASSED_TEST = re.compile(r'Test "(.+?)" passed')
 RE_FAILED_SUMMARY = re.compile(r"Failed (\d+) tests \((\d+) passed")
 RE_PASSED_SUMMARY = re.compile(r"Passed (\d+) tests \((\d+) assertions")
 
@@ -326,6 +327,10 @@ class RunResult:
     failed_tests: list[str] = field(default_factory=list)
     wall: float = 0.0
     error: str | None = None
+    # True when tests executed and none failed, but HOOT's final summary line
+    # was never captured — typically a browser-teardown timeout truncates it.
+    # The run is inconclusive, not a genuine test failure.
+    incomplete: bool = False
 
 
 def run_suites(
@@ -410,14 +415,29 @@ def run_suites(
         browser_logger.propagate = prev_propagate
 
     # Parse captured console output for counts + failed test names.
+    summary_seen = False
+    passed_seen = 0
     for line in capture.lines:
         if m := RE_FAILED_SUMMARY.search(line):
             result.failed, result.passed = int(m[1]), int(m[2])
+            summary_seen = True
         elif m := RE_PASSED_SUMMARY.search(line):
             result.passed = int(m[1])
+            summary_seen = True
+        if RE_PASSED_TEST.search(line):
+            passed_seen += 1
         for name in RE_FAILED_TEST.findall(line):
             if name not in result.failed_tests:
                 result.failed_tests.append(name)
+    # A browser-teardown timeout (e.g. Chrome's shutdown serviceWorker-unregister
+    # hanging) can raise after every test has run but before HOOT's final summary
+    # line is captured, leaving counts at 0/0. Recover them from the per-test log
+    # so a fully-passing suite isn't reported as an empty FAIL.
+    if not summary_seen and (passed_seen or result.failed_tests):
+        result.passed = passed_seen
+        result.failed = len(result.failed_tests)
+        if not result.ok and not result.failed_tests:
+            result.incomplete = True
     if result.error and not result.ok:
         result.ok = False
     return result

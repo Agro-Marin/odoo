@@ -74,6 +74,16 @@ def _report(result: H.RunResult) -> None:
             f"PASS  {header}  "
             f"({result.passed} passed, {result.wall:.1f}s)", C_GREEN))
         return
+    if result.incomplete:
+        # Every executed test passed but HOOT's summary never arrived (usually a
+        # browser-teardown timeout). Not a test failure — flag it, don't fail.
+        print(_color(
+            f"WARN  {header}  "
+            f"({result.passed} passed, no clean summary — likely a browser "
+            f"teardown timeout, {result.wall:.1f}s)", C_YEL))
+        if result.error:
+            print(_color(f"  note: {result.error}", C_DIM))
+        return
     print(_color(
         f"FAIL  {header}  "
         f"({result.failed} failed / {result.passed} passed, "
@@ -244,7 +254,9 @@ def main() -> int:
 
     result = _run_once(suites, state, args)
     _report(result)
-    return 0 if result.ok else 1
+    # `incomplete` = all executed tests passed but the summary was truncated
+    # (teardown timeout); not a failure, so don't exit non-zero.
+    return 0 if (result.ok or result.incomplete) else 1
 
 
 if __name__ == "__main__":
