@@ -156,7 +156,7 @@ test("should not preserve image shape classes when replacing an image with an ic
     await click(".fa-glass");
     await animationFrame();
     expect(getContent(el).replace(/<img.*?>/, "<img>")).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
 });
 
