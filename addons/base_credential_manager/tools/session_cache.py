@@ -143,6 +143,10 @@ class SessionCache(BaseLRUCache):
 def get_session_cache(env, max_size: int = 100, ttl_hours: float = 1) -> SessionCache:
     """Get or create session cache from registry.
 
+    ⚠️ ``max_size`` / ``ttl_hours`` only take effect on the call that CREATES
+    the cache (first caller per worker registry). Later callers get the
+    existing instance unchanged — do not rely on per-call sizing.
+
     ⚠️ Per-worker, not per-database. In prefork mode (``workers >= 1``) each
     worker has its own ``Registry`` and its own cache, so effective hit rate
     is at most ``1 / num_workers``. Acceptable for a pure session cache

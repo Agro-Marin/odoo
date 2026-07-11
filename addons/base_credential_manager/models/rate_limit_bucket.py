@@ -353,6 +353,12 @@ class RateLimitBucket(models.Model):
                 )
 
                 self.env.cr.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                # The raw UPDATE bypasses the ORM cache — drop the stale
+                # values so same-transaction ORM readers (reset_bucket, the
+                # bucket list view during tests) see the consumed state.
+                self.invalidate_recordset(
+                    ["tokens", "last_refill", "last_request_at"],
+                )
                 return True
 
             # No tokens available - rate limit exceeded
