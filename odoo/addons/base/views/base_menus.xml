@@ -367,6 +367,18 @@
         action="ir_cron_trigger_action"
         sequence="3" />
 
+    <menuitem
+        id="menu_ir_job_act"
+        parent="base.menu_automation"
+        action="ir_job_act"
+        sequence="4" />
+
+    <menuitem
+        id="menu_ir_job_channel_act"
+        parent="base.menu_automation"
+        action="ir_job_channel_act"
+        sequence="5" />
+
     <!-- ═══════════════════════════════════════
          APPS (menu_management)
          ═══════════════════════════════════════ -->

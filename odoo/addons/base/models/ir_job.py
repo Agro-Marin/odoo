@@ -443,7 +443,9 @@ class IrJob(models.Model):
                             job["model_name"],
                             job["method_name"],
                         )
-                    IrJob._record_failure(cr, job, exc)
+                    # Registry dispatch: per-database overrides of the failure
+                    # recording (and its _notify_failed hook) apply.
+                    registry[IrJob._name]._record_failure(cr, job, exc)
                     cr.commit()
                 finally:
                     cr.execute(
@@ -539,13 +541,16 @@ class IrJob(models.Model):
         )
         _logger.info("Job %s: done", job["id"])
 
-    @staticmethod
-    def _record_failure(cr, job: dict[str, Any], exc: BaseException) -> None:
+    @classmethod
+    def _record_failure(cls, cr, job: dict[str, Any], exc: BaseException) -> None:
         """Requeue with backoff while the retry budget lasts, else fail.
 
         Runs on a fresh transaction (the caller rolled the business one back).
         Every exception consumes a retry; ``RetryableJobError`` only differs
         in that it may carry an explicit delay and is not logged as an error.
+        A classmethod (not staticmethod) so the registry dispatch in
+        ``_claim_and_run_loop`` lets per-database overrides of
+        ``_notify_failed`` apply.
         """
         retry = job["retry"]
         if retry < job["max_retries"]:
@@ -598,6 +603,17 @@ class IrJob(models.Model):
             _logger.error(
                 "Job %s: failed permanently after %s retries", job["id"], retry
             )
+            cls._notify_failed(cr, job, exc)
+
+    @staticmethod
+    def _notify_failed(cr, job: dict[str, Any], exc: BaseException) -> None:
+        """Notify some administrator that a job failed permanently.
+
+        The base implementation only logs (the caller already logged the
+        error); override it per database with an actual communication
+        mechanism (mail activity, chat ping, ...) — the ``mail``-aware
+        override cannot live in base, mirroring ``IrCron._notify_admin``.
+        """
 
     @staticmethod
     def _reap_dead_jobs(cr) -> None:
@@ -655,6 +671,50 @@ class IrJob(models.Model):
     # ------------------------------------------------------------------
     # User-facing helpers
     # ------------------------------------------------------------------
+
+    @api.depends("model_name", "method_name")
+    def _compute_display_name(self) -> None:
+        for job in self:
+            job.display_name = f"{job.model_name}.{job.method_name} (#{job.id})"
+
+    def action_run_now(self) -> None:
+        """Execute a pending job immediately, in the current transaction.
+
+        The ops "Run Manually" button: claims the job by id (ignoring its
+        ``eta`` and — deliberately, like ``ir.cron``'s direct trigger — the
+        channel capacity) and runs it inline.  On success the job commits
+        ``done`` with the request; on failure the exception propagates to the
+        user and the whole transaction rolls back, leaving the job pending
+        and untouched.
+        """
+        self.ensure_one()
+        self.browse().check_access("write")
+        self.env.flush_all()
+        cr = self.env.cr
+        cr.execute(
+            SQL(
+                """
+                UPDATE ir_job
+                SET state = 'started',
+                    started_at = (now() AT TIME ZONE 'UTC'),
+                    worker_ident = %s,
+                    write_date = (now() AT TIME ZONE 'UTC')
+                WHERE id = %s AND state = 'pending'
+                RETURNING id, uuid, channel, priority, model_name, method_name,
+                          record_ids, args, kwargs, user_id, company_id,
+                          context, retry, max_retries
+                """,
+                f"manual:{self.env.uid}",
+                self.id,
+            )
+        )
+        row = cr.fetchone()
+        if row is None:
+            raise UserError(self.env._("Only pending jobs can be run manually."))
+        job = dict(zip([d.name for d in cr.description], row, strict=True))
+        self.invalidate_recordset()
+        type(self)._run_claimed(cr, job)
+        self.invalidate_recordset()
 
     def action_requeue(self) -> None:
         """Put failed/cancelled jobs back in the queue (fresh retry budget)."""

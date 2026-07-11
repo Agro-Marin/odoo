@@ -593,7 +593,12 @@ transaction. States: pending → started → done / failed / cancelled.
 - `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail
 - `_reap_dead_jobs(cr)` — requeue started jobs whose session advisory lock is gone
 - `_notifydb()` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
+- `_notify_failed(cr, job, exc)` — hook on permanent failure (no-op in base; override per DB, cf. `IrCron._notify_admin`)
+- `action_run_now()` — execute a pending job inline in the current transaction (ignores eta/capacity, like cron's direct trigger)
 - `action_requeue()`, `action_cancel()` — UI/state actions
+
+Views: `views/ir_job_views.xml` (list/form/search + channel list), menus under
+Settings > Technical > Automation (`menu_ir_job_act`, `menu_ir_job_channel_act`).
 
 #### IrJobChannel — `ir.job.channel` (`_name`)
 
