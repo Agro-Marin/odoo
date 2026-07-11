@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { unwrapContents } from "@html_editor/utils/dom";
+import { mergeAdjacentTextNodes, unwrapContents } from "@html_editor/utils/dom";
 import { closestElement, descendants, selectElements } from "@html_editor/utils/dom_traversal";
 import { findInSelection, callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { _t } from "@web/core/l10n/translation";
@@ -1088,10 +1088,11 @@ export class LinkPlugin extends Plugin {
         if (ev.inputType === "insertText" && ev.data === " ") {
             const nodeForSelectionRestore = this.handleAutomaticLinkInsertion();
             if (nodeForSelectionRestore) {
-                // Since we manually insert a space here, we will be adding a history step
-                // after link creation with selection at the end of the link and another
-                // after inserting the space. So first undo will remove the space, and the
-                // second will undo the link creation.
+                // We manually insert the space here (as a nbsp) since we
+                // preventDefault. This adds a history step after link creation
+                // with selection at the end of the link and another after
+                // inserting the space. So first undo will remove the space, and
+                // the second will undo the link creation.
                 this.dependencies.selection.setSelection({
                     anchorNode: nodeForSelectionRestore,
                     anchorOffset: 0,
@@ -1165,6 +1166,20 @@ export class LinkPlugin extends Plugin {
      * Performs a regex check to determine if the url has correct syntax.
      */
     handleAutomaticLinkInsertion() {
+        const convertToLink = this.prepareConvertToLink();
+        if (convertToLink) {
+            return convertToLink();
+        }
+    }
+
+    /**
+     * If a link must be inserted after pressing space or (shift +) enter,
+     * returns information that will be needed to insert the link.
+     * Performs a regex check to determine if the url has correct syntax.
+     *
+     * @returns {Function} that performs the link conversion
+     */
+    prepareConvertToLink() {
         let selection = this.dependencies.selection.getEditableSelection();
         if (
             isHtmlContentSupported(selection) &&
@@ -1172,33 +1187,47 @@ export class LinkPlugin extends Plugin {
             selection.anchorNode.nodeType === Node.TEXT_NODE
         ) {
             // Merge adjacent text nodes.
-            selection.anchorNode.parentNode.normalize();
+            const cursor = this.dependencies.selection.preserveSelection();
+            mergeAdjacentTextNodes(selection.anchorNode.parentNode, cursor);
+            cursor.restore();
             selection = this.dependencies.selection.getEditableSelection();
             const textSliced = selection.anchorNode.textContent.slice(0, selection.anchorOffset);
             const textNodeSplitted = textSliced.split(/\s/);
             const potentialUrl = textNodeSplitted.pop();
             // In case of multiple matches, only the last one will be converted.
-            const match = [...potentialUrl.matchAll(new RegExp(URL_REGEX, "g"))].pop();
+            const match = [
+                ...potentialUrl.matchAll(new RegExp(URL_REGEX.source, URL_REGEX.flags + "g")),
+            ].pop();
 
-            if (match && !EMAIL_REGEX.test(match[0])) {
+            if (match) {
                 const nodeForSelectionRestore = selection.anchorNode.splitText(
                     selection.anchorOffset
                 );
-                const url = match[2] ? match[0] : "https://" + match[0];
+                let url;
+                if (!EMAIL_REGEX.test(match[0])) {
+                    url = match[2] ? match[0] : "https://" + match[0];
+                } else {
+                    url = "mailto:" + match[0];
+                }
+
                 const startOffset = selection.anchorOffset - potentialUrl.length + match.index;
                 const text = selection.anchorNode.textContent.slice(
                     startOffset,
                     startOffset + match[0].length
                 );
-                const link = this.createLink(url, text);
                 // split the text node and replace the url text with the link
                 const textNodeToReplace = selection.anchorNode.splitText(startOffset);
                 textNodeToReplace.splitText(match[0].length);
-                selection.anchorNode.parentElement.replaceChild(link, textNodeToReplace);
-                if (link.getAttribute("href") === link.textContent) {
-                    this.newlyInsertedLinks.add(link);
-                }
-                return nodeForSelectionRestore;
+                const link = this.createLink(url, text);
+                return () => {
+                    // this will keep the space (that will have been added in the meantime)
+                    textNodeToReplace.splitText(match[0].length);
+                    textNodeToReplace.parentNode.replaceChild(link, textNodeToReplace);
+                    if (link.getAttribute("href") === link.textContent) {
+                        this.newlyInsertedLinks.add(link);
+                    }
+                    return nodeForSelectionRestore;
+                };
             }
         }
     }
