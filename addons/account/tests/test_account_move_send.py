@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+import contextlib
 import json
-
 from datetime import date
 from unittest.mock import patch
 
 from odoo import Command
+from odoo.exceptions import UserError
+from odoo.tests import Form, tagged, users, warmup
+from odoo.tools import formataddr, mute_logger
+
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.mail.tests.common import MailCommon
-from odoo.exceptions import UserError
-from odoo.tests import users, warmup, tagged, Form
-from odoo.tools import formataddr, mute_logger
 
 
 @tagged("post_install_l10n", "post_install", "-at_install", "mail_flow")
@@ -119,7 +119,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                     "lang": langs[idx % len(langs)],
                     "name": f"Partner_{idx}",
                 }
-                for idx in range(0, 10)
+                for idx in range(10)
             ]
         )
         cls.test_account_moves = cls.env["account.move"].create(
@@ -136,7 +136,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                     "name": f"INVOICE_{idx:02d}",
                     "partner_id": cls.test_customers[idx].id,
                 }
-                for idx in range(0, 10)
+                for idx in range(10)
             ]
         )
 
@@ -199,7 +199,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             20,
             "Should send an email to each invoice followers (accountman + partner)",
         )
-        for move, customer in zip(test_moves, test_customers):
+        for move, customer in zip(test_moves, test_customers, strict=False):
             with self.subTest(move=move, customer=customer):
                 _exp_move_name = move.name
                 _exp_report_name = f"{move.name}.pdf"
@@ -645,7 +645,7 @@ class TestAccountMoveSendCommon(AccountTestInvoicingCommon):
     def _assert_mail_attachments_widget(self, wizard, expected_values_list):
         self.assertEqual(len(wizard.mail_attachments_widget), len(expected_values_list))
         for values, expected_values in zip(
-            wizard.mail_attachments_widget, expected_values_list
+            wizard.mail_attachments_widget, expected_values_list, strict=False
         ):
             try:
                 int(values["id"])
@@ -1172,12 +1172,10 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             "odoo.addons.account.models.account_move_send.AccountMoveSend._call_web_service_after_invoice_pdf_render",
             call_web_service_after_invoice_pdf_render,
         ):
-            try:
+            # Prevent a rollback in case of UserError because we can't commit in this test.
+            # Instead, ignore the raised error.
+            with contextlib.suppress(UserError):
                 wizard.action_send_and_print(allow_fallback_pdf=False)
-            except UserError:
-                # Prevent a rollback in case of UserError because we can't commit in this test.
-                # Instead, ignore the raised error.
-                pass
 
         # The PDF is not generated in case of error.
         self.assertFalse(invoice.invoice_pdf_report_id)

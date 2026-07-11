@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=bad-whitespace
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import Form, tagged
-from odoo import fields, Command
-
 from collections import defaultdict
+
+from odoo import Command, fields
+from odoo.tests import Form, tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -128,7 +128,7 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         }
 
     def setUp(self):
-        super(TestAccountMoveOutRefundOnchanges, self).setUp()
+        super().setUp()
         self.assertInvoiceValues(
             self.invoice,
             [

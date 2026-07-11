@@ -582,17 +582,19 @@ class AccountMove(models.Model):
                         line.id
                     )
 
-            for tax_line_vals in tax_results["tax_lines_to_delete"]:
-                to_delete.append(tax_line_vals["record"].id)
+            to_delete.extend(
+                tax_line_vals["record"].id
+                for tax_line_vals in tax_results["tax_lines_to_delete"]
+            )
 
-            for tax_line_vals in tax_results["tax_lines_to_add"]:
-                to_create.append(
-                    {
-                        **tax_line_vals,
-                        "display_type": "tax",
-                        "move_id": move.id,
-                    }
-                )
+            to_create.extend(
+                {
+                    **tax_line_vals,
+                    "display_type": "tax",
+                    "move_id": move.id,
+                }
+                for tax_line_vals in tax_results["tax_lines_to_add"]
+            )
 
             for tax_line_vals, _grouping_key, to_update in tax_results[
                 "tax_lines_to_update"

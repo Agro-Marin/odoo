@@ -250,11 +250,11 @@ class AccountTax(models.Model):
     def _import_retrieve_tax_from_invoice_predictive(self, tax_values):
         # Check if 'account_accountant' is installed.
         if "payment_state_before_switch" not in self.env["account.move"]._fields:
-            return
+            return None
 
         invoice_predictive = tax_values.get("invoice_predictive")
         if not invoice_predictive:
-            return
+            return None
 
         def search_predictive(values):
             domain = values["static_domain"]
@@ -364,8 +364,7 @@ class AccountTax(models.Model):
                         if tax := cache[cache_key]:
                             tax_values["tax"] = tax
                             break
-                        else:
-                            continue
+                        continue
 
                     if domain:
                         full_domain = static_domain & Domain(domain)
@@ -562,6 +561,7 @@ class AccountTax(models.Model):
                     )
 
             return super()._message_log(**kwargs)
+        return None
 
     @api.depends("company_id")
     def _compute_invoice_repartition_line_ids(self):
@@ -888,7 +888,7 @@ class AccountTax(models.Model):
                     target_factors=target_factors,
                 )
                 for target_factor, amount_to_distribute in zip(
-                    target_factors, amounts_to_distribute
+                    target_factors, amounts_to_distribute, strict=False
                 ):
                     target_factor["tax_rep_data"][field] += amount_to_distribute
 
@@ -1236,7 +1236,9 @@ class AccountTax(models.Model):
                 "factor": target_factor["factor"],
                 "tax_data": new_tax_data,
             }
-            for new_tax_data, target_factor in zip(new_taxes_data, target_factors)
+            for new_tax_data, target_factor in zip(
+                new_taxes_data, target_factors, strict=False
+            )
         ]
 
         for delta_currency_indicator, delta_currency in (
@@ -1251,7 +1253,7 @@ class AccountTax(models.Model):
                     target_factors=new_target_factors,
                 )
                 for target_factor, amount_to_distribute in zip(
-                    new_target_factors, amounts_to_distribute
+                    new_target_factors, amounts_to_distribute, strict=False
                 ):
                     new_tax_data = target_factor["tax_data"]
                     new_tax_data[field] = amount_to_distribute
@@ -1300,7 +1302,7 @@ class AccountTax(models.Model):
                 base_line, tax_data, company, target_factors
             )
             for new_tax_details, new_tax_data in zip(
-                new_tax_details_list, new_taxes_data
+                new_tax_details_list, new_taxes_data, strict=False
             ):
                 new_tax_details["taxes_data"].append(new_tax_data)
 
@@ -1326,7 +1328,7 @@ class AccountTax(models.Model):
                 target_factors=new_target_factors,
             )
             for target_factor, amount_to_distribute in zip(
-                new_target_factors, amounts_to_distribute
+                new_target_factors, amounts_to_distribute, strict=False
             ):
                 new_tax_details = target_factor["tax_details"]
                 new_tax_details[field] = amount_to_distribute
@@ -1372,7 +1374,7 @@ class AccountTax(models.Model):
         # Split 'base_line'.
         new_base_lines = [None] * len(factors)
         for (index, factor), new_tax_details, target_factor in zip(
-            factors, new_tax_details_list, target_factors
+            factors, new_tax_details_list, target_factors, strict=False
         ):
             kwargs = {
                 "price_unit": factor * base_line["price_unit"],
@@ -1538,11 +1540,11 @@ class AccountTax(models.Model):
         )
         total_amount_currency = sum(
             values["total_excluded_currency"] + values["tax_amount_currency"]
-            for _grouping_key, values in values_per_grouping_key.items()
+            for values in values_per_grouping_key.values()
         )
         total_amount = sum(
             values["total_excluded"] + values["tax_amount"]
-            for _grouping_key, values in values_per_grouping_key.items()
+            for values in values_per_grouping_key.values()
         )
 
         # Compute the current total tax amount per tax.
@@ -1627,15 +1629,14 @@ class AccountTax(models.Model):
             return []
 
         # Reduce the unit price to approach the target amount.
-        new_base_lines = []
-        for base_line in reduced_base_lines:
-            new_base_lines.append(
-                self._prepare_base_line_for_taxes_computation(
-                    base_line,
-                    price_unit=base_line["price_unit"] * sign * percentage,
-                    computation_key=computation_key,
-                )
+        new_base_lines = [
+            self._prepare_base_line_for_taxes_computation(
+                base_line,
+                price_unit=base_line["price_unit"] * sign * percentage,
+                computation_key=computation_key,
             )
+            for base_line in reduced_base_lines
+        ]
         self._add_tax_details_in_base_lines(new_base_lines, company)
         self._round_base_lines_tax_details(new_base_lines, company)
 
@@ -1703,7 +1704,7 @@ class AccountTax(models.Model):
                         target_factors=target_factors,
                     )
                     for target_factor, amount_to_distribute in zip(
-                        target_factors, amounts_to_distribute
+                        target_factors, amounts_to_distribute, strict=False
                     ):
                         tax_data = target_factor["tax_data"]
                         tax_data[f"tax_amount{delta_suffix}"] += amount_to_distribute
@@ -1729,7 +1730,7 @@ class AccountTax(models.Model):
                         target_factors=target_factors,
                     )
                     for target_factor, amount_to_distribute in zip(
-                        target_factors, amounts_to_distribute
+                        target_factors, amounts_to_distribute, strict=False
                     ):
                         tax_data = target_factor["tax_data"]
                         tax_data[f"base_amount{delta_suffix}"] += amount_to_distribute
@@ -1742,11 +1743,10 @@ class AccountTax(models.Model):
         )
         current_base_amount_currency = sum(
             values["total_excluded_currency"]
-            for _grouping_key, values in values_per_grouping_key.items()
+            for values in values_per_grouping_key.values()
         )
         current_base_amount = sum(
-            values["total_excluded"]
-            for _grouping_key, values in values_per_grouping_key.items()
+            values["total_excluded"] for values in values_per_grouping_key.values()
         )
         for delta_suffix, delta_base_amount, delta_currency in (
             (
@@ -1777,7 +1777,7 @@ class AccountTax(models.Model):
                 target_factors=target_factors,
             )
             for target_factor, amount_to_distribute in zip(
-                target_factors, amounts_to_distribute
+                target_factors, amounts_to_distribute, strict=False
             ):
                 base_line = target_factor["base_line"]
                 tax_details = base_line["tax_details"]
@@ -2269,7 +2269,7 @@ class AccountTax(models.Model):
                     target_factors=discount_data["target_factors"],
                 )
                 for base_line, new_base_line in zip(
-                    discount_data["base_lines"], splitted_base_lines
+                    discount_data["base_lines"], splitted_base_lines, strict=False
                 ):
                     base_line["discount_base_lines"].append(new_base_line)
         # Filter by identity: `new_base_lines` are dicts, so `x not in list`
@@ -2332,7 +2332,7 @@ class AccountTax(models.Model):
             }
             new_base_lines.append(new_base_line)
 
-            if not base_line["product_id"] or base_line["quantity"] == 0.0:
+            if not base_line["product_id"] or base_line["quantity"] == 0:
                 continue
 
             key = frozendict(
@@ -2398,7 +2398,7 @@ class AccountTax(models.Model):
                 kwargs["quantity"] = -target_factor["quantity_to_dispatch"]
 
             for target_factors, neg_base_line in zip(
-                target_factors_per_neg_base_line, neg_base_lines
+                target_factors_per_neg_base_line, neg_base_lines, strict=False
             ):
                 if not target_factors:
                     continue
@@ -2411,7 +2411,7 @@ class AccountTax(models.Model):
                     populate_function=populate_function,
                 )
                 for target_factor, new_base_line in zip(
-                    target_factors, splitted_base_lines
+                    target_factors, splitted_base_lines, strict=False
                 ):
                     target_factor["plus_base_line"][
                         "return_of_merchandise_base_lines"
@@ -2574,7 +2574,7 @@ class AccountTax(models.Model):
             target_factors=target_factors,
         )
         for target_factor, amount_to_distribute in zip(
-            target_factors, amounts_to_distribute
+            target_factors, amounts_to_distribute, strict=False
         ):
             base_line = target_factor["base_line"]
             base_line["tax_details"][raw_field] += amount_to_distribute
@@ -2648,7 +2648,9 @@ class AccountTax(models.Model):
         """
         if (
             precision_digits
-            and float_is_zero(raw_gross_total_excluded, precision_digits=precision_digits)
+            and float_is_zero(
+                raw_gross_total_excluded, precision_digits=precision_digits
+            )
         ) or not raw_gross_total_excluded:
             if in_foreign_currency:
                 raw_gross_price_unit = base_line["price_unit"]
@@ -2833,7 +2835,7 @@ class AccountTax(models.Model):
             target_factors=target_factors,
         )
         for target_factor, amount_to_distribute in zip(
-            target_factors, amounts_to_distribute
+            target_factors, amounts_to_distribute, strict=False
         ):
             base_line = target_factor["base_line"]
             base_line["tax_details"][f"raw_gross_total_excluded{suffix}"] += (
@@ -2913,7 +2915,7 @@ class AccountTax(models.Model):
             target_factors=target_factors,
         )
         for target_factor, amount_to_distribute in zip(
-            target_factors, amounts_to_distribute
+            target_factors, amounts_to_distribute, strict=False
         ):
             base_line = target_factor["base_line"]
             base_line["tax_details"][f"gross_total_excluded{suffix}"] += (
@@ -2930,7 +2932,7 @@ class AccountTax(models.Model):
             target_factors=target_factors,
         )
         for target_factor, amount_to_distribute in zip(
-            target_factors, amounts_to_distribute
+            target_factors, amounts_to_distribute, strict=False
         ):
             base_line = target_factor["base_line"]
             base_line["tax_details"][f"discount_amount{suffix}"] += amount_to_distribute
@@ -3020,7 +3022,7 @@ class AccountTax(models.Model):
                 target_factors=target_factors,
             )
             for target_factor, amount_to_distribute in zip(
-                target_factors, amounts_to_distribute
+                target_factors, amounts_to_distribute, strict=False
             ):
                 aggregated_values = target_factor["aggregated_values"]
                 aggregated_values[raw_tax_field] += amount_to_distribute
@@ -3052,7 +3054,7 @@ class AccountTax(models.Model):
                     target_factors=target_factors,
                 )
                 for target_factor, amount_to_distribute in zip(
-                    target_factors, amounts_to_distribute
+                    target_factors, amounts_to_distribute, strict=False
                 ):
                     aggregated_values = target_factor["aggregated_values"]
                     aggregated_values[raw_base_field] += amount_to_distribute
@@ -3181,8 +3183,7 @@ class AccountTax(models.Model):
                 taxes.append(
                     {
                         "id": tax.id,
-                        "name": partner
-                        and tax.with_context(lang=partner.lang).name
+                        "name": (partner and tax.with_context(lang=partner.lang).name)
                         or tax.name,
                         "amount": tax_rep_data["tax_amount_currency"],
                         "base": tax_data["raw_base_amount_currency"],

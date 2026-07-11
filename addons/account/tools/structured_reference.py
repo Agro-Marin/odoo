@@ -1,6 +1,6 @@
 import re
-
 from itertools import zip_longest
+
 from stdnum import iso11649, luhn
 from stdnum.iso7064 import mod_97_10
 
@@ -169,7 +169,9 @@ def is_valid_structured_reference_si(reference):
 
     weights = list(range(2, 14))
     weights = weights[0 : len(digits)]
-    weighted_sum = sum(int(d) * w for d, w in zip(reversed(digits), weights))
+    weighted_sum = sum(
+        int(d) * w for d, w in zip(reversed(digits), weights, strict=False)
+    )
 
     expected_check_digit = 11 - (weighted_sum % 11)
     if expected_check_digit in (10, 11):

@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 
@@ -112,7 +112,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
             if last_move_hashed:
                 # remaining_moves either have a hash already or have a higher sequence_number than the last_move_hashed
                 not_hashable_unlocked_moves = chain_info["remaining_moves"].filtered(
-                    lambda move: (
+                    lambda move, last_move_hashed=last_move_hashed: (
                         not move.inalterable_hash
                         and move.sequence_number < last_move_hashed.sequence_number
                         and move.date > self.company_id.user_hard_lock_date
@@ -261,7 +261,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
                 }
 
             moves_to_hash_after_selected_date = wizard.move_to_hash_ids.filtered(
-                lambda move: move.date > wizard.hash_date
+                lambda move, wizard=wizard: move.date > wizard.hash_date
             )
             if moves_to_hash_after_selected_date:
                 warnings["account_move_to_secure_after_selected_date"] = {

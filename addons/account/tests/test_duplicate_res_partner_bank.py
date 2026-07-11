@@ -2,6 +2,7 @@
 
 
 from odoo.tests import Form
+
 from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 
 

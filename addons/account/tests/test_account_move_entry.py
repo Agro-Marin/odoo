@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 import contextlib
+from collections import defaultdict
+from itertools import zip_longest
 from unittest.mock import patch
-
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import Form, tagged, new_test_user
-from odoo import Command, fields
-from odoo.exceptions import UserError, RedirectWarning
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
-from collections import defaultdict
-from itertools import zip_longest
+
+from odoo import Command, fields
+from odoo.exceptions import RedirectWarning, UserError
+from odoo.tests import Form, tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -271,8 +271,6 @@ class TestAccountMove(AccountTestInvoicingCommon):
         # lines[1] = 'tax line'
         # lines[2] = 'revenue line 1'
         # lines[3] = 'revenue line 2'
-        lines = self.test_move.line_ids.sorted("debit")
-
         # Editing the reference should be allowed.
         self.test_move.ref = "whatever"
 
@@ -332,8 +330,6 @@ class TestAccountMove(AccountTestInvoicingCommon):
         # lines[1] = 'tax line'
         # lines[2] = 'revenue line 1'
         # lines[3] = 'revenue line 2'
-        lines = self.test_move.line_ids.sorted("debit")
-
         # Try to edit the account of a line.
         self.test_move.line_ids[0].write(
             {"account_id": self.test_move.line_ids[0].account_id.copy().id}
@@ -1640,7 +1636,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
                 order=order,
             )
             for (balance, cumulated_balance), read_result in zip(
-                expected, read_results
+                expected, read_results, strict=False
             ):
                 self.assertAlmostEqual(balance, read_result["balance"])
                 self.assertAlmostEqual(
@@ -1992,16 +1988,26 @@ class TestAccountMove(AccountTestInvoicingCommon):
         move.action_post()
 
     def test_journal_entry_analytic_distribution_search_is_set(self):
-        """ Verify searching on analytic_distribution with 'is set', 'is not set'."""
-        analytic_plan = self.env['account.analytic.plan'].create({'name': 'Plan'})
-        analytic_account = self.env['account.analytic.account'].create({
-            'name': "Test Account",
-            'plan_id': analytic_plan.id,
-        })
-        self.assertFalse(self.env['account.move.line'].search([('analytic_distribution', '!=', False)]))
-        self.test_move.line_ids[0]['analytic_distribution'] = {str(analytic_account.id): 100}
+        """Verify searching on analytic_distribution with 'is set', 'is not set'."""
+        analytic_plan = self.env["account.analytic.plan"].create({"name": "Plan"})
+        analytic_account = self.env["account.analytic.account"].create(
+            {
+                "name": "Test Account",
+                "plan_id": analytic_plan.id,
+            }
+        )
+        self.assertFalse(
+            self.env["account.move.line"].search(
+                [("analytic_distribution", "!=", False)]
+            )
+        )
+        self.test_move.line_ids[0]["analytic_distribution"] = {
+            str(analytic_account.id): 100
+        }
         self.assertEqual(
-            self.env['account.move.line'].search([('analytic_distribution', '!=', False)]),
+            self.env["account.move.line"].search(
+                [("analytic_distribution", "!=", False)]
+            ),
             self.test_move.line_ids[0],
-            ""
+            "",
         )

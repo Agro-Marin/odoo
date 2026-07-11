@@ -1,16 +1,17 @@
-# -*- coding: utf-8 -*-
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.exceptions import ValidationError
-from odoo.tests import Form, tagged, TransactionCase
-from odoo import fields, api, SUPERUSER_ID, Command
-from odoo.tools import mute_logger
+import json
+from functools import reduce
+from unittest.mock import Mock, patch
 
+import psycopg
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
-from functools import reduce
-import json
-import psycopg
-from unittest.mock import patch, Mock
+
+from odoo import SUPERUSER_ID, Command, api, fields
+from odoo.exceptions import ValidationError
+from odoo.tests import Form, TransactionCase, tagged
+from odoo.tools import mute_logger
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 class TestSequenceMixinCommon(AccountTestInvoicingCommon):
@@ -51,19 +52,19 @@ class TestSequenceMixinCommon(AccountTestInvoicingCommon):
             move.action_post()
         return move
 
-    def assertMoveName(cls, move, expected_name):
+    def assertMoveName(self, move, expected_name):
         if move.name_placeholder:
-            cls.assertFalse(
+            self.assertFalse(
                 move.name,
                 f"This move is potentially the first of the sequence, it shouldn't have a name while it is not posted. Got '{move.name}'.",
             )
-            cls.assertEqual(
+            self.assertEqual(
                 move.name_placeholder,
                 expected_name,
                 f"This move is potentially the first of the sequence, it doesn't have a name but a placeholder name which is currently '{move.name_placeholder}'. You expected '{expected_name}'.",
             )
         else:
-            cls.assertEqual(
+            self.assertEqual(
                 move.name,
                 expected_name,
                 f"Expected '{expected_name}' but got '{move.name}'.",
@@ -1350,7 +1351,7 @@ class TestSequenceMixinConcurrency(TransactionCase):
 
         # get the last sequence in cr1 (for instance opening a form view)
         move = env2["account.move"].browse(self.data["move_ids"][1])
-        move.highest_name
+        _ = move.highest_name
         env2.cr.commit()
 
         # post in cr1, should work even though cr2 read values

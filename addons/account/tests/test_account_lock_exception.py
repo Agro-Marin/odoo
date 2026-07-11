@@ -1,14 +1,14 @@
 from contextlib import closing
-
 from datetime import timedelta
 
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.addons.account.models.company import SOFT_LOCK_DATE_FIELDS
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.exceptions import UserError
 from odoo.tests import new_test_user, tagged
+
+from odoo.addons.account.models.company import SOFT_LOCK_DATE_FIELDS
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")

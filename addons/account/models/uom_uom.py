@@ -1,4 +1,4 @@
-from odoo import fields, models, api
+from odoo import api, fields, models
 
 UOM_TO_UNECE_CODE = {
     "uom.product_uom_unit": "C62",
@@ -49,7 +49,7 @@ class UomUom(models.Model):
         https://unece.org/fileadmin/DAM/cefact/recommendations/rec20/rec20_rev3_Annex2e.pdf"""
         xml_ids = self._get_external_ids().get(self.id, [])
         matches = list(set(xml_ids) & set(UOM_TO_UNECE_CODE.keys()))
-        return matches and UOM_TO_UNECE_CODE[matches[0]] or "C62"
+        return (matches and UOM_TO_UNECE_CODE[matches[0]]) or "C62"
 
     @api.model
     def _get_uom_from_unece_code(self, unece_code):

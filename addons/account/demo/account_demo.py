@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 import logging
 import time
 from datetime import timedelta
+
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models, Command
-from odoo.tools.misc import file_open, formatLang
+from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools.misc import file_open, formatLang
 
 _logger = logging.getLogger(__name__)
 
@@ -71,8 +71,8 @@ class AccountChartTemplate(models.AbstractModel):
             - set(self._get_demo_exception_product_variant_xml_ids())
         )
         return {
-            "product.template": {d: taxes for d in product_templates},
-            "product.product": {d: taxes for d in product_variants},
+            "product.template": dict.fromkeys(product_templates, taxes),
+            "product.product": dict.fromkeys(product_variants, taxes),
         }
 
     def _post_load_demo_data(self, company=False):
@@ -102,7 +102,7 @@ class AccountChartTemplate(models.AbstractModel):
         for move in invoices:
             try:
                 move.action_post()
-            except (UserError, ValidationError):
+            except UserError, ValidationError:
                 _logger.exception("Error while posting demo data")
 
     @api.model

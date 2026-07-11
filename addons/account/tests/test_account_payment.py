@@ -1,11 +1,12 @@
 from contextlib import contextmanager
+from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
+from odoo.tests import Form, tagged
+
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.mail.tests.common import MailCommon
-from odoo.tests import Form, tagged
-from unittest.mock import patch
 
 
 @tagged("post_install", "-at_install")
@@ -465,7 +466,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             }
         )
         payment.action_post()
-        liquidity_lines, counterpart_lines, writeoff_lines = payment._seek_for_lines()
+        liquidity_lines, counterpart_lines, _writeoff_lines = payment._seek_for_lines()
 
         self.assertRecordValues(
             payment,
@@ -1021,7 +1022,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                     "amount": amount,
                 }
             )
-            st_liquidity_lines, st_suspense_lines, _ = statement_line._seek_for_lines()
+            _st_liquidity_lines, st_suspense_lines, _ = statement_line._seek_for_lines()
             if payment:
                 liquidity_lines, _, _ = payment._seek_for_lines()
             else:

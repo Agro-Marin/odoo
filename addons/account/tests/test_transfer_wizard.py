@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
+import time
+
 from freezegun import freeze_time
 
-from odoo import fields, Command
+from odoo import Command, fields
+from odoo.tests import Form, tagged
+
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import tagged, Form
-import time
 
 
 @tagged("post_install", "-at_install")

@@ -1,6 +1,6 @@
 from collections import Counter
 
-from odoo import _, api, Command, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 
 
@@ -47,9 +47,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
             sending_method_counter = Counter()
 
             for move in wizard.move_ids._origin:
-                edi_counter += Counter(
-                    [edi for edi in self._get_default_extra_edis(move)]
-                )
+                edi_counter += Counter(list(self._get_default_extra_edis(move)))
                 sending_settings = self._get_default_sending_settings(move)
                 sending_method_counter += Counter(
                     [
@@ -61,7 +59,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
                     ]
                 )
 
-            summary_data = dict()
+            summary_data = {}
             for edi, edi_count in edi_counter.items():
                 summary_data[edi] = {
                     "count": edi_count,
@@ -106,7 +104,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
             self.env["account.move.send"]._generate_and_send_invoices(
                 self.move_ids, allow_fallback_pdf=allow_fallback_pdf
             )
-            return
+            return None
 
         account_move_send_cron = self.env.ref("account.ir_cron_account_move_send")
         if not account_move_send_cron.sudo().active:

@@ -1,9 +1,9 @@
-from odoo import api, fields, models, _, Command
-from odoo.exceptions import UserError, ValidationError
-from odoo.tools import format_date, formatLang, frozendict, date_utils
-from odoo.libs.numbers.float_utils import float_round
-
 from dateutil.relativedelta import relativedelta
+
+from odoo import Command, _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
+from odoo.libs.numbers.float_utils import float_round
+from odoo.tools import date_utils, format_date, formatLang, frozendict
 
 
 class AccountPaymentTerm(models.Model):
@@ -146,7 +146,7 @@ class AccountPaymentTerm(models.Model):
             term.is_immediate = (
                 len(lines) == 1
                 and lines[0].value == "percent"
-                and float_round(lines[0].value_amount, precision_digits=2) == 100.0
+                and float_round(lines[0].value_amount, precision_digits=2) == 100
                 and lines[0].nb_days == 0
             )
 
@@ -426,7 +426,7 @@ class AccountPaymentTerm(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=_("%s (copy)", line.name))
-            for line, vals in zip(self, vals_list)
+            for line, vals in zip(self, vals_list, strict=False)
         ]
 
 

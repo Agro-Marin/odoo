@@ -1,22 +1,20 @@
-# -*- coding: utf-8 -*-
-
 import ast
 import csv
-from collections import defaultdict
-from functools import wraps
-from inspect import getmembers
-from copy import deepcopy
-
 import logging
 import re
+from collections import defaultdict
+from copy import deepcopy
+from functools import wraps
+from inspect import getmembers
 
 from odoo import Command, api, models
-from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import AccessError, RedirectWarning, UserError
 from odoo.fields import Domain
 from odoo.modules import get_resource_from_path
-from odoo.tools import file_open, float_compare, get_lang, groupby, SQL
-from odoo.tools.translate import _, code_translations, TranslationImporter
+from odoo.tools import SQL, file_open, float_compare, get_lang
+from odoo.tools.translate import TranslationImporter, _, code_translations
+
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
 
@@ -191,7 +189,7 @@ class AccountChartTemplate(models.AbstractModel):
         :type force_create: bool
         """
         if not company:
-            return
+            return None
         if (
             not self.env.registry.loaded
             and not install_demo
@@ -205,8 +203,8 @@ class AccountChartTemplate(models.AbstractModel):
         if isinstance(company, int):
             company = self.env["res.company"].browse([company])
 
-        template_code = (
-            template_code or company and self._guess_chart_template(company.country_id)
+        template_code = template_code or (
+            company and self._guess_chart_template(company.country_id)
         )
 
         if (
@@ -234,7 +232,7 @@ class AccountChartTemplate(models.AbstractModel):
         # Ensure that the context is the correct one, even if not called by try_loading
         if not self.env.is_system():
             raise AccessError(_("Only administrators can install chart templates"))
-        self = self.sudo()  # noqa: PLW0642
+        self = self.sudo()
         chart_template_mapping = self._get_chart_template_mapping()[template_code]
         if not company.country_id:
             company.country_id = chart_template_mapping.get("country_id")
@@ -246,7 +244,7 @@ class AccountChartTemplate(models.AbstractModel):
         if module:
             module.button_immediate_install()
             self.env.transaction.reset()  # clear the transaction with an old registry
-            self = self.env()["account.chart.template"]  # noqa: PLW0642 create a new env with the new registry
+            self = self.env()["account.chart.template"]
         # To be able to use code translation we load everything in 'en_US'
         # The demo data is still loaded "normally" since code translations cannot be used for them reliably.
         # (Since we rely on the "@template functions" to determine the module to take the code translations from.)
@@ -435,8 +433,8 @@ class AccountChartTemplate(models.AbstractModel):
             return current_records, xmlid2records
 
         current_taxes, xmlid2tax = get_records_and_xmlid_mapping("account.tax")
-        _current_fiscal_positions, xmlid2fiscal_position = get_records_and_xmlid_mapping(
-            "account.fiscal.position"
+        _current_fiscal_positions, xmlid2fiscal_position = (
+            get_records_and_xmlid_mapping("account.fiscal.position")
         )
         _current_tax_groups, xmlid2tax_group = get_records_and_xmlid_mapping(
             "account.tax.group"
@@ -445,12 +443,14 @@ class AccountChartTemplate(models.AbstractModel):
             "account.account"
         )
 
-        unique_tax_name_key = lambda t: (
-            t.name,
-            t.type_tax_use,
-            t.tax_scope,
-            t.company_id,
-        )
+        def unique_tax_name_key(t):
+            return (
+                t.name,
+                t.type_tax_use,
+                t.tax_scope,
+                t.company_id,
+            )
+
         unique_tax_name_keys = set(current_taxes.mapped(unique_tax_name_key))
 
         def tax_template_changed(tax, template):
@@ -527,7 +527,7 @@ class AccountChartTemplate(models.AbstractModel):
                             oldtax = xmlid2tax[xmlid]
                         else:
                             oldtax = current_taxes.filtered(
-                                lambda t: (
+                                lambda t, values=values: (
                                     t.name == values.get("name")
                                     and t.type_tax_use == values.get("type_tax_use")
                                     and t.tax_scope == values.get("tax_scope", False)
@@ -636,10 +636,8 @@ class AccountChartTemplate(models.AbstractModel):
                     # Prevents overriding user setting & raising a partial reconcile error.
                     values.pop("reconcile", None)
                     # on existing accounts, only tag_ids are to be updated using default data
-                    if account and "tag_ids" in data[model_name][xmlid]:
-                        data[model_name][xmlid] = {
-                            "tag_ids": data[model_name][xmlid]["tag_ids"]
-                        }
+                    if account and "tag_ids" in values:
+                        data[model_name][xmlid] = {"tag_ids": values["tag_ids"]}
                     elif account or not force_create:
                         skip_update.add((model_name, xmlid))
 
@@ -676,7 +674,7 @@ class AccountChartTemplate(models.AbstractModel):
                     if rec:
                         for fname in x2manyfields:
                             for i, (line, (command, _id, vals)) in enumerate(
-                                zip(rec[fname], values[fname])
+                                zip(rec[fname], values[fname], strict=False)
                             ):
                                 if (
                                     command == Command.CREATE
@@ -700,15 +698,16 @@ class AccountChartTemplate(models.AbstractModel):
             fiscal_country = company.account_fiscal_country_id
 
         # Apply template data to the company
-        filter_properties = lambda key: (
-            (
-                not key.startswith("property_")
-                or key.startswith("property_stock_")
-                or key == "additional_properties"
+        def filter_properties(key):
+            return (
+                (
+                    not key.startswith("property_")
+                    or key.startswith("property_stock_")
+                    or key == "additional_properties"
+                )
+                and key != "name"
+                and key in company._fields
             )
-            and key != "name"
-            and key in company._fields
-        )
 
         # Set the currency to the fiscal country's currency
         vals = {
@@ -1261,7 +1260,9 @@ class AccountChartTemplate(models.AbstractModel):
                     for xml_id, values in accounts_data.items()
                 ]
             )
-            for company_attr_name, account in zip(accounts_data.keys(), accounts):
+            for company_attr_name, account in zip(
+                accounts_data.keys(), accounts, strict=False
+            ):
                 company[company_attr_name] = account
 
         # No fields on company
@@ -1319,7 +1320,7 @@ class AccountChartTemplate(models.AbstractModel):
             ]
         )
         if taxes_in_country:
-            return
+            return None
 
         def create_foreign_tax_account(
             existing_account, additional_label, reconcilable=False
@@ -1733,14 +1734,13 @@ class AccountChartTemplate(models.AbstractModel):
                                 },
                                 button_text=self.env._("Update app"),
                             )
-                        else:
-                            _logger.error(
-                                "Error while loading the localization: missing tax tag %s for country %s."
-                                " You should probably update your localization app first.",
-                                format_tag,
-                                country.name,
-                            )
-                            continue
+                        _logger.error(
+                            "Error while loading the localization: missing tax tag %s for country %s."
+                            " You should probably update your localization app first.",
+                            format_tag,
+                            country.name,
+                        )
+                        continue
                     res.append(mapped_tag)
             return res
 

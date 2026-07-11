@@ -1,6 +1,7 @@
 from odoo import Command
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -65,7 +66,9 @@ class TestAccountSectionAndSubsection(AccountTestInvoicingCommon):
                 "taxes": [],
             },
         ]
-        for expected_value, line_value in zip(expected_values, section_lines):
+        for expected_value, line_value in zip(
+            expected_values, section_lines, strict=False
+        ):
             for key, value in expected_value.items():
                 self.assertEqual(line_value[key], value)
 
@@ -154,6 +157,8 @@ class TestAccountSectionAndSubsection(AccountTestInvoicingCommon):
                 "taxes": [],
             },
         ]
-        for expected_value, line_value in zip(expected_values, section_lines):
+        for expected_value, line_value in zip(
+            expected_values, section_lines, strict=False
+        ):
             for key, value in expected_value.items():
                 self.assertEqual(line_value[key], value)

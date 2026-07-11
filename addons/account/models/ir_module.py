@@ -1,7 +1,7 @@
 from importlib import import_module
-from inspect import getmembers, ismodule, isclass, isfunction
+from inspect import getmembers, isclass, isfunction, ismodule
 
-from odoo import api, models, fields
+from odoo import api, fields, models
 from odoo.tools.misc import get_flag
 
 
@@ -10,8 +10,9 @@ def templ(env, code, name=None, country="", **kwargs):
     country = country_code and env.ref(f"base.{country_code}", raise_if_not_found=False)
     country_name = f"{get_flag(country.code)} {country.name}" if country else ""
     return {
-        "name": country_name
-        and (f"{country_name} - {name}" if name else country_name)
+        "name": (
+            country_name and (f"{country_name} - {name}" if name else country_name)
+        )
         or name,
         "country_id": country and country.id,
         "country_code": country and country.code,
@@ -19,15 +20,19 @@ def templ(env, code, name=None, country="", **kwargs):
     }
 
 
-template_module = lambda m: (
-    ismodule(m) and m.__name__.split(".")[-1].startswith("template_")
-)
+def template_module(m):
+    return ismodule(m) and m.__name__.split(".")[-1].startswith("template_")
+
+
 template_class = isclass
-template_function = lambda f: (
-    isfunction(f)
-    and hasattr(f, "_l10n_template")
-    and f._l10n_template[1] == "template_data"
-)
+
+
+def template_function(f):
+    return (
+        isfunction(f)
+        and hasattr(f, "_l10n_template")
+        and f._l10n_template[1] == "template_data"
+    )
 
 
 class IrModuleModule(models.Model):

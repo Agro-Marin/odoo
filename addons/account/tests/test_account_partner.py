@@ -342,7 +342,9 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         acc = self.company_data["default_account_receivable"]
 
         self.assertEqual(FP.map_tax(tax), tax, "empty position leaves taxes unchanged")
-        self.assertEqual(FP.map_account(acc), acc, "empty position leaves account as-is")
+        self.assertEqual(
+            FP.map_account(acc), acc, "empty position leaves account as-is"
+        )
 
         both = FP.create({"name": "FP a"}) + FP.create({"name": "FP b"})
         with self.assertRaises(ValueError):

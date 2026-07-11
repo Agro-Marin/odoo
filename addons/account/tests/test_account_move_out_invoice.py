@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=bad-whitespace
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import Form, tagged
-from odoo import fields, Command
-from odoo.exceptions import UserError, ValidationError
-
 from collections import defaultdict
-from unittest.mock import patch
 from datetime import timedelta
+from unittest.mock import patch
+
 from freezegun import freeze_time
+
+from odoo import Command, fields
+from odoo.exceptions import UserError, ValidationError
+from odoo.tests import Form, tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -138,7 +139,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         cls.env.user.group_ids += cls.env.ref("uom.group_uom")
 
     def setUp(self):
-        super(TestAccountMoveOutInvoiceOnchanges, self).setUp()
+        super().setUp()
         self.assertInvoiceValues(
             self.invoice,
             [
@@ -3819,48 +3820,47 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
     def test_out_invoice_multi_date_change_period_accrual(self):
         dates = ["2017-01-01", "2017-01-01", "2017-02-01"]
-        values = []
-        for date in dates:
-            values.append(
-                {
-                    "move_type": "out_invoice",
-                    "date": date,
-                    "partner_id": self.partner_a.id,
-                    "invoice_date": fields.Date.from_string(date),
-                    "currency_id": self.other_currency.id,
-                    "invoice_payment_term_id": self.pay_terms_a.id,
-                    "invoice_line_ids": [
-                        (
-                            0,
-                            None,
-                            {
-                                "name": self.product_line_vals_1["name"],
-                                "product_id": self.product_line_vals_1["product_id"],
-                                "product_uom_id": self.product_line_vals_1[
-                                    "product_uom_id"
-                                ],
-                                "quantity": self.product_line_vals_1["quantity"],
-                                "price_unit": self.product_line_vals_1["price_unit"],
-                                "tax_ids": self.product_line_vals_1["tax_ids"],
-                            },
-                        ),
-                        (
-                            0,
-                            None,
-                            {
-                                "name": self.product_line_vals_2["name"],
-                                "product_id": self.product_line_vals_2["product_id"],
-                                "product_uom_id": self.product_line_vals_2[
-                                    "product_uom_id"
-                                ],
-                                "quantity": self.product_line_vals_2["quantity"],
-                                "price_unit": self.product_line_vals_2["price_unit"],
-                                "tax_ids": self.product_line_vals_2["tax_ids"],
-                            },
-                        ),
-                    ],
-                }
-            )
+        values = [
+            {
+                "move_type": "out_invoice",
+                "date": date,
+                "partner_id": self.partner_a.id,
+                "invoice_date": fields.Date.from_string(date),
+                "currency_id": self.other_currency.id,
+                "invoice_payment_term_id": self.pay_terms_a.id,
+                "invoice_line_ids": [
+                    (
+                        0,
+                        None,
+                        {
+                            "name": self.product_line_vals_1["name"],
+                            "product_id": self.product_line_vals_1["product_id"],
+                            "product_uom_id": self.product_line_vals_1[
+                                "product_uom_id"
+                            ],
+                            "quantity": self.product_line_vals_1["quantity"],
+                            "price_unit": self.product_line_vals_1["price_unit"],
+                            "tax_ids": self.product_line_vals_1["tax_ids"],
+                        },
+                    ),
+                    (
+                        0,
+                        None,
+                        {
+                            "name": self.product_line_vals_2["name"],
+                            "product_id": self.product_line_vals_2["product_id"],
+                            "product_uom_id": self.product_line_vals_2[
+                                "product_uom_id"
+                            ],
+                            "quantity": self.product_line_vals_2["quantity"],
+                            "price_unit": self.product_line_vals_2["price_unit"],
+                            "tax_ids": self.product_line_vals_2["tax_ids"],
+                        },
+                    ),
+                ],
+            }
+            for date in dates
+        ]
 
         moves = self.env["account.move"].create(values)
         moves.action_post()
@@ -3903,7 +3903,10 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         wizard_res = wizard.do_action()
 
         for date, move, ref in zip(
-            dates, moves, ["INV/2017/00001", "INV/2017/00002", "INV/2017/00003"]
+            dates,
+            moves,
+            ["INV/2017/00001", "INV/2017/00002", "INV/2017/00003"],
+            strict=False,
         ):
             self.assertInvoiceValues(
                 move,

@@ -1,8 +1,9 @@
+from odoo import Command
+from odoo.exceptions import UserError, ValidationError
+from odoo.tests import Form, tagged
+
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.analytic.tests.common import AnalyticCommon
-from odoo.tests import tagged, Form
-from odoo.exceptions import UserError, ValidationError
-from odoo import Command
 
 
 @tagged("post_install", "-at_install")

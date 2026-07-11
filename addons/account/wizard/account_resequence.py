@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
-from odoo import api, fields, models, _
+import json
+from collections import defaultdict
+
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.date_utils import get_fiscal_year
 from odoo.tools.misc import format_date
-
-from collections import defaultdict
-import json
 
 
 class AccountResequenceWizard(models.TransientModel):
@@ -174,7 +173,9 @@ class AccountResequenceWizard(models.TransientModel):
 
         self.new_values = "{}"
         for record in self.filtered("first_name"):
-            moves_by_period = defaultdict(lambda: record.env["account.move"])
+            moves_by_period = defaultdict(
+                lambda record=record: record.env["account.move"]
+            )
             for move in (
                 record.move_ids._origin
             ):  # Sort the moves by period depending on the sequence number reset
@@ -229,12 +230,14 @@ class AccountResequenceWizard(models.TransientModel):
                         lambda m: (m.sequence_prefix, m.sequence_number)
                     ),
                     new_name_list,
+                    strict=False,
                 ):
                     new_values[move.id]["new_by_name"] = new_name
                 # For all the moves of this period, assign the name by increasing date
                 for move, new_name in zip(
                     period_recs.sorted(lambda m: (m.date, m.name or "", m.id)),
                     new_name_list,
+                    strict=False,
                 ):
                     new_values[move.id]["new_by_date"] = new_name
 
@@ -252,9 +255,7 @@ class AccountResequenceWizard(models.TransientModel):
                         "You can not reorder sequence by date when the journal is locked with a hash."
                     )
                 )
-        moves_to_rename = self.env["account.move"].browse(
-            int(k) for k in new_values.keys()
-        )
+        moves_to_rename = self.env["account.move"].browse(int(k) for k in new_values)
         moves_to_rename.name = False
         moves_to_rename.flush_recordset(["name"])
         # If the db is not forcibly updated, the temporary renaming could only happen in cache and still trigger the constraint

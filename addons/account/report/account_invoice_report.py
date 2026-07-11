@@ -1,9 +1,8 @@
-from odoo import models, fields, api
+from odoo import api, fields, models
 from odoo.tools import SQL
 from odoo.tools.query import Query
-from odoo.addons.account.models.account_move import PAYMENT_STATE_SELECTION
 
-from functools import lru_cache
+from odoo.addons.account.models.account_move import PAYMENT_STATE_SELECTION
 
 
 class AccountInvoiceReport(models.Model):

@@ -1,9 +1,8 @@
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Command, Domain
-
 from xmlrpc.client import MAXINT
 
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Command, Domain
 from odoo.tools import SQL
 from odoo.tools.misc import str2bool
 
@@ -210,7 +209,7 @@ class AccountBankStatementLine(models.Model):
         }
         for journal in self.journal_id:
             journal_lines_indexes = (
-                self.filtered(lambda line: line.journal_id == journal)
+                self.filtered(lambda line, journal=journal: line.journal_id == journal)
                 .sorted("internal_index")
                 .mapped("internal_index")
             )
@@ -485,7 +484,7 @@ class AccountBankStatementLine(models.Model):
             ]
         )
         to_create_lines_vals = []
-        for i, (st_line, vals) in enumerate(zip(st_lines, vals_list)):
+        for i, (st_line, vals) in enumerate(zip(st_lines, vals_list, strict=False)):
             if "line_ids" not in vals_list[i]:
                 to_create_lines_vals.extend(
                     line_vals
@@ -563,7 +562,7 @@ class AccountBankStatementLine(models.Model):
         # We loop over the content of groupby because the groupby date is in the form of "date:granularity"
         for el in groupby:
             if (
-                el == "statement_id" or el == "journal_id" or el.startswith("date")
+                el in {"statement_id", "journal_id"} or el.startswith("date")
             ) and self.env.context.get("show_running_balance_latest"):
                 show_running_balance = True
                 break
@@ -714,6 +713,7 @@ class AccountBankStatementLine(models.Model):
         ).statement_id
         if not statement.is_complete:
             return statement
+        return None
 
     def _get_accounting_amounts_and_currencies(self):
         """Retrieve the transaction amount, journal amount and the company amount with their corresponding currencies
@@ -865,8 +865,8 @@ class AccountBankStatementLine(models.Model):
             "account_id": self.journal_id.default_account_id.id,
             "currency_id": journal_currency.id,
             "amount_currency": journal_amount,
-            "debit": company_amount > 0 and company_amount or 0.0,
-            "credit": company_amount < 0 and -company_amount or 0.0,
+            "debit": (company_amount > 0 and company_amount) or 0.0,
+            "credit": (company_amount < 0 and -company_amount) or 0.0,
         }
 
         # Create the counterpart line values.
@@ -878,7 +878,7 @@ class AccountBankStatementLine(models.Model):
             "currency_id": foreign_currency.id,
             "amount_currency": -transaction_amount,
             "debit": -company_amount if company_amount < 0.0 else 0.0,
-            "credit": company_amount if company_amount > 0.0 else 0.0,
+            "credit": max(0.0, company_amount),
         }
         return [liquidity_line_vals, counterpart_line_vals]
 
@@ -974,7 +974,7 @@ class AccountBankStatementLine(models.Model):
                             move=st_line.move_id.display_name,
                         )
                     )
-                elif len(suspense_lines) == 1:
+                if len(suspense_lines) == 1:
                     if (
                         journal_currency
                         and suspense_lines.currency_id == journal_currency
@@ -1069,8 +1069,7 @@ class AccountBankStatementLine(models.Model):
             else:
                 line_ids_commands.append((0, 0, line_vals_list[1]))
 
-            for line in other_lines:
-                line_ids_commands.append((2, line.id))
+            line_ids_commands.extend((2, line.id) for line in other_lines)
 
             st_line_vals = {
                 "currency_id": (

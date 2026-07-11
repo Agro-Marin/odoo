@@ -1,6 +1,6 @@
 import json
 
-from odoo import _, api, fields, models, Command
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
@@ -80,16 +80,16 @@ class AccountMergeWizard(models.TransientModel):
                         ].id,  # Used to compute the group name
                     }
                 )
-                for account in group_accounts:
-                    wizard_lines_vals_list.append(
-                        {
-                            "display_type": "account",
-                            "account_id": account.id,
-                            "grouping_key": grouping_key_str,
-                            "is_selected": True,
-                            "sequence": (sequence := sequence + 1),
-                        }
-                    )
+                wizard_lines_vals_list.extend(
+                    {
+                        "display_type": "account",
+                        "account_id": account.id,
+                        "grouping_key": grouping_key_str,
+                        "is_selected": True,
+                        "sequence": (sequence := sequence + 1),
+                    }
+                    for account in group_accounts
+                )
 
             wizard.wizard_line_ids = [Command.clear()] + [
                 Command.create(vals) for vals in wizard_lines_vals_list

@@ -1,6 +1,6 @@
 import re
 
-from odoo import _, fields, models, api
+from odoo import _, api, fields, models
 
 
 class AccountAnalyticApplicability(models.Model):
@@ -62,7 +62,7 @@ class AccountAnalyticApplicability(models.Model):
             )
 
     def _get_score(self, **kwargs):
-        score = super(AccountAnalyticApplicability, self)._get_score(**kwargs)
+        score = super()._get_score(**kwargs)
         if score == -1:
             return -1
         product = self.env["product.product"].browse(kwargs.get("product"))
@@ -70,7 +70,7 @@ class AccountAnalyticApplicability(models.Model):
         if self.account_prefix:
             account_prefixes = tuple(
                 prefix
-                for prefix in re.split("[,;]", self.account_prefix.replace(" ", ""))
+                for prefix in re.split(r"[,;]", self.account_prefix.replace(" ", ""))
                 if prefix
             )
             if account.code and account.code.startswith(account_prefixes):
