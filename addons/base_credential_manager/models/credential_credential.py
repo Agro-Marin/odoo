@@ -30,6 +30,9 @@ MAX_CREDENTIAL_DATA_SIZE = 65536  # 64KB max for JSON credential data
 MAX_CREDENTIAL_VALUE_SIZE = 8192  # 8KB max for simple credential values
 MAX_JSON_NESTING_DEPTH = 10  # Maximum nesting depth for JSON data
 
+# Sentinel returned by days_until_expiry when no expiration date is set.
+DAYS_NO_EXPIRY = 999
+
 
 def _check_json_depth(obj: Any, current_depth: int = 0) -> int:
     """Check the maximum nesting depth of a JSON-like object.
@@ -517,12 +520,10 @@ class CredentialCredential(models.Model):
         "but only recomputes when date_expiration changes. For time-critical queries, "
         "filter directly on date_expiration < now().",
     )
-    # Constant for "no expiration" days value (used in days_until_expiry)
-    DAYS_NO_EXPIRY = 999
-
     days_until_expiry = fields.Integer(
         compute="_compute_days_until_expiry",
-        help=f"Number of days until credential expires. Returns {999} if no expiration date is set.",
+        help=f"Number of days until credential expires. Returns {DAYS_NO_EXPIRY} "
+        "if no expiration date is set.",
     )
 
     # ==================== Cache Statistics ====================
@@ -537,10 +538,7 @@ class CredentialCredential(models.Model):
         readonly=True,
         help="Number of times a new session/connection had to be created",
     )
-    encryption_key_version = fields.Integer(
-        readonly=True,
-        help="Version of encryption key used (for key rotation tracking)",
-    )
+    # encryption_key_version is inherited from credential.encryption.mixin.
     allow_key_fallback = fields.Boolean(
         string="Allow Old Key Fallback",
         default=True,
@@ -651,6 +649,13 @@ class CredentialCredential(models.Model):
         readonly=True,
         help="Hash of encrypted credentials for cache key generation and integrity",
     )
+    encryption_key_is_current = fields.Boolean(
+        compute="_compute_encryption_key_is_current",
+        store=False,
+        help="True when this credential's ciphertext was written with the "
+        "current ODOO_API_ENCRYPTION_KEY. Drives the key-rotation warning "
+        "banner: only credentials still on an OLD key version show it.",
+    )
     last_validated = fields.Datetime(
         readonly=True,
         help="Timestamp of last successful credential validation",
@@ -696,6 +701,13 @@ class CredentialCredential(models.Model):
             config = CATEGORY_REQUIRED_FIELDS.get(record.category_code)
             if not config:
                 continue  # No requirements for this category (e.g., 'custom')
+
+            # Presence checks below read group_system-gated payload fields.
+            # Run them as sudo so a user who can create the record but not
+            # read the payload gets the intended "Missing fields"
+            # ValidationError instead of an opaque AccessError. Only
+            # truthiness and field NAMES are used — no payload is exposed.
+            record = record.sudo()
 
             # Decrypt JSON blob once so we can verify specific keys are present
             # rather than trusting blob-existence as a proxy for field presence.
@@ -835,21 +847,7 @@ class CredentialCredential(models.Model):
             if "encryption_key_version" not in vals:
                 # Check if any encrypted field will be set
                 has_encrypted_content = any(
-                    vals.get(field)
-                    for field in [
-                        "credential_value",
-                        "credential_data",
-                        "certificate_content",
-                        "certificate_password",
-                        "private_key_content",
-                        "username",
-                        "password",
-                        "api_key",
-                        "api_secret",
-                        "oauth_access_token",
-                        "oauth_refresh_token",
-                        "bearer_token",
-                    ]
+                    vals.get(field) for field in self._ENCRYPTED_PAYLOAD_FIELDS
                 )
                 if has_encrypted_content:
                     vals["encryption_key_version"] = current_version
@@ -895,6 +893,25 @@ class CredentialCredential(models.Model):
     # cannot sneak storage_method in alongside a legitimate field update.
     _STORAGE_METHOD_GUARD_FIELD = "storage_method"
 
+    # Every user-writable field whose inverse produces Fernet ciphertext.
+    # Shared by create() and write() to decide when encryption_key_version
+    # must be stamped — keep this the single source of truth (it used to be
+    # two hand-maintained copies that could drift).
+    _ENCRYPTED_PAYLOAD_FIELDS = (
+        "credential_value",
+        "credential_data",
+        "certificate_content",
+        "certificate_password",
+        "private_key_content",
+        "username",
+        "password",
+        "api_key",
+        "api_secret",
+        "oauth_access_token",
+        "oauth_refresh_token",
+        "bearer_token",
+    )
+
     def write(self, vals):
         """Override write to protect statistics fields and set encryption version.
 
@@ -932,41 +949,35 @@ class CredentialCredential(models.Model):
                 ),
             )
 
-        # Fields that trigger encryption
-        encrypted_fields = [
-            "credential_value",
-            "credential_data",
-            "certificate_content",
-            "certificate_password",
-            "private_key_content",
-            "username",
-            "password",
-            "api_key",
-            "api_secret",
-            "oauth_access_token",
-            "oauth_refresh_token",
-            "bearer_token",
-        ]
-
         # Check if any encrypted field is being set
-        adding_encrypted_content = any(vals.get(field) for field in encrypted_fields)
+        adding_encrypted_content = any(
+            vals.get(field) for field in self._ENCRYPTED_PAYLOAD_FIELDS
+        )
 
         if adding_encrypted_content:
             # Update records that don't have encryption_key_version set
             current_version = self._get_current_encryption_key_version() or 1
 
-            for record in self:
-                if not record.encryption_key_version:
-                    # Set version for this record only (use SQL to avoid recursion)
-                    self.env.cr.execute(
-                        """
-                        UPDATE credential_credential
-                        SET encryption_key_version = %s
-                        WHERE id = %s AND (encryption_key_version IS NULL
-                                           OR encryption_key_version = 0)
-                        """,
-                        [current_version, record.id],
-                    )
+            stamped = self.filtered(lambda r: not r.encryption_key_version)
+            if stamped:
+                # Raw SQL (not write()) so stamping the version does not
+                # recurse through this override for every payload write.
+                self.env.cr.execute(
+                    """
+                    UPDATE credential_credential
+                    SET encryption_key_version = %s
+                    WHERE id = ANY(%s) AND (encryption_key_version IS NULL
+                                            OR encryption_key_version = 0)
+                    """,
+                    [current_version, stamped.ids],
+                )
+                # The raw UPDATE bypasses the ORM cache; drop the stale
+                # cached value so same-transaction readers (e.g. the
+                # key-rotation banner compute, action_migrate_encryption_keys)
+                # see the stamped version instead of 0/NULL.
+                stamped.invalidate_recordset(
+                    ["encryption_key_version", "encryption_key_is_current"],
+                )
 
         result = super().write(vals)
 
@@ -988,17 +999,14 @@ class CredentialCredential(models.Model):
         credential_name captured in the row keeps the entry readable
         afterwards. A failed audit write never blocks the deletion.
         """
-        for record in self:
-            if not record.id:
-                continue
-            try:
-                record._log_access_out_of_band("delete")
-            except Exception as e:
-                _logger.warning(
-                    "Failed to write delete audit log for credential %s: %s",
-                    record.id,
-                    e,
-                )
+        try:
+            self._log_access_out_of_band("delete")
+        except Exception as e:
+            _logger.warning(
+                "Failed to write delete audit log for credentials %s: %s",
+                self.ids,
+                e,
+            )
         return super().unlink()
 
     # ------------------------------------------------------------
@@ -1317,16 +1325,8 @@ class CredentialCredential(models.Model):
                 record.cached_plaintext = False
                 continue
 
-            try:
-                decrypted = record._decrypt_value_safe(encrypted, default=None)
-            except Exception as e:
-                _logger.warning(
-                    "Credential %s: decrypt failed in _compute_cached_plaintext: %s",
-                    record.id or "new",
-                    e,
-                )
-                record.cached_plaintext = False
-                continue
+            # _decrypt_value_safe never raises — failures come back as None.
+            decrypted = record._decrypt_value_safe(encrypted, default=None)
 
             if decrypted is None:
                 _logger.warning(
@@ -1432,7 +1432,7 @@ class CredentialCredential(models.Model):
                 delta = record.date_expiration - now
                 record.days_until_expiry = delta.days
             else:
-                record.days_until_expiry = self.DAYS_NO_EXPIRY
+                record.days_until_expiry = DAYS_NO_EXPIRY
 
     @api.depends("success_count", "error_count")
     def _compute_success_rate(self):
@@ -1521,6 +1521,23 @@ class CredentialCredential(models.Model):
                 cred.credential_hash = hashlib.sha256(encrypted).hexdigest()
             else:
                 cred.credential_hash = False
+
+    @api.depends("encryption_key_version")
+    def _compute_encryption_key_is_current(self):
+        """Flag credentials whose ciphertext is already on the current key.
+
+        The current key version comes from the environment (highest
+        ODOO_API_ENCRYPTION_KEY_Vn + 1), not from any field, so the view
+        cannot compare against it directly — this compute closes that gap.
+        Records with no encrypted payload (version 0/unset) count as current:
+        there is nothing to migrate, so no warning should show.
+        """
+        current_version = self._get_current_encryption_key_version() or 1
+        for record in self:
+            record.encryption_key_is_current = (
+                not record.encryption_key_version
+                or record.encryption_key_version >= current_version
+            )
 
     # ------------------------------------------------------------
     # INVERSE METHODS
@@ -1696,8 +1713,7 @@ class CredentialCredential(models.Model):
         # (we only UPDATE non-key columns) while still allowing FK references.
         if self.id:
             self.env.cr.execute(
-                "SELECT id FROM credential_credential WHERE id = %s "
-                "FOR NO KEY UPDATE",
+                "SELECT id FROM credential_credential WHERE id = %s FOR NO KEY UPDATE",
                 [self.id],
             )
             # Drop any pre-lock cached ciphertext so we re-read the value the
@@ -1790,10 +1806,10 @@ class CredentialCredential(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
-    # Tuples: char_field_on_plaintext_compute, encrypted_binary_storage, is_binary.
-    # Single source of truth for every Fernet-encrypted column on this model.
-    # Anything here is re-encrypted by action_migrate_encryption_keys. Add new
-    # encrypted fields to this list, not as ad-hoc writes in the action.
+    # Fernet-encrypted columns on THIS model, re-encrypted by
+    # action_migrate_encryption_keys. Registry contract defined on
+    # credential.encryption.mixin — add new encrypted fields here, not as
+    # ad-hoc writes in the action.
     _ENCRYPTED_FIELD_PAIRS = (
         ("credential_value", "credential_value_encrypted", False),
         ("certificate_content", "certificate_content_encrypted", True),
@@ -1802,19 +1818,21 @@ class CredentialCredential(models.Model):
     )
 
     def action_migrate_encryption_keys(self) -> dict[str, Any]:
-        """Re-encrypt every encrypted field on every credential with the current key.
+        """Re-encrypt every registered encrypted column, suite-wide, with the current key.
 
-        Previously this method only touched credential_value_encrypted, which
-        meant that after rotating ODOO_API_ENCRYPTION_KEY and retiring the old
-        V1 env var, any certificate/PKCS12 credential became permanently
-        undecryptable. It now walks _ENCRYPTED_FIELD_PAIRS and re-encrypts
-        every column, using a per-record SAVEPOINT so one bad row doesn't
-        abort the batch.
+        Walks EVERY model that inherits credential.encryption.mixin and
+        declares ``_ENCRYPTED_FIELD_PAIRS`` (discovered via
+        ``_get_encryption_migration_models``), not just credential.credential.
+        Previously the action was credential-only, which stranded other
+        consumers' ciphertext (e.g. api.endpoint.outbound's OAuth client
+        secret) on the old key: rotate + retire the old env var and those
+        columns became permanently undecryptable.
 
-        Runs under sudo() so admins with restricted allowed_company_ids don't
-        silently skip credentials of other companies — the migration is a
-        system-wide operation, authorization is enforced by the admin-group
-        check above, not by the record rule.
+        Each record re-encrypts under its own SAVEPOINT so one bad row
+        doesn't abort the batch. Runs under sudo() so admins with restricted
+        allowed_company_ids don't silently skip other companies' rows — the
+        migration is a system-wide operation; authorization is the
+        admin-group check below, not record rules.
         """
         if not self.env.user.has_group(
             "base_credential_manager.group_credential_admin",
@@ -1828,87 +1846,80 @@ class CredentialCredential(models.Model):
 
         current_version = self._get_current_encryption_key_version()
 
-        # Skip credentials already encrypted with the current key. An admin
-        # re-running this action after a successful migration should be a
-        # no-op, not an N-record re-encrypt cycle. encryption_key_version
-        # defaults to 0 for legacy/untracked records, so "< current_version"
-        # naturally includes them.
-        eligible = self.sudo().search(
-            [("encryption_key_version", "<", current_version)],
-        )
-        total_eligible = len(eligible)
-        total_all = self.sudo().search_count([])
-        skipped = total_all - total_eligible
-        migrated = 0
-        failed = 0
-        errors = []
-
-        _logger.info(
-            "Starting encryption key migration: %d eligible / %d total "
-            "credentials (%d already at key version %d)",
-            total_eligible,
-            total_all,
-            skipped,
-            current_version,
-        )
-
-        for cred in eligible:
-            savepoint = f"cred_migrate_{cred.id}"
-            self.env.cr.execute(f"SAVEPOINT {savepoint}")
-            try:
-                touched = False
-                for _plain_field, enc_field, is_binary in self._ENCRYPTED_FIELD_PAIRS:
-                    encrypted = cred.with_context(bin_size=False)[enc_field]
-                    if not encrypted:
-                        continue
-                    if is_binary:
-                        plaintext_b64 = cred._decrypt_binary_value(encrypted)
-                        if not plaintext_b64:
-                            continue
-                        # _decrypt_binary_value returns base64-encoded bytes,
-                        # and _encrypt_binary_value expects the same shape.
-                        cred[enc_field] = cred._encrypt_binary_value(plaintext_b64)
-                    else:
-                        plaintext = cred._decrypt_value(encrypted)
-                        if not plaintext:
-                            continue
-                        cred[enc_field] = cred._encrypt_value(plaintext)
-                    touched = True
-
-                if touched:
-                    cred.encryption_key_version = current_version
-                    migrated += 1
-                    _logger.debug(
-                        "Migrated credential: %s (ID: %s)",
-                        cred.name,
-                        cred.id,
-                    )
-                self.env.cr.execute(f"RELEASE SAVEPOINT {savepoint}")
-            except Exception as e:
-                self.env.cr.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
-                failed += 1
-                error_msg = f"Credential '{cred.name}' (ID: {cred.id}): {e!s}"
-                errors.append(error_msg)
-                _logger.error("Failed to migrate credential: %s", error_msg)
-
-        _logger.info(
-            "Encryption key migration complete: %d migrated, %d failed, "
-            "%d skipped (already at key version %d)",
-            migrated,
-            failed,
-            skipped,
-            current_version,
-        )
-
-        return {
-            "total": total_all,
-            "eligible": total_eligible,
-            "skipped": skipped,
-            "migrated": migrated,
-            "failed": failed,
-            "errors": errors,
+        totals = {
+            "total": 0,
+            "eligible": 0,
+            "skipped": 0,
+            "migrated": 0,
+            "failed": 0,
+            "errors": [],
             "current_key_version": current_version,
+            "models": {},
         }
+
+        for model_name in self._get_encryption_migration_models():
+            model = self.env[model_name].sudo()
+            # Skip rows already stamped with the current key: re-running the
+            # action after a successful rotation must be a near-no-op. The
+            # explicit "= False" branch matters — unstamped rows are NULL in
+            # SQL and a bare "<" comparison excludes NULL, which would
+            # silently strand every legacy/never-stamped row.
+            eligible = model.search(
+                [
+                    "|",
+                    ("encryption_key_version", "=", False),
+                    ("encryption_key_version", "<", current_version),
+                ],
+            )
+            total_all = model.search_count([])
+            stats = {
+                "total": total_all,
+                "eligible": len(eligible),
+                "skipped": total_all - len(eligible),
+                "migrated": 0,
+                "failed": 0,
+            }
+
+            _logger.info(
+                "Encryption key migration [%s]: %d eligible / %d total "
+                "(%d already at key version %d)",
+                model_name,
+                stats["eligible"],
+                total_all,
+                stats["skipped"],
+                current_version,
+            )
+
+            for record in eligible:
+                savepoint = f"cred_migrate_{model._table}_{record.id}"
+                self.env.cr.execute(f"SAVEPOINT {savepoint}")
+                try:
+                    if record._reencrypt_with_current_key():
+                        record._stamp_encryption_key_version(current_version)
+                        stats["migrated"] += 1
+                    self.env.cr.execute(f"RELEASE SAVEPOINT {savepoint}")
+                except Exception as e:
+                    self.env.cr.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    stats["failed"] += 1
+                    error_msg = f"{model_name} (ID: {record.id}): {e!s}"
+                    totals["errors"].append(error_msg)
+                    _logger.error("Failed to migrate record: %s", error_msg)
+
+            totals["models"][model_name] = stats
+            for key in ("total", "eligible", "skipped", "migrated", "failed"):
+                totals[key] += stats[key]
+
+        _logger.info(
+            "Encryption key migration complete across %d model(s): "
+            "%d migrated, %d failed, %d skipped (key version %d)",
+            len(totals["models"]),
+            totals["migrated"],
+            totals["failed"],
+            totals["skipped"],
+            current_version,
+        )
+
+        return totals
 
     def action_test_encryption_keys(self) -> dict[str, Any]:
         """Test decryption of the selected credentials with available keys.
@@ -2249,45 +2260,55 @@ class CredentialCredential(models.Model):
             vals["error_count"] = self.error_count + 1
         self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(vals)
 
-    def _log_access(self, operation: str = "read"):
-        """Log credential access for audit trail."""
-        self.ensure_one()
+    @api.model
+    def _get_request_source_ip(self) -> str | bool:
+        """Return the validated remote IP of the current HTTP request.
 
-        # Get IP address from HTTP request if available
-        source_ip = False
+        Returns False outside an HTTP context (cron, shell) and the literal
+        string 'invalid' when the transport reports a malformed address —
+        the malformed value itself is never stored (log-injection guard).
+        """
         try:
             if request and hasattr(request, "httprequest"):
                 raw_ip = request.httprequest.remote_addr
-                # Validate IP address format to prevent log injection
                 if raw_ip:
                     try:
                         # This validates IPv4 and IPv6 addresses
                         ipaddress.ip_address(raw_ip)
-                        source_ip = raw_ip
+                        return raw_ip
                     except ValueError:
-                        # Invalid IP format - log sanitized value
                         _logger.warning(
                             "Invalid IP address format in request: %s",
-                            raw_ip[:50] if raw_ip else "None",
+                            raw_ip[:50],
                         )
-                        source_ip = "invalid"
+                        return "invalid"
         except Exception:
             # No request context (e.g., cron job, shell) — source_ip stays unknown.
             _logger.debug("No HTTP request context for access log", exc_info=True)
+        return False
 
+    def _prepare_access_log_vals(self, operation: str, source_ip) -> dict:
+        """Build one credential.access.log vals dict for this credential."""
+        self.ensure_one()
+        return {
+            "credential_id": self.id,
+            # Denormalized so the audit row stays readable after the
+            # credential / user is deleted (FKs are ondelete=set null).
+            "credential_name": self.name,
+            "user_id": self.env.uid,
+            "user_login": self.env.user.login,
+            "company_id": self.company_id.id if self.company_id else False,
+            "operation": operation,
+            "timestamp": fields.Datetime.now(),
+            "source_ip": source_ip,
+        }
+
+    def _log_access(self, operation: str = "read"):
+        """Log credential access for audit trail."""
+        self.ensure_one()
+        source_ip = self._get_request_source_ip()
         self.env["credential.access.log"].sudo().create(
-            {
-                "credential_id": self.id,
-                # Denormalized so the audit row stays readable after the
-                # credential / user is deleted (FKs are ondelete=set null).
-                "credential_name": self.name,
-                "user_id": self.env.uid,
-                "user_login": self.env.user.login,
-                "company_id": self.company_id.id if self.company_id else False,
-                "operation": operation,
-                "timestamp": fields.Datetime.now(),
-                "source_ip": source_ip,
-            },
+            self._prepare_access_log_vals(operation, source_ip),
         )
 
     def _log_access_guarded(self, operation: str = "read") -> None:
@@ -2375,51 +2396,47 @@ class CredentialCredential(models.Model):
         )
 
     def _log_access_out_of_band(self, operation: str) -> None:
-        """Write an audit-log row via a dedicated cursor.
+        """Write audit-log rows via a dedicated cursor (batch-capable).
 
         Used for audit events that must survive the caller's transaction
-        rollback — specifically rate-limit-denied reads, where the caller
-        raises ValidationError immediately after logging and the normal
-        _log_access row would be rolled back with it.
+        rollback — rate-limit-denied reads (the caller raises ValidationError
+        right after logging) and pre-unlink delete audits (the row must
+        outlive the credential). Accepts a multi-record ``self`` and writes
+        every row through ONE fresh cursor / one create call, so a bulk
+        unlink does not open N registry connections.
 
         If the out-of-band write itself fails, we fall back to the
         rollback-coupled path and log a warning. Audit integrity is best-
         effort: never let a failed audit break credential access.
         """
-        self.ensure_one()
+        records = self.filtered(lambda r: r.id)
+        if not records:
+            return
+        source_ip = self._get_request_source_ip()
+        vals_list = [
+            record._prepare_access_log_vals(operation, source_ip) for record in records
+        ]
         try:
             with self.env.registry.cursor() as cr:
                 env = self.env(cr=cr)
-                env["credential.access.log"].sudo().create(
-                    {
-                        "credential_id": self.id,
-                        # Denormalized so the row outlives the credential/user.
-                        "credential_name": self.name,
-                        "user_id": self.env.uid,
-                        "user_login": self.env.user.login,
-                        "company_id": (
-                            self.company_id.id if self.company_id else False
-                        ),
-                        "operation": operation,
-                        "timestamp": fields.Datetime.now(),
-                    },
-                )
+                env["credential.access.log"].sudo().create(vals_list)
         except Exception as e:
             _logger.error(
-                "Out-of-band audit log failed for credential %s op=%s: %s. "
+                "Out-of-band audit log failed for credentials %s op=%s: %s. "
                 "Falling back to rollback-coupled write.",
-                self.id,
+                records.ids,
                 operation,
                 e,
             )
-            try:
-                self._log_access(operation)
-            except Exception as inner:
-                _logger.error(
-                    "Fallback audit log ALSO failed for credential %s: %s",
-                    self.id,
-                    inner,
-                )
+            for record in records:
+                try:
+                    record._log_access(operation)
+                except Exception as inner:
+                    _logger.error(
+                        "Fallback audit log ALSO failed for credential %s: %s",
+                        record.id,
+                        inner,
+                    )
 
     def mark_as_used(self):
         """Mark credential as recently used."""

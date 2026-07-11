@@ -7,7 +7,7 @@ from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from odoo import models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -56,6 +56,23 @@ class CredentialEncryptionMixin(models.AbstractModel):
 
     _name = "credential.encryption.mixin"
     _description = "Credential Encryption Mixin"
+
+    # Registry of Fernet-encrypted columns on the inheriting model, as
+    # (plain_field, encrypted_field, is_binary) tuples. Every consumer that
+    # stores ciphertext MUST declare its columns here — this is what the
+    # suite-wide key-rotation migration (credential.credential.
+    # action_migrate_encryption_keys) walks to re-encrypt data after
+    # ODOO_API_ENCRYPTION_KEY changes. An encrypted column that is not
+    # registered becomes permanently undecryptable once the old key env
+    # vars are retired.
+    _ENCRYPTED_FIELD_PAIRS: tuple = ()
+
+    encryption_key_version = fields.Integer(
+        readonly=True,
+        help="Version of the encryption key used for this record's encrypted "
+        "columns (for key-rotation tracking). 0/unset means untracked — the "
+        "rotation migration treats such rows as eligible.",
+    )
 
     # ==================== Generic Encrypted Field Helpers ====================
     #
@@ -689,6 +706,86 @@ class CredentialEncryptionMixin(models.AbstractModel):
                     error=str(e),
                 ),
             ) from e
+
+    # ------------------------------------------------------------
+    # KEY-ROTATION SUPPORT (suite-wide re-encryption)
+    # ------------------------------------------------------------
+
+    @api.model
+    def _get_encryption_migration_models(self) -> list[str]:
+        """List every concrete model with registered encrypted columns.
+
+        Walks the registry for models that inherit this mixin AND declare a
+        non-empty ``_ENCRYPTED_FIELD_PAIRS``. This is the discovery step of
+        the key-rotation migration: previously the migration re-encrypted
+        credential.credential only, silently stranding every other mixin
+        consumer (e.g. api.endpoint.outbound's OAuth client secret) on the
+        old key.
+        """
+        names = []
+        for name in self.env.registry:
+            model = self.env[name]
+            # _abstract excludes the mixin itself (and any other abstract
+            # carrier); transient rows are vacuumed and not worth migrating.
+            if model._abstract or model._transient:
+                continue
+            if not isinstance(model, CredentialEncryptionMixin):
+                continue
+            if not model._ENCRYPTED_FIELD_PAIRS:
+                continue
+            names.append(name)
+        return sorted(names)
+
+    def _reencrypt_with_current_key(self) -> bool:
+        """Re-encrypt this record's registered ciphertext with the current key.
+
+        Decrypts each ``_ENCRYPTED_FIELD_PAIRS`` column (old-key fallback
+        applies) and writes it back encrypted with the current key. Reads
+        ciphertext directly — never the user-facing plaintext computes — so
+        it does not trip the access rate limiter or the audit log.
+
+        Returns:
+            bool: True if at least one column was rewritten.
+
+        """
+        self.ensure_one()
+        touched = False
+        for _plain_field, enc_field, is_binary in self._ENCRYPTED_FIELD_PAIRS:
+            encrypted = self.with_context(bin_size=False)[enc_field]
+            if not encrypted:
+                continue
+            if is_binary:
+                plaintext_b64 = self._decrypt_binary_value(encrypted)
+                if not plaintext_b64:
+                    continue
+                # _decrypt_binary_value returns base64-encoded bytes, and
+                # _encrypt_binary_value expects the same shape.
+                self[enc_field] = self._encrypt_binary_value(plaintext_b64)
+            else:
+                plaintext = self._decrypt_value(encrypted)
+                if not plaintext:
+                    continue
+                self[enc_field] = self._encrypt_value(plaintext)
+            touched = True
+        return touched
+
+    def _stamp_encryption_key_version(self, version: int) -> None:
+        """Record the key version on these rows without going through write().
+
+        Raw SQL so consumers' write() overrides (mail.thread tracking,
+        protected-field guards, recursion into key stamping) are not
+        triggered by what is pure bookkeeping; the ORM cache is invalidated
+        so same-transaction readers see the new value.
+        """
+        if not self.ids:
+            return
+        # self._table is model metadata, not user input.
+        self.env.cr.execute(
+            f'UPDATE "{self._table}" SET encryption_key_version = %s '
+            f"WHERE id = ANY(%s)",
+            [version, self.ids],
+        )
+        self.invalidate_recordset(["encryption_key_version"])
 
     @classmethod
     def _invalidate_key_version_cache(cls):

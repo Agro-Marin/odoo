@@ -43,8 +43,19 @@ Key Features
 
 Usage
 -----
-Other modules inherit from this module to get credential management for free:
+Other modules build on this module in two ways:
 
+* Reference ``credential.credential`` records (or extend the model via
+  ``_inherit``) to store their secrets encrypted — see ``api_communication``
+  and ``api_gateway``.
+* Import the shared primitives from ``tools/`` (authentication/signature
+  verification, endpoint + credential rate limiters, session cache,
+  connection manager) — see ``base_automation`` webhooks, ``telegram_bot``
+  and ``remote``.
+
+Requires the ``ODOO_API_ENCRYPTION_KEY`` environment variable (a Fernet key);
+old keys stay readable through ``ODOO_API_ENCRYPTION_KEY_V<n>`` during
+rotation.
     """,
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",

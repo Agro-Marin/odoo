@@ -219,7 +219,10 @@ class ConnectionManager(BaseLRUCache):
             entry = self._get_entry(key)
             if entry:
                 return {
-                    "created_at": entry["timestamp"],
+                    # created_at is preserved across overwrites by
+                    # BaseLRUCache._set_entry; fall back to the last-used
+                    # timestamp for entries written before that field existed.
+                    "created_at": entry.get("created_at") or entry["timestamp"],
                     "last_used": entry["timestamp"],
                     "metadata": entry["metadata"],
                 }

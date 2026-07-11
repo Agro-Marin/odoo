@@ -17,20 +17,42 @@ def _looks_like_epoch(value):
     return bool(_EPOCH_RE.match(value.strip()))
 
 
+def _get_param_with_legacy(env, suffix, default):
+    """Read a config parameter, honouring the legacy api_communication name.
+
+    This module is the canonical copy of what used to live in
+    ``api_communication.tools.authentication`` (now a re-export shim of this
+    file). Databases configured before the promotion may still carry the
+    parameter under the old ``api_communication.*`` key, so the canonical
+    ``base_credential_manager.*`` key wins and the legacy key is the
+    fallback. Returns ``default`` when neither is set.
+    """
+    icp = env["ir.config_parameter"].sudo()
+    value = icp.get_param(f"base_credential_manager.{suffix}", default=None)
+    if value is None:
+        value = icp.get_param(f"api_communication.{suffix}", default=None)
+    return default if value is None else value
+
+
+def _resolve_env(env=None):
+    """Return the given env, or the current request's env, or None."""
+    if env is not None:
+        return env
+    try:
+        if request and hasattr(request, "env") and request.env:
+            return request.env
+    except ImportError, RuntimeError:
+        pass
+    return None
+
+
 def _get_future_tolerance(env=None):
     """Get future tolerance from config or default."""
     try:
+        env = _resolve_env(env)
         if env:
             return int(
-                env["ir.config_parameter"]
-                .sudo()
-                .get_param("base_credential_manager.timestamp_future_tolerance", "60"),
-            )
-        if request and hasattr(request, "env") and request.env:
-            return int(
-                request.env["ir.config_parameter"]
-                .sudo()
-                .get_param("base_credential_manager.timestamp_future_tolerance", "60"),
+                _get_param_with_legacy(env, "timestamp_future_tolerance", "60"),
             )
     except ImportError, RuntimeError, ValueError, TypeError:
         pass
@@ -50,19 +72,10 @@ def _handle_none_signature(env=None):
         True only if the kill switch is explicitly enabled; False otherwise.
 
     """
-    if env is None:
-        try:
-            if request and hasattr(request, "env") and request.env:
-                env = request.env
-        except ImportError, RuntimeError:
-            pass
+    env = _resolve_env(env)
 
     if env:
-        allow_none = (
-            env["ir.config_parameter"]
-            .sudo()
-            .get_param("base_credential_manager.allow_none_signature", default="False")
-        )
+        allow_none = _get_param_with_legacy(env, "allow_none_signature", "False")
         if allow_none != "True":
             _logger.warning(
                 "Signature type 'none' is disabled. "
@@ -111,18 +124,19 @@ def verify_bearer_token(headers, expected_token):
 
 
 def _verify_custom(verification_method, headers, body, env=None):
-    """Execute custom verification method."""
+    """Execute custom verification method.
+
+    SECURITY: the configured method MUST be named ``verify_*`` or
+    ``_verify_*``. The method is invoked with ``sudo()``, so without this
+    naming gate a ``verification_method`` config value could invoke ANY
+    model method with superuser rights (e.g. ``res.users.unlink``) —
+    turning endpoint-config write access into arbitrary ORM execution.
+    """
     if not verification_method:
         return False
 
     try:
-        if env is None:
-            try:
-                if request and hasattr(request, "env") and request.env:
-                    env = request.env
-            except ImportError, RuntimeError:
-                pass
-
+        env = _resolve_env(env)
         if env is None:
             _logger.error("No environment for custom verification")
             return False
@@ -132,13 +146,21 @@ def _verify_custom(verification_method, headers, body, env=None):
             raise ValueError("Invalid method format")
 
         model_name, method_name = parts
+        if not method_name.lstrip("_").startswith("verify_"):
+            _logger.error(
+                "Custom verification method %r rejected: method name must "
+                "start with 'verify_' or '_verify_'.",
+                verification_method,
+            )
+            return False
+
         model = env[model_name].sudo()
         method = getattr(model, method_name, None)
 
         if not method or not callable(method):
             raise AttributeError(f"Method {method_name} not found")
 
-        return method(headers, body)
+        return bool(method(headers, body))
 
     except Exception:
         _logger.exception("Custom verification failed")

@@ -180,7 +180,9 @@ class CredentialAccessLog(models.Model):
                 timestamp_str = record.timestamp.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 timestamp_str = "Unknown"
-            cred_label = record.credential_id.name or record.credential_name or "(deleted)"
+            cred_label = (
+                record.credential_id.name or record.credential_name or "(deleted)"
+            )
             record.display_name = (
                 f"{cred_label} - {record.operation} at {timestamp_str}"
             )

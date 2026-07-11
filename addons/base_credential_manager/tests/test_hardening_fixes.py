@@ -1,0 +1,340 @@
+"""Regression tests for the post-promotion hardening pass.
+
+Covers:
+* encryption_key_is_current compute (form-view key-rotation banner logic)
+* ORM-cache consistency after the raw-SQL key-version stamp in write()
+* ORM-cache consistency after the raw-SQL token consumption in
+  rate.limit.bucket.consume_token()
+* ValidationError (not AccessError) for payload-less creates by users
+  outside base.group_system
+* group_credential_admin implying base.group_system (suite pattern)
+* batched delete audit rows on multi-record unlink
+* _verify_custom method-name gate (sudo arbitrary-method hardening)
+"""
+
+import os
+from unittest.mock import patch
+
+from cryptography.fernet import Fernet
+
+from odoo.exceptions import ValidationError
+from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
+
+from odoo.addons.base_credential_manager.tools.authentication import _verify_custom
+
+
+class TestHardeningFixesBase(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.test_key = Fernet.generate_key().decode()
+        cls.env_patcher = patch.dict(
+            os.environ, {"ODOO_API_ENCRYPTION_KEY": cls.test_key}, clear=False
+        )
+        cls.env_patcher.start()
+        cls.env["credential.credential"]._invalidate_key_version_cache()
+        cls.category_api_key = cls.env.ref(
+            "base_credential_manager.credential_category_api_key"
+        )
+        cls.category_custom = cls.env.ref(
+            "base_credential_manager.credential_category_custom"
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.env_patcher.stop()
+        cls.env["credential.credential"]._invalidate_key_version_cache()
+        super().tearDownClass()
+
+
+class TestEncryptionKeyCurrentFlag(TestHardeningFixesBase):
+    """The key-rotation banner must only show for genuinely old ciphertext."""
+
+    def test_fresh_credential_is_current(self):
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Fresh Key Cred",
+                "category_id": self.category_api_key.id,
+                "credential_value": "abc123",
+            }
+        )
+        self.assertTrue(cred.encryption_key_is_current)
+
+    def test_no_payload_counts_as_current(self):
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "No Payload Cred",
+                "category_id": self.category_custom.id,
+            }
+        )
+        self.assertFalse(cred.encryption_key_version)
+        self.assertTrue(cred.encryption_key_is_current)
+
+    def test_old_key_version_is_not_current(self):
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Old Key Cred",
+                "category_id": self.category_api_key.id,
+                "credential_value": "abc123",
+            }
+        )
+        self.assertEqual(cred.encryption_key_version, 1)
+        # Introduce a V1 old key: current version becomes 2, the record's
+        # ciphertext (stamped v1) is now old.
+        with patch.dict(
+            os.environ,
+            {
+                "ODOO_API_ENCRYPTION_KEY": Fernet.generate_key().decode(),
+                "ODOO_API_ENCRYPTION_KEY_V1": self.test_key,
+            },
+        ):
+            self.env["credential.credential"]._invalidate_key_version_cache()
+            cred.invalidate_recordset(["encryption_key_is_current"])
+            self.assertFalse(cred.encryption_key_is_current)
+        self.env["credential.credential"]._invalidate_key_version_cache()
+
+    def test_write_stamps_version_visible_in_same_transaction(self):
+        """The raw-SQL version stamp in write() must not leave a stale 0 in
+        the ORM cache (regression: probe showed cache 0 vs DB 1)."""
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Stamp Cred",
+                "category_id": self.category_custom.id,
+            }
+        )
+        self.env.cr.execute(
+            "UPDATE credential_credential SET encryption_key_version = NULL "
+            "WHERE id = %s",
+            [cred.id],
+        )
+        cred.invalidate_recordset()
+        self.assertFalse(cred.encryption_key_version)
+
+        cred.credential_value = "sealed-now"
+
+        # Same transaction, no manual invalidation: the ORM must already
+        # see the stamped version.
+        self.assertEqual(cred.encryption_key_version, 1)
+        self.assertTrue(cred.encryption_key_is_current)
+
+
+class TestConsumeTokenCacheConsistency(TestHardeningFixesBase):
+    """consume_token's raw-SQL UPDATE must be visible through the ORM."""
+
+    def test_tokens_field_reflects_consumption(self):
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Bucket Endpoint",
+                "category_id": self.category_custom.id,
+            }
+        )
+        bucket = self.env["rate.limit.bucket"].create(
+            {
+                "bucket_key": f"credential.credential:{cred.id}:global",
+                "endpoint_model": "credential.credential",
+                "endpoint_id": cred.id,
+                "tokens": 5.0,
+            }
+        )
+        self.assertTrue(bucket.consume_token())
+        self.assertAlmostEqual(bucket.tokens, 4.0, places=1)
+        self.assertTrue(bucket.last_request_at)
+
+
+class TestValidationWithoutSystemGroup(TestHardeningFixesBase):
+    """Payload presence checks must not AccessError for non-system users."""
+
+    def test_missing_payload_raises_validation_not_access_error(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Credential User",
+                "login": "cred_user_validation_test",
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref(
+                                "base_credential_manager.group_credential_user"
+                            ).id
+                        ],
+                    )
+                ],
+            }
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            self.env["credential.credential"].with_user(user).create(
+                {
+                    "name": "No Payload API Key",
+                    "category_id": self.category_api_key.id,
+                }
+            )
+        self.assertIn("secret value", str(ctx.exception))
+
+
+class TestAdminGroupImpliesSystem(TestHardeningFixesBase):
+    """Credential Manager admins must actually be able to manage secrets."""
+
+    def test_admin_group_implies_group_system(self):
+        admin_group = self.env.ref("base_credential_manager.group_credential_admin")
+        system_group = self.env.ref("base.group_system")
+        self.assertIn(system_group, admin_group.all_implied_ids)
+
+    def test_admin_can_create_and_read_secret(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Credential Admin",
+                "login": "cred_admin_secret_test",
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref(
+                                "base_credential_manager.group_credential_admin"
+                            ).id
+                        ],
+                    )
+                ],
+            }
+        )
+        cred = (
+            self.env["credential.credential"]
+            .with_user(user)
+            .create(
+                {
+                    "name": "Admin Made Cred",
+                    "category_id": self.category_api_key.id,
+                    "credential_value": "admin-secret",
+                }
+            )
+        )
+        self.assertEqual(cred.credential_value, "admin-secret")
+
+
+class TestBatchDeleteAudit(TestHardeningFixesBase):
+    """Bulk unlink must produce one delete audit row per credential."""
+
+    def test_bulk_unlink_writes_one_row_per_credential(self):
+        creds = self.env["credential.credential"].create(
+            [
+                {
+                    "name": f"Bulk Delete Cred {i}",
+                    "category_id": self.category_custom.id,
+                }
+                for i in range(3)
+            ]
+        )
+        names = set(creds.mapped("name"))
+        creds.unlink()
+        rows = self.env["credential.access.log"].search(
+            [("operation", "=", "delete"), ("credential_name", "in", list(names))]
+        )
+        self.assertEqual(set(rows.mapped("credential_name")), names)
+        self.assertEqual(len(rows), 3)
+
+
+class TestRotationMigrationGeneralization(TestHardeningFixesBase):
+    """action_migrate_encryption_keys must cover every mixin consumer."""
+
+    def _grant_admin(self):
+        self.env.user.group_ids = [
+            (
+                4,
+                self.env.ref("base_credential_manager.group_credential_admin").id,
+            )
+        ]
+
+    def test_walker_discovers_consumers_not_the_mixin(self):
+        models = self.env["credential.credential"]._get_encryption_migration_models()
+        self.assertIn("credential.credential", models)
+        self.assertNotIn("credential.encryption.mixin", models)
+
+    def test_null_version_rows_are_eligible(self):
+        """Unstamped rows are NULL in SQL; a bare '<' domain excluded them.
+
+        Regression for the latent eligibility gap: rows whose
+        encryption_key_version was never stamped (NULL, not 0) must still be
+        picked up and re-encrypted by the migration.
+        """
+        self._grant_admin()
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Null Version Cred",
+                "category_id": self.category_api_key.id,
+                "credential_value": "rotate-me",
+            }
+        )
+        self.env.cr.execute(
+            "UPDATE credential_credential SET encryption_key_version = NULL "
+            "WHERE id = %s",
+            [cred.id],
+        )
+        cred.invalidate_recordset()
+        ciphertext_before = bytes(
+            cred.with_context(bin_size=False).credential_value_encrypted
+        )
+
+        result = self.env["credential.credential"].action_migrate_encryption_keys()
+
+        cred.invalidate_recordset()
+        self.assertNotEqual(
+            bytes(cred.with_context(bin_size=False).credential_value_encrypted),
+            ciphertext_before,
+            "NULL-version row must be re-encrypted",
+        )
+        self.assertEqual(cred.encryption_key_version, 1)
+        self.assertEqual(cred.credential_value, "rotate-me")
+        self.assertGreaterEqual(result["migrated"], 1)
+
+    def test_result_contains_per_model_breakdown(self):
+        self._grant_admin()
+        result = self.env["credential.credential"].action_migrate_encryption_keys()
+        self.assertIn("models", result)
+        self.assertIn("credential.credential", result["models"])
+        per_model = result["models"]["credential.credential"]
+        for key in ("total", "eligible", "skipped", "migrated", "failed"):
+            self.assertIn(key, per_model)
+        # Top-level keys stay backward compatible (server action message
+        # in credential_credential_views.xml formats them).
+        for key in ("total", "skipped", "migrated", "failed", "errors"):
+            self.assertIn(key, result)
+
+
+class TestVerifyCustomPrefixGate(TransactionCase):
+    """_verify_custom must refuse to invoke non-verify methods under sudo."""
+
+    @mute_logger("odoo.addons.base_credential_manager.tools.authentication")
+    def test_non_verify_method_rejected(self):
+        # 'search_count' exists and is callable, but is not a verify_ method:
+        # the gate must reject it BEFORE invocation.
+        result = _verify_custom("res.partner.search_count", {}, "{}", env=self.env)
+        self.assertFalse(result)
+
+    @mute_logger("odoo.addons.base_credential_manager.tools.authentication")
+    def test_private_non_verify_method_rejected(self):
+        result = _verify_custom(
+            "res.partner._compute_display_name", {}, "{}", env=self.env
+        )
+        self.assertFalse(result)
+
+    def test_verify_method_invoked(self):
+        calls = []
+
+        def fake_verify(model_self, headers, body):
+            calls.append((headers, body))
+            return True
+
+        partner_cls = type(self.env["res.partner"])
+        with patch.object(
+            partner_cls, "verify_test_webhook", create=True, new=fake_verify
+        ):
+            result = _verify_custom(
+                "res.partner.verify_test_webhook",
+                {"X-Test": "1"},
+                "body",
+                env=self.env,
+            )
+        self.assertTrue(result)
+        self.assertEqual(calls, [({"X-Test": "1"}, "body")])

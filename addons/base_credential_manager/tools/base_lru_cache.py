@@ -120,11 +120,17 @@ class BaseLRUCache:
                     self._max_size,
                 )
 
-            # Store entry with timestamp
+            now = fields.Datetime.now()
+            # Store entry. 'timestamp' tracks last use (updated by _touch);
+            # 'created_at' survives overwrites of the same key so consumers
+            # like ConnectionManager.get_metadata can report a real creation
+            # time instead of echoing the last-used time.
+            existing = self._cache.get(key)
             self._cache[key] = {
                 "value": value,
                 "metadata": metadata or {},
-                "timestamp": fields.Datetime.now(),
+                "timestamp": now,
+                "created_at": existing["created_at"] if existing else now,
             }
 
             # Move to end (mark as recently used)
