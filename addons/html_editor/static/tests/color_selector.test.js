@@ -164,10 +164,10 @@ test("custom text-colors used in the editor are shown in the colorpicker", async
     await click(".btn:contains('Custom')");
     await animationFrame();
     expect(".o_hex_input").toHaveValue("#00FF00");
-    expect(queryAll("button[data-color='#ff0000']")).toHaveCount(1);
-    expect(queryOne("button[data-color='#ff0000']").style.backgroundColor).toBe("rgb(255, 0, 0)");
-    expect(queryAll("button[data-color='#00ff00']")).toHaveCount(1);
-    expect(queryOne("button[data-color='#00ff00']").style.backgroundColor).toBe("rgb(0, 255, 0)");
+    expect(queryAll("button[data-color='#FF0000']")).toHaveCount(1);
+    expect(queryOne("button[data-color='#FF0000']").style.backgroundColor).toBe("rgb(255, 0, 0)");
+    expect(queryAll("button[data-color='#00FF00']")).toHaveCount(1);
+    expect(queryOne("button[data-color='#00FF00']").style.backgroundColor).toBe("rgb(0, 255, 0)");
 });
 
 test("custom background colors used in the editor are shown in the colorpicker", async () => {
@@ -184,10 +184,10 @@ test("custom background colors used in the editor are shown in the colorpicker",
     await click(".btn:contains('Custom')");
     await animationFrame();
     expect(".o_hex_input").toHaveValue("#00FF00");
-    expect(queryAll("button[data-color='#ff0000']")).toHaveCount(1);
-    expect(queryOne("button[data-color='#ff0000']").style.backgroundColor).toBe("rgb(255, 0, 0)");
-    expect(queryAll("button[data-color='#00ff00']")).toHaveCount(1);
-    expect(queryOne("button[data-color='#00ff00']").style.backgroundColor).toBe("rgb(0, 255, 0)");
+    expect(queryAll("button[data-color='#FF0000']")).toHaveCount(1);
+    expect(queryOne("button[data-color='#FF0000']").style.backgroundColor).toBe("rgb(255, 0, 0)");
+    expect(queryAll("button[data-color='#00FF00']")).toHaveCount(1);
+    expect(queryOne("button[data-color='#00FF00']").style.backgroundColor).toBe("rgb(0, 255, 0)");
 });
 
 test("applied custom color should be shown in colorpicker after switching tab", async () => {
@@ -675,7 +675,7 @@ test("custom tab color navigation using keys", async () => {
     await press("Tab");
     await press("Tab");
     expect(getActiveElement()).toBe(
-        queryFirst(`.o_font_color_selector button[data-color="#ff0000"]`)
+        queryFirst(`.o_font_color_selector button[data-color="#FF0000"]`)
     );
     await press("ArrowDown");
     expect(getActiveElement()).toBe(
