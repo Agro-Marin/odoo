@@ -1,4 +1,3 @@
-
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -16,7 +15,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleOrder(SaleCommon):
-
     # Those tests do not rely on accounting common on purpose
     #   If you need the accounting setup, use other classes (TestSaleToInvoice probably)
 
@@ -1049,7 +1047,6 @@ class TestSaleOrderInvoicing(AccountTestInvoicingCommon, SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestSalesTeam(SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

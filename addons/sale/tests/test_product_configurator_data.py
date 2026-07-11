@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 from odoo.tests import tagged
 
@@ -11,7 +10,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 class TestProductConfiguratorData(
     HttpCaseWithUserDemo, ProductVariantsCommon, SaleCommon
 ):
-
     def request_get_values(self, product_template, ptav_ids=None):
         base_url = product_template.get_base_url()
         response = self.url_open(
@@ -349,8 +347,9 @@ class TestProductConfiguratorData(
 
         archived_ptav = (
             product_template.attribute_line_ids.product_template_value_ids.filtered(
-                lambda ptav: ptav.product_attribute_value_id
-                == self.no_variant_attribute_extra
+                lambda ptav: (
+                    ptav.product_attribute_value_id == self.no_variant_attribute_extra
+                )
             )
         )
         self.assertFalse(archived_ptav.ptav_active)

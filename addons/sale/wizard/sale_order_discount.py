@@ -70,7 +70,6 @@ class SaleOrderDiscount(models.TransientModel):
         )
         so_line_values_list = []
         for base_line in base_lines:
-
             # The name of the so line.
             if has_multiple_tax_combinations:
                 if self.discount_type == "so_discount":
@@ -84,15 +83,13 @@ class SaleOrderDiscount(models.TransientModel):
                     )
                 else:
                     so_line_description = self.env._(
-                        "Discount" "- On products with the following taxes %(taxes)s",
+                        "Discount- On products with the following taxes %(taxes)s",
                         taxes=", ".join(base_line["tax_ids"].mapped("name")),
                     )
             elif self.discount_type == "so_discount":
                 so_line_description = self.env._(
                     "Discount %(percent)s%%",
-                    percent=float_repr(
-                        self.discount_percentage * 100.0, discount_dp
-                    ),
+                    percent=float_repr(self.discount_percentage * 100.0, discount_dp),
                 )
             else:
                 so_line_description = self.env._("Discount")

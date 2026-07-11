@@ -1,4 +1,3 @@
-
 from odoo.tests import tagged
 
 from odoo.addons.sale.tests.common import SaleCommon
@@ -6,7 +5,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleCommon(SaleCommon):
-
     def test_common(self):
         self.assertFalse(self.empty_order.line_ids)
         self.assertEqual(self.empty_order.amount_total, 0.0)

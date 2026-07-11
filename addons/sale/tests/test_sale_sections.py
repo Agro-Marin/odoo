@@ -6,7 +6,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleSections(SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

@@ -6,7 +6,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleOrderStateMachine(SaleCommon):
-
     def _other_pricelist(self):
         return self.env["product.pricelist"].create({"name": "Other PL"})
 

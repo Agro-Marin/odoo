@@ -189,17 +189,19 @@ class CustomerPortal(payment_portal.PaymentPortal):
 
         request.session[cfg["session_key"]] = orders.ids[:100]
 
-        values.update({
-            "date": date_begin,
-            cfg["values_key"]: orders,
-            "page_name": cfg["page_name"],
-            "pager": pager,
-            "default_url": cfg["url"],
-            "searchbar_sortings": searchbar_sortings,
-            "sortby": sortby,
-            "searchbar_filters": OrderedDict(sorted(searchbar_filters.items())),
-            "filterby": filterby,
-        })
+        values.update(
+            {
+                "date": date_begin,
+                cfg["values_key"]: orders,
+                "page_name": cfg["page_name"],
+                "pager": pager,
+                "default_url": cfg["url"],
+                "searchbar_sortings": searchbar_sortings,
+                "sortby": sortby,
+                "searchbar_filters": OrderedDict(sorted(searchbar_filters.items())),
+                "filterby": filterby,
+            }
+        )
         return values
 
     # ------------------------------------------------------------------

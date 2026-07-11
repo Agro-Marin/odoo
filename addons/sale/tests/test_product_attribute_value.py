@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
@@ -7,7 +6,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestProductAttributeValue(HttpCase, SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -61,8 +59,9 @@ class TestProductAttributeValue(HttpCase, SaleCommon):
                     "product_no_variant_attribute_value_ids": [
                         Command.set(
                             cls.product_template.attribute_line_ids.product_template_value_ids.filtered(
-                                lambda ptav: ptav.product_attribute_value_id.id
-                                == cls.a3.id
+                                lambda ptav: (
+                                    ptav.product_attribute_value_id.id == cls.a3.id
+                                )
                             ).ids,
                         ),
                     ],

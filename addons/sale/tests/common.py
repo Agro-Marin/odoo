@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon, TestTaxCommon
@@ -10,7 +9,6 @@ class SaleCommon(
     ProductCommon,  # BaseCommon, UomCommon
     SalesTeamCommon,
 ):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -75,7 +73,6 @@ class SaleCommon(
 
 
 class TestSaleCommon(AccountTestInvoicingCommon):
-
     @classmethod
     def collect_company_accounting_data(cls, company):
         company_data = super().collect_company_accounting_data(company)
@@ -259,7 +256,6 @@ class TestSaleCommon(AccountTestInvoicingCommon):
 
 
 class TestTaxCommonSale(TestSaleCommon, TestTaxCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

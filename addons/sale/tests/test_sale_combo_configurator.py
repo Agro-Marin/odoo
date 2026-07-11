@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
@@ -7,7 +6,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleComboConfigurator(HttpCase, SaleCommon):
-
     def test_sale_combo_configurator(self):
         if self.env["ir.module.module"]._get("sale_management").state != "installed":
             self.skipTest("Sale App is not installed, Sale menu is not accessible.")

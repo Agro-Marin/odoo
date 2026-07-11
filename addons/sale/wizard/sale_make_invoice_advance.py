@@ -133,7 +133,9 @@ class SaleAdvancePaymentInv(models.TransientModel):
 
     def _check_amount_is_positive(self):
         for wizard in self:
-            if (wizard.advance_payment_method == "percentage" and wizard.amount <= 0.00) or (
+            if (
+                wizard.advance_payment_method == "percentage" and wizard.amount <= 0.00
+            ) or (
                 wizard.advance_payment_method == "fixed" and wizard.fixed_amount <= 0.00
             ):
                 raise UserError(
