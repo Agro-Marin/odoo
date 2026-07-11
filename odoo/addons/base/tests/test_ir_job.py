@@ -7,6 +7,7 @@ transaction, without workers or extra connections.
 """
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import api, fields
 from odoo.exceptions import RetryableJobError, UserError
@@ -239,6 +240,39 @@ class TestIrJob(TransactionCase):
         self.assertEqual(job.retry, 0)
         with self.assertRaises(UserError):
             job.action_requeue()  # pending → not requeueable
+
+    def test_run_now_executes_pending_job(self):
+        job = self.partner.delayed(eta=3600)._ir_job_test_append(" manual")
+        job.action_run_now()  # eta deliberately ignored
+        self.assertEqual(job.state, "done")
+        self.assertEqual(job.worker_ident, f"manual:{self.env.uid}")
+        self.env.invalidate_all()
+        self.assertEqual(self.partner.name, "job target manual")
+        with self.assertRaises(UserError):
+            job.action_run_now()  # done → not runnable again
+
+    def test_run_now_propagates_business_exception(self):
+        job = self.partner.delayed()._ir_job_test_boom()
+        # the exception reaches the user; in a real request the transaction
+        # (including the inline claim) rolls back, leaving the job pending
+        with self.assertRaises(ValueError):
+            job.action_run_now()
+
+    def test_notify_failed_hook_fires_on_permanent_failure(self):
+        job = self.partner.delayed(max_retries=0)._ir_job_test_boom()
+        claimed = self._claim()
+        exc = ValueError("boom")
+        with patch.object(IrJob, "_notify_failed") as hook:
+            IrJob._record_failure(self.env.cr, claimed, exc)
+        hook.assert_called_once()
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "failed")
+
+    def test_display_name(self):
+        job = self.partner.delayed()._ir_job_test_append()
+        self.assertEqual(
+            job.display_name, f"res.partner._ir_job_test_append (#{job.id})"
+        )
 
     def test_job_decorator_requires_private_method(self):
         with self.assertRaises(TypeError):
