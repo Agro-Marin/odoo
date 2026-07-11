@@ -32,7 +32,9 @@ class StockQuantRelocate(models.TransientModel):
         for wizard in self:
             packages = wizard.quant_ids.package_id
             incomplete_packages = packages.filtered(
-                lambda p: any(q not in wizard.quant_ids.ids for q in p.quant_ids.ids)
+                lambda p, wizard=wizard: any(
+                    q not in wizard.quant_ids.ids for q in p.quant_ids.ids
+                )
             )
             if packages and incomplete_packages:
                 wizard.is_partial_package = True
@@ -85,13 +87,16 @@ class StockQuantRelocate(models.TransientModel):
         product_ids = self.quant_ids.product_id
 
         if not self.dest_location_id and not self.dest_package_id:
-            return
+            return None
         self.quant_ids.action_clear_inventory_quantity()
 
         if self.is_partial_package and not self.dest_package_id:
             quants_to_unpack = self.quant_ids.filtered(
-                lambda q: not all(
-                    sub_q in self.quant_ids.ids for sub_q in q.package_id.quant_ids.ids
+                lambda q: (
+                    not all(
+                        sub_q in self.quant_ids.ids
+                        for sub_q in q.package_id.quant_ids.ids
+                    )
                 )
             )
             quants_to_unpack.move_quants(

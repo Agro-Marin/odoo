@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
-
 from datetime import date, datetime, timedelta
-from freezegun import freeze_time
 from json import loads
 
+from freezegun import freeze_time
+
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import Form, TransactionCase
 from odoo.tools import mute_logger
-from odoo.exceptions import UserError, ValidationError
 
 
 class TestProcRule(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -207,7 +205,7 @@ class TestProcRule(TransactionCase):
         route_low_priority = self.env["stock.route"].create(
             {"name": "Route 1", "sequence": 10}
         )
-        rule_low_priority = self.env["stock.rule"].create(
+        self.env["stock.rule"].create(
             {
                 "name": "Rule for Route 1",
                 "route_id": route_low_priority.id,
@@ -482,7 +480,7 @@ class TestProcRule(TransactionCase):
                 "picking_type_id": self.ref("stock.picking_type_out"),
             }
         )
-        delivery_move = self.env["stock.move"].create(
+        self.env["stock.move"].create(
             {
                 "product_id": self.productA.id,
                 "product_uom_id": self.uom_unit.id,
@@ -1337,7 +1335,11 @@ class TestProcRule(TransactionCase):
     def test_replenishment_info_rejects_negative_percent_factor(self):
         """A negative percentage factor is meaningless and must be rejected."""
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
-            {"product_id": self.product.id, "product_min_qty": 10, "product_max_qty": 50}
+            {
+                "product_id": self.product.id,
+                "product_min_qty": 10,
+                "product_max_qty": 50,
+            }
         )
         with self.assertRaises(ValidationError):
             self.env["stock.replenishment.info"].create(
@@ -1346,9 +1348,9 @@ class TestProcRule(TransactionCase):
 
 
 class TestProcRuleLoad(TransactionCase):
-    def setUp(cls):
-        super(TestProcRuleLoad, cls).setUp()
-        cls.skipTest("Performance test, too heavy to run.")
+    def setUp(self):
+        super().setUp()
+        self.skipTest("Performance test, too heavy to run.")
 
     def test_orderpoint_1(self):
         """Try 500 products with a 1000 RR(stock -> shelf1 and stock -> shelf2)
@@ -1374,7 +1376,7 @@ class TestProcRuleLoad(TransactionCase):
             [
                 {
                     "product_id": products[i // 2].id,
-                    "location_id": (i % 2 == 0) and shelf1.id or shelf2.id,
+                    "location_id": ((i % 2 == 0) and shelf1.id) or shelf2.id,
                     "warehouse_id": warehouse.id,
                     "product_min_qty": 5,
                     "product_max_qty": 10,

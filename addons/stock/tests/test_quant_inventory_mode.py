@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
+from odoo.exceptions import AccessError, UserError
+from odoo.tests import Form, TransactionCase
 
 from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.tests import Form, TransactionCase
-from odoo.exceptions import AccessError, UserError
 
 
 class TestEditableQuant(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        super(TestEditableQuant, cls).setUpClass()
+        super().setUpClass()
 
         # Shortcut to call `stock.quant` with `inventory mode` set in the context
         cls.Quant = cls.env["stock.quant"].with_context(inventory_mode=True)
@@ -196,7 +195,7 @@ class TestEditableQuant(TransactionCase):
         )
         inventoried_quant.action_apply_inventory()
         with self.assertRaises(UserError):
-            invalid_quant = (
+            (
                 self.env["stock.quant"]
                 .with_context(inventory_mode=True)
                 .create(
@@ -296,13 +295,13 @@ class TestEditableQuant(TransactionCase):
         )
         quant.action_apply_inventory()
         self.assertEqual(self.product.qty_available, 100)
-        quant.with_context(inventory_report_mode=True).inventory_quantity_auto_apply = (
-            75
-        )
+        quant.with_context(
+            inventory_report_mode=True
+        ).inventory_quantity_auto_apply = 75
         self.assertEqual(self.product.qty_available, 75)
-        quant.with_context(inventory_report_mode=True).inventory_quantity_auto_apply = (
-            75
-        )
+        quant.with_context(
+            inventory_report_mode=True
+        ).inventory_quantity_auto_apply = 75
         self.assertEqual(self.product.qty_available, 75)
         smls = self.env["stock.move.line"].search(
             [("product_id", "=", self.product.id)]

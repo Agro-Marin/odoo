@@ -1327,7 +1327,9 @@ class StockPicking(models.Model):
         draft_picking = self.filtered(lambda p: p.state == "draft")
         draft_picking.action_confirm()
         for move in draft_picking.move_ids:
-            if move.product_uom_id.is_zero(move.quantity) and not move.product_uom_id.is_zero(
+            if move.product_uom_id.is_zero(
+                move.quantity
+            ) and not move.product_uom_id.is_zero(
                 move.product_uom_qty,
             ):
                 move.quantity = move.product_uom_qty
@@ -1437,7 +1439,8 @@ class StockPicking(models.Model):
             )
         # done-vs-demand per move: 0 = fully done, >0 = over demand, <0 = partial
         demand_comparisons = [
-            m.product_uom_id.compare(m.quantity, m.product_uom_qty) for m in self.move_ids
+            m.product_uom_id.compare(m.quantity, m.product_uom_qty)
+            for m in self.move_ids
         ]
         if all(comparison == 0 for comparison in demand_comparisons):
             raise UserError(

@@ -325,9 +325,7 @@ class TestVirtualAvailable(TestStockCommon):
         service = Product.create({"name": "SPQ service", "type": "service"})
         scope = (stocked + empty + service).ids
         for field in ("qty_available_virtual", "qty_free"):
-            positive = Product.search(
-                ["&", ("id", "in", scope), (field, ">", 0)]
-            )
+            positive = Product.search(["&", ("id", "in", scope), (field, ">", 0)])
             self.assertEqual(
                 positive, stocked, f"{field} > 0 should match only the stocked product"
             )

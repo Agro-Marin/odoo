@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-
 from collections import defaultdict
 
 import markupsafe
+
 from odoo import _, models
 from odoo.exceptions import UserError
 
@@ -74,17 +73,14 @@ class ReportStockLabel_Lot_Template_View(models.AbstractModel):
 
     def _get_report_values(self, docids, data):
         lots = self.env["stock.lot"].browse(docids)
-        lot_list = []
-        for lot in lots:
-            lot_list.append(
-                {
-                    "display_name_markup": markupsafe.Markup(
-                        lot.product_id.display_name
-                    ),
-                    "name": markupsafe.Markup(lot.name),
-                    "lot_record": lot,
-                }
-            )
+        lot_list = [
+            {
+                "display_name_markup": markupsafe.Markup(lot.product_id.display_name),
+                "name": markupsafe.Markup(lot.name),
+                "lot_record": lot,
+            }
+            for lot in lots
+        ]
         return {
             "docs": lot_list,
         }

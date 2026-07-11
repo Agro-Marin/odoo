@@ -1,18 +1,17 @@
-# -*- coding: utf-8 -*-
 from ast import literal_eval
 from contextlib import closing
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from odoo import Command, fields
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.stock.tests.common import TestStockCommon
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import Form
 
+from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.stock.tests.common import TestStockCommon
+
 
 class TestStockQuant(TestStockCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -2241,7 +2240,6 @@ class TestStockQuant(TestStockCommon):
 
 
 class TestStockQuantRemovalStrategy(TestStockCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -2287,9 +2285,7 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
                 ml_vals_list.append(
                     dict(
                         **ml_common_vals,
-                        **{
-                            "quantity": number_of_packages,
-                        },
+                        quantity=number_of_packages,
                     )
                 )
                 continue
@@ -2299,10 +2295,8 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
                 ml_vals_list.append(
                     dict(
                         **ml_common_vals,
-                        **{
-                            "quantity": package_size,
-                            "result_package_id": package.id,
-                        },
+                        quantity=package_size,
+                        result_package_id=package.id,
                     )
                 )
         self.env["stock.move.line"].create(ml_vals_list)

@@ -1,15 +1,14 @@
-
-from odoo import Command
 import odoo.tests
+from odoo import Command
+from odoo.exceptions import UserError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
-from odoo.exceptions import UserError
 
 
 class TestPackingCommon(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        super(TestPackingCommon, cls).setUpClass()
+        super().setUpClass()
         cls.stock_location = cls.env.ref("stock.stock_location_stock")
         cls.warehouse = cls.env["stock.warehouse"].search(
             [("lot_stock_id", "=", cls.stock_location.id)], limit=1
@@ -43,7 +42,6 @@ class TestPackingCommon(TransactionCase):
 
 
 class TestPacking(TestPackingCommon):
-
     def test_put_in_pack(self):
         """In a pick pack ship scenario, create two packs in pick and check that
         they are correctly recognised and handled by the pack and ship picking.
@@ -338,7 +336,7 @@ class TestPacking(TestPackingCommon):
                 "state": "draft",
             }
         )
-        ship_move_a = self.env["stock.move"].create(
+        self.env["stock.move"].create(
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 5.0,
@@ -351,9 +349,9 @@ class TestPacking(TestPackingCommon):
         )
         picking.action_confirm()
         picking.action_assign()
-        picking.move_ids.filtered(lambda ml: ml.product_id == self.productA).picked = (
-            True
-        )
+        picking.move_ids.filtered(
+            lambda ml: ml.product_id == self.productA
+        ).picked = True
         picking.action_put_in_pack()
         pack1 = self.env["stock.package"].search([], order="id")[-1]
         picking.write(
@@ -430,16 +428,14 @@ class TestPacking(TestPackingCommon):
         quant = self.env["stock.quant"].create(
             {
                 **location_dict,
-                **{
-                    "product_id": self.productA.id,
-                    "quantity": 355.4,
-                },  # important number
+                "product_id": self.productA.id,
+                "quantity": 355.4,  # important number
             }
         )
         self.env["stock.package"].create(
             {
                 **location_dict,
-                **{"quant_ids": [(6, 0, [quant.id])]},
+                "quant_ids": [(6, 0, [quant.id])],
             }
         )
         location_dict.update(
@@ -451,20 +447,16 @@ class TestPacking(TestPackingCommon):
         move = self.env["stock.move"].create(
             {
                 **location_dict,
-                **{
-                    "product_id": self.productA.id,
-                    "product_uom_id": self.productA.uom_id.id,
-                    "product_uom_qty": 355.40000000000003,  # other number
-                },
+                "product_id": self.productA.id,
+                "product_uom_id": self.productA.uom_id.id,
+                "product_uom_qty": 355.40000000000003,  # other number
             }
         )
         picking = self.env["stock.picking"].create(
             {
                 **location_dict,
-                **{
-                    "picking_type_id": self.warehouse.in_type_id.id,
-                    "move_ids": [(6, 0, [move.id])],
-                },
+                "picking_type_id": self.warehouse.in_type_id.id,
+                "move_ids": [(6, 0, [move.id])],
             }
         )
 
@@ -1360,7 +1352,7 @@ class TestPacking(TestPackingCommon):
 
         # 3 sub locations with the storage category
         # (the third location should never be used)
-        sub_loc_01, sub_loc_02, dummy = self.env["stock.location"].create(
+        sub_loc_01, sub_loc_02, _dummy = self.env["stock.location"].create(
             [
                 {
                     "name": "Sub Location %s" % i,
@@ -1512,7 +1504,7 @@ class TestPacking(TestPackingCommon):
 
         # 3 sub locations with the storage category
         # (the third location should never be used)
-        sub_loc_01, sub_loc_02, dummy = self.env["stock.location"].create(
+        sub_loc_01, sub_loc_02, _dummy = self.env["stock.location"].create(
             [
                 {
                     "name": "Sub Location %s" % i,
@@ -2557,7 +2549,6 @@ class TestPacking(TestPackingCommon):
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPackagePropagation(TestPackingCommon):
-
     def test_reusable_package_propagation(self):
         """Test a reusable package should not be propagated to the next picking
         of a mto chain"""

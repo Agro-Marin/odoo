@@ -4,8 +4,8 @@ from collections import Counter, defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import groupby, OrderedSet
 from odoo.libs.numbers.float_utils import float_compare, float_round
+from odoo.tools import OrderedSet, groupby
 
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -13,8 +13,8 @@ from odoo.addons.web.controllers.utils import clean_action
 class StockMoveLine(models.Model):
     _name = "stock.move.line"
     _description = "Product Moves (Stock Move Line)"
-    _rec_name = "product_id"
     _order = "result_package_id desc, id"
+    _rec_name = "product_id"
 
     # ------------------------------------------------------------
     # FIELDS
@@ -36,7 +36,10 @@ class StockMoveLine(models.Model):
         index=True,
         help="The stock operation where the packing has been made",
     )
-    picking_partner_id = fields.Many2one(related="picking_id.partner_id", readonly=True,)
+    picking_partner_id = fields.Many2one(
+        related="picking_id.partner_id",
+        readonly=True,
+    )
     # Dummy field for the detailed operation view
     picking_location_id = fields.Many2one(related="picking_id.location_id")
     picking_location_dest_id = fields.Many2one(related="picking_id.location_dest_id")
@@ -251,7 +254,7 @@ class StockMoveLine(models.Model):
         comodel_name="stock.quant",
         string="Pick From",
         store=False,
-    ) 
+    )
 
     _free_reservation_index = models.Index(
         """(id, company_id, product_id, lot_id, location_id, owner_id, package_id)
@@ -320,8 +323,8 @@ class StockMoveLine(models.Model):
             )
         if vals.get("quant_id"):
             vals.update(self._copy_quant_info(vals))
-        updates = self._get_write_field_updates(vals)
 
+        updates = self._get_write_field_updates(vals)
         moves_to_recompute_state = self._resync_reservation(vals, updates)
 
         # Editing a done move line impacts the reserved availability of any chained move;
@@ -893,6 +896,7 @@ class StockMoveLine(models.Model):
                     package_type_id=package_type_id,
                     package_name=package_name,
                 )
+        return None
 
     def action_revert_inventory(self):
         move_vals = []
@@ -1066,14 +1070,13 @@ class StockMoveLine(models.Model):
 
     def _copy_quant_info(self, vals):
         quant = self.env["stock.quant"].browse(vals.get("quant_id", 0))
-        line_data = {
+        return {
             "product_id": quant.product_id.id,
             "lot_id": quant.lot_id.id,
             "package_id": quant.package_id.id,
             "location_id": quant.location_id.id,
             "owner_id": quant.owner_id.id,
         }
-        return line_data
 
     def _exclude_requiring_lot(self):
         self.ensure_one()
@@ -1265,16 +1268,14 @@ class StockMoveLine(models.Model):
                         )
                     # Remove the done quantities of the other move lines of the stock move
                     previous_move_lines = move_line.move_id.move_line_ids.filtered(
-                        lambda ml: (
+                        lambda ml, line_key=line_key, move_line=move_line: (
                             line_key.startswith(base_key(ml.move_id))
                             and ml.id != move_line.id
                         )
                     )
                     qty_ordered -= sum(
-                        [
-                            m.product_uom_id._compute_quantity(m.quantity, uom)
-                            for m in previous_move_lines
-                        ]
+                        m.product_uom_id._compute_quantity(m.quantity, uom)
+                        for m in previous_move_lines
                     )
                     packaging_qty_ordered = uom._compute_quantity(
                         qty_ordered, move_line.move_id.packaging_uom_id
@@ -1314,8 +1315,7 @@ class StockMoveLine(models.Model):
             if empty_move.state != "cancel":
                 if empty_move.state != "confirmed" or empty_move.move_line_ids:
                     continue
-                else:
-                    to_bypass = True
+                to_bypass = True
             aggregated_properties = self._get_aggregated_properties(move=empty_move)
             line_key = aggregated_properties["line_key"]
 
@@ -1500,7 +1500,7 @@ class StockMoveLine(models.Model):
             ):
                 ids_to_update.update(
                     pickings.move_line_ids.filtered(
-                        lambda ml: ml.package_id == package
+                        lambda ml, package=package: ml.package_id == package
                     ).ids
                 )
 
@@ -1703,34 +1703,31 @@ class StockMoveLine(models.Model):
         return vals
 
     def _prepare_package_history_vals(self):
-        history_vals = []
         packages = self.env["stock.package"].browse(
             self.result_package_id._get_all_package_dest_ids()
         )
-        for package in packages:
-            history_vals.append(
-                {
-                    "location_id": package.location_id.id,
-                    "location_dest_id": package.location_dest_id.id,
-                    "move_line_ids": [
-                        Command.set(
-                            package.move_line_ids.filtered(
-                                lambda ml: ml.result_package_id == package
-                            ).ids
-                        )
-                    ],
-                    "picking_ids": [Command.set(package.picking_ids.ids)],
-                    "package_id": package.id,
-                    "package_name": package.complete_name,
-                    "parent_orig_id": package.parent_package_id.id,
-                    "parent_orig_name": package.parent_package_id.complete_name,
-                    "parent_dest_id": package.package_dest_id.id,
-                    "parent_dest_name": package.package_dest_id.dest_complete_name,
-                    "outermost_dest_id": package.outermost_package_id.id,
-                },
-            )
-
-        return history_vals
+        return [
+            {
+                "location_id": package.location_id.id,
+                "location_dest_id": package.location_dest_id.id,
+                "move_line_ids": [
+                    Command.set(
+                        package.move_line_ids.filtered(
+                            lambda ml, package=package: ml.result_package_id == package
+                        ).ids
+                    )
+                ],
+                "picking_ids": [Command.set(package.picking_ids.ids)],
+                "package_id": package.id,
+                "package_name": package.complete_name,
+                "parent_orig_id": package.parent_package_id.id,
+                "parent_orig_name": package.parent_package_id.complete_name,
+                "parent_dest_id": package.package_dest_id.id,
+                "parent_dest_name": package.package_dest_id.dest_complete_name,
+                "outermost_dest_id": package.outermost_package_id.id,
+            }
+            for package in packages
+        ]
 
     def _prepare_stock_move_vals(self):
         self.ensure_one()
@@ -1783,6 +1780,7 @@ class StockMoveLine(models.Model):
                 "picking_ids": move_lines.picking_id.ids,
             }
             return action
+        return None
 
     def _put_in_pack(self, package_id=False, package_type_id=False, package_name=False):
         if package_id:
@@ -1999,6 +1997,7 @@ class StockMoveLine(models.Model):
                 "res_id": wiz.id,
                 "target": "new",
             }
+        return None
 
     def _check_write_allowed(self, vals):
         """Guard writes this fork forbids: changing the product outside 'draft' state, or

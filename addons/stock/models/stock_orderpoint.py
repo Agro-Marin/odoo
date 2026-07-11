@@ -369,7 +369,7 @@ class StockWarehouseOrderpoint(models.Model):
         # horizon_days is a company setting, so the horizon date must be computed per company.
         for company in orderpoints_to_compute.company_id:
             company_orderpoints = orderpoints_to_compute.filtered(
-                lambda c: c.company_id == company,
+                lambda c, company=company: c.company_id == company,
             )
             horizon_date = fields.Date.today() + relativedelta.relativedelta(
                 days=company_orderpoints.get_horizon_days(),
@@ -548,7 +548,7 @@ class StockWarehouseOrderpoint(models.Model):
             bypass_delay_description=True,
         ):
             values = orderpoint._get_lead_days_values()
-            lead_days, dummy = orderpoint.rule_ids._get_lead_days(
+            lead_days, _dummy = orderpoint.rule_ids._get_lead_days(
                 orderpoint.product_id,
                 **values,
             )
@@ -670,7 +670,8 @@ class StockWarehouseOrderpoint(models.Model):
             if (
                 not orderpoint.product_id
                 or orderpoint.product_uom_id.is_zero(orderpoint.qty_to_order)
-                or orderpoint.product_uom_id.compare(orderpoint.product_max_qty, 0) == -1
+                or orderpoint.product_uom_id.compare(orderpoint.product_max_qty, 0)
+                == -1
             ):
                 orderpoint.unwanted_replenish = False
             else:
@@ -768,9 +769,7 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_qty_to_order(self):
         for orderpoint in self:
             orderpoint.qty_to_order = (
-                orderpoint.qty_to_order_manual
-                if orderpoint.qty_to_order_manual
-                else orderpoint.qty_to_order_computed
+                orderpoint.qty_to_order_manual or orderpoint.qty_to_order_computed
             )
 
     @api.depends(
@@ -908,7 +907,7 @@ class StockWarehouseOrderpoint(models.Model):
             self._procure_orderpoint_confirm(company_id=self.env.company)
         except UserError as e:
             if len(self) != 1:
-                raise e
+                raise
             raise RedirectWarning(
                 e,
                 {
@@ -924,7 +923,7 @@ class StockWarehouseOrderpoint(models.Model):
                     ],
                 },
                 _("Edit Product"),
-            )
+            ) from e
         notification = False
         if len(self) == 1:
             notification = self.with_context(
@@ -1203,7 +1202,7 @@ class StockWarehouseOrderpoint(models.Model):
                 location=loc.id,
                 to_date=today + relativedelta.relativedelta(days=days),
             ).read(["qty_available_virtual"])
-            for product, qty in zip(products, qties):
+            for product, qty in zip(products, qties, strict=False):
                 if product.uom_id.compare(qty["qty_available_virtual"], 0) < 0:
                     to_refill[qty["id"], loc.id] = qty["qty_available_virtual"]
                     product_ids.add(qty["id"])
@@ -1316,7 +1315,6 @@ class StockWarehouseOrderpoint(models.Model):
             )
             or move.location_id.usage == "transit"
         ) and move.picking_id:
-            action = self.env.ref("stock.stock_picking_action_picking_type")
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -1422,7 +1420,7 @@ class StockWarehouseOrderpoint(models.Model):
         """
         self = self.with_company(company_id)
 
-        for orderpoints_batch_ids in batched(self.ids, 1000):
+        for orderpoints_batch_ids in batched(self.ids, 1000, strict=False):
             if use_new_cursor:
                 assert isinstance(self.env.cr, BaseCursor)
                 cr = Registry(self.env.cr.dbname).cursor()
@@ -1448,7 +1446,9 @@ class StockWarehouseOrderpoint(models.Model):
                         else:
                             origin = orderpoint.name
                         if (
-                            orderpoint.product_uom_id.compare(orderpoint.qty_to_order, 0.0)
+                            orderpoint.product_uom_id.compare(
+                                orderpoint.qty_to_order, 0.0
+                            )
                             == 1
                         ):
                             date = orderpoint._get_orderpoint_procurement_date()

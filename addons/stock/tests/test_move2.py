@@ -1,16 +1,12 @@
-# -*- coding: utf-8 -*-
+from datetime import datetime, timedelta
 
-from datetime import timedelta
-
-from odoo.addons.stock.tests.common import TestStockCommon
-from odoo.exceptions import UserError
+from dateutil.relativedelta import relativedelta
 
 from odoo import Command
+from odoo.exceptions import UserError
 from odoo.tests import Form
-from odoo.tools import float_is_zero, float_compare
 
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestPickShip(TestStockCommon):
@@ -541,7 +537,7 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_client.state, "assigned")
 
     def test_edit_done_chained_move(self):
-        """Let’s say two moves are chained: the first is done and the second is assigned.
+        """Let's say two moves are chained: the first is done and the second is assigned.
         Editing the move line of the first move should impact the reservation of the second one.
         """
         picking_pick, picking_client = self.create_pick_ship()
@@ -604,7 +600,7 @@ class TestPickShip(TestStockCommon):
         picking_client.action_assign()
 
     def test_edit_done_chained_move_with_lot(self):
-        """Let’s say two moves are chained: the first is done and the second is assigned.
+        """Let's say two moves are chained: the first is done and the second is assigned.
         Editing the lot on the move line of the first move should impact the reservation of the second one.
         """
         self.productA.tracking = "lot"
@@ -1006,7 +1002,7 @@ class TestPickShip(TestStockCommon):
         """Create 2 moves of the same product in the same picking with
         one in 'MTO' and the other one in 'MTS'. The moves shouldn't be merged
         """
-        picking_pick, picking_client = self.create_pick_ship()
+        _picking_pick, picking_client = self.create_pick_ship()
 
         self.MoveObj.create(
             {
@@ -2784,9 +2780,11 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(len(receipt.move_ids), 3, "Moves were not merged")
         self.assertEqual(
             receipt.move_ids.filtered(
-                lambda m: m.product_id == self.productA
-                and m.never_product_template_attribute_value_ids
-                == tmpl_attr_lines.product_template_value_ids[1]
+                lambda m: (
+                    m.product_id == self.productA
+                    and m.never_product_template_attribute_value_ids
+                    == tmpl_attr_lines.product_template_value_ids[1]
+                )
             ).product_uom_qty,
             6,
             "Merged quantity is not correct",
@@ -3072,7 +3070,7 @@ class TestSinglePicking(TestStockCommon):
                 "state": "draft",
             }
         )
-        move_3 = self.MoveObj.create(
+        self.MoveObj.create(
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 10,
@@ -3161,7 +3159,7 @@ class TestSinglePicking(TestStockCommon):
                 "state": "draft",
             }
         )
-        move1 = self.env["stock.move"].create(
+        self.env["stock.move"].create(
             {
                 "product_id": self.productA.id,
                 "product_uom_qty": 1,
@@ -3205,7 +3203,7 @@ class TestSinglePicking(TestStockCommon):
         # We need to activate multi-locations to use putaway rules.
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.group_ids = [Command.link(grp_multi_loc.id)]
-        putaway_product = self.env["stock.putaway.rule"].create(
+        self.env["stock.putaway.rule"].create(
             {
                 "product_id": self.productA.id,
                 "location_in_id": self.stock_location.id,
@@ -3619,12 +3617,12 @@ class TestSinglePicking(TestStockCommon):
         new_location, new_destination = self.env["stock.location"].create(
             [
                 {
-                    "name": f"Super location",
+                    "name": "Super location",
                     "usage": "internal",
                     "location_id": self.stock_location.id,
                 },
                 {
-                    "name": f"Super destination",
+                    "name": "Super destination",
                     "usage": "internal",
                     "location_id": self.stock_location.id,
                 },
@@ -3884,7 +3882,7 @@ class TestRoutes(TestStockCommon):
 
         genrated_picking = replenish_wizard.launch_replenishment()
         links = genrated_picking.get("params", {}).get("links")
-        url = links and links[0].get("url", "") or ""
+        url = (links and links[0].get("url", "")) or ""
         picking_id, model_name = self.url_extract_rec_id_and_model(url)
 
         last_picking_id = False
@@ -4348,7 +4346,7 @@ class TestAutoAssign(TestStockCommon):
         move to make it available to check if the outgoing move is not
         automatically assigned.
         """
-        picking_pick, picking_client = self.create_pick_ship()
+        _picking_pick, picking_client = self.create_pick_ship()
         self.picking_type_out.reservation_method = "at_confirm"
 
         # make some stock

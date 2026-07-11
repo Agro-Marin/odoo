@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
-
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, new_test_user
+
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
@@ -110,9 +109,7 @@ class TestStockMove(TestStockCommon):
 
         # Every move (not only the last) is left consistent with its move lines.
         for move in moves:
-            self.assertEqual(
-                set(move.move_line_ids.lot_id.ids), {lot_a.id, lot_b.id}
-            )
+            self.assertEqual(set(move.move_line_ids.lot_id.ids), {lot_a.id, lot_b.id})
             self.assertAlmostEqual(move.quantity, move._quantity_sml())
 
     def test_in_1(self):
@@ -252,11 +249,9 @@ class TestStockMove(TestStockCommon):
         move_line = move1.move_line_ids[0]
         self.assertEqual(move1.quantity, 5)
 
-        i = 0
-        for move_line in move1.move_line_ids:
+        for i, move_line in enumerate(move1.move_line_ids):
             move_line.lot_name = "sn%s" % i
             move_line.quantity = 1
-            i += 1
         self.assertEqual(move1.quantity, 5.0)
         self.assertEqual(move1.product_qty, 5)  # don't change reservation
 
@@ -1086,9 +1081,7 @@ class TestStockMove(TestStockCommon):
         for ml in move1.move_line_ids:
             self.assertEqual(ml.quantity_product_uom, 1.0)
 
-        untracked_move_line = move1.move_line_ids.filtered(
-            lambda ml: not ml.lot_id
-        ).lot_id = lot2
+        move1.move_line_ids.filtered(lambda ml: not ml.lot_id).lot_id = lot2
         for ml in move1.move_line_ids:
             self.assertEqual(ml.quantity_product_uom, 1.0)
 
@@ -7734,8 +7727,9 @@ class TestStockMove(TestStockCommon):
                 ("lot_id", "=", lot1.id),
             ]
         )
-        from odoo.fields import Datetime
         from datetime import timedelta
+
+        from odoo.fields import Datetime
 
         initial_in_date_lot1 = Datetime.now() - timedelta(days=5)
         quant_lot1.in_date = initial_in_date_lot1
@@ -7874,8 +7868,9 @@ class TestStockMove(TestStockCommon):
                 ("quantity", "!=", 0),
             ]
         )
-        from odoo.fields import Datetime
         from datetime import timedelta
+
+        from odoo.fields import Datetime
 
         initial_in_date_lot1 = Datetime.now() - timedelta(days=5)
         quant_lot1.in_date = initial_in_date_lot1
@@ -8327,7 +8322,7 @@ class TestStockMove(TestStockCommon):
                 "state": "draft",
             }
         )
-        move1 = self.env["stock.move"].create(
+        self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,
@@ -8337,7 +8332,7 @@ class TestStockMove(TestStockCommon):
                 "picking_id": picking.id,
             }
         )
-        move2 = self.env["stock.move"].create(
+        self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
                 "location_dest_id": self.customer_location.id,

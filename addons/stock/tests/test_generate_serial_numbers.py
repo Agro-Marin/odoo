@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, new_test_user
@@ -69,7 +67,9 @@ class StockGenerateCommon(TransactionCase):
 
     def assert_move_line_vals_values(self, line_vals_list, checked_vals_list):
         self.assertEqual(len(line_vals_list), len(checked_vals_list))
-        for line_vals, checked_vals in zip(line_vals_list, checked_vals_list):
+        for line_vals, checked_vals in zip(
+            line_vals_list, checked_vals_list, strict=False
+        ):
             for checked_field in checked_vals:
                 self.assertEqual(line_vals[checked_field], checked_vals[checked_field])
 
@@ -314,7 +314,7 @@ class StockGenerateCommon(TransactionCase):
 
         # 5 sub locations with the storage category
         # (the last one should never be used)
-        sub_loc_01, sub_loc_02, sub_loc_03, sub_loc_04, dummy = self.env[
+        sub_loc_01, sub_loc_02, sub_loc_03, sub_loc_04, _dummy = self.env[
             "stock.location"
         ].create(
             [

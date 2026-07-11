@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
-
 from odoo.tests.common import TransactionCase
 
 
 class TestPackingNeg(TransactionCase):
-
     def test_packing_neg(self):
         res_partner_2 = self.env["res.partner"].create(
             {
@@ -85,7 +82,7 @@ class TestPackingNeg(TransactionCase):
         pick_neg.move_line_ids[0].write(
             {"result_package_id": package1.id, "quantity": 120}
         )
-        new_pack1 = self.env["stock.move.line"].create(
+        self.env["stock.move.line"].create(
             {
                 "product_id": product_neg.id,
                 "product_uom_id": self.ref("uom.product_uom_unit"),
@@ -97,7 +94,7 @@ class TestPackingNeg(TransactionCase):
                 "location_dest_id": self.ref("stock.stock_location_stock"),
             }
         )
-        new_pack2 = self.env["stock.move.line"].create(
+        self.env["stock.move.line"].create(
             {
                 "product_id": product_neg.id,
                 "product_uom_id": self.ref("uom.product_uom_unit"),

@@ -520,7 +520,9 @@ class StockMove(models.Model):
             # they change; the post-write call below refreshes the new ones.
             # Both calls are intentional so old and new orderpoints stay correct.
             self._update_orderpoints()
+
         res = super().write(vals)
+
         if "date" in vals:
             moves_done = self.filtered(lambda m: m.state == "done")
             moves_done.move_line_ids.date = vals["date"]
@@ -1423,227 +1425,6 @@ Please change the quantity done or the rounding precision in your settings.""",
         # inverse behaves correctly when writing `lot_ids` on several moves.
         self.env.add_to_compute(self._fields["quantity"], self)
 
-    def _apply_lot_ids_to_move_lines(self):
-        """Rewrite this move's lines so that every lot in `lot_ids` is carried
-        by a line: relabel/keep matching lines, drop lines whose lot was
-        removed, then place each new lot (reserving stock unless reservation
-        is bypassed) and rebalance the leftover lot-less lines.
-        """
-        self.ensure_one()
-        product = self.product_id
-        (
-            move_lines_commands,
-            available_move_lines,
-            assigned_lot_ids,
-            free_uom_qty,
-        ) = self._classify_move_lines_for_lots()
-        should_bypass_reservation = self._should_bypass_reservation()
-        # Since each lot needs to be represented by a move line we will by default
-        # reserve at least 1 unit (in the product.uom_id) for each lot the
-        # exceeding free_uom_qty can then be assigned from available quantity
-        extra_uom_qty = free_uom_qty - len(set(self.lot_ids.ids) - assigned_lot_ids)
-        quants_by_lot = {}
-        if not should_bypass_reservation:
-            quants_by_lot = (
-                self.env["stock.quant"]
-                ._gather(product, self.location_id)
-                .grouped("lot_id")
-            )
-        for lot in self.lot_ids:
-            if lot.id in assigned_lot_ids:
-                continue
-            if should_bypass_reservation:
-                commands, available_move_lines, extra_uom_qty = (
-                    self._lot_commands_bypass(lot, available_move_lines, extra_uom_qty)
-                )
-            else:
-                commands, extra_uom_qty = self._lot_commands_reserve(
-                    lot,
-                    quants_by_lot.get(lot, self.env["stock.quant"]),
-                    extra_uom_qty,
-                )
-            move_lines_commands += commands
-        if not should_bypass_reservation and available_move_lines:
-            move_lines_commands += self._lot_commands_rebalance_unlotted(
-                available_move_lines,
-                extra_uom_qty,
-            )
-        self.write({"move_line_ids": move_lines_commands})
-
-    def _classify_move_lines_for_lots(self):
-        """Match the existing move lines against `lot_ids`.
-
-        :return: a 4-tuple of
-            - the initial commands (relabel matching lines, delete lines whose
-              lot is no longer wanted),
-            - the lines carrying no lot at all (usable to place new lots),
-            - the ids of the lots already carried by a line,
-            - the remaining demand, in the product's UoM, not consumed by the
-              matched lines.
-        """
-        self.ensure_one()
-        product = self.product_id
-        commands = []
-        lot_id_by_name = {lot.name: lot.id for lot in self.lot_ids}
-        available_move_line_ids = []
-        free_uom_qty = self.product_uom_id._compute_quantity(
-            max(self.quantity, self.product_uom_qty),
-            product.uom_id,
-        )
-        assigned_lot_ids = set()
-        for ml in self.move_line_ids:
-            lot_name = ml.lot_id.name or ml.lot_name
-            if ml.product_uom_id.is_zero(ml.quantity):
-                continue
-            if not ml.lot_id and not ml.lot_name:
-                available_move_line_ids.append(ml.id)
-            elif lot_name in lot_id_by_name:
-                lot_id = lot_id_by_name[lot_name]
-                assigned_lot_ids.add(lot_id)
-                free_uom_qty -= ml.product_uom_id._compute_quantity(
-                    ml.quantity,
-                    product.uom_id,
-                )
-                commands.append(Command.update(ml.id, {"lot_id": lot_id}))
-            else:
-                commands.append(Command.delete(ml.id))
-        return (
-            commands,
-            self.env["stock.move.line"].browse(available_move_line_ids),
-            assigned_lot_ids,
-            free_uom_qty,
-        )
-
-    def _lot_commands_bypass(self, lot, available_move_lines, extra_uom_qty):
-        """Place `lot` without touching quants (reservation is bypassed):
-        relabel an existing lot-less line when possible, else create one.
-
-        :return: (commands, remaining lot-less lines, remaining extra quantity)
-        """
-        self.ensure_one()
-        product = self.product_id
-        uom = product.uom_id if product.tracking == "serial" else self.product_uom_id
-        if available_move_lines:
-            # Updates an existing line without lot.
-            move_line = available_move_lines[0]
-            new_vals = {
-                "lot_id": lot.id,
-                "lot_name": lot.name,
-                "product_uom_id": uom.id,
-                "quantity": (
-                    1.0 if product.tracking == "serial" else move_line.quantity
-                ),
-            }
-            commands = [Command.update(move_line.id, new_vals)]
-            available_move_lines -= move_line
-            extra_uom_qty -= (
-                uom._compute_quantity(new_vals["quantity"], product.uom_id) - 1
-            )
-        else:
-            # No line to update creates a new one.
-            quantity_to_reserve = 1.0
-            # For lot tracked product reserve the maximal available quantity
-            if (
-                product.tracking == "lot"
-                and product.uom_id.compare(extra_uom_qty, 0.0) > 0
-            ):
-                quantity_to_reserve += extra_uom_qty
-                extra_uom_qty = 0
-            move_line_vals = self._prepare_move_line_vals(
-                quantity=quantity_to_reserve,
-            )
-            move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
-            if product.tracking == "serial":
-                move_line_vals.update(
-                    {"quantity": 1.0, "product_uom_id": product.uom_id.id},
-                )
-            commands = [Command.create(move_line_vals)]
-        return commands, available_move_lines, extra_uom_qty
-
-    def _lot_commands_reserve(self, lot, quants, extra_uom_qty):
-        """Place `lot` by reserving against `quants`; when no quant has
-        availability, still create a 1-unit line so the lot is represented.
-
-        :return: (commands, remaining extra quantity)
-        """
-        self.ensure_one()
-        product = self.product_id
-        commands = []
-        reserved = False
-        for quant in quants:
-            if reserved and product.uom_id.compare(extra_uom_qty, 0.0) <= 0:
-                break
-            if (
-                not quant.lot_id
-                or product.uom_id.compare(quant.available_quantity, 0.0) <= 0
-            ):
-                continue
-            quantity_to_reserve = min(
-                quant.available_quantity,
-                max(extra_uom_qty if reserved else extra_uom_qty + 1, 1),
-            )
-            if product.uom_id.compare(quantity_to_reserve, 0.0) > 0:
-                move_line_vals = self._prepare_move_line_vals(
-                    quantity=quantity_to_reserve,
-                    reserved_quant=quant,
-                )
-                move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
-                if product.tracking == "serial":
-                    quantity_to_reserve = 1
-                    move_line_vals.update(
-                        {"quantity": 1.0, "product_uom_id": product.uom_id.id},
-                    )
-                commands.append(Command.create(move_line_vals))
-                extra_uom_qty -= (
-                    quantity_to_reserve if reserved else quantity_to_reserve - 1
-                )
-                reserved = True
-        if not reserved:
-            move_line_vals = self._prepare_move_line_vals(quantity=1.0)
-            move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
-            if product.tracking == "serial":
-                move_line_vals.update(
-                    {"quantity": 1.0, "product_uom_id": product.uom_id.id},
-                )
-            commands.append(Command.create(move_line_vals))
-        return commands, extra_uom_qty
-
-    def _lot_commands_rebalance_unlotted(self, available_move_lines, extra_uom_qty):
-        """Unlink and re-create the lot-less move lines (capped to the
-        remaining extra quantity) to alter the reservation order and
-        prioritise lot-set move lines in the un-reservation process relying
-        on the process decrease.
-
-        :return: commands
-        """
-        self.ensure_one()
-        product = self.product_id
-        commands = [Command.delete(ml.id) for ml in available_move_lines]
-        for move_line in available_move_lines:
-            if product.uom_id.compare(extra_uom_qty, 0.0) <= 0:
-                break
-            ml_quantity = move_line.product_uom_id._compute_quantity(
-                move_line.quantity,
-                product.uom_id,
-            )
-            quantity_to_reserve = min(ml_quantity, extra_uom_qty)
-            new_ml_quantity = product.uom_id._compute_quantity(
-                quantity_to_reserve,
-                move_line.product_uom_id,
-            )
-            commands.append(
-                Command.create(
-                    move_line.copy_data(
-                        {
-                            "quantity": new_ml_quantity,
-                            "picked": move_line.picked,
-                        },
-                    )[0],
-                ),
-            )
-            extra_uom_qty -= quantity_to_reserve
-        return commands
-
     def _inverse_description_picking(self):
         for move in self:
             move.description_picking_manual = move.description_picking
@@ -1659,7 +1440,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         """
         product = self.product_id
         if product.tracking == "none":
-            return
+            return None
 
         assigned_quantity = 0
         assignable_quantity = 0
@@ -1685,7 +1466,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         quantity = assigned_quantity + assignable_quantity
         if not extra_lot_names:
             self.update({"quantity": quantity})
-            return
+            return None
         base_location = self.picking_id.location_id or self.location_id
         extra_lot_ids = {
             rec["id"]
@@ -1785,6 +1566,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                         ),
                     },
                 }
+        return None
 
     # ------------------------------------------------------------
     # ACTION METHODS
@@ -1920,7 +1702,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             default_vals["location_dest_id"],
         )
         product = self.env["product.product"].browse(default_vals["product_id"])
-        for lot, qty in zip(lot_names, lot_qties):
+        for lot, qty in zip(lot_names, lot_qties, strict=False):
             if not lot.get("quantity"):
                 lot["quantity"] = qty
             putaway_loc_dest = loc_dest._get_putaway_strategy(product, lot["quantity"])
@@ -2030,7 +1812,7 @@ Please change the quantity done or the rounding precision in your settings.""",
         quantities = move_create_proc.with_context(
             consumed_from_stock_dict=consumed_from_stock_dict,
         )._prepare_procurement_qty()
-        for move, quantity in zip(move_create_proc, quantities):
+        for move, quantity in zip(move_create_proc, quantities, strict=False):
             values = move._prepare_procurement_vals()
             origin = move._prepare_procurement_origin()
             procurement_requests.append(
@@ -2264,7 +2046,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 # only cancel the next move if all my siblings are also cancelled
                 if all(state == "cancel" for state in siblings_states):
                     move_dest_to_cancel = move.move_dest_ids.filtered(
-                        lambda m: (
+                        lambda m, move=move: (
                             m.state != "done" and move.location_dest_id == m.location_id
                         )
                     )
@@ -2280,15 +2062,14 @@ Please change the quantity done or the rounding precision in your settings.""",
                         move.move_orig_ids.sudo().filtered(
                             lambda m: m.state != "done",
                         )._action_cancel()
-            else:
-                if all(state in ("done", "cancel") for state in siblings_states):
-                    move_dest_ids = move.move_dest_ids
-                    move_dest_ids.write(
-                        {
-                            "procure_method": "make_to_stock",
-                            "move_orig_ids": [Command.unlink(move.id)],
-                        },
-                    )
+            elif all(state in ("done", "cancel") for state in siblings_states):
+                move_dest_ids = move.move_dest_ids
+                move_dest_ids.write(
+                    {
+                        "procure_method": "make_to_stock",
+                        "move_orig_ids": [Command.unlink(move.id)],
+                    },
+                )
         if not self.env.context.get("skip_cancel_activity"):
             # log an activity on the non-cancelled origin to warn the user that some actions might be required
             moves_to_cancel._log_cancel_activity()
@@ -2461,6 +2242,53 @@ Please change the quantity done or the rounding precision in your settings.""",
             self._prepare_move_line_vals(quantity=1, reserved_quant=reserved_quant)
             for i in range(int(quantity))
         ]
+
+    def _apply_lot_ids_to_move_lines(self):
+        """Rewrite this move's lines so that every lot in `lot_ids` is carried
+        by a line: relabel/keep matching lines, drop lines whose lot was
+        removed, then place each new lot (reserving stock unless reservation
+        is bypassed) and rebalance the leftover lot-less lines.
+        """
+        self.ensure_one()
+        product = self.product_id
+        (
+            move_lines_commands,
+            available_move_lines,
+            assigned_lot_ids,
+            free_uom_qty,
+        ) = self._classify_move_lines_for_lots()
+        should_bypass_reservation = self._should_bypass_reservation()
+        # Since each lot needs to be represented by a move line we will by default
+        # reserve at least 1 unit (in the product.uom_id) for each lot the
+        # exceeding free_uom_qty can then be assigned from available quantity
+        extra_uom_qty = free_uom_qty - len(set(self.lot_ids.ids) - assigned_lot_ids)
+        quants_by_lot = {}
+        if not should_bypass_reservation:
+            quants_by_lot = (
+                self.env["stock.quant"]
+                ._gather(product, self.location_id)
+                .grouped("lot_id")
+            )
+        for lot in self.lot_ids:
+            if lot.id in assigned_lot_ids:
+                continue
+            if should_bypass_reservation:
+                commands, available_move_lines, extra_uom_qty = (
+                    self._lot_commands_bypass(lot, available_move_lines, extra_uom_qty)
+                )
+            else:
+                commands, extra_uom_qty = self._lot_commands_reserve(
+                    lot,
+                    quants_by_lot.get(lot, self.env["stock.quant"]),
+                    extra_uom_qty,
+                )
+            move_lines_commands += commands
+        if not should_bypass_reservation and available_move_lines:
+            move_lines_commands += self._lot_commands_rebalance_unlotted(
+                available_move_lines,
+                extra_uom_qty,
+            )
+        self.write({"move_line_ids": move_lines_commands})
 
     def _assign_picking(self):
         """Try to assign the moves to an existing picking that has not been
@@ -2700,10 +2528,10 @@ Please change the quantity done or the rounding precision in your settings.""",
 
             for (
                 need,
-                location_id,
-                lot_id,
-                package_id,
-                owner_id,
+                _location_id,
+                _lot_id,
+                _package_id,
+                _owner_id,
             ), taken_quantity in taken_quantities.items():
                 # `quantity` is what is brought by chained done move lines. We double check
                 # here this quantity is available on the quants themselves. If not, this
@@ -2758,6 +2586,50 @@ Please change the quantity done or the rounding precision in your settings.""",
         self.move_orig_ids = [Command.unlink(parent_move.id)]
         self.procure_method = "make_to_stock"
         self._recompute_state()
+
+    def _classify_move_lines_for_lots(self):
+        """Match the existing move lines against `lot_ids`.
+
+        :return: a 4-tuple of
+            - the initial commands (relabel matching lines, delete lines whose
+              lot is no longer wanted),
+            - the lines carrying no lot at all (usable to place new lots),
+            - the ids of the lots already carried by a line,
+            - the remaining demand, in the product's UoM, not consumed by the
+              matched lines.
+        """
+        self.ensure_one()
+        product = self.product_id
+        commands = []
+        lot_id_by_name = {lot.name: lot.id for lot in self.lot_ids}
+        available_move_line_ids = []
+        free_uom_qty = self.product_uom_id._compute_quantity(
+            max(self.quantity, self.product_uom_qty),
+            product.uom_id,
+        )
+        assigned_lot_ids = set()
+        for ml in self.move_line_ids:
+            lot_name = ml.lot_id.name or ml.lot_name
+            if ml.product_uom_id.is_zero(ml.quantity):
+                continue
+            if not ml.lot_id and not ml.lot_name:
+                available_move_line_ids.append(ml.id)
+            elif lot_name in lot_id_by_name:
+                lot_id = lot_id_by_name[lot_name]
+                assigned_lot_ids.add(lot_id)
+                free_uom_qty -= ml.product_uom_id._compute_quantity(
+                    ml.quantity,
+                    product.uom_id,
+                )
+                commands.append(Command.update(ml.id, {"lot_id": lot_id}))
+            else:
+                commands.append(Command.delete(ml.id))
+        return (
+            commands,
+            self.env["stock.move.line"].browse(available_move_line_ids),
+            assigned_lot_ids,
+            free_uom_qty,
+        )
 
     def _clean_merged(self):
         """Cleanup hook used when merging moves"""
@@ -3195,11 +3067,11 @@ Please change the quantity done or the rounding precision in your settings.""",
         }
         # Drop entries whose available quantity is not strictly positive.
         rounding = self.product_id.uom_id.rounding
-        return dict(
-            (k, v)
+        return {
+            k: v
             for k, v in available_move_lines.items()
             if float_compare(v, 0, precision_rounding=rounding) > 0
-        )
+        }
 
     def _get_lang(self):
         """Determine language to use for translated description"""
@@ -3313,6 +3185,136 @@ Please change the quantity done or the rounding precision in your settings.""",
     def _log_cancel_activity(self):
         return
 
+    def _lot_commands_bypass(self, lot, available_move_lines, extra_uom_qty):
+        """Place `lot` without touching quants (reservation is bypassed):
+        relabel an existing lot-less line when possible, else create one.
+
+        :return: (commands, remaining lot-less lines, remaining extra quantity)
+        """
+        self.ensure_one()
+        product = self.product_id
+        uom = product.uom_id if product.tracking == "serial" else self.product_uom_id
+        if available_move_lines:
+            # Updates an existing line without lot.
+            move_line = available_move_lines[0]
+            new_vals = {
+                "lot_id": lot.id,
+                "lot_name": lot.name,
+                "product_uom_id": uom.id,
+                "quantity": (
+                    1.0 if product.tracking == "serial" else move_line.quantity
+                ),
+            }
+            commands = [Command.update(move_line.id, new_vals)]
+            available_move_lines -= move_line
+            extra_uom_qty -= (
+                uom._compute_quantity(new_vals["quantity"], product.uom_id) - 1
+            )
+        else:
+            # No line to update creates a new one.
+            quantity_to_reserve = 1.0
+            # For lot tracked product reserve the maximal available quantity
+            if (
+                product.tracking == "lot"
+                and product.uom_id.compare(extra_uom_qty, 0.0) > 0
+            ):
+                quantity_to_reserve += extra_uom_qty
+                extra_uom_qty = 0
+            move_line_vals = self._prepare_move_line_vals(
+                quantity=quantity_to_reserve,
+            )
+            move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
+            if product.tracking == "serial":
+                move_line_vals.update(
+                    {"quantity": 1.0, "product_uom_id": product.uom_id.id},
+                )
+            commands = [Command.create(move_line_vals)]
+        return commands, available_move_lines, extra_uom_qty
+
+    def _lot_commands_reserve(self, lot, quants, extra_uom_qty):
+        """Place `lot` by reserving against `quants`; when no quant has
+        availability, still create a 1-unit line so the lot is represented.
+
+        :return: (commands, remaining extra quantity)
+        """
+        self.ensure_one()
+        product = self.product_id
+        commands = []
+        reserved = False
+        for quant in quants:
+            if reserved and product.uom_id.compare(extra_uom_qty, 0.0) <= 0:
+                break
+            if (
+                not quant.lot_id
+                or product.uom_id.compare(quant.available_quantity, 0.0) <= 0
+            ):
+                continue
+            quantity_to_reserve = min(
+                quant.available_quantity,
+                max(extra_uom_qty if reserved else extra_uom_qty + 1, 1),
+            )
+            if product.uom_id.compare(quantity_to_reserve, 0.0) > 0:
+                move_line_vals = self._prepare_move_line_vals(
+                    quantity=quantity_to_reserve,
+                    reserved_quant=quant,
+                )
+                move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
+                if product.tracking == "serial":
+                    quantity_to_reserve = 1
+                    move_line_vals.update(
+                        {"quantity": 1.0, "product_uom_id": product.uom_id.id},
+                    )
+                commands.append(Command.create(move_line_vals))
+                extra_uom_qty -= (
+                    quantity_to_reserve if reserved else quantity_to_reserve - 1
+                )
+                reserved = True
+        if not reserved:
+            move_line_vals = self._prepare_move_line_vals(quantity=1.0)
+            move_line_vals.update({"lot_id": lot.id, "lot_name": lot.name})
+            if product.tracking == "serial":
+                move_line_vals.update(
+                    {"quantity": 1.0, "product_uom_id": product.uom_id.id},
+                )
+            commands.append(Command.create(move_line_vals))
+        return commands, extra_uom_qty
+
+    def _lot_commands_rebalance_unlotted(self, available_move_lines, extra_uom_qty):
+        """Unlink and re-create the lot-less move lines (capped to the
+        remaining extra quantity) to alter the reservation order and
+        prioritise lot-set move lines in the un-reservation process relying
+        on the process decrease.
+
+        :return: commands
+        """
+        self.ensure_one()
+        product = self.product_id
+        commands = [Command.delete(ml.id) for ml in available_move_lines]
+        for move_line in available_move_lines:
+            if product.uom_id.compare(extra_uom_qty, 0.0) <= 0:
+                break
+            ml_quantity = move_line.product_uom_id._compute_quantity(
+                move_line.quantity,
+                product.uom_id,
+            )
+            quantity_to_reserve = min(ml_quantity, extra_uom_qty)
+            new_ml_quantity = product.uom_id._compute_quantity(
+                quantity_to_reserve,
+                move_line.product_uom_id,
+            )
+            commands.append(
+                Command.create(
+                    move_line.copy_data(
+                        {
+                            "quantity": new_ml_quantity,
+                            "picked": move_line.picked,
+                        },
+                    )[0],
+                ),
+            )
+            extra_uom_qty -= quantity_to_reserve
+        return commands
+
     def _match_searched_availability(self, operator, value, get_comparison_date):
         def get_stock_moves(moves, state):
             if state == "available":
@@ -3356,9 +3358,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 if isinstance(value, list)
                 else value == "available"
             )
-            if is_selected_available == (operator in {"=", "in"}):
-                return True
-            return False
+            return is_selected_available == (operator in {"=", "in"})
         moves = self
         if operator == "=":
             moves = get_stock_moves(moves, value)
@@ -4005,9 +4005,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             ]
 
         new_moves = self.env["stock.move"].concat(*new_moves)
-        new_moves = new_moves.sudo()._action_confirm()
-
-        return new_moves
+        return new_moves.sudo()._action_confirm()
 
     def _quantity_sml(self):
         self.ensure_one()
@@ -4064,7 +4062,9 @@ Please change the quantity done or the rounding precision in your settings.""",
             else:
                 moves_state_to_write["confirmed"].add(move.id)
         for state, moves_ids in moves_state_to_write.items():
-            self.browse(moves_ids).filtered(lambda m: m.state != state).state = state
+            self.browse(moves_ids).filtered(
+                lambda m, state=state: m.state != state
+            ).state = state
 
     def _rollup_move_dests_fetch(self):
         self._rollup_moves_fetch("move_dest_ids")
@@ -4121,7 +4121,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 moves.reference_ids = picking.reference_ids
 
     def _search_picking_for_assignation_domain(self):
-        domain = [
+        return [
             ("reference_ids", "=", self.reference_ids.ids),
             ("location_id", "=", self.location_id.id),
             (
@@ -4140,15 +4140,13 @@ Please change the quantity done or the rounding precision in your settings.""",
                 ["draft", "confirmed", "waiting", "partially_available", "assigned"],
             ),
         ]
-        return domain
 
     def _search_picking_for_assignation(self):
         self.ensure_one()
         if not self.reference_ids:
             return self.env["stock.picking"]
         domain = self._search_picking_for_assignation_domain()
-        picking = self.env["stock.picking"].search(domain, limit=1)
-        return picking
+        return self.env["stock.picking"].search(domain, limit=1)
 
     def _skip_push(self):
         return self.is_inventory or (
@@ -4674,24 +4672,23 @@ Please change the quantity done or the rounding precision in your settings.""",
                 to_update.with_context(
                     reserved_quant=reserved_quant,
                 ).quantity += uom_quantity
+            elif self.product_id.tracking == "serial" and (
+                self.picking_type_id.use_create_lots
+                or self.picking_type_id.use_existing_lots
+            ):
+                vals_list = self._add_serial_move_line_to_vals_list(
+                    reserved_quant,
+                    quantity,
+                )
+                if vals_list:
+                    move_line_vals += vals_list
             else:
-                if self.product_id.tracking == "serial" and (
-                    self.picking_type_id.use_create_lots
-                    or self.picking_type_id.use_existing_lots
-                ):
-                    vals_list = self._add_serial_move_line_to_vals_list(
-                        reserved_quant,
-                        quantity,
-                    )
-                    if vals_list:
-                        move_line_vals += vals_list
-                else:
-                    move_line_vals.append(
-                        self._prepare_move_line_vals(
-                            quantity=quantity,
-                            reserved_quant=reserved_quant,
-                        ),
-                    )
+                move_line_vals.append(
+                    self._prepare_move_line_vals(
+                        quantity=quantity,
+                        reserved_quant=reserved_quant,
+                    ),
+                )
         return move_line_vals, taken_quantity
 
     def _visible_quantity(self):

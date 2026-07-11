@@ -1,4 +1,3 @@
-
 from odoo import fields, models
 from odoo.fields import Domain
 

@@ -1,7 +1,8 @@
-from collections import defaultdict, OrderedDict
 import datetime
-from functools import partial
 import logging
+from collections import OrderedDict, defaultdict
+from functools import partial
+from itertools import batched
 
 from dateutil.relativedelta import relativedelta
 
@@ -9,7 +10,6 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import float_is_zero
-from itertools import batched
 
 from .stock_procurement import Procurement, ProcurementException
 
@@ -184,7 +184,7 @@ class StockRule(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
-            for rule, vals in zip(self, vals_list):
+            for rule, vals in zip(self, vals_list, strict=False):
                 vals["name"] = _("%s (copy)", rule.name)
         return vals_list
 
@@ -207,23 +207,19 @@ class StockRule(models.Model):
         rule. The purpose of this function is to avoid code duplication in
         _get_message_dict functions since it often requires those data.
         """
-        source = (
-            self.location_src_id
-            and self.location_src_id.display_name
-            or _("Source Location")
+        source = (self.location_src_id and self.location_src_id.display_name) or _(
+            "Source Location"
         )
         destination = (
-            self.location_dest_id
-            and self.location_dest_id.display_name
-            or _("Destination Location")
-        )
+            self.location_dest_id and self.location_dest_id.display_name
+        ) or _("Destination Location")
         direct_destination = (
             self.picking_type_id
             and self.picking_type_id.default_location_dest_id != self.location_dest_id
             and self.picking_type_id.default_location_dest_id.display_name
         )
-        operation = (
-            self.picking_type_id and self.picking_type_id.name or _("Operation Type")
+        operation = (self.picking_type_id and self.picking_type_id.name) or _(
+            "Operation Type"
         )
         return source, destination, direct_destination, operation
 
@@ -367,7 +363,7 @@ class StockRule(models.Model):
                 rule_sudo.warehouse_id.company_id.id
                 or rule_sudo.picking_type_id.warehouse_id.company_id.id
             )
-        new_move_vals = {
+        return {
             "product_uom_qty": copied_quantity,
             "origin": move_to_copy.origin or move_to_copy.picking_id.name or "/",
             "location_id": move_to_copy.location_dest_id.id,
@@ -384,7 +380,6 @@ class StockRule(models.Model):
             or move_to_copy.location_dest_id.warehouse_id.id,
             "procure_method": "make_to_order",
         }
-        return new_move_vals
 
     @api.model
     def _run_pull(self, procurements):
@@ -402,7 +397,9 @@ class StockRule(models.Model):
         # each group.
         procurements = sorted(
             procurements,
-            key=lambda proc: proc[0].product_uom_id.compare(proc[0].product_qty, 0.0) > 0,
+            key=lambda proc: (
+                proc[0].product_uom_id.compare(proc[0].product_qty, 0.0) > 0
+            ),
         )
         for procurement, rule in procurements:
             procure_method = rule.procure_method
@@ -461,8 +458,7 @@ class StockRule(models.Model):
                 fields.Datetime.to_datetime(values["date_deadline"])
                 - relativedelta(days=self.delay or 0)
             )
-            or False
-        )
+        ) or False
         partner = self.partner_address_id.id or values.get("partner_id", False)
 
         # `or` (not a default arg): callers may pass move_dest_ids=False explicitly.
@@ -607,7 +603,8 @@ class StockRule(models.Model):
     @api.model
     def _skip_procurement(self, procurement):
         return procurement.product_id.type != "consu" or float_is_zero(
-            procurement.product_qty, precision_rounding=procurement.product_uom_id.rounding
+            procurement.product_qty,
+            precision_rounding=procurement.product_uom_id.rounding,
         )
 
     @api.model
@@ -629,10 +626,9 @@ class StockRule(models.Model):
 
         def raise_exception(procurement_errors):
             if raise_user_error:
-                dummy, errors = zip(*procurement_errors)
+                _dummy, errors = zip(*procurement_errors, strict=False)
                 raise UserError("\n".join(errors))
-            else:
-                raise ProcurementException(procurement_errors)
+            raise ProcurementException(procurement_errors)
 
         actions_to_run = defaultdict(list)
         procurement_errors = []
@@ -869,6 +865,7 @@ class StockRule(models.Model):
                 "stock.stock_location_inter_company", raise_if_not_found=False
             )
             return inter_comp_location and inter_comp_location.id in locations.ids
+        return None
 
     @api.model
     def _get_rule_domain(self, locations, values):
@@ -962,7 +959,7 @@ class StockRule(models.Model):
             limit=None,
             order="date_reservation, priority desc, date asc, id asc",
         )
-        for moves_chunk in batched(moves_to_assign.ids, 1000):
+        for moves_chunk in batched(moves_to_assign.ids, 1000, strict=False):
             self.env["stock.move"].browse(moves_chunk).sudo()._action_assign()
             if use_new_cursor:
                 self.env.cr.commit()
@@ -996,7 +993,7 @@ class StockRule(models.Model):
                 use_new_cursor=use_new_cursor, company_id=company_id
             )
         except Exception:
-            _logger.error("Error during stock scheduler", exc_info=True)
+            _logger.exception("Error during stock scheduler")
             raise
         return {}
 

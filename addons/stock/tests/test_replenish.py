@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
-
 from freezegun import freeze_time
 
-from odoo.addons.stock.tests.common import TestStockCommon
-from odoo.tests import Form
 from odoo import Command, fields
+from odoo.tests import Form
+
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestStockReplenish(TestStockCommon):
-
     def test_base_delay(self):
         """Open the replenish view and check if delay is taken into account
         in the base date computation

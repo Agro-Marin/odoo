@@ -1,14 +1,13 @@
+import json
+
 from werkzeug.exceptions import InternalServerError
 
 from odoo import http
 from odoo.http import request
 from odoo.tools.misc import html_escape
 
-import json
-
 
 class StockReportController(http.Controller):
-
     @http.route(
         "/stock/<string:output_format>/<string:report_name>",
         type="http",
@@ -25,7 +24,7 @@ class StockReportController(http.Controller):
         line_data = json.loads(kw["data"])
         try:
             if output_format == "pdf":
-                response = request.make_response(
+                return request.make_response(
                     stock_traceability.with_context(
                         active_id=kw["active_id"], active_model=kw["active_model"]
                     ).get_pdf(line_data),
@@ -37,7 +36,6 @@ class StockReportController(http.Controller):
                         ),
                     ],
                 )
-                return response
         except Exception as e:
             se = http.serialize_exception(e)
             error = {

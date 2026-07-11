@@ -1,14 +1,13 @@
-
 from datetime import timedelta
 
 from odoo import Command
-from odoo.addons.stock.models.stock_rule import StockRule
 from odoo.tests import Form
+
+from odoo.addons.stock.models.stock_rule import StockRule
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestOldRules(TestStockCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

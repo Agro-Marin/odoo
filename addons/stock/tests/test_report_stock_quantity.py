@@ -1,15 +1,13 @@
-# -*- coding: utf-8 -*-
-
 from datetime import datetime, timedelta
+
+from freezegun import freeze_time
 
 from odoo import fields, tests
 from odoo.fields import Command
 from odoo.tests import Form
-from freezegun import freeze_time
 
 
 class TestReportStockQuantity(tests.TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -289,6 +287,7 @@ class TestReportStockQuantity(tests.TransactionCase):
                 1.0,
                 2.0,  # in two days
             ],
+            strict=False,
         ):
             self.assertEqual(
                 qty_rd,
@@ -318,11 +317,14 @@ class TestReportStockQuantity(tests.TransactionCase):
             )
 
         # We add a second warehouse and put the resuplying flow in push mechanic to test receipt in 2 steps with an external transfer
-        warehouse, warehouse_2 = self.wh, self.env["stock.warehouse"].create(
-            {
-                "name": "Resupplier warehouse",
-                "code": "WH02",
-            }
+        warehouse, warehouse_2 = (
+            self.wh,
+            self.env["stock.warehouse"].create(
+                {
+                    "name": "Resupplier warehouse",
+                    "code": "WH02",
+                }
+            ),
         )
         transit_loc = self.wh.company_id.internal_transit_location_id
         warehouse.write(
