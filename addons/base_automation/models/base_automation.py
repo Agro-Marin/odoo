@@ -1716,6 +1716,17 @@ class BaseAutomation(models.Model):
                     self,
                     WRITE_TRIGGERS,
                 )
+                # Only a recomputation of a field the automation explicitly
+                # watches counts as an "update" for it. Rules with no watched
+                # field (or watching other fields) are driven by the write()
+                # patch on real writes, not by internal recomputation — filtering
+                # here also stops on_write rules from firing while a new record's
+                # stored computed fields are populated during create().
+                stored_fnames_set = set(stored_fnames)
+                automations = automations.filtered(
+                    lambda a: stored_fnames_set
+                    & set(a.trigger_field_ids.mapped("name"))
+                )
                 records = self.filtered("id").with_env(automations.env)
                 if not (automations and records):
                     _compute_field_value.origin(self, field)
@@ -1899,10 +1910,17 @@ class BaseAutomation(models.Model):
                 patch(Model, "unlink", make_unlink())
 
             elif automation_rule.trigger == "on_change":
-                # register an onchange method for the automation_rule
+                # register an onchange method for the automation_rule.
+                # _onchange_methods is a memoized *plain* dict (it must not
+                # auto-vivify on runtime reads), so a field with no static
+                # @api.onchange has no key yet — use setdefault rather than
+                # indexing. _unregister_hook drops the memo so each registry
+                # setup rebuilds it from the static methods before we re-add
+                # these automation methods (no cross-reload accumulation).
                 method = make_onchange(automation_rule.id)
+                onchange_methods = Model._onchange_methods
                 for field in automation_rule.on_change_field_ids:
-                    Model._onchange_methods[field.name].append(method)
+                    onchange_methods.setdefault(field.name, []).append(method)
 
             if (
                 automation_rule.model_id.is_mail_thread
@@ -2083,7 +2101,11 @@ class BaseAutomation(models.Model):
             "write",
             "_compute_field_value",
             "unlink",
-            "_onchange_methods",
+            # The onchange registry is memoized on the class under
+            # _onchange_methods__ (the _onchange_methods property is read-only).
+            # Deleting the memo forces a rebuild from the static @api.onchange
+            # methods, discarding the automation methods added by _register_hook.
+            "_onchange_methods__",
             "message_post",
         ]
         for Model in self.env.registry.values():
