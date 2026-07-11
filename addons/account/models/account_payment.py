@@ -1,5 +1,6 @@
 from itertools import zip_longest
-from odoo import models, fields, api, _, Command
+
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 
@@ -525,8 +526,7 @@ class AccountPayment(models.Model):
                 payment.id
                 and (
                     not payment.name
-                    or payment.move_id
-                    and payment.name != payment.move_id.name
+                    or (payment.move_id and payment.name != payment.move_id.name)
                 )
                 and payment.state in ("in_process", "paid")
             ):
@@ -728,7 +728,7 @@ class AccountPayment(models.Model):
                 pay.available_partner_bank_ids = pay.journal_id.bank_account_id
             else:
                 pay.available_partner_bank_ids = pay.partner_id.bank_ids.filtered(
-                    lambda x: x.company_id.id in (False, pay.company_id.id)
+                    lambda x, pay=pay: x.company_id.id in (False, pay.company_id.id)
                 )._origin
 
     @api.depends("available_partner_bank_ids", "journal_id")
@@ -778,7 +778,7 @@ class AccountPayment(models.Model):
             if to_exclude:
                 pay.available_payment_method_line_ids = (
                     pay.available_payment_method_line_ids.filtered(
-                        lambda x: x.code not in to_exclude
+                        lambda x, to_exclude=to_exclude: x.code not in to_exclude
                     )
                 )
 
@@ -1156,7 +1156,7 @@ class AccountPayment(models.Model):
                 raise ValidationError(
                     _("Please define a payment method line on your payment.")
                 )
-            elif (
+            if (
                 pay.payment_method_line_id.journal_id
                 and pay.payment_method_line_id.journal_id != pay.journal_id
             ):
@@ -1209,7 +1209,7 @@ class AccountPayment(models.Model):
             self.env["account.move"]._get_invoice_in_payment_state() == "in_payment"
         )
 
-        for i, (pay, vals) in enumerate(zip(payments, vals_list)):
+        for i, (pay, vals) in enumerate(zip(payments, vals_list, strict=False)):
             if (
                 not accounting_installed and not pay.outstanding_account_id
             ) or self.env.context.get("force_payment_move"):
@@ -1284,7 +1284,7 @@ class AccountPayment(models.Model):
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default)
-        for payment, vals in zip(self, vals_list):
+        for payment, vals in zip(self, vals_list, strict=False):
             vals.update(
                 {
                     "journal_id": payment.journal_id.id,
@@ -1295,7 +1295,7 @@ class AccountPayment(models.Model):
         return vals_list
 
     def _message_mail_after_hook(self, mails):
-        for payment, mail in zip(self, mails):
+        for payment, mail in zip(self, mails, strict=False):
             if not payment.message_main_attachment_id and (
                 attachments_to_link := mail.attachment_ids.filtered(
                     lambda a: a.res_model == "mail.message"
@@ -1374,12 +1374,12 @@ class AccountPayment(models.Model):
                 else Command.create(counterpart_lines_vals[0])
             )
 
-            for line in writeoff_lines:
-                line_ids_commands.append((2, line.id))
-            for extra_line_vals in line_vals_per_type.get(
-                "write_off_lines", []
-            ) + line_vals_per_type.get("withholding_lines", []):
-                line_ids_commands.append((0, 0, extra_line_vals))
+            line_ids_commands.extend((2, line.id) for line in writeoff_lines)
+            line_ids_commands.extend(
+                (0, 0, extra_line_vals)
+                for extra_line_vals in line_vals_per_type.get("write_off_lines", [])
+                + line_vals_per_type.get("withholding_lines", [])
+            )
             # Update the existing journal items.
             # If dealing with multiple write-off lines, they are dropped and a new one is generated.
             to_write = {
@@ -1426,7 +1426,7 @@ class AccountPayment(models.Model):
             for pay in need_move
         ]
         moves = self.env["account.move"].create(move_vals)
-        for pay, move in zip(need_move, moves):
+        for pay, move in zip(need_move, moves, strict=False):
             pay.write({"move_id": move.id, "state": "in_process"})
 
     def _generate_move_vals(

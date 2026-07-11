@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 from datetime import date, datetime, timedelta
+
 from freezegun import freeze_time
 
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -57,11 +58,11 @@ class TestAccountPaymentItems(AccountTestInvoicingCommon):
         due_days = (
             datetime.strptime(due_date, "%Y-%m-%d").date() - date(2023, 3, 1)
         ).days
-        payment_term = cls.env["account.payment.term"].create(
+        return cls.env["account.payment.term"].create(
             {
                 "name": "Payment Term For Testing",
                 "early_discount": bool(discount_days),
-                "discount_days": discount_days if discount_days else False,
+                "discount_days": discount_days or False,
                 "discount_percentage": 5,
                 "line_ids": [
                     (
@@ -77,7 +78,6 @@ class TestAccountPaymentItems(AccountTestInvoicingCommon):
                 ],
             }
         )
-        return payment_term
 
     @freeze_time("2023-03-15")
     def test_payment_date(self):

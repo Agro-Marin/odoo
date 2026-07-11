@@ -3,7 +3,7 @@ from zlib import error as zlib_error
 
 import lxml.html
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import pdf
 
@@ -125,6 +125,7 @@ class IrActionsReport(models.Model):
             for stream in content.values():
                 stream["stream"].close()
             return pdf_dict
+        return None
 
     def _pre_render_qweb_pdf(self, report_ref, res_ids=None, data=None):
         # Check for reports only available for invoices.
@@ -136,7 +137,7 @@ class IrActionsReport(models.Model):
                 .sudo()
                 .get_param("account.display_name_in_footer")
             ):
-                data = data and dict(data) or {}
+                data = (data and dict(data)) or {}
                 data.update({"display_name_in_footer": True})
             if any(x.move_type == "entry" for x in invoices):
                 raise UserError(_("Only invoices could be printed."))

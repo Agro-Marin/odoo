@@ -1,9 +1,10 @@
 from lxml import etree
+
 from odoo.tools.xml_utils import remove_control_characters
 
 
 def dict_to_xml(
-    node, *, nsmap={}, template=None, render_empty_nodes=False, tag=None, path=None
+    node, *, nsmap=None, template=None, render_empty_nodes=False, tag=None, path=None
 ):
     """Helper to render a Python dict as an XML node.
 
@@ -40,6 +41,9 @@ def dict_to_xml(
     :param path: (optional) The path of the currently rendered node in the XML tree (needed only for recursive calls).
     :return: The rendered XML node as an lxml.Element.
     """
+
+    if nsmap is None:
+        nsmap = {}
 
     def convert_tag_to_lxml_convention(tag):
         if ":" in tag:

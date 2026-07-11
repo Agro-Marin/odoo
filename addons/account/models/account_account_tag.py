@@ -43,6 +43,7 @@ class AccountAccountTag(models.Model):
                     country_code=tag.country_id.code,
                 )
             tag.display_name = name
+        return None
 
     @api.depends("name")
     def _compute_report_expression_id(self):

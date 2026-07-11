@@ -1,28 +1,27 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo import fields, Command
-from odoo.models import BaseModel
-from odoo.tests import Form, HttpCase, new_test_user, tagged, save_test_file
-from odoo.tools import config, file_path, file_open
-from odoo.libs.numbers.float_utils import float_round
-
-from odoo.addons.product.tests.common import ProductCommon
-
-import json
 import base64
 import copy
-import logging
-import re
-
 import difflib
+import json
+import logging
 import pprint
-import requests
+import re
 from contextlib import contextmanager
 from functools import wraps
 from itertools import count
-from lxml import etree
 from unittest import SkipTest, TestCase
-from unittest.mock import patch, ANY
+from unittest.mock import ANY, patch
+
+import requests
+from lxml import etree
+
+from odoo import Command, fields
+from odoo.libs.numbers.float_utils import float_round
+from odoo.models import BaseModel
+from odoo.tests import Form, HttpCase, new_test_user, save_test_file, tagged
+from odoo.tools import config, file_open, file_path
+
+from odoo.addons.product.tests.common import ProductCommon
 
 _logger = logging.getLogger(__name__)
 
@@ -870,9 +869,7 @@ class AccountTestInvoicingCommon(ProductCommon):
         account_1=None,
         partner=None,
     ):
-        write_off_account_to_be_reconciled = (
-            account_1 if account_1 else self.receivable_account
-        )
+        write_off_account_to_be_reconciled = account_1 or self.receivable_account
         move = self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -880,7 +877,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                 "line_ids": [
                     Command.create(
                         {
-                            "debit": balance if balance > 0.0 else 0.0,
+                            "debit": max(0.0, balance),
                             "credit": -balance if balance < 0.0 else 0.0,
                             "amount_currency": amount_currency,
                             "account_id": write_off_account_to_be_reconciled.id,
@@ -891,7 +888,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                     Command.create(
                         {
                             "debit": -balance if balance < 0.0 else 0.0,
-                            "credit": balance if balance > 0.0 else 0.0,
+                            "credit": max(0.0, balance),
                             "amount_currency": -amount_currency,
                             "account_id": self.company_data[
                                 "default_account_revenue"
@@ -1453,7 +1450,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             return
 
         for subtotal, expected_subtotal in zip(
-            tax_totals["subtotals"], expected_results["subtotals"]
+            tax_totals["subtotals"], expected_results["subtotals"], strict=False
         ):
             current_values = {
                 k: len(v) if k == "tax_groups" else v
@@ -1467,7 +1464,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             fix_monetary_value(current_values, expected_values, monetary_fields)
             self.assertEqual(current_values, expected_values)
             for tax_group, expected_tax_group in zip(
-                subtotal["tax_groups"], expected_subtotal["tax_groups"]
+                subtotal["tax_groups"], expected_subtotal["tax_groups"], strict=False
             ):
                 current_tax_group = {
                     k: v for k, v in tax_group.items() if k not in excluded_fields
@@ -1502,6 +1499,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                     return f.read()
             except FileNotFoundError:
                 pass
+        return None
 
     @classmethod
     def _get_xml_ignore_schema(cls, subfolder: str) -> etree._Element | None:
@@ -1524,6 +1522,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             subfolder, "ignore_schema.xml"
         ):
             return etree.fromstring(ignore_schema_bytes)
+        return None
 
     @classmethod
     def _get_json_ignore_schema(cls, subfolder: str) -> dict | list | None:
@@ -1531,6 +1530,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             subfolder, "ignore_schema.json"
         ):
             return json.loads(ignore_schema_bytes)
+        return None
 
     @classmethod
     def _clear_xml_content(cls, xml_element: etree._Element, clean_namespaces=True):
@@ -1905,7 +1905,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             )
 
             for child_node_dict, expected_child_node_dict in zip(
-                node_dict["children"], expected_node_dict["children"]
+                node_dict["children"], expected_node_dict["children"], strict=False
             ):
                 assertNodeDictEqual(child_node_dict, expected_child_node_dict)
 
@@ -2054,7 +2054,9 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
         if not uom:
             return {}
         return {
-            **taxes._eval_taxes_computation_turn_to_product_uom_values(product_uom_id=uom),
+            **taxes._eval_taxes_computation_turn_to_product_uom_values(
+                product_uom_id=uom
+            ),
             "id": uom.id,
             "name": uom.name,
         }
@@ -2170,7 +2172,7 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
         invoice_date = "2020-01-01"
         currency = document["currency"]
         self._ensure_rate(currency, invoice_date, document["rate"])
-        invoice = self.env["account.move"].create(
+        return self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
                 "invoice_date": invoice_date,
@@ -2185,7 +2187,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
                 ],
             }
         )
-        return invoice
 
     def _run_js_tests(self):
         if not self.js_tests:
@@ -2275,7 +2276,7 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
                 len(sub_results["taxes_data"]), len(expected_values["taxes_data"])
             )
             for tax_data, (expected_base, expected_tax) in zip(
-                sub_results["taxes_data"], expected_values["taxes_data"]
+                sub_results["taxes_data"], expected_values["taxes_data"], strict=False
             ):
                 self.assertEqual(
                     float_round(tax_data["base_amount"], precision_rounding=rounding),
@@ -2441,7 +2442,11 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
     ):
         return {
             "price_unit": self.env["account.tax"]._adapt_price_unit_to_another_taxes(
-                price_unit, product, original_taxes, new_taxes, product_uom_id=product_uom_id
+                price_unit,
+                product,
+                original_taxes,
+                new_taxes,
+                product_uom_id=product_uom_id,
             )
         }
 
@@ -2526,7 +2531,9 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             len(expected_values["base_lines_tax_details"]),
         )
         for result, expected in zip(
-            results["base_lines_tax_details"], expected_values["base_lines_tax_details"]
+            results["base_lines_tax_details"],
+            expected_values["base_lines_tax_details"],
+            strict=False,
         ):
             self.assertDictEqual(result, expected)
 

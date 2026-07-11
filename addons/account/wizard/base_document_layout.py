@@ -17,7 +17,7 @@ class BaseDocumentLayout(models.TransientModel):
 
     def document_layout_save(self):
         """Save layout and onboarding step progress, return super() result"""
-        res = super(BaseDocumentLayout, self).document_layout_save()
+        res = super().document_layout_save()
         if step := self.env.ref(
             "account.onboarding_onboarding_step_base_document_layout",
             raise_if_not_found=False,

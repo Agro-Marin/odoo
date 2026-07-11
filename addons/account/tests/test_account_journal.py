@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
-
 from ast import literal_eval
 from unittest.mock import patch
 
-from odoo import http
-from odoo.tools import hash_sign
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.addons.account.models.account_payment_method import AccountPaymentMethod
-from odoo.addons.mail.tests.common import MailCommon
-from odoo.tests import Form, tagged, HttpCase, new_test_user
-from odoo.addons.test_mail.data.test_mail_data import MAIL_EML_ATTACHMENT
+from odoo import Command, fields, http
 from odoo.exceptions import UserError, ValidationError
-from odoo import fields, Command
+from odoo.tests import Form, HttpCase, new_test_user, tagged
+from odoo.tools import hash_sign
+
+from odoo.addons.account.models.account_payment_method import AccountPaymentMethod
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.test_mail.data.test_mail_data import MAIL_EML_ATTACHMENT
 
 
 @tagged("post_install", "-at_install")
@@ -343,6 +341,7 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
                 f"new3-{company2.id}",
                 f"purchase-{company2.id}",
             ],
+            strict=False,
         ):
             with self.subTest(
                 aname=aname, jname=jname, jcode=jcode, jtype=jtype, jcompany=jcompany

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, timedelta
@@ -48,14 +47,14 @@ class AccountFinancialYearOp(models.TransientModel):
         for wiz in self:
             try:
                 date(2020, int(wiz.fiscalyear_last_month), wiz.fiscalyear_last_day)
-            except ValueError:
+            except ValueError as err:
                 raise ValidationError(
                     _(
                         "Incorrect fiscal year date: day is out of range for month. Month: %(month)s; Day: %(day)s",
                         month=wiz.fiscalyear_last_month,
                         day=wiz.fiscalyear_last_day,
                     )
-                )
+                ) from err
 
     @api.model
     def _company_fields_to_update(self):
@@ -204,10 +203,8 @@ class AccountSetupBankManualConfig(models.TransientModel):
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:
             record.linked_journal_id = (
-                record.journal_id
-                and record.journal_id[0]
-                or record.default_linked_journal_id(journal_type)
-            )
+                record.journal_id and record.journal_id[0]
+            ) or record.default_linked_journal_id(journal_type)
 
     def default_linked_journal_id(self, journal_type):
         journals_with_moves = (

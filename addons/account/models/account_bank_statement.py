@@ -1,8 +1,7 @@
 from contextlib import contextmanager
 
-from odoo import api, fields, models, _, Command
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.fields import Domain
 from odoo.tools.misc import formatLang
 
 
@@ -188,7 +187,7 @@ class AccountBankStatement(models.Model):
                 # remove lines from previous statement (when multi-editing a line already in another statement)
                 previous_st_lines = previous_line_with_statement.statement_id.line_ids
                 lines_in_common = previous_st_lines.filtered(
-                    lambda l: l.id in stmt.line_ids._origin.ids
+                    lambda l, stmt=stmt: l.id in stmt.line_ids._origin.ids
                 )
                 balance_start -= sum(lines_in_common.mapped("amount"))
 
@@ -422,7 +421,9 @@ class AccountBankStatement(models.Model):
 
         yield
 
-        for stmt, attachments in zip(container["records"], attachments_to_fix_list):
+        for stmt, attachments in zip(
+            container["records"], attachments_to_fix_list, strict=False
+        ):
             attachments.write({"res_id": stmt.id, "res_model": stmt._name})
 
     @api.model_create_multi
@@ -438,5 +439,4 @@ class AccountBankStatement(models.Model):
 
         container = {"records": self}
         with self._check_attachments(container, [vals]):
-            result = super().write(vals)
-        return result
+            return super().write(vals)

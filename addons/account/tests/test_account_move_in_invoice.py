@@ -1,13 +1,15 @@
 # pylint: disable=bad-whitespace
-from freezegun import freeze_time
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import Form, tagged
-from odoo import fields
-from odoo.fields import Command, Domain
-from odoo.exceptions import ValidationError, UserError
+from collections import defaultdict
 from datetime import date
 
-from collections import defaultdict
+from freezegun import freeze_time
+
+from odoo import fields
+from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Command, Domain
+from odoo.tests import Form, tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -138,7 +140,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         )
 
     def setUp(self):
-        super(TestAccountMoveInInvoiceOnchanges, self).setUp()
+        super().setUp()
         self.assertInvoiceValues(
             self.invoice,
             [
@@ -1809,10 +1811,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             .create({})
         )
 
-        action_create_payment = wizard.action_create_payments()
-        payment = self.env[action_create_payment["res_model"]].browse(
-            action_create_payment["res_id"]
-        )
+        wizard.action_create_payments()
 
         move.action_post()
         self.assertFalse(move.payment_ids)  # don't auto reconcile payments
@@ -3190,7 +3189,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 )
 
     def test_payment_move_state_draft(self):
-        for move_type, amount, counterpart_values_list, payment_state, *extra in (
+        for move_type, amount, counterpart_values_list, payment_state, *_extra in (
             ("out_invoice", 1000.0, [("out_refund", 1000.0)], "reversed"),
             (
                 "out_invoice",

@@ -1,12 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.account.tests.common import AccountTestInvoicingHttpCommon
-from odoo.tests.common import tagged
-
 import json
 
 from odoo import http
+from odoo.tests.common import tagged
 from odoo.tools import file_open, mute_logger
+
+from odoo.addons.account.tests.common import AccountTestInvoicingHttpCommon
 
 
 @tagged("post_install", "-at_install")

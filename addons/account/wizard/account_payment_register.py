@@ -3,9 +3,9 @@ from datetime import date
 
 import markupsafe
 
-from odoo import Command, models, fields, api, _
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import frozendict, OrderedSet
+from odoo.tools import OrderedSet, frozendict
 from odoo.tools.misc import clean_context
 
 
@@ -424,7 +424,7 @@ class AccountPaymentRegister(models.TransientModel):
     def _compute_show_payment_difference(self):
         for wizard in self:
             wizard.show_payment_difference = (
-                wizard.payment_difference != 0.0
+                wizard.payment_difference != 0
                 and not wizard.early_payment_discount_mode
                 and wizard.can_edit_wizard
                 and (not wizard.can_group_payments or wizard.group_payment)
@@ -545,7 +545,9 @@ class AccountPaymentRegister(models.TransientModel):
                             if wizard.group_payment
                             else len(
                                 batch["lines"].filtered(
-                                    lambda line: line in total_amount_values["lines"]
+                                    lambda line, total_amount_values=total_amount_values: (
+                                        line in total_amount_values["lines"]
+                                    )
                                 )
                             )
                         )
@@ -613,7 +615,9 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.can_group_payments = any(
                     len(
                         batch_result["lines"].filtered(
-                            lambda line: line in total_amounts_to_pay["lines"]
+                            lambda line, total_amounts_to_pay=total_amounts_to_pay: (
+                                line in total_amounts_to_pay["lines"]
+                            )
                         )
                     )
                     != 1
@@ -626,10 +630,8 @@ class AccountPaymentRegister(models.TransientModel):
         # it's a compute editable field and then, should be computed in a separated method.
         for wizard in self:
             if (
-                wizard.can_edit_wizard
-                and wizard.installments_mode == "full"
-                or wizard.custom_user_amount
-            ):
+                wizard.can_edit_wizard and wizard.installments_mode == "full"
+            ) or wizard.custom_user_amount:
                 lines = wizard.line_ids
             else:
                 lines = wizard._get_total_amounts_to_pay(wizard.batches)["lines"]
@@ -1326,9 +1328,8 @@ class AccountPaymentRegister(models.TransientModel):
                 if line.currency_id:
                     if line.currency_id.is_zero(line.amount_residual_currency):
                         continue
-                else:
-                    if line.company_currency_id.is_zero(line.amount_residual):
-                        continue
+                elif line.company_currency_id.is_zero(line.amount_residual):
+                    continue
                 available_lines |= line
 
             # Check.
@@ -1387,22 +1388,21 @@ class AccountPaymentRegister(models.TransientModel):
 
         if self.payment_difference_handling == "reconcile":
             if self.early_payment_discount_mode:
-                epd_aml_values_list = []
-                for aml in batch_result["lines"]:
+                epd_aml_values_list = [
+                    {
+                        "aml": aml,
+                        "amount_currency": -aml.amount_residual_currency,
+                        "balance": aml.currency_id._convert(
+                            -aml.amount_residual_currency,
+                            aml.company_currency_id,
+                            date=self.payment_date,
+                        ),
+                    }
+                    for aml in batch_result["lines"]
                     if aml.move_id._is_eligible_for_early_payment_discount(
                         self.currency_id, self.payment_date
-                    ):
-                        epd_aml_values_list.append(
-                            {
-                                "aml": aml,
-                                "amount_currency": -aml.amount_residual_currency,
-                                "balance": aml.currency_id._convert(
-                                    -aml.amount_residual_currency,
-                                    aml.company_currency_id,
-                                    date=self.payment_date,
-                                ),
-                            }
-                        )
+                    )
+                ]
 
                 open_amount_currency = self.payment_difference * (
                     -1 if self.payment_type == "outbound" else 1
@@ -1551,7 +1551,7 @@ class AccountPaymentRegister(models.TransientModel):
             .create([x["create_vals"] for x in to_process])
         )
 
-        for payment, vals in zip(payments, to_process):
+        for payment, vals in zip(payments, to_process, strict=False):
             vals["payment"] = payment
 
             # If payments are made using a currency different than the source one, ensure the balance match exactly in
@@ -1563,7 +1563,7 @@ class AccountPaymentRegister(models.TransientModel):
 
                 # Batches are made using the same currency so making 'lines.currency_id' is ok.
                 if payment.currency_id != lines.currency_id:
-                    liquidity_lines, counterpart_lines, writeoff_lines = (
+                    liquidity_lines, counterpart_lines, _writeoff_lines = (
                         payment._seek_for_lines()
                     )
                     source_balance = abs(sum(lines.mapped("amount_residual")))

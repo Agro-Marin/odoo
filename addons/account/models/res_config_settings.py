@@ -1,4 +1,5 @@
 from odoo import _, api, fields, models
+
 from odoo.addons.account.models.company import PEPPOL_LIST
 
 

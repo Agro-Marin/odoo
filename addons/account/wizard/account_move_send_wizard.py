@@ -1,7 +1,7 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import get_lang
-from odoo.addons.mail.tools.parser import parse_res_ids
+
 from odoo.addons.mail.wizard.mail_compose_message import _reopen
 
 
@@ -353,7 +353,7 @@ class AccountMoveSendWizard(models.TransientModel):
     def create_mail_template(self):
         """Creates a mail template with the current mail composer's fields."""
         self.ensure_one()
-        if not self.model or not self.model in self.env:
+        if not self.model or self.model not in self.env:
             raise UserError(
                 _("Template creation from composer requires a valid model.")
             )

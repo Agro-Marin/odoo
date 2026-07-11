@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=too-many-lines
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import tagged
 from odoo import Command
+from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -59,7 +59,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         taxes = tax_lines.mapped(lambda x: x.group_tax_id or x.tax_line_id)
         for tax in taxes:
             lines = tax_lines.filtered(
-                lambda x: (x.group_tax_id or x.tax_line_id) == tax
+                lambda x, tax=tax: (x.group_tax_id or x.tax_line_id) == tax
             )
             tax_amount = sum(lines.mapped("balance"))
             tax_details_amount = sum(

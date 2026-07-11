@@ -1,6 +1,6 @@
 import re
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -96,8 +96,8 @@ class AccountReconcileModelLine(models.Model):
             if record.amount_type == "regex":
                 try:
                     re.compile(record.amount_string)
-                except re.error:
-                    raise UserError(_("The regex is not valid"))
+                except re.error as err:
+                    raise UserError(_("The regex is not valid")) from err
 
 
 class AccountReconcileModel(models.Model):
@@ -191,8 +191,8 @@ class AccountReconcileModel(models.Model):
             if record.match_label == "match_regex":
                 try:
                     re.compile(record.match_label_param)
-                except re.error:
-                    raise UserError(_("The regex is not valid"))
+                except re.error as err:
+                    raise UserError(_("The regex is not valid")) from err
 
     @api.depends(
         "mapped_partner_id",
@@ -258,7 +258,7 @@ class AccountReconcileModel(models.Model):
         vals_list = super().copy_data(default)
         if default.get("name"):
             return vals_list
-        for model, vals in zip(self, vals_list):
+        for model, vals in zip(self, vals_list, strict=False):
             name = _("%s (copy)", model.name)
             while self.env["account.reconcile.model"].search_count(
                 [("name", "=", name)], limit=1

@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=C0326
 from contextlib import closing
 from unittest.mock import patch
 
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.tests import Form, tagged, users
+from odoo import Command, fields
 from odoo.exceptions import UserError
-from odoo import fields, Command
+from odoo.tests import Form, tagged, users
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -293,7 +293,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             )
 
     def create_move_payment(self, move, payment_amount, with_outstanding_account=False):
-        payment = (
+        return (
             self.env["account.payment.register"]
             .with_context(
                 active_model="account.move",
@@ -317,7 +317,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             )
             ._create_payments()
         )
-        return payment
 
     # -------------------------------------------------------------------------
     # Test creation of account.partial.reconcile/account.full.reconcile
@@ -2787,7 +2786,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             ],
         )
 
-        self.assertTrue(all([line.full_reconcile_id for line in reversed_lines]))
+        self.assertTrue(all(line.full_reconcile_id for line in reversed_lines))
 
     def test_reconcile_foreign_currency_rounding_issue(self):
         comp_curr = self.company_data["currency"]

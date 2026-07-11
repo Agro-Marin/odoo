@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
-from odoo import Command, models, fields, api
-from odoo.tools.translate import _
+from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.translate import _
 
 
 class AccountMoveReversal(models.TransientModel):
@@ -86,7 +85,7 @@ class AccountMoveReversal(models.TransientModel):
 
     @api.model
     def default_get(self, fields):
-        res = super(AccountMoveReversal, self).default_get(fields)
+        res = super().default_get(fields)
         move_ids = (
             self.env["account.move"].browse(self.env.context["active_ids"])
             if self.env.context.get("active_model") == "account.move"
@@ -110,19 +109,21 @@ class AccountMoveReversal(models.TransientModel):
     def _compute_from_moves(self):
         for record in self:
             move_ids = record.move_ids._origin
-            record.residual = len(move_ids) == 1 and move_ids.amount_residual or 0
+            record.residual = (len(move_ids) == 1 and move_ids.amount_residual) or 0
             record.currency_id = (
-                len(move_ids.currency_id) == 1 and move_ids.currency_id or False
-            )
+                len(move_ids.currency_id) == 1 and move_ids.currency_id
+            ) or False
             record.move_type = (
                 move_ids.move_type
                 if len(move_ids) == 1
                 else (
-                    any(
-                        move.move_type in ("in_invoice", "out_invoice")
-                        for move in move_ids
+                    (
+                        any(
+                            move.move_type in ("in_invoice", "out_invoice")
+                            for move in move_ids
+                        )
+                        and "some_invoice"
                     )
-                    and "some_invoice"
                     or False
                 )
             )
@@ -145,8 +146,9 @@ class AccountMoveReversal(models.TransientModel):
             else self.with_context(lang=lang).env._("Reversal of: %s", move.name),
             "date": reverse_date,
             "invoice_date_due": reverse_date,
-            "invoice_date": move.is_invoice(include_receipts=True)
-            and (self.date or move.date)
+            "invoice_date": (
+                move.is_invoice(include_receipts=True) and (self.date or move.date)
+            )
             or False,
             "journal_id": self.journal_id.id,
             "invoice_payment_term_id": mixed_payment_term,
@@ -162,14 +164,13 @@ class AccountMoveReversal(models.TransientModel):
         moves = self.move_ids
 
         # Create default values.
-        default_values_list = []
-        for move in moves:
-            default_values_list.append(
-                {
-                    "partner_bank_id": False,  # Resets the partner_bank_id as we'll force its recomputation
-                    **self._prepare_default_reversal(move),
-                }
-            )
+        default_values_list = [
+            {
+                "partner_bank_id": False,  # Resets the partner_bank_id as we'll force its recomputation
+                **self._prepare_default_reversal(move),
+            }
+            for move in moves
+        ]
 
         batches = [
             [
@@ -179,7 +180,7 @@ class AccountMoveReversal(models.TransientModel):
             ],  # Moves to be cancelled by the reverses.
             [self.env["account.move"], [], False],  # Others.
         ]
-        for move, default_vals in zip(moves, default_values_list):
+        for move, default_vals in zip(moves, default_values_list, strict=False):
             is_auto_post = default_vals.get("auto_post") != "no"
             is_cancel_needed = not is_auto_post and (
                 is_modify or self.move_type == "entry"
@@ -201,7 +202,7 @@ class AccountMoveReversal(models.TransientModel):
                         "This entry has been %s",
                         reverse._get_html_link(title=move.env._("reversed")),
                     )
-                    for move, reverse in zip(moves, new_moves)
+                    for move, reverse in zip(moves, new_moves, strict=False)
                 }
             )
 

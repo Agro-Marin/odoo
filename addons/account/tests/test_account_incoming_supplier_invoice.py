@@ -2,12 +2,11 @@ import base64
 import contextlib
 import textwrap
 import uuid
-
 from unittest.mock import patch
 
 from odoo import Command
 from odoo.exceptions import ValidationError
-from odoo.tests import tagged, RecordCapturer
+from odoo.tests import RecordCapturer, tagged
 from odoo.tools.misc import mute_logger
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -195,6 +194,7 @@ class TestAccountInvoiceImportMixin:
                         invoice.partner_id = partner.id
                     else:
                         raise ValidationError("Could not identify partner!")
+                    return None
 
                 return {
                     "decoder": decoder,
@@ -206,6 +206,7 @@ class TestAccountInvoiceImportMixin:
                     if invoice.invoice_line_ids:
                         return invoice._reason_cannot_decode_has_invoice_lines()
                     decoder_calls.append((invoice, file_data, new))
+                    return None
 
                 return {
                     "decoder": decoder,

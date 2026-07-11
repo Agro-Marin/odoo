@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
-
-from contextlib import nullcontext, closing
-from freezegun import freeze_time
+from contextlib import closing, nullcontext
 from functools import partial
 
+from freezegun import freeze_time
+
 from odoo import Command, fields
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.exceptions import UserError, ValidationError
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")

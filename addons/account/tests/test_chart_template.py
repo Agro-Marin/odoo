@@ -1,15 +1,16 @@
 import io
+from unittest.mock import patch
 
 from markupsafe import Markup
-from unittest.mock import patch
 
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import tagged
+
 from odoo.addons.account.models.chart_template import (
-    code_translations,
-    AccountChartTemplate,
     TEMPLATE_MODELS,
+    AccountChartTemplate,
+    code_translations,
 )
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 

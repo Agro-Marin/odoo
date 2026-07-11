@@ -1,11 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from collections import defaultdict
-from dateutil.relativedelta import relativedelta
 import json
-from odoo import models, fields, api, _, Command
-from odoo.tools import format_date
+from collections import defaultdict
+
+from dateutil.relativedelta import relativedelta
+
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import date_utils
+from odoo.tools import date_utils, format_date
 from odoo.tools.misc import formatLang
 
 
@@ -16,7 +17,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
     def _get_default_company(self):
         if not self.env.context.get("active_model"):
-            return
+            return None
         orders = self.env[self.env.context["active_model"]].browse(
             self.env.context["active_ids"]
         )
@@ -217,11 +218,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 account = self._get_computed_account(
                     order, order_line.product_id, is_purchase
                 )
-                distribution = (
-                    order_line.analytic_distribution
-                    if order_line.analytic_distribution
-                    else {}
-                )
+                distribution = order_line.analytic_distribution or {}
                 values = _get_aml_vals(
                     order,
                     self.amount,
@@ -243,7 +240,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 ).filtered(
                     # We only want non-comment lines (no sections, notes, ...) and include all lines
                     # for purchase orders but exclude downpayment lines for sales orders.
-                    lambda l: (
+                    lambda l, order=order: (
                         not l.display_type
                         and not l.is_downpayment
                         and l.id in order.line_ids.ids
@@ -261,12 +258,8 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                         expense_account, stock_variation_account = (
                             self._get_product_expense_and_stock_var_accounts(product)
                         )
-                        account = (
-                            stock_variation_account
-                            if stock_variation_account
-                            else self._get_computed_account(
-                                order, order_line.product_id, is_purchase
-                            )
+                        account = stock_variation_account or self._get_computed_account(
+                            order, order_line.product_id, is_purchase
                         )
                         if any(tax.price_include for tax in order_line.tax_ids):
                             # As included taxes are not taken into account in the price_unit, we need to compute the price_subtotal
@@ -331,11 +324,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                             amounts_by_perpetual_account[
                                 expense_account, stock_variation_account
                             ] += amount
-                    distribution = (
-                        order_line.analytic_distribution
-                        if order_line.analytic_distribution
-                        else {}
-                    )
+                    distribution = order_line.analytic_distribution or {}
                     values = _get_aml_vals(
                         order,
                         amount,

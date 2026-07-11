@@ -3,6 +3,7 @@ from zipfile import ZipFile
 
 from odoo.fields import Command
 from odoo.tests.common import tagged
+
 from odoo.addons.account.tests.common import AccountTestInvoicingHttpCommon
 
 

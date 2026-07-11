@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 import base64
 import io
 import re
 
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.exceptions import RedirectWarning
-from odoo.tools import pdf
 from odoo.tests import tagged
-from odoo.tools import file_open, mute_logger
+from odoo.tools import file_open, mute_logger, pdf
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -77,7 +76,7 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
         # corrupt encryption: point the /Encrypt xref as a non-encrypt
         # (but valid otherwise pypdf skips it)
         encrypted_file, n = re.subn(
-            b"/Encrypt (?P<index>\\d+) (?P<gen>\\d+) R",
+            rb"/Encrypt (?P<index>\d+) (?P<gen>\d+) R",
             b"/Encrypt 1 \\g<gen> R",
             encrypted_file,
         )

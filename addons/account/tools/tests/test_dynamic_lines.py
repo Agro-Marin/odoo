@@ -88,7 +88,7 @@ def test_simple_create():
 
 def test_needed_key_without_line_is_created():
     # A key needed before and after but with no existing line is (re)created.
-    to_delete, to_create, to_write = plan({}, {}, {K1: V1}, {K1: V1, K2: V2})
+    _to_delete, to_create, _to_write = plan({}, {}, {K1: V1}, {K1: V1, K2: V2})
     assert to_create == {K1: V1, K2: V2}
 
 
@@ -107,9 +107,9 @@ def test_simple_delete():
 
 def test_write_only_when_values_differ():
     args = ({"a": K1}, {"a": K1}, {K1: V1}, {K1: V2})
-    to_delete, to_create, to_write = plan(*args, values_differ=differ_always)
+    _to_delete, _to_create, to_write = plan(*args, values_differ=differ_always)
     assert to_write == {"a": V2}
-    to_delete, to_create, to_write = plan(*args, values_differ=differ_never)
+    _to_delete, _to_create, to_write = plan(*args, values_differ=differ_never)
     assert to_write == {}
 
 

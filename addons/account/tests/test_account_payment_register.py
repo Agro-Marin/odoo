@@ -1,15 +1,11 @@
-# -*- coding: utf-8 -*-
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.exceptions import UserError
-from odoo.tests import tagged, users
-from odoo import fields, Command
-from dateutil.relativedelta import relativedelta
 from itertools import product
 from unittest.mock import patch
 
-from odoo import fields, Command
+from dateutil.relativedelta import relativedelta
+
+from odoo import Command, fields
 from odoo.exceptions import UserError
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged, users
 from odoo.tests.common import Like
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -2924,7 +2920,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                 .copy({"company_ids": branch.ids})
             )
             branch_invoice = branch_invoices.filtered(
-                lambda inv: inv.company_id == branch
+                lambda inv, branch=branch: inv.company_id == branch
             )
             # To mock the situation where the partner has his own receivable account depending on the branch
             branch_invoice.line_ids.filtered(
@@ -2958,7 +2954,10 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                 "should_raise": True,
             },
         ]
-        cases = [{**case, **new_case} for case, new_case in zip(cases, new_cases)]
+        cases = [
+            {**case, **new_case}
+            for case, new_case in zip(cases, new_cases, strict=False)
+        ]
 
         test_register_payment_flow(cases)
 

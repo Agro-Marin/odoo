@@ -1,6 +1,7 @@
 from odoo import Command, fields
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -33,32 +34,32 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 25.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 3.75,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -115.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -72,32 +73,32 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 200.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -50.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 7.5,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 22.5, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 22.5, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -230.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 50.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -111,32 +112,32 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 3.75,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -115.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 25.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -150,14 +151,14 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 15.0, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 15.0, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -115.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -172,32 +173,32 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -115.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": bill.name + " - private part",
                     "balance": 25.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": bill.name + " - private part (taxes)",
                     "balance": 3.75,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -238,44 +239,44 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "product",
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 50.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 7.5,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 22.5, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 22.5, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -230.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -325,50 +326,50 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Full item",
                     "balance": 200.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "product",
                     "name": "Partial item 1",
                     "balance": 300.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "product",
                     "name": "Partial item 2",
                     "balance": 150.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item 1",
                     "balance": -75.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item 2",
                     "balance": -30.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 105.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 15.75,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 81.75, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 81.75, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -747.5,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -408,33 +409,33 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id, tax_21.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id, tax_21.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 25.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 9.0,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},  # noqa: E241
-                {"display_type": "tax", "name": "21%", "balance": 15.75, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
+                {"display_type": "tax", "name": "21%", "balance": 15.75, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -136.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -485,45 +486,45 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item 1",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "product",
                     "name": "Partial item 2",
                     "balance": 240.0,
                     "tax_ids": [tax_21.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item 1",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item 2",
                     "balance": -120.0,
                     "tax_ids": [tax_21.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 145.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 28.95,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},  # noqa: E241
-                {"display_type": "tax", "name": "21%", "balance": 25.2, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
+                {"display_type": "tax", "name": "21%", "balance": 25.2, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -405.4,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -556,32 +557,32 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 50.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -12.5,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 12.5,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 1.88,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 5.63, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 5.63, "tax_ids": []},
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -57.51,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -623,38 +624,38 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": -25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": 25.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 3.75,
                     "tax_ids": [],
-                },  # noqa: E241
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},  # noqa: E241
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
                 {
                     "display_type": "rounding",
                     "name": "Rounding 10",
                     "balance": 5.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -120.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )
@@ -686,37 +687,37 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "name": "Partial item",
                     "balance": -100.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product",
                     "name": "Partial item",
                     "balance": 25.0,
                     "tax_ids": [self.tax_purchase_a.id],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_product_total",
                     "name": "private part",
                     "balance": -25.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": -3.75,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "tax",
                     "name": "15%",
                     "balance": -11.25,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
                 {
                     "display_type": "payment_term",
                     "name": False,
                     "balance": 115.0,
                     "tax_ids": [],
-                },  # noqa: E241
+                },
             ],
             {},
         )

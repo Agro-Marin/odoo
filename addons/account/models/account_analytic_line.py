@@ -1,4 +1,4 @@
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -10,9 +10,9 @@ class AccountAnalyticLine(models.Model):
         "product.product",
         string="Product",
         check_company=True,
-        index='btree_not_null',
+        index="btree_not_null",
     )
-    product_category = fields.Many2one(related='product_id.categ_id')
+    product_category = fields.Many2one(related="product_id.categ_id")
     general_account_id = fields.Many2one(
         "account.account",
         string="Financial Account",
@@ -93,6 +93,7 @@ class AccountAnalyticLine(models.Model):
         self.amount = result
         self.general_account_id = account
         self.product_uom_id = unit
+        return None
 
     @api.model
     def view_header_get(self, view_id, view_type):

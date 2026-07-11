@@ -843,7 +843,7 @@ class AccountPartialReconcile(models.Model):
                 continue
 
             counterpart_line = moves[move_index].line_ids.filtered(
-                lambda line: line.sequence == sequence
+                lambda line, sequence=sequence: line.sequence == sequence
             )
 
             # When dealing with tiny amounts, the line could have a zero amount and then, be already reconciled.

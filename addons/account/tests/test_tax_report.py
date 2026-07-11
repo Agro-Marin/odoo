@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 from odoo import Command
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
@@ -251,7 +251,9 @@ class TaxReportTest(AccountTestInvoicingCommon):
             "Modifying the country should have created a tag in the new country for each tax_tags expression of the report.",
         )
 
-        for original, copy in zip(self.tax_report_1.line_ids, copied_report_1.line_ids):
+        for original, copy in zip(
+            self.tax_report_1.line_ids, copied_report_1.line_ids, strict=False
+        ):
             original_tags = original.expression_ids._get_matching_tags()
             copy_tags = copy.expression_ids._get_matching_tags()
 

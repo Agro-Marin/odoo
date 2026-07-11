@@ -1,17 +1,18 @@
-from contextlib import contextmanager
-from copy import deepcopy
 import difflib
 import io
 import itertools
 import logging
+from contextlib import contextmanager
+from copy import deepcopy
+from struct import error as StructError
+
 from lxml import etree
 from markupsafe import Markup
-from struct import error as StructError
 
 from odoo import api, models, modules
 from odoo.exceptions import RedirectWarning
-from odoo.tools import groupby
 from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.tools import groupby
 from odoo.tools.pdf import OdooPdfFileReader, PdfReadError
 
 _logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ def extract_pdf_embedded_files(filename, content):
     with io.BytesIO(content) as buffer:
         try:
             pdf_reader = OdooPdfFileReader(buffer, strict=False)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Malformed pdf
             _logger.info('Error when reading the pdf file "%s": %s', filename, e)
             return []
@@ -157,7 +158,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
         file_data_groups = grouping_method(files_data)
 
         records = self.create([{}] * len(file_data_groups))
-        for record, file_data_group in zip(records, file_data_groups):
+        for record, file_data_group in zip(records, file_data_groups, strict=False):
             attachment_records = self._from_files_data(file_data_group)
             attachment_records.write(
                 {
@@ -173,7 +174,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
             )
 
         # Call _extend_with_attachments at the end, because it commits the transaction.
-        for record, file_data_group in zip(records, file_data_groups):
+        for record, file_data_group in zip(records, file_data_groups, strict=False):
             record_extended = record._extend_with_attachments(file_data_group, new=True)
             if not record_extended:
                 record.message_post(
@@ -239,12 +240,14 @@ class AccountDocumentImportMixin(models.AbstractModel):
         return groups
 
     def _assign_attachment_to_group_of_different_type(
-        self, incoming_file_data, groups=[]
+        self, incoming_file_data, groups=None
     ):
         """Add the attachment to the group which doesn't yet have an attachment of the same root type
         (however, attachments with no root type don't clash with each other).
         If several groups are available, we choose the group which has the highest filename similarity.
         """
+        if groups is None:
+            groups = []
         incoming_type = incoming_file_data["import_file_type"]
 
         # If there are groups with different types, we choose the group which has the highest filename similarity.
@@ -272,9 +275,11 @@ class AccountDocumentImportMixin(models.AbstractModel):
         groups.append([incoming_file_data])
 
     def _assign_attachment_to_group_with_same_origin_attachment(
-        self, incoming_file_data, groups=[]
+        self, incoming_file_data, groups=None
     ):
         """Attachments that come from the same origin attachment are added to the same group."""
+        if groups is None:
+            groups = []
         for group in groups:
             if any(
                 incoming_file_data["origin_attachment"]
@@ -365,7 +370,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
                 "Attachment(s) %s not imported: no suitable decoder found.",
                 [file_data["name"] for file_data in files_data],
             )
-            return
+            return None
 
         try:
             with rollbackable_transaction(self.env.cr):
@@ -380,7 +385,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
                             reason=reason_cannot_decode,
                         )
                     )
-                    return
+                    return None
         except RedirectWarning:
             raise
         except Exception as e:
@@ -399,7 +404,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
                     str(e),
                 )
             )
-            return
+            return None
         return True
 
     def _get_edi_decoder(self, file_data, new=False):
@@ -455,7 +460,9 @@ class AccountDocumentImportMixin(models.AbstractModel):
                 }
             )
 
-    def _fix_attachments_on_record_from_files_data(self, valid_files_data, extra_files_data):
+    def _fix_attachments_on_record_from_files_data(
+        self, valid_files_data, extra_files_data
+    ):
         self.ensure_one()
         valid_attachments = self._from_files_data(valid_files_data).filtered(
             lambda a: a.res_model != self._name or a.res_id != self.id
@@ -531,6 +538,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
         """Method to be overridden to identify a file's format."""
         if "pdf" in file_data["mimetype"] or file_data["name"].endswith(".pdf"):
             return "pdf"
+        return None
 
     @api.model
     def _get_xml_tree(self, file_data):
@@ -539,10 +547,12 @@ class AccountDocumentImportMixin(models.AbstractModel):
         """
         if (
             # XML attachments received by mail have a 'text/plain' mimetype.
-            "text/plain" in file_data["mimetype"]
-            and (
-                guess_mimetype(file_data["raw"] or b"").endswith("/xml")
-                or file_data["name"].endswith(".xml")
+            (
+                "text/plain" in file_data["mimetype"]
+                and (
+                    guess_mimetype(file_data["raw"] or b"").endswith("/xml")
+                    or file_data["name"].endswith(".xml")
+                )
             )
             or file_data["mimetype"].endswith("/xml")
         ):
@@ -557,6 +567,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
                 _logger.info(
                     'Error when reading the xml file "%s": %s', file_data["name"], e
                 )
+        return None
 
     @api.model
     def _unwrap_attachments(self, files_data, recurse=True):

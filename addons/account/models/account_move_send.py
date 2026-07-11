@@ -8,7 +8,6 @@ from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.base.models.ir_actions_report import PDF_OPTIONS_DATA_KEY
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -245,7 +244,7 @@ class AccountMoveSend(models.AbstractModel):
         self, mail_template, lang, move, field, **kwargs
     ):
         if not mail_template:
-            return
+            return None
         return (
             mail_template.sudo()
             .with_context(lang=lang)
@@ -447,7 +446,7 @@ class AccountMoveSend(models.AbstractModel):
     def _raise_danger_alerts(self, alerts):
         danger_alert_messages = [
             alert["message"]
-            for _key, alert in alerts.items()
+            for alert in alerts.values()
             if alert.get("level") == "danger"
         ]
         if danger_alert_messages:
@@ -471,9 +470,8 @@ class AccountMoveSend(models.AbstractModel):
         # dedicated e-mail templates). They are legitimately "sendable" here even
         # though they are purchase documents, so exempt them from the sale-only
         # constraint.
-        is_self_billing = (
-            move.journal_id.is_self_billing
-            and move.is_purchase_document(include_receipts=True)
+        is_self_billing = move.journal_id.is_self_billing and move.is_purchase_document(
+            include_receipts=True
         )
         if not move.is_sale_document(include_receipts=True) and not is_self_billing:
             constraints["not_sale_document"] = _(
@@ -581,7 +579,7 @@ class AccountMoveSend(models.AbstractModel):
             }
             if any(render_options.values()):
                 content_by_id = {}
-                for invoice, invoice_data in group_invoices_data.items():
+                for invoice in group_invoices_data:
                     # Namespaced channel: PDF options must never travel as
                     # top-level ``data`` keys, which would leak them into the
                     # QWeb template rendering context.
@@ -690,7 +688,7 @@ class AccountMoveSend(models.AbstractModel):
             attachment.res_id: attachment for attachment in attachments
         }
 
-        for invoice, invoice_data in invoices_data.items():
+        for invoice in invoices_data:
             if attachment := res_id_to_attachment.get(invoice.id):
                 invoice.message_main_attachment_id = attachment
                 invoice.invalidate_recordset(
@@ -726,7 +724,7 @@ class AccountMoveSend(models.AbstractModel):
         self._send_notifications_to_partners(group_by_partner)
 
         # Notify subscribers.
-        for move, move_data in moves_data.items():
+        for move in moves_data:
             if not move.is_invoice(include_receipts=True):
                 continue
 

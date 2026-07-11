@@ -47,14 +47,13 @@ class PortalAccount(CustomerPortal):
     # ------------------------------------------------------------
 
     def _get_overdue_invoice_count(self):
-        overdue_invoice_count = (
+        return (
             request.env["account.move"].search_count(
                 self._get_overdue_invoices_domain()
             )
             if request.env["account.move"].has_access("read")
             else 0
         )
-        return overdue_invoice_count
 
     def _invoice_get_page_view_values(self, invoice, access_token, **kwargs):
         custom_amount = None

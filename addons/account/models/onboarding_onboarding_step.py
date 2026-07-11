@@ -14,7 +14,7 @@ class OnboardingOnboardingStep(models.Model):
             .company_id
             or self.env.company
         )
-        action = {
+        return {
             "type": "ir.actions.act_window",
             "name": _("Set your company data"),
             "res_model": "res.company",
@@ -24,7 +24,6 @@ class OnboardingOnboardingStep(models.Model):
             ],
             "target": "new",
         }
-        return action
 
     @api.model
     def action_open_step_base_document_layout(self):

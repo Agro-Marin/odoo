@@ -1,5 +1,5 @@
 from odoo import http
-from odoo.tests import tagged, HttpCase
+from odoo.tests import HttpCase, tagged
 
 
 @tagged("-at_install", "post_install")

@@ -1,12 +1,11 @@
 from difflib import SequenceMatcher
 from itertools import batched
 
-from odoo import api, fields, models, _, Command
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
-from odoo.tools import format_amount, frozendict
 from odoo.libs.constants import PREFETCH_MAX
-
+from odoo.tools import format_amount, frozendict
 
 ACCOUNT_DOMAIN = "[('account_type', 'not in', ('asset_receivable','liability_payable','asset_cash','liability_credit_card','off_balance'))]"
 
@@ -391,11 +390,13 @@ class ProductProduct(models.Model):
         barcode = product_values.get("barcode")
         if barcode:
             return {"criteria": [{"domain": [("barcode", "=", barcode)]}]}
+        return None
 
     def _import_retrieve_product_from_default_code(self, product_values):
         default_code = product_values.get("default_code")
         if default_code:
             return {"criteria": [{"domain": [("default_code", "=", default_code)]}]}
+        return None
 
     def _get_product_name_similarity_threshold(self):
         """Similarity ratio in ``(0, 1]`` required to treat two product names as
@@ -419,12 +420,12 @@ class ProductProduct(models.Model):
     def _import_retrieve_product_from_name(self, product_values):
         name = product_values.get("name")
         if not name:
-            return
+            return None
 
         # Cut the Sales Description from the name (everything after the first line).
         name = name.split("\n", 1)[0]
         if not name:
-            return
+            return None
 
         def find_product_by_name_similarity(values):
             """Return the product whose name is *most* similar to the provided

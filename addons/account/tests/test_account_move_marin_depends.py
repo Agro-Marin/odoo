@@ -40,9 +40,7 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[1000.0], post=False
         )
-        self.assertTrue(
-            invoice.partner_credit_warning, "over-limit draft must warn"
-        )
+        self.assertTrue(invoice.partner_credit_warning, "over-limit draft must warn")
         invoice.action_post()
         self.assertFalse(
             invoice.partner_credit_warning,
