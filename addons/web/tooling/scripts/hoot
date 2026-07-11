@@ -39,6 +39,17 @@ C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
     "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
 )
 
+# Viewport size + touch per HOOT preset — mirrors the definePreset(...) calls in
+# addons/web/static/tests/_framework/start.hoot.js. HOOT reads the *real* window
+# innerWidth/innerHeight, and responsive components (BottomSheet, pager, datetime
+# popover, small-screen dropdowns) branch on it — so Chrome must actually be sized
+# to the preset, not just told which preset to run. Applied unless the user
+# overrides --browser-size / --touch explicitly.
+PRESET_ENV = {
+    "desktop": {"size": "1366x768", "touch": False},
+    "mobile": {"size": "375x667", "touch": True},
+}
+
 
 def _color(txt: str, code: str) -> str:
     return f"{code}{txt}{C_RST}" if sys.stdout.isatty() else txt
@@ -91,6 +102,9 @@ def _resolve_suites(args) -> list[str]:
 
 
 def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
+    env = PRESET_ENV.get(args.preset, PRESET_ENV["desktop"])
+    browser_size = args.browser_size or env["size"]
+    touch = env["touch"] if args.touch is None else args.touch
     return H.run_suites(
         suites,
         port=state["port"],
@@ -98,8 +112,8 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         preset=args.preset,
         hoot_timeout_ms=args.hoot_timeout,
         wall_timeout_s=args.timeout,
-        browser_size=args.browser_size,
-        touch_enabled=args.touch,
+        browser_size=browser_size,
+        touch_enabled=touch,
         extra=(f"&filter={args.filter}" if args.filter else ""),
         verbose=args.verbose,
     )
@@ -173,8 +187,11 @@ def main() -> int:
                     help="HOOT in-page timeout, ms (default: 15000).")
     ap.add_argument("--filter", default="",
                     help="Extra HOOT text filter appended to the URL.")
-    ap.add_argument("--browser-size", default="1366x768")
-    ap.add_argument("--touch", action="store_true")
+    ap.add_argument("--browser-size", default=None,
+                    help="Chrome window WxH (default: from --preset, "
+                         "e.g. mobile=375x667).")
+    ap.add_argument("--touch", action="store_true", default=None,
+                    help="Force touch emulation (default: from --preset).")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="Verbose (server + browser INFO logs).")
     # Lifecycle-only actions.

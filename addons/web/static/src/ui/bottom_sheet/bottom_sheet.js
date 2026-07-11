@@ -3,14 +3,7 @@
 
 /** @module @web/ui/bottom_sheet/bottom_sheet - Mobile-friendly slide-up panel with drag-to-dismiss and snap points */
 
-import {
-    Component,
-    onMounted,
-    onWillDestroy,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getViewportDimensions, useViewportChange } from "@web/core/utils/dom/dvu";
 import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
@@ -18,33 +11,6 @@ import { clamp } from "@web/core/utils/format/numbers";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-
-/**
- * Number of synthetic `history.back()` calls issued to consume trap entries.
- * Module-level (with the marker listener below) so a stacked sheet doesn't
- * mistake another sheet's entry consumption for a user "back" gesture, and so
- * the marker survives the destroyed sheet's own listener removal.
- */
-let pendingSuppressedPopStates = 0;
-/** Whether the popstate event currently dispatching is a synthetic one. */
-let isSuppressedPopState = false;
-
-// Registered at module scope, before any instance listener, so it runs first
-// on each dispatch and stamps the event as synthetic or not.
-browser.addEventListener("popstate", () => {
-    isSuppressedPopState = pendingSuppressedPopStates > 0;
-    if (isSuppressedPopState) {
-        pendingSuppressedPopStates--;
-    }
-});
-
-/**
- * Live sheets in mount order. A real "back" pops a single history entry, so
- * only the topmost sheet may claim it (and close); the others keep their own
- * trap entries and consume them on their own dismissal.
- * @type {BottomSheet[]}
- */
-const sheetStack = [];
 
 /**
  * Delay before giving up on the dismiss animation events. Safely above the
@@ -118,35 +84,18 @@ export class BottomSheet extends Component {
 
         useHotkey("escape", () => this.slideOut());
 
-        // Intercept the mobile "back" gesture/button: push a trap entry on
-        // open, close the sheet when it is popped. On any other dismissal the
-        // entry is consumed with a suppressed `history.back()` so each
-        // open/close cycle leaves the history stack as it found it.
-        this.historyEntryConsumed = false;
+        // Intercept the mobile "back" gesture/button: push a history state on open,
+        // then on popstate push another state and close (traps back-navigation).
+        // TODO: this history entry leaks when the sheet is closed by other means
+        // than "back" (it is never popped), leaving a stale entry on the stack.
         browser.history.pushState({ bottomSheet: true }, "");
-        sheetStack.push(this);
         this.handlePopState = () => {
-            if (isSuppressedPopState || sheetStack.at(-1) !== this) {
-                return;
-            }
-            // A real (user) popstate consumed this sheet's trap entry.
-            this.historyEntryConsumed = true;
             if (this.state.isPositionedReady && !this.state.isDismissing) {
+                browser.history.pushState({ bottomSheet: true }, "");
                 this.slideOut();
             }
         };
         useExternalListener(window, "popstate", this.handlePopState);
-        onWillDestroy(() => {
-            const index = sheetStack.indexOf(this);
-            if (index !== -1) {
-                sheetStack.splice(index, 1);
-            }
-            if (!this.historyEntryConsumed) {
-                this.historyEntryConsumed = true;
-                pendingSuppressedPopStates++;
-                browser.history.back();
-            }
-        });
 
         onMounted(() => {
             const isReduced =
