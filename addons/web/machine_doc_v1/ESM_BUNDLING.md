@@ -275,6 +275,47 @@ env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
 | `DuplicatedKeyError` in registry | Module loaded twice (separate instances) | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
 | Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_esm_prod_nodes` (`ir_qweb_assets.py`). |
 
+## Cache invalidation on source change — no manual flush needed
+
+**Dev mode rebuilds a bundle on a source-file mtime change; you do NOT need
+to `DELETE FROM ir_attachment WHERE name LIKE '%assets_unit%'` before a run.**
+
+The bundle's served URL carries a 7-hex *version* segment
+(`/web/assets/<version>/web.assets_unit_tests.min.js`), which is
+`AssetsBundle.get_checksum()[0:7]` — a SHA256 over each member's
+`unique_descriptor`. That descriptor is `"{url},{last_modified}"`
+(`assetsbundle/assets.py`), and `last_modified` is the file's `st_mtime`,
+freshly `stat()`'d by `ir_asset._glob_static_file`. So editing any JS source
+changes its mtime → changes the checksum → changes the version → the render
+path looks up a version with no attachment → **rebuilds** (esbuild for the
+ESM bundle, concatenation for the legacy `.min.js`) and writes the new row.
+Stale content is impossible once the version differs; the old attachment is
+just GC'd later.
+
+Proven empirically (2026-07): with a warm DB (unit-test bundle already built
+at version `7752687`), adding one `test(...)` to
+`web/static/tests/components/emoji_picker.test.js` and re-running
+`--test-tags '/web:WebSuite.test_components[...]' --stop-after-init` — **with
+no attachment flush** — ran the new test and bumped the version to `d4cc434`.
+
+The one caveat is the `cache="assets"` **ormcache** on
+`ir_qweb._generate_asset_links_cache` / `ir_asset._get_asset_paths`: its key
+does NOT include mtime (it's `bundle`/`assets_params`/`rtl`/…), and it's only
+bypassed when `dev_mode` contains `"xml"` (`@tools.conditional`,
+`ir_qweb_assets.py`). But that ormcache is **in-memory, per-process**, so:
+
+- **`--stop-after-init` test loop** (a fresh process per run, the workflow
+  used here): the ormcache starts cold every run, recomputes from fresh
+  mtimes, and always reflects edits. No flush, ever.
+- **A long-lived server** (`config/p314o19marin.conf`, no `--dev`): the
+  ormcache persists in-process, so an edit made while the server is up is
+  invisible until the `"assets"` cache clears (server restart,
+  Settings → Technical → *Clear cache*, or any asset-attachment unlink). If
+  you want live reload against a running server, start it with
+  `--dev=xml,reload` — `xml` disables the conditional ormcache and `reload`
+  restarts on `.py` change; JS is then picked up on the next request. This is
+  a server-lifecycle choice, not a bug, and still needs no manual SQL flush.
+
 ## Serving & caching
 
 ESM artifacts are served by a dedicated route

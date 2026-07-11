@@ -390,6 +390,145 @@ const ROOT_MENU = {
 /** Providing handlers for internal URLs (blob and data) is **optional** */
 const INTERNAL_URL_PROTOCOLS = ["blob:", "data:"];
 
+// ---------------------------------------------------------------------------
+// Heavy static-DATA bundle stubs
+// ---------------------------------------------------------------------------
+// A few asset bundles ship nothing but a giant static data table (no behaviour
+// worth exercising in a unit test). ``web.assets_emoji`` is the worst offender:
+// its only file, ``emoji_picker/emoji_data.js``, is ~36k lines (~530 KB) of
+// Unicode CLDR data. Letting ``loadBundle`` fetch + esbuild the real thing on
+// the server routinely blew the 15s test timeout and contended on the build
+// lock across concurrent runs. Instead we serve a lightweight stub bundle whose
+// only module re-exports a handful of emojis in the exact shape the picker
+// consumes (``getCategories()`` / ``getEmojis()``), so the picker mounts
+// instantly. Only bundles listed here are stubbed; everything else keeps the
+// real fetch (see ``loadBundle``). The stub module is delivered as a ``data:``
+// ESM URL through the descriptor's import map, mirroring the real ESM bundle
+// flow (``@web/core/assets``: ``loadESMBundle`` injects the map, then
+// ``import()``s the specifier), so no runtime patching of ``odoo.loader`` is
+// needed.
+
+/** Category shape mirrors ``emoji_data.js`` ``getCategories()``. */
+const EMOJI_STUB_CATEGORIES = [
+    {
+        name: "Smileys & Emotion",
+        displayName: "Smileys & Emotion",
+        title: "🙂",
+        sortId: 1,
+    },
+    {
+        name: "Animals & Nature",
+        displayName: "Animals & Nature",
+        title: "🐢",
+        sortId: 3,
+    },
+    { name: "Food & Drink", displayName: "Food & Drink", title: "🍭", sortId: 4 },
+];
+
+/**
+ * Emoji shape mirrors ``emoji_data.js`` ``getEmojis()``. The FIRST entry MUST
+ * be "😀" (grinning face): several tests click the first grid emoji and assert
+ * it inserts "😀" (e.g. html_editor ``emoji.test.js``, web
+ * ``emoji_picker.test.js`` "frequently used").
+ */
+const EMOJI_STUB_EMOJIS = [
+    {
+        category: "Smileys & Emotion",
+        codepoints: "😀",
+        emoticons: [],
+        keywords: ["face", "grin", "grinning face"],
+        name: "grinning face",
+        shortcodes: [":grinning:"],
+    },
+    {
+        category: "Smileys & Emotion",
+        codepoints: "😃",
+        emoticons: [":D", ":-D", "=D"],
+        keywords: ["face", "mouth", "open", "smile", "grinning face with big eyes"],
+        name: "grinning face with big eyes",
+        shortcodes: [":smiley:"],
+    },
+    {
+        category: "Smileys & Emotion",
+        codepoints: "😉",
+        emoticons: [";)", ";-)"],
+        keywords: ["face", "wink", "winking face"],
+        name: "winking face",
+        shortcodes: [":wink:"],
+    },
+    {
+        category: "Smileys & Emotion",
+        codepoints: "❤️",
+        emoticons: ["<3"],
+        keywords: ["heart", "red heart"],
+        name: "red heart",
+        shortcodes: [":heart:"],
+    },
+    {
+        category: "Animals & Nature",
+        codepoints: "🐢",
+        emoticons: [],
+        keywords: ["animal", "reptile", "slow", "turtle"],
+        name: "turtle",
+        shortcodes: [":turtle:"],
+    },
+    {
+        category: "Animals & Nature",
+        codepoints: "🐍",
+        emoticons: [],
+        keywords: ["animal", "reptile", "snake"],
+        name: "snake",
+        shortcodes: [":snake:"],
+    },
+    {
+        category: "Food & Drink",
+        codepoints: "🍭",
+        emoticons: [],
+        keywords: ["candy", "dessert", "lollipop", "sweet"],
+        name: "lollipop",
+        shortcodes: [":lollipop:"],
+    },
+    {
+        category: "Food & Drink",
+        codepoints: "🍎",
+        emoticons: [],
+        keywords: ["apple", "fruit", "red apple"],
+        name: "red apple",
+        shortcodes: [":apple:"],
+    },
+];
+
+// Self-contained ESM module source re-exporting the stub data in the exact
+// surface ``loadEmoji()`` imports from ``@web/components/emoji_picker/emoji_data``.
+const EMOJI_STUB_MODULE_SOURCE = `
+const categories = ${JSON.stringify(EMOJI_STUB_CATEGORIES)};
+const emojis = ${JSON.stringify(EMOJI_STUB_EMOJIS)};
+export function getCategories() { return categories; }
+export function getEmojis() { return emojis; }
+`;
+
+const EMOJI_STUB_MODULE_URL = `data:text/javascript;charset=utf-8,${encodeURIComponent(
+    EMOJI_STUB_MODULE_SOURCE,
+)}`;
+
+/**
+ * Bundle-name → factory returning a lightweight ESM bundle descriptor (same
+ * shape ``@web/core/assets``::``getBundle`` expects for ``is_esm`` bundles).
+ * Gate: ONLY bundles present here are stubbed.
+ *
+ * @type {Record<string, () => object>}
+ */
+const HEAVY_STATIC_BUNDLE_STUBS = {
+    "web.assets_emoji": () => ({
+        is_esm: true,
+        specifiers: ["@web/components/emoji_picker/emoji_data"],
+        import_map: {
+            "@web/components/emoji_picker/emoji_data": EMOJI_STUB_MODULE_URL,
+        },
+        files: {},
+    }),
+};
+
 const R_DATASET_ROUTE = /\/web\/dataset\/call_(?:button|kw)\/[\w.-]+\/(?<step>\w+)/;
 const R_ROUTE_PARAM = /<(?:(?<type>\w+):)?(?<name>[\w-]+)>/g;
 const R_URL_SPECIAL_CHARACTERS = /[.$+()]/g;
@@ -1399,7 +1538,18 @@ export class MockServer {
         });
     }
 
-    async loadBundle(request) {
+    async loadBundle(request, { bundle_name } = {}) {
+        // Heavy static-DATA bundles (e.g. web.assets_emoji) are served from a
+        // lightweight stub so the consuming component mounts instantly instead
+        // of fetching + esbuilding the real ~530 KB payload (which blew the 15s
+        // timeout and contended on the server build lock). Only gated bundles
+        // are stubbed; everything else keeps the real fetch below.
+        const stubFactory = HEAVY_STATIC_BUNDLE_STUBS[bundle_name];
+        if (stubFactory) {
+            return new Response(JSON.stringify(stubFactory()), {
+                headers: { "Content-Type": "application/json" },
+            });
+        }
         // No mock here: we want to fetch the actual bundle (and cache it between suites),
         // although there is a protection to ensure a bundle doesn't leak to the
         // next test.
@@ -1410,7 +1560,15 @@ export class MockServer {
                 return result;
             }
         }
-        return new Promise(() => {});
+        // The initiating test ended before its bundle finished loading. Rejecting
+        // (rather than the old never-settling `new Promise(() => {})`) lets the
+        // superseded caller unwind AND makes `@web/core/assets`::`getBundle`
+        // evict its poisoned cache entry (its `.catch` deletes the bundle key),
+        // so the next test re-fetches cleanly instead of cache-hitting a promise
+        // that never resolves — the root of the recurring 15s hang.
+        throw new MockServerError(
+            `loadBundle("${bundle_name}") was superseded: the initiating test ended before the bundle finished loading`,
+        );
     }
 
     async loadImage(request, { id, model, field }) {
