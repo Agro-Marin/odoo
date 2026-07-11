@@ -265,8 +265,15 @@ export class NavBar extends Component {
         this.state.isAllAppsMenuOpened = !this.state.isAllAppsMenuOpened;
     }
     async _onMenuClicked(menu) {
-        await this.menuService.selectMenu(menu);
-        this._closeAppMenuSidebar();
+        // Close the sidebar whether or not the navigation completes: if a newer
+        // navigation supersedes this one, selectMenu rejects with a
+        // SupersededError (swallowed by the error service) — the `finally` still
+        // closes the sidebar (was: sidebar stayed open on a never-settling await).
+        try {
+            await this.menuService.selectMenu(menu);
+        } finally {
+            this._closeAppMenuSidebar();
+        }
     }
     _onSwipeStart(ev) {
         this.swipeStartX = ev.changedTouches[0].clientX;

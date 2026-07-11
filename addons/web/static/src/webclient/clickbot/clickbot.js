@@ -422,14 +422,17 @@ async function testMenuItem(element) {
     try {
         let isModal = false;
         await waitForCondition(() => {
-            if (document.querySelector(".o_dialog:not(.o_error_dialog)")) {
+            // `waitForCondition` keeps polling this predicate while any RPC or
+            // OWL scheduler task is still pending, so it must be idempotent: the
+            // `!isModal` guard counts/logs a detected modal exactly once even if
+            // a later tick re-enters with the dialog still in the DOM.
+            if (!isModal && document.querySelector(".o_dialog:not(.o_error_dialog)")) {
                 isModal = true;
                 browser.console.log(`Modal detected: ${menuDescription}`);
                 state.testedModals++;
                 return true;
-            } else {
-                return startActionCount !== actionCount;
             }
+            return isModal || startActionCount !== actionCount;
         });
         if (isModal) {
             await triggerClick(

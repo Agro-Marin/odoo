@@ -134,7 +134,12 @@ export class ActionManager {
         this.env = env;
         this.router = router;
         this.breadcrumbCache = {};
-        this.keepLast = new KeepLast();
+        // rejectSuperseded: a doAction/switchView/restore superseded by a
+        // newer navigation rejects its awaiter with a SupersededError (swallowed
+        // by the error service) instead of hanging forever. This is what makes
+        // supersession observable — awaiters use plain try/finally rather than
+        // the bespoke escape hatches the never-settling wrapper used to force.
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         /** Monotonic id source — feeds controller_<n>/action_<n> stamps and ACTION_MANAGER:UPDATE event ids. */
         this._id = 0;
         this.controllerStack = [];

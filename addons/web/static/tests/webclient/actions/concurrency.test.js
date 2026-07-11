@@ -802,7 +802,12 @@ test("local state, global state, and race conditions", async () => {
 });
 
 test.tags("desktop");
-test("doing browser back temporarily disables the UI", async () => {
+test("doing browser back navigates to the previous action", async () => {
+    // Previously this froze the page with `body.style.pointerEvents = "none"`
+    // and thawed it via a race, to work around the action manager's KeepLast
+    // never settling when the back-navigation load was superseded. That
+    // workaround is gone: supersession now rejects observably (SupersededError,
+    // swallowed by the error service), so the route change is a plain await.
     let def;
     onRpc("partner", "web_search_read", () => def);
     await mountWithCleanup(WebClient);
@@ -828,13 +833,12 @@ test("doing browser back temporarily disables the UI", async () => {
 
     def = new Deferred();
     browser.history.back();
-    expect(document.body.style.pointerEvents).toBe("none");
-    // await contains(".o_control_panel .breadcrumb-item").click(); todo JUM: click on breadcrumb
+    // The page is no longer frozen while the back-navigation load is in flight.
+    expect(document.body.style.pointerEvents).not.toBe("none");
     def.resolve();
 
     await animationFrame();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Partners Action 4",
     ]);
-    expect(document.body.style.pointerEvents).toBe("auto");
 });

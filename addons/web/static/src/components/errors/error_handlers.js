@@ -16,6 +16,7 @@ import {
     RPCError,
 } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { SupersededError } from "@web/core/utils/concurrency";
 import {
     ThirdPartyScriptError,
     UncaughtClientError,
@@ -49,6 +50,39 @@ errorNotificationRegistry.addValidation({
     buttons: { type: Array, optional: true },
     "*": true,
 });
+
+// -----------------------------------------------------------------------------
+// Superseded tasks (KeepLast rejectSuperseded mode)
+// -----------------------------------------------------------------------------
+
+/**
+ * Swallow {@link SupersededError} silently: it is a control-flow signal (a
+ * doAction/navigation superseded by a newer one), not a real failure. The
+ * action service's KeepLast rejects superseded awaiters with it so their
+ * ``finally`` runs and their ``await`` throws instead of hanging forever;
+ * without this handler the resulting unhandled rejection would raise an error
+ * dialog and log a traceback. Runs first (low sequence) so no later handler
+ * ever sees it.
+ *
+ * @param {OdooEnv} env
+ * @param {UncaughtError} error
+ * @param {Error} originalError
+ * @returns {boolean} true (handled) when the error is a SupersededError
+ */
+export function supersededErrorHandler(env, error, originalError) {
+    if (originalError instanceof SupersededError || error instanceof SupersededError) {
+        // Prevent the browser's default report + the error service's traceback
+        // log (shouldLogError() short-circuits once the event is defaultPrevented).
+        /** @type {any} */ (error).event?.preventDefault?.();
+        return true;
+    }
+    return false;
+}
+errorHandlerRegistry.add(
+    "supersededErrorHandler",
+    /** @type {any} */ (supersededErrorHandler),
+    { sequence: 1 },
+);
 
 // -----------------------------------------------------------------------------
 // RPC errors

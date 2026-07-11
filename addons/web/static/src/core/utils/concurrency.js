@@ -16,19 +16,54 @@ export function delay(wait) {
 }
 
 /**
+ * Error a {@link KeepLast} (in ``rejectSuperseded`` mode) rejects a superseded
+ * task's wrapper with, making supersession a first-class, observable signal
+ * instead of a promise that hangs forever.
+ *
+ * It is a *control-flow* signal, not a real failure: the global error service
+ * swallows it (no dialog, no console — see
+ * ``@web/components/errors/error_handlers``'s ``supersededErrorHandler``), so
+ * an awaiter can simply let it propagate out of a ``try/finally`` and rely on
+ * the cleanup running, without inventing a bespoke sentinel.
+ */
+export class SupersededError extends Error {
+    constructor(message = "This task was superseded by a newer one") {
+        super(message);
+        this.name = "SupersededError";
+    }
+}
+
+/**
  * KeepLast is a concurrency primitive that manages a list of tasks, and only
- * keeps the last task active.  When a new task is added, any previously pending
- * task is silently discarded — its wrapper promise never settles.
+ * keeps the last task active.
+ *
+ * By default, when a new task is added, any previously pending task is silently
+ * discarded — its wrapper promise never settles (back-compatible behavior: most
+ * consumers just want the stale task's continuation to never run). Pass
+ * ``{ rejectSuperseded: true }`` to instead REJECT a superseded task's wrapper
+ * with a {@link SupersededError}, so awaiters observe the supersession (their
+ * ``finally`` runs, their ``await`` throws) rather than hanging forever. This
+ * opt-in mode is used by the action service, whose ``doAction`` awaiters must
+ * be able to release UI blocking / restore state when superseded.
  *
  * @template T
  */
 export class KeepLast {
-    constructor() {
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.rejectSuperseded=false] reject a superseded
+     *   task's wrapper with a {@link SupersededError} instead of leaving it
+     *   pending forever.
+     */
+    constructor({ rejectSuperseded = false } = {}) {
         this._id = 0;
+        this._rejectSuperseded = rejectSuperseded;
     }
     /**
-     * Register a new task.  If a task was already pending it is superseded:
-     * its wrapper promise will never resolve or reject.
+     * Register a new task. If a task was already pending it is superseded:
+     * its wrapper promise will never resolve or reject — unless
+     * ``rejectSuperseded`` was set, in which case it rejects with a
+     * {@link SupersededError}.
      *
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
@@ -41,14 +76,18 @@ export class KeepLast {
                 (value) => {
                     if (this._id === currentId) {
                         resolve(value);
+                    } else if (this._rejectSuperseded) {
+                        reject(new SupersededError());
                     }
-                    // Superseded — silently discard.
+                    // else: superseded — silently discard.
                 },
                 (reason) => {
                     if (this._id === currentId) {
                         reject(reason);
+                    } else if (this._rejectSuperseded) {
+                        reject(new SupersededError());
                     }
-                    // Superseded — silently discard.
+                    // else: superseded — silently discard.
                 },
             );
         });
