@@ -4,11 +4,7 @@ import { expect, test } from "@odoo/hoot";
 import { click, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useRef, useState, xml } from "@odoo/owl";
-import {
-    mountWithCleanup,
-    patchWithCleanup,
-    preloadBundle,
-} from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     EmojiPicker,
     loader,
@@ -16,7 +12,11 @@ import {
 } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 
-preloadBundle("web.assets_emoji");
+// No `preloadBundle("web.assets_emoji")`: that path fetches the real ~530 KB
+// bundle over the network (it runs under `withFetch(globalCachedFetch)`, which
+// bypasses the mock server). The mock server now serves a lightweight emoji
+// stub for `web.assets_emoji`, so the picker's own `onWillStart` load is
+// instant and needs no preload.
 
 test("frequent emojis with unknown codepoints do not crash the picker", async () => {
     // Simulate a stale localStorage entry with codepoints no longer in the current bundle.
@@ -68,6 +68,11 @@ test("mobile picker dialog is torn down with its owner", async () => {
     await waitFor(".modal .o-EmojiPicker");
 
     parent.state.show = false;
+    // Two frames: the emoji data now loads asynchronously (mock stub, no
+    // synchronous preload), so the picker's teardown settles one render cycle
+    // after the owner's — the first frame unmounts the owner, the second
+    // flushes the dialog removal.
+    await animationFrame();
     await animationFrame();
     expect(".modal").toHaveCount(0);
     expect(".o-EmojiPicker").toHaveCount(0);
