@@ -44,9 +44,7 @@ class ProjectPhase(models.Model):
 
     def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
         """Open the delete/archive confirmation wizard for these phases."""
-        wizard = self.env["project.phase.delete.wizard"].create(
-            {"phase_ids": self.ids}
-        )
+        wizard = self.env["project.phase.delete.wizard"].create({"phase_ids": self.ids})
         context = dict(self.env.context, stage_view=stage_view)
         return {
             "name": _("Delete Phase"),
@@ -94,7 +92,7 @@ class ProjectPhase(models.Model):
                     )
                 )
         if "active" in vals and not vals["active"]:
-            self.env["project.project"].search(
-                [("phase_id", "in", self.ids)]
-            ).write({"active": False})
+            self.env["project.project"].search([("phase_id", "in", self.ids)]).write(
+                {"active": False}
+            )
         return super().write(vals)

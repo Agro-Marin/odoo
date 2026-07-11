@@ -104,8 +104,9 @@ class ProjectForecastWizard(models.TransientModel):
 
     def _get_weekly_throughput(self) -> list[int]:
         """Fetch tasks-closed-per-week for the last N weeks."""
-        self.env.cr.execute(SQL(
-            """
+        self.env.cr.execute(
+            SQL(
+                """
             SELECT
                 DATE_TRUNC('week', date_end) AS week,
                 COUNT(*) AS closed_count
@@ -118,9 +119,10 @@ class ProjectForecastWizard(models.TransientModel):
             GROUP BY DATE_TRUNC('week', date_end)
             ORDER BY week
             """,
-            project_id=self.project_id.id,
-            weeks=f"{self.weeks_of_history} weeks",
-        ))
+                project_id=self.project_id.id,
+                weeks=f"{self.weeks_of_history} weeks",
+            )
+        )
         return [row[1] for row in self.env.cr.fetchall()]
 
     def _reopen_wizard(self) -> dict:

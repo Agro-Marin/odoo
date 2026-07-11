@@ -17,9 +17,7 @@ class ProjectResourceReport(models.Model):
     _order = "allocated_hours desc"
 
     user_id = fields.Many2one("res.users", string="User", readonly=True)
-    project_id = fields.Many2one(
-        "project.project", string="Project", readonly=True
-    )
+    project_id = fields.Many2one("project.project", string="Project", readonly=True)
     allocated_hours = fields.Float(
         "Allocated Hours",
         readonly=True,

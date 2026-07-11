@@ -9,10 +9,13 @@ Idempotent: safe to re-run on partially migrated databases.
 
 
 def _column_exists(cr, table, column):
-    cr.execute("""
+    cr.execute(
+        """
         SELECT 1 FROM information_schema.columns
         WHERE table_name = %s AND column_name = %s
-    """, [table, column])
+    """,
+        [table, column],
+    )
     return bool(cr.fetchone())
 
 
@@ -38,7 +41,9 @@ def migrate(cr, version):
             """)
             cr.execute("ALTER TABLE project_task DROP COLUMN date_deadline CASCADE")
         else:
-            cr.execute("ALTER TABLE project_task RENAME COLUMN date_deadline TO date_end")
+            cr.execute(
+                "ALTER TABLE project_task RENAME COLUMN date_deadline TO date_end"
+            )
 
     # Step 3: Clean up ir_model_fields (delete stale, ORM recreates fresh)
     cr.execute("""

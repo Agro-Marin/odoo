@@ -25,30 +25,36 @@ class TestGetTemplateTasksEnvelopeVersion(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.project = cls.env["project.project"].create({
-            "name": "Plan-C Template Project",
-        })
-        cls.template_task = cls.env["project.task"].create({
-            "name": "Plan-C Template Task A",
-            "project_id": cls.project.id,
-            "is_template": True,
-        })
+        cls.project = cls.env["project.project"].create(
+            {
+                "name": "Plan-C Template Project",
+            }
+        )
+        cls.template_task = cls.env["project.task"].create(
+            {
+                "name": "Plan-C Template Task A",
+                "project_id": cls.project.id,
+                "is_template": True,
+            }
+        )
 
     def _call(self):
         """POST a real call_kw to /web/dataset/call_kw/project.project/get_template_tasks."""
         self.authenticate("admin", "admin")
         response = self.url_open(
             "/web/dataset/call_kw/project.project/get_template_tasks",
-            data=json.dumps({
-                "jsonrpc": "2.0",
-                "method": "call",
-                "params": {
-                    "model": "project.project",
-                    "method": "get_template_tasks",
-                    "args": [self.project.id],
-                    "kwargs": {},
-                },
-            }),
+            data=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "params": {
+                        "model": "project.project",
+                        "method": "get_template_tasks",
+                        "args": [self.project.id],
+                        "kwargs": {},
+                    },
+                }
+            ),
             headers={"Content-Type": "application/json"},
         )
         self.assertEqual(response.status_code, 200)

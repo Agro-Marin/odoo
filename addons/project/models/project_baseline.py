@@ -62,9 +62,7 @@ class ProjectBaseline(models.Model):
     def action_set_current(self) -> None:
         """Mark this baseline as the current one, unsetting any previous."""
         self.ensure_one()
-        self.project_id.baseline_ids.filtered("is_current").write(
-            {"is_current": False}
-        )
+        self.project_id.baseline_ids.filtered("is_current").write({"is_current": False})
         self.is_current = True
 
     def action_capture_snapshot(self) -> None:
@@ -77,10 +75,12 @@ class ProjectBaseline(models.Model):
                     "Create a new baseline instead."
                 )
             )
-        tasks = self.env["project.task"].search([
-            ("project_id", "=", self.project_id.id),
-            ("is_template", "=", False),
-        ])
+        tasks = self.env["project.task"].search(
+            [
+                ("project_id", "=", self.project_id.id),
+                ("is_template", "=", False),
+            ]
+        )
         lines = [
             {
                 "baseline_id": self.id,

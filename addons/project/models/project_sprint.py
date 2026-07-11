@@ -101,8 +101,10 @@ class ProjectSprint(models.Model):
     )
 
     @api.depends(
-        "task_ids", "task_ids.state",
-        "task_ids.planned_hours", "task_ids.story_points",
+        "task_ids",
+        "task_ids.state",
+        "task_ids.planned_hours",
+        "task_ids.story_points",
     )
     def _compute_task_metrics(self) -> None:
         """Compute sprint metrics from task data."""
@@ -111,9 +113,7 @@ class ProjectSprint(models.Model):
             closed = tasks.filtered(lambda t: t.state in CLOSED_STATES)
             sprint.task_count = len(tasks)
             sprint.completed_count = len(closed)
-            sprint.completion_pct = (
-                len(closed) / len(tasks) * 100 if tasks else 0.0
-            )
+            sprint.completion_pct = len(closed) / len(tasks) * 100 if tasks else 0.0
             sprint.committed_hours = sum(tasks.mapped("planned_hours"))
             sprint.velocity = sum(closed.mapped("planned_hours"))
             # Story points — only if tasks have the field populated
@@ -123,24 +123,27 @@ class ProjectSprint(models.Model):
     def action_start(self) -> None:
         """Activate this sprint, ensuring only one is active per project."""
         self.ensure_one()
-        active_sprints = self.search([
-            ("project_id", "=", self.project_id.id),
-            ("state", "=", "active"),
-            ("id", "!=", self.id),
-        ])
+        active_sprints = self.search(
+            [
+                ("project_id", "=", self.project_id.id),
+                ("state", "=", "active"),
+                ("id", "!=", self.id),
+            ]
+        )
         if active_sprints:
             raise ValidationError(
-                _("Project '%(project)s' already has an active sprint: %(sprint)s",
-                  project=self.project_id.name, sprint=active_sprints[0].name)
+                _(
+                    "Project '%(project)s' already has an active sprint: %(sprint)s",
+                    project=self.project_id.name,
+                    sprint=active_sprints[0].name,
+                )
             )
         self.state = "active"
 
     def action_close(self) -> None:
         """Close this sprint and clear sprint_id on incomplete tasks."""
         self.ensure_one()
-        incomplete = self.task_ids.filtered(
-            lambda t: t.state not in CLOSED_STATES
-        )
+        incomplete = self.task_ids.filtered(lambda t: t.state not in CLOSED_STATES)
         if incomplete:
             incomplete.write({"sprint_id": False})
         self.state = "closed"
@@ -158,13 +161,15 @@ class ProjectSprint(models.Model):
             # Set sprint_id on tasks currently in this sprint
             tasks_in_sprint = sprint.task_ids
             sprint_rec = sprint  # bind for lambda
-            tasks_in_sprint.filtered(
-                lambda t, s=sprint_rec: t.sprint_id != s
-            ).write({"sprint_id": sprint.id})
+            tasks_in_sprint.filtered(lambda t, s=sprint_rec: t.sprint_id != s).write(
+                {"sprint_id": sprint.id}
+            )
             # Clear sprint_id on tasks removed from this sprint
-            orphaned = self.env["project.task"].search([
-                ("sprint_id", "=", sprint.id),
-                ("id", "not in", tasks_in_sprint.ids),
-            ])
+            orphaned = self.env["project.task"].search(
+                [
+                    ("sprint_id", "=", sprint.id),
+                    ("id", "not in", tasks_in_sprint.ids),
+                ]
+            )
             if orphaned:
                 orphaned.write({"sprint_id": False})

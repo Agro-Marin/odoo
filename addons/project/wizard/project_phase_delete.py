@@ -55,9 +55,7 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
         inactive_projects = (
             self.env["project.project"]
             .with_context(active_test=False)
-            .search(
-                [("active", "=", False), ("phase_id", "in", self.phase_ids.ids)]
-            )
+            .search([("active", "=", False), ("phase_id", "in", self.phase_ids.ids)])
         )
         inactive_projects.action_unarchive()
 

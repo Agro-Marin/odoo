@@ -21,9 +21,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
     date = fields.Datetime("Date", readonly=True)
     date_assign = fields.Datetime(string="Assignment Date", readonly=True)
     date_end = fields.Date(string="Deadline", readonly=True)
-    date_last_status_change = fields.Date(
-        string="Last Status Change", readonly=True
-    )
+    date_last_status_change = fields.Date(string="Last Status Change", readonly=True)
     state = fields.Selection(
         [
             ("in_progress", "In Progress"),
@@ -42,13 +40,9 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         readonly=True,
     )
     milestone_id = fields.Many2one("project.milestone", readonly=True)
-    partner_id = fields.Many2one(
-        "res.partner", string="Customer", readonly=True
-    )
+    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
     project_id = fields.Many2one("project.project", readonly=True)
-    step_id = fields.Many2one(
-        "project.workflow.step", readonly=True
-    )
+    step_id = fields.Many2one("project.workflow.step", readonly=True)
     tag_ids = fields.Many2many(
         "project.tags",
         relation="project_tags_project_task_rel",
@@ -91,9 +85,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         order: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        burndown_specific_domain, task_specific_domain = (
-            self._determine_domains(domain)
-        )
+        burndown_specific_domain, task_specific_domain = self._determine_domains(domain)
         main_query = super()._search(
             burndown_specific_domain,
             offset=offset,
@@ -112,9 +104,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         field_id = (
             self.sudo()
             .env["ir.model.fields"]
-            .search(
-                [("name", "=", "step_id"), ("model", "=", "project.task")]
-            )
+            .search([("name", "=", "step_id"), ("model", "=", "project.task")])
             .id
         )
 
@@ -125,9 +115,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         date_groupby = next(g for g in groupby if g.startswith("date"))
 
         interval = date_groupby.split(":")[1]
-        sql_interval = (
-            "1 %s" % interval if interval != "quarter" else "3 month"
-        )
+        sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 
         simple_date_groupby_sql = self._read_group_groupby(
             "project_task_burndown_chart_report",
@@ -239,19 +227,13 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
             )
             """,
             task_query_subselect=project_task_query.subselect(),
-            date_begin=SQL(
-                simple_date_groupby_sql.replace('"date"', '"date_begin"')
-            ),
-            date_end=SQL(
-                simple_date_groupby_sql.replace('"date"', '"date_end"')
-            ),
+            date_begin=SQL(simple_date_groupby_sql.replace('"date"', '"date_begin"')),
+            date_end=SQL(simple_date_groupby_sql.replace('"date"', '"date_end"')),
             interval=SQL(sql_interval),
             field_id=field_id,
         )
 
-        main_query._tables["project_task_burndown_chart_report"] = (
-            burndown_chart_sql
-        )
+        main_query._tables["project_task_burndown_chart_report"] = burndown_chart_sql
 
         return main_query
 
@@ -297,9 +279,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
 
     def _read_group_select(self, aggregate_spec: str, query: Any) -> SQL:
         if aggregate_spec == "__count":
-            return SQL(
-                "SUM(%s)", SQL.identifier(self._table, "__count")
-            )
+            return SQL("SUM(%s)", SQL.identifier(self._table, "__count"))
         return super()._read_group_select(aggregate_spec, query)
 
     def _read_group(
@@ -313,9 +293,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         order: str | None = None,
     ) -> list:
         self._validate_group_by(groupby)
-        self = self.with_context(
-            project_task_burndown_chart_report_groupby=groupby
-        )
+        self = self.with_context(project_task_burndown_chart_report_groupby=groupby)
 
         return super()._read_group(
             domain=domain,

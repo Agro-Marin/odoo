@@ -36,7 +36,7 @@ class TestProjectUpdate(TestProjectCommon):
             raise AssertionError(
                 "Error raised unexpectedly while filling the project update form ! Exception : "
                 + e.args[0]
-            )
+            ) from e
 
         self.assertEqual(
             update.user_id,

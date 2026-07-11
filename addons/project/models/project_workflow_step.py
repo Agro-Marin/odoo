@@ -179,9 +179,7 @@ class ProjectWorkflowStep(models.Model):
             "res_model": "project.workflow.step.delete.wizard",
             "views": [
                 (
-                    self.env.ref(
-                        "project.view_project_workflow_step_delete_wizard"
-                    ).id,
+                    self.env.ref("project.view_project_workflow_step_delete_wizard").id,
                     "form",
                 )
             ],

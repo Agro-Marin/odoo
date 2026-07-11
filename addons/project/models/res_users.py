@@ -38,9 +38,7 @@ class ResUsers(models.Model):
                 create_vals.extend(vals)
 
             if create_vals:
-                TriageSudo.with_context(default_project_id=False).create(
-                    create_vals
-                )
+                TriageSudo.with_context(default_project_id=False).create(create_vals)
 
             return internal_users
         return None

@@ -109,7 +109,5 @@ def migrate(cr, version):
     tasks._compute_scheduled_hours()
     tasks._compute_planned_hours()
     tasks._compute_allocation_state()
-    tasks.flush_recordset(
-        ["scheduled_hours", "planned_hours", "allocation_state"]
-    )
+    tasks.flush_recordset(["scheduled_hours", "planned_hours", "allocation_state"])
     _logger.info("project 1.7: PMI recompute complete.")

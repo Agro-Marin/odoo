@@ -1961,7 +1961,9 @@ class ProjectProject(models.Model):
         group = self.env.ref(group_name)
         base_group_user = self.env.ref("base.group_user")
         has_project_field_set = bool(
-            self.env["project.project"].sudo().search_count([(field_name, "=", True)], limit=1)
+            self.env["project.project"]
+            .sudo()
+            .search_count([(field_name, "=", True)], limit=1)
         )
         res = None
 
@@ -2688,7 +2690,11 @@ class ProjectProject(models.Model):
         if request_list and "followers" in request_list:
             store.add(
                 self,
-                {"collaborator_ids": Store.Many(self.sudo().collaborator_ids.partner_id, [])},
+                {
+                    "collaborator_ids": Store.Many(
+                        self.sudo().collaborator_ids.partner_id, []
+                    )
+                },
                 as_thread=True,
             )
 
@@ -2783,7 +2789,9 @@ class ProjectProject(models.Model):
                     "tag": "display_notification",
                     "params": {
                         "type": "success",
-                        "message": self.env._("Template converted back to regular project."),
+                        "message": self.env._(
+                            "Template converted back to regular project."
+                        ),
                     },
                 },
             }

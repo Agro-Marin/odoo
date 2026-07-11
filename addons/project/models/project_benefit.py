@@ -82,32 +82,45 @@ class ProjectBenefit(models.Model):
         owner is set, then schedules a mail.activity reminder.
         """
         today = fields.Date.context_today(self)
-        benefits = self.search([
-            ("review_date", "<=", today),
-            ("state", "in", ("expected", "tracking")),
-            ("accountable_id", "!=", False),
-        ])
+        benefits = self.search(
+            [
+                ("review_date", "<=", today),
+                ("state", "in", ("expected", "tracking")),
+                ("accountable_id", "!=", False),
+            ]
+        )
         if not benefits:
             return
 
-        activity_type = self.env.ref("mail.mail_activity_data_todo", raise_if_not_found=False)
+        activity_type = self.env.ref(
+            "mail.mail_activity_data_todo", raise_if_not_found=False
+        )
         for benefit in benefits:
-            existing = self.env["mail.activity"].search([
-                ("res_model", "=", self._name),
-                ("res_id", "=", benefit.id),
-                ("activity_type_id", "=", activity_type.id if activity_type else False),
-                ("user_id", "=", benefit.accountable_id.id),
-            ], limit=1)
+            existing = self.env["mail.activity"].search(
+                [
+                    ("res_model", "=", self._name),
+                    ("res_id", "=", benefit.id),
+                    (
+                        "activity_type_id",
+                        "=",
+                        activity_type.id if activity_type else False,
+                    ),
+                    ("user_id", "=", benefit.accountable_id.id),
+                ],
+                limit=1,
+            )
             if existing:
                 continue
-            self.env["mail.activity"].create({
-                "res_model_id": self.env["ir.model"]._get_id(self._name),
-                "res_id": benefit.id,
-                "activity_type_id": activity_type.id if activity_type else False,
-                "user_id": benefit.accountable_id.id,
-                "date_end": benefit.review_date,
-                "summary": f"Benefit review: {benefit.name}",
-            })
+            self.env["mail.activity"].create(
+                {
+                    "res_model_id": self.env["ir.model"]._get_id(self._name),
+                    "res_id": benefit.id,
+                    "activity_type_id": activity_type.id if activity_type else False,
+                    "user_id": benefit.accountable_id.id,
+                    "date_end": benefit.review_date,
+                    "summary": f"Benefit review: {benefit.name}",
+                }
+            )
         _logger.info("Benefit review cron: scheduled %d activities", len(benefits))
 
     @api.depends("target_value", "actual_value")

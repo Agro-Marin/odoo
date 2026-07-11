@@ -82,10 +82,12 @@ class ProjectRetrospective(models.Model):
             lambda a: a.state in ("open", "in_progress")
         )
         for action in open_actions:
-            action.copy({
-                "retrospective_id": self.id,
-                "carried_from_id": action.id,
-            })
+            action.copy(
+                {
+                    "retrospective_id": self.id,
+                    "carried_from_id": action.id,
+                }
+            )
 
 
 class ProjectRetrospectiveAction(models.Model):

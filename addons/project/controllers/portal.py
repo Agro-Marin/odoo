@@ -1039,7 +1039,7 @@ class ProjectCustomerPortal(CustomerPortal):
                 _(
                     "The document does not exist or you do not have the rights to access it."
                 )
-            )
+            ) from None
 
         IrAttachment = request.env["ir.attachment"]
 

@@ -25,9 +25,7 @@ class ProjectCFDReport(models.AbstractModel):
     date = fields.Datetime("Date", readonly=True)
     date_assign = fields.Datetime(string="Assignment Date", readonly=True)
     date_end = fields.Date(string="Deadline", readonly=True)
-    date_last_status_change = fields.Date(
-        string="Last Status Change", readonly=True
-    )
+    date_last_status_change = fields.Date(string="Last Status Change", readonly=True)
     state = fields.Selection(
         [
             ("in_progress", "In Progress"),
@@ -41,9 +39,7 @@ class ProjectCFDReport(models.AbstractModel):
         readonly=True,
     )
     milestone_id = fields.Many2one("project.milestone", readonly=True)
-    partner_id = fields.Many2one(
-        "res.partner", string="Customer", readonly=True
-    )
+    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
     project_id = fields.Many2one("project.project", readonly=True)
     step_id = fields.Many2one("project.workflow.step", readonly=True)
     task_count = fields.Integer("Task Count", readonly=True)
@@ -95,9 +91,7 @@ class ProjectCFDReport(models.AbstractModel):
         into task-specific and report-specific parts, build a CTE from
         mail_tracking_value history, and inject it into the ORM query.
         """
-        cfd_specific_domain, task_specific_domain = self._determine_domains(
-            domain
-        )
+        cfd_specific_domain, task_specific_domain = self._determine_domains(domain)
         main_query = super()._search(
             cfd_specific_domain,
             offset=offset,
@@ -114,9 +108,7 @@ class ProjectCFDReport(models.AbstractModel):
         field_id = (
             self.sudo()
             .env["ir.model.fields"]
-            .search(
-                [("name", "=", "step_id"), ("model", "=", "project.task")]
-            )
+            .search([("name", "=", "step_id"), ("model", "=", "project.task")])
             .id
         )
 
@@ -127,9 +119,7 @@ class ProjectCFDReport(models.AbstractModel):
         date_groupby = next(g for g in groupby if g.startswith("date"))
 
         interval = date_groupby.split(":")[1]
-        sql_interval = (
-            "1 %s" % interval if interval != "quarter" else "3 month"
-        )
+        sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 
         simple_date_groupby_sql = self._read_group_groupby(
             "project_cfd_report",
@@ -220,12 +210,8 @@ class ProjectCFDReport(models.AbstractModel):
             )
             """,
             task_query_subselect=project_task_query.subselect(),
-            date_begin=SQL(
-                simple_date_groupby_sql.replace('"date"', '"date_begin"')
-            ),
-            date_end=SQL(
-                simple_date_groupby_sql.replace('"date"', '"date_end"')
-            ),
+            date_begin=SQL(simple_date_groupby_sql.replace('"date"', '"date_begin"')),
+            date_end=SQL(simple_date_groupby_sql.replace('"date"', '"date_end"')),
             interval=SQL(sql_interval),
             field_id=field_id,
         )
@@ -263,9 +249,7 @@ class ProjectCFDReport(models.AbstractModel):
         :param domain: The domain passed to read_group.
         :return: Tuple of (cfd_domain, task_domain).
         """
-        cfd_specific_fields = list(
-            set(self._fields) - set(self.task_specific_fields)
-        )
+        cfd_specific_fields = list(set(self._fields) - set(self.task_specific_fields))
         task_specific_domain = filter_domain_leaf(
             domain, lambda field: field not in cfd_specific_fields
         )
@@ -277,13 +261,9 @@ class ProjectCFDReport(models.AbstractModel):
     def _read_group_select(self, aggregate_spec: str, query: Any) -> SQL:
         """Use SUM for task_count since it's pre-aggregated in the CTE."""
         if aggregate_spec == "task_count:sum":
-            return SQL(
-                "SUM(%s)", SQL.identifier(self._table, "task_count")
-            )
+            return SQL("SUM(%s)", SQL.identifier(self._table, "task_count"))
         if aggregate_spec == "__count":
-            return SQL(
-                "SUM(%s)", SQL.identifier(self._table, "task_count")
-            )
+            return SQL("SUM(%s)", SQL.identifier(self._table, "task_count"))
         return super()._read_group_select(aggregate_spec, query)
 
     def _read_group(
