@@ -187,7 +187,7 @@ class StockMove(models.Model):
                 continue
             # mapped('id') to keep NewId
             line_ids = self.bom_line_id.filtered(
-                lambda line: line.bom_id == bom
+                lambda line, bom=bom: line.bom_id == bom
             ).mapped("id")
             total = len(line_ids)
             for i, line_id in enumerate(line_ids):
@@ -685,28 +685,38 @@ class StockMove(models.Model):
     def _log_cancel_activity(self):
         super()._log_cancel_activity()
         if not self:
-            return
+            return None
 
         def _render_note_exception_cancel_dest(moves):
             values = {
                 "origin_moves": moves,
                 "origin_picking": moves.picking_id[0],
-                "moves_information": ((move, (0.0, move.product_qty)) for move in moves),
+                "moves_information": (
+                    (move, (0.0, move.product_qty)) for move in moves
+                ),
             }
             return self.env["ir.qweb"]._render("stock.exception_on_picking", values)
 
         cancelled_ids = set(self.ids)
-        impacted_origins = self.move_orig_ids.filtered(lambda m: m.state not in ("done", "cancel"))
+        impacted_origins = self.move_orig_ids.filtered(
+            lambda m: m.state not in ("done", "cancel")
+        )
         documents = {}
         for move in impacted_origins:
             production = move.production_id
             if not production:
                 continue
-            cancelled_dests = move.move_dest_ids.filtered(lambda m: m.id in cancelled_ids)
+            cancelled_dests = move.move_dest_ids.filtered(
+                lambda m: m.id in cancelled_ids
+            )
             if not cancelled_dests.picking_id:
                 continue
-            documents[move.production_id, move.production_id.user_id or self.env.user] = cancelled_dests
-        return self.env["stock.picking"]._log_activity(_render_note_exception_cancel_dest, documents)
+            documents[
+                move.production_id, move.production_id.user_id or self.env.user
+            ] = cancelled_dests
+        return self.env["stock.picking"]._log_activity(
+            _render_note_exception_cancel_dest, documents
+        )
 
     def _prepare_move_split_vals(self, qty, force_uom_id=False):
         defaults = super()._prepare_move_split_vals(qty, force_uom_id=force_uom_id)
@@ -738,9 +748,9 @@ class StockMove(models.Model):
         self.ensure_one()
         phantom_moves_vals_list = []
         for bom_line, line_data in exploded_lines_data:
-            if self.product_uom_id.is_zero(self.product_uom_qty) or self.env.context.get(
-                "is_scrap"
-            ):
+            if self.product_uom_id.is_zero(
+                self.product_uom_qty
+            ) or self.env.context.get("is_scrap"):
                 vals = self._generate_move_phantom(bom_line, 0, line_data["qty"])
             else:
                 vals = self._generate_move_phantom(bom_line, line_data["qty"], 0)
@@ -783,7 +793,13 @@ class StockMove(models.Model):
 
     def _get_upstream_documents_and_responsibles(self, visited):
         if self.production_id and self.production_id.state not in ("done", "cancel"):
-            return [(self.production_id, self.production_id.user_id or self.env.user, visited)]
+            return [
+                (
+                    self.production_id,
+                    self.production_id.user_id or self.env.user,
+                    visited,
+                )
+            ]
         else:
             return super()._get_upstream_documents_and_responsibles(visited)
 
@@ -844,7 +860,7 @@ class StockMove(models.Model):
         """
         qty_ratios = []
         kit_qty = kit_qty / kit_bom.product_qty
-        boms, bom_sub_lines = kit_bom.explode(product_id, kit_qty)
+        _boms, bom_sub_lines = kit_bom.explode(product_id, kit_qty)
 
         def get_qty(move):
             if move.picked:
@@ -862,7 +878,9 @@ class StockMove(models.Model):
                 # As BoMs allow components with 0 qty, a.k.a. optionnal components, we simply skip those
                 # to avoid a division by zero.
                 continue
-            bom_line_moves = self.filtered(lambda m: m.bom_line_id == bom_line)
+            bom_line_moves = self.filtered(
+                lambda m, bom_line=bom_line: m.bom_line_id == bom_line
+            )
             if bom_line_moves:
                 # We compute the quantities needed of each components to make one kit.
                 # Then, we collect every relevant moves related to a specific component
@@ -955,11 +973,16 @@ class StockMove(models.Model):
             res == "partially_available"
             and self.raw_material_production_id
             and all(
-                (move.should_consume_qty
-                and move.product_uom_id.compare(move.quantity, move.should_consume_qty)
-                >= 0)
+                (
+                    move.should_consume_qty
+                    and move.product_uom_id.compare(
+                        move.quantity, move.should_consume_qty
+                    )
+                    >= 0
+                )
                 or (
-                    move.product_uom_id.compare(move.quantity, move.product_uom_qty) >= 0
+                    move.product_uom_id.compare(move.quantity, move.product_uom_qty)
+                    >= 0
                     or (move.manual_consumption and move.picked)
                 )
                 for move in self

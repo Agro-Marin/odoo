@@ -99,11 +99,12 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("effective_route_id")
     def _compute_show_bom(self):
-        manufacture_route = []
-        for res in self.env["stock.rule"].search_read(
-            [("action", "=", "manufacture")], ["route_id"]
-        ):
-            manufacture_route.append(res["route_id"][0])
+        manufacture_route = [
+            res["route_id"][0]
+            for res in self.env["stock.rule"].search_read(
+                [("action", "=", "manufacture")], ["route_id"]
+            )
+        ]
         for orderpoint in self:
             orderpoint.show_bom = orderpoint.effective_route_id.id in manufacture_route
 
@@ -210,10 +211,8 @@ class StockWarehouseOrderpoint(models.Model):
         res = super(
             StockWarehouseOrderpoint, orderpoints_without_kit
         )._quantity_in_progress()
-        for orderpoint in bom_kit_orderpoints:
-            dummy, bom_sub_lines = bom_kit_orderpoints[orderpoint].explode(
-                orderpoint.product_id, 1
-            )
+        for orderpoint, bom_kit in bom_kit_orderpoints.items():
+            _dummy, bom_sub_lines = bom_kit.explode(orderpoint.product_id, 1)
             ratios_qty_available = []
             # total = qty_available + in_progress
             ratios_total = []
@@ -229,7 +228,7 @@ class StockWarehouseOrderpoint(models.Model):
                 )
                 if not qty_per_kit:
                     continue
-                qty_by_product_location, dummy = component._get_quantity_in_progress(
+                qty_by_product_location, _dummy = component._get_quantity_in_progress(
                     orderpoint.location_id.ids
                 )
                 qty_in_progress = qty_by_product_location.get(

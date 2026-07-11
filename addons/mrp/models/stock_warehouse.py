@@ -330,9 +330,7 @@ class StockWarehouse(models.Model):
                     "company_id": self.company_id.id,
                 },
                 "sam_type_id": {
-                    "name": _(
-                        "%(name)s Sequence stock after manufacturing", name=name
-                    ),
+                    "name": _("%(name)s Sequence stock after manufacturing", name=name),
                     "prefix": code
                     + "/"
                     + (self.sam_type_id.sequence_code or "SFP")
@@ -411,12 +409,14 @@ class StockWarehouse(models.Model):
                 "manu_type_id": {
                     "active": self.manufacture_to_resupply and self.active,
                     "barcode": self.code.replace(" ", "").upper() + "MANUF",
-                    "default_location_src_id": (self.manufacture_steps
-                    in ("pbm", "pbm_sam")
-                    and self.pbm_loc_id.id)
+                    "default_location_src_id": (
+                        self.manufacture_steps in ("pbm", "pbm_sam")
+                        and self.pbm_loc_id.id
+                    )
                     or self.lot_stock_id.id,
-                    "default_location_dest_id": (self.manufacture_steps == "pbm_sam"
-                    and self.sam_loc_id.id)
+                    "default_location_dest_id": (
+                        self.manufacture_steps == "pbm_sam" and self.sam_loc_id.id
+                    )
                     or self.lot_stock_id.id,
                 },
             }
@@ -505,14 +505,14 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _get_orderpoint_products(self):
         non_kit_ids = []
-        for batch_ids in batched(super()._get_orderpoint_products().ids, 2000):
+        for batch_ids in batched(
+            super()._get_orderpoint_products().ids, 2000, strict=False
+        ):
             products = self.env["product.product"].browse(batch_ids)
-            kit_ids = set(
+            kit_ids = {
                 k.id
-                for k in self.env["mrp.bom"]
-                ._bom_find(products, bom_type="phantom")
-                .keys()
-            )
+                for k in self.env["mrp.bom"]._bom_find(products, bom_type="phantom")
+            }
             non_kit_ids.extend(id_ for id_ in products.ids if id_ not in kit_ids)
             products.invalidate_recordset()
         return self.env["product.product"].browse(non_kit_ids)

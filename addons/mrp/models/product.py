@@ -62,7 +62,7 @@ class ProductTemplate(models.Model):
         bom_mapping = (
             self.env["mrp.bom"].sudo().search_read(domain, ["product_tmpl_id"])
         )
-        kits_ids = set(b["product_tmpl_id"][0] for b in bom_mapping)
+        kits_ids = {b["product_tmpl_id"][0] for b in bom_mapping}
         for template in self:
             template.is_kits = template.id in kits_ids
 
@@ -123,11 +123,15 @@ class ProductTemplate(models.Model):
         action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_production_action")
         action["domain"] = [
             ("state", "=", "done"),
-            ("move_finished_ids", "any", [
-                ("product_tmpl_id", "in", self.ids),
-                ("state", "!=", "cancel"),
-                ("picked", "=", True),
-            ]),
+            (
+                "move_finished_ids",
+                "any",
+                [
+                    ("product_tmpl_id", "in", self.ids),
+                    ("state", "!=", "cancel"),
+                    ("picked", "=", True),
+                ],
+            ),
         ]
         action["context"] = {
             "search_default_filter_plan_date": 1,
@@ -233,8 +237,8 @@ class ProductProduct(models.Model):
             .sudo()
             .search_read(domain, ["product_tmpl_id", "product_id"])
         )
-        kits_template_ids = set([])
-        kits_product_ids = set([])
+        kits_template_ids = set()
+        kits_product_ids = set()
         for bom_data in bom_mapping:
             if bom_data["product_id"]:
                 kits_product_ids.add(bom_data["product_id"][0])
@@ -347,7 +351,7 @@ class ProductProduct(models.Model):
         self.ensure_one()
         bom_kit = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")[self]
         if bom_kit:
-            boms, bom_sub_lines = bom_kit.explode(self, 1)
+            _boms, bom_sub_lines = bom_kit.explode(self, 1)
             return [
                 bom_line.product_id.id
                 for bom_line, data in bom_sub_lines
@@ -403,7 +407,7 @@ class ProductProduct(models.Model):
         with 'phantom' as BoM type.
         """
         bom_kits = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")
-        kits = self.filtered(lambda p: bom_kits.get(p))
+        kits = self.filtered(bom_kits.get)
         regular_products = self - kits
         res = (
             super(ProductProduct, regular_products)._prepare_quantities_vals(
@@ -546,10 +550,9 @@ class ProductProduct(models.Model):
         # bom specific to this variant or global to template or that contains the product as a byproduct
         action["context"] = {
             "default_product_tmpl_id": template_ids[0],
-            "default_product_id": (self.env.user.has_group(
-                "product.group_product_variant"
+            "default_product_id": (
+                self.env.user.has_group("product.group_product_variant") and self.ids[0]
             )
-            and self.ids[0])
             or False,
         }
         action["domain"] = [
@@ -567,11 +570,15 @@ class ProductProduct(models.Model):
         action = self.product_tmpl_id.action_view_mos()
         action["domain"] = [
             ("state", "=", "done"),
-            ("move_finished_ids", "any", [
-                ("product_id", "in", self.ids),
-                ("state", "!=", "cancel"),
-                ("picked", "=", True),
-            ]),
+            (
+                "move_finished_ids",
+                "any",
+                [
+                    ("product_id", "in", self.ids),
+                    ("state", "!=", "cancel"),
+                    ("picked", "=", True),
+                ],
+            ),
         ]
         return action
 
@@ -579,7 +586,7 @@ class ProductProduct(models.Model):
         bom_kits = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")
         components = self - self.env["product.product"].concat(*list(bom_kits.keys()))
         for product in bom_kits:
-            boms, bom_sub_lines = bom_kits[product].explode(product, 1)
+            _boms, bom_sub_lines = bom_kits[product].explode(product, 1)
             components |= self.env["product.product"].concat(
                 *[l[0].product_id for l in bom_sub_lines]
             )
@@ -630,7 +637,9 @@ class ProductProduct(models.Model):
     def _get_quantity_search_candidates(self):
         # Kits can have a non-zero quantity without any quants/moves of their own (it comes
         # from their components), so they must be added to the candidate set.
-        return super()._get_quantity_search_candidates() | self._get_phantom_bom_products()
+        return (
+            super()._get_quantity_search_candidates() | self._get_phantom_bom_products()
+        )
 
     def _search_qty_available_new(
         self, operator, value, lot_id=False, owner_id=False, package_id=False

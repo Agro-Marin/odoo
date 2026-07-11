@@ -181,7 +181,7 @@ class TestConsumeComponentCommon(common.TransactionCase):
             quantities = [1 for i in range(len(products))]
 
         vals = []
-        for product, seq in zip(products, range(len(products))):
+        for product, seq in zip(products, range(len(products)), strict=False):
             vals.append(
                 {
                     "product_id": product.id,
@@ -196,11 +196,8 @@ class TestConsumeComponentCommon(common.TransactionCase):
 
     @classmethod
     def create_mo(cls, template, count):
-        vals = []
-        for _ in range(count):
-            vals.append(copy.deepcopy(template))
-        mos = cls.env["mrp.production"].create(vals)
-        return mos
+        vals = [copy.deepcopy(template) for _ in range(count)]
+        return cls.env["mrp.production"].create(vals)
 
     def executeConsumptionTriggers(self, mrp_productions):
         """There's 3 different triggers to test : _onchange_producing(), action_generate_serial(), button_mark_done().
@@ -222,9 +219,6 @@ class TestConsumeComponentCommon(common.TransactionCase):
         isSerial = tracking == "serial"
         isAvailable = all(
             move.state == "assigned" for move in mrp_productions.move_raw_ids
-        )
-        isComponentTracking = any(
-            move.has_tracking != "none" for move in mrp_productions.move_raw_ids
         )
 
         countOk = True

@@ -1,4 +1,3 @@
-
 import copy
 import json
 from collections import defaultdict
@@ -977,7 +976,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         reserved_quantity = self._get_reserved_qty(move, warehouse, replenish_data)
         missing_quantity = move.product_uom_qty - reserved_quantity
-        qty_free = product.uom_id._compute_quantity(product.qty_free, move.product_uom_id)
+        qty_free = product.uom_id._compute_quantity(
+            product.qty_free, move.product_uom_id
+        )
         if move.product_uom_id.compare(missing_quantity, 0.0) <= 0 or (
             not has_to_order_line
             and move.product_uom_id.compare(missing_quantity, qty_free) <= 0
@@ -1163,7 +1164,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         # Avoid creating a "to_order" line to compensate for missing stock (i.e. negative qty_free).
         qty_free = max(
-            0, product.uom_id._compute_quantity(product.qty_free, move_raw.product_uom_id)
+            0,
+            product.uom_id._compute_quantity(product.qty_free, move_raw.product_uom_id),
         )
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
@@ -1347,7 +1349,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     ),
                 ),  # Avoid over-rounding
                 "uom_name": move_raw.product_uom_id.display_name,
-                "uom_precision": self._get_uom_precision(move_raw.product_uom_id.rounding),
+                "uom_precision": self._get_uom_precision(
+                    move_raw.product_uom_id.rounding
+                ),
                 "mo_cost": mo_cost,
                 "mo_cost_decorator": mo_cost_decorator,
                 "bom_cost": bom_cost,
@@ -1732,7 +1736,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 )
                 total_reserved += reserved
                 replenish_data["qty_already_reserved"][move] += (
-                    move_raw.product_uom_id._compute_quantity(reserved, move.product_uom_id)
+                    move_raw.product_uom_id._compute_quantity(
+                        reserved, move.product_uom_id
+                    )
                 )
                 if (
                     move.product_id.uom_id.compare(total_reserved, move_raw.product_qty)

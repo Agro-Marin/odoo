@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import float_compare, float_round
+from odoo.tools import float_compare
 from odoo.tools.misc import clean_context
 
 
@@ -296,12 +296,10 @@ class MrpUnbuild(models.Model):
             ):
                 continue
             original_move = (
-                (move in produce_moves
-                and self.mo_id.move_raw_ids)
-                or self.mo_id.move_finished_ids
-            )
+                move in produce_moves and self.mo_id.move_raw_ids
+            ) or self.mo_id.move_finished_ids
             original_move = original_move.filtered(
-                lambda m: m.product_id == move.product_id
+                lambda m, move=move: m.product_id == move.product_id
             )
             if not original_move:
                 move.quantity = move.product_uom_id.round(move.product_uom_qty)
@@ -333,9 +331,13 @@ class MrpUnbuild(models.Model):
                     needed_quantity -= taken_quantity
                     qty_already_used[move_line] += taken_quantity
                     unbuild_move_line._apply_putaway_strategy()
-            if move in produce_moves and float_compare(
-                needed_quantity, 0, precision_rounding=move.product_uom_id.rounding
-            ) > 0:
+            if (
+                move in produce_moves
+                and float_compare(
+                    needed_quantity, 0, precision_rounding=move.product_uom_id.rounding
+                )
+                > 0
+            ):
                 move.quantity += needed_quantity
 
         (finished_moves | consume_moves | produce_moves).picked = True
@@ -430,7 +432,7 @@ class MrpUnbuild(models.Model):
                     )
                     / unbuild.bom_id.product_qty
                 )
-                boms, lines = unbuild.bom_id.explode(
+                _boms, lines = unbuild.bom_id.explode(
                     unbuild.product_id,
                     factor,
                     picking_type=unbuild.bom_id.picking_type_id,
@@ -471,8 +473,8 @@ class MrpUnbuild(models.Model):
         ).property_stock_production
         location_id = (bom_line_id and product_prod_location) or self.location_id
         location_dest_id = (
-            (bom_line_id and self.location_dest_id) or product_prod_location
-        )
+            bom_line_id and self.location_dest_id
+        ) or product_prod_location
         warehouse = location_dest_id.warehouse_id
         return self.env["stock.move"].create(
             {

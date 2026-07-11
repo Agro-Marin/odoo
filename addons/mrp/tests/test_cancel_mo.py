@@ -1,9 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
-
 from odoo.exceptions import UserError
-from odoo.fields import Datetime as Dt
 from odoo.tests import Form
 
 from odoo.addons.mrp.tests.common import TestMrpCommon

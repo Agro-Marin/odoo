@@ -35,10 +35,8 @@ class MrpConsumptionWarning(models.TransientModel):
                 wizard.mrp_consumption_warning_line_ids.mapped("consumption")
             )
             wizard.consumption = (
-                ("strict" in consumption_map
-                and "strict")
-                or ("warning" in consumption_map
-                and "warning")
+                ("strict" in consumption_map and "strict")
+                or ("warning" in consumption_map and "warning")
                 or "flexible"
             )
 
@@ -108,6 +106,7 @@ class MrpConsumptionWarning(models.TransientModel):
                 "res_id": self.mrp_production_ids.id,
                 "target": "main",
             }
+        return None
 
 
 class MrpConsumptionWarningLine(models.TransientModel):

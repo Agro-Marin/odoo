@@ -191,7 +191,7 @@ class TestUnbuild(TestMrpCommon):
             x.product_id = p_final
             x.bom_id = bom
             x.product_qty = 3
-            unbuild_order = x.save()
+            x.save()
 
         x = Form(self.env["mrp.unbuild"])
         x.product_id = p_final
@@ -760,7 +760,7 @@ class TestUnbuild(TestMrpCommon):
 
     def test_production_links_with_non_tracked_lots(self):
         """This test produces an MO in two times and checks that the move lines are linked in a correct way"""
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, p_final, p1, p2 = self.generate_mo(
             tracking_final="lot", tracking_base_1="none", tracking_base_2="lot"
         )
         # Young Tom
@@ -833,7 +833,7 @@ class TestUnbuild(TestMrpCommon):
             ml.quantity = 2
             ml.lot_id = lot_2
         details_operation_form.save()
-        action = mo.button_mark_done()
+        mo.button_mark_done()
 
         mo1 = mo.production_group_id.production_ids[0]
         ml = mo1.finished_move_line_ids[0].consume_line_ids.filtered(
@@ -1014,7 +1014,7 @@ class TestUnbuild(TestMrpCommon):
         # Produce the final product
         mo_form = Form(mo)
         mo_form.qty_producing = 1.0
-        produce_wizard = mo_form.save()
+        mo_form.save()
 
         mo.button_mark_done()
         self.assertEqual(mo.state, "done", "Production order should be in done state.")

@@ -40,17 +40,17 @@ class TestBoM(TestMrpCommon):
 
     def test_01_explode(self):
         boms, lines = self.bom_1.explode(self.product_4, 3)
-        self.assertEqual(set([bom[0].id for bom in boms]), set(self.bom_1.ids))
+        self.assertEqual({bom[0].id for bom in boms}, set(self.bom_1.ids))
         self.assertEqual(
-            set([line[0].id for line in lines]), set(self.bom_1.bom_line_ids.ids)
+            {line[0].id for line in lines}, set(self.bom_1.bom_line_ids.ids)
         )
 
         boms, lines = self.bom_3.explode(self.product_6, 3)
         self.assertEqual(
-            set([bom[0].id for bom in boms]), set((self.bom_2 | self.bom_3).ids)
+            {bom[0].id for bom in boms}, set((self.bom_2 | self.bom_3).ids)
         )
         self.assertEqual(
-            set([line[0].id for line in lines]),
+            {line[0].id for line in lines},
             set(
                 (self.bom_2 | self.bom_3)
                 .mapped("bom_line_ids")
@@ -376,23 +376,19 @@ class TestBoM(TestMrpCommon):
 
         # check product > product_tmpl
         boms, lines = test_bom_2.explode(self.product_7_1, 4)
-        self.assertEqual(
-            set((test_bom_2 | self.bom_2).ids), set([b[0].id for b in boms])
-        )
+        self.assertEqual(set((test_bom_2 | self.bom_2).ids), {b[0].id for b in boms})
         self.assertEqual(
             set((test_bom_2_l1 | test_bom_2_l4 | self.bom_2.bom_line_ids).ids),
-            set([l[0].id for l in lines]),
+            {l[0].id for l in lines},
         )
 
         # check sequence priority
         test_bom_1.write({"sequence": 1})
         boms, lines = test_bom_2.explode(self.product_7_1, 4)
-        self.assertEqual(
-            set((test_bom_2 | test_bom_1).ids), set([b[0].id for b in boms])
-        )
+        self.assertEqual(set((test_bom_2 | test_bom_1).ids), {b[0].id for b in boms})
         self.assertEqual(
             set((test_bom_2_l1 | test_bom_2_l4 | test_bom_1.bom_line_ids).ids),
-            set([l[0].id for l in lines]),
+            {l[0].id for l in lines},
         )
 
         # check with another picking_type
@@ -400,12 +396,10 @@ class TestBoM(TestMrpCommon):
         self.bom_2.write({"picking_type_id": tmp_picking_type.id})
         test_bom_2.write({"picking_type_id": tmp_picking_type.id})
         boms, lines = test_bom_2.explode(self.product_7_1, 4)
-        self.assertEqual(
-            set((test_bom_2 | self.bom_2).ids), set([b[0].id for b in boms])
-        )
+        self.assertEqual(set((test_bom_2 | self.bom_2).ids), {b[0].id for b in boms})
         self.assertEqual(
             set((test_bom_2_l1 | test_bom_2_l4 | self.bom_2.bom_line_ids).ids),
-            set([l[0].id for l in lines]),
+            {l[0].id for l in lines},
         )
 
         self.product_9, self.product_10 = self.env["product.product"].create(
@@ -563,7 +557,9 @@ class TestBoM(TestMrpCommon):
         # Create production order for all variants.
         for combination, consumed_products in dict_consumed_products.items():
             product = product_template.product_variant_ids.filtered(
-                lambda p: p.product_template_attribute_value_ids == combination
+                lambda p, combination=combination: (
+                    p.product_template_attribute_value_ids == combination
+                )
             )
             mrp_order_form = Form(self.env["mrp.production"])
             mrp_order_form.product_id = product
@@ -629,9 +625,7 @@ class TestBoM(TestMrpCommon):
                 "product_qty": 1.0,
                 "type": "phantom",
                 "bom_line_ids": [
-                    Command.create(
-                        {"product_id": self.product_2.id, "product_qty": 3}
-                    ),
+                    Command.create({"product_id": self.product_2.id, "product_qty": 3}),
                 ],
             }
         )
@@ -644,10 +638,16 @@ class TestBoM(TestMrpCommon):
             ["&", ("id", "in", self.product_7_3.ids), ("qty_available_virtual", ">", 0)]
         )
         self.assertEqual(
-            found, self.product_7_3, "kit must be found by a qty_available_virtual search"
+            found,
+            self.product_7_3,
+            "kit must be found by a qty_available_virtual search",
         )
         excluded = self.env["product.product"].search(
-            ["&", ("id", "in", self.product_7_3.ids), ("qty_available_virtual", ">", 10)]
+            [
+                "&",
+                ("id", "in", self.product_7_3.ids),
+                ("qty_available_virtual", ">", 10),
+            ]
         )
         self.assertFalse(
             excluded, "kit must be excluded when its quantity fails the operator"
@@ -1065,7 +1065,7 @@ class TestBoM(TestMrpCommon):
         )
 
         # TEST OPERATION COST WHEN PRODUCED QTY > BOM QUANTITY
-        report_values_12 = self.env["report.mrp.report_bom_structure"]._get_report_data(
+        self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_crumble.id, searchQty=12, searchVariant=False
         )
         report_values_22 = self.env["report.mrp.report_bom_structure"]._get_report_data(
@@ -1974,10 +1974,7 @@ class TestBoM(TestMrpCommon):
 
         self.assertEqual(
             sum(
-                [
-                    value["quantity"]
-                    for value in report_values["lines"]["components"][:2]
-                ]
+                value["quantity"] for value in report_values["lines"]["components"][:2]
             ),
             0,
             "The quantity should be set to 0 for all components of the bom.",

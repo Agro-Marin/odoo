@@ -61,6 +61,8 @@ class ProductReplenish(models.TransientModel):
             .search([("action", "=", "manufacture"), ("company_id", "=", company.id)])
             .route_id
         )
-        if manufacture_route and product_tmpl_id.bom_ids.filtered(lambda b: b.type == "normal"):
+        if manufacture_route and product_tmpl_id.bom_ids.filtered(
+            lambda b: b.type == "normal"
+        ):
             domain = Domain.OR([domain, Domain("id", "in", manufacture_route.ids)])
         return domain

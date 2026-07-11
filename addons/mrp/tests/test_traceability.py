@@ -175,7 +175,9 @@ class TestTraceability(TestMrpCommon):
             # Find parts of the final products
             lines = self.env["stock.traceability.report"].get_lines(
                 final_product["id"],
-                level=final_product["level"], model_id=final_product["model_id"], model_name=final_product["model"],
+                level=final_product["level"],
+                model_id=final_product["model_id"],
+                model_name=final_product["model"],
             )
             self.assertEqual(
                 len(lines),
@@ -191,7 +193,7 @@ class TestTraceability(TestMrpCommon):
                     'Part with tracking type "%s", should have quantity = 1'
                     % (tracking),
                 )
-                unfoldable = False if tracking == "none" else True
+                unfoldable = tracking != "none"
                 self.assertEqual(
                     line["unfoldable"],
                     unfoldable,
@@ -411,14 +413,14 @@ class TestTraceability(TestMrpCommon):
         )
         self.assertEqual(
             set(raw_line_raw_1_lot_1.produce_line_ids.lot_id.mapped("name")),
-            set(["Final_lot_1", "Byproduct_1_lot_1", "Byproduct_2_lot_1"]),
+            {"Final_lot_1", "Byproduct_1_lot_1", "Byproduct_2_lot_1"},
         )
         raw_line_raw_2_lot_1 = raw_move_lines.filtered(
             lambda ml: ml.lot_id.name == "Raw_2_lot_1"
         )
         self.assertEqual(
             set(raw_line_raw_2_lot_1.produce_line_ids.lot_id.mapped("name")),
-            set(["Final_lot_1", "Byproduct_1_lot_1", "Byproduct_2_lot_1"]),
+            {"Final_lot_1", "Byproduct_1_lot_1", "Byproduct_2_lot_1"},
         )
 
         finished_move_lines = mo.move_finished_ids.mapped("move_line_ids")

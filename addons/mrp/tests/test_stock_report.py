@@ -201,7 +201,7 @@ class TestMrpStockReports(TestReportsCommon):
 
         mo_2 = mo_1.production_group_id.production_ids - mo_1
         # Checks the forecast report.
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, _docs, lines = self.get_report_forecast(
             product_template_ids=product_apple_pie.product_tmpl_id.ids
         )
         self.assertEqual(len(lines), 2, "Must have 2 lines, one about the backorder")
@@ -215,7 +215,7 @@ class TestMrpStockReports(TestReportsCommon):
         mo_2 = mo_form.save()
         mo_2.button_mark_done()
         # Checks the forecast report.
-        report_values, docs, lines = self.get_report_forecast(
+        _report_values, _docs, lines = self.get_report_forecast(
             product_template_ids=product_apple_pie.product_tmpl_id.ids
         )
         self.assertEqual(len(lines), 1, "Free Stock line")
