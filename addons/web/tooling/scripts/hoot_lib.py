@@ -1,0 +1,564 @@
+"""Shared helpers for the warm-server HOOT runner.
+
+This module is imported by the ``hoot`` and ``hoot-affected`` CLI scripts. It
+must be run with the workspace venv interpreter
+(``/home/marin/Odoo/venv/p314o19marin/bin/python``) because it imports the Odoo
+framework to reuse ``odoo.tests.common.ChromeBrowser`` (the exact CDP driver the
+real ``odoo-bin`` test loop uses) instead of reinventing a Chrome DevTools
+client.
+
+Nothing here edits Odoo core; ``ChromeBrowser`` is imported and driven as-is
+through a tiny shim object that provides the three attributes it reads off a
+test case (``_logger``, ``browser_size``, ``touch_enabled``) plus a
+``fetch_proxy`` for external requests.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import logging
+import os
+import re
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# --------------------------------------------------------------------------- #
+# Static workspace layout (this fork's fixed dev environment)
+# --------------------------------------------------------------------------- #
+WORKSPACE = Path("/home/marin/Odoo")
+ODOO_ROOT = WORKSPACE / "addons" / "odoo"
+VENV_PY = WORKSPACE / "venv" / "p314o19marin" / "bin" / "python"
+ODOO_BIN = ODOO_ROOT / "odoo-bin"
+CONF = WORKSPACE / "config" / "p314o19marin.conf"
+
+# Our dedicated slice of the world. Port 8069 + db ``wjsaudit`` are OFF-LIMITS.
+PORT_RANGE = range(8085, 8090)
+DEFAULT_DB = "hoot_web"
+HOST = "127.0.0.1"
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+STATE_FILE = SCRIPT_DIR / ".hoot_state.json"
+LOG_DIR = SCRIPT_DIR / ".hoot_logs"
+
+# HOOT log signals (see web/static/lib/hoot/core/runner.js).
+SUCCESS_SIGNAL = "[HOOT] Test suite succeeded"
+RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
+RE_FAILED_SUMMARY = re.compile(r"Failed (\d+) tests \((\d+) passed")
+RE_PASSED_SUMMARY = re.compile(r"Passed (\d+) tests \((\d+) assertions")
+
+_log = logging.getLogger("hoot")
+
+
+# --------------------------------------------------------------------------- #
+# Hash: identical algorithm to web/tests/test_js.py ``_generate_hash``.
+# HOOT resolves each ``&id=<hash>`` against either a suite or a single test.
+# --------------------------------------------------------------------------- #
+def generate_hash(test_string: str) -> str:
+    """Return the 8-hex-char HOOT id for a suite/test path.
+
+    Byte-for-byte identical to ``HOOTCommon._generate_hash`` so the ids this
+    runner sends match what ``odoo-bin --test-tags`` would send.
+    """
+    hash_val = 0
+    for char in test_string:
+        hash_val = (hash_val << 5) - hash_val + ord(char)
+        hash_val = hash_val & 0xFFFFFFFF
+    return f"{hash_val:08x}"
+
+
+# --------------------------------------------------------------------------- #
+# Postgres / port helpers
+# --------------------------------------------------------------------------- #
+def _psql(sql: str) -> str:
+    env = {**os.environ, "PGPASSWORD": "odoo"}
+    out = subprocess.run(
+        ["psql", "-h", "localhost", "-U", "odoo", "-d", "postgres",
+         "-tAc", sql],
+        capture_output=True, text=True, env=env, check=False,
+    )
+    return out.stdout.strip()
+
+
+def db_exists(db: str) -> bool:
+    return _psql(f"SELECT 1 FROM pg_database WHERE datname='{db}'") == "1"
+
+
+def drop_db(db: str) -> None:
+    env = {**os.environ, "PGPASSWORD": "odoo"}
+    subprocess.run(
+        ["psql", "-h", "localhost", "-U", "odoo", "-d", "postgres", "-c",
+         f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)'],
+        capture_output=True, text=True, env=env, check=False,
+    )
+
+
+def port_is_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((HOST, port))
+            return True
+        except OSError:
+            return False
+
+
+def _http_alive(port: int) -> bool:
+    try:
+        import requests
+
+        resp = requests.get(f"http://{HOST}:{port}/web/login",
+                            timeout=2, allow_redirects=False)
+        return resp.status_code < 500
+    except Exception:
+        return False
+
+
+# --------------------------------------------------------------------------- #
+# Warm-server lifecycle
+# --------------------------------------------------------------------------- #
+def read_state() -> dict | None:
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text())
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def write_state(state: dict) -> None:
+    STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def server_is_warm(state: dict | None) -> bool:
+    if not state:
+        return False
+    return _pid_alive(state.get("pid", -1)) and _http_alive(state["port"])
+
+
+def ensure_db(db: str, verbose: bool = False) -> None:
+    """Create + install web into ``db`` once, if it does not already exist."""
+    if db_exists(db):
+        return
+    _log.info("Creating database %s and installing base,web (one-time)...", db)
+    LOG_DIR.mkdir(exist_ok=True)
+    log_path = LOG_DIR / f"init_{db}.log"
+    cmd = [
+        str(VENV_PY), str(ODOO_BIN), "-c", str(CONF), "-d", db,
+        "-i", "base,web", "--stop-after-init", "--no-http",
+        "--max-cron-threads=0",
+    ]
+    with log_path.open("wb") as fh:
+        proc = subprocess.run(
+            cmd, stdout=fh, stderr=subprocess.STDOUT,
+            cwd=str(ODOO_ROOT), check=False,
+        )
+    if proc.returncode != 0 or not db_exists(db):
+        raise RuntimeError(
+            f"Database init failed (rc={proc.returncode}); see {log_path}"
+        )
+
+
+def boot_server(db: str, verbose: bool = False) -> dict:
+    """Boot ONE persistent threaded dev server on a free 8085-8089 port."""
+    ensure_db(db, verbose=verbose)
+    port = next((p for p in PORT_RANGE if port_is_free(p)), None)
+    if port is None:
+        raise RuntimeError(f"No free port in {PORT_RANGE.start}-{PORT_RANGE.stop - 1}")
+
+    LOG_DIR.mkdir(exist_ok=True)
+    log_path = LOG_DIR / f"server_{port}.log"
+    cmd = [
+        str(VENV_PY), str(ODOO_BIN), "-c", str(CONF), "-d", db,
+        "-p", str(port), "--http-interface", HOST,
+        f"--db-filter=^{db}$", "--max-cron-threads=0",
+    ]
+    _log.info("Booting warm server: db=%s port=%s (log: %s)", db, port, log_path)
+    log_fh = log_path.open("wb")
+    proc = subprocess.Popen(
+        cmd, stdout=log_fh, stderr=subprocess.STDOUT, cwd=str(ODOO_ROOT),
+        start_new_session=True,
+    )
+    # Wait for HTTP readiness.
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"Server exited early (rc={proc.returncode}); see {log_path}"
+            )
+        if _http_alive(port):
+            break
+        time.sleep(0.5)
+    else:
+        proc.terminate()
+        raise RuntimeError(f"Server did not become ready; see {log_path}")
+
+    state = {"pid": proc.pid, "port": port, "db": db, "log": str(log_path),
+             "started": time.time()}
+    write_state(state)
+    return state
+
+
+def ensure_server(db: str, verbose: bool = False) -> tuple[dict, bool]:
+    """Return (state, booted). Reuse a warm server if one is alive."""
+    state = read_state()
+    if server_is_warm(state) and (db is None or state["db"] == db):
+        return state, False
+    state = boot_server(db or DEFAULT_DB, verbose=verbose)
+    return state, True
+
+
+def stop_server(clean: bool = False) -> str:
+    state = read_state()
+    if not state:
+        return "No warm server recorded."
+    pid, port, db = state.get("pid"), state.get("port"), state.get("db")
+    msg = []
+    if pid and _pid_alive(pid):
+        try:
+            import psutil
+
+            main = psutil.Process(pid)
+            procs = [main, *main.children(recursive=True)]
+            main.terminate()
+            _, alive = psutil.wait_procs(procs, 5)
+            for p in alive:
+                p.kill()
+        except Exception:
+            with contextlib.suppress(OSError):
+                os.killpg(os.getpgid(pid), 15)
+        msg.append(f"Stopped server pid={pid} port={port}.")
+    else:
+        msg.append("Server was not running.")
+    STATE_FILE.unlink(missing_ok=True)
+    if clean and db:
+        drop_db(db)
+        msg.append(f"Dropped database {db}.")
+    return " ".join(msg)
+
+
+# --------------------------------------------------------------------------- #
+# Chrome / CDP: reuse Odoo's ChromeBrowser
+# --------------------------------------------------------------------------- #
+class _ConsoleCapture(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(record.getMessage())
+
+
+class _ShimCase:
+    """Minimal stand-in for the ``test_case`` ChromeBrowser expects.
+
+    ChromeBrowser only reads ``_logger``, ``browser_size``, ``touch_enabled``
+    off its test case, and calls ``fetch_proxy(url)`` for requests that leave
+    the local host. Requests to ``http://127.0.0.1[:port]`` are continued
+    verbatim by ChromeBrowser itself, so they hit the real warm server.
+    """
+
+    def __init__(self, logger: logging.Logger, browser_size: str,
+                 touch_enabled: bool) -> None:
+        self._logger = logger
+        self.browser_size = browser_size
+        self.touch_enabled = touch_enabled
+
+    def fetch_proxy(self, url: str) -> dict:
+        return {"body": "", "responseCode": 404, "responseHeaders": []}
+
+
+def _bootstrap_odoo() -> None:
+    """Prepare the in-process Odoo import so ChromeBrowser is usable."""
+    if str(ODOO_ROOT) not in sys.path:
+        sys.path.insert(0, str(ODOO_ROOT))
+    import odoo.logutils  # noqa: F401  (registers Logger.runbot)
+    from odoo.tools import config
+
+    # ChromeBrowser reads these; keep screencasts off and give screenshots
+    # (only written on failure) a scratch dir.
+    config["screencasts"] = ""
+    if not config.get("screenshots"):
+        config["screenshots"] = tempfile.mkdtemp(prefix="hoot_shots_")
+
+
+def _authenticate(port: int, db: str) -> str:
+    """Log in as admin/admin over HTTP and return the session_id cookie."""
+    import requests
+
+    resp = requests.post(
+        f"http://{HOST}:{port}/web/session/authenticate",
+        json={"jsonrpc": "2.0", "params": {
+            "db": db, "login": "admin", "password": "admin"}},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    sid = resp.cookies.get("session_id")
+    if not sid:
+        raise RuntimeError("Authentication failed: no session_id cookie")
+    return sid
+
+
+@dataclass
+class RunResult:
+    ok: bool
+    suites: list[str]
+    passed: int = 0
+    failed: int = 0
+    failed_tests: list[str] = field(default_factory=list)
+    wall: float = 0.0
+    error: str | None = None
+
+
+def run_suites(
+    suites: list[str],
+    *,
+    port: int,
+    db: str,
+    preset: str = "desktop",
+    hoot_timeout_ms: int = 15000,
+    wall_timeout_s: int = 300,
+    browser_size: str = "1366x768",
+    touch_enabled: bool = False,
+    extra: str = "",
+    verbose: bool = False,
+) -> RunResult:
+    """Drive Chrome against the warm server's ``/web/tests`` and report."""
+    _bootstrap_odoo()
+    from odoo.tools import config
+
+    # ChromeBrowser's receiver thread names itself via get_db_name(), which
+    # reads config["db_name"] (a list). We are not a test process, so seed it.
+    config["db_name"] = [db]
+    from odoo.tests.common import ChromeBrowser, ChromeBrowserException
+
+    run_logger = logging.getLogger("hoot.run")
+    # ChromeBrowser logs operational INFO on this logger; only surface it with
+    # -v. The console capture below lives on the ".browser" child at INFO with
+    # its own handler, so counts are captured regardless of this level.
+    run_logger.setLevel(logging.INFO if verbose else logging.WARNING)
+    # ChromeBrowser routes console.log/dir/error through the ".browser" child.
+    # We must see every INFO record (the "Passed/Failed N tests" summary and
+    # per-test "Test ... failed" lines) to report counts, independent of the
+    # CLI's display verbosity. Attach the capture there at INFO, and silence
+    # the noisy passthrough to the root handler unless the user asked for -v.
+    browser_logger = logging.getLogger("hoot.run.browser")
+    browser_logger.setLevel(logging.INFO)
+    prev_propagate = browser_logger.propagate
+    if not verbose:
+        browser_logger.propagate = False
+    capture = _ConsoleCapture()
+    browser_logger.addHandler(capture)
+
+    id_filters = "".join(f"&id={generate_hash(s)}" for s in suites)
+    url = (
+        f"http://{HOST}:{port}/web/tests?headless&loglevel=2"
+        f"&preset={preset}&timeout={hoot_timeout_ms}{id_filters}{extra}"
+    )
+
+    def unit_test_error_checker(message: str) -> bool:
+        # Mirror test_js.py: HOOT's own [HOOT]-prefixed per-test errors are
+        # informational; the real stop signal is the un-prefixed summary error.
+        return "[HOOT]" not in message
+
+    shim = _ShimCase(run_logger, browser_size, touch_enabled)
+    start = time.time()
+    result = RunResult(ok=False, suites=suites)
+    browser = None
+    try:
+        sid = _authenticate(port, db)
+        browser = ChromeBrowser(shim, success_signal=SUCCESS_SIGNAL,
+                               headless=True)
+        browser.set_cookie("session_id", sid, "/", HOST, http_only=True)
+        _log.info("Navigating: %s", url)
+        browser.navigate_to(url, wait_stop=True)
+        if not browser._wait_ready(""):
+            raise RuntimeError("Page ready code was always falsy")
+        browser._wait_code_ok("", wall_timeout_s,
+                             error_checker=unit_test_error_checker)
+        result.ok = True
+    except ChromeBrowserException as exc:
+        text = str(exc)
+        result.error = text.splitlines()[0] if text.strip() else "failed"
+    except Exception as exc:
+        result.error = f"{type(exc).__name__}: {exc}"
+        _log.debug("Unexpected runner error", exc_info=True)
+    finally:
+        if browser is not None:
+            with contextlib.suppress(Exception):
+                browser.stop()
+        result.wall = time.time() - start
+        browser_logger.removeHandler(capture)
+        browser_logger.propagate = prev_propagate
+
+    # Parse captured console output for counts + failed test names.
+    for line in capture.lines:
+        if m := RE_FAILED_SUMMARY.search(line):
+            result.failed, result.passed = int(m[1]), int(m[2])
+        elif m := RE_PASSED_SUMMARY.search(line):
+            result.passed = int(m[1])
+        for name in RE_FAILED_TEST.findall(line):
+            if name not in result.failed_tests:
+                result.failed_tests.append(name)
+    if result.error and not result.ok:
+        result.ok = False
+    return result
+
+
+# --------------------------------------------------------------------------- #
+# Affected-suite selection (import-graph approximation)
+# --------------------------------------------------------------------------- #
+WEB_ADDONS_ROOT = ODOO_ROOT / "addons"
+RE_IMPORT = re.compile(
+    r"""(?:import|export)\s+(?:.+?\s+from\s+)?["']([^"']+)["']""",
+    re.DOTALL,
+)
+RE_DYNAMIC_IMPORT = re.compile(r"""import\(\s*["']([^"']+)["']\s*\)""")
+
+
+def _addon_of(path: Path) -> str | None:
+    """Return the addon name for a file under ``.../<addon>/static/...``.
+
+    Keyed off the ``static`` segment (the addon is the directory right before
+    it) so nested ``addons/odoo/addons/web`` paths resolve correctly.
+    """
+    parts = path.parts
+    if "static" in parts:
+        i = parts.index("static")
+        if i >= 1:
+            return parts[i - 1]
+    return None
+
+
+def file_to_specifier(path: Path) -> str | None:
+    """Map a src/tests JS file to its ESM import specifier.
+
+    ``.../web/static/src/core/domain.js`` -> ``@web/core/domain``
+    ``.../web/static/tests/core/domain.test.js`` -> ``@web/../tests/core/domain``
+    """
+    addon = _addon_of(path)
+    if not addon:
+        return None
+    parts = path.parts
+    i = parts.index("static")
+    kind = parts[i + 1]  # src | tests | lib
+    rel = "/".join(parts[i + 2:])
+    rel = re.sub(r"\.js$", "", rel)
+    if kind == "src":
+        return f"@{addon}/{rel}"
+    if kind == "tests":
+        return f"@{addon}/../tests/{rel}"
+    return None
+
+
+def specifier_to_suite(spec: str) -> str | None:
+    """Map a test-file specifier to the HOOT suite name it registers.
+
+    Mirrors ``start.hoot.js`` ``_suiteNameFromSpecifier``:
+    ``@web/../tests/core/domain.test`` -> ``@web/core/domain``.
+    """
+    m = re.match(r"^(@[^/]+)/\.\./tests/(.*?)(?:\.test)?$", spec)
+    return f"{m[1]}/{m[2]}" if m else None
+
+
+def _iter_test_files() -> list[Path]:
+    files: list[Path] = []
+    for addon_dir in WEB_ADDONS_ROOT.iterdir():
+        tdir = addon_dir / "static" / "tests"
+        if tdir.is_dir():
+            files.extend(tdir.rglob("*.test.js"))
+    return files
+
+
+def _iter_src_files() -> list[Path]:
+    files: list[Path] = []
+    for addon_dir in WEB_ADDONS_ROOT.iterdir():
+        sdir = addon_dir / "static" / "src"
+        if sdir.is_dir():
+            files.extend(sdir.rglob("*.js"))
+    return files
+
+
+def _imports_of(path: Path) -> set[str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    specs = set(RE_IMPORT.findall(text))
+    specs |= set(RE_DYNAMIC_IMPORT.findall(text))
+    return {s for s in specs if s.startswith("@")}
+
+
+def changed_web_js(paths: list[str] | None = None) -> list[Path]:
+    """Default set of changed JS files: ``git diff --name-only`` in addons/odoo,
+    filtered to files under an addon ``static/`` tree.
+    """
+    if paths:
+        return [Path(p).resolve() for p in paths]
+    out = subprocess.run(
+        ["git", "-C", str(ODOO_ROOT), "diff", "--name-only", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    names = out.stdout.splitlines()
+    return [
+        (ODOO_ROOT / name).resolve()
+        for name in names
+        if name.endswith(".js") and "/static/" in name
+    ]
+
+
+def affected_suites(changed: list[Path]) -> list[str]:
+    """Return the minimal set of ``@web/...`` suite paths to run.
+
+    Strategy (conservative import-scan, direct + one hop through src):
+      * a changed *.test.js file -> its own suite;
+      * a changed src file -> every test file importing it directly, plus test
+        files importing a src file that imports the changed src (one hop).
+    """
+    changed_specs: set[str] = set()
+    suites: set[str] = set()
+    for path in changed:
+        spec = file_to_specifier(path)
+        if spec is None:
+            continue
+        if "/../tests/" in spec:  # a test file changed -> run its suite
+            suite = specifier_to_suite(spec)
+            if suite:
+                suites.add(suite)
+        else:
+            changed_specs.add(spec)
+
+    if not changed_specs:
+        return sorted(suites)
+
+    # One hop: src files that import a changed src become "affected" too.
+    hop_specs: set[str] = set()
+    for src in _iter_src_files():
+        imports = _imports_of(src)
+        if imports & changed_specs:
+            spec = file_to_specifier(src)
+            if spec:
+                hop_specs.add(spec)
+    target_specs = changed_specs | hop_specs
+
+    # Any test file importing a target spec contributes its suite.
+    for test_file in _iter_test_files():
+        if _imports_of(test_file) & target_specs:
+            spec = file_to_specifier(test_file)
+            suite = specifier_to_suite(spec) if spec else None
+            if suite:
+                suites.add(suite)
+    return sorted(suites)
