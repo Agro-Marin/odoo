@@ -438,7 +438,9 @@ class OrderLineAmountMixin(models.AbstractModel):
             f"{self._name} must implement _get_auto_price_and_discount()"
         )
 
-    def _should_update_price(self, new_auto_price, old_auto_price, force_recompute=False):
+    def _should_update_price(
+        self, new_auto_price, old_auto_price, force_recompute=False
+    ):
         """Whether ``price_unit`` should be refreshed from the automatic price.
 
         Update when there is no manual override; preserve otherwise.  Subclasses
