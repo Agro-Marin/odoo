@@ -1,4 +1,3 @@
-
 from datetime import timedelta
 
 from freezegun import freeze_time
@@ -15,7 +14,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("-at_install", "post_install")
 class TestPurchase(AccountTestInvoicingCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -451,7 +449,7 @@ class TestPurchase(AccountTestInvoicingCommon):
         self.assertEqual(
             product_b.cost_currency_id,
             company_a.currency_id,
-            "The cost currency should be the one set on" " the company",
+            "The cost currency should be the one set on the company",
         )
 
         product_b = product_b.with_company(company_b)

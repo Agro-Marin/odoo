@@ -202,8 +202,10 @@ class AccountMove(models.Model):
         )._prepare_invoice_vals()
         has_invoice_lines = bool(
             self.invoice_line_ids.filtered(
-                lambda x: x.display_type
-                not in ("line_section", "line_subsection", "line_note"),
+                lambda x: (
+                    x.display_type
+                    not in ("line_section", "line_subsection", "line_note")
+                ),
             ),
         )
         new_currency_id = (
@@ -367,8 +369,10 @@ class AccountMove(models.Model):
 
             with self._get_edi_creation() as invoice:
                 unmatched_lines = invoice.invoice_line_ids.filtered(
-                    lambda l: l.purchase_line_ids
-                    and l.purchase_line_ids not in matched_po_lines,
+                    lambda l: (
+                        l.purchase_line_ids
+                        and l.purchase_line_ids not in matched_po_lines
+                    ),
                 )
                 invoice.invoice_line_ids = [
                     Command.update(line.id, {"quantity": 0}) for line in unmatched_lines
@@ -382,8 +386,10 @@ class AccountMove(models.Model):
 
             with self._get_edi_creation() as invoice:
                 unmatched_lines = invoice.invoice_line_ids.filtered(
-                    lambda l: l.purchase_line_ids
-                    and l.purchase_line_ids not in matched_po_lines,
+                    lambda l: (
+                        l.purchase_line_ids
+                        and l.purchase_line_ids not in matched_po_lines
+                    ),
                 )
                 invoice.invoice_line_ids = [
                     Command.delete(line.id) for line in unmatched_lines
@@ -395,8 +401,10 @@ class AccountMove(models.Model):
                     map(
                         lambda line: (
                             invoice.invoice_line_ids.filtered(
-                                lambda l: l.purchase_line_ids
-                                and l.purchase_line_ids.id == line[0],
+                                lambda l: (
+                                    l.purchase_line_ids
+                                    and l.purchase_line_ids.id == line[0]
+                                ),
                             ),
                             invoice.invoice_line_ids.filtered(lambda l: l in line[1]),
                         ),

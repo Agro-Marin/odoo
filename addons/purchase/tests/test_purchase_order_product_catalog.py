@@ -1,10 +1,8 @@
-
 from odoo.tests import HttpCase, tagged
 
 
 @tagged("-at_install", "post_install")
 class TestPurchaseOrderProductCatalog(HttpCase):
-
     def test_add_section_from_product_catalog_on_purchase_order_tour(self):
         vendor = self.env["res.partner"].create({"name": "Test Vendor"})
         self.env["product.template"].create(

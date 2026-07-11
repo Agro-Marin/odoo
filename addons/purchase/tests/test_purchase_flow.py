@@ -1,4 +1,3 @@
-
 from odoo import Command
 from odoo.tests import HttpCase, tagged
 
@@ -7,7 +6,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("-at_install", "post_install")
 class TestPurchaseFlowTourPostInstall(AccountTestInvoicingCommon, HttpCase):
-
     def test_basic_purchase_flow_with_minimal_access_rights(self):
         """
         Test that a purchase user with minimal access rights can open both the list and form view,

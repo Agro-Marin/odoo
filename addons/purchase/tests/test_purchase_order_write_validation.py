@@ -7,7 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("-at_install", "post_install")
 class TestPurchaseOrderWriteValidation(AccountTestInvoicingCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -15,16 +14,20 @@ class TestPurchaseOrderWriteValidation(AccountTestInvoicingCommon):
 
     def _new_po(self):
         """A fresh draft PO with one confirmable line."""
-        return self.PurchaseOrder.create({
-            "partner_id": self.partner_a.id,
-            "line_ids": [
-                Command.create({
-                    "product_id": self.product_a.id,
-                    "product_qty": 1.0,
-                    "price_unit": 100.0,
-                }),
-            ],
-        })
+        return self.PurchaseOrder.create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "product_qty": 1.0,
+                            "price_unit": 100.0,
+                        }
+                    ),
+                ],
+            }
+        )
 
     # --- transition guard ---
 
