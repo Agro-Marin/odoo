@@ -27,4 +27,11 @@ class PurchaseMassCancelOrders(models.TransientModel):
             )
 
     def action_mass_cancel(self):
-        self.purchase_order_ids._action_cancel()
+        # Skip orders already cancelled (so a mixed selection doesn't abort on
+        # the "already cancelled" guard), but route through the public
+        # action_cancel so the locked-order and posted-bill guards still apply.
+        # Calling _action_cancel() directly would bypass _can_cancel and let a
+        # locked or already-invoiced PO be cancelled silently.
+        self.purchase_order_ids.filtered(
+            lambda po: po.state != "cancel",
+        ).action_cancel()

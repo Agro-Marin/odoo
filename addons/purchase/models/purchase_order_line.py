@@ -570,7 +570,11 @@ class PurchaseOrderLine(models.Model):
 
             if cache_key not in seller_cache:
                 params = line._get_select_sellers_params()
-                seller = line.product_id._select_seller(
+                # Rank sellers in the order's company: _select_seller converts
+                # each seller's price with env.company.currency_id, so without
+                # with_company a cross-company compute can pick the wrong vendor.
+                # (order_id is already in cache_key, so it disambiguates company.)
+                seller = line.product_id.with_company(line.company_id)._select_seller(
                     partner_id=line.partner_id,
                     quantity=qty,
                     date=fields.Date.context_today(

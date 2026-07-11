@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import timedelta
 from urllib.parse import urlencode
 
@@ -15,7 +14,6 @@ from odoo.tools import (
     OrderedSet,
     format_amount,
     format_date,
-    format_list,
     formatLang,
 )
 from odoo.tools.translate import _
@@ -289,29 +287,7 @@ class PurchaseOrder(models.Model):
     # CONSTRAINTS
     # ------------------------------------------------------------
 
-    @api.constrains("company_id", "line_ids")
-    def _check_line_ids_company_id(self):
-        for order in self:
-            invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c: order.company_id not in c._accessible_branches(),  # noqa: B023 — filtered() evaluates eagerly within this iteration
-            )
-            if invalid_companies:
-                bad_products = order.line_ids.product_id.filtered(
-                    lambda p: p.company_id and p.company_id in invalid_companies,  # noqa: B023 — filtered() evaluates eagerly within this iteration
-                )
-                raise ValidationError(
-                    _(
-                        "Your quotation contains products from company %(product_company)s "
-                        "whereas your quotation belongs to company %(quote_company)s.\n\n"
-                        "Please change the company of your quotation or remove the products "
-                        "from other companies (%(bad_products)s).",
-                        product_company=", ".join(
-                            invalid_companies.sudo().mapped("display_name"),
-                        ),
-                        quote_company=order.company_id.display_name,
-                        bad_products=", ".join(bad_products.mapped("display_name")),
-                    ),
-                )
+    # _check_line_ids_company_id is inherited from order.mixin (base_order).
 
     # ------------------------------------------------------------
     # CRUD METHODS
@@ -327,16 +303,7 @@ class PurchaseOrder(models.Model):
                 line.date_planned = line._get_date_planned(line.selected_seller_id)
         return new_orders
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_draft_or_cancel(self):
-        for order in self:
-            if order.state not in ("draft", "cancel"):
-                raise UserError(
-                    _(
-                        "You cannot delete confirmed orders. "
-                        "You must cancel them first.",
-                    ),
-                )
+    # _unlink_except_draft_or_cancel is inherited from order.mixin (base_order).
 
     # ------------------------------------------------------------
     # COMPUTE METHODS
@@ -692,24 +659,8 @@ class PurchaseOrder(models.Model):
             ],
         }
 
-    def action_confirm(self):
-        """Confirm purchase orders.
-
-        Validates orders can be confirmed and transitions them to purchase state.
-
-        Note: Approval workflow is handled by approval_purchase module if installed.
-        This method only handles the core confirmation logic.
-
-        :raises UserError: If order cannot be confirmed
-        :return: True
-        """
-        self._can_confirm()
-
-        self.write(self._prepare_confirmation_values())
-
-        self._action_confirm()
-        self.filtered(lambda po: po._should_be_locked()).action_lock()
-        return True
+    # action_confirm is inherited from order.mixin (base_order); purchase only
+    # customizes the post-confirmation hook below and _prepare_confirmation_values.
 
     def _action_confirm(self):
         """Implementation of additional mechanism of Purchase Order confirmation.
@@ -727,176 +678,31 @@ class PurchaseOrder(models.Model):
         """Lock purchase orders to prevent modifications."""
         self.write({"locked": True, "priority": "0"})
 
-    def action_merge(self):
-        """Merge selected RFQs into oldest one per compatible group.
-
-        Groups RFQs by vendor, currency, destination, and agreement, then
-        merges each group into its oldest RFQ. Lines are consolidated using
-        O(1) hash-based matching.
-
-        Returns:
-            dict: Action to display merged RFQ(s)
-        """
-        rfqs_to_merge = self._merge_get_eligible_rfqs()
-        self._merge_validate_selection(rfqs_to_merge)
-
-        groups = self._merge_group_rfqs(rfqs_to_merge)
-        self._merge_validate_groups(groups)
-
-        merged_ids = []
-        for rfqs in groups:
-            if len(rfqs) > 1:
-                merged_id = self._merge_rfq_group(rfqs)
-                merged_ids.append(merged_id)
-
-        return self._merge_build_result_action(merged_ids)
-
     # -------------------------------------------------------------------------
-    # RFQ Merge: Helper Methods (override these to customize merge behavior)
+    # RFQ Merge: purchase-specific hooks into order.merge.mixin (base_order).
+    # action_merge and the whole merge pipeline (eligibility, grouping, line
+    # consolidation, metadata, messages, result action) live in the mixin; PO
+    # only customises the wording and the finalize step below.
     # -------------------------------------------------------------------------
 
-    def _merge_get_eligible_rfqs(self):
-        """Get RFQs eligible for merging.
-
-        Override to change eligibility criteria (e.g., include other states).
-
-        Returns:
-            recordset: RFQs that can be merged
-        """
-        return self.filtered(lambda r: r.state in ["draft", "sent"])
-
-    def _merge_validate_selection(self, rfqs):
-        """Validate the RFQ selection for merge.
-
-        Args:
-            rfqs: recordset of RFQs to validate
-
-        Raises:
-            UserError: If fewer than 2 RFQs selected
-        """
-        if len(rfqs) < 2:
+    def _merge_validate_selection(self, orders):
+        # RFQ-specific wording (the mixin default says "orders").
+        if len(orders) < 2:
             raise UserError(
                 _("Please select at least two RFQs to merge."),
             )
 
-    def _merge_group_rfqs(self, rfqs):
-        """Group RFQs by compatible attributes for merging.
+    def _get_merge_group_description(self):
+        # Criteria are those of _prepare_grouped_data below.
+        return _("- Vendor\n- Currency\n- Dropship Address")
 
-        Args:
-            rfqs: recordset of RFQs to group
-
-        Returns:
-            list: List of recordsets, each containing RFQs that can merge together
-        """
-        groups = defaultdict(lambda: self.env["purchase.order"])
-        for rfq in rfqs:
-            key = self._prepare_grouped_data(rfq)
-            groups[key] += rfq
-        return [g for g in groups.values() if len(g) > 1]
-
-    def _merge_validate_groups(self, groups):
-        """Validate that mergeable groups exist.
-
-        Args:
-            groups: list of RFQ recordsets
-
-        Raises:
-            UserError: If no compatible RFQs found
-        """
-        if not groups:
-            raise UserError(
-                _(
-                    "No compatible RFQs to merge. RFQs must have the same:\n"
-                    "- Vendor\n"
-                    "- Currency\n"
-                    "- Destination\n"
-                    "- Dropship address\n"
-                    "- Agreement"
-                ),
-            )
-
-    def _merge_rfq_group(self, rfqs):
-        """Merge a group of compatible RFQs into one.
-
-        Args:
-            rfqs: recordset of RFQs to merge (must be compatible)
-
-        Returns:
-            int: ID of the merged (target) RFQ
-        """
-        target = self._merge_get_target(rfqs)
-        sources = rfqs - target
-
-        line_index = self._merge_build_line_index(target)
-        self._merge_lines(target, sources, line_index)
-        self._merge_metadata(target, sources)
-        self._merge_post_messages(target, sources)
-        self._merge_finalize(target, sources)
-
-        return target.id
-
-    def _merge_lines_match_date(self, line1, line2):
-        """Check if two lines have matching dates (within threshold).
-
-        Args:
-            line1, line2: Lines to compare
-
-        Returns:
-            bool: True if dates match within DATE_MATCH_THRESHOLD_SECONDS
-        """
-        if not line1.date_planned or not line2.date_planned:
-            return False
-        delta = abs(line1.date_planned - line2.date_planned).total_seconds()
-        return delta <= const.DATE_MATCH_THRESHOLD_SECONDS
-
-    def _merge_metadata(self, target, sources):
-        """Merge metadata fields from sources into target.
-
-        Args:
-            target: Target RFQ
-            sources: Source RFQs
-        """
-        # Merge origin documents
-        all_origins = [target.origin] + list(sources.mapped("origin"))
-        target.origin = ", ".join(filter(None, all_origins))
-
-        # Merge vendor references
-        all_refs = [target.partner_ref] + list(sources.mapped("partner_ref"))
-        target.partner_ref = ", ".join(filter(None, all_refs))
+    def _get_merge_result_name(self):
+        return _("Merged RFQs")
 
     def _merge_finalize(self, target, sources):
-        """Finalize merge: cancel sources, handle alternatives.
-
-        Args:
-            target: Target RFQ
-            sources: Source RFQs to finalize
-        """
-        sources.filtered(lambda r: r.state != "cancel").action_cancel()
+        # Cancel the sources (mixin) then wire up alternative-PO references.
+        super()._merge_finalize(target, sources)
         target._merge_alternative_po(sources)
-
-    def _merge_build_result_action(self, merged_ids):
-        """Build the action dict to return after merge.
-
-        Args:
-            merged_ids: List of merged RFQ IDs
-
-        Returns:
-            dict: Action to open merged RFQ(s)
-        """
-        action = {
-            "type": "ir.actions.act_window",
-            "res_model": "purchase.order",
-        }
-
-        if len(merged_ids) == 1:
-            action["res_id"] = merged_ids[0]
-            action["view_mode"] = "form"
-        else:
-            action["name"] = _("Merged RFQs")
-            action["view_mode"] = "list,kanban,form"
-            action["domain"] = [("id", "in", merged_ids)]
-
-        return action
 
     def action_print_quotation(self):
         self.filtered(lambda order: order.state == "draft").write(
@@ -1827,102 +1633,9 @@ class PurchaseOrder(models.Model):
     # VALIDATIONS
     # ------------------------------------------------------------
 
-    # Note: If method doesn't exist, skip silently to allow gradual adoption
-
-    def _can_confirm_has_lines(self):
-        """Ensure orders have at least one order line.
-
-        Purchase orders must have at least one line item to be confirmed.
-        Empty orders cannot be processed.
-        """
-        orders_without_lines = self.filtered(lambda order: not order.line_ids)
-        if orders_without_lines:
-            raise UserError(
-                _(
-                    "Cannot confirm purchase orders without lines: %s\n\n"
-                    "Please add at least one product line before confirming.",
-                    format_list(self.env, orders_without_lines.mapped("display_name")),
-                ),
-            )
-
-    def _can_confirm_lines_have_product(self):
-        """Ensure all non-display lines have products assigned.
-
-        All product lines (excluding section/note lines and down payments) must
-        have a product selected before the order can be confirmed.
-        """
-        orders_without_line_product = self.filtered(
-            lambda order: any(
-                not line.display_type
-                and not line.is_downpayment
-                and not line.product_id
-                for line in order.line_ids
-            ),
-        )
-        if orders_without_line_product:
-            # Build detailed error showing which orders have the issue
-            error_details = []
-            for order in orders_without_line_product:
-                missing_product_lines = order.line_ids.filtered(
-                    lambda l: (
-                        not l.display_type and not l.is_downpayment and not l.product_id
-                    ),
-                )
-                error_details.append(
-                    _(
-                        "• %(order)s has %(count)d line(s) without products",
-                        order=order.display_name,
-                        count=len(missing_product_lines),
-                    ),
-                )
-
-            raise UserError(
-                _(
-                    "Cannot confirm purchase orders with lines missing products:\n\n%s\n\n"
-                    "Please assign a product to all order lines before confirming.",
-                    "\n".join(error_details),
-                ),
-            )
-
-    def _can_confirm_proper_state(self):
-        """Ensure orders are in draft state (RFQ).
-
-        Only orders in RFQ (draft) state can be confirmed. Orders already
-        confirmed (purchase state) or cancelled cannot be confirmed.
-        """
-        orders_wrong_state = self.filtered(lambda order: order.state != "draft")
-        if orders_wrong_state:
-            # Categorize by state for better error message
-            purchase_orders = orders_wrong_state.filtered(
-                lambda o: o.state == "done",
-            )
-            cancelled_orders = orders_wrong_state.filtered(
-                lambda o: o.state == "cancel",
-            )
-
-            error_parts = []
-            if purchase_orders:
-                error_parts.append(
-                    _(
-                        "• Already confirmed: %s",
-                        format_list(self.env, purchase_orders.mapped("display_name")),
-                    ),
-                )
-            if cancelled_orders:
-                error_parts.append(
-                    _(
-                        "• Cancelled: %s",
-                        format_list(self.env, cancelled_orders.mapped("display_name")),
-                    ),
-                )
-
-            raise UserError(
-                _(
-                    "Cannot confirm purchase orders that are not in RFQ (draft) state:\n\n%s\n\n"
-                    "Only orders in 'RFQ' state can be confirmed.",
-                    "\n".join(error_parts),
-                ),
-            )
+    # _can_confirm_proper_state, _can_confirm_has_lines and
+    # _can_confirm_lines_have_product are inherited from order.mixin
+    # (base_order); purchase only implements the analytic-distribution check.
 
     def _can_confirm_analytic_distribution(self):
         """Ensure all order lines have valid analytic distributions.
@@ -1982,67 +1695,16 @@ class PurchaseOrder(models.Model):
                 ),
             )
 
-            # Note: If method doesn't exist, skip silently to allow gradual adoption
-
     def _get_can_cancel_validation_methods(self):
-        """Return list of validation method names to be called by _can_cancel.
+        """Extend the base cancel validators with the posted-bill guard.
 
-        This method can be overridden by other modules to add custom validation
-        methods without modifying the core _can_cancel method. This is useful
-        for modules that need to add domain-specific cancellation restrictions.
-
-        Example usage in purchase_stock module:
-
-        class PurchaseOrder(models.Model):
-            _inherit = 'purchase.order'
-
-            def _get_can_cancel_validation_methods(self):
-                methods = super()._get_can_cancel_validation_methods()
-                methods.append('_can_cancel_except_receipts')
-                return methods
-
-            def _can_cancel_except_receipts(self):
-                orders_with_receipts = self.filtered(
-                    lambda o: o.picking_ids.filtered(lambda p: p.state == 'done')
-                )
-                if orders_with_receipts:
-                    raise UserError(_("Cannot cancel orders with completed receipts"))
-
-        :return: List of validation method names to call
-        :rtype: list[str]
+        ``_can_cancel_check_state`` and ``_can_cancel_except_locked`` come from
+        order.mixin (base_order); purchase adds ``_can_cancel_except_invoiced``.
         """
         return [
-            "_can_cancel_check_state",
-            "_can_cancel_except_locked",
+            *super()._get_can_cancel_validation_methods(),
             "_can_cancel_except_invoiced",
         ]
-
-    def _can_cancel_check_state(self):
-        """Ensure orders are not already cancelled."""
-        cancelled_orders = self.filtered(lambda order: order.state == "cancel")
-        if cancelled_orders:
-            raise UserError(
-                _(
-                    "The following purchase orders are already cancelled: %s",
-                    format_list(self.env, cancelled_orders.mapped("display_name")),
-                ),
-            )
-
-    def _can_cancel_except_locked(self):
-        """Ensure orders are not locked.
-
-        Locked orders require explicit unlocking before cancellation to prevent
-        accidental modifications to confirmed purchase orders.
-        """
-        orders_locked = self.filtered(lambda order: order.locked)
-        if orders_locked:
-            raise UserError(
-                _(
-                    "Cannot cancel locked purchase orders: %s. "
-                    "Please unlock them first using the 'Unlock' button.",
-                    format_list(self.env, orders_locked.mapped("display_name")),
-                ),
-            )
 
     def _can_cancel_except_invoiced(self):
         """Ensure orders don't have posted vendor bills.
@@ -2083,16 +1745,6 @@ class PurchaseOrder(models.Model):
         # To be overridden
         return field_name == "line_ids"
 
-    def _should_be_locked(self):
-        """Check if sale order should be automatically locked on confirmation.
-
-        Returns True if company configuration is set to lock confirmed orders.
-        """
-        self.ensure_one()
-        return self.company_id.order_lock_po == "lock" or self.env.user.has_group(
-            "purchase.group_auto_done_setting",
-        )
-
-    # ------------------------------------------------------------
-    # WRITE VALIDATION
-    # ------------------------------------------------------------
+    # _should_be_locked is inherited from order.mixin (base_order): it resolves
+    # company.order_lock_po and the purchase.group_auto_done_setting group
+    # generically via _get_lock_setting_field / _get_order_type.

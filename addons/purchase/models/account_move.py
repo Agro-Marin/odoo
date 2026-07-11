@@ -79,6 +79,10 @@ class AccountMove(models.Model):
         ]
         res = super().write(vals)
         for i, move in enumerate(self):
+            # Reversals inherit their source's PO links; don't spam "modified
+            # from" on them (mirrors the guard in create()).
+            if move.reversed_entry_id:
+                continue
             new_purchases = move.mapped("line_ids.purchase_line_ids.order_id")
             if not new_purchases:
                 continue
@@ -131,7 +135,10 @@ class AccountMove(models.Model):
         for move in self:
             move.purchase_order_count = len(move.line_ids.purchase_line_ids.order_id)
 
-    @api.depends("purchase_order_count")
+    @api.depends(
+        "purchase_order_count",
+        "invoice_line_ids.purchase_line_ids.order_id.display_name",
+    )
     def _compute_purchase_order_name(self):
         for move in self:
             if move.purchase_order_count == 1:
@@ -401,10 +408,7 @@ class AccountMove(models.Model):
                     map(
                         lambda line: (
                             invoice.invoice_line_ids.filtered(
-                                lambda l: (
-                                    l.purchase_line_ids
-                                    and l.purchase_line_ids.id == line[0]
-                                ),
+                                lambda l: line[0] in l.purchase_line_ids.ids,
                             ),
                             invoice.invoice_line_ids.filtered(lambda l: l in line[1]),
                         ),
@@ -650,7 +654,12 @@ class AccountMove(models.Model):
                 po_lines_with_amount = [
                     {
                         "line": line,
-                        "amount_to_invoice": (1 - line.qty_invoiced / line.product_qty)
+                        # Clamp at 0: an over-invoiced line (qty_invoiced >
+                        # product_qty) would otherwise inject a negative amount
+                        # and corrupt the total-match test and the subset knapsack.
+                        "amount_to_invoice": max(
+                            0.0, 1 - line.qty_invoiced / line.product_qty
+                        )
                         * line.price_total,
                     }
                     for line in po_lines
