@@ -2280,22 +2280,23 @@ class TestThreadedServerSignalSetup:
 
 
 class TestCronThreadMonotonic:
-    """``ThreadedServer.cron_thread`` must not mix ``time.time()`` and
-    ``time.monotonic()`` for the same scheduling decision.
+    """``ThreadedServer._listen_thread`` (the shared cron/job worker loop)
+    must not mix ``time.time()`` and ``time.monotonic()`` for the same
+    scheduling decision.
 
     Regression: ``check_all_time`` was compared to ``time.time()`` (wall
     clock). An NTP slew or manual clock correction would mis-schedule the
     full-scan pass.
     """
 
-    def test_cron_thread_uses_monotonic_for_check_all_time(self, srv):
+    def test_listen_thread_uses_monotonic_for_check_all_time(self, srv):
         import inspect  # noqa: PLC0415
 
-        src = inspect.getsource(srv.ThreadedServer.cron_thread)
+        src = inspect.getsource(srv.ThreadedServer._listen_thread)
         # The scheduling comparison must use monotonic, not wall clock.
         # Substring check is sufficient because the relevant line is unique.
         assert "time.time() - SLEEP_INTERVAL > check_all_time" not in src, (
-            "Regression: cron_thread back to time.time() for scheduling"
+            "Regression: _listen_thread back to time.time() for scheduling"
         )
         assert "time.monotonic() - SLEEP_INTERVAL > check_all_time" in src
 

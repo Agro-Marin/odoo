@@ -157,6 +157,7 @@ These run in **both** at_install and post_install phases by default.
 - `test_groups.py` — Group management
 - `test_ir_attachment.py` — Attachment CRUD + permissions
 - `test_ir_cron.py` — Cron execution
+- `test_ir_job.py` — Background job queue (enqueue, claim, execute, retry, reaper)
 - `test_ir_default.py` — Default values
 - `test_ir_sequence.py` — Sequences standard + no_gap
 - `test_ormcache.py` — ORM cache

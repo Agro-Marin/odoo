@@ -11,6 +11,8 @@ cycle).
 * ``WorkerHTTP`` — accept and serve HTTP requests on the listening socket.
 * ``WorkerCron`` — LISTEN/NOTIFY cron processing with exponential-backoff
   reconnect that survives PG outages.
+* ``WorkerJob`` — same machinery pointed at the ``job_queue`` channel to
+  execute background jobs (``ir.job``).
 
 Tests live in ``tests/service/test_server.py`` (``TestWorker*`` /
 ``TestWorkerCron*``); they patch names in this module's namespace
@@ -55,7 +57,13 @@ from odoo.modules.registry import Registry
 from odoo.tools import OrderedSet, config
 
 # Process-control helpers and cron timing constants (see ``_cron`` and ``_helpers``).
-from ._cron import arm_cron_listen, drain_cron_notifies, order_notified_first
+from ._cron import (
+    CRON_TRIGGER_CHANNEL,
+    JOB_QUEUE_CHANNEL,
+    arm_cron_listen,
+    drain_cron_notifies,
+    order_notified_first,
+)
 from ._env import env_float, env_int
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
@@ -332,6 +340,10 @@ class WorkerHTTP(Worker):
 class WorkerCron(Worker):
     """Cron workers"""
 
+    # LISTEN/NOTIFY channel this worker wakes up on; ``WorkerJob`` points the
+    # same machinery at the job-queue channel.
+    listen_channel = CRON_TRIGGER_CHANNEL
+
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
         self.alive_time = time.monotonic()
@@ -367,6 +379,16 @@ class WorkerCron(Worker):
             chunk = min(tick, remaining)
             time.sleep(chunk)
             remaining -= chunk
+
+    def _process_db(self, db_name: str) -> None:
+        """Run this worker's unit of work for one database.
+
+        Deferred import (like the registry machinery everywhere in service/):
+        base models must not load at service import time.
+        """
+        from odoo.addons.base.models.ir_cron import IrCron
+
+        IrCron._process_jobs(db_name)
 
     def sleep(self) -> None:
         # Really sleep once all the databases have been processed.
@@ -436,10 +458,15 @@ class WorkerCron(Worker):
         dbconn = db.db_connect("postgres")
         cursor = dbconn.cursor()
         try:
-            # Arm LISTEN cron_trigger (no-op on a replica).  disable_idle_timeout:
+            # Arm LISTEN on our channel (no-op on a replica).  disable_idle_timeout:
             # this connection sits idle by design waiting for NOTIFY and must
             # survive PG 18's default idle-session reaper.
-            arm_cron_listen(cursor, self.logger, disable_idle_timeout=True)
+            arm_cron_listen(
+                cursor,
+                self.logger,
+                channel=self.listen_channel,
+                disable_idle_timeout=True,
+            )
             cursor.commit()
             # Selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
             selector = selectors.DefaultSelector()
@@ -470,7 +497,9 @@ class WorkerCron(Worker):
             # failures (not an ``OperationalError`` subclass).
             try:
                 db_names = OrderedSet(cron_database_list())
-                notified = drain_cron_notifies(self.dbcursor.connection)
+                notified = drain_cron_notifies(
+                    self.dbcursor.connection, channel=self.listen_channel
+                )
             except psycopg.OperationalError, PoolError:
                 self.logger.warning("Lost postgres connection, reconnecting...")
                 with contextlib.suppress(Exception):
@@ -502,18 +531,16 @@ class WorkerCron(Worker):
         db_name = self.db_queue.popleft()
         self.setproctitle(db_name)
 
-        from odoo.addons.base.models.ir_cron import IrCron
-
         try:
-            IrCron._process_jobs(db_name)
+            self._process_db(db_name)
         except Exception:
-            # Isolate per-database faults: _process_jobs re-raises e.g.
-            # psycopg.ProgrammingError, which would otherwise kill this cron
-            # worker mid-queue (dropping the remaining db_queue entries and
-            # triggering a respawn loop). Log and keep serving the other
-            # databases, matching the threaded cron driver.
+            # Isolate per-database faults: _process_db (IrCron/IrJob
+            # ._process_jobs) re-raises e.g. psycopg.ProgrammingError, which
+            # would otherwise kill this worker mid-queue (dropping the remaining
+            # db_queue entries and triggering a respawn loop). Log and keep
+            # serving the other databases, matching the threaded cron driver.
             self.logger.warning(
-                "Uncaught error while processing cron jobs for database %s",
+                "Uncaught error while processing jobs for database %s",
                 db_name,
                 exc_info=True,
             )
@@ -584,3 +611,23 @@ class WorkerCron(Worker):
                 self.dbcursor.connection.close()
             with contextlib.suppress(Exception):
                 self.dbcursor.close()
+
+
+class WorkerJob(WorkerCron):
+    """Background job (``ir.job``) workers.
+
+    ``WorkerCron`` with the LISTEN channel and the per-database unit of work
+    swapped out: everything hard — the persistent LISTEN connection with
+    exponential-backoff reconnect, the watchdog-pinging sleeps, the
+    notified-first database queue, the max-age recycling — is inherited
+    unchanged.  Jobs are claimed straight from ``ir_job`` with
+    ``SKIP LOCKED`` and executed in-process, each in its own transaction
+    (see ``IrJob._process_jobs``).
+    """
+
+    listen_channel = JOB_QUEUE_CHANNEL
+
+    def _process_db(self, db_name: str) -> None:
+        from odoo.addons.base.models.ir_job import IrJob
+
+        IrJob._process_jobs(db_name)
