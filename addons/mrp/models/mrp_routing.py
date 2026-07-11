@@ -176,8 +176,10 @@ class MrpRoutingWorkcenter(models.Model):
             ) or self.env.context.get(
                 "action_button_product",
                 operation.bom_id.product_tmpl_id.product_variant_ids.filtered(
-                    lambda p: p.product_template_attribute_value_ids
-                    <= operation.bom_product_template_attribute_value_ids
+                    lambda p, operation=operation: (
+                        p.product_template_attribute_value_ids
+                        <= operation.bom_product_template_attribute_value_ids
+                    )
                 ),
             )
             if len(product) > 1:
@@ -230,21 +232,25 @@ class MrpRoutingWorkcenter(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        res.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
+        res.bom_id.with_context(
+            skip_bom_outdated_unmark=True
+        )._set_outdated_bom_in_productions()
         return res
 
     def write(self, vals):
-        self.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
+        self.bom_id.with_context(
+            skip_bom_outdated_unmark=True
+        )._set_outdated_bom_in_productions()
         if "bom_id" in vals:
             for op in self:
                 op.bom_id.bom_line_ids.filtered(
-                    lambda line: line.operation_id == op
+                    lambda line, op=op: line.operation_id == op
                 ).operation_id = False
                 op.bom_id.byproduct_ids.filtered(
-                    lambda byproduct: byproduct.operation_id == op
+                    lambda byproduct, op=op: byproduct.operation_id == op
                 ).operation_id = False
                 op.bom_id.operation_ids.filtered(
-                    lambda operation: operation.blocked_by_operation_ids == op
+                    lambda operation, op=op: operation.blocked_by_operation_ids == op
                 ).blocked_by_operation_ids = False
         return super().write(vals)
 
@@ -256,12 +262,16 @@ class MrpRoutingWorkcenter(models.Model):
             [("operation_id", "in", self.ids)]
         )
         byproduct_lines.write({"operation_id": False})
-        self.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
+        self.bom_id.with_context(
+            skip_bom_outdated_unmark=True
+        )._set_outdated_bom_in_productions()
         return res
 
     def action_unarchive(self):
         res = super().action_unarchive()
-        self.bom_id.with_context(skip_bom_outdated_unmark=True)._set_outdated_bom_in_productions()
+        self.bom_id.with_context(
+            skip_bom_outdated_unmark=True
+        )._set_outdated_bom_in_productions()
         return res
 
     def copy_to_bom(self):
@@ -276,6 +286,7 @@ class MrpRoutingWorkcenter(models.Model):
                 "type": "ir.actions.act_window",
                 "res_id": bom_id,
             }
+        return None
 
     def copy_existing_operations(self):
         return {

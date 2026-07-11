@@ -232,7 +232,9 @@ class StockPicking(models.Model):
         return action
 
     def _less_quantities_than_expected_add_documents(self, moves, documents):
-        documents = super()._less_quantities_than_expected_add_documents(moves, documents)
+        documents = super()._less_quantities_than_expected_add_documents(
+            moves, documents
+        )
 
         def _keys_in_groupby(move):
             """group by picking and the responsible for the product the

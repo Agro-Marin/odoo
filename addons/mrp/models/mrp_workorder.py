@@ -401,9 +401,9 @@ class MrpWorkorder(models.Model):
 
     def _set_qty_producing(self):
         for workorder in self:
-            if (
-                workorder.qty_producing != 0
-                and workorder.production_id.qty_producing != workorder.qty_producing
+            if workorder.qty_producing not in (
+                0,
+                workorder.production_id.qty_producing,
             ):
                 workorder.production_id.qty_producing = workorder.qty_producing
                 workorder.production_id._set_qty_producing(False)
@@ -598,7 +598,9 @@ class MrpWorkorder(models.Model):
                     latest_end = max(end_dates)
                     if latest_end > date_start:
                         date_start = latest_end
-                        enddate = latest_end + timedelta(seconds=_float_duration_to_second(delta_duration))
+                        enddate = latest_end + timedelta(
+                            seconds=_float_duration_to_second(delta_duration)
+                        )
                 if (
                     order.duration_expected >= new_order_duration
                     or old_order_duration >= order.duration_expected
@@ -748,6 +750,7 @@ class MrpWorkorder(models.Model):
             )
             if res is not True:
                 return res
+        return None
 
     def write(self, vals):
         values = vals
@@ -910,7 +913,7 @@ class MrpWorkorder(models.Model):
                 return
         # Consider workcenter and alternatives
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
-        best_date_finished = datetime.max
+        best_date_finished = None
         vals = {}
         for workcenter in workcenters:
             if not workcenter.resource_calendar_id:
@@ -931,7 +934,7 @@ class MrpWorkorder(models.Model):
             if not from_date:
                 continue
             # Check if this workcenter is better than the previous ones
-            if to_date and to_date < best_date_finished:
+            if to_date and (best_date_finished is None or to_date < best_date_finished):
                 best_date_start = from_date
                 best_date_finished = to_date
                 best_workcenter = workcenter
@@ -940,7 +943,7 @@ class MrpWorkorder(models.Model):
                     "duration_expected": duration_expected,
                 }
         # If none of the workcenter are available, raise
-        if best_date_finished == datetime.max:
+        if best_date_finished is None:
             raise UserError(
                 _(
                     "Impossible to plan the workorder. Please check the workcenter availabilities."
@@ -1369,7 +1372,9 @@ class MrpWorkorder(models.Model):
             return 0.0
         duration = 0
         for date_start, date_stop, timer in Intervals(intervals):
-            duration += timer.loss_id._convert_to_duration(date_start, date_stop, timer.workcenter_id)
+            duration += timer.loss_id._convert_to_duration(
+                date_start, date_stop, timer.workcenter_id
+            )
         return duration
 
     def get_duration(self):
@@ -1380,7 +1385,9 @@ class MrpWorkorder(models.Model):
             loss_type_times[time.loss_id.loss_type] |= time
         duration = 0
         for times in loss_type_times.values():
-            duration += self._intervals_duration([(t.date_start or now, t.date_end or now, t) for t in times])
+            duration += self._intervals_duration(
+                [(t.date_start or now, t.date_end or now, t) for t in times]
+            )
         return duration
 
     def action_mark_as_done(self):
@@ -1390,7 +1397,7 @@ class MrpWorkorder(models.Model):
                     _("Please unblock the work center to validate the work order")
                 )
             wo.button_finish()
-            if wo.duration == 0.0:
+            if not wo.duration:
                 wo.duration = wo.duration_expected
                 wo.duration_percent = 100
 

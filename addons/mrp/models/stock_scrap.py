@@ -39,8 +39,7 @@ class StockScrap(models.Model):
             else:
                 remaining_scrap |= scrap
 
-        res = super(StockScrap, remaining_scrap)._compute_location_id()
-        return res
+        return super(StockScrap, remaining_scrap)._compute_location_id()
 
     def _prepare_move_values(self):
         vals = super()._prepare_move_values()
@@ -75,6 +74,7 @@ class StockScrap(models.Model):
                     return {"warning": {"title": _("Warning"), "message": message}}
             else:
                 return super()._onchange_serial_number()
+        return None
 
     @api.onchange("product_id")
     def _onchange_product_id(self):

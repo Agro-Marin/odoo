@@ -337,10 +337,12 @@ class TestWarehouseMrp(common.TestMrpCommon):
         )
 
         location_id = (
-            (production_3.move_raw_ids.filtered(
-                lambda x: x.state not in ("done", "cancel")
+            (
+                production_3.move_raw_ids.filtered(
+                    lambda x: x.state not in ("done", "cancel")
+                )
+                and production_3.location_src_id.id
             )
-            and production_3.location_src_id.id)
             or production_3.location_dest_id.id,
         )
 
@@ -665,7 +667,7 @@ class TestKitPicking(common.TestMrpCommon):
                 "picking_type_id": self.picking_type_in.id,
             }
         )
-        move_receipt_1 = self.env["stock.move"].create(
+        self.env["stock.move"].create(
             {
                 "product_id": self.kit_parent.id,
                 "product_uom_qty": 3,

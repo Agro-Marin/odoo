@@ -486,10 +486,9 @@ class MrpWorkcenter(models.Model):
     def create(self, vals_list):
         # resource_type is 'human' by default. As we are not living in
         # /r/latestagecapitalism, workcenters are 'material'
-        records = super(
+        return super(
             MrpWorkcenter, self.with_context(default_resource_type="material")
         ).create(vals_list)
-        return records
 
     def write(self, vals):
         if "company_id" in vals:
@@ -506,8 +505,7 @@ class MrpWorkcenter(models.Model):
         return action
 
     def action_work_order(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.action_work_orders")
-        return action
+        return self.env["ir.actions.actions"]._for_xml_id("mrp.action_work_orders")
 
     def action_work_order_alternatives(self):
         action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_workorder_todo")
@@ -541,7 +539,7 @@ class MrpWorkcenter(models.Model):
         duration,
         forward=True,
         reservations_to_ignore=False,
-        extra_leaves_slots=[],
+        extra_leaves_slots=None,
     ):
         """Get the first available interval for the workcenter in `self`.
 
@@ -558,6 +556,8 @@ class MrpWorkcenter(models.Model):
         :rtype: tuple
         """
         self.ensure_one()
+        if extra_leaves_slots is None:
+            extra_leaves_slots = []
         ICP = self.env["ir.config_parameter"].sudo()
         max_planning_iterations = max(
             int(ICP.get_param("mrp.workcenter_max_planning_iterations", "50")), 1

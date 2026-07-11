@@ -1,9 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import logging
+
 from . import models
 from . import wizard
 from . import report
 from . import controller
+
+_logger = logging.getLogger(__name__)
 
 
 def _pre_init_mrp(env):
@@ -37,5 +41,8 @@ def uninstall_hook(env):
     try:
         with env.cr.savepoint():
             pbm_routes.unlink()
-    except:
-        pass
+    except Exception:
+        _logger.debug(
+            "Could not delete PBM routes during MRP uninstall; they are still in use.",
+            exc_info=True,
+        )

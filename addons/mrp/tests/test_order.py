@@ -374,7 +374,7 @@ class TestMrpOrder(TestMrpCommon):
         order quantity. Then check if the produced quantity do not
         change and it is possible to close the MO.
         """
-        mo, bom, p_final, p1, p2 = self.generate_mo(tracking_base_1="lot")
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(tracking_base_1="lot")
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         lot_1 = self.env["stock.lot"].create(
@@ -436,7 +436,7 @@ class TestMrpOrder(TestMrpCommon):
         order quantity. Then check if the produced quantity do not
         change and it is possible to close the MO.
         """
-        mo, bom, p_final, p1, p2 = self.generate_mo(qty_final=3)
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(qty_final=3)
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 20)
@@ -797,7 +797,7 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_product_produce_1(self):
         """Checks the production wizard contains lines even for untracked products."""
-        mo, bom, p_final, p1, p2 = self.generate_mo()
+        mo, _bom, _p_final, p1, p2 = self.generate_mo()
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 100)
@@ -841,7 +841,7 @@ class TestMrpOrder(TestMrpCommon):
         other is not tracked, when creating a manufacturing order for two finished products and
         reserving, the produce wizards proposes the corrects lines when producing one at a time.
         """
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
             tracking_base_1="serial", qty_base_1=1, qty_final=2
         )
         self.assertEqual(len(mo), 1, "MO should have been created")
@@ -1015,7 +1015,7 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_product_produce_4(self):
         """Possibility to produce with a given raw material in multiple locations."""
-        mo, _, p_final, p1, p2 = self.generate_mo(qty_final=1, qty_base_1=5)
+        mo, _, _p_final, p1, p2 = self.generate_mo(qty_final=1, qty_base_1=5)
 
         self.env["stock.quant"]._update_available_quantity(p1, self.shelf_1, 2)
         self.env["stock.quant"]._update_available_quantity(p1, self.shelf_2, 3)
@@ -1051,7 +1051,7 @@ class TestMrpOrder(TestMrpCommon):
         to 3. Now, try to update the quantity to mo2 to 3. It should fail since there
         are consumed quantities. Unlock and edit, remove the consumed quantities and
         update the quantity to produce to 3."""
-        mo, bom, p_final, p1, p2 = self.generate_mo()
+        mo, _bom, _p_final, p1, p2 = self.generate_mo()
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 20)
@@ -1123,7 +1123,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_consumption_strict_1(self):
         """Checks the constraints of a strict BOM without tracking when playing around
         quantities to consume."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(consumption="strict", qty_final=1)
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(consumption="strict", qty_final=1)
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 100)
@@ -1170,7 +1170,9 @@ class TestMrpOrder(TestMrpCommon):
     def test_consumption_warning_1(self):
         """Checks the constraints of a strict BOM without tracking when playing around
         quantities to consume."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(consumption="warning", qty_final=1)
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
+            consumption="warning", qty_final=1
+        )
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 100)
@@ -1219,7 +1221,9 @@ class TestMrpOrder(TestMrpCommon):
     def test_consumption_flexible_1(self):
         """Checks the constraints of a strict BOM without tracking when playing around
         quantities to consume."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(consumption="flexible", qty_final=1)
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
+            consumption="flexible", qty_final=1
+        )
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 100)
@@ -1248,7 +1252,9 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_consumption_flexible_2(self):
         """Checks the constraints of a strict BOM only apply to the product of the BoM."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(consumption="flexible", qty_final=1)
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
+            consumption="flexible", qty_final=1
+        )
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 100)
@@ -1523,7 +1529,7 @@ class TestMrpOrder(TestMrpCommon):
         finished products and without reserving, the produce wizards proposes the corrects lines
         even if we change the quantity to produce multiple times.
         """
-        mo, bom, p_final, p1, p2 = self.generate_mo(qty_final=1)
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(qty_final=1)
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         self.env["stock.quant"]._update_available_quantity(p1, self.stock_location, 4)
@@ -1536,7 +1542,7 @@ class TestMrpOrder(TestMrpCommon):
         mo_form = Form(mo)
         mo_form.qty_producing = 3
         self.assertEqual(
-            sum([x["quantity"] for x in mo_form.move_raw_ids._records]),
+            sum(x["quantity"] for x in mo_form.move_raw_ids._records),
             15,
             "Update the produce quantity should change the components quantity.",
         )
@@ -1544,7 +1550,7 @@ class TestMrpOrder(TestMrpCommon):
         mo_form = Form(mo)
         mo_form.qty_producing = 4
         self.assertEqual(
-            sum([x["quantity"] for x in mo_form.move_raw_ids._records]),
+            sum(x["quantity"] for x in mo_form.move_raw_ids._records),
             20,
             "Update the produce quantity should change the components quantity.",
         )
@@ -1552,7 +1558,7 @@ class TestMrpOrder(TestMrpCommon):
         mo_form = Form(mo)
         mo_form.qty_producing = 1
         self.assertEqual(
-            sum([x["quantity"] for x in mo_form.move_raw_ids._records]),
+            sum(x["quantity"] for x in mo_form.move_raw_ids._records),
             5,
             "Update the produce quantity should change the components quantity.",
         )
@@ -1658,7 +1664,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_product_produce_duplicate_1(self):
         """produce a finished product tracked by serial number 2 times with the
         same SN. Check that an error is raised the second time"""
-        mo1, bom, p_final, p1, p2 = self.generate_mo(
+        mo1, bom, p_final, _p1, _p2 = self.generate_mo(
             tracking_final="serial",
             qty_final=1,
             qty_base_1=1,
@@ -1685,7 +1691,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_product_produce_duplicate_2(self):
         """produce a finished product with component tracked by serial number 2
         times with the same SN. Check that an error is raised the second time"""
-        mo1, bom, p_final, p1, p2 = self.generate_mo(
+        mo1, bom, p_final, _p1, p2 = self.generate_mo(
             tracking_base_2="serial",
             qty_final=1,
             qty_base_1=1,
@@ -1814,7 +1820,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_product_produce_duplicate_4(self):
         """Consuming the same serial number two times should not give an error if
         a repair order of the first production has been made before the second one"""
-        mo1, bom, p_final, p1, p2 = self.generate_mo(
+        mo1, bom, p_final, _p1, p2 = self.generate_mo(
             tracking_base_2="serial",
             qty_final=1,
             qty_base_1=1,
@@ -2025,7 +2031,7 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_product_produce_12(self):
         """Checks that, the production is robust against deletion of finished move."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(qty_final=1)
+        mo, _bom, _p_final, _p1, _p2 = self.generate_mo(qty_final=1)
         self.assertEqual(len(mo), 1, "MO should have been created")
 
         mo_form = Form(mo)
@@ -2084,7 +2090,7 @@ class TestMrpOrder(TestMrpCommon):
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product
         mo = mo_form.save()
-        for i in range(2):
+        for _i in range(2):
             move = self.env["stock.move"].create(
                 {
                     "product_id": self.product_2.id,
@@ -2165,7 +2171,10 @@ class TestMrpOrder(TestMrpCommon):
                     "operation_id": operation.id,
                 }
                 for (comp, qty, operation) in zip(
-                    [comp1, comp2, comp3], [1.0, 2.0, 3.0], bom.operation_ids
+                    [comp1, comp2, comp3],
+                    [1.0, 2.0, 3.0],
+                    bom.operation_ids,
+                    strict=False,
                 )
             ]
         )
@@ -2178,7 +2187,10 @@ class TestMrpOrder(TestMrpCommon):
                     "operation_id": operation.id,
                 }
                 for (bprod, qty, operation) in zip(
-                    [bprod1, bprod2, bprod3], [1.0, 2.0, 3.0], bom.operation_ids
+                    [bprod1, bprod2, bprod3],
+                    [1.0, 2.0, 3.0],
+                    bom.operation_ids,
+                    strict=False,
                 )
             ]
         )
@@ -2390,7 +2402,7 @@ class TestMrpOrder(TestMrpCommon):
         """In a production with a single available move raw, clicking on mark as done without filling any
         quantities should open a wizard asking to process all the reservation (so, the whole move).
         """
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
             qty_final=1, qty_base_1=1, qty_base_2=1
         )
         self.env["stock.quant"]._update_available_quantity(
@@ -2400,7 +2412,7 @@ class TestMrpOrder(TestMrpCommon):
             p2, self.stock_location_components, 5.0
         )
         mo.action_assign()
-        res_dict = mo.button_mark_done()
+        mo.button_mark_done()
         self.assertEqual(mo.move_raw_ids.mapped("state"), ["done", "done"])
         self.assertEqual(mo.move_raw_ids.mapped("quantity"), [1, 1])
         self.assertEqual(mo.move_finished_ids.state, "done")
@@ -2409,7 +2421,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_immediate_validate_3(self):
         """In a production with a serial number tracked product. Check that the immediate production only creates
         one unit of finished product. Test with reservation."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
             tracking_final="serial", qty_final=2, qty_base_1=1, qty_base_2=1
         )
         self.env["stock.quant"]._update_available_quantity(
@@ -2440,7 +2452,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_immediate_validate_4(self):
         """In a production with a serial number tracked product. Check that the immediate production only creates
         one unit of finished product. Test without reservation."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
             tracking_final="serial", qty_final=2, qty_base_1=1, qty_base_2=1
         )
         self.env["stock.quant"]._update_available_quantity(
@@ -2590,7 +2602,7 @@ class TestMrpOrder(TestMrpCommon):
     def test_immediate_validate_6(self):
         """In a production for a tracked product, clicking on mark as done without filling any quantities should
         pop up the immediate transfer wizard. Processing should choose a new lot for the finished product."""
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(
             qty_final=1, qty_base_1=1, qty_base_2=1, tracking_final="lot"
         )
         self.env["stock.quant"]._update_available_quantity(
@@ -2605,7 +2617,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo.move_raw_ids.mapped("quantity"), [1] * 2)
         self.assertEqual(mo.move_finished_ids.state, "done")
         self.assertEqual(mo.move_finished_ids.quantity, 1)
-        self.assertTrue(mo.move_finished_ids.move_line_ids.lot_id != False)
+        self.assertTrue(mo.move_finished_ids.move_line_ids.lot_id)
 
     def test_immediate_validate_uom(self):
         """In a production with a different uom than the finished product one, the
@@ -2719,7 +2731,7 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_copy(self):
         """Check that copying a done production, create all the stock moves"""
-        mo, bom, p_final, p1, p2 = self.generate_mo(
+        mo, _bom, _p_final, _p1, _p2 = self.generate_mo(
             qty_final=1, qty_base_1=1, qty_base_2=1
         )
         mo.action_confirm()
@@ -6365,7 +6377,7 @@ class TestMrpOrder(TestMrpCommon):
         mo_form.product_id = product_to_build
         mo_form.bom_id = bom_1
         mo_form.product_qty = qty_final
-        mo = mo_form.save()
+        mo_form.save()
         if extra_component:
             with mo_form.move_raw_ids.new() as line:
                 line.product_id = product_to_use_1
@@ -6375,8 +6387,7 @@ class TestMrpOrder(TestMrpCommon):
                 line.name = "drilling"
                 line.workcenter_id = workcenter_1
                 line.duration_expected = 60
-        mo = mo_form.save()
-        return mo
+        return mo_form.save()
 
     def _verify_report_main_decorators(
         self,

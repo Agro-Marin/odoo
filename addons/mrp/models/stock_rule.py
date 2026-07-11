@@ -163,8 +163,10 @@ class StockRule(models.Model):
                     ].append(procurement)
                     procurement_qty -= batch_size
             else:
-                procurement_product_uom_qty = procurement.product_uom_id._compute_quantity(
-                    procurement.product_qty, procurement.product_id.uom_id
+                procurement_product_uom_qty = (
+                    procurement.product_uom_id._compute_quantity(
+                        procurement.product_qty, procurement.product_id.uom_id
+                    )
                 )
                 self.env["change.production.qty"].sudo().with_context(
                     skip_activity=True
@@ -179,7 +181,7 @@ class StockRule(models.Model):
                 ).change_prod_qty()
                 if procurement.values.get("move_dest_ids"):
                     mo.move_finished_ids.filtered(
-                        lambda m: (
+                        lambda m, procurement=procurement: (
                             m.product_id == procurement.product_id
                             and m.state not in ("done", "cancel")
                         )
@@ -341,8 +343,10 @@ class StockRule(models.Model):
             "picking_type_id": picking_type.id
             or values["warehouse_id"].manu_type_id.id,
             "company_id": company_id.id,
-            "move_dest_ids": (values.get("move_dest_ids")
-            and [(4, x.id) for x in values["move_dest_ids"]])
+            "move_dest_ids": (
+                values.get("move_dest_ids")
+                and [(4, x.id) for x in values["move_dest_ids"]]
+            )
             or False,
             "user_id": False,
         }

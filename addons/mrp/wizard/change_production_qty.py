@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo import api, fields, models
 from odoo.tools import float_is_zero
 
 
@@ -124,7 +123,7 @@ class ChangeProductionQty(models.TransientModel):
                 # TODO: following could be put in a function as it is similar as code in _workorders_create
                 # TODO: only needed when creating new moves
                 moves_raw = production.move_raw_ids.filtered(
-                    lambda move: (
+                    lambda move, operation=operation: (
                         move.operation_id == operation
                         and move.state not in ("done", "cancel")
                     )
@@ -134,7 +133,7 @@ class ChangeProductionQty(models.TransientModel):
                         lambda move: not move.operation_id
                     )
                 moves_finished = production.move_finished_ids.filtered(
-                    lambda move: move.operation_id == operation
+                    lambda move, operation=operation: move.operation_id == operation
                 )  # TODO: code does nothing, unless maybe by_products?
                 moves_raw.mapped("move_line_ids").write({"workorder_id": wo.id})
                 (moves_finished + moves_raw).write({"workorder_id": wo.id})

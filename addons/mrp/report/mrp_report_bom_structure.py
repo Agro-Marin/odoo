@@ -1,4 +1,3 @@
-
 import json
 from collections import OrderedDict, defaultdict
 from datetime import date, datetime, time, timedelta
@@ -6,8 +5,6 @@ from datetime import date, datetime, time, timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import (
-    float_compare,
-    float_is_zero,
     float_repr,
     float_round,
     format_date,
@@ -66,18 +63,17 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 continue
             variant = data.get("variant")
             candidates = (
-                (variant
-                and self.env["product.product"].browse(int(variant)))
+                (variant and self.env["product.product"].browse(int(variant)))
                 or bom.product_id
                 or bom.product_tmpl_id.product_variant_ids
             )
             quantity = float(data.get("quantity", bom.product_qty))
             if data.get("warehouse_id"):
                 self = self.with_context(warehouse_id=int(data.get("warehouse_id")))
-            for product_variant_id in candidates.ids:
-                docs.append(
-                    self._get_pdf_doc(bom_id, data, quantity, product_variant_id)
-                )
+            docs.extend(
+                self._get_pdf_doc(bom_id, data, quantity, product_variant_id)
+                for product_variant_id in candidates.ids
+            )
             if not candidates:
                 docs.append(self._get_pdf_doc(bom_id, data, quantity))
         return {
@@ -593,7 +589,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         if level == 0:
             # Gives a unique key for the first line that indicates if product is ready for production right now.
             bom_report_line["components_available"] = all(
-                [c["stock_avail_state"] == "available" for c in components]
+                c["stock_avail_state"] == "available" for c in components
             )
         return bom_report_line
 
@@ -785,13 +781,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             ) * byproduct.product_qty
             cost_share = byproduct.cost_share / 100 if byproduct.product_qty > 0 else 0
             byproduct_cost_portion += cost_share
-            price = (
-                byproduct.product_id.uom_id._compute_price(
-                    byproduct.product_id.with_company(company).standard_price,
-                    byproduct.product_uom_id,
-                )
-                * line_quantity
-            )
             byproducts.append(
                 {
                     "id": byproduct.id,
@@ -838,7 +827,10 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 qty, bom.product_tmpl_id.uom_id
             )
             qty_to_produce = bom.product_tmpl_id.uom_id._compute_quantity(
-                max(0, qty_requested - (product.qty_available_virtual if level > 1 else 0)),
+                max(
+                    0,
+                    qty_requested - (product.qty_available_virtual if level > 1 else 0),
+                ),
                 bom.product_uom_id,
             )
             if not (product or bom.product_tmpl_id).uom_id.is_zero(qty_to_produce):
@@ -1148,8 +1140,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             and report_line
             and report_line["phantom_bom"]
         ):
-            val = self._get_last_availability(report_line)
-            return val
+            return self._get_last_availability(report_line)
 
         base = {
             "resupply_avail_delay": resupply_delay,
@@ -1158,23 +1149,19 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         if level != 0 and stock_state != "unavailable":
             return {
                 **base,
-
-                    "availability_display": self._format_date_display(
-                        stock_state, stock_delay
-                    ),
-                    "availability_state": stock_state,
-                    "availability_delay": stock_delay
-                ,
+                "availability_display": self._format_date_display(
+                    stock_state, stock_delay
+                ),
+                "availability_state": stock_state,
+                "availability_delay": stock_delay,
             }
         return {
             **base,
-
-                "availability_display": self._format_date_display(
-                    resupply_state, resupply_delay
-                ),
-                "availability_state": resupply_state,
-                "availability_delay": resupply_delay
-            ,
+            "availability_display": self._format_date_display(
+                resupply_state, resupply_delay
+            ),
+            "availability_state": resupply_state,
+            "availability_delay": resupply_delay,
         }
 
     @api.model
@@ -1398,7 +1385,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         workcenters = (
             operation.workcenter_id | operation.workcenter_id.alternative_workcenter_ids
         )
-        best_date_finished = datetime.max
+        best_date_finished = None
         best_date_start = best_workcenter = best_duration_expected = None
         for workcenter in workcenters:
             if not workcenter.resource_calendar_id:
@@ -1419,13 +1406,13 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             if not from_date:
                 continue
             # Check if this workcenter is better than the previous ones
-            if to_date and to_date < best_date_finished:
+            if to_date and (best_date_finished is None or to_date < best_date_finished):
                 best_date_start = from_date
                 best_date_finished = to_date
                 best_workcenter = workcenter
                 best_duration_expected = duration_expected
         # If none of the workcenter are available, raise
-        if best_date_finished == datetime.max:
+        if best_date_finished is None:
             raise UserError(
                 _("Impossible to plan. Please check the workcenter availabilities.")
             )

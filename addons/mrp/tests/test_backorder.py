@@ -826,7 +826,7 @@ class TestMrpProductionBackorder(TestMrpCommon):
         location = self.env["stock.location"].search([], limit=1)
         mo.production_group_id.production_ids.location_final_id = location
         # Merge them back
-        expected_origin = ",".join([mo1.name, mo2.name, mo3.name])
+        expected_origin = f"{mo1.name},{mo2.name},{mo3.name}"
         action = (mo1 + mo2 + mo3).action_merge()
         mo = self.env[action["res_model"]].browse(action["res_id"])
         self.assertEqual(mo.location_final_id, location)

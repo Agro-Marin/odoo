@@ -15,9 +15,9 @@ class TestMrpByProduct(common.TransactionCase):
         route_mto = cls.warehouse.mto_pull_id.route_id.id
         cls.uom_unit_id = cls.env.ref("uom.product_uom_unit").id
 
-        def create_product(name, route_ids=[]):
+        def create_product(name, route_ids=None):
             return cls.env["product.product"].create(
-                {"name": name, "is_storable": True, "route_ids": route_ids}
+                {"name": name, "is_storable": True, "route_ids": route_ids or []}
             )
 
         # Create product A, B, C.
@@ -77,7 +77,7 @@ class TestMrpByProduct(common.TransactionCase):
         """Test by product with production order."""
         # Create BOM for product B
         # ------------------------
-        bom_product_b = self.MrpBom.create(
+        self.MrpBom.create(
             {
                 "product_tmpl_id": self.product_b.product_tmpl_id.id,
                 "product_qty": 1.0,

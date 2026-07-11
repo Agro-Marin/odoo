@@ -174,10 +174,11 @@ class MrpBom(models.Model):
             self.byproduct_ids.bom_product_template_attribute_value_ids = False
             if warning:
                 return warning
+        return None
 
     @api.constrains("active", "product_id", "product_tmpl_id", "bom_line_ids")
     def _check_bom_cycle(self):
-        subcomponents_dict = dict()
+        subcomponents_dict = {}
 
         def _check_cycle(components, finished_products):
             """
@@ -204,7 +205,7 @@ class MrpBom(models.Model):
                 if component not in subcomponents_dict:
                     bom = bom_find_result[component]
                     subcomponents = bom.bom_line_ids.filtered(
-                        lambda l: not l._skip_bom_line(component)
+                        lambda l, component=component: not l._skip_bom_line(component)
                     ).product_id
                     subcomponents_dict[component] = subcomponents
                 subcomponents = subcomponents_dict[component]
@@ -230,7 +231,7 @@ class MrpBom(models.Model):
                 grouped_by_components = defaultdict(lambda: self.env["product.product"])
                 for finished in finished_products:
                     components = bom.bom_line_ids.filtered(
-                        lambda l: not l._skip_bom_line(finished)
+                        lambda l, finished=finished: not l._skip_bom_line(finished)
                     ).product_id
                     grouped_by_components[components] |= finished
                 for components, finished in grouped_by_components.items():
@@ -289,7 +290,7 @@ class MrpBom(models.Model):
             for product in bom.product_tmpl_id.product_variant_ids:
                 total_variant_cost_share = sum(
                     bom.byproduct_ids.filtered(
-                        lambda bp: (
+                        lambda bp, product=product: (
                             not bp._skip_byproduct_line(product)
                             and not bp.product_uom_id.is_zero(bp.product_qty)
                         )
@@ -320,6 +321,7 @@ class MrpBom(models.Model):
                     ),
                 }
             }
+        return None
 
     @api.onchange("product_tmpl_id")
     def onchange_product_tmpl_id(self):
@@ -360,6 +362,7 @@ class MrpBom(models.Model):
                 )
             if warning:
                 return warning
+        return None
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -392,13 +395,15 @@ class MrpBom(models.Model):
 
     def copy(self, default=None):
         new_boms = super().copy(default)
-        for old_bom, new_bom in zip(self, new_boms):
+        for old_bom, new_bom in zip(self, new_boms, strict=False):
             if old_bom.operation_ids:
-                operations_mapping = {}
-                for original, copied in zip(
-                    old_bom.operation_ids, new_bom.operation_ids.sorted()
-                ):
-                    operations_mapping[original] = copied
+                operations_mapping = dict(
+                    zip(
+                        old_bom.operation_ids,
+                        new_bom.operation_ids.sorted(),
+                        strict=False,
+                    )
+                )
                 for bom_line in new_bom.bom_line_ids:
                     if bom_line.operation_id:
                         bom_line.operation_id = operations_mapping[
@@ -412,11 +417,10 @@ class MrpBom(models.Model):
                 for operation in old_bom.operation_ids:
                     if operation.blocked_by_operation_ids:
                         copied_operation = operations_mapping[operation]
-                        dependencies = []
-                        for dependency in operation.blocked_by_operation_ids:
-                            dependencies.append(
-                                Command.link(operations_mapping[dependency].id)
-                            )
+                        dependencies = [
+                            Command.link(operations_mapping[dependency].id)
+                            for dependency in operation.blocked_by_operation_ids
+                        ]
                         copied_operation.blocked_by_operation_ids = dependencies
         return new_boms
 
@@ -456,7 +460,9 @@ class MrpBom(models.Model):
             bom.operation_count = len(bom.operation_ids)
 
     def _compute_show_copy_operations_button(self):
-        exist_operation = bool(self.env["mrp.routing.workcenter"].search_count([], limit=1))
+        exist_operation = bool(
+            self.env["mrp.routing.workcenter"].search_count([], limit=1)
+        )
         self.show_copy_operations_button = exist_operation
 
     def action_compute_bom_days(self):
@@ -486,6 +492,7 @@ class MrpBom(models.Model):
                         "sticky": False,
                     },
                 }
+        return None
 
     @api.constrains("product_tmpl_id", "product_id", "type")
     def check_kit_has_not_orderpoint(self):
@@ -589,7 +596,10 @@ class MrpBom(models.Model):
                 bom_by_product_tmpl[bom.product_tmpl_id] = bom
 
         for product in products:
-            if product.product_tmpl_id in bom_by_product_tmpl and product not in bom_by_product:
+            if (
+                product.product_tmpl_id in bom_by_product_tmpl
+                and product not in bom_by_product
+            ):
                 bom_by_product[product] = bom_by_product_tmpl[product.product_tmpl_id]
 
         return bom_by_product
@@ -604,7 +614,7 @@ class MrpBom(models.Model):
         """
         self = self.with_context(
             bom_cost_share_cache=self.env.context.get("bom_cost_share_cache") or {}
-        )  # noqa: PLW0642
+        )
         product_ids = set()
         product_boms = {}
 
@@ -619,8 +629,8 @@ class MrpBom(models.Model):
                 )
             )
             # Set missing keys to default value
-            for product in products:
-                product_boms.setdefault(product, self.env["mrp.bom"])
+            for prod in products:
+                product_boms.setdefault(prod, self.env["mrp.bom"])
 
         boms_done = [
             (
@@ -750,7 +760,9 @@ class MrpBom(models.Model):
                 if bom.product_id:
                     template_domain.append(("product_id", "!=", bom.product_id.id))
                 else:
-                    template_domain.append(("product_tmpl_id", "!=", bom.product_tmpl_id.id))
+                    template_domain.append(
+                        ("product_tmpl_id", "!=", bom.product_tmpl_id.id)
+                    )
                 list_of_domain_by_bom_to_unmark.append(template_domain)
             if list_of_domain_by_bom_to_unmark:
                 self.env["mrp.production"].search(
@@ -847,8 +859,7 @@ class MrpBom(models.Model):
                 & Domain("res_id", "in", template_ids)
             )
         )
-        attachements = self.env["product.document"].search(domain).ir_attachment_id
-        return attachements
+        return self.env["product.document"].search(domain).ir_attachment_id
 
     @api.model
     def _skip_for_no_variant(
@@ -1181,8 +1192,7 @@ class MrpBomLine(models.Model):
                     )
                 ),
                 "readOnly": len(self) > 1,
-                "uomDisplayName": (len(self) == 1
-                and self.product_uom_id.display_name)
+                "uomDisplayName": (len(self) == 1 and self.product_uom_id.display_name)
                 or self.product_id.uom_id.display_name,
             }
         return {
@@ -1303,8 +1313,7 @@ class MrpBomByproduct(models.Model):
                     )
                 ),
                 "readOnly": len(self) > 1,
-                "uomDisplayName": (len(self) == 1
-                and self.product_uom_id.display_name)
+                "uomDisplayName": (len(self) == 1 and self.product_uom_id.display_name)
                 or self.product_id.uom_id.display_name,
             }
         return {

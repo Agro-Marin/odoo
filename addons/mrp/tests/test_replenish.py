@@ -135,7 +135,7 @@ class TestMrpReplenish(TestMrpCommon):
         is linked to the MO and validating it will automatically reserve the quantity
         on the MO."""
         self.warehouse_1.manufacture_steps = "pbm"
-        basic_mo, dummy1, dummy2, product_to_scrap, other_product = self.generate_mo(
+        basic_mo, _dummy1, _dummy2, product_to_scrap, other_product = self.generate_mo(
             qty_final=1, qty_base_1=1, qty_base_2=1
         )
         for product in (product_to_scrap, other_product):

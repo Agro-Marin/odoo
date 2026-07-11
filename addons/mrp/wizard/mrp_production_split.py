@@ -108,7 +108,9 @@ class MrpProductionSplit(models.TransientModel):
                 ]
             }
         )
-        for production, detail in zip(productions, self.production_detailed_vals_ids):
+        for production, detail in zip(
+            productions, self.production_detailed_vals_ids, strict=False
+        ):
             production.user_id = detail.user_id
             production.date_start = detail.date
         if self.production_split_multi_id:
@@ -119,6 +121,7 @@ class MrpProductionSplit(models.TransientModel):
             )
             action["res_id"] = saved_production_split_multi_id
             return action
+        return None
 
     def action_prepare_split(self):
         action = self.env["ir.actions.actions"]._for_xml_id(
