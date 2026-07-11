@@ -3,7 +3,7 @@
 
 /** @module @web/components/dropzone/dropzone_hook - Hooks for attaching drag-and-drop file upload zones to DOM elements */
 
-import { useEffect, useExternalListener } from "@odoo/owl";
+import { onWillDestroy, useEffect, useExternalListener } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
 import { useService } from "@web/core/utils/hooks";
 /**
@@ -87,6 +87,14 @@ export function useCustomDropzone(
         },
         () => [targetRef.el],
     );
+
+    // The overlay entry outlives the owner otherwise (host unmounted mid-drag).
+    onWillDestroy(() => {
+        if (removeDropzone) {
+            removeDropzone();
+            removeDropzone = false;
+        }
+    });
 }
 
 /**

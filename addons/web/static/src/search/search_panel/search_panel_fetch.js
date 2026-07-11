@@ -18,6 +18,10 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
     if (error_msg) {
         category.errorMsg = error_msg;
         values = [];
+    } else {
+        // A successful rebuild self-heals a previously failed fetch: errorMsg
+        // keeps hasValues() true and the error tile rendered until cleared.
+        delete category.errorMsg;
     }
     if (category.hierarchize) {
         category.parentField = parentField;
@@ -69,6 +73,10 @@ export function createFilterTree(filter, result) {
     if (error_msg) {
         filter.errorMsg = error_msg;
         values = [];
+    } else {
+        // A successful rebuild self-heals a previously failed fetch: errorMsg
+        // keeps hasValues() true and the error tile rendered until cleared.
+        delete filter.errorMsg;
     }
 
     values.forEach((value) => {

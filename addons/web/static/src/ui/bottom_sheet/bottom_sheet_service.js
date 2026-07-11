@@ -51,12 +51,18 @@ export const bottomSheetService = {
                     return;
                 }
                 closed = true;
-                await options.onClose?.(removeParams);
-                bottomSheetCount--;
-                if (bottomSheetCount === 0) {
-                    document.body.classList.remove("bottom-sheet-open");
-                } else if (bottomSheetCount === 1) {
-                    document.body.classList.remove("bottom-sheet-open-multiple");
+                // onClose may throw; keep the finally so the count/body-class
+                // bookkeeping still runs and can't leave scroll locked
+                // (mirrors dialog_service).
+                try {
+                    await options.onClose?.(removeParams);
+                } finally {
+                    bottomSheetCount--;
+                    if (bottomSheetCount === 0) {
+                        document.body.classList.remove("bottom-sheet-open");
+                    } else if (bottomSheetCount === 1) {
+                        document.body.classList.remove("bottom-sheet-open-multiple");
+                    }
                 }
             };
             const _remove = overlay.add(

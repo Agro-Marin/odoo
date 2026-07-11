@@ -43,13 +43,22 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
     let groupRowLabels = [];
     if (groupRowValues.length) {
         const rowSubTree = findGroup(data.rowGroupTree, groupRowValues);
+        if (!rowSubTree) {
+            // The parent group is gone (e.g. an ancestor was closed while
+            // this subdivision was computed): the result is stale, drop it.
+            return;
+        }
         groupRowLabels = rowSubTree.root.labels;
     }
 
     const groupColValues = group.colValues;
     let groupColLabels = [];
     if (groupColValues.length) {
-        groupColLabels = findGroup(data.colGroupTree, groupColValues).root.labels;
+        const colSubTree = findGroup(data.colGroupTree, groupColValues);
+        if (!colSubTree) {
+            return;
+        }
+        groupColLabels = colSubTree.root.labels;
     }
 
     // Compute measure specs once for the whole pass, not per sub-group.

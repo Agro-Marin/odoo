@@ -133,6 +133,16 @@ export function makeControllerComponent(am) {
             reject(error);
             if (action.target === "new") {
                 removeDialogRef.current?.();
+                if (am.nextDialog?.remove === removeDialogRef.current) {
+                    // The failed dialog was still pending: the committed
+                    // dialog (if any) survives (_removeDialog's identity
+                    // guard), so hand back the onClose stolen at dispatch and
+                    // clear the pending slot.
+                    if (am.dialog && !am.dialog.onClose) {
+                        am.dialog.onClose = am.nextDialog.stolenOnClose;
+                    }
+                    am.nextDialog = null;
+                }
                 return;
             }
             const index = am.controllerStack.findIndex(
@@ -196,12 +206,15 @@ export function makeControllerComponent(am) {
                 );
                 browser.sessionStorage.setItem("current_lang", user.lang);
             }
+            // Flip isMounted before resolve()/trigger: code resumed by the
+            // resolved doAction promise (or the UI_UPDATED listeners) must
+            // never observe `false` on an actually-mounted controller.
+            controller.isMounted = true;
             resolve();
             am.env.bus.trigger(
                 AppEvent.ACTION_MANAGER_UI_UPDATED,
                 getActionMode(action, actionRegistry),
             );
-            controller.isMounted = true;
         }
 
         onWillUnmount() {

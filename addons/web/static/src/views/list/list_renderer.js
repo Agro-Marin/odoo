@@ -258,8 +258,13 @@ export class ListRenderer extends Component {
                 onSave: () => this.saveOptionalActiveFields(),
             },
         );
-        // useState makes optionalActiveFields reactive so ListAggregatesRow can
-        // subscribe to property-level mutations (optional column toggle).
+        // The prop is OWNED by the controller (reactive useState there) and
+        // written in place by this renderer (computeOptionalActiveFields,
+        // toggle handlers) — that shared object is what keeps the
+        // controller's getExportableFields in sync. useState re-wraps it on
+        // this component so ListAggregatesRow can subscribe to
+        // property-level mutations (optional column toggle). The fallback
+        // covers embedded x2many usage, where the prop is not passed.
         this.optionalActiveFields = useState(this.props.optionalActiveFields || {});
         /** @type {Column[]} */
         this.allColumns = [];
@@ -581,23 +586,15 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Evict all ``_readonlyCache`` entries for one record. Cache keys are
-     * ``"<columnId>,<recordId>"`` and ``"cell:<columnId>,<recordId>"`` (see
-     * ``list_styling.js``).
+     * Evict all ``_readonlyCache`` entries for one record. The cache is
+     * two-level — ``Map<recordId, Map<columnKey, value>>`` (see
+     * ``list_styling.js``) — precisely so this eviction, which runs on every
+     * isolated row re-render, is O(1) instead of a scan of all keys.
      *
      * @param {string} recordId
      */
     clearRecordCaches(recordId) {
-        const cache = this._readonlyCache;
-        if (!cache) {
-            return;
-        }
-        const suffix = `,${recordId}`;
-        for (const key of [...cache.keys()]) {
-            if (key.endsWith(suffix)) {
-                cache.delete(key);
-            }
-        }
+        this._readonlyCache?.delete(recordId);
     }
 
     get canResequenceRows() {

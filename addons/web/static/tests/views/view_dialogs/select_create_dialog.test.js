@@ -704,6 +704,30 @@ test("SelectCreateDialog: default props, create a record on desktop", async () =
 });
 
 test.tags("desktop");
+test("SelectCreateDialog: create a record without onSelected", async () => {
+    // `onSelected` is optional: creating a record through "New" must not
+    // throw when the caller did not provide it.
+    Partner._views["list"] = /* xml */ `<list><field name="name"/></list>`;
+    Partner._views["search"] = /* xml */ `<search/>`;
+    Partner._views["form"] = /* xml */ `<form><field name="name"/></form>`;
+    await mountWithCleanup(WebClient);
+
+    getService("dialog").add(SelectCreateDialog, {
+        resModel: "partner",
+    });
+    await animationFrame();
+
+    expect(".o_dialog").toHaveCount(1);
+    await contains(".o_dialog footer button.o_create_button").click();
+    expect(".o_dialog").toHaveCount(2);
+
+    await contains(".o_dialog .o_form_view .o_field_widget input").edit("hello");
+    await clickSave();
+
+    expect(".o_dialog").toHaveCount(0);
+});
+
+test.tags("desktop");
 test("SelectCreateDialog: click on row once in selection", async () => {
     Partner._views["list"] = `<list multi_edit="1"><field name="name"/></list>`;
     Partner._views["search"] = `

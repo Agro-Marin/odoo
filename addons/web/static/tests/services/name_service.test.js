@@ -88,6 +88,44 @@ test("single loadDisplayNames following addDisplayNames (2)", async () => {
     expect.verifySteps(["dev:web_search_read:2"]);
 });
 
+test("addDisplayNames refreshes an already-resolved name", async () => {
+    await makeMockEnv();
+    onRpc(({ model, method, kwargs }) => {
+        expect.step(`${model}:${method}:${kwargs.domain[0][2]}`);
+    });
+
+    const nameService = getService("name");
+    const displayNames = await nameService.loadDisplayNames("dev", [1]);
+    expect(displayNames).toEqual({ 1: "Julien" });
+    expect.verifySteps(["dev:web_search_read:1"]);
+
+    // A fresh name pushed over a settled cache entry (e.g. record renamed
+    // since first resolution, re-fetched by an autocomplete's name_search)
+    // must replace the stale value, without a new RPC.
+    nameService.addDisplayNames("dev", { 1: "Julien (renamed)" });
+    const refreshed = await nameService.loadDisplayNames("dev", [1]);
+    expect(refreshed).toEqual({ 1: "Julien (renamed)" });
+    expect.verifySteps([]);
+});
+
+test("addDisplayNames settles in-flight loadDisplayNames callers", async () => {
+    await makeMockEnv();
+    onRpc(({ model, method, kwargs }) => {
+        expect.step(`${model}:${method}:${kwargs.domain[0][2]}`);
+    });
+
+    const nameService = getService("name");
+    // Caller joins the microtask batch, then the name is added before the
+    // batch RPC settles: the caller must get the added name.
+    const loadPromise = nameService.loadDisplayNames("dev", [1]);
+    nameService.addDisplayNames("dev", { 1: "JUM" });
+    expect(await loadPromise).toEqual({ 1: "JUM" });
+    // The already-opened batch still fired (its result is a no-op on the
+    // settled entry), but the added name stays authoritative.
+    expect.verifySteps(["dev:web_search_read:1"]);
+    expect(await nameService.loadDisplayNames("dev", [1])).toEqual({ 1: "JUM" });
+});
+
 test("loadDisplayNames in batch", async () => {
     await makeMockEnv();
     onRpc(({ model, method, kwargs }) => {

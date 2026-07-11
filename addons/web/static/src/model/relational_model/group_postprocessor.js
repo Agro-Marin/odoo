@@ -183,26 +183,39 @@ export async function postprocessReadGroup(config, response, deps) {
     if (config.currentGroups && config.currentGroups.params === params) {
         const currentGroups = config.currentGroups.groups;
         const newGroupValues = new Set(groups.map((g) => JSON.stringify(g.value)));
-        currentGroups.forEach((group, index) => {
-            if (
-                config.groups[group.value] &&
-                !newGroupValues.has(JSON.stringify(group.value))
-            ) {
+        // Insert each dropped group right after the previous surviving
+        // group's position in the MERGED array — the old group's index is
+        // stale as soon as one group has been re-inserted or the response
+        // comes back with fewer/reordered groups.
+        let cursor = 0;
+        for (const group of currentGroups) {
+            const key = JSON.stringify(group.value);
+            if (newGroupValues.has(key)) {
+                const index = groups.findIndex(
+                    (g, i) => i >= cursor && JSON.stringify(g.value) === key,
+                );
+                if (index >= 0) {
+                    cursor = index + 1;
+                }
+                continue;
+            }
+            if (config.groups[group.value]) {
                 const aggregates = { ...group.aggregates };
-                for (const key of Object.keys(aggregates)) {
+                for (const aggKey of Object.keys(aggregates)) {
                     // ``array_agg_distinct`` returns an array; everything else
                     // collapses to a numeric zero.
-                    aggregates[key] = Array.isArray(aggregates[key]) ? [] : 0;
+                    aggregates[aggKey] = Array.isArray(aggregates[aggKey]) ? [] : 0;
                 }
-                groups.splice(index, 0, {
+                groups.splice(cursor, 0, {
                     ...group,
                     count: 0,
                     length: 0,
                     records: [],
                     aggregates,
                 });
+                cursor++;
             }
-        });
+        }
     }
     config.currentGroups = { params, groups };
 

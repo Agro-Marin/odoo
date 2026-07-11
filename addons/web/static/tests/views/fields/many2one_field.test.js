@@ -948,7 +948,7 @@ test("empty many2one field", async () => {
     });
 
     await contains(".o_field_many2one input").click();
-    expect(".dropdown-menu li.o_m2o_dropdown_option").toHaveCount(1);
+    expect(".dropdown-menu li.o_m2o_dropdown_option").toHaveCount(0);
     expect(".dropdown-menu li.o_m2o_start_typing").toHaveCount(0);
 
     await contains(".o_field_many2one[name='trululu'] input").edit("abc", {
@@ -1146,7 +1146,7 @@ test("many2one in edit mode", async () => {
     expect(".o_field_many2one[name='trululu'] .dropdown-menu").toBeVisible();
     expect(
         ".o_field_many2one[name='trululu'] .dropdown-menu li:not(.o_m2o_dropdown_option)",
-    ).toHaveCount(8);
+    ).toHaveCount(7);
     expect(
         ".o_field_many2one[name='trululu'] .dropdown-menu li.o_m2o_dropdown_option",
     ).toHaveCount(1);
@@ -3335,7 +3335,7 @@ test("many2one: dynamic domain set in the field's definition", async () => {
     await contains(".o_data_cell:eq(0)").click();
     await contains(".o_field_many2one input").click();
 
-    expect(".o_field_many2one .o-autocomplete--dropdown-item").toHaveCount(2);
+    expect(".o_field_many2one .o-autocomplete--dropdown-item").toHaveCount(1);
 });
 
 test("many2one: domain set in view and on field", async () => {
@@ -3363,7 +3363,7 @@ test("many2one: domain set in view and on field", async () => {
     await contains(".o_data_cell:eq(0)").click();
     await contains(".o_field_many2one input").click();
 
-    expect(".o_field_many2one .o-autocomplete--dropdown-item").toHaveCount(2);
+    expect(".o_field_many2one .o-autocomplete--dropdown-item").toHaveCount(1);
 });
 
 test("many2one: domain updated by an onchange", async () => {
@@ -4196,7 +4196,6 @@ test("search typeahead", async () => {
         "second record",
         'Create "rec"',
         "Create and edit...",
-        "Search more...",
     ]);
 });
 

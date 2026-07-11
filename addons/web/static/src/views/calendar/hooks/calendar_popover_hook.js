@@ -54,7 +54,11 @@ export function useCalendarPopover(component) {
     return {
         close,
         open(target, props, popoverClassToUse) {
-            fcPopover = target.closest(".fc-popover");
+            // Capture the anchor's FC popover BEFORE opening: both branches
+            // synchronously close any previous popover, whose onClose ->
+            // cleanup() nulls `fcPopover` — assigning first would wipe the
+            // value we just captured and disarm the mousedown guard above.
+            const targetFcPopover = target.closest(".fc-popover");
             if (owner.env.isSmall) {
                 close();
                 removeDialog = dialog.add(component, props, {
@@ -64,6 +68,7 @@ export function useCalendarPopover(component) {
                 popoverClass = popoverClassToUse;
                 popover.open(target, props);
             }
+            fcPopover = targetFcPopover;
         },
     };
 }

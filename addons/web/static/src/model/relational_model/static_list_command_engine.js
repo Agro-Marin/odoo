@@ -179,6 +179,17 @@ export function applyCommands(
                 list.count++;
                 break;
             }
+            default: {
+                // SET (6) / CLEAR (5) are routed around the engine in normal
+                // flows (preprocessX2manyChanges → _replaceWith), but raw
+                // server command lists (parseServerValues, initial commands)
+                // land here — surface a protocol drift loudly instead of
+                // silently keeping stale rows.
+                console.warn(
+                    `applyCommands: unhandled x2many command ${command[0]} on ${list.resModel}; command ignored`,
+                );
+                break;
+            }
         }
     }
 

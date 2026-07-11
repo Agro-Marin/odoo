@@ -39,3 +39,26 @@ test("BooleanIcon field in form view", async () => {
     await animationFrame();
     expect("[name='bar'] button").toHaveClass("btn-outline-secondary fa-recycle");
 });
+
+test("BooleanIcon field readonly in form view", async () => {
+    await mountView({
+        resModel: "partner",
+        resId: 1,
+        type: "form",
+        arch: `
+            <form>
+                <field name="bar" widget="boolean_icon" readonly="1" options="{'icon': 'fa-recycle'}" />
+            </form>`,
+    });
+    expect("[name='bar'] button").toHaveAttribute("disabled");
+    expect("[name='bar'] button").toHaveClass("btn-primary");
+
+    await click("[name='bar'] button");
+    await animationFrame();
+    expect("[name='bar'] button").toHaveClass("btn-primary", {
+        message: "a readonly boolean icon must not flip on click",
+    });
+    expect(".o_form_status_indicator_buttons").not.toBeVisible({
+        message: "the record must stay clean",
+    });
+});

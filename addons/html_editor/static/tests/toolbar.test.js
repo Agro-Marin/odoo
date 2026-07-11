@@ -27,10 +27,10 @@ import {
     models,
     mountView,
 } from "@web/../tests/web_test_helpers";
-import { fontSizeItems } from "../src/main/font/font_plugin.js";
-import { Plugin } from "../src/plugin.js";
-import { MAIN_PLUGINS } from "../src/plugin_sets.js";
-import { convertNumericToUnit, getCSSVariableValue, getHtmlStyle } from "../src/utils/formatting.js";
+import { fontSizeItems } from "@html_editor/main/font/font_plugin";
+import { Plugin } from "@html_editor/plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { convertNumericToUnit, getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { setupEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
 import {

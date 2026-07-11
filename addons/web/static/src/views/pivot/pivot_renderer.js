@@ -62,8 +62,16 @@ export class PivotRenderer extends Component {
         // ``reactiveRenderers``). The epoch guard keeps unrelated local
         // re-renders (dropdown state, hover) from recomputing the table.
         this.model = useReactiveModel(this.props.model);
+        // Per-render cache of the <td> lists highlighted on column hover:
+        // the DOM may change on any render, but between two renders (where
+        // the bulk of mouseover/mouseout traffic happens) the cells of a
+        // column are stable, so each column is queried at most once.
+        this.columnCellsCache = new Map();
+        this.hoveredCells = null;
         let tableEpoch;
         onWillRender(() => {
+            this.columnCellsCache.clear();
+            this.hoveredCells = null;
             if (this.model._updateEpoch !== tableEpoch) {
                 tableEpoch = this.model._updateEpoch;
                 this.table = this.model.getTable();
@@ -154,13 +162,32 @@ export class PivotRenderer extends Component {
                     rawValue: cell.value,
                     value: codec.format(cell.value, formatOptions),
                     currencies: cell.currencyIds,
+                    help: this.getFullPrecisionHelp(cell, codec, formatOptions),
                 });
             }
             formatOptions.currencyId = cell.currencyIds[0];
         }
         return /** @type {any} */ ({
             value: codec.format(cell.value, formatOptions),
+            help: this.getFullPrecisionHelp(cell, codec, formatOptions),
         });
+    }
+    /**
+     * Full-precision tooltip for humanized cells: when the formatter
+     * shortens the value (options.human_readable), expose the plain
+     * formatted value as the cell's data-tooltip.
+     *
+     * @private
+     * @param {Object} cell
+     * @param {any} codec
+     * @param {Record<string, any>} formatOptions
+     * @returns {string|undefined}
+     */
+    getFullPrecisionHelp(cell, codec, formatOptions) {
+        if (!formatOptions.humanReadable) {
+            return undefined;
+        }
+        return codec.format(cell.value, { ...formatOptions, humanReadable: false });
     }
 
     /**
@@ -295,20 +322,26 @@ export class PivotRenderer extends Component {
         if (current.tagName === "TH") {
             index += 1; // row groupbys column
         }
-        this.tableRef.el
-            .querySelectorAll(`td:nth-child(${index + 1})`)
-            .forEach((elt) => elt.classList.add("o_cell_hover"));
+        let cells = this.columnCellsCache.get(index);
+        if (!cells) {
+            cells = this.tableRef.el.querySelectorAll(`td:nth-child(${index + 1})`);
+            this.columnCellsCache.set(index, cells);
+        }
+        cells.forEach((elt) => elt.classList.add("o_cell_hover"));
+        this.hoveredCells = cells;
     }
     onMouseLeave() {
-        this.tableRef.el
-            .querySelectorAll(".o_cell_hover")
-            .forEach((elt) => elt.classList.remove("o_cell_hover"));
+        // Fall back to a full sweep when a render invalidated the cache
+        // while a column was highlighted.
+        const cells =
+            this.hoveredCells ?? this.tableRef.el.querySelectorAll(".o_cell_hover");
+        cells.forEach((elt) => elt.classList.remove("o_cell_hover"));
+        this.hoveredCells = null;
     }
 
     /**
      * Exports the current pivot table data in a xls file. For this, we have to
      * serialize the current state, then call the server /web/pivot/export_xlsx.
-     * Force a reload before exporting to ensure to export up-to-date data.
      */
     onDownloadButtonClicked() {
         if (this.model.getTableWidth() > 16384) {

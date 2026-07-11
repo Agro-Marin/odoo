@@ -13,7 +13,6 @@ import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { computeModelOptions } from "@web/views/view_utils";
-import { Widget } from "@web/views/widgets/widget";
 
 /**
  * Wires the GraphModel (with sample data support) to the GraphRenderer inside
@@ -22,7 +21,7 @@ import { Widget } from "@web/views/widgets/widget";
  */
 export class GraphController extends Component {
     static template = "web.GraphView";
-    static components = { Layout, SearchBar, CogMenu, Widget, ActionHelper };
+    static components = { Layout, SearchBar, CogMenu, ActionHelper };
     static props = {
         ...standardViewProps,
         Model: Function,

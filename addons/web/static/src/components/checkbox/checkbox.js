@@ -75,10 +75,15 @@ export class CheckBox extends Component {
                 if (this.props.disabled) {
                     return;
                 }
-                const oldValue = /** @type {HTMLInputElement} */ (
+                const input = /** @type {HTMLInputElement} */ (
                     area.querySelector("input")
-                ).checked;
-                this.props.onChange(!oldValue);
+                );
+                // Derive the next value from props (the source of truth for
+                // controlled parents) and mirror it on the DOM like onClick
+                // does, so the keyboard toggle is visible immediately.
+                const newValue = !(this.props.value ?? input.checked);
+                input.checked = newValue;
+                this.props.onChange(newValue);
             },
             {
                 area: () => /** @type {HTMLElement} */ (this.rootRef.el),

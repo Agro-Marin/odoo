@@ -115,9 +115,11 @@ export const listStylingMixin = {
      *   - ``this.cellClassByColumn[column.id]`` — column-level base
      *     class (type, widget, button-group); recomputed once per
      *     column.
-     *   - ``this._readonlyCache`` — per-render cache for the full
-     *     (column × record) class string; cleared on each render
-     *     by ``onWillRender``.
+     *   - ``this._readonlyCache`` — per-render two-level cache
+     *     (``Map<recordId, Map<columnKey, value>>``) for the full
+     *     (column × record) class string; recreated on each render by
+     *     ``onWillRender`` and evicted per record (O(1)) by
+     *     ``clearRecordCaches`` on isolated row re-renders.
      *
      * @param {Object} column
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
@@ -128,8 +130,9 @@ export const listStylingMixin = {
         }
 
         // Per-render cache for the full cell class string (column + record dependent)
-        const cacheKey = `cell:${column.id},${record.id}`;
-        const cached = this._readonlyCache?.get(cacheKey);
+        const cacheKey = `cell:${column.id}`;
+        let recordCache = this._readonlyCache?.get(String(record.id));
+        const cached = recordCache?.get(cacheKey);
         if (cached !== undefined) {
             return cached;
         }
@@ -188,7 +191,13 @@ export const listStylingMixin = {
                 result += " cursor-pointer";
             }
         }
-        this._readonlyCache?.set(cacheKey, result);
+        if (this._readonlyCache) {
+            if (!recordCache) {
+                recordCache = new Map();
+                this._readonlyCache.set(String(record.id), recordCache);
+            }
+            recordCache.set(cacheKey, result);
+        }
         return result;
     },
 
@@ -198,8 +207,9 @@ export const listStylingMixin = {
      * @returns {boolean}
      */
     isCellReadonly(column, record) {
-        const cacheKey = `${column.id},${record.id}`;
-        let result = this._readonlyCache?.get(cacheKey);
+        const cacheKey = String(column.id);
+        let recordCache = this._readonlyCache?.get(String(record.id));
+        let result = recordCache?.get(cacheKey);
         if (result !== undefined) {
             return result;
         }
@@ -213,7 +223,13 @@ export const listStylingMixin = {
                 record.evalContextWithVirtualIds,
             )
         );
-        this._readonlyCache?.set(cacheKey, result);
+        if (this._readonlyCache) {
+            if (!recordCache) {
+                recordCache = new Map();
+                this._readonlyCache.set(String(record.id), recordCache);
+            }
+            recordCache.set(cacheKey, result);
+        }
         return result;
     },
 

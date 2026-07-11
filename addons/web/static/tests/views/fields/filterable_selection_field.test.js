@@ -23,13 +23,31 @@ class Program extends models.Model {
     available_types = fields.Json({
         required: true,
     });
+    category_id = fields.Many2one({ relation: "program.category" });
 
     _records = [
         { id: 1, type: "coupon", available_types: "['coupon', 'promotion']" },
-        { id: 2, type: "gift_card", available_types: "['gift_card', 'promotion']" },
+        {
+            id: 2,
+            type: "gift_card",
+            available_types: "['gift_card', 'promotion']",
+            category_id: 3,
+        },
     ];
 }
-defineModels([Program]);
+
+class ProgramCategory extends models.Model {
+    _name = "program.category";
+
+    name = fields.Char();
+
+    _records = [
+        { id: 1, name: "Category A" },
+        { id: 2, name: "Category B" },
+        { id: 3, name: "Category C" },
+    ];
+}
+defineModels([Program, ProgramCategory]);
 
 test(`FilterableSelectionField test whitelist`, async () => {
     await mountView({
@@ -86,6 +104,29 @@ test(`FilterableSelectionField test with invalid value`, async () => {
     await contains(".o_field_widget[name='type'] input").click();
     expect(`.o_select_menu_item`).toHaveCount(2);
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["Coupons", "Promotion"]);
+});
+
+test(`FilterableSelectionField keeps the current many2one value visible`, async () => {
+    // The current value is an {id, display_name} object on many2one fields:
+    // the keep-current escape hatch must compare against the id, so a
+    // selected-but-filtered value still shows up in the dropdown.
+    await mountView({
+        resModel: "program",
+        type: "form",
+        arch: `
+            <form>
+                <field name="category_id" widget="filterable_selection" options="{'whitelisted_values': [1, 2]}"/>
+            </form>
+        `,
+        resId: 2,
+    });
+    await contains(".o_field_widget[name='category_id'] input").click();
+    expect(`.o_select_menu_item`).toHaveCount(3);
+    expect(queryAllTexts(".o_select_menu_item")).toEqual([
+        "Category A",
+        "Category B",
+        "Category C",
+    ]);
 });
 
 test(`FilterableSelectionField test whitelist_fname`, async () => {

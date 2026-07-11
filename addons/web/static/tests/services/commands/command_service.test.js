@@ -1074,6 +1074,27 @@ test("openMainPalette with onClose", async () => {
     expect.verifySteps(["onClose"]);
 });
 
+test("reconfiguring an open palette composes onClose callbacks", async () => {
+    const command = getService("command");
+    command.openMainPalette({}, () => {
+        expect.step("onClose 1");
+    });
+    await mountWithCleanup(TestComponent);
+    await animationFrame();
+    expect(".o_command_palette").toHaveCount(1);
+
+    // Reconfigure while open: the first opener's cleanup must still run.
+    command.openMainPalette({}, () => {
+        expect.step("onClose 2");
+    });
+    await animationFrame();
+    expect(".o_command_palette").toHaveCount(1);
+
+    await press("escape");
+    await animationFrame();
+    expect.verifySteps(["onClose 1", "onClose 2"]);
+});
+
 test("uses openPalette to modify the config used by the command palette", async () => {
     const action = () => {};
     getService("command").add("Command1", action);

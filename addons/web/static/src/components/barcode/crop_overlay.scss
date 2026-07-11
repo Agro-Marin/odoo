@@ -36,6 +36,7 @@
     .o_crop_icon {
         --o-crop-icon-width: 20px;
         --o-crop-icon-height: 20px;
+        touch-action: none;
         position: absolute;
         width: var(--o-crop-icon-width);
         height: var(--o-crop-icon-height);

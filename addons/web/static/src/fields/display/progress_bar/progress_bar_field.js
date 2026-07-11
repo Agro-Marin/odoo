@@ -9,7 +9,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
-import { parseFloat } from "@web/fields/parsers";
+import { parseFloat, parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**
@@ -89,8 +89,11 @@ export class ProgressBarField extends Component {
         return this.props.record.data[this.currentValueField] || 0;
     }
 
-    /** @returns {number} Maximum value from the record or 100 as default. */
+    /** @returns {number} Maximum value: literal number, record field, or 100 as default. */
     get maxValue() {
+        if (typeof this.maxValueField === "number") {
+            return this.maxValueField;
+        }
         return this.props.record.data[this.maxValueField] || 100;
     }
 
@@ -137,16 +140,14 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * @param {string} fieldName - Record field to determine integer truncation
+     * @param {string} fieldName - Record field to determine the parser type
      * @param {string} value - Raw input string to parse
-     * @returns {number} Parsed numeric value (floored for integer fields)
+     * @returns {number} Parsed numeric value
      */
     parseValue(fieldName, value) {
-        let parsedValue = parseFloat(value);
-        if (this.props.record.fields[fieldName]?.type === "integer") {
-            parsedValue = Math.floor(parsedValue);
-        }
-        return parsedValue;
+        return this.props.record.fields[fieldName]?.type === "integer"
+            ? parseInteger(value, { allowOperation: true })
+            : parseFloat(value, { allowOperation: true });
     }
 
     /** Exits editing mode when focus leaves both input fields. */

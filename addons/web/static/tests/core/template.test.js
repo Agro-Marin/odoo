@@ -559,6 +559,64 @@ test("TemplateRegistry: re-registering the same key+content is idempotent", () =
     expect(scoped.registered.size).toBe(sizeBefore);
 });
 
+test("TemplateRegistry: dedup hit returns a callable no-op unregister", () => {
+    // `const un = registerTemplate(...); un()` must work regardless of
+    // registration order in a test lifecycle: the second identical
+    // registration used to return undefined, crashing the caller.
+    const scoped = new TemplateRegistry();
+    const first = scoped.registerTemplate(
+        "tr-noop",
+        "/addon_a",
+        `<t t-name="tr-noop"/>`,
+    );
+    const second = scoped.registerTemplate(
+        "tr-noop",
+        "/addon_a",
+        `<t t-name="tr-noop"/>`,
+    );
+    expect(typeof second).toBe("function");
+    // The dedup no-op must not unregister the first registration.
+    second();
+    expect("tr-noop" in scoped.templates).toBe(true);
+    first();
+    expect("tr-noop" in scoped.templates).toBe(false);
+});
+
+test("TemplateRegistry: dedup hit is verified against the stored registration", () => {
+    // The dedup keys are 53-bit hashes: a colliding key must not silently
+    // skip a registration. Simulate a collision by pre-seeding the key that
+    // a different triple hashes to.
+    const scoped = new TemplateRegistry();
+    const name = "tr-collision";
+    const url = "/addon_a";
+    const templateString = `<t t-name="tr-collision"/>`;
+    // Compute this triple's dedup key by registering and reading it back.
+    const probe = new TemplateRegistry();
+    probe.registerTemplate(name, url, templateString);
+    const [key] = [...probe.registered];
+    // Seed the collision: key present, but no matching registration stored.
+    scoped.registered.add(key);
+    const unregister = scoped.registerTemplate(name, url, templateString);
+    expect("tr-collision" in scoped.templates).toBe(true);
+    expect(typeof unregister).toBe("function");
+    unregister();
+    expect("tr-collision" in scoped.templates).toBe(false);
+});
+
+test("TemplateRegistry: extension dedup hit returns a callable no-op unregister", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate("tr-ext-base", "/addon_a", `<t t-name="tr-ext-base"/>`);
+    const ext = `<t t-inherit="tr-ext-base" t-inherit-mode="extension"/>`;
+    const first = scoped.registerTemplateExtension("tr-ext-base", "/addon_b", ext);
+    const second = scoped.registerTemplateExtension("tr-ext-base", "/addon_b", ext);
+    expect(typeof first).toBe("function");
+    expect(typeof second).toBe("function");
+    second();
+    // The extension registered by `first` must survive the no-op.
+    const blocks = Object.values(scoped.templateExtensions["tr-ext-base"]);
+    expect(blocks.some((block) => block.length > 0)).toBe(true);
+});
+
 test("TemplateRegistry: setUrlFilters returns a restore callback", () => {
     const scoped = new TemplateRegistry();
     const before = scoped.urlFilters;

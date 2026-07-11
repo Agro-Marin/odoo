@@ -13,7 +13,6 @@ import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover.js";
 export function useDynamicPlaceholder(elementRef) {
     const TRIGGER_KEY = "#";
     const ownerField = useComponent();
-    const triggerKeyReplaceRegex = new RegExp(`${TRIGGER_KEY}$`);
     let closeCallback;
     let positionCallback;
     const popover = usePopover(DynamicPlaceholderPopover, {
@@ -24,38 +23,56 @@ export function useDynamicPlaceholder(elementRef) {
 
     let model = null;
 
+    /**
+     * Single insertion routine, shared by the trigger-key path (which removes
+     * the typed trigger key) and the magic-wand button path. Always goes
+     * through the synthetic-event path so `useInputField` stays the single
+     * source of dirty truth (the record is committed on blur/Tab, not here).
+     *
+     * @param {string} path field chain (e.g. "partner_id.name")
+     * @param {string} [defaultValue] fallback when the placeholder is empty
+     * @param {Object} [options]
+     * @param {number} [options.rangeIndex] caret index to insert at
+     * @param {boolean} [options.removeTriggerKey] replace the trigger key
+     *     just before ``rangeIndex`` instead of inserting after it
+     */
+    const insert = function (
+        path,
+        defaultValue,
+        { rangeIndex = 0, removeTriggerKey = false } = {},
+    ) {
+        const element = elementRef?.el;
+        if (!element || !path) {
+            return;
+        }
+        defaultValue = (defaultValue || "").replace("|||", "");
+        const dynamicPlaceholder = ` {{object.${path}${
+            defaultValue.length ? ` ||| ${defaultValue}` : ""
+        }}}`;
+        element.focus();
+        let start = rangeIndex;
+        if (removeTriggerKey && element.value[rangeIndex - 1] === TRIGGER_KEY) {
+            start -= 1;
+        }
+        element.setRangeText(dynamicPlaceholder, start, rangeIndex, "end");
+        // Synthetic events so useInputField marks the field dirty.
+        element.dispatchEvent(new InputEvent("input"));
+        element.dispatchEvent(new KeyboardEvent("keydown"));
+    };
+
     const onDynamicPlaceholderValidate = function (path, defaultValue) {
         const element = elementRef?.el;
         if (!element) {
             return;
         }
-        let rangeIndex = Number.parseInt(
+        const rangeIndex = Number.parseInt(
             element.getAttribute("data-oe-dynamic-placeholder-range-index"),
             10,
         );
+        element.removeAttribute("data-oe-dynamic-placeholder-range-index");
         // When the user cancel/close the popover, the path is empty.
         if (path) {
-            defaultValue = defaultValue.replace("|||", "");
-            const dynamicPlaceholder = ` {{object.${path}${
-                defaultValue?.length ? ` ||| ${defaultValue}` : ""
-            }}}`;
-            const baseValue = element.value;
-            const splitedValue = [
-                baseValue.slice(0, rangeIndex),
-                baseValue.slice(rangeIndex),
-            ];
-            const newValue =
-                splitedValue[0].replace(triggerKeyReplaceRegex, "") +
-                dynamicPlaceholder +
-                splitedValue[1];
-            const changes = { [ownerField.props.name]: newValue };
-            ownerField.props.record.update(changes);
-            element.value = newValue;
-
-            // -1 to take the removal of the trigger key char into account
-            rangeIndex += dynamicPlaceholder.length - 1;
-            element.setSelectionRange(rangeIndex, rangeIndex);
-            element.removeAttribute("data-oe-dynamic-placeholder-range-index");
+            insert(path, defaultValue, { rangeIndex, removeTriggerKey: true });
         }
     };
     const onDynamicPlaceholderClose = function () {
@@ -111,6 +128,7 @@ export function useDynamicPlaceholder(elementRef) {
     return {
         updateModel: updateModel,
         onKeydown: onKeydown,
+        insert: insert,
         setElementRef: (er) => (elementRef = er),
         open: open,
     };

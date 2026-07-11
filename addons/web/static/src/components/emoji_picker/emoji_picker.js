@@ -8,7 +8,7 @@ import {
     Component,
     onMounted,
     onPatched,
-    onWillPatch,
+    onWillDestroy,
     onWillRender,
     onWillStart,
     onWillUnmount,
@@ -28,7 +28,7 @@ import { getTemplate } from "@web/core/templates";
 import { Deferred } from "@web/core/utils/concurrency";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { escapeRegExp } from "@web/core/utils/format/strings";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useAutofocus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 /**
  * @typedef Emoji
@@ -416,13 +416,21 @@ export class EmojiPicker extends Component {
         const panelIndex = this.state.emojiNavbarRepr.findIndex((p) =>
             p.includes(this.state.categoryId),
         );
-        this.selectCategory(this.state.emojiNavbarRepr[panelIndex + 1][1]);
+        const nextPanel =
+            panelIndex === -1 ? undefined : this.state.emojiNavbarRepr[panelIndex + 1];
+        if (!nextPanel) {
+            return;
+        }
+        this.selectCategory(nextPanel[1]);
     }
 
     onClickToPreviousCategories() {
         const panelIndex = this.state.emojiNavbarRepr.findIndex((p) =>
             p.includes(this.state.categoryId),
         );
+        if (panelIndex <= 0) {
+            return;
+        }
         this.selectCategory(this.state.emojiNavbarRepr[panelIndex - 1].at(-2));
     }
 
@@ -532,8 +540,10 @@ export class EmojiPicker extends Component {
                     ?.click();
                 break;
             case "Escape":
+                // close() is responsible for notifying onClose (usePicker wires
+                // it through the popover/dialog close path); calling both here
+                // fired the consumer's onClose twice.
                 this.props.close?.();
-                this.props.onClose?.();
                 ev.stopPropagation();
         }
     }
@@ -600,7 +610,6 @@ export class EmojiPicker extends Component {
         if (resetOnSelect) {
             this.gridRef.el.scrollTop = 0;
             this.props.close?.();
-            this.props.onClose?.();
         }
     }
 
@@ -631,7 +640,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
     const targets = [];
     const state = useState({ isOpen: false });
     const ui = useService("ui");
-    const dialog = useService("dialog");
+    const addDialog = useOwnedDialogs();
     let remove;
     const newOptions = {
         ...options,
@@ -645,12 +654,14 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         animation: false,
         popoverClass: (options.popoverClass ?? "") + " bg-100 border border-secondary",
     });
-    props.storeScroll = {
+    // Local session object (not written into the caller's props): keeps the
+    // grid scroll position across open/close cycles of the same picker.
+    const storeScroll = {
         scrollValue: 0,
         set: (value) => {
-            props.storeScroll.scrollValue = value;
+            storeScroll.scrollValue = value;
         },
-        get: () => props.storeScroll.scrollValue,
+        get: () => storeScroll.scrollValue,
     };
 
     /**
@@ -683,7 +694,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
                 },
             };
             if (ref?.el) {
-                pickerMobileProps.close = () => remove();
+                pickerMobileProps.close = () => remove?.();
                 const app = new App(
                     PickerMobile,
                     /** @type {any} */ ({
@@ -697,6 +708,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
                 );
                 app.mount(ref.el);
                 remove = () => {
+                    remove = null;
                     state.isOpen = false;
                     props.onClose?.();
                     app.destroy();
@@ -706,20 +718,22 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
                 const dialogOptions = {
                     context: component,
                     onClose: () => {
+                        remove = null;
                         state.isOpen = false;
                         props.onClose?.();
                         return def.resolve(false);
                     },
                 };
-                remove = dialog.add(
+                const closeDialog = addDialog(
                     PickerMobileInDialog,
                     pickerMobileProps,
                     dialogOptions,
                 );
+                remove = () => closeDialog();
             }
             return def;
         }
-        return popover.open(ref.el, { ...props, ...openProps });
+        return popover.open(ref.el, { ...props, storeScroll, ...openProps });
     }
 
     function close() {
@@ -738,33 +752,31 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
     if (ref) {
         add(ref);
     }
-    onMounted(() => {
-        for (const [ref, toggle] of targets) {
-            if (!ref.el) {
-                continue;
+    // Rebind the toggler listeners only when a target element actually
+    // changes identity, instead of removing/re-adding them on every patch.
+    useEffect(
+        () => {
+            const attached = [];
+            for (const [ref, toggler] of targets) {
+                if (!ref.el) {
+                    continue;
+                }
+                ref.el.addEventListener("click", toggler);
+                ref.el.addEventListener("mouseenter", loadEmoji);
+                attached.push([ref.el, toggler]);
             }
-            ref.el.addEventListener("click", toggle);
-            ref.el.addEventListener("mouseenter", loadEmoji);
-        }
-    });
-    onWillPatch(() => {
-        for (const [ref, toggle] of targets) {
-            if (!ref.el) {
-                continue;
-            }
-            ref.el.removeEventListener("click", toggle);
-            ref.el.removeEventListener("mouseenter", loadEmoji);
-        }
-    });
-    onPatched(() => {
-        for (const [ref, toggle] of targets) {
-            if (!ref.el) {
-                continue;
-            }
-            ref.el.addEventListener("click", toggle);
-            ref.el.addEventListener("mouseenter", loadEmoji);
-        }
-    });
+            return () => {
+                for (const [el, toggler] of attached) {
+                    el.removeEventListener("click", toggler);
+                    el.removeEventListener("mouseenter", loadEmoji);
+                }
+            };
+        },
+        () => targets.map(([ref]) => ref.el),
+    );
+    // The mobile picker is a standalone App / dialog: tear it down with its
+    // owner, else it survives the owner's destruction.
+    onWillDestroy(() => remove?.());
     Object.assign(state, { open, close, toggle });
     return state;
 }

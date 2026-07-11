@@ -114,26 +114,43 @@ export class Domain {
      */
     static removeDomainLeaves(domain, keysToRemove) {
         /**
+         * Subtree spans, memoized in one right-to-left pass: each element's
+         * span only depends on spans at higher indices, so sizes[idx] is
+         * O(1) to compute once its successors are known. The previous
+         * from-scratch recomputation at every connector was O(N²) overall
+         * and recursed to depth O(N) on the prefix chain.
+         * @param {AST[]} elements
+         * @returns {number[]}
+         */
+        function computeSubtreeSizes(elements) {
+            const sizes = new Array(elements.length).fill(0);
+            for (let idx = elements.length - 1; idx >= 0; idx--) {
+                const node = elements[idx];
+                if (node.type === ASTType.Tuple) {
+                    sizes[idx] = 1;
+                } else if (node.type === ASTType.String) {
+                    if (node.value === "!") {
+                        sizes[idx] = 1 + sizes[idx + 1];
+                    } else if (node.value === "&" || node.value === "|") {
+                        const firstSize = sizes[idx + 1];
+                        sizes[idx] = 1 + firstSize + sizes[idx + 1 + firstSize];
+                    }
+                }
+            }
+            return sizes;
+        }
+
+        /** @type {number[]} */
+        let sizes;
+
+        /**
          * Return how many AST elements the subtree rooted at ``idx`` spans.
          * @param {AST[]} elements
          * @param {number} idx
          * @returns {number}
          */
         function subtreeSize(elements, idx) {
-            const node = elements[idx];
-            if (node.type === ASTType.Tuple) {
-                return 1;
-            }
-            if (node.type === ASTType.String) {
-                if (node.value === "!") {
-                    return 1 + subtreeSize(elements, idx + 1);
-                }
-                if (node.value === "&" || node.value === "|") {
-                    const firstSize = subtreeSize(elements, idx + 1);
-                    return 1 + firstSize + subtreeSize(elements, idx + 1 + firstSize);
-                }
-            }
-            return 0;
+            return sizes[idx];
         }
 
         /**
@@ -240,6 +257,7 @@ export class Domain {
         if (!domain.ast.value.length) {
             return domain;
         }
+        sizes = computeSubtreeSizes(domain.ast.value);
         const newDomain = new Domain([]);
         processLeaf(domain.ast.value, 0, "&", newDomain);
         return newDomain;
@@ -539,13 +557,27 @@ function matchCondition(record, condition) {
         case "<>":
             return !matchCondition(record, [field, "=", value]);
         case "<":
-            return fieldValue < value;
         case "<=":
-            return fieldValue <= value;
         case ">":
-            return fieldValue > value;
         case ">=":
-            return fieldValue >= value;
+            // An unset field never matches an inequality: SQL comparisons on
+            // NULL are falsy server-side, while JS would evaluate
+            // `false < 5` as true. Known divergence: a NUMERIC field storing
+            // an actual 0 reads as `false` in some client records, so it is
+            // excluded here where the server (0, not NULL) would match.
+            if (fieldValue === false || fieldValue === undefined) {
+                return false;
+            }
+            switch (op) {
+                case "<":
+                    return fieldValue < value;
+                case "<=":
+                    return fieldValue <= value;
+                case ">":
+                    return fieldValue > value;
+                default:
+                    return fieldValue >= value;
+            }
         case "in":
         case "not in": {
             const val = Array.isArray(value) ? value : [value];

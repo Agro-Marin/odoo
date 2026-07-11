@@ -8,7 +8,7 @@
 /** @typedef {any} Tree */
 /** @import { Condition, Options } from "@web/core/tree/condition_tree" */
 
-import { formatAST } from "@web/core/py_js/py";
+import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { isValidPath, not } from "@web/core/tree/ast_utils";
 import { astFromValue, Expression, isTree } from "@web/core/tree/condition_tree";
 import { COMPARATORS, TERM_OPERATORS_NEGATION } from "@web/core/tree/operators";
@@ -57,7 +57,7 @@ function isX2Many(ast, options) {
  * @param {Tree} tree
  * @param {Options} options
  * @param {boolean} [isRoot=false] - whether this is the top-level call (skips outer parens)
- * @returns {string|Error}
+ * @returns {string}
  */
 function _constructExpressionFromTree(tree, options, isRoot = false) {
     if (tree.type === "connector" && tree.value === "|" && tree.children.length === 2) {
@@ -112,6 +112,15 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     }
 
     if (tree.type === "complex_condition") {
+        // A complex condition is spliced verbatim into the parent connector
+        // expression: parenthesize when its root binds looser than `not`
+        // (`a or b` inside an AND would otherwise regroup as `x and a or b`).
+        if (!isRoot) {
+            const ast = parseExpr(tree.value);
+            if (ast.type === ASTType.BooleanOperator || ast.type === ASTType.If) {
+                return `( ${tree.value} )`;
+            }
+        }
         return tree.value;
     }
 
@@ -132,8 +141,9 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
 
     if ([0, 1].includes(path)) {
         if (operator !== "=" || value !== 1) {
-            // check if this is too restricive for us
-            return new Error("Invalid condition");
+            // Same contract as the other invalid cases above/below: throw,
+            // so callers never receive an Error object as the "expression".
+            throw new Error("Invalid condition");
         }
         return formatAST({ type: ASTType.Boolean, value: Boolean(path) });
     }
@@ -208,7 +218,8 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
  * Convert a condition tree into a Python expression string.
  * @param {Tree} tree
  * @param {Options} [options={}]
- * @returns {string|Error}
+ * @returns {string}
+ * @throws {Error} on trees that have no expression representation
  */
 export function constructExpressionFromTree(tree, options = {}) {
     return _constructExpressionFromTree(tree, options, true);

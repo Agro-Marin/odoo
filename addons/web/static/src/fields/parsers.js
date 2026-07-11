@@ -97,13 +97,15 @@ function parseOperation(value, parseValueFn) {
  * Parses a string into a number.
  *
  * @param {string} value
- * @param {{ thousandsSep: string, decimalPoint: string, truncate?: boolean }} [options]
+ * @param {{ thousandsSep: string, decimalPoint: string }} [options]
  * @returns {number}
  */
 function parseNumber(value, options = /** @type {any} */ ({})) {
     if (value.startsWith("=")) {
-        const result = evaluateMathematicalExpression(value.slice(1));
-        return options.truncate ? Math.trunc(result) : Number(result);
+        // Return the un-truncated result: integer callers (parseInteger)
+        // validate integrality themselves, so "=5/2" is rejected like "2.5"
+        // instead of being silently floored to 2.
+        return Number(evaluateMathematicalExpression(value.slice(1)));
     } else {
         // A whitespace thousands separator is equivalent to any whitespace character.
         // E.g. "1  000 000" should be parsed as 1000000 even if the
@@ -141,11 +143,9 @@ export function parseFloat(value, { allowOperation = false } = {}) {
         // @ts-expect-error returns Operation when allowOperation is true
         return operation;
     }
-    const thousandsSepRegex = localization.thousandsSep || "";
-    const decimalPointRegex = localization.decimalPoint;
     let parsed = parseNumber(value, {
-        thousandsSep: thousandsSepRegex,
-        decimalPoint: decimalPointRegex,
+        thousandsSep: localization.thousandsSep || "",
+        decimalPoint: localization.decimalPoint,
     });
     if (Number.isNaN(parsed)) {
         parsed = parseNumber(value, {
@@ -207,12 +207,9 @@ export function parseInteger(value, { allowOperation = false } = {}) {
         // @ts-expect-error returns Operation when allowOperation is true
         return operation;
     }
-    const thousandsSepRegex = localization.thousandsSep || "";
-    const decimalPointRegex = localization.decimalPoint;
     let parsed = parseNumber(value, {
-        thousandsSep: thousandsSepRegex,
-        decimalPoint: decimalPointRegex,
-        truncate: true,
+        thousandsSep: localization.thousandsSep || "",
+        decimalPoint: localization.decimalPoint,
     });
     // Only fall back to the English separators when the locale parse could not
     // interpret the input at all (NaN). Falling back on a valid-but-non-integer
@@ -223,7 +220,6 @@ export function parseInteger(value, { allowOperation = false } = {}) {
         parsed = parseNumber(value, {
             thousandsSep: ",",
             decimalPoint: ".",
-            truncate: true,
         });
         if (Number.isNaN(parsed)) {
             throw new InvalidNumberError(`"${value}" is not a correct number`);

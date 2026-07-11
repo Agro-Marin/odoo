@@ -328,6 +328,10 @@ export class SelectMenu extends Component {
             }
             this.props.onOpened();
         } else {
+            // A keystroke may have scheduled a debounced onInput that would
+            // force the dropdown back open after a deliberate close (Escape,
+            // selection): drop it.
+            this.debouncedOnInput.cancel();
             this.scrollListenerEl?.removeEventListener("scroll", this.onScrollListener);
             this.scrollListenerEl = null;
             this.state.searchValue = null;
@@ -394,10 +398,6 @@ export class SelectMenu extends Component {
             }
         } else if (!this.selectedChoice || this.selectedChoice.value !== value) {
             this.props.onSelect(value);
-            if (this.inputRef.el) {
-                /** @type {HTMLInputElement} */ (this.inputRef.el).value =
-                    this.state.choices.find((c) => c.value === value).label;
-            }
         }
         this.state.searchValue = null;
     }
@@ -531,12 +531,6 @@ export class SelectMenu extends Component {
     }
 
     getSelectedOptionIndex() {
-        let selectedIndex = -1;
-        for (let i = 0; i < this.state.choices.length; i++) {
-            if (this.isOptionSelected(this.state.choices[i])) {
-                selectedIndex = i;
-            }
-        }
-        return selectedIndex;
+        return this.state.choices.findIndex((choice) => this.isOptionSelected(choice));
     }
 }

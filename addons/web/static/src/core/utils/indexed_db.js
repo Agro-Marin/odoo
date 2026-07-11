@@ -3,10 +3,20 @@
 
 /** @module @web/core/utils/indexed_db - IndexedDB wrapper with versioned schema, quota management, and mutex locking */
 
+import { browser } from "../browser/browser.js";
 import { Mutex } from "./concurrency.js";
 
 const VERSION_TABLE = "__DBVersion__";
 const VERSION_KEY = "__version__";
+/**
+ * How long a blocked `deleteDatabase` may wait for the other connections to
+ * close before this instance gives up and degrades to no-cache for the
+ * session. Deletion runs inside the instance mutex, so waiting forever (e.g.
+ * on a frozen/bfcached tab that never receives `versionchange`) would queue
+ * every subsequent read/write behind it — worst case hanging the webclient
+ * boot after a deploy that bumps the registry hash.
+ */
+const BLOCKED_DELETE_TIMEOUT = 1000;
 
 export class IDBQuotaExceededError extends Error {}
 
@@ -33,6 +43,13 @@ export class IndexedDB {
          * @type {IDBDatabase | null}
          */
         this._db = null;
+        /**
+         * Set when a blocked database deletion timed out (see
+         * ``_deleteDatabase``): every subsequent operation short-circuits to
+         * the no-db path (read → miss, write → no-op) for the session
+         * instead of queueing behind the never-completing delete.
+         */
+        this._degraded = false;
         this.mutex = new Mutex();
         // Constructor can't be async, so this promise isn't awaited — but it
         // must be observed: ``_checkVersion`` -> ``_execute`` opens the DB
@@ -177,15 +194,41 @@ export class IndexedDB {
         // An open cached connection would block the deleteDatabase request.
         this._closeCachedDB();
         return new Promise((resolve) => {
-            const request = indexedDB.deleteDatabase(this.name);
-            request.onsuccess = () => {
-                Promise.resolve(callback()).then(resolve);
+            let settled = false;
+            /** @type {any} */
+            let blockedTimeoutId;
+            const settle = (/** @type {boolean} */ runCallback) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                browser.clearTimeout(blockedTimeoutId);
+                if (runCallback) {
+                    Promise.resolve(callback()).then(resolve);
+                } else {
+                    // Don't run the callback: it typically reopens the DB,
+                    // and that open would queue behind the still-pending
+                    // delete — the very hang we're escaping.
+                    resolve(undefined);
+                }
             };
+            const request = indexedDB.deleteDatabase(this.name);
+            request.onsuccess = () => settle(true);
             request.onerror = (event) => {
                 console.error(
                     `IndexedDB delete error: ${/** @type {IDBRequest} */ (event.target).error?.message}`,
                 );
-                Promise.resolve(callback()).then(resolve);
+                settle(true);
+            };
+            request.onblocked = () => {
+                blockedTimeoutId = browser.setTimeout(() => {
+                    console.warn(
+                        `IndexedDB delete blocked: "${this.name}" is still open in another context ` +
+                            `(e.g. a frozen tab); proceeding without cache for this session.`,
+                    );
+                    this._degraded = true;
+                    settle(false);
+                }, BLOCKED_DELETE_TIMEOUT);
             };
         });
     }
@@ -243,6 +286,9 @@ export class IndexedDB {
      * @param {number} [idbVersion]
      */
     async _execute(callback, idbVersion) {
+        if (this._degraded) {
+            return callback();
+        }
         // Fast path: reuse the cached connection when it already contains
         // every table this instance knows about (the common case once the
         // schema is warm). Runs under the same mutex as the open path, so

@@ -483,6 +483,10 @@ export class GraphRenderer extends Component {
 
     /** Instantiate a Chart.js chart from the current config. */
     renderChart() {
+        // Tooltips are plain DOM cleaned up by the chart's own tooltip
+        // callbacks; once that chart is destroyed they would linger over the
+        // new one until the next hover.
+        this.removeTooltips();
         if (this.chart) {
             this.chart.destroy();
         }

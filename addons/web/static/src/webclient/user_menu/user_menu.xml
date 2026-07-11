@@ -16,26 +16,24 @@
                     </button>
                     <t t-set-slot="content">
                         <t t-foreach="getElements()" t-as="element" t-key="element_index">
-                            <t t-if="!element.hide">
-                                <t t-if="element.type === 'component'" t-component="element.contentComponent"/>
-                                <DropdownItem
-                                    t-if="element.type == 'item' || element.type == 'switch'"
-                                    attrs="{ href: element.href, 'data-menu': element.id }"
-                                    onSelected="element.callback"
+                            <t t-if="element.type === 'component'" t-component="element.contentComponent"/>
+                            <DropdownItem
+                                t-if="element.type == 'item' || element.type == 'switch'"
+                                attrs="{ href: element.href, 'data-menu': element.id }"
+                                onSelected="element.callback"
+                            >
+                            <div class="d-flex justify-content-between p-0 w-100">
+                                <t t-out="element.description"/>
+                                <CheckBox
+                                    t-if="element.type == 'switch'"
+                                    value="element.isChecked"
+                                    className="'form-switch ms-2'"
+                                    onChange="element.callback"
                                 >
-                                <div class="d-flex justify-content-between p-0 w-100">
-                                    <t t-out="element.description"/>
-                                    <CheckBox
-                                        t-if="element.type == 'switch'"
-                                        value="element.isChecked"
-                                        className="'form-switch ms-2'"
-                                        onChange="element.callback"
-                                    >
-                                    </CheckBox>
-                                </div>
-                                </DropdownItem>
-                                <div t-if="element.type == 'separator'" role="separator" class="dropdown-divider"/>
-                            </t>
+                                </CheckBox>
+                            </div>
+                            </DropdownItem>
+                            <div t-if="element.type == 'separator'" role="separator" class="dropdown-divider"/>
                         </t>
                     </t>
                 </Dropdown>

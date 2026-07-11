@@ -14,10 +14,9 @@ import { constructExpressionFromTree } from "./construct_expression_from_tree.js
  * @param {Tree} tree
  * @param {Options} [options]
  * @returns {string}
+ * @throws {Error} on trees that have no expression representation
  */
 export function expressionFromTree(tree, options = {}) {
     const simplifiedTree = eliminateVirtualOperators(tree, options);
-    // Typed ``string | Error``, but Error never surfaces in practice; narrow
-    // here rather than widening callers' assumed ``string`` return type.
-    return /** @type {string} */ (constructExpressionFromTree(simplifiedTree, options));
+    return constructExpressionFromTree(simplifiedTree, options);
 }

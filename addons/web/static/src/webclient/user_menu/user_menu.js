@@ -52,7 +52,11 @@ export class UserMenu extends Component {
             .map((element) =>
                 element(/** @type {import("@web/env").OdooEnv} */ (this.env)),
             )
-            .filter((element) => (element.show ? element.show() : true))
+            // Visibility is decided here only: both `show()` (dynamic) and
+            // `hide` (static flag) — templates render every returned item.
+            .filter(
+                (element) => !element.hide && (element.show ? element.show() : true),
+            )
             .sort((x, y) => {
                 const xSeq = x.sequence ? x.sequence : 100;
                 const ySeq = y.sequence ? y.sequence : 100;

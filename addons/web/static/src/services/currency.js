@@ -26,31 +26,44 @@ export function getCurrency(id) {
 }
 
 /**
- * Fetch inverse exchange rates for all known currencies relative to the
- * active company's currency. Returns a reactive object that auto-updates
- * when the disk cache detects changes.
- * @returns {Promise<Record<number, {rate: number, date: string}>>} currency id → rate info
+ * Shared reactive rates object handed to every getCurrencyRates() caller, so
+ * one refresh updates all consumers instead of only the fetch-triggering one.
+ * @type {Record<number, {rate: number, date: string}>}
  */
-export async function getCurrencyRates() {
-    /** @type {Record<number, {rate: number, date: string}>} */
-    const rates = reactive({});
+const rates = reactive({});
+/**
+ * In-flight fetch, memoized so concurrent callers share one RPC. Cleared on
+ * settlement: warm repeats are served by the rpc disk/RAM cache, and a
+ * cache invalidation naturally makes the next call refetch fresh rates into
+ * the shared object.
+ * @type {Promise<void> | null}
+ */
+let ratesPromise = null;
 
-    /**
-     * @param {Array<{id: number, inverse_rate: number, date: string}>} records
-     * @returns {Record<number, {rate: number, date: string}>}
-     */
-    function recordsToRates(records) {
-        return Object.fromEntries(
-            records.map((r) => [
-                r.id,
-                {
-                    rate: r.inverse_rate,
-                    date: parseDate(r.date),
-                },
-            ]),
-        );
+/**
+ * Replace the shared rates in place (removing vanished currencies) so every
+ * held reference observes the update.
+ * @param {Array<{id: number, inverse_rate: number, date: string}>} records
+ */
+function applyRates(records) {
+    const newRates = Object.fromEntries(
+        records.map((r) => [
+            r.id,
+            {
+                rate: r.inverse_rate,
+                date: parseDate(r.date),
+            },
+        ]),
+    );
+    for (const id of Object.keys(rates)) {
+        if (!(id in newRates)) {
+            delete rates[id];
+        }
     }
+    Object.assign(rates, newRates);
+}
 
+async function fetchCurrencyRates() {
     const model = "res.currency";
     const method = "read";
     const url = `/web/dataset/call_kw/${model}/${method}`;
@@ -73,7 +86,7 @@ export async function getCurrencyRates() {
                 /** @type {boolean} */ hasChanged,
             ) => {
                 if (hasChanged) {
-                    Object.assign(rates, recordsToRates(records));
+                    applyRates(records);
                 }
             },
         },
@@ -83,7 +96,24 @@ export async function getCurrencyRates() {
         // one backoff interval (~200ms) without masking a persistent outage.
         retry: 1,
     });
-    Object.assign(rates, recordsToRates(records));
+    applyRates(records);
+}
+
+/**
+ * Fetch inverse exchange rates for all known currencies relative to the
+ * active company's currency. All callers receive the SAME reactive object,
+ * updated in place when the disk cache detects a change and when a call
+ * after a cache invalidation refetches — so long-lived consumers see rate
+ * refreshes without refetching themselves.
+ * @returns {Promise<Record<number, {rate: number, date: string}>>} currency id → rate info
+ */
+export async function getCurrencyRates() {
+    if (!ratesPromise) {
+        ratesPromise = fetchCurrencyRates().finally(() => {
+            ratesPromise = null;
+        });
+    }
+    await ratesPromise;
     return rates;
 }
 

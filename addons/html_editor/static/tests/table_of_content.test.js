@@ -1,8 +1,8 @@
 import { advanceTime, press, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
-import { setupEditor } from "./_helpers/editor";
-import { setSelection } from "./_helpers/selection";
-import { deleteBackward, insertText } from "./_helpers/user_actions";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { setupEditor } from "./_helpers/editor.js";
+import { setSelection } from "./_helpers/selection.js";
+import { deleteBackward, insertText } from "./_helpers/user_actions.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { expect, test } from "@odoo/hoot";
 import { contains } from "@web/../tests/web_test_helpers";
 import { nodeSize } from "@html_editor/utils/position";

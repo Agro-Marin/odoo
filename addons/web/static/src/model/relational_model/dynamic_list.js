@@ -185,46 +185,38 @@ export class DynamicList extends DataPoint {
 
     /** @param {{ discard?: boolean }} [options] */
     async leaveEditMode({ discard } = {}) {
-        let editedRecord = this.editedRecord;
-        if (editedRecord) {
-            let canProceed = true;
-            if (discard) {
-                this._recordToDiscard = editedRecord;
-                try {
-                    await editedRecord.discard();
-                } finally {
-                    this._recordToDiscard = null;
-                }
-                editedRecord = this.editedRecord;
-                if (editedRecord?.isNew) {
-                    this._removeRecords([editedRecord.id]);
-                }
-            } else {
-                let isValid = true;
-                if (!this.model.urgentSave.isActive) {
-                    isValid = await editedRecord.checkValidity();
-                    editedRecord = this.editedRecord;
-                    if (!editedRecord) {
-                        return true;
-                    }
-                }
-                if (editedRecord.isNew && !editedRecord.dirty) {
-                    this._removeRecords([editedRecord.id]);
-                } else if (isValid || editedRecord.dirty) {
-                    canProceed = await editedRecord.save();
-                }
+        if (this.model.urgentSave.isActive) {
+            // The tab-close path must not queue behind model.mutex — it may
+            // be held by the very save urgent mode is bypassing.
+            return this._leaveEditMode({ discard });
+        }
+        if (discard) {
+            // Set BEFORE flushing pending edits: a field commit drained by
+            // _askChanges must not multi-edit-dispatch changes that belong
+            // to the row being discarded (see _isRecordToDiscard).
+            this._recordToDiscard = this.editedRecord;
+        }
+        try {
+            if (this.editedRecord) {
+                await this.model._askChanges();
             }
-
-            editedRecord = this.editedRecord;
-            if (canProceed && editedRecord) {
-                this.model._patchConfig(editedRecord.config, {
-                    mode: "readonly",
-                });
-            } else {
-                return canProceed;
+            if (!discard && this.editedRecord) {
+                // Second flush, mirroring the historical two-stage prelude
+                // (public checkValidity() then public save(), each running
+                // model._askChanges): reactions triggered by the first flush
+                // (multi-edit setInvalidField -> notification + discard)
+                // settle in between, and a commit that failed validation on
+                // the first flush must be re-committed afterwards so it
+                // re-raises its invalid-field reaction (browsers can fire
+                // the input's 'change' after focus already left the row).
+                await this.model._askChanges();
+            }
+            return await this.model.mutex.exec(() => this._leaveEditMode({ discard }));
+        } finally {
+            if (discard) {
+                this._recordToDiscard = null;
             }
         }
-        return true;
     }
 
     load(params = {}) {
@@ -336,6 +328,57 @@ export class DynamicList extends DataPoint {
         }
         await this.model.load();
         return unlinked;
+    }
+
+    /**
+     * Core of {@link leaveEditMode}. Runs under ``model.mutex`` (or directly
+     * on the urgent tab-close path), so it must only use ``_``-prefixed
+     * record internals — the public ``save``/``discard``/``checkValidity``
+     * re-take the mutex. Pending edits are flushed by the caller's
+     * ``_askChanges`` prelude, mirroring ``StaticList.leaveEditMode``.
+     *
+     * @param {{ discard?: boolean }} [options]
+     * @returns {Promise<boolean>} whether edit mode was left
+     */
+    async _leaveEditMode({ discard } = {}) {
+        let editedRecord = this.editedRecord;
+        if (!editedRecord) {
+            return true;
+        }
+        let canProceed = true;
+        if (discard) {
+            if (this.model._closeUrgentSaveNotification) {
+                this.model._closeUrgentSaveNotification();
+            }
+            this._recordToDiscard = editedRecord;
+            try {
+                editedRecord._discard();
+            } finally {
+                this._recordToDiscard = null;
+            }
+            editedRecord = this.editedRecord;
+            if (editedRecord?.isNew) {
+                this._removeRecords([editedRecord.id]);
+            }
+        } else {
+            let isValid = true;
+            if (!this.model.urgentSave.isActive) {
+                isValid = editedRecord._checkValidity();
+            }
+            if (editedRecord.isNew && !editedRecord.dirty) {
+                this._removeRecords([editedRecord.id]);
+            } else if (isValid || editedRecord.dirty) {
+                canProceed = await editedRecord._save();
+            }
+        }
+
+        editedRecord = this.editedRecord;
+        if (canProceed && editedRecord) {
+            this.model._patchConfig(editedRecord.config, {
+                mode: "readonly",
+            });
+        }
+        return canProceed;
     }
 
     async _leaveSampleMode() {
@@ -477,9 +520,9 @@ export class DynamicList extends DataPoint {
         if (canProceed === false) {
             selectedRecords.forEach((record) => record._discard());
             // Deliberately not awaited: _multiSave runs inside a
-            // model.mutex.exec critical section, and leaveEditMode's discard
-            // path re-enters the mutex (record.discard), so awaiting here
-            // would deadlock. Catch rejections so they don't go unhandled.
+            // model.mutex.exec critical section, and leaveEditMode wraps its
+            // core in the same mutex, so awaiting here would deadlock. Catch
+            // rejections so they don't go unhandled.
             this.leaveEditMode({ discard: true }).catch((e) => console.error(e));
             return false;
         }
@@ -603,13 +646,16 @@ export class DynamicList extends DataPoint {
     }
 
     async _toggleSelection() {
-        if (this.selection.length === this.records.length) {
-            this.records.forEach((record) => {
+        // Hoist the costly getter (see the `records`/`selection` docstrings):
+        // one flatMap instead of three back-to-back.
+        const records = this.records;
+        if (records.every((record) => record.selected)) {
+            records.forEach((record) => {
                 record._toggleSelection(false);
             });
             this._selectDomain(false);
         } else {
-            this.records.forEach((record) => {
+            records.forEach((record) => {
                 record._toggleSelection(true);
             });
         }

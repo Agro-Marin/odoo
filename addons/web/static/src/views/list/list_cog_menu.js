@@ -9,7 +9,9 @@ export class ListCogMenu extends CogMenu {
     static template = "web.ListCogMenu";
     static props = {
         ...CogMenu.props,
-        hasSelectedRecords: { type: Number, optional: true },
+        // Boolean in the base controller; Number tolerated for controller
+        // subclasses whose getter returns a count (e.g. documents).
+        hasSelectedRecords: { type: [Boolean, Number], optional: true },
     };
     /** @override @returns {any} */
     _registryItems() {

@@ -57,6 +57,21 @@ test("uniqueId", () => {
     expect(uniqueId("bla")).toBe("bla7");
 });
 
+test("uniqueId counter is anchored on globalThis (cross-bundle)", () => {
+    // esbuild inlines this module into every bundle: a per-module counter
+    // would restart at 0 in each bundle on the same page, minting colliding
+    // DOM ids. The shared globalThis state object is the cross-bundle anchor.
+    const state = /** @type {any} */ (globalThis).__odoo_uid_state__;
+    expect(state).not.toBe(undefined);
+    const before = state.nextId;
+    const id = uniqueId("anchor_");
+    expect(id).toBe(`anchor_${before + 1}`);
+    expect(state.nextId).toBe(before + 1);
+    // Any other bundle's copy of uniqueId reads through the same
+    // accessor-backed state.
+    expect(uniqueId.nextId).toBe(state.nextId);
+});
+
 test("memoize evicts a rejected promise so the next call retries", async () => {
     let calls = 0;
     const fn = memoize(async (key) => {

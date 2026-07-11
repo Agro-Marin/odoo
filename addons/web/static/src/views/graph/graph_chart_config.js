@@ -28,6 +28,10 @@ import { SEP } from "./graph_model.js";
 
 const NO_DATA = _t("No data");
 
+// Snapshotted once at module load and used for every styling call in this
+// module: switching the color scheme always goes through a full page reload
+// (see web_enterprise's color_scheme_service), so a live cookie read would
+// never observe a different value within one page lifetime.
 const colorScheme = cookie.get("color_scheme");
 const GRAPH_LEGEND_COLOR = getCustomColor(colorScheme, "#111827", "#ffffff");
 const GRAPH_GRID_COLOR = getCustomColor(
@@ -402,10 +406,7 @@ export function buildScaleOptions(data, metaData) {
         type: "linear",
         title: {
             text: measures[measure].string,
-            color:
-                cookie.get("color_scheme") === "dark"
-                    ? getColor(15, cookie.get("color_scheme"), "xl")
-                    : null,
+            color: colorScheme === "dark" ? getColor(15, colorScheme, "xl") : null,
         },
         ticks: {
             callback: (value) => formatValue(value, false, fieldAttrs[measure]?.widget),

@@ -70,9 +70,8 @@ export class KanbanCompiler extends ViewCompiler {
 
         const nodeParams = extractAttributes(el, ["type"]);
         if (type === "set_cover") {
-            const { "auto-open": autoOpen, "data-field": fieldName } =
-                extractAttributes(el, ["auto-open", "data-field"]);
-            Object.assign(nodeParams, { autoOpen, fieldName });
+            const { "data-field": fieldName } = extractAttributes(el, ["data-field"]);
+            Object.assign(nodeParams, { fieldName });
         }
         const strParams = Object.entries(nodeParams)
             .map(([k, v]) => [k, toStringExpression(v)].join(":"))
@@ -155,6 +154,22 @@ export class KanbanCompiler extends ViewCompiler {
                 return `'${key}':${value}`;
             });
             compiled.setAttribute("attrs", `{${attrsParts.join(",")}}`);
+        } else if (odoo.debug) {
+            // Widget-less fields compile to a bare <span t-out=...>: only t-*
+            // directives (except t-att*) are forwarded below, so class/style
+            // and t-att(f)-* attributes are silently dropped. Surface that in
+            // debug mode instead of leaving arch authors to diff the DOM.
+            for (const attr of Object.keys(attrs)) {
+                if (
+                    ["class", "style"].includes(attr) ||
+                    attr.startsWith("t-att-") ||
+                    attr.startsWith("t-attf-")
+                ) {
+                    console.warn(
+                        `KanbanCompiler: attribute "${attr}" on <field name="${attrs.name}"/> is ignored because the field has no widget (add a widget="..." to forward it)`,
+                    );
+                }
+            }
         }
 
         for (const attr of Object.keys(attrs)) {

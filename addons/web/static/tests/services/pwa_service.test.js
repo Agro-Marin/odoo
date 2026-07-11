@@ -4,6 +4,7 @@ import { describe, expect, getFixture, test } from "@odoo/hoot";
 import {
     getService,
     makeMockEnv,
+    mockService,
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
@@ -76,6 +77,41 @@ test("PWA installation process", async () => {
         '{"/odoo":"accepted"}',
         "onDone call with installation accepted",
     ]);
+});
+
+test("Safari install prompt: dismissal persists on every dialog close path", async () => {
+    // Not mockUserAgent(): it appends the running browser's engine tokens
+    // ("Chrome/..."), which defeats the Safari detection.
+    patchWithCleanup(browser, {
+        navigator: {
+            language: browser.navigator.language,
+            userAgent:
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        },
+    });
+    mockService("dialog", {
+        add(_component, _props, options) {
+            expect.step("dialog opened");
+            // Simulate a dismissal that bypasses the explicit close button
+            // (ESC, closeAll): the dialog service fires the onClose OPTION on
+            // every removal path — the pwa service must wire it there.
+            options.onClose();
+            return () => {};
+        },
+    });
+    await makeMockEnv();
+    const pwaService = await getService("pwa");
+    expect(pwaService.isAvailable).toBe(true);
+    expect(pwaService.canPromptToInstall).toBe(true);
+
+    await pwaService.show({
+        onDone: () => expect.step("onDone"),
+    });
+    expect.verifySteps(["dialog opened", "onDone"]);
+    expect(pwaService.canPromptToInstall).toBe(false);
+    expect(
+        JSON.parse(browser.localStorage.getItem("pwaService.installationState")),
+    ).toEqual({ "/odoo": "dismissed" });
 });
 
 test("PWA service boots despite a corrupted installationState in localStorage", async () => {

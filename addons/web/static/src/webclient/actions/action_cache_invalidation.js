@@ -7,6 +7,8 @@ import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { UPDATE_METHODS } from "@web/services/orm_service";
 
+import { refreshBreadcrumbDisplayNames } from "./breadcrumb_manager.js";
+
 /**
  * Install the RPC cache-invalidation listener for an ActionManager.
  *
@@ -33,28 +35,29 @@ export function installActionCacheInvalidation(am) {
             // The client-side breadcrumb display-name cache is stale too;
             // flush it so the recomputation below refetches fresh names.
             am.breadcrumbCache = {};
-            const tip = am.controllerStack.at(-1);
+            const stack = am.controllerStack;
+            const tip = stack.at(-1);
             if (!tip) {
                 // No active controller — happens in tests that fire
                 // ``RPC:RESPONSE`` without mounting a webclient; without this
                 // guard, accessing ``tip.config.breadcrumbs`` below throws.
                 return;
             }
-            const virtualStack = await am._controllersFromState(am.router.current);
+            // Refresh in place: recompute display names into the existing
+            // controllers instead of swapping in URL-derived virtual ones,
+            // which would lose their live state (exportedState, cached view
+            // controllers) and force full doAction re-execution on restore.
+            await refreshBreadcrumbDisplayNames(stack, am.breadcrumbCache);
             if (am.controllerStack.at(-1) !== tip) {
-                // Navigation changed the stack while we awaited: committing
-                // ``nextStack`` now would clobber the newer stack. Bail out.
+                // Navigation changed the stack while we awaited: the new tip's
+                // breadcrumbs were built from fresh caches already. Bail out.
                 return;
             }
-            const nextStack = [...virtualStack, tip];
-            nextStack
-                .at(-1)
-                .config.breadcrumbs.splice(
-                    0,
-                    nextStack.at(-1).config.breadcrumbs.length,
-                    ...am._getBreadcrumbs(nextStack),
-                );
-            am.controllerStack = nextStack;
+            tip.config.breadcrumbs.splice(
+                0,
+                tip.config.breadcrumbs.length,
+                ...am._getBreadcrumbs(stack),
+            );
         }
     };
     rpcBus.addEventListener(RpcEvent.RESPONSE, onRpcResponse);

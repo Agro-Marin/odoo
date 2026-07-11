@@ -150,6 +150,7 @@ class WebSuite(HOOTCommon):
         """Graph, pivot, view components/dialogs/widgets, and root view files."""
         self._run_hoot(
             "@web/views/graph",
+            "@web/views/pivot",
             "@web/views/pivot_view",
             "@web/views/view_components",
             "@web/views/view_dialogs",
@@ -300,6 +301,7 @@ class MobileWebSuite(HOOTCommon):
         """Graph, pivot, view components/dialogs/widgets, and root view files."""
         self._run_hoot(
             "@web/views/graph",
+            "@web/views/pivot",
             "@web/views/pivot_view",
             "@web/views/view_components",
             "@web/views/view_dialogs",

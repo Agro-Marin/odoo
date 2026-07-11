@@ -99,7 +99,10 @@ class CompanySelector {
 
         const controller = this.actionService.currentController;
         const state = {};
-        const options = { reload: true };
+        // sync: the cookie/context are already switched, so the reload must
+        // fire immediately — a debounced push could be dropped by a popstate
+        // or cancelPushes, leaving a switched cookie under a stale webclient.
+        const options = { reload: true, sync: true };
         if (controller?.props.resId && controller?.props.resModel) {
             let hasReadRights = true;
             try {
@@ -116,7 +119,7 @@ class CompanySelector {
 
             if (!hasReadRights) {
                 options.replace = true;
-                state.actionStack = router.current.actionStack.slice(0, -1);
+                state.actionStack = router.current.actionStack?.slice(0, -1) || [];
             }
         }
 
@@ -145,8 +148,11 @@ class CompanySelector {
                 }
             }
         } else {
+            // Go through _selectCompany so the selection cascades to child
+            // companies (possibly filtered out of view), exactly as the
+            // per-item checkboxes do; it also dedupes already-selected ids.
             for (const companyId of allowedCompanyIds) {
-                this.selectedCompaniesIds.push(companyId);
+                this._selectCompany(companyId);
             }
         }
     }

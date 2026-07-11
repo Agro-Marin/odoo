@@ -11,7 +11,7 @@ import {
     useComponent,
     useRef,
 } from "@odoo/owl";
-import { Settings } from "@web/core/l10n/luxon";
+import { DateTime, Settings } from "@web/core/l10n/luxon";
 /**
  * OWL hook that manages a FullCalendar instance lifecycle: loads the bundle,
  * creates/renders on mount, refreshes on patch, destroys on unmount.
@@ -63,6 +63,43 @@ export function getFullCalendarTimeZone() {
         }
     }
     return "local";
+}
+
+/**
+ * Convert a Date received from FullCalendar into a Luxon DateTime in the
+ * user's zone, marker-aware.
+ *
+ * FC v7 emits two Date conventions depending on its ``timeZone`` option (see
+ * ``getFullCalendarTimeZone``):
+ *
+ * - IANA/named zone: a real-epoch Date — ``fromJSDate`` reads it correctly.
+ * - ``"local"`` (FixedOffsetZone defaults that miss the ``Etc/GMT±N`` path):
+ *   a MARKER Date whose UTC components encode the visible local-clock time,
+ *   not the real instant. ``fromJSDate`` would apply the offset a second
+ *   time (e.g. a cell at local midnight in a negative-offset zone lands on
+ *   the previous day). Rebuild from UTC components instead, truncated to the
+ *   minute — markers picked up during drag gestures can carry sub-minute
+ *   drift from the (mocked) clock, meaningless on a 15-min snap grid.
+ *
+ * Use this for every ``info.date``/``event.start`` consumer (day-cell
+ * classes, week numbers, headers, record conversion), not just
+ * ``fcEventToRecord``. See fullcalendar.esm.js (``timestampToMarker`` /
+ * ``toDate``) for the FC-side conversion mirrored here.
+ *
+ * @param {Date} date
+ * @returns {import("@web/core/l10n/luxon").DateTime}
+ */
+export function fromFcDate(date) {
+    if (getFullCalendarTimeZone() !== "local") {
+        return DateTime.fromJSDate(date);
+    }
+    return DateTime.fromObject({
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+        hour: date.getUTCHours(),
+        minute: date.getUTCMinutes(),
+    });
 }
 
 /**

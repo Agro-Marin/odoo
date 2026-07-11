@@ -14,12 +14,15 @@ export class BadgeSelectionField extends SelectionLikeField {
     static props = {
         ...standardFieldProps,
         domain: { type: [Array, Function], optional: true },
+        context: { type: Object, optional: true },
         size: {
             type: String,
             optional: true,
             validate: (s) => ["sm", "md", "lg"].includes(s),
-            default: "md",
         },
+    };
+    static defaultProps = {
+        size: "md",
     };
 
     get options() {
@@ -30,6 +33,20 @@ export class BadgeSelectionField extends SelectionLikeField {
                 return this.props.record.fields[this.props.name].selection;
             default:
                 return [];
+        }
+    }
+
+    /**
+     * Keyboard activation for the badge "radios" (they are spans, not native
+     * buttons, so Enter/Space must be wired manually).
+     *
+     * @param {KeyboardEvent} ev
+     * @param {string | number | false} value
+     */
+    onKeydown(ev, value) {
+        if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            this.onChange(value);
         }
     }
 
@@ -85,6 +102,7 @@ export const badgeSelectionField = {
     isEmpty: isFalseEmpty,
     extractProps: (fieldInfo, dynamicInfo) => ({
         domain: dynamicInfo.domain,
+        context: dynamicInfo.context,
         size: fieldInfo.options.size,
     }),
 };

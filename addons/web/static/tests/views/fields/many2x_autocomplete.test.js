@@ -12,13 +12,14 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import {
     clickFieldDropdown,
     clickFieldDropdownItem,
     contains,
     defineModels,
     fields,
+    makeServerError,
     models,
     mountView,
     onRpc,
@@ -279,6 +280,10 @@ describe("search more", () => {
     test("Search more... opens SelectCreateDialog with the field's label in the title", async () => {
         // SelectCreateDialog calls res.users.has_group to determine filter/favorites visibility
         onRpc("res.users", "has_group", () => false);
+        // more records than the search limit, so "Search more..." shows up
+        for (let i = 0; i < 8; i++) {
+            Product._records.push({ id: 100 + i, name: `product ${i}` });
+        }
 
         await mountView({
             type: "form",
@@ -294,5 +299,76 @@ describe("search more", () => {
         // SelectCreateDialog should be visible with the field string in the title
         expect(".modal .modal-title").toHaveCount(1);
         expect(".modal .modal-title").toHaveText("Search: Product");
+    });
+
+    test("dropdown renders at most searchLimit records plus Search more on overflow", async () => {
+        // 10 records for a searchLimit of 7: the +1 overflow probe must be
+        // sliced away and "Search more..." must appear
+        for (let i = 0; i < 8; i++) {
+            Product._records.push({ id: 100 + i, name: `product ${i}` });
+        }
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await clickFieldDropdown("product_id");
+        await runAllTimers();
+
+        expect(
+            ".o_field_widget[name=product_id] " +
+                ".o-autocomplete--dropdown-item:not(.o_m2o_dropdown_option)",
+        ).toHaveCount(7);
+        expect(".o_m2o_dropdown_option_search_more").toHaveCount(1);
+    });
+
+    test("no Search more... when all matching records fit in the dropdown", async () => {
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await clickFieldDropdown("product_id");
+        await runAllTimers();
+
+        expect(
+            ".o_field_widget[name=product_id] " +
+                ".o-autocomplete--dropdown-item:not(.o_m2o_dropdown_option)",
+        ).toHaveCount(2);
+        expect(".o_m2o_dropdown_option_search_more").toHaveCount(0);
+    });
+});
+
+// Quick create error fallback — a ValidationError falls back to the
+// create-and-edit dialog instead of escaping as an unhandled rejection
+
+describe("quick create error fallback", () => {
+    test("ValidationError on name_create falls back to the creation dialog", async () => {
+        onRpc("product", "name_create", () => {
+            throw makeServerError({ type: "ValidationError" });
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(".o_field_widget[name=product_id] input").edit("failing", {
+            confirm: false,
+        });
+        await runAllTimers();
+        await clickFieldDropdownItem("product_id", 'Create "failing"');
+        await animationFrame();
+
+        expect(".o_error_dialog").toHaveCount(0);
+        expect(".modal .o_form_view").toHaveCount(1);
+        expect(".modal .o_field_widget[name=name] input").toHaveValue("failing");
     });
 });

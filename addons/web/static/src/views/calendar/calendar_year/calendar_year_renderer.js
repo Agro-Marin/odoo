@@ -16,6 +16,7 @@ import {
     dayCellClassNames,
     dayHeaderClassNames,
     fcInternalClassName,
+    fromFcDate,
     getFullCalendarTimeZone,
     useFullCalendar,
 } from "@web/views/calendar/hooks/full_calendar_hook";
@@ -54,14 +55,12 @@ export class CalendarYearRenderer extends Component {
             this.updateSize();
         });
 
-        // v7 dropped v6's ``windowResize`` option (ResizeObserver only); re-create
-        // the per-instance fan-out by listening on ``window`` directly and invoking
-        // once per mini calendar. Tests count the expected 12 invocations.
-        useExternalListener(window, "resize", () => {
-            for (let i = 0; i < this.months.length; i++) {
-                this.onWindowResize();
-            }
-        });
+        // v7 dropped v6's ``windowResize`` option (ResizeObserver only);
+        // listen on ``window`` directly. One resize means one layout update:
+        // the root height is shared by all 12 mini calendars, so a
+        // per-instance fan-out would just repeat the same forced
+        // layout (getBoundingClientRect + style write) 12 times.
+        useExternalListener(window, "resize", () => this.onWindowResize());
     }
 
     get options() {
@@ -119,7 +118,7 @@ export class CalendarYearRenderer extends Component {
             timeZone: getFullCalendarTimeZone(),
             titleFormat: { month: "long", year: "numeric" },
             unselectAuto: false,
-            weekNumberCalculation: (date) => getLocalYearAndWeek(date).week,
+            weekNumberCalculation: (date) => getLocalYearAndWeek(fromFcDate(date)).week,
             weekNumbers: false,
             weekNumberFormat: { week: "numeric" },
             eventContent: this.onEventContent,
@@ -252,7 +251,7 @@ export class CalendarYearRenderer extends Component {
         return extras.length ? `${base} ${extras.join(" ")}` : base;
     }
     getDayCellClassNames(info) {
-        const date = DateTime.fromJSDate(info.date).toISODate();
+        const date = fromFcDate(info.date).toISODate();
         if (this.props.model.unusualDays.includes(date)) {
             return ["o_calendar_disabled"];
         }

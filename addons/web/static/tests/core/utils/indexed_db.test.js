@@ -1,6 +1,8 @@
 // @ts-check
 
 import { describe, expect, onError, test } from "@odoo/hoot";
+import { advanceTime } from "@odoo/hoot-mock";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { IndexedDB } from "@web/core/utils/indexed_db";
 
 describe.current.tags("headless");
@@ -400,4 +402,51 @@ test("invalidateWhere, no-op when none of the tables exist", async () => {
 
     await indexedDB.deleteDatabase();
     await ensureDbIsAbsent();
+});
+
+test("blocked database deletion degrades to no-cache instead of hanging", async () => {
+    const BLOCKED_DB_NAME = "unit_test_blocked_delete";
+    patchWithCleanup(console, {
+        warn: (message) => expect.step(`warn:${String(message).slice(0, 24)}`),
+    });
+
+    // Seed the DB with a version marker and one entry.
+    const seed = new IndexedDB(BLOCKED_DB_NAME, "v1");
+    await seed.write("mytable", "k", "v");
+    seed._closeCachedDB();
+
+    // A foreign connection (e.g. a frozen tab) that never closes on
+    // versionchange: any deleteDatabase request stays blocked behind it.
+    /** @type {IDBDatabase} */
+    const blocker = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(BLOCKED_DB_NAME);
+        request.onsuccess = (ev) =>
+            resolve(/** @type {IDBOpenDBRequest} */ (ev.target).result);
+        request.onerror = () => reject(request.error);
+    });
+
+    // A version bump triggers the delete path; reads queue behind it on the
+    // instance mutex. Without the onblocked fallback this would hang forever.
+    const wrapper = new IndexedDB(BLOCKED_DB_NAME, "v2");
+    const readPromise = wrapper.read("mytable", "k");
+    // Interleave mock-timer advances with real macrotasks so the (real)
+    // IndexedDB blocked event can fire, then the fallback timeout.
+    for (let i = 0; i < 10; i++) {
+        await advanceTime(500);
+    }
+
+    // Degraded: the read resolves (cache miss) instead of hanging, and
+    // subsequent operations short-circuit.
+    expect(await readPromise).toBe(undefined);
+    await wrapper.write("mytable", "k", "ignored");
+    expect(await wrapper.read("mytable", "k")).toBe(undefined);
+    expect.verifySteps(["warn:IndexedDB delete blocked"]);
+
+    // Cleanup: release the blocker so the pending delete can complete.
+    blocker.close();
+    await new Promise((resolve) => {
+        const request = indexedDB.deleteDatabase(BLOCKED_DB_NAME);
+        request.onsuccess = resolve;
+        request.onerror = resolve;
+    });
 });

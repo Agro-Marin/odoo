@@ -78,6 +78,9 @@ function makeList(groups) {
         // ``resModel`` is a DataPoint getter deriving from ``config`` — set it
         // through ``_config`` rather than assigning the read-only property.
         _config: { resModel: "task" },
+        // The revert path serializes through the model mutex (it calls
+        // record._discard, Invariant I4).
+        model: { mutex: { exec: (fn) => Promise.resolve(fn()) } },
     });
     return list;
 }

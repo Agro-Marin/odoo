@@ -10,13 +10,11 @@ import { Dialog } from "@web/ui/dialog/dialog";
 /**
  * @typedef {Object} InstallPromptProps
  * @property {() => void} close - close the dialog
- * @property {() => void} onClose - callback after close
  */
 
 export class InstallPrompt extends Component {
     static props = {
         close: true,
-        onClose: { type: Function },
     };
     static components = {
         Dialog,
@@ -28,9 +26,11 @@ export class InstallPrompt extends Component {
         return isIOS();
     }
 
-    /** Close the dialog and invoke the onClose callback. */
+    /**
+     * Close the dialog. The dismissal callback is wired as a dialog option
+     * by the pwa service, so it fires on every removal path (ESC included).
+     */
     onClose() {
         this.props.close();
-        this.props.onClose();
     }
 }

@@ -49,6 +49,7 @@ export class StateSelectionField extends Component {
                         category: "smart_action",
                         hotkey: hotkeys[index] && `alt+${hotkeys[index]}`,
                         isAvailable: () =>
+                            !this.props.readonly &&
                             this.props.record.data[this.props.name] !== value,
                     },
                 );
@@ -96,7 +97,7 @@ export class StateSelectionField extends Component {
 
 export const stateSelectionField = {
     component: StateSelectionField,
-    displayName: _t("Label Selection"),
+    displayName: _t("State Selection"),
     supportedOptions: [
         {
             label: _t("Autosave"),

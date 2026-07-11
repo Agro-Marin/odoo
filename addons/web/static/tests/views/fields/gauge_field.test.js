@@ -67,9 +67,9 @@ test("GaugeField in kanban view", async () => {
 
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(2);
     expect(".o_field_widget[name=int_field] .oe_gauge canvas").toHaveCount(2);
-    expect(queryAllTexts(".o_gauge_value")).toEqual(["10", "4"]);
+    expect(queryAllTexts(".o_gauge_value")).toEqual(["10.0", "4.0"]);
     // max pulled from another_int_field (45, 10) — NOT the default of 100.
-    expect(maxes.toSorted()).toEqual(["Max: 10", "Max: 45"]);
+    expect(maxes.toSorted()).toEqual(["Max: 10.0", "Max: 45.0"]);
 });
 
 test("GaugeValue supports max_value option", async () => {
@@ -80,7 +80,7 @@ test("GaugeValue supports max_value option", async () => {
                 expect.step("gauge mounted");
                 expect(
                     this.chart.config.options.plugins.tooltip.callbacks.label({}),
-                ).toBe("Max: 120");
+                ).toBe("Max: 120.0");
             });
         },
     });
@@ -104,5 +104,27 @@ test("GaugeValue supports max_value option", async () => {
 
     expect.verifySteps(["gauge mounted"]);
     expect(".o_field_widget[name=int_field] .oe_gauge canvas").toHaveCount(1);
-    expect(".o_gauge_value").toHaveText("10");
+    expect(".o_gauge_value").toHaveText("10.0");
+});
+
+test("GaugeField renders large values in human-readable form", async () => {
+    Partner._records = [{ id: 1, int_field: 1234567, another_int_field: 2000000 }];
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: /* xml */ `
+        <kanban>
+            <field name="another_int_field"/>
+            <templates>
+                <t t-name="card">
+                    <field name="int_field" widget="gauge" options="{'max_field': 'another_int_field'}"/>
+                </t>
+            </templates>
+        </kanban>`,
+    });
+
+    expect(".o_gauge_value").toHaveText("1.2M", {
+        message: "the displayed value must use the human-readable formatter",
+    });
 });

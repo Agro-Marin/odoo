@@ -132,6 +132,12 @@ export class ListRecordRow extends Component {
         installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
         onWillRender(() => {
             this._isRendering = true;
+            if (odoo.debug) {
+                warnUndelegatedRendererFields(
+                    /** @type {any} */ (this.constructor),
+                    renderer,
+                );
+            }
             // Per-record cache invalidation: when this row re-renders without a
             // full renderer render, renderer-side per-render caches keyed by
             // (column, record) may hold stale entries for this record.
@@ -332,6 +338,40 @@ function installRendererDelegation(RowClass, renderer) {
     }
 }
 
+/**
+ * Debug-mode guard for the delegation blind spot: accessors are installed
+ * from the renderer members that exist when a row runs its setup, so a
+ * renderer instance field assigned later (e.g. a subclass setting a flag in
+ * an event handler) has no accessor until some future row's setup re-scans —
+ * meanwhile row templates reading that name silently get ``undefined``. Warn
+ * (once per row class and name) so the gap is visible instead of silent.
+ *
+ * @param {any} RowClass
+ * @param {any} renderer
+ */
+function warnUndelegatedRendererFields(RowClass, renderer) {
+    const installed = RowClass._delegatedNames;
+    if (!installed) {
+        return;
+    }
+    for (const name of Object.getOwnPropertyNames(renderer)) {
+        if (!installed.has(name)) {
+            if (!Object.hasOwn(RowClass, "_warnedUndelegatedNames")) {
+                RowClass._warnedUndelegatedNames = new Set();
+            }
+            if (!RowClass._warnedUndelegatedNames.has(name)) {
+                RowClass._warnedUndelegatedNames.add(name);
+                console.warn(
+                    `ListRecordRow: renderer field "${name}" was assigned after ` +
+                        `row delegation accessors were installed; row templates ` +
+                        `reading "${name}" resolve to undefined. Initialize the ` +
+                        `field in the renderer's setup() so it is delegated.`,
+                );
+            }
+        }
+    }
+}
+
 /** @type {WeakMap<any, any>} renderer class → row component class */
 const rowClassRegistry = new WeakMap();
 
@@ -353,7 +393,24 @@ export function getRowComponentClass(RendererClass) {
             value: `ListRecordRow_${RendererClass.name}`,
             configurable: true,
         });
-        RowClass.components = { ...RendererClass.components };
+        // Live view, not a snapshot: late additions to the renderer's
+        // ``static components`` (e.g. ``patch()`` after the first row class
+        // derivation) must stay visible to the row body. An explicit write
+        // (tests patching the row class directly) overrides the getter.
+        Object.defineProperty(RowClass, "components", {
+            configurable: true,
+            get() {
+                return RendererClass.components;
+            },
+            set(value) {
+                Object.defineProperty(this, "components", {
+                    value,
+                    writable: true,
+                    configurable: true,
+                    enumerable: true,
+                });
+            },
+        });
         rowClassRegistry.set(RendererClass, RowClass);
     }
     return RowClass;

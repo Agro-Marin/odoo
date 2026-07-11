@@ -9,9 +9,12 @@
  */
 
 import { markup } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
+import { AppEvent } from "@web/core/events";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { user } from "@web/services/user";
 
@@ -57,6 +60,50 @@ function addOrSupersede(keepLast, promise) {
             () => Promise.resolve().then(() => SUPERSEDED),
         ),
     ]);
+}
+
+/**
+ * Await a ``doAction`` promise, resolving with {@link SUPERSEDED} instead of
+ * hanging forever when the dispatched action is superseded — either its
+ * internal KeepLast wrapper is discarded, or its controller is replaced by a
+ * newer ``ACTION_MANAGER:UPDATE`` before mounting; in both cases the promise
+ * never settles, so {@link addOrSupersede} (which races on the raw promise's
+ * own settlement) cannot guard this phase. Instead, any completed action
+ * render (``ACTION_MANAGER_UI_UPDATED`` — the same supersession signal
+ * ``webclient.js`` uses for its pointer-events escape hatch) arms a macrotask
+ * check: the macrotask drains every pending microtask first, so a promise
+ * that was merely propagating through its async layers settles and wins the
+ * race, while a genuinely superseded one resolves the sentinel.
+ *
+ * @param {ActionManager} am
+ * @param {Promise<any>} promise the raw ``doAction`` promise (may never settle)
+ * @returns {Promise<any | typeof SUPERSEDED>}
+ */
+function awaitActionOrSupersede(am, promise) {
+    return new Promise((resolve, reject) => {
+        let done = false;
+        const finish = (callback, value) => {
+            if (!done) {
+                done = true;
+                am.env.bus.removeEventListener(
+                    AppEvent.ACTION_MANAGER_UI_UPDATED,
+                    onUiUpdated,
+                );
+                callback(value);
+            }
+        };
+        const onUiUpdated = () => {
+            // This may be our own action mounting (its resolve() runs just
+            // before the trigger): give the promise a full macrotask to
+            // settle through its async layers before declaring supersession.
+            browser.setTimeout(() => finish(resolve, SUPERSEDED));
+        };
+        am.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, onUiUpdated);
+        promise.then(
+            (value) => finish(resolve, value),
+            (error) => finish(reject, error),
+        );
+    });
 }
 
 /**
@@ -133,10 +180,14 @@ export async function executeActionButton(
         return;
     }
     let action;
-    if (!isEmbeddedAction) {
-        for (const key of EMBEDDED_ACTIONS_CTX_KEYS) {
-            delete params.context?.[key];
-        }
+    if (!isEmbeddedAction && params.context) {
+        // `params.context` frequently aliases a view-owned context object:
+        // strip the embedded-action keys on a copy so the deletion cannot
+        // leak back into the originating view's state.
+        params = {
+            ...params,
+            context: omit(params.context, ...EMBEDDED_ACTIONS_CTX_KEYS),
+        };
     }
     const context = makeContext([params.context, params.buttonContext]);
     const blockUi = exprToBoolean(params["block-ui"]);
@@ -265,12 +316,20 @@ export async function executeActionButton(
         // attribute on the button, the priority is given to the button attribute
         effect = params.effect ? evaluateExpr(params.effect) : action.effect;
         const { onClose, stackPosition, viewType } = params;
-        await am.doAction(action, {
-            newWindow,
-            onClose,
-            stackPosition,
-            viewType,
-        });
+        const result = await awaitActionOrSupersede(
+            am,
+            am.doAction(action, {
+                newWindow,
+                onClose,
+                stackPosition,
+                viewType,
+            }),
+        );
+        if (result === SUPERSEDED) {
+            // A newer action rendered before this one; bail out so the
+            // `finally` releases the block-ui overlay instead of hanging forever.
+            return;
+        }
         if (params.close) {
             await am._executeCloseAction();
         }

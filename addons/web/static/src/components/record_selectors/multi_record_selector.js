@@ -3,6 +3,7 @@
 
 /** @module @web/components/record_selectors/multi_record_selector - Multi-value record picker with tag display and autocomplete search */
 
+import { useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
 import { isId } from "@web/core/tree/utils";
@@ -27,9 +28,15 @@ export class MultiRecordSelector extends BaseRecordSelector {
 
     setup() {
         super.setup();
+        this.state = useState({ tags: [] });
         useTagNavigation("multiRecordSelector", {
             delete: (index) => this.deleteTag(index),
         });
+    }
+
+    /** @returns {Array<{text: string, onDelete: Function, img: string | false}>} reactive tag list */
+    get tags() {
+        return this.state.tags;
     }
 
     /**
@@ -37,7 +44,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
      * @param {Record<number, string>} displayNames
      */
     applyDisplayNames(props, displayNames) {
-        this.tags = this.getTags(props, displayNames);
+        this.state.tags = this.getTags(props, displayNames);
     }
 
     /**

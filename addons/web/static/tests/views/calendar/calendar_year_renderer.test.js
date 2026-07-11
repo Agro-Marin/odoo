@@ -163,15 +163,22 @@ test("per-month anchor is offset-less so it doesn't drift in a fixed-offset zone
     expect(renderer.options.initialDate).toBe("2021-07-16T08:00:00");
 });
 
-test("resize callback is being called", async () => {
+test("a window resize updates the view height with a single layout pass", async () => {
     patchWithCleanup(CalendarYearRenderer.prototype, {
-        onWindowResize() {
-            expect.step("onWindowResize");
+        updateSize() {
+            expect.step("updateSize");
+            return super.updateSize();
         },
     });
-    await start();
-    expect.verifySteps([]);
+    const renderer = await start();
+    // Mount: one sizing pass from the render effect.
+    expect.verifySteps(["updateSize"]);
     await resize({ height: 500 });
     await runAllTimers();
-    expect.verifySteps(new Array(12).fill("onWindowResize")); // one for each FullCalendar instance
+    // One resize event = one layout update (the root height is shared by all
+    // 12 mini calendars; there used to be a 12x fan-out of identical calls).
+    expect.verifySteps(["updateSize"]);
+    expect(renderer.rootRef.el.style.height).toBe(
+        `${window.innerHeight - renderer.rootRef.el.getBoundingClientRect().top}px`,
+    );
 });

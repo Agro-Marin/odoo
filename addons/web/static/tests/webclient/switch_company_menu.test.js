@@ -675,15 +675,38 @@ test("de-select only changes visible companies", async () => {
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(3);
 
-    // Hidden company is unchanged
+    // Selecting a parent cascades to its (filtered-out) children, exactly as
+    // the per-item checkbox does: all five companies end up selected.
     await contains("input").clear();
     await animationFrame();
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
-    ).toHaveCount(4);
+    ).toHaveCount(5);
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=false])",
-    ).toHaveCount(1);
+    ).toHaveCount(0);
+});
+
+test("select all cascades to filtered-out children", async () => {
+    await createSwitchCompanyMenu();
+    await openCompanyMenu();
+
+    // Show search, then filter down to the parent company only.
+    await edit(" ");
+    await animationFrame();
+    await contains("input").edit("Heroes");
+    await animationFrame();
+    expect(".o_switch_company_item").toHaveCount(1);
+
+    await contains("[role=menuitemcheckbox][title='Select all']").click();
+
+    // Clearing the filter shows the children were selected along with their
+    // parent — a state also reachable through the individual checkboxes.
+    await contains("input").clear();
+    await animationFrame();
+    expect(
+        queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
+    ).toEqual(["true", "false", "true", "true", "true"]);
 });
 
 test("closing the dropdown without confirming discards the pending selection", async () => {

@@ -126,6 +126,22 @@ describe("Basic Properties", () => {
         );
     });
 
+    test("inequalities never match unset fields", () => {
+        // SQL semantics: comparisons on NULL are falsy, while raw JS would
+        // evaluate `false < 5` as true. Known divergence: a numeric field
+        // whose client value is `false` is excluded even where the server
+        // stores an actual 0 (0 < 5 matches server-side, NULL does not).
+        for (const op of ["<", "<=", ">", ">="]) {
+            expect(new Domain([["a", op, 5]]).contains({ a: false })).toBe(false);
+            expect(new Domain([["a", op, 5]]).contains({})).toBe(false);
+        }
+        expect(new Domain([["a", "<", 5]]).contains({ a: 3 })).toBe(true);
+        expect(new Domain([["a", "<=", 0]]).contains({ a: 0 })).toBe(true);
+        expect(new Domain([["a", ">", 5]]).contains({ a: 6 })).toBe(true);
+        expect(new Domain([["a", ">=", 5]]).contains({ a: 5 })).toBe(true);
+        expect(new Domain([["a", ">", 5]]).contains({ a: 3 })).toBe(false);
+    });
+
     test("like, =like, ilike, =ilike and not likes", () => {
         expect.assertions(34);
 
@@ -453,13 +469,9 @@ describe("Basic Properties", () => {
         expect(JSON.stringify(domainList)).toBe('[["date",">=","2013-03-25"]]');
 
         const domainList2 = new Domain(domainList).toList(); // domain creation using `toAST` function since the parameter is a list.
-        expect(domainList2[0][2]).toEqual(
-            PyDate.create({ day: 25, month: 3, year: 2013 }),
-            {
-                message:
-                    "The right item in the rule in the domain should be a PyDate object",
-            },
-        );
+        // toPyValue serializes date-likes eagerly, so the PyDate round-trips
+        // through the list form as its date string.
+        expect(domainList2[0][2]).toBe("2013-03-25");
         expect(JSON.stringify(domainList2)).toBe('[["date",">=","2013-03-25"]]');
     });
 

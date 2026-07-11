@@ -209,6 +209,7 @@ test("StateSelectionField with readonly modifier", async () => {
 
     expect(".o_field_state_selection").toHaveClass("o_readonly_modifier");
     expect(".o_field_state_selection button").toHaveClass("o_disabled");
+    expect(".o_field_state_selection button").toHaveAttribute("disabled");
     expect(".dropdown-menu:visible").not.toHaveCount();
     await click(".o_field_state_selection span.o_status");
     await animationFrame();
@@ -469,6 +470,27 @@ test('StateSelectionField edited by the smart actions "Set kanban state as <stat
     await animationFrame();
     expect(`.o_command:contains("Set kanban state as Normal ALT + D")`).toHaveCount(1);
     expect(`.o_command:contains("Set kanban state as Blocked ALT + F")`).toHaveCount(1);
+    expect(`.o_command:contains("Set kanban state as Done ALT + G")`).toHaveCount(0);
+});
+
+test("StateSelectionField readonly hides the smart actions", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+            <form>
+                <field name="selection" widget="state_selection" readonly="1"/>
+            </form>
+        `,
+        resId: 1,
+    });
+
+    await press(["control", "k"]);
+    await animationFrame();
+    expect(`.o_command:contains("Set kanban state as Normal ALT + D")`).toHaveCount(0, {
+        message: "the commands must not be available on a readonly field",
+    });
+    expect(`.o_command:contains("Set kanban state as Blocked ALT + F")`).toHaveCount(0);
     expect(`.o_command:contains("Set kanban state as Done ALT + G")`).toHaveCount(0);
 });
 

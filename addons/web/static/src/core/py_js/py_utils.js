@@ -4,7 +4,7 @@
 /** @module @web/core/py_js/py_utils - AST-to-value conversion and AST-to-string formatting for Python expressions */
 
 import { ASTType } from "./ast_type.js";
-import { PyDate, PyDateTime } from "./py_date.js";
+import { PyDate, PyDateTime, PyTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
 
 // Types
@@ -37,12 +37,26 @@ export function toPyValue(value) {
             } else if (value === null) {
                 return { type: ASTType.None };
             } else if (value instanceof Date) {
+                // Serialized eagerly so the node is a REAL string AST (it used
+                // to smuggle the Py* instance as `value`, which only worked
+                // because formatAST's JSON.stringify called its toJSON).
+                // NB: convertDate reads LOCAL components, while datetime
+                // domain values are conventionally UTC — callers passing a raw
+                // JS Date get a local-time string (historical behavior, kept).
                 return {
                     type: ASTType.String,
-                    value: /** @type {any} */ (PyDateTime.convertDate(value)),
+                    value: PyDateTime.convertDate(value).strftime("%Y-%m-%d %H:%M:%S"),
                 };
-            } else if (value instanceof PyDate || value instanceof PyDateTime) {
-                return { type: ASTType.String, value: /** @type {any} */ (value) };
+            } else if (value instanceof PyDateTime) {
+                return {
+                    type: ASTType.String,
+                    value: value.strftime("%Y-%m-%d %H:%M:%S"),
+                };
+            } else if (value instanceof PyTime) {
+                // Before PyDate: PyTime extends PyDate but serializes as a time.
+                return { type: ASTType.String, value: value.strftime("%H:%M:%S") };
+            } else if (value instanceof PyDate) {
+                return { type: ASTType.String, value: value.strftime("%Y-%m-%d") };
             } else {
                 /** @type {Record<string, any>} */
                 const content = {};
@@ -176,18 +190,23 @@ export function formatAST(ast, lbp = 0) {
     throw new Error(`invalid expression: ${ast}`);
 }
 
+/**
+ * Prototype sentinel: the interpreter recognizes a value as a Python dict
+ * when its [[Prototype]] is PY_DICT (see the ObjLookup case).
+ */
 export const PY_DICT = Object.create(null);
 
 /**
- * @param {Object} obj
- * @returns {AST} a python dictionary
+ * Wrap a plain object as a Python dict for the interpreter: the returned
+ * Proxy reports PY_DICT as its prototype so dict methods (`.get`) resolve.
+ *
+ * @param {Record<string, any>} obj
+ * @returns {Record<string, any>}
  */
 export function toPyDict(obj) {
-    return /** @type {AST} */ (
-        new Proxy(obj, {
-            getPrototypeOf() {
-                return PY_DICT;
-            },
-        })
-    );
+    return new Proxy(obj, {
+        getPrototypeOf() {
+            return PY_DICT;
+        },
+    });
 }

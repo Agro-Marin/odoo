@@ -402,6 +402,10 @@ test("Many2One 'Search more...' updates on resModel change", async () => {
     Product._views[["list", false]] =
         /* xml */ `<list><field name="display_name"/></list>`;
     Product._views[["search", false]] = /* xml */ `<search/>`;
+    // more records than the search limit, so "Search more..." shows up
+    for (let i = 0; i < 8; i++) {
+        Product._records.push({ id: 100 + i, name: `zzz ${i}` });
+    }
 
     await mountView({
         type: "form",

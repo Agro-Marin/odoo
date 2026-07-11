@@ -7,6 +7,7 @@ import {
     clickSave,
     contains,
     defineModels,
+    defineParams,
     fields,
     models,
     mountView,
@@ -125,6 +126,37 @@ test("basic flow in form view - monetary field", async () => {
     expect(".o_field_widget input").toHaveValue("108.25", {
         message: "The new value should be rounded properly.",
     });
+});
+
+test("type number does not misparse a dot-decimal value in a dot-thousands locale", async () => {
+    defineParams({
+        lang_parameters: {
+            thousands_sep: ".",
+            decimal_point: ",",
+            grouping: [3, 0],
+        },
+    });
+    onRpc("web_save", ({ args }) => {
+        expect.step(`monetary_field: ${args[1].monetary_field}`);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 5,
+        arch: `
+            <form>
+                <field name="monetary_field" type="number"/>
+                <field name="currency_id" invisible="1"/>
+            </form>`,
+    });
+    expect(".o_field_widget input").toHaveAttribute("type", "number");
+    // A number input's value is always dot-decimal: "1.5" must be saved as
+    // 1.5, NOT parsed with "." as a thousands separator (silent 15).
+    // `instantly` pastes the whole string: a `<input type="number">` rejects
+    // the transient "1." of char-by-char typing, which would collapse to "5".
+    await contains(".o_field_monetary input").edit("1.5", { instantly: true });
+    await clickSave();
+    expect.verifySteps(["monetary_field: 1.5"]);
 });
 
 test("rounding using formula in form view - float field", async () => {

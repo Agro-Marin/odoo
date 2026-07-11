@@ -1,12 +1,12 @@
 import { delay, describe, expect, test, waitFor } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor";
+import { setupEditor } from "../_helpers/editor.js";
 import { press, queryOne } from "@odoo/hoot-dom";
-import { execCommand } from "../_helpers/userCommands";
+import { execCommand } from "../_helpers/userCommands.js";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { TableOfContentPlugin } from "@html_editor/others/embedded_components/plugins/table_of_content_plugin/table_of_content_plugin";
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
-import { setSelection } from "../_helpers/selection";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { setSelection } from "../_helpers/selection.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { childNodeIndex } from "@html_editor/utils/position";
 import { DELAY_TOOLBAR_OPEN } from "@html_editor/main/toolbar/toolbar_plugin";
 

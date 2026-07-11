@@ -342,7 +342,16 @@ export class CommandPalette extends Component {
      * @param {CommandItem} command
      */
     async executeCommand(command) {
-        const config = await command.action();
+        let config;
+        try {
+            config = await command.action();
+        } catch (error) {
+            // A failing action must not leave the palette open with no
+            // feedback: close it, then let the error surface through the
+            // standard uncaught-error pipeline.
+            this.props.close();
+            throw error;
+        }
         if (config) {
             this.setCommandPaletteConfig(config);
         } else {
@@ -360,7 +369,7 @@ export class CommandPalette extends Component {
         const selectedCommand = this.state.selectedCommand;
         if (selectedCommand) {
             if (!ctrlKey) {
-                this.executeCommand(selectedCommand);
+                await this.executeCommand(selectedCommand);
             } else if (selectedCommand.href) {
                 window.open(selectedCommand.href, "_blank");
             }

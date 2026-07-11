@@ -5,7 +5,7 @@ import { press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
-import { useAutofocus } from "@web/core/utils/hooks";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useActiveElement } from "@web/ui/block/ui_service";
 
 import { getService, mountWithCleanup } from "../web_test_helpers.js";
@@ -38,6 +38,51 @@ test("use block and unblock several times to block ui with ui service", async ()
     getService("ui").unblock();
     await animationFrame();
     expect(".o_blockUI").toHaveCount(0);
+});
+
+test("blocked and activeElement are reactive properties", async () => {
+    class MyComponent extends Component {
+        static template = xml`
+            <div>
+                <span class="blocked" t-esc="ui.blocked"/>
+                <span class="active" t-esc="isDocumentActive ? 'document' : 'other'"/>
+                <div t-if="hasRef" id="owner" t-ref="delegatedRef">
+                    <input type="text"/>
+                </div>
+            </div>
+        `;
+        static props = ["*"];
+        setup() {
+            this.ui = useState(useService("ui"));
+            useActiveElement("delegatedRef");
+            this.hasRef = true;
+        }
+        get isDocumentActive() {
+            return this.ui.activeElement === document;
+        }
+    }
+
+    const comp = await mountWithCleanup(MyComponent);
+    expect(".blocked").toHaveText("false");
+    expect(".active").toHaveText("other");
+
+    // Rendered through useState: block/unblock must trigger a re-render.
+    getService("ui").block();
+    await animationFrame();
+    expect(".blocked").toHaveText("true");
+    expect(getService("ui").isBlocked).toBe(true);
+    getService("ui").unblock();
+    await animationFrame();
+    expect(".blocked").toHaveText("false");
+    expect(getService("ui").isBlocked).toBe(false);
+
+    // Same for activate/deactivate (the deactivation itself is deferred a
+    // micro-tick by useActiveElement's cleanup, hence the second frame).
+    comp.hasRef = false;
+    comp.render();
+    await animationFrame();
+    await animationFrame();
+    expect(".active").toHaveText("document");
 });
 
 test("a component can be the  UI active element: simple usage", async () => {

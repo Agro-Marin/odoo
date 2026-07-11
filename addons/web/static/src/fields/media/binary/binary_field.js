@@ -36,12 +36,15 @@ export class BinaryField extends Component {
 
     /** @returns {string} Display filename, truncated to max filesystem length */
     get fileName() {
+        const fileName = this.props.record.data[this.props.fileNameField];
+        if (fileName) {
+            return fileName.slice(0, MAX_FILENAME_SIZE_BYTES);
+        }
+        // Fallback: the base64 content stands in for the name; slice at the
+        // base64 length whose decoded size fits the filename limit.
         let value = this.props.record.data[this.props.name];
-        value = value && typeof value === "string" ? value : false;
-        return (this.props.record.data[this.props.fileNameField] || value || "").slice(
-            0,
-            toBase64Length(MAX_FILENAME_SIZE_BYTES),
-        );
+        value = value && typeof value === "string" ? value : "";
+        return value.slice(0, toBase64Length(MAX_FILENAME_SIZE_BYTES));
     }
 
     /**

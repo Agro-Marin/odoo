@@ -10,7 +10,7 @@ import {
     runAllTimers,
 } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     batched,
     debounce,
@@ -22,6 +22,23 @@ import {
 describe.current.tags("headless");
 
 describe("batched", () => {
+    test("a throwing callback is mirrored to console.error and still rejects", async () => {
+        // Nearly all callers invoke the batched function fire-and-forget:
+        // without the mirror, the error only surfaces as an
+        // unhandledrejection whose stack points at the microtask.
+        const errors = [];
+        patchWithCleanup(console, {
+            error: (...args) => errors.push(args),
+        });
+        const boom = new Error("boom");
+        const fn = batched(() => {
+            throw boom;
+        });
+        await expect(fn()).rejects.toThrow("boom");
+        expect(errors).toHaveLength(1);
+        expect(errors[0][0]).toBe(boom);
+    });
+
     test("callback is called only once after operations", async () => {
         let n = 0;
         const fn = batched(() => n++);

@@ -54,9 +54,12 @@ export function makeEditHandlers(nav, tableRef, options) {
             if (index === -1 && !forward) {
                 orderedColumns = columns.toReversed();
             } else {
+                // No requested column and forward: start the search at the
+                // first column (index -1 would otherwise start at the last).
+                const startIndex = index === -1 ? 0 : index;
                 orderedColumns = [
-                    ...columns.slice(index, columns.length),
-                    ...columns.slice(0, index),
+                    ...columns.slice(startIndex, columns.length),
+                    ...columns.slice(0, startIndex),
                 ];
             }
             for (const col of orderedColumns) {
@@ -242,8 +245,13 @@ export function makeEditHandlers(nav, tableRef, options) {
                                 list.leaveEditMode();
                                 return false;
                             }
-                            const { context } = getControls()[0];
-                            onAdd({ context });
+                            // `controls` merges create, delete and button
+                            // controls in arch order: resolve the create
+                            // control explicitly instead of assuming index 0.
+                            const create = getControls().find(
+                                (control) => control.type === "create",
+                            );
+                            onAdd({ context: create?.context });
                         } else if (isDirty && getCanCreate()) {
                             onAdd({ group });
                         } else if (cycleOnTab) {

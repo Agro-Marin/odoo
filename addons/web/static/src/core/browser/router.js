@@ -392,7 +392,8 @@ browser.addEventListener("click", (ev) => {
         }
         if (
             browser.location.host === url.host &&
-            browser.location.pathname.startsWith("/odoo") &&
+            (browser.location.pathname === "/odoo" ||
+                browser.location.pathname.startsWith("/odoo/")) &&
             (["/web", "/odoo"].includes(url.pathname) ||
                 url.pathname.startsWith("/odoo/")) &&
             a.target !== "_blank" &&

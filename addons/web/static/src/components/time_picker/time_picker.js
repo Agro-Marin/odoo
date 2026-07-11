@@ -122,7 +122,11 @@ export class TimePicker extends Component {
                 tab: {
                     bypassEditableProtection: true,
                     callback: (navigator) => {
-                        if (navigator.activeItemIndex >= 0) {
+                        // Only commit a suggestion the user actually navigated
+                        // to: the nearest-value highlight set on open is a
+                        // visual hint and must not rewrite the value when
+                        // tabbing away.
+                        if (this.isNavigating && navigator.activeItemIndex >= 0) {
                             this.setValue(this.suggestions[navigator.activeItemIndex]);
                             this.close();
                         }
@@ -162,19 +166,59 @@ export class TimePicker extends Component {
     }
 
     /**
+     * Step (in minutes) between two dropdown suggestions. Deliberately
+     * decoupled from `minutesRounding`: roundings of 5 minutes or less would
+     * generate an unusably long list (288+ entries), so suggestions fall back
+     * to a 15-minute grid while typed/selected values still honor the exact
+     * `minutesRounding`.
+     *
+     * @param {TimePickerProps} props
+     * @returns {number}
+     */
+    getSuggestionStep(props) {
+        return props.minutesRounding <= 5 ? 15 : props.minutesRounding;
+    }
+
+    /**
      * @param {TimePickerProps} props
      * @returns {Time[]}
      */
     getSuggestions(props) {
         const suggestions = [];
-        const rounding = props.minutesRounding <= 5 ? 15 : props.minutesRounding;
-        const minutes = MINUTES.filter((m) => !(m % rounding));
+        const step = this.getSuggestionStep(props);
+        const minutes = MINUTES.filter((m) => !(m % step));
         for (const hour of HOURS) {
             for (const minute of minutes) {
                 suggestions.push(new Time({ hour, minute }));
             }
         }
         return suggestions;
+    }
+
+    /**
+     * Index of the suggestion closest to `value`. As suggestions may use a
+     * coarser step than `minutesRounding` (see `getSuggestionStep`), a valid
+     * value is not always an exact suggestion: highlight the nearest one.
+     *
+     * @param {Time|null} value
+     * @returns {number}
+     */
+    getNearestSuggestionIndex(value) {
+        if (!value) {
+            return 0;
+        }
+        const toMinutes = (time) => time.hour * 60 + time.minute + time.second / 60;
+        const target = toMinutes(value);
+        let nearestIndex = 0;
+        let nearestDistance = Infinity;
+        for (const [index, suggestion] of this.suggestions.entries()) {
+            const distance = Math.abs(toMinutes(suggestion) - target);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestIndex = index;
+            }
+        }
+        return nearestIndex;
     }
 
     /**
@@ -295,11 +339,7 @@ export class TimePicker extends Component {
 
     onDropdownOpened() {
         if (this.navigator) {
-            const index = this.state.value
-                ? this.suggestions.findIndex((s) =>
-                      s.equals(this.state.value, this.props.showSeconds),
-                  )
-                : 0;
+            const index = this.getNearestSuggestionIndex(this.state.value);
             this.navigator.items[index]?.setActive();
         }
     }

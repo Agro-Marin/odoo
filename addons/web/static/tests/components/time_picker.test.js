@@ -81,6 +81,46 @@ test("when opening, select the suggestion equals to the props value", async () =
     expect(".o_time_picker_option:contains(12:30)").toHaveClass("focus");
 });
 
+test("when opening, the nearest suggestion is highlighted for in-between values", async () => {
+    await mountWithCleanup(TimePicker, {
+        props: {
+            value: "12:29",
+            minutesRounding: 1,
+        },
+    });
+
+    expect("input.o_time_picker_input").toHaveValue("12:29");
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+
+    // 12:29 is not on the 15-minute suggestion grid: the closest entry is
+    // highlighted instead of none at all.
+    expect(".o_time_picker_option:contains(12:30)").toHaveClass("focus");
+});
+
+test("fine minutesRounding keeps a 15-minute suggestion grid but accepts exact values", async () => {
+    await mountWithCleanup(TimePicker, {
+        props: {
+            minutesRounding: 1,
+            onChange: (value) => expect.step(`${value.hour}:${value.minute}`),
+        },
+    });
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+
+    // Suggestions deliberately fall back to a 15-minute grid for fine
+    // roundings (the exact grid would be unusably long)...
+    expect(queryAllTexts(".o_time_picker_option")).toEqual(getTimeOptions());
+
+    // ...while typed values still honor the exact rounding.
+    await edit("12:34", { confirm: "enter" });
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("12:34");
+    expect.verifySteps(["12:34"]);
+});
+
 test("onChange only triggers if the value has changed", async () => {
     await mountWithCleanup(TimePicker, {
         props: {

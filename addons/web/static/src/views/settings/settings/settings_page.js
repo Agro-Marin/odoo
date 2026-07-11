@@ -23,7 +23,9 @@ export class SettingsPage extends Component {
             search: this.env.searchState,
         });
 
-        if (this.props.modules) {
+        // `modules` is always an array (the compiler serializes params.modules)
+        // but may be empty when every <app> is notApp="1": no tab to select then.
+        if (this.props.modules.length) {
             let selectedTab = this.props.initialTab || this.props.modules[0].key;
 
             if (browser.location.hash) {

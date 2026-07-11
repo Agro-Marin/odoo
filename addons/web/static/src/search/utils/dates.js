@@ -148,8 +148,11 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
  * plusParam, granularity and the reference moment.
  */
 export function constructDateRange(params) {
-    const { referenceMoment, fieldName, fieldType, granularity, setParam, plusParam } =
-        params;
+    const { referenceMoment, fieldName, fieldType, granularity, plusParam } = params;
+    // Copy: the caller's setParam may be a shared constant (getSetParam
+    // returns QUARTER_OPTIONS[*].setParam by reference) and must not be
+    // mutated by the quarter translation below.
+    const setParam = { ...params.setParam };
     if ("quarter" in setParam) {
         // Luxon does not consider quarter key in setParam (like moment did)
         setParam.month = QUARTERS[setParam.quarter].coveredMonths[0];
@@ -243,7 +246,7 @@ export function toGeneratorId(unit, offset) {
  * @param {{ startYear: number, endYear: number, startMonth: number, endMonth: number }} optionsParams
  * @returns {Array<Object>}
  */
-function getMonthPeriodOptions(referenceMoment, optionsParams) {
+export function getMonthPeriodOptions(referenceMoment, optionsParams) {
     const { startYear, endYear, startMonth, endMonth } = optionsParams;
     return [...Array(endMonth - startMonth + 1).keys()]
         .map((i) => {
@@ -255,6 +258,12 @@ function getMonthPeriodOptions(referenceMoment, optionsParams) {
             const yearOffset = date.year - referenceMoment.year;
             return {
                 id: toGeneratorId("month", monthOffset),
+                // Snap the month's natural year into the arch's year window:
+                // start_year/end_year is authoritative (a fully future/past
+                // window must still default to a year option that exists),
+                // and the effective year is displayed by the auto-selected
+                // year option. Pinned by the filter_menu "startYear in the
+                // future" test.
                 defaultYearId: toGeneratorId(
                     "year",
                     clamp(yearOffset, startYear, endYear),

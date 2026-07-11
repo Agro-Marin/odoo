@@ -1,7 +1,9 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { Deferred } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
+import { EventBus } from "@odoo/owl";
+import { AppEvent } from "@web/core/events";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 import {
@@ -23,6 +25,7 @@ function makeFakeAm(overrides = {}) {
     const ui = { count: 0, blocked: 0 };
     const am = {
         env: {
+            bus: new EventBus(),
             services: {
                 ui: {
                     block() {
@@ -130,6 +133,61 @@ test("block-ui: overlay is released when the awaited task is superseded", async 
 
     await prom; // must not hang despite the discarded wrapper
     expect(am.__ui.count).toBe(0); // the `finally` ran → overlay released
+});
+
+test("block-ui: overlay is released when the doAction phase is superseded", async () => {
+    // Regression: the two RPC phases were sentinel-guarded, but the
+    // subsequent `await am.doAction(...)` could still hang forever when the
+    // dispatched action was superseded (doAction's internal KeepLast discard,
+    // or its controller replaced before mounting) — the doAction promise
+    // never settles, so the `finally` never released the overlay.
+    const am = makeFakeAm({
+        doAction: () => new Promise(() => {}),
+    });
+    const prom = executeActionButton(am, {
+        name: 1,
+        type: "action",
+        "block-ui": "1",
+    });
+    await animationFrame(); // reach the doAction phase (listener attached)
+    expect(am.__ui.count).toBe(1); // overlay up while doAction is pending
+
+    // The superseding action finishes rendering.
+    am.env.bus.trigger(AppEvent.ACTION_MANAGER_UI_UPDATED, "current");
+    await runAllTimers(); // macrotask check: the promise never settled
+
+    await prom; // must not hang despite the never-settling doAction
+    expect(am.__ui.count).toBe(0); // the `finally` ran → overlay released
+});
+
+test("block-ui: a UI update from the action itself is not a supersession", async () => {
+    // The guard must not misfire when ACTION_MANAGER_UI_UPDATED comes from
+    // this very action mounting: the doAction promise settles within the
+    // macrotask drain and wins the race, so the close flow still runs.
+    let closed = false;
+    const am = makeFakeAm({
+        doAction: () =>
+            new Promise((resolve) => {
+                // Mount order in ControllerComponent.onMounted: resolve()
+                // then the UI_UPDATED trigger; the awaiter resumes after.
+                queueMicrotask(() => {
+                    resolve();
+                    am.env.bus.trigger(AppEvent.ACTION_MANAGER_UI_UPDATED, "current");
+                });
+            }),
+        _executeCloseAction: async () => {
+            closed = true;
+        },
+    });
+    await executeActionButton(am, {
+        name: 1,
+        type: "action",
+        close: true,
+        "block-ui": "1",
+    });
+    await runAllTimers();
+    expect(closed).toBe(true);
+    expect(am.__ui.count).toBe(0);
 });
 
 test("block-ui: overlay is released on a missing-type error", async () => {

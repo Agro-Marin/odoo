@@ -6,6 +6,7 @@ import {
     clickSave,
     contains,
     defineModels,
+    defineParams,
     fieldInput,
     fields,
     models,
@@ -118,7 +119,7 @@ test("no need to focus out of the input to save the record after correcting an i
     await clickSave(); // makes sure there is an enabled save button
 });
 
-test("rounded when using formula in form view", async () => {
+test("formula with an integer result in form view", async () => {
     Product._records = [{ id: 1, price: 10 }];
     await mountView({
         type: "form",
@@ -126,8 +127,23 @@ test("rounded when using formula in form view", async () => {
         resId: 1,
         arch: '<form><field name="price"/></form>',
     });
-    await fieldInput("price").edit("=100/3");
+    await fieldInput("price").edit("=99/3");
     expect(".o_field_widget input").toHaveValue("33");
+});
+
+test("formula with a non-integer result is rejected in form view", async () => {
+    Product._records = [{ id: 1, price: 10 }];
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: '<form><field name="price"/></form>',
+    });
+    // Same integrality rule as plain input: "=100/3" is rejected like "33.33"
+    // would be, instead of being silently truncated to 33.
+    await fieldInput("price").edit("=100/3");
+    expect(".o_field_widget input").toHaveValue("=100/3");
+    expect(".o_form_status_indicator span i.fa-triangle-exclamation").toHaveCount(1);
 });
 
 test("with input type 'number' option", async () => {
@@ -144,6 +160,53 @@ test("with input type 'number' option", async () => {
     expect(".o_field_widget input").toHaveValue(1234567890, {
         message: "Integer value must be not formatted if input type is number",
     });
+});
+
+test("type number does not misparse a dot-decimal value in a dot-thousands locale", async () => {
+    defineParams({
+        lang_parameters: {
+            thousands_sep: ".",
+            decimal_point: ",",
+            grouping: [3, 0],
+        },
+    });
+    Product._records = [{ id: 1, price: 10 }];
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: `<form><field name="price" options="{'type': 'number'}"/></form>`,
+    });
+    expect(".o_field_widget input").toHaveAttribute("type", "number");
+    // A number input's value is always dot-decimal: "1.5" must be rejected as
+    // a non-integer, NOT parsed with "." as a thousands separator (silent 15).
+    // `instantly` pastes the whole string: a `<input type="number">` rejects
+    // the transient "1." of char-by-char typing, which would collapse to "5".
+    await fieldInput("price").edit("1.5", { instantly: true });
+    expect(".o_form_status_indicator span i.fa-triangle-exclamation").toHaveCount(1);
+});
+
+test("type number saves the raw number in a dot-thousands locale", async () => {
+    defineParams({
+        lang_parameters: {
+            thousands_sep: ".",
+            decimal_point: ",",
+            grouping: [3, 0],
+        },
+    });
+    Product._records = [{ id: 1, price: 10 }];
+    onRpc("web_save", ({ args }) => {
+        expect.step(`price: ${args[1].price}`);
+    });
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: `<form><field name="price" options="{'type': 'number'}"/></form>`,
+    });
+    await fieldInput("price").edit("1234");
+    await clickSave();
+    expect.verifySteps(["price: 1234"]);
 });
 
 test("with 'step' option", async () => {

@@ -399,6 +399,19 @@ export function useMagicColumnWidths(tableRef, getState) {
 
         // Mouse or keyboard events : stop resize
         const stopResize = (ev) => {
+            // Ignores the 'left mouse button down' event as it used to start
+            // resizing. In practice the initiating pointerdown never reaches
+            // this window listener (the resize handle binds
+            // `t-on-pointerdown.stop.prevent`, list_renderer.xml), but keep
+            // the guard for any other left pointerdown mid-drag (second
+            // pointer on pen/touch) — and keep it side-effect free: bailing
+            // out after mutating `_resizing`/`columnWidths` would leave the
+            // hook reporting "not resizing" mid-drag with widths frozen from
+            // a mid-drag snapshot, while the pointermove listener stays
+            // attached.
+            if (ev.type === "pointerdown" && ev.button === 0) {
+                return;
+            }
             _resizing = false;
 
             // Store current column widths to freeze them
@@ -407,10 +420,6 @@ export function useMagicColumnWidths(tableRef, getState) {
                 (th) => th.getBoundingClientRect().width - getHorizontalPadding(th),
             );
 
-            // Ignores the 'left mouse button down' event as it used to start resizing
-            if (ev.type === "pointerdown" && ev.button === 0) {
-                return;
-            }
             ev.preventDefault();
             ev.stopPropagation();
 

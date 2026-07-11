@@ -147,7 +147,10 @@ export function lostConnectionHandler(env, error, originalError) {
         );
         let delay = 2000;
         browser.setTimeout(function checkConnection() {
-            rpc("/web/webclient/version_info", {})
+            // Silent: the probe fires every 2s→60s during an outage — a
+            // non-silent RPC would flash the loading indicator and feed the
+            // slow-RPC toast on top of the "Connection lost" notification.
+            rpc("/web/webclient/version_info", {}, { silent: true })
                 .then(() => {
                     if (connectionLostNotifRemove) {
                         connectionLostNotifRemove();

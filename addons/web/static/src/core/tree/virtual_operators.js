@@ -514,13 +514,18 @@ export const virtualOperatorFunctions = {
      * @param {Options} [options]
      */
     introduceVirtualOperators(tree, options = {}) {
+        // Ordering contract (applyTransformations runs the array in order):
+        // the introduce* passes must run BEFORE eliminateAnyOperators, which
+        // collapses the between/in-range conditions they create out of `any`
+        // wrappers; in-range detection must also see raw >=/< pairs before
+        // between rewrites them.
         return applyTransformations(
             [
-                eliminateAnyOperators,
-                introduceSetOperators,
-                introduceStartsWithOperators,
-                introduceBetweenOperators,
                 introduceInRangeOperators,
+                introduceBetweenOperators,
+                introduceStartsWithOperators,
+                introduceSetOperators,
+                eliminateAnyOperators,
             ],
             tree,
             options,
@@ -531,12 +536,15 @@ export const virtualOperatorFunctions = {
      * @param {Options} [options]
      */
     eliminateVirtualOperators(tree, options = {}) {
+        // Ordering contract (applyTransformations runs the array in order):
+        // the reverse of introduceVirtualOperators — set operators go last,
+        // mirroring how they were introduced.
         return applyTransformations(
             [
-                eliminateInRangeOperators,
-                eliminateBetweenOperators,
-                eliminateStartsWithOperators,
                 eliminateSetOperators,
+                eliminateStartsWithOperators,
+                eliminateBetweenOperators,
+                eliminateInRangeOperators,
             ],
             tree,
             options,

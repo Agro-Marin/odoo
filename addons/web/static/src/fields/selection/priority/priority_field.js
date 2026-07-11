@@ -59,7 +59,11 @@ export class PriorityField extends Component {
                         },
                     ],
                 }),
-                { category: "smart_action", hotkey: "alt+r" },
+                {
+                    category: "smart_action",
+                    hotkey: "alt+r",
+                    isAvailable: () => !this.props.readonly,
+                },
             ],
         ];
     }

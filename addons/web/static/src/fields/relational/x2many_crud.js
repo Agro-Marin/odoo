@@ -8,24 +8,31 @@
  *
  * @param {Function} getList - Returns the current x2many list
  * @param {boolean} isMany2Many - Whether the field is many2many (vs one2many)
- * @returns {{saveRecord: Function, updateRecord: Function, removeRecord: Function}}
+ * @returns {{linkRecords: Function|undefined, saveAndLink: Function, saveRecord: Function, updateRecord: Function, removeRecord: Function}}
  */
 export function useX2ManyCrud(getList, isMany2Many) {
-    let saveRecord;
+    /** Links existing records by id (many2many only). @type {Function|undefined} */
+    let linkRecords;
+    /** Persists a Record datapoint and adds it to the list. @type {Function} */
+    let saveAndLink;
     if (isMany2Many) {
-        saveRecord = async (object) => {
-            const list = getList();
-            if (Array.isArray(object)) {
-                return list.addAndRemove({ add: object });
-            } else {
-                // object instanceof Record
-                await object.save({ reload: false });
-                return list.linkTo(object.resId);
-            }
+        linkRecords = (resIds) => getList().addAndRemove({ add: resIds });
+        saveAndLink = async (record) => {
+            await record.save({ reload: false });
+            return getList().linkTo(record.resId);
         };
     } else {
-        saveRecord = async (record) => getList().validateExtendedRecord(record);
+        saveAndLink = async (record) => getList().validateExtendedRecord(record);
     }
+
+    /**
+     * @deprecated Polymorphic on argument shape: use `linkRecords(resIds)` or
+     *  `saveAndLink(record)` instead. Kept for downstream compatibility.
+     */
+    const saveRecord = (object) =>
+        isMany2Many && Array.isArray(object)
+            ? linkRecords(object)
+            : saveAndLink(object);
 
     const updateRecord = async (record) => {
         if (isMany2Many) {
@@ -43,6 +50,8 @@ export function useX2ManyCrud(getList, isMany2Many) {
     };
 
     return {
+        linkRecords,
+        saveAndLink,
         saveRecord,
         updateRecord,
         removeRecord,

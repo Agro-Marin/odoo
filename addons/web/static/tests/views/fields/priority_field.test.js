@@ -467,6 +467,21 @@ test('PriorityField edited by the smart action "Set priority..."', async () => {
     expect("a.fa-solid").toHaveCount(2);
 });
 
+test('PriorityField readonly hides the smart action "Set priority..."', async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `<form><field name="selection" widget="priority" readonly="1"/></form>`,
+    });
+
+    await press(["control", "k"]);
+    await animationFrame();
+    expect(queryAllTexts(".o_command").indexOf("Set priority...\nALT + R")).toBe(-1, {
+        message: "the command must not be available on a readonly field",
+    });
+});
+
 test("PriorityField - auto save record when field toggled", async () => {
     onRpc("web_save", () => expect.step("web_save"));
     await mountView({

@@ -349,7 +349,12 @@ formatMonetary.extractOptions = ({ options }) => ({
  * @returns {string}
  */
 export function formatPercentage(value, options = {}) {
-    if (/** @type {any} */ (value) == null || /** @type {any} */ (value) === "") {
+    if (
+        value === false ||
+        /** @type {any} */ (value) == null ||
+        /** @type {any} */ (value) === ""
+    ) {
+        // `false` (unset) renders empty like formatFloat, not as "0%".
         return "";
     }
     options = Object.assign({ trailingZeros: false, thousandsSep: "" }, options);

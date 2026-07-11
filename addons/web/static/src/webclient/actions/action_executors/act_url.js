@@ -80,12 +80,17 @@ export function openActionInNewWindow(action, state, am) {
  */
 export function executeActURLAction(action, options, am) {
     let url = action.url;
-    if (url && !(url.startsWith("http") || url.startsWith("/"))) {
+    if (!url) {
+        // Hand-built descriptors sometimes carry an empty url; navigating
+        // would land on the literal "/undefined" page.
+        return;
+    }
+    if (!(url.startsWith("http") || url.startsWith("/"))) {
         url = "/" + url;
     }
     // Block protocol-relative (//host) and script-bearing schemes before
     // navigating; legitimate relative/http(s) targets are unaffected.
-    if (url && !isSafeUrlScheme(url)) {
+    if (!isSafeUrlScheme(url)) {
         am.env.services.notification.add(
             _t("This action tried to open an unsafe URL and was blocked."),
             { sticky: true, type: "danger" },

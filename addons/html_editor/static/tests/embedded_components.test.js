@@ -31,7 +31,12 @@ import {
     useState,
     xml,
 } from "@odoo/owl";
-import { EmbeddedComponentPlugin } from "../src/others/embedded_component_plugin.js";
+// Must use the bare "@html_editor/..." specifier (not a relative "../src/..."
+// path): the import map routes it through the single-instance bridge so this is
+// the SAME class the editor helper checks in `config.Plugins.includes(...)`. A
+// relative import bypasses the import map and yields a second, distinct class
+// object, breaking the identity check (see editor.js `preparePlugins`).
+import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
 import { setupEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
 import { getContent, setSelection } from "./_helpers/selection.js";

@@ -136,7 +136,21 @@ export class WebClient extends Component {
         if (menuId) {
             this.menuService.setCurrentMenu(menuId);
         }
-        let stateLoaded = await this.actionService.loadState();
+        let stateLoaded;
+        try {
+            stateLoaded = await this.actionService.loadState();
+        } catch (error) {
+            // Still surface the error (dialog) but don't let it strand the
+            // webclient: with nothing on screen, load the default app; with
+            // a controller already displayed, keep it. Don't fall through to
+            // the retrocompat branches — they would re-derive (and re-run)
+            // an action from the same broken state.
+            Promise.reject(error);
+            if (!this.actionService.currentController) {
+                await this._loadDefaultApp();
+            }
+            return;
+        }
 
         // ** url-retrocompatibility **
         // when there is only menu_id in url

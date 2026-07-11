@@ -392,9 +392,12 @@ export function formatDuration(seconds, showFullDuration) {
             unitDisplay: displayStyle,
         }).format(value);
         // In narrow English, both "month" and "minute" render as "…m"; the
-        // original code disambiguated months as "…M".
+        // original code disambiguated months as "…M". Only uppercase the
+        // trailing unit letter — a blanket replace of the first "m" could hit
+        // the value part or a wider unit spelling (e.g. "5 mo" in some CLDR
+        // variants).
         if (!showFullDuration && key === "months" && locale.includes("en")) {
-            formatted = formatted.replace("m", "M");
+            formatted = formatted.replace(/m(?=\W*$)/, "M");
         }
         return formatted;
     };

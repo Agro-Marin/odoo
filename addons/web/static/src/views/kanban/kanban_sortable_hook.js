@@ -56,10 +56,13 @@ export function useKanbanSortable(options) {
         onSortGroupDrop,
     } = options;
 
-    // Shared by both useSortable instances: onDrop's params carry the drop
-    // target but not the source's original data-id, so we capture it here.
+    // onDrop's params carry the drop target but not the source's original
+    // data-id, so each useSortable instance captures its own at drag start —
+    // the two instances must not share these, or one drag kind could clobber
+    // the ids the other still reads.
     let dataRecordId;
     let dataGroupId;
+    let draggedGroupId;
 
     useSortable({
         enable: getCanResequenceRecords,
@@ -98,10 +101,10 @@ export function useKanbanSortable(options) {
         cursor: "move",
         onDragStart: (params) => {
             const { element } = params;
-            dataGroupId = element.dataset.id;
+            draggedGroupId = element.dataset.id;
             return onSortStart(params);
         },
         onDragEnd: (params) => onSortStop(params),
-        onDrop: (params) => onSortGroupDrop(dataGroupId, params),
+        onDrop: (params) => onSortGroupDrop(draggedGroupId, params),
     });
 }

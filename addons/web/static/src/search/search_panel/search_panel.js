@@ -82,7 +82,11 @@ export class SearchPanel extends Component {
         useBus(this.env.searchModel, SearchModelEvent.UPDATE, async () => {
             await this.env.searchModel.sectionsPromise;
             this.updateActiveValues();
-            this.render();
+            // Group headers are managed imperatively (OWL can't template
+            // `indeterminate`), so model-driven changes (clearSelection,
+            // refetches, state import) must resync them after the re-render.
+            await this.render();
+            this.updateGroupHeadersChecked();
         });
 
         useEffect(

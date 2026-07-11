@@ -13,7 +13,6 @@ import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { computeModelOptions } from "@web/views/view_utils";
-import { Widget } from "@web/views/widgets/widget";
 
 /**
  * Controller for the pivot view.
@@ -25,7 +24,7 @@ import { Widget } from "@web/views/widgets/widget";
  */
 export class PivotController extends Component {
     static template = "web.PivotView";
-    static components = { Layout, SearchBar, CogMenu, Widget, ActionHelper };
+    static components = { Layout, SearchBar, CogMenu, ActionHelper };
     static props = {
         ...standardViewProps,
         Model: Function,

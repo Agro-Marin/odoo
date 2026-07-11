@@ -1,6 +1,8 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { queryOne } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     contains,
     defineModels,
@@ -76,6 +78,23 @@ test("field contains a color input", async () => {
     ]);
     expect(".o_field_color input").toHaveValue("#fefefe");
     expect(".o_field_color div").toHaveStyle({ backgroundColor: "rgb(254, 254, 254)" });
+});
+
+test("swatch live-previews while dragging in the picker (input event)", async () => {
+    await mountView({ type: "form", resModel: "color", resId: 2 });
+
+    expect(".o_field_color div").toHaveStyle({ backgroundColor: "rgb(255, 68, 68)" });
+
+    // A native color picker fires "input" on every move and "change" only on
+    // close: the swatch must follow "input" without touching the record.
+    const input = queryOne(".o_field_color input");
+    input.value = "#00ff00";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await animationFrame();
+    expect(".o_field_color div").toHaveStyle({ backgroundColor: "rgb(0, 255, 0)" });
+    expect(".o_form_status_indicator_buttons").not.toBeVisible({
+        message: "the record must not be dirtied by the preview",
+    });
 });
 
 test("color field in editable list view", async () => {

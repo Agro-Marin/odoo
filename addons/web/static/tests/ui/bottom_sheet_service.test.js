@@ -34,6 +34,36 @@ test("closing a bottom sheet decrements the count and clears the body class", as
     expect(document.body).not.toHaveClass("bottom-sheet-open");
 });
 
+test("a throwing onClose still decrements the count and clears the body class", async () => {
+    expect.errors(1);
+    await mountWithCleanup(MainComponentsContainer);
+
+    class MyComp extends Component {
+        static template = xml`<div class="sheet-content"/>`;
+        static props = ["*"];
+    }
+
+    const close = getService("bottom_sheet").add(
+        getFixture(),
+        MyComp,
+        {},
+        {
+            onClose: () => {
+                throw new Error("onClose boom");
+            },
+        },
+    );
+    await animationFrame();
+    expect(document.body).toHaveClass("bottom-sheet-open");
+
+    close();
+    await animationFrame();
+    // The bookkeeping runs in a finally: a throwing onClose must not leave
+    // the scroll lock on <body> forever.
+    expect(document.body).not.toHaveClass("bottom-sheet-open");
+    expect.verifyErrors(["Error: onClose boom"]);
+});
+
 test("a crashing bottom sheet subtree still decrements the count and clears the body class", async () => {
     expect.errors(1);
     await mountWithCleanup(MainComponentsContainer);

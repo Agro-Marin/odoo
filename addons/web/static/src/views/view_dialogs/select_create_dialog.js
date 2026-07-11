@@ -141,7 +141,7 @@ export class SelectCreateDialog extends Component {
                 context: this.props.context,
                 resModel: this.props.resModel,
                 onRecordSaved: (record) => {
-                    this.props.onSelected([record.resId]);
+                    this.props.onSelected?.([record.resId]);
                     this.props.close();
                 },
             });

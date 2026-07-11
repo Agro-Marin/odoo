@@ -52,12 +52,18 @@ export const errorService = {
         function handleError(/** @type {any} */ uncaughtError) {
             function shouldLogError() {
                 // Only log business-relevant errors: event/traceback are set by
-                // one of the two listeners below, and skip if already prevented.
-                return (
-                    uncaughtError.event &&
-                    !uncaughtError.event.defaultPrevented &&
-                    uncaughtError.traceback
-                );
+                // one of the two listeners below, and skip if a handler opted
+                // out of logging. For window "error" events the listener
+                // already prevented the event synchronously (see below), so
+                // handler opt-out is tracked via the shadowed preventDefault
+                // (`logSuppressed`) instead of the event's canceled flag.
+                if (!uncaughtError.event || !uncaughtError.traceback) {
+                    return false;
+                }
+                if (uncaughtError.browserLogSuppressed) {
+                    return !uncaughtError.logSuppressed;
+                }
+                return !uncaughtError.event.defaultPrevented;
             }
             let originalError = uncaughtError;
             const seen = new Set();
@@ -132,6 +138,34 @@ export const errorService = {
                 /** @type {any} */ (uncaughtError).event = ev;
                 if (error instanceof Error) {
                     /** @type {any} */ (error).errorEvent = ev;
+                    // The browser prints its own (partial) report for an
+                    // uncaught error unless preventDefault runs synchronously
+                    // during dispatch — after the await below it would be a
+                    // no-op and the error would hit the console twice. Prevent
+                    // now (unless another listener already claimed the event),
+                    // and shadow preventDefault so handlers that call it to
+                    // opt out of the traceback log (e.g. website's
+                    // beforeunload suppression) keep working. Rejection events
+                    // don't need this: their report is deferred past the
+                    // microtask queue, so the late preventDefault is honored.
+                    if (!ev.defaultPrevented) {
+                        ev.preventDefault();
+                        /** @type {any} */ (uncaughtError).browserLogSuppressed = true;
+                        try {
+                            Object.defineProperty(ev, "preventDefault", {
+                                configurable: true,
+                                value: () => {
+                                    /** @type {any} */ (uncaughtError).logSuppressed =
+                                        true;
+                                },
+                            });
+                        } catch {
+                            // Instrumented event (e.g. hoot pins a
+                            // non-configurable preventDefault): handler
+                            // opt-out tracking is lost, which only affects
+                            // console verbosity.
+                        }
+                    }
                     const annotated = env.debug?.includes("assets");
                     await completeUncaughtError(uncaughtError, error, annotated);
                 }

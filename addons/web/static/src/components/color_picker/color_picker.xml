@@ -20,11 +20,11 @@
         </div>
         <t t-set="activeTab" t-value="this.tabs.find((tab) => state.activeTab === tab.id)" />
         <t t-component="activeTab.component" t-props="{
-            applyColor: this.applyColor.bind(this),
+            applyColor: this.selectColor.bind(this),
             onColorClick: this.onColorApply.bind(this),
             onColorPointerOver: this.onColorHover.bind(this),
             onColorPointerOut: this.onColorHoverOut.bind(this),
-            onColorPointerLeave: this.applyColorResetPreview.bind(this),
+            onColorPointerLeave: this.resetColorPreview.bind(this),
             onFocusin: this.onColorFocusin.bind(this),
             onFocusout: this.onColorFocusout.bind(this),
             colorPickerNavigation: this.colorPickerNavigation.bind(this),

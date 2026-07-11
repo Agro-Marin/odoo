@@ -12,8 +12,11 @@ export class ActionHelper extends Component {
     static template = "web.ActionHelper";
     static components = { Widget, RibbonWidget };
     static props = {
-        showRibbon: { type: Boolean, optional: true, default: false },
+        showRibbon: { type: Boolean, optional: true },
         noContentHelp: { type: String, optional: true },
+    };
+    static defaultProps = {
+        showRibbon: false,
     };
 
     get showDefaultHelper() {

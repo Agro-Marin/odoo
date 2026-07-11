@@ -20,6 +20,7 @@ import {
     dayCellClassNames,
     dayHeaderClassNames,
     fcInternalClassName,
+    fromFcDate,
     getFullCalendarTimeZone,
     useFullCalendar,
 } from "@web/views/calendar/hooks/full_calendar_hook";
@@ -257,7 +258,7 @@ export class CalendarCommonRenderer extends Component {
                         : "long",
             },
             weekends: this.props.isWeekendVisible,
-            weekNumberCalculation: (date) => getLocalYearAndWeek(date).week,
+            weekNumberCalculation: (date) => getLocalYearAndWeek(fromFcDate(date)).week,
             weekNumbers: true,
             dayHeaderContent: this.getHeaderHtml,
             eventDisplay: "block", // Restore old render in daygrid view for single-day timed events
@@ -390,7 +391,7 @@ export class CalendarCommonRenderer extends Component {
         this.props.createRecord(this.fcEventToRecord(info));
     }
     getDayCellClassNames(info) {
-        const date = DateTime.fromJSDate(info.date).toISODate();
+        const date = fromFcDate(info.date).toISODate();
         if (this.props.model.unusualDays.includes(date)) {
             return ["o_calendar_disabled"];
         }
@@ -421,6 +422,18 @@ export class CalendarCommonRenderer extends Component {
             this.clickTimeoutId = null;
         } else {
             this.clickTimeoutId = browser.setTimeout(() => {
+                // An FC re-render inside the 250ms window (event refetch,
+                // filter toggle) can detach info.el; re-resolve the anchor so
+                // the popover doesn't position against a dead node. Only when
+                // actually detached — the event may have several segments
+                // (e.g. one in the "+N more" popover) and a blind
+                // querySelector would swap the clicked one for the first.
+                if (!info.el.isConnected) {
+                    info.el =
+                        this.fc.api.el.querySelector(
+                            this.computeEventSelector(info.event),
+                        ) || info.el;
+                }
                 this.onClick(info);
                 this.clickTimeoutId = null;
             }, 250);
@@ -531,7 +544,7 @@ export class CalendarCommonRenderer extends Component {
         const weekCell = document.createElement("div");
         weekCell.classList.add("o-fc-week");
         weekCell.setAttribute("role", "gridcell");
-        weekCell.textContent = String(getLocalYearAndWeek(info.date).week);
+        weekCell.textContent = String(getLocalYearAndWeek(fromFcDate(info.date)).week);
         row.prepend(weekCell);
     }
     onEventDidMount(info) {
@@ -611,39 +624,9 @@ export class CalendarCommonRenderer extends Component {
      */
     fcEventToRecord(event) {
         const { id, allDay, date, start, end } = event;
-        // FC v7 emits two different Date conventions to select/eventDrop/
-        // eventResize depending on timeZone:
-        //   - IANA/named zone: real-epoch Date — fromJSDate reads correctly.
-        //   - "local" (from getFullCalendarTimeZone() for FixedOffsetZone
-        //     defaults like mockTimeZone(N)): a MARKER Date whose UTC
-        //     components encode the visible local-clock time, not the real
-        //     instant. A click at local 06:00 with mockTimeZone(2) arrives
-        //     as "2016-12-13T06:00:00Z", not the real UTC "...T04:00:00Z" —
-        //     fromJSDate would mis-add the offset twice and land at 08:00
-        //     local instead of 06:00.
-        //
-        // Detect the "local" case and rebuild the DateTime from UTC
-        // components in the local zone so serializers produce the
-        // user-visible clock time. See fullcalendar.esm.js
-        // (timestampToMarker/toDate) for the FC-side conversion mirrored here.
-        const isMarkerMode = getFullCalendarTimeZone() === "local";
-        const Lux = DateTime;
-        const fromFcDate = (d) => {
-            if (!isMarkerMode) {
-                return Lux.fromJSDate(d);
-            }
-            // Marker dates from FC v7 drag/drop can pick up sub-minute
-            // drift when the mocked Date.now() advances during the gesture
-            // (HH:mm:01.123Z instead of :00.000Z). Truncate to snapDuration
-            // (15min) — sub-minute precision is meaningless on this grid.
-            return Lux.fromObject({
-                year: d.getUTCFullYear(),
-                month: d.getUTCMonth() + 1,
-                day: d.getUTCDate(),
-                hour: d.getUTCHours(),
-                minute: d.getUTCMinutes(),
-            });
-        };
+        // fromFcDate handles FC v7's two Date conventions (real-epoch for
+        // IANA zones, marker Dates in "local" mode) — see its docstring in
+        // full_calendar_hook.js.
         const res = {
             start: fromFcDate(date || start),
             isAllDay: allDay,
@@ -719,9 +702,13 @@ export class CalendarCommonRenderer extends Component {
     headerTemplateProps(date) {
         const scale = this.props.model.scale;
         // when rendering months, FullCalendar uses a date w/out tz
-        // so use UTC instead of local tz when converting to DateTime
-        const options = scale === "month" ? { zone: "UTC" } : {};
-        const { weekdayShort, weekdayLong, day } = DateTime.fromJSDate(date, options);
+        // so use UTC instead of local tz when converting to DateTime;
+        // day/week headers carry zone-dependent dates — marker-aware.
+        const dt =
+            scale === "month"
+                ? DateTime.fromJSDate(date, { zone: "UTC" })
+                : fromFcDate(date);
+        const { weekdayShort, weekdayLong, day } = dt;
         return {
             weekdayShort,
             weekdayLong,

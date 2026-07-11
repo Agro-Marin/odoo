@@ -8069,11 +8069,14 @@ test(`correct amount of buttons`, async () => {
         expect(`.o-form-buttonbox button.oe_stat_button`).toHaveCount(n);
     };
 
+    // Budgets are [0, 0, 4, 5, 7, 8] per SIZES — monotonic, so growing the
+    // screen never hides buttons into the "More" dropdown. With 7 buttons:
+    // above budget → budget - 1 visible + "More"; within budget → all 7.
     await assertFormContainsNButtonsWithSizeClass(SIZES.XS, 0);
     await assertFormContainsNButtonsWithSizeClass(SIZES.SM, 0);
-    await assertFormContainsNButtonsWithSizeClass(SIZES.MD, 7);
-    await assertFormContainsNButtonsWithSizeClass(SIZES.LG, 3);
-    await assertFormContainsNButtonsWithSizeClass(SIZES.XL, 4);
+    await assertFormContainsNButtonsWithSizeClass(SIZES.MD, 3);
+    await assertFormContainsNButtonsWithSizeClass(SIZES.LG, 4);
+    await assertFormContainsNButtonsWithSizeClass(SIZES.XL, 7);
     await assertFormContainsNButtonsWithSizeClass(SIZES.XXL, 7);
 });
 

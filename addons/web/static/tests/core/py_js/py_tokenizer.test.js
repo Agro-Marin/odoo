@@ -62,6 +62,53 @@ test("can tokenize strings", () => {
     expect(tokenize('"foo"')).toEqual([{ type: 1 /* String */, value: "foo" }]);
 });
 
+test("decodes escape sequences with Python 3 semantics", () => {
+    // \uXXXX and \UXXXXXXXX are decoded in EVERY string literal (Python 3),
+    // prefixed or not — CPython: "café" == 'café'.
+    expect(tokenize(String.raw`"caf\u00e9"`)).toEqual([
+        { type: 1 /* String */, value: "café" },
+    ]);
+    expect(tokenize(String.raw`'caf\u00e9'`)).toEqual([
+        { type: 1 /* String */, value: "café" },
+    ]);
+    expect(tokenize(String.raw`u"caf\u00e9"`)).toEqual([
+        { type: 1 /* String */, value: "café" },
+    ]);
+    expect(tokenize(String.raw`"\U0001F600"`)).toEqual([
+        { type: 1 /* String */, value: "😀" },
+    ]);
+    // \xXX and octal escapes
+    expect(tokenize(String.raw`"\x41"`)).toEqual([
+        { type: 1 /* String */, value: "A" },
+    ]);
+    expect(tokenize(String.raw`"\101"`)).toEqual([
+        { type: 1 /* String */, value: "A" },
+    ]);
+    expect(tokenize(String.raw`u"\x41"`)).toEqual([
+        { type: 1 /* String */, value: "A" },
+    ]);
+    // simple escapes and unknown escapes (kept verbatim, as in Python)
+    expect(tokenize(String.raw`"a\nb"`)).toEqual([
+        { type: 1 /* String */, value: "a\nb" },
+    ]);
+    expect(tokenize(String.raw`"\d"`)).toEqual([
+        { type: 1 /* String */, value: "\\d" },
+    ]);
+    // invalid escapes raise
+    expect(() => tokenize(String.raw`"\N{BULLET}"`)).toThrow(/not implemented/);
+    expect(() => tokenize(String.raw`"\u00"`)).toThrow(/truncated/);
+    expect(() => tokenize(String.raw`"\U0001"`)).toThrow(/truncated/);
+    expect(() => tokenize(String.raw`"\x4"`)).toThrow(/truncated/);
+});
+
+test("normalizes the legacy <> operator to !=", () => {
+    expect(tokenize("a <> b")).toEqual([
+        { type: 3 /* Name */, value: "a" },
+        { type: 2 /* Symbol */, value: "!=" },
+        { type: 3 /* Name */, value: "b" },
+    ]);
+});
+
 test("can tokenize bare names", () => {
     expect(tokenize("foo")).toEqual([{ type: 3 /* Name */, value: "foo" }]);
 });

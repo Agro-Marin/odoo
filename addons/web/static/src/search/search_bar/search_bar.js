@@ -83,9 +83,6 @@ export class SearchBar extends Component {
     setup() {
         this.dialogService = useService("dialog");
         this.fields = this.env.searchModel.searchViewFields;
-        this.searchItemsFields = this.env.searchModel.getSearchItems(
-            (f) => f.type === "field",
-        );
         this.root = useRef("root");
         this.ui = useService("ui");
 
@@ -128,6 +125,15 @@ export class SearchBar extends Component {
         });
 
         useBus(this.env.searchModel, SearchModelEvent.UPDATE, () => this.render());
+    }
+
+    /**
+     * Live view instead of a setup-time snapshot: `invisible` expressions and
+     * refreshed descriptions (properties flow) must be re-evaluated. Cheap —
+     * the search model memoizes its enriched items per query cycle.
+     */
+    get searchItemsFields() {
+        return this.env.searchModel.getSearchItems((f) => f.type === "field");
     }
 
     /**
@@ -750,7 +756,11 @@ export class SearchBar extends Component {
                 this.inputDropdownState.open();
             }
             this.computeState({ query, expanded: [], subItems: [] });
-        } else if (this.items.length) {
+        } else {
+            // Reset unconditionally (cheap and idempotent): gating on
+            // `this.items.length` only worked because computeState always
+            // appends the custom-filter pseudo-item, and a stale state.query
+            // would make onClickSearchIcon select a stale suggestion.
             this.inputDropdownState.close();
             this.resetState();
         }

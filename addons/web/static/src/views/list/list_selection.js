@@ -3,8 +3,6 @@
 
 /** @module @web/views/list/list_selection - Hook for checkbox selection, shift-range selection, and long-touch selection in list views */
 
-/** @odoo-module native */
-
 import { useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -79,8 +77,12 @@ export function useListSelection({
             }
             const start = Math.min(recordIndex, lastCheckedRecordIndex);
             const end = Math.max(recordIndex, lastCheckedRecordIndex);
+            // Snapshot the target state before the loop: toggleSelection is
+            // async (mutex-scheduled), but the whole range must follow the
+            // clicked record's state at click time.
+            const selected = !record.selected;
             for (let i = start; i <= end; i++) {
-                records[i].toggleSelection(!record.selected);
+                records[i].toggleSelection(selected);
             }
         },
 

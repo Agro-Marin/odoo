@@ -133,9 +133,16 @@ class ResConfigInviteUsers extends Component {
                     emailsLeftToProcess,
                 ]);
                 this.state.invite = await this.invite.fetchData(true);
+            } else {
+                this.notification.add(
+                    _t("All email addresses already have a pending invitation."),
+                    { type: "info" },
+                );
             }
-        } finally {
+            // Only clear on success: on a server error the user keeps their
+            // typed address list to fix and retry.
             this.state.emails = "";
+        } finally {
             this.state.status = "idle";
         }
     }

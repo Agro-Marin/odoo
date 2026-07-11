@@ -9,6 +9,7 @@ import {
     queryOne,
     queryText,
 } from "@odoo/hoot-dom";
+import { runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { Macro } from "@web/core/utils/macro";
@@ -255,6 +256,47 @@ test("macro timeout if element is not visible", async () => {
     macro.start(queryOne(".counter"));
     await waitForMacro();
     expect.verifySteps(["TIMEOUT step failed to complete within 1000 ms."]);
+});
+
+test("macro clears the step timeout timer once the step settles", async () => {
+    // Every step used to leave its (up to 10s) timeout running after
+    // winning the race — pure waste that made timing-sensitive tests flakier
+    // under fake timers. `browser.setTimeout`/`clearTimeout` are made
+    // non-configurable by the test harness (so the timer calls can't be spied
+    // on directly). Instead we watch the step's own AbortController: a timeout
+    // timer that outlives its settled step fires later and aborts that (already
+    // finished) controller a second time. With the fix, the timer is cleared,
+    // so firing every remaining timer triggers no further abort.
+    await mountWithCleanup(TestComponent);
+    let stepControllerAborts = 0;
+    patchWithCleanup(AbortController.prototype, {
+        abort() {
+            // `macro` is captured by the `Macro.prototype.start` patch above;
+            // `macro.abortController` is the (single) step's controller.
+            if (macro && this === macro.abortController) {
+                stepControllerAborts++;
+            }
+            return super.abort(...arguments);
+        },
+    });
+    new Macro({
+        name: "test",
+        timeout: 1234,
+        steps: [
+            {
+                trigger: "button.inc",
+                action: (el) => el.click(),
+            },
+        ],
+    }).start(queryOne(".counter"));
+    await waitForMacro();
+    expect(queryOne("span.value")).toHaveText("1");
+    // The macro aborts its step controller exactly once, on completion.
+    expect(stepControllerAborts).toBe(1);
+    // Fire every remaining timer: a leftover timeout timer would abort the
+    // step controller again here. The fix cleared it, so the count is stable.
+    await runAllTimers();
+    expect(stepControllerAborts).toBe(1);
 });
 
 test("a string action fails fast at construction", async () => {

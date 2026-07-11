@@ -910,9 +910,11 @@ test(`doesn't autosave when a many2one search more is open (visibility change)`,
 
     class Product extends models.Model {
         name = fields.Char();
+        // more records than the search limit, so "Search more..." shows up
         _records = [
             { id: 37, name: "xphone" },
             { id: 41, name: "xpad" },
+            ...new Array(8).fill().map((_, i) => ({ id: 100 + i, name: `prod ${i}` })),
         ];
     }
 

@@ -3,6 +3,7 @@
 
 /** @module @web/webclient/errors/offline_fail_to_fetch_error_handler - Error handler converting browser "Failed to fetch" TypeErrors into ConnectionLostError */
 
+import { lostConnectionHandler } from "@web/components/errors/error_handlers";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 const errorHandlerRegistry = registry.category("error_handlers");
@@ -24,6 +25,16 @@ export function offlineFailToFetchErrorHandler(env, error, originalError) {
         originalError instanceof TypeError &&
         fetchErrorMessages.includes(originalError.message)
     ) {
+        // Invoke the connection-lost notification path directly instead of
+        // re-entering the whole error pipeline through a synthetic unhandled
+        // rejection (which discarded the original stack and double-counted
+        // in error telemetry).
+        if (lostConnectionHandler(env, error, new ConnectionLostError(""))) {
+            return true;
+        }
+        // Not an unhandled-rejection-wrapped error (lostConnectionHandler
+        // only owns those): fall back to routing a ConnectionLostError
+        // through the rejection machinery.
         Promise.resolve().then(() => {
             throw new ConnectionLostError("");
         });

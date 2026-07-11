@@ -16,6 +16,19 @@
  * (``@web/core/assets.loadESMBundle`` reuses server bridges where they
  * exist, falling back to runtime ``data:`` bridges otherwise). Keep in
  * sync with the Python generator.
+ *
+ * CONTRACT — bridged modules must not rely on mutable ``export let``
+ * bindings: a bridge re-exports ``export const <name> = _m?.<name>`` — a
+ * VALUE SNAPSHOT taken when the bridge evaluates.  ES-module live bindings
+ * cannot be reproduced by a generated module (only ``export ... from``
+ * preserves liveness, and a ``data:`` bridge has no source URL to re-export
+ * from), so a module that reassigns an ``export let`` after load (the
+ * lazy-loader pattern) would present a permanently-stale value — typically
+ * ``null`` — to every cross-document consumer.  Modules that expose a
+ * lazily-loaded value must instead export a STABLE ``const`` whose reads
+ * forward to the current value — see {@link makeLazyFacade}, used by
+ * ``@web/core/lib/chartjs``, ``@web/core/lib/fullcalendar`` and
+ * ``@web/core/utils/pdfjs``.
  */
 
 // Identifier names that can appear as ``export const <name>``.  Non-identifier
@@ -49,6 +62,108 @@ export function buildBridgeModuleSource(specifier, exportNames) {
         }
     }
     return lines.join("\n");
+}
+
+/**
+ * Build a stable ``const``-exportable facade over a lazily-loaded value, so
+ * the exporting module honours the bridge contract above (no mutable
+ * ``export let``): the facade object never changes identity — a bridge's
+ * value snapshot of it stays valid — while every interaction (property
+ * reads/writes, calls, construction) forwards to the CURRENT value returned
+ * by ``getValue()``.
+ *
+ * Intended for the lazy library loaders (``export const Chart =
+ * makeLazyFacade(() => _chart, { constructable: true })``): consumers keep
+ * their existing ``await loadChartJS(); new Chart(...)`` /
+ * ``pdfjsLib.getDocument(...)`` call sites, in the parent document and in
+ * bridged (iframe) documents alike.
+ *
+ * Before the value is loaded, interactions fall back to the bare target
+ * (reads yield ``undefined``, construction throws) — consumers must await
+ * the loader first, exactly as with the previous ``null`` binding.  Note
+ * the facade itself is always truthy: code must gate on the loader
+ * promise, not on the binding's truthiness.
+ *
+ * @param {() => any} getValue returns the currently-loaded value
+ *   (``null``/``undefined`` while not yet loaded)
+ * @param {{ constructable?: boolean }} [options] pass ``constructable:
+ *   true`` when the loaded value is called/constructed (e.g. a class);
+ *   leave false for plain namespace objects.
+ * @returns {any}
+ */
+export function makeLazyFacade(getValue, { constructable = false } = {}) {
+    const target = constructable ? function () {} : Object.create(null);
+    const current = () => getValue() ?? undefined;
+    return new Proxy(target, {
+        apply(t, thisArg, args) {
+            return Reflect.apply(current(), thisArg, args);
+        },
+        construct(t, args) {
+            return Reflect.construct(current(), args);
+        },
+        get(t, p) {
+            const value = current();
+            return value === undefined ? Reflect.get(t, p) : Reflect.get(value, p);
+        },
+        set(t, p, v) {
+            const value = current();
+            return Reflect.set(value === undefined ? t : value, p, v);
+        },
+        has(t, p) {
+            const value = current();
+            return value === undefined ? Reflect.has(t, p) : Reflect.has(value, p);
+        },
+        deleteProperty(t, p) {
+            const value = current();
+            return Reflect.deleteProperty(value === undefined ? t : value, p);
+        },
+        defineProperty(t, p, desc) {
+            const value = current();
+            return Reflect.defineProperty(value === undefined ? t : value, p, desc);
+        },
+        ownKeys(t) {
+            const value = current();
+            if (value === undefined) {
+                return Reflect.ownKeys(t);
+            }
+            // Proxy invariant: the target's non-configurable own keys (a
+            // function target's "prototype") must always be reported.
+            const keys = new Set(Reflect.ownKeys(value));
+            for (const key of Reflect.ownKeys(t)) {
+                const desc = Reflect.getOwnPropertyDescriptor(t, key);
+                if (desc && !desc.configurable) {
+                    keys.add(key);
+                }
+            }
+            return [...keys];
+        },
+        getOwnPropertyDescriptor(t, p) {
+            const value = current();
+            const desc =
+                value === undefined
+                    ? Reflect.getOwnPropertyDescriptor(t, p)
+                    : (Reflect.getOwnPropertyDescriptor(value, p) ??
+                      Reflect.getOwnPropertyDescriptor(t, p));
+            if (!desc) {
+                return undefined;
+            }
+            const targetDesc = Reflect.getOwnPropertyDescriptor(t, p);
+            if (!targetDesc || targetDesc.configurable) {
+                // Proxy invariant: a property may only be reported
+                // non-configurable if the target's own property is.
+                desc.configurable = true;
+            } else {
+                // Non-configurable on the target (function "prototype"):
+                // report it non-configurable but writable, since the
+                // forwarded value may differ from the target's.
+                desc.configurable = false;
+                if ("writable" in desc) {
+                    desc.writable = true;
+                }
+            }
+            return desc;
+        },
+    });
 }
 
 /**

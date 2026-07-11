@@ -44,6 +44,7 @@ import { registry } from "@web/core/registry";
 import { zip } from "@web/core/utils/collections/arrays";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
+import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { CalendarRenderer } from "@web/views/calendar/calendar_renderer";
 import { calendarView } from "@web/views/calendar/calendar_view";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
@@ -58,6 +59,7 @@ import {
     closeCwPopOver,
     displayCalendarPanel,
     expandCalendarView,
+    findFilterPanelFilter,
     hideCalendarPanel,
     moveEventToAllDaySlot,
     moveEventToDate,
@@ -5163,6 +5165,71 @@ test(`toggle filters in year view`, async () => {
     expect(`.fc-bg-event[data-event-id="5"]`).toHaveCount(0);
     expect(`.fc-bg-event[data-event-id="6"]`).toHaveCount(0);
     expect(`.fc-bg-event[data-event-id="7"]`).toHaveCount(1);
+});
+
+test.tags("desktop");
+test(`year view: no stale background events linger after a filter toggle`, async () => {
+    // Pins the synchronous rebuild in full_calendar_hook's onPatched: FC v7
+    // schedules background-event re-renders asynchronously, so without the
+    // forced destroy+render, stale .fc-bg-event nodes would survive the OWL
+    // patch that removed their records.
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar event_open_popup="1" date_start="start" date_stop="stop" all_day="is_all_day" mode="year" attendee="attendee_ids" color="partner_id">
+                <field name="attendee_ids" write_model="filter.partner" write_field="partner_id"/>
+                <field name="partner_id" filters="1" invisible="1"/>
+            </calendar>
+        `,
+    });
+
+    await toggleFilter("attendee_ids", 1);
+    await toggleFilter("attendee_ids", 2);
+    expect(`.fc-bg-event[data-event-id="5"]`).toHaveCount(2);
+    expect(`.fc-bg-event[data-event-id="7"]`).toHaveCount(1);
+
+    // Toggle without the helper's trailing frames: right after the OWL patch
+    // that applied the reload, the removed events' nodes must be gone.
+    const root = findFilterPanelFilter("attendee_ids", 2);
+    await click(queryFirst(`input`, { root }));
+    await advanceTime(CalendarModel.DEBOUNCED_LOAD_DELAY);
+    await animationFrame();
+    expect(`.fc-bg-event[data-event-id="5"]`).toHaveCount(0);
+    expect(`.fc-bg-event[data-event-id="7"]`).toHaveCount(0);
+});
+
+test.tags("desktop");
+test(`navigation patches the calendar in place instead of remounting it`, async () => {
+    // Date navigation must go through the full_calendar_hook onPatched
+    // gotoDate path: the renderer (and its FullCalendar instance) survives,
+    // only the displayed period changes. A date-derived t-key used to force
+    // a full teardown + rebuild on every prev/next/today.
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
+    });
+    patchWithCleanup(CalendarCommonRenderer.prototype, {
+        setup() {
+            expect.step("renderer setup");
+            return super.setup();
+        },
+    });
+    expect(`.fc-day[data-date="2016-12-12"]`).not.toHaveCount(0);
+    const fcEl = queryOne(`.fc`);
+
+    await navigate("next");
+    expect(`.fc-day[data-date="2016-12-19"]`).not.toHaveCount(0);
+    expect(`.fc-day[data-date="2016-12-12"]`).toHaveCount(0);
+    // Same component instance and same FullCalendar root node.
+    expect.verifySteps([]);
+    expect(queryOne(`.fc`)).toBe(fcEl);
+
+    await navigate("prev");
+    expect(`.fc-day[data-date="2016-12-12"]`).not.toHaveCount(0);
+    expect.verifySteps([]);
+    expect(queryOne(`.fc`)).toBe(fcEl);
 });
 
 test(`allowed scales`, async () => {

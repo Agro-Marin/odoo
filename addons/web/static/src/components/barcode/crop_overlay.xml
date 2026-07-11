@@ -2,9 +2,9 @@
 <templates xml:space="preserve">
     <t t-name="web.CropOverlay">
         <div t-ref="crop-container"
-             t-on-mousedown="pointerDown" t-on-touchstart="pointerDown"
-             t-on-mousemove="pointerMove" t-on-touchmove="pointerMove"
-             t-on-mouseup="pointerUp" t-on-touchend="pointerUp"
+             t-on-pointerdown="pointerDown"
+             t-on-pointermove="pointerMove"
+             t-on-pointerup="pointerUp" t-on-pointercancel="pointerUp"
              class="d-grid align-content-center justify-content-center h-100 o_crop_container"
         >
             <t t-slot="default"/>

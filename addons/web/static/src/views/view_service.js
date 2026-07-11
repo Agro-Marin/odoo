@@ -52,6 +52,19 @@ export const viewService = {
     dependencies: ["orm"],
     async: ["loadViews"],
     start(env, { orm }) {
+        // Models whose mutation invalidates the cached get_views payload: the
+        // arch and filters, but also the embedded toolbar (ir.actions.*
+        // bindings — creating/removing a bound action never touches
+        // ir.ui.view) and the field definitions (Studio/dev-mode custom
+        // fields on ir.model.fields).
+        const GET_VIEWS_MODELS = [
+            "ir.ui.view",
+            "ir.filters",
+            "ir.actions.act_window",
+            "ir.actions.report",
+            "ir.actions.server",
+            "ir.model.fields",
+        ];
         rpcBus.addEventListener(RpcEvent.RESPONSE, (/** @type {CustomEvent} */ ev) => {
             // ``ev.detail`` itself may be null (synthetic test fires or a
             // malformed event). Optional-chain it before reading ``.data``
@@ -60,7 +73,7 @@ export const viewService = {
                 return;
             }
             const { model, method } = ev.detail.data.params;
-            if (["ir.ui.view", "ir.filters"].includes(model)) {
+            if (GET_VIEWS_MODELS.includes(model)) {
                 if (UPDATE_METHODS.includes(method)) {
                     rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
                 }

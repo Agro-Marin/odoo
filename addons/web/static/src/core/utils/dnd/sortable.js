@@ -448,9 +448,8 @@ const hookParams = {
 
 /** @type {(params: SortableParams) => SortableState} */
 export const useSortable = (/** @type {any} */ sortableParams) => {
-    const { setupHooks } = sortableParams;
-    delete sortableParams.setupHooks;
+    const { setupHooks, ...params } = sortableParams;
     return nativeMakeDraggableHook(/** @type {any} */ ({ ...hookParams, setupHooks }))(
-        sortableParams,
+        params,
     );
 };

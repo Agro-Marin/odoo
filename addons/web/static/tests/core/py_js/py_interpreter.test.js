@@ -307,6 +307,18 @@ describe("callables", () => {
         expect(evaluateExpr("max(3, 5)")).toBe(5);
         expect(evaluateExpr("min(3, 5, 2, 7)")).toBe(2);
     });
+    test("min/max over a single iterable argument", () => {
+        expect(evaluateExpr("max([1, 5, 2])")).toBe(5);
+        expect(evaluateExpr("max(set([1, 2, 3]))")).toBe(3);
+        expect(evaluateExpr("min(set([3, 1, 2]))")).toBe(1);
+        expect(evaluateExpr("max('abc')")).toBe("c");
+        expect(evaluateExpr("max((4, 2))")).toBe(4);
+        // dicts iterate over their keys
+        expect(evaluateExpr("max({'a': 1, 'b': 2})")).toBe("b");
+        expect(() => evaluateExpr("max(5)")).toThrow(/not iterable/);
+        expect(() => evaluateExpr("max([])")).toThrow(/empty sequence/);
+        expect(() => evaluateExpr("min('')")).toThrow(/empty sequence/);
+    });
 });
 
 describe("dicts", () => {
@@ -607,6 +619,11 @@ describe("builtins — int", () => {
         expect(() => evaluateExpr('int("abc")')).toThrow(/invalid literal/);
         expect(() => evaluateExpr('int("")')).toThrow(/invalid literal/);
     });
+    test("int rejects non-numeric objects (Python TypeError)", () => {
+        expect(() => evaluateExpr("int(None)")).toThrow(/int\(\) argument/);
+        expect(() => evaluateExpr("int([])")).toThrow(/int\(\) argument/);
+        expect(() => evaluateExpr("int({})")).toThrow(/int\(\) argument/);
+    });
 });
 
 describe("builtins — float", () => {
@@ -627,6 +644,10 @@ describe("builtins — float", () => {
     test("float rejects non-numeric string", () => {
         expect(() => evaluateExpr('float("abc")')).toThrow(/could not convert/);
     });
+    test("float rejects non-numeric objects (Python TypeError)", () => {
+        expect(() => evaluateExpr("float(None)")).toThrow(/float\(\) argument/);
+        expect(() => evaluateExpr("float([])")).toThrow(/float\(\) argument/);
+    });
 });
 
 describe("builtins — str", () => {
@@ -640,6 +661,11 @@ describe("builtins — str", () => {
     });
     test("str from None", () => {
         expect(evaluateExpr("str(None)")).toBe("None");
+    });
+    test("str of a float-valued integer diverges from Python (documented)", () => {
+        // JS numbers carry no int/float distinction: Python str(1.0) is
+        // "1.0", but py_js cannot tell 1.0 from 1. Pinned so a change shows.
+        expect(evaluateExpr("str(1.0)")).toBe("1");
     });
 });
 
@@ -767,6 +793,16 @@ describe("operators — bitwise", () => {
     test("right shift", () => {
         expect(evaluateExpr("8 >> 2")).toBe(2);
     });
+    test("bitwise/shift operators reject non-integers (Python TypeError)", () => {
+        expect(() => evaluateExpr("'a' | 1")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("1.5 & 2")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("1.5 << 1")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("None ^ 1")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("[] >> 1")).toThrow(/unsupported operand/);
+        // booleans are ints
+        expect(evaluateExpr("True | 2")).toBe(3);
+        expect(evaluateExpr("True << 2")).toBe(4);
+    });
 });
 
 describe("in operator — Object.hasOwn", () => {
@@ -815,6 +851,49 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("'%(name)s' % {'name': 'foo'}")).toBe("foo");
         // numeric modulo unaffected
         expect(evaluateExpr("7 % 3")).toBe(1);
+    });
+    test("'%' formatting flags, width and precision (CPython-verified)", () => {
+        // zero padding goes AFTER the sign
+        expect(evaluateExpr("'%05d' % -3")).toBe("-0003");
+        expect(evaluateExpr("'%05d' % 3")).toBe("00003");
+        expect(evaluateExpr("'%05.1f' % -3.5")).toBe("-03.5");
+        // the 0 flag is ignored for %s
+        expect(evaluateExpr("'%05s' % 3")).toBe("    3");
+        expect(evaluateExpr("'%-5d' % 3 + '|'")).toBe("3    |");
+        expect(evaluateExpr("'%5d' % -3")).toBe("   -3");
+        // %e: two-digit exponent, default precision 6
+        expect(evaluateExpr("'%e' % 123.456")).toBe("1.234560e+02");
+        expect(evaluateExpr("'%.2e' % 0.000123")).toBe("1.23e-04");
+        expect(evaluateExpr("'%E' % 12")).toBe("1.200000E+01");
+        expect(evaluateExpr("'%.0e' % 5")).toBe("5e+00");
+        expect(evaluateExpr("'%10.2e' % -3.5")).toBe(" -3.50e+00");
+        // %g: significant digits, fixed/scientific switch, zeros stripped
+        expect(evaluateExpr("'%.2g' % 123.456")).toBe("1.2e+02");
+        expect(evaluateExpr("'%g' % 1234567.0")).toBe("1.23457e+06");
+        expect(evaluateExpr("'%g' % 0.0001")).toBe("0.0001");
+        expect(evaluateExpr("'%g' % 0.00001")).toBe("1e-05");
+        expect(evaluateExpr("'%.3g' % 0.000123456")).toBe("0.000123");
+        expect(evaluateExpr("'%g' % 100")).toBe("100");
+        expect(evaluateExpr("'%g' % 1.5")).toBe("1.5");
+        expect(evaluateExpr("'%.0g' % 123")).toBe("1e+02");
+        expect(evaluateExpr("'%x' % 255")).toBe("ff");
+        expect(evaluateExpr("'%X' % 255")).toBe("FF");
+        expect(evaluateExpr("'%o' % 8")).toBe("10");
+    });
+
+    test("'%' formatting mapping and argument errors", () => {
+        expect(() => evaluateExpr("'%(b)s' % {'a': 1}")).toThrow(/KeyError: 'b'/);
+        expect(() => evaluateExpr("'%(a)s' % [1, 2]")).toThrow(
+            /format requires a mapping/,
+        );
+        expect(() => evaluateExpr("'%s %s' % 5")).toThrow(/not enough arguments/);
+    });
+
+    test("'%' formatting of a list diverges from Python (documented)", () => {
+        // py_js cannot distinguish lists from tuples at runtime, so a list
+        // right operand is spread like an argument tuple; Python renders the
+        // list itself ("[1, 2]").
+        expect(evaluateExpr("'%s' % [1, 2]")).toBe("1");
     });
 
     test("mismatched '+' raises (Python TypeError)", () => {
@@ -944,5 +1023,127 @@ describe("duck-typing guards", () => {
     test("a literal '__proto__' dict key is a plain entry", () => {
         expect(evaluateExpr("{'__proto__': 5}.get('__proto__')")).toBe(5);
         expect(evaluateExpr("len({'__proto__': 5})")).toBe(1);
+    });
+});
+
+describe("string methods", () => {
+    // Every expected value below is verified against CPython 3.14.
+    test("strip", () => {
+        expect(evaluateExpr("'  ab  '.strip()")).toBe("ab");
+        expect(evaluateExpr("'xxabxx'.strip('x')")).toBe("ab");
+        expect(evaluateExpr("'abc'.strip('cb')")).toBe("a");
+        expect(() => evaluateExpr("'a'.strip(5)")).toThrow();
+    });
+
+    test("startswith/endswith", () => {
+        expect(evaluateExpr("'abc'.startswith('ab')")).toBe(true);
+        expect(evaluateExpr("'abc'.startswith('b')")).toBe(false);
+        expect(evaluateExpr("'abc'.startswith('b', 1)")).toBe(true);
+        expect(evaluateExpr("'abc'.startswith(('x', 'a'))")).toBe(true);
+        expect(evaluateExpr("'abc'.endswith('bc')")).toBe(true);
+        expect(evaluateExpr("'abc'.endswith(('c', 'd'))")).toBe(true);
+        expect(evaluateExpr("'abc'.endswith('b')")).toBe(false);
+        expect(() => evaluateExpr("'abc'.startswith(5)")).toThrow();
+    });
+
+    test("replace", () => {
+        expect(evaluateExpr("'a-b-a'.replace('a', 'z')")).toBe("z-b-z");
+        expect(evaluateExpr("'aaa'.replace('a', 'b', 2)")).toBe("bba");
+        expect(evaluateExpr("'abc'.replace('', '-')")).toBe("-a-b-c-");
+        expect(evaluateExpr("'abc'.replace('', '-', 2)")).toBe("-a-bc");
+    });
+
+    test("split", () => {
+        expect(evaluateExpr("'a b  c'.split()")).toEqual(["a", "b", "c"]);
+        expect(evaluateExpr("' a  b '.split()")).toEqual(["a", "b"]);
+        expect(evaluateExpr("'a,b,,c'.split(',')")).toEqual(["a", "b", "", "c"]);
+        expect(evaluateExpr("'a,b,c'.split(',', 1)")).toEqual(["a", "b,c"]);
+        expect(() => evaluateExpr("'abc'.split('')")).toThrow(/empty separator/);
+    });
+
+    test("join", () => {
+        expect(evaluateExpr("', '.join(['a', 'b'])")).toBe("a, b");
+        expect(evaluateExpr("'-'.join('abc')")).toBe("a-b-c");
+        expect(() => evaluateExpr("','.join([1, 2])")).toThrow(/expected str/);
+    });
+
+    test("format", () => {
+        expect(evaluateExpr("'{} and {}'.format(1, 'a')")).toBe("1 and a");
+        expect(evaluateExpr("'{1}{0}'.format('a', 'b')")).toBe("ba");
+        expect(evaluateExpr("'{x}'.format(x=5)")).toBe("5");
+        expect(evaluateExpr("'{{}}{}'.format(3)")).toBe("{}3");
+        expect(() => evaluateExpr("'{}{}'.format(1)")).toThrow(/out of range/);
+        expect(() => evaluateExpr("'{y}'.format(x=5)")).toThrow(/KeyError/);
+        // format specs are not implemented: raise, never render wrong output
+        expect(() => evaluateExpr("'{x:>8}'.format(x=3)")).toThrow(/unsupported/);
+    });
+
+    test("title/capitalize", () => {
+        expect(evaluateExpr("'hello world-foo 2x'.title()")).toBe("Hello World-Foo 2X");
+        expect(evaluateExpr('"it\'s a test 2b or not".title()')).toBe(
+            "It'S A Test 2B Or Not",
+        );
+        expect(evaluateExpr("'hELLo'.capitalize()")).toBe("Hello");
+        expect(evaluateExpr("''.capitalize()")).toBe("");
+    });
+});
+
+describe("date/datetime/time cross-type operations", () => {
+    test("cross-kind ordering raises (Python TypeError)", () => {
+        expect(() =>
+            evaluateExpr("datetime.date(2020,1,1) < datetime.datetime(1990,1,1)"),
+        ).toThrow(/not supported between/);
+        expect(() =>
+            evaluateExpr("datetime.datetime(2020,1,1) > datetime.date(2020,1,2)"),
+        ).toThrow(/not supported between/);
+        expect(() =>
+            evaluateExpr("datetime.date(2020,1,1) <= datetime.time(1,0)"),
+        ).toThrow(/not supported between/);
+        // same-kind comparisons still work
+        expect(evaluateExpr("datetime.date(2020,1,1) < datetime.date(2020,1,2)")).toBe(
+            true,
+        );
+        expect(
+            evaluateExpr(
+                "datetime.datetime(2020,1,1,1) < datetime.datetime(2020,1,1,2)",
+            ),
+        ).toBe(true);
+        expect(evaluateExpr("datetime.time(1,0) < datetime.time(2,0)")).toBe(true);
+    });
+
+    test("cross-kind equality is False, not an error", () => {
+        expect(evaluateExpr("datetime.date(2020,1,1) == datetime.time(1,0)")).toBe(
+            false,
+        );
+        expect(
+            evaluateExpr("datetime.date(2020,1,1) == datetime.datetime(2020,1,1)"),
+        ).toBe(false);
+        expect(evaluateExpr("datetime.time(1,0) == datetime.time(1,0)")).toBe(true);
+        expect(evaluateExpr("datetime.time(1,0) == datetime.time(2,0)")).toBe(false);
+    });
+
+    test("time arithmetic raises (Python TypeError)", () => {
+        expect(() =>
+            evaluateExpr("datetime.date(2020,1,1) - datetime.time(1,0,0)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.time(1,0) - datetime.time(0,30)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.time(1,0) + datetime.timedelta(days=1)"),
+        ).toThrow();
+        // date - date still works
+        expect(
+            evaluateExpr("(datetime.date(2020,1,2) - datetime.date(2020,1,1)).days"),
+        ).toBe(1);
+    });
+});
+
+describe("dict .get fallback", () => {
+    test(".get works on generic objects but not on lists", () => {
+        expect(evaluateExpr("d.get('a')", { d: { a: 1 } })).toBe(1);
+        expect(evaluateExpr("d.get('b', 5)", { d: { a: 1 } })).toBe(5);
+        // Python lists have no .get (AttributeError)
+        expect(() => evaluateExpr("[1, 2].get(0)")).toThrow();
     });
 });

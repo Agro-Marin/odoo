@@ -172,9 +172,12 @@
          * Bundle URLs are content-addressed
          * (``/web/assets/<unique>/...``, ``/web/assets/esm/<hash>/...``);
          * when the attachment GC sweeps a row while a stale cached page
-         * still references its URL, the script 404s and the page
-         * white-screens with no recovery path. Reloading re-renders
-         * through ``ir.qweb``, which mints fresh URLs.
+         * still references its URL, the script (or stylesheet) 404s and
+         * the page white-screens (or renders unstyled) with no recovery
+         * path. Reloading re-renders through ``ir.qweb``, which mints
+         * fresh URLs. Covers SCRIPT and LINK elements: a stale
+         * content-addressed URL can never succeed by re-requesting it, so
+         * the reload is the only fix for both kinds.
          *
          * Guard: at most one reload per minute per tab (``sessionStorage``)
          * — a persistent failure (server down, genuine bundle error)
@@ -185,8 +188,10 @@
          * @returns {boolean} whether a reload was triggered
          */
         handleAssetLoadError(target) {
-            const el = /** @type {HTMLScriptElement | null} */ (target);
-            const src = el?.tagName === "SCRIPT" && (el.src || el.dataset?.src);
+            const el = /** @type {any} */ (target);
+            const src =
+                (el?.tagName === "SCRIPT" && (el.src || el.dataset?.src)) ||
+                (el?.tagName === "LINK" && el.href);
             if (!src || !src.includes("/web/assets/")) {
                 return false;
             }
@@ -282,7 +287,9 @@
                     kind: "asset_load_error",
                     message: "bundle asset failed to load; reloading once",
                     filename: String(
-                        /** @type {HTMLScriptElement} */ (target).src || "",
+                        /** @type {any} */ (target).src ||
+                            /** @type {any} */ (target).href ||
+                            "",
                     ),
                     line: 0,
                     col: 0,

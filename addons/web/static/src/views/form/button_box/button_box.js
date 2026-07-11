@@ -22,7 +22,9 @@ export class ButtonBox extends Component {
     setup() {
         const ui = useService("ui");
         onWillRender(() => {
-            const maxVisibleButtons = [0, 0, 7, 4, 5, 8][ui.size] ?? 8;
+            // Per-breakpoint budget, indexed by SIZES (XS SM MD LG XL XXL).
+            // Monotonic: growing the screen never hides buttons into "More".
+            const maxVisibleButtons = [0, 0, 4, 5, 7, 8][ui.size] ?? 8;
             const allVisibleButtons = Object.entries(this.props.slots)
                 .filter(([_, slot]) => this.isSlotVisible(slot))
                 .map(([slotName]) => slotName);

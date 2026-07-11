@@ -202,6 +202,33 @@ export class ServerOverloadError extends ConnectionLostError {
     }
 }
 
+/**
+ * Raised when the server returned a response that cannot be a JSON-RPC
+ * envelope (non-JSON content type, or an unparseable body) with a NON-5xx
+ * status: a session-expired POST redirected to the HTML login page (fetch
+ * follows redirects), a 404 HTML page, a captive portal, an empty 200...
+ * Deterministic — retrying cannot change the outcome — so ``isRetryable``
+ * explicitly excludes it. Extends ``ConnectionLostError`` so existing
+ * ``instanceof ConnectionLostError`` handling (connection-lost UX) still
+ * matches, mirroring ``ServerOverloadError``.
+ */
+export class InvalidResponseError extends ConnectionLostError {
+    /**
+     * @param {string} url
+     * @param {number} status HTTP status code of the invalid response.
+     * @param {...any} args
+     */
+    constructor(url, status, ...args) {
+        super(url, ...args);
+        this.name = "InvalidResponseError";
+        /** @type {number} */
+        this.status = status;
+        this.message = url
+            ? `Server returned an invalid (non JSON-RPC) response (HTTP ${status}) at "${url}"`
+            : `Server returned an invalid (non JSON-RPC) response (HTTP ${status})`;
+    }
+}
+
 export class ConnectionAbortedError extends NetworkError {
     name = "ConnectionAbortedError";
 }
@@ -395,7 +422,12 @@ function backoffDelay(attempt, config, lastError) {
  *   ConnectionAbortedError (caller intent).
  */
 function isRetryable(err) {
-    return err instanceof ConnectionLostError || err instanceof ConnectionTimeoutError;
+    return (
+        (err instanceof ConnectionLostError || err instanceof ConnectionTimeoutError) &&
+        // Deterministic non-JSON-RPC responses (login-page redirect, 404 HTML,
+        // captive portal) never change on retry.
+        !(err instanceof InvalidResponseError)
+    );
 }
 
 // In-flight deduplication
@@ -636,13 +668,20 @@ function _rpcOnce(url, params, settings) {
                 settleReject(error);
                 return;
             }
-            // A non-JSON content type signals a werkzeug HTML error page
-            // (``PoolError``/``OperationalError``) rather than a JSON-RPC
-            // envelope; classify it as ``ServerOverloadError`` so the retry
-            // layer applies a longer backoff floor.
+            // A non-JSON content type with a 5xx status signals a werkzeug
+            // HTML error page (``PoolError``/``OperationalError``) rather
+            // than a JSON-RPC envelope; classify it as ``ServerOverloadError``
+            // so the retry layer applies a longer backoff floor. Non-5xx
+            // non-JSON responses are deterministic (fetch follows redirects,
+            // so a session-expired POST lands on the HTML login page with a
+            // 200; 404 pages and captive portals are similar) — those are
+            // ``InvalidResponseError`` and never retried.
             const contentType = response.headers.get("content-type") || "";
             if (contentType && !/application\/json/i.test(contentType)) {
-                const error = new ServerOverloadError(url, response.status);
+                const error =
+                    response.status >= 500
+                        ? new ServerOverloadError(url, response.status)
+                        : new InvalidResponseError(url, response.status);
                 rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
                 settleReject(error);
                 return;
@@ -651,10 +690,15 @@ function _rpcOnce(url, params, settings) {
             try {
                 parsed = await response.json();
             } catch {
-                // Malformed JSON body (or missing content-type). Treated as
-                // transient connectivity failure — a retry with default
-                // backoff is reasonable.
-                const error = new ConnectionLostError(url);
+                // Malformed JSON body (or missing content-type). On a 5xx,
+                // treat as transient connectivity failure — a retry with
+                // default backoff is reasonable. Otherwise the response is
+                // deterministic garbage (empty 200, truncated proxy body):
+                // retrying can't help.
+                const error =
+                    response.status >= 500
+                        ? new ConnectionLostError(url)
+                        : new InvalidResponseError(url, response.status);
                 rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
                 settleReject(error);
                 return;

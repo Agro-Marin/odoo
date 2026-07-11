@@ -3,6 +3,7 @@
 import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import {
+    contains,
     defineModels,
     fields,
     models,
@@ -42,10 +43,13 @@ class Currency extends models.Model {
             ["before", "B"],
         ],
     });
+    date = fields.Date();
+    // company-currency amount per foreign unit (see services/currency.js)
+    inverse_rate = fields.Float();
 
     _records = [
-        { id: 1, name: "USD", symbol: "$", position: "before" },
-        { id: 2, name: "EUR", symbol: "€", position: "after" },
+        { id: 1, name: "USD", symbol: "$", position: "before", inverse_rate: 1 },
+        { id: 2, name: "EUR", symbol: "€", position: "after", inverse_rate: 0.5 },
     ];
 }
 
@@ -84,4 +88,79 @@ test("grouped monetary aggregate renders when the currency aggregate is absent",
     expect(`.o_group_header`).toHaveCount(2);
     const lastNumber = queryOne(`.o_group_header:last .o_list_number`);
     expect(lastNumber.textContent.trim()).not.toBe("");
+});
+
+test.tags("desktop");
+test("grouped footer converts single-currency groups to the company currency", async () => {
+    // Groups: bar=true is all-USD (1200 + 500), bar=false is all-EUR (300).
+    // EUR inverse_rate is 0.5 → the footer total is 1700 + 300 × 0.5 = 1850,
+    // flagged with the multi-currency indicator.
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `
+            <list>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id"/>
+            </list>`,
+        groupBy: ["bar"],
+    });
+
+    const footerCell = queryOne(`tfoot td.o_list_number span`);
+    expect(footerCell.textContent).toInclude("1,850.00");
+    expect(`tfoot td.o_list_number sup`).toHaveCount(1);
+});
+
+test.tags("desktop");
+test("grouped footer renders no total when a group mixes currencies", async () => {
+    // bar=true group holds USD and EUR records: its server-side sum already
+    // mixes currencies and cannot be converted client-side, so the footer
+    // must render the multi-currency indicator WITHOUT a total (previously
+    // the raw mixed sum was presented as company currency and added to the
+    // converted sums of the other groups).
+    Partner._records[1].currency_id = 2;
+
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `
+            <list>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id"/>
+            </list>`,
+        groupBy: ["bar"],
+    });
+
+    const footerCell = queryOne(`tfoot td.o_list_number span`);
+    expect(footerCell.textContent.trim()).toBe("?");
+    expect(`tfoot td.o_list_number sup`).toHaveCount(1);
+
+    // The indicator has no total to convert: hovering must not open the
+    // multi-currency popover (the explanatory tooltip may still show).
+    await contains(`tfoot td.o_list_number sup`).hover();
+    expect(`.o_multi_currency_popover`).toHaveCount(0);
+});
+
+test.tags("desktop");
+test("selection footer converts mixed-currency records to the company currency", async () => {
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `
+            <list>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id"/>
+            </list>`,
+    });
+
+    // Select an USD record (1200) and an EUR record (300 × 0.5 = 150).
+    await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(2) .o_list_record_selector input`).click();
+
+    const footerCell = queryOne(`tfoot td.o_list_number span`);
+    expect(footerCell.textContent).toInclude("1,350.00");
+    expect(`tfoot td.o_list_number sup`).toHaveCount(1);
 });

@@ -33,8 +33,11 @@ class ResUserGroupIdsField extends Component {
      * Registers an onWillRender hook that recomputes group selection state each render.
      */
     setup() {
-        const { groups, privileges, categories } = toRaw(
-            this.props.record.data.view_group_hierarchy,
+        // Deep-copy: the categories/privileges are reshaped in place below
+        // (e.g. the "other" category push), which must not leak into the
+        // record's stored value nor accumulate across re-setups.
+        const { groups, privileges, categories } = deepCopy(
+            toRaw(this.props.record.data.view_group_hierarchy),
         );
 
         // Generate the "other" category (for privileges that do not belong to any category)

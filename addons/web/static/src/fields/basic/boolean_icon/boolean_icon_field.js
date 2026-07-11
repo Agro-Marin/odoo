@@ -21,6 +21,9 @@ export class BooleanIconField extends Component {
 
     /** Toggles the boolean value and updates the record. */
     update() {
+        if (this.props.readonly) {
+            return;
+        }
         this.props.record.update({
             [this.props.name]: !this.props.record.data[this.props.name],
         });

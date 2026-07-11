@@ -23,10 +23,9 @@ import {
 
 /** @import { Section } from "@web/search/search_model" */
 /** @import { DomainListRepr } from "@web/core/domain" */
-/** SearchModel widened with `Record<string, any>` so this delegate module can
- * read instance state set across SearchModel's many methods. The strict
- * SearchModel class shape is recovered when reading the import directly. */
-/** @typedef {any} SearchModel */
+/** The delegate seam contract — see the SearchModelLike typedef for the
+ * instance state this module may read or write. */
+/** @typedef {import("../search_model").SearchModelLike} SearchModel */
 /** @typedef {Section & { type: "category" }} Category */
 /** @typedef {Section & { type: "filter" }} Filter */
 /** @typedef {(section: Section) => boolean} SectionPredicate */
@@ -54,6 +53,11 @@ export function toggleFilterValues(searchModel, sectionId, valueIds, forceTo = n
     const filter = searchModel.sections.get(sectionId);
     for (const valueId of valueIds) {
         const value = filter.values.get(valueId);
+        if (!value) {
+            // The ids come from the rendered DOM; a refetch resolving between
+            // render and click can rebuild `values` without this id.
+            continue;
+        }
         value.checked = forceTo === null ? !value.checked : forceTo;
     }
     searchModel._notify();
@@ -81,15 +85,24 @@ export function clearSections(searchModel, sectionIds) {
 /**
  * Returns a list of section copies, optionally filtered.
  * Section order is the ``sections`` Map insertion order (arch order).
+ *
+ * Memoised like the model's _facets/_groups: SearchPanel hits this getter
+ * several times per render. Cleared in _reset() and whenever a section is
+ * mutated outside a query cycle (tree rebuilds, fetch error stamps);
+ * consumers treat the returned sections as read-only.
+ *
  * @param {SearchModel} searchModel
  * @param {SectionPredicate} [predicate]
  * @returns {Section[]}
  */
 export function getSections(searchModel, predicate) {
-    let sections = [...searchModel.sections.values()].map((section) => ({
-        ...section,
-        empty: !hasValues(section),
-    }));
+    if (!searchModel._sections) {
+        searchModel._sections = [...searchModel.sections.values()].map((section) => ({
+            ...section,
+            empty: !hasValues(section),
+        }));
+    }
+    let sections = searchModel._sections;
     if (predicate) {
         sections = sections.filter(predicate);
     }
@@ -107,6 +120,7 @@ export function createCategoryTree(searchModel, sectionId, result) {
     buildCategoryTree(category, result, (cat, ids) =>
         searchModel._ensureCategoryValue(cat, ids),
     );
+    searchModel._sections = null;
 }
 
 /**
@@ -118,6 +132,7 @@ export function createCategoryTree(searchModel, sectionId, result) {
 export function createFilterTree(searchModel, sectionId, result) {
     const filter = searchModel.sections.get(sectionId);
     buildFilterTree(filter, result);
+    searchModel._sections = null;
 }
 
 /**
@@ -184,6 +199,7 @@ export async function fetchCategories(searchModel, categories) {
                 if (categoriesLoadId === searchModel.categoriesLoadId) {
                     category.errorMsg =
                         error.data?.message || error.message || String(error);
+                    searchModel._sections = null;
                 }
                 return;
             }
@@ -255,6 +271,7 @@ export async function fetchFilters(searchModel, filters) {
                 if (filtersLoadId === searchModel.filtersLoadId) {
                     filter.errorMsg =
                         error.data?.message || error.message || String(error);
+                    searchModel._sections = null;
                 }
                 return;
             }
@@ -286,38 +303,42 @@ export async function fetchSections(searchModel, categoriesToLoad, filtersToLoad
  * @returns {Promise<void>}
  */
 export async function reloadSections(searchModel) {
+    // try/finally: an exception in the awaited window (e.g. a tree builder
+    // throwing on a malformed result) must not leave the model permanently
+    // muted — every later _notify() would early-return forever.
     searchModel.blockNotification = true;
+    try {
+        const searchDomain = /** @type {DomainListRepr} */ (
+            searchModel._getDomain({ withSearchPanel: false })
+        );
+        const searchDomainChanged =
+            searchModel.searchPanelInfo.shouldReload ||
+            !deepEqual(searchModel.searchDomain, searchDomain);
+        searchModel.searchDomain = searchDomain;
 
-    const searchDomain = /** @type {DomainListRepr} */ (
-        searchModel._getDomain({ withSearchPanel: false })
-    );
-    const searchDomainChanged =
-        searchModel.searchPanelInfo.shouldReload ||
-        !deepEqual(searchModel.searchDomain, searchDomain);
-    searchModel.searchDomain = searchDomain;
+        const toFetch = (section) =>
+            section.enableCounters || (searchDomainChanged && !section.expand);
+        const categoriesToFetch = searchModel.categories.filter(toFetch);
+        const filtersToFetch = searchModel.filters.filter(toFetch);
 
-    const toFetch = (section) =>
-        section.enableCounters || (searchDomainChanged && !section.expand);
-    const categoriesToFetch = searchModel.categories.filter(toFetch);
-    const filtersToFetch = searchModel.filters.filter(toFetch);
-
-    if (
-        searchDomainChanged ||
-        Boolean(categoriesToFetch.length + filtersToFetch.length)
-    ) {
-        if (searchModel.display.searchPanel) {
-            searchModel.sectionsPromise = searchModel._fetchSections(
-                categoriesToFetch,
-                filtersToFetch,
-            );
-            if (searchModel._shouldWaitForData(searchDomainChanged)) {
-                await searchModel.sectionsPromise;
+        if (
+            searchDomainChanged ||
+            Boolean(categoriesToFetch.length + filtersToFetch.length)
+        ) {
+            if (searchModel.display.searchPanel) {
+                searchModel.sectionsPromise = searchModel._fetchSections(
+                    categoriesToFetch,
+                    filtersToFetch,
+                );
+                if (searchModel._shouldWaitForData(searchDomainChanged)) {
+                    await searchModel.sectionsPromise;
+                }
             }
+            searchModel.searchPanelInfo.shouldReload = !searchModel.display.searchPanel;
         }
-        searchModel.searchPanelInfo.shouldReload = !searchModel.display.searchPanel;
+    } finally {
+        searchModel.blockNotification = false;
     }
-
-    searchModel.blockNotification = false;
 }
 
 /**

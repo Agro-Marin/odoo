@@ -791,12 +791,33 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
                             delegateTarget &&
                             self.el.contains(delegateTarget)
                         ) {
-                            // Set delegateTarget for compat with code expecting it
+                            // Shadow `currentTarget` with the delegate target
+                            // for compat with code expecting it, but only for
+                            // the duration of this handler: an own property on
+                            // the live event would otherwise shadow the native
+                            // per-listener getter for every later listener in
+                            // the same propagation.
+                            const descriptor = Object.getOwnPropertyDescriptor(
+                                e,
+                                "currentTarget",
+                            );
                             Object.defineProperty(e, "currentTarget", {
                                 value: delegateTarget,
                                 configurable: true,
                             });
-                            method.call(delegateTarget, e);
+                            try {
+                                method.call(delegateTarget, e);
+                            } finally {
+                                if (descriptor) {
+                                    Object.defineProperty(
+                                        e,
+                                        "currentTarget",
+                                        descriptor,
+                                    );
+                                } else {
+                                    Reflect.deleteProperty(e, "currentTarget");
+                                }
+                            }
                         }
                     },
                     { signal },

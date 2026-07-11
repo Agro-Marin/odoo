@@ -23,6 +23,10 @@ function onKeydown(/** @type {KeyboardEvent} */ ev) {
         /** @type {number} */ (target.selectionEnd),
         "end",
     );
+    // setRangeText does not fire an input event, so useInputField's dirty
+    // tracking (FIELD_IS_DIRTY, field validity reset) would miss this
+    // keystroke without a synthetic one.
+    target.dispatchEvent(new InputEvent("input", { bubbles: true }));
 }
 
 function onFocus(/** @type {FocusEvent} */ ev) {

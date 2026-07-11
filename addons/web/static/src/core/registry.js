@@ -3,7 +3,7 @@
 
 /** @module @web/core/registry - Hierarchical key-value store for services, components, fields, and actions */
 
-import { EventBus, onWillDestroy, onWillStart, useState, validate } from "@odoo/owl";
+import { EventBus, onWillDestroy, useState, validate } from "@odoo/owl";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { makeAssetLog } from "@web/core/utils/asset_log";
 
@@ -405,15 +405,26 @@ export function useRegistry(registry) {
                 // Force-replace: remove old, insert at new position.
                 state.entries.splice(index, 1);
             }
-            state.entries.splice(newIndex, 0, newEntries[newIndex]);
+            // ``state.entries`` may have diverged from the full registry
+            // ordering (error handlers splice entries out locally), so the
+            // full-order index can overshoot. Map full order → local order:
+            // insert before the first local entry that sorts after the new
+            // key in the registry's ordering.
+            const followers = new Set(newEntries.slice(newIndex + 1).map(([k]) => k));
+            let insertAt = state.entries.findIndex(([k]) => followers.has(k));
+            if (insertAt === -1) {
+                insertAt = state.entries.length;
+            }
+            state.entries.splice(insertAt, 0, newEntries[newIndex]);
         } else if (detail.operation === "delete" && index >= 0) {
             state.entries.splice(index, 1);
         }
     };
 
-    onWillStart(() =>
-        registry.addEventListener("UPDATE", /** @type {any} */ (listener)),
-    );
+    // Attach at setup time (not onWillStart): an "add" landing between setup
+    // and an async willStart chain would otherwise be lost — the snapshot
+    // above is taken now, so listening must start now too.
+    registry.addEventListener("UPDATE", /** @type {any} */ (listener));
     onWillDestroy(() =>
         registry.removeEventListener("UPDATE", /** @type {any} */ (listener)),
     );

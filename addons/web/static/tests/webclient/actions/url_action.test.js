@@ -31,8 +31,31 @@ test("execute an 'ir.actions.act_url' action with onClose option", async () => {
     const options = {
         onClose: () => expect.step("onClose"),
     };
-    await getService("action").doAction({ type: "ir.actions.act_url" }, options);
+    await getService("action").doAction(
+        { type: "ir.actions.act_url", url: "/my/test/url" },
+        options,
+    );
     expect.verifySteps(["browser open", "onClose"]);
+});
+
+test("an 'ir.actions.act_url' action without url does nothing", async () => {
+    patchWithCleanup(browser, {
+        open: (url) => expect.step(`open ${url}`),
+    });
+    patchWithCleanup(browser.location, {
+        assign: (url) => expect.step(`assign ${url}`),
+    });
+    await makeMockEnv();
+    // A falsy url must not navigate to the literal "/undefined" page,
+    // whatever the target.
+    await getService("action").doAction({ type: "ir.actions.act_url" });
+    await getService("action").doAction({ type: "ir.actions.act_url", target: "self" });
+    await getService("action").doAction({
+        type: "ir.actions.act_url",
+        target: "download",
+        url: "",
+    });
+    expect.verifySteps([]);
 });
 
 test("execute an 'ir.actions.act_url' action with url javascript:", async () => {

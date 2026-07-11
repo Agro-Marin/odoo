@@ -25,16 +25,67 @@ function useEarlyExternalListener(target, eventName, handler, eventParams) {
 
 /**
  * Trigger the callback with the clicked element when the window is clicked,
- * including from within an iframe.
+ * including from within an iframe. Iframes are (re-)scanned whenever focus
+ * moves into one, so iframes added after the popover opened (dashboards,
+ * html field editors) and iframe reloads are covered too.
  *
  * @param {Popover} popover
  * @param {(node?: Node) => any} callback
  */
 function useClickAway(popover, callback) {
+    /** @type {(() => void)[]} */
+    const iframeDisposers = [];
+    /**
+     * Windows whose pointerdown listener is currently attached. Keyed by
+     * Window (not iframe element): a reload swaps the iframe's Window and
+     * drops the old listener with it, so the new one must be re-armed.
+     * @type {WeakSet<Window>}
+     */
+    const armedWindows = new WeakSet();
+
+    function armIframe(/** @type {HTMLIFrameElement} */ iframeEl) {
+        const win = iframeEl.contentWindow;
+        if (!win || armedWindows.has(win)) {
+            return;
+        }
+        const handler = () => {
+            const popupEl = popover.popoverRef.el;
+            let checkEl = iframeEl.parentElement;
+            while (checkEl) {
+                if (checkEl === popupEl) {
+                    // Ignore iframes within popup
+                    return;
+                }
+                checkEl = checkEl.parentElement;
+            }
+            callback(iframeEl);
+        };
+        try {
+            win.addEventListener("pointerdown", handler, { capture: true });
+            armedWindows.add(win);
+            iframeDisposers.push(() =>
+                win.removeEventListener("pointerdown", handler, { capture: true }),
+            );
+        } catch (e) {
+            // In some browsers, if an iframe is loaded from a different
+            // domain accessing it results in a SecurityError.
+            if (e.name !== "SecurityError") {
+                throw e;
+            }
+        }
+    }
+
+    function scanIframes() {
+        for (const iframeEl of document.querySelectorAll("iframe")) {
+            armIframe(/** @type {HTMLIFrameElement} */ (iframeEl));
+        }
+    }
+
     function blurHandler(/** @type {Event} */ ev) {
         const target =
             /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
         if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
+            scanIframes();
             return callback(/** @type {Node} */ (target));
         }
     }
@@ -54,33 +105,12 @@ function useClickAway(popover, callback) {
     useEarlyExternalListener(window, "popstate", navigationHandler, {
         capture: true,
     });
-    for (const iframeEl of document.querySelectorAll("iframe")) {
-        try {
-            useEarlyExternalListener(
-                iframeEl.contentWindow,
-                "pointerdown",
-                () => {
-                    const popupEl = popover.popoverRef.el;
-                    let checkEl = iframeEl.parentElement;
-                    while (checkEl) {
-                        if (checkEl === popupEl) {
-                            // Ignore iframes within popup
-                            return;
-                        }
-                        checkEl = checkEl.parentElement;
-                    }
-                    callback(iframeEl);
-                },
-                { capture: true, once: true },
-            );
-        } catch (e) {
-            // In some browsers, if an iframe is loaded from a different
-            // domain accessing it results in a SecurityError.
-            if (e.name !== "SecurityError") {
-                throw e;
-            }
+    scanIframes();
+    onWillDestroy(() => {
+        for (const dispose of iframeDisposers) {
+            dispose();
         }
-    }
+    });
 }
 
 const POPOVERS = new WeakMap();
@@ -202,9 +232,17 @@ export class Popover extends Component {
                 useHotkey("escape", () => this.props.close());
             }
             const targetObserver = new MutationObserver(this.onTargetMutate.bind(this));
-            targetObserver.observe(this.props.target.parentElement, {
-                childList: true,
-            });
+            // Observe the target's parent for child-list changes so the popover
+            // closes once its target is detached. Fall back to the root node
+            // when the parent is not an element (ShadowRoot/Document), whose
+            // `parentElement` is null. Deliberately NOT `subtree: true`:
+            // observing the whole document fires onTargetMutate on every
+            // unrelated mutation and transiently closes popovers whose target
+            // is re-rendered in place by Owl (e.g. the properties definition
+            // popover, whose dropdowns then never populate).
+            const observedNode =
+                this.props.target.parentElement || this.props.target.getRootNode();
+            targetObserver.observe(observedNode, { childList: true });
             onWillDestroy(() => targetObserver.disconnect());
         } else {
             this.props.close();

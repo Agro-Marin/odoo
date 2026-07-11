@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import {
     clickSave,
     contains,
@@ -75,6 +75,53 @@ test("JsonCheckBoxesField", async () => {
     expect("div.o_field_widget div.form-check input:eq(1)").toBeChecked();
 
     expect.verifySteps(["web_save", "web_save"]);
+});
+
+test("JsonCheckBoxesField (unset json value)", async () => {
+    Partner._records[0].json_checkboxes_field = false;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <group>
+                    <field name="json_checkboxes_field" widget="json_checkboxes" />
+                </group>
+            </form>`,
+    });
+
+    expect("div.o_field_widget[name=json_checkboxes_field]").toHaveCount(1, {
+        message: "an unset json value must render an empty widget, not crash",
+    });
+    expect("div.o_field_widget div.form-check").toHaveCount(0);
+});
+
+test("JsonCheckBoxesField (discard restores the original value)", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <group>
+                    <field name="json_checkboxes_field" widget="json_checkboxes" />
+                </group>
+            </form>`,
+    });
+
+    await contains("div.o_field_widget div.form-check input:eq(1)").click();
+    await runAllTimers();
+    expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
+
+    await contains(".o_form_button_cancel").click();
+    // The observer resync (rAF-batched) + its owl re-render land a frame after
+    // the click's own animationFrame, so wait for them before asserting.
+    await animationFrame();
+    expect("div.o_field_widget div.form-check input:eq(0)").toBeChecked();
+    expect("div.o_field_widget div.form-check input:eq(1)").not.toBeChecked({
+        message: "discard must roll the checkbox back to the record value",
+    });
 });
 
 test("JsonCheckBoxesField (readonly field)", async () => {

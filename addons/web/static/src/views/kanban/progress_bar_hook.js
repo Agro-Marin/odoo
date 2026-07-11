@@ -91,7 +91,17 @@ class ProgressBarState {
         this._pbCounts = null;
         // Stale-response guards for the concurrent refresh RPCs (see updateCounts)
         this._pbEpoch = 0;
+        // Epoch for fetches writing `_aggregateValues` (full-domain
+        // _updateAggregates and group-scoped _updateAggregatesForGroups).
+        // Fetches writing `activeBars[*].aggregates` (_updateAggregateGroup)
+        // target per-(group, bar) state instead and use per-group epochs, so
+        // the two kinds of fetch never discard each other's responses.
         this._aggEpoch = 0;
+        /** @type {Map<*, number>} keyed by group serverValue */
+        this._groupAggEpochs = new Map();
+        // Deselections in flight (see _deselectEmptyActiveBars), keyed by
+        // group serverValue, to avoid firing the same reload twice.
+        this._pendingBarDeselections = new Set();
         // Pending drag & drop moves, keyed by record datapoint id (see registerRecordMove)
         this._recordMoves = new Map();
     }
@@ -156,18 +166,14 @@ class ProgressBarState {
                 color: "200",
             });
 
-            // Update activeBars count and aggreagates
+            // Update activeBars count and aggregates. Deselecting an emptied
+            // active bar is NOT done here: getGroupInfo runs on render paths,
+            // so the applyFilter RPC lives in _deselectEmptyActiveBars
+            // (data-update paths) instead.
             if (this.activeBars[group.serverValue]) {
                 this.activeBars[group.serverValue].count = bars.find(
                     (x) => x.value === this.activeBars[group.serverValue].value,
                 ).count;
-
-                if (this.activeBars[group.serverValue].count === 0) {
-                    group.applyFilter(undefined).then(() => {
-                        delete this.activeBars[group.serverValue];
-                        group.model.notify();
-                    });
-                }
 
                 if (this._aggregateFields.length) {
                     // No need to recompute: formatted_read_group already ran
@@ -302,10 +308,12 @@ class ProgressBarState {
      * @returns {Promise<void>}
      */
     async _updateAggregateGroup(group, bars, activeBar) {
-        // Same stale-response protocol as the other aggregate fetchers
-        // (_updateAggregates/_updateAggregatesForGroups/loadProgressBar):
-        // a superseded RPC response must not overwrite activeBar.aggregates.
-        const epoch = ++this._aggEpoch;
+        // Per-group stale-response guard: a superseded fetch for the SAME
+        // group must not overwrite activeBar.aggregates, but fetches for
+        // other groups (or the _aggregateValues fetchers) write different
+        // targets and must not discard this one.
+        const epoch = (this._groupAggEpochs.get(group.serverValue) || 0) + 1;
+        this._groupAggEpochs.set(group.serverValue, epoch);
         const filterDomain = _createFilterDomain(
             this.progressAttributes.fieldName,
             bars,
@@ -324,8 +332,8 @@ class ProgressBarState {
             aggregateSpecs,
             kwargs,
         );
-        if (epoch !== this._aggEpoch) {
-            return;
+        if (epoch !== this._groupAggEpochs.get(group.serverValue)) {
+            return; // a more recent fetch for this group superseded this one
         }
         if (groups.length) {
             const groupByField = group.groupByField;
@@ -397,6 +405,14 @@ class ProgressBarState {
      * @param {string} targetGroupId
      */
     registerRecordMove(recordId, sourceGroupId, targetGroupId) {
+        if (this._recordMoves.has(recordId)) {
+            // A previous move of the same record is still pending (its save
+            // hasn't been reconciled yet). Registering the new one would make
+            // the first save consume the wrong {source, target, sourceValue}
+            // pair; ignoring it makes the second save fall back to a full,
+            // authoritative refresh instead.
+            return;
+        }
         const groups = this.model.root.groups || [];
         const sourceGroup = groups.find((g) => g.id === sourceGroupId);
         const record = sourceGroup?.list.records.find((r) => r.id === recordId);
@@ -564,6 +580,13 @@ class ProgressBarState {
                 this._updateProgressBar().catch((error) => console.error(error));
                 if (this._aggregateFields.length) {
                     this._updateAggregates().catch((error) => console.error(error));
+                    // _updateAggregates only rewrites _aggregateValues; the
+                    // headers of groups with an active bar read
+                    // activeBars[*].aggregates, so refresh those too — the
+                    // trailing refresh must be authoritative for both.
+                    for (const group of this.model.root.groups || []) {
+                        this.updateAggregateGroup(group);
+                    }
                 }
             }, MOVE_RECONCILE_DELAY);
         }
@@ -577,7 +600,12 @@ class ProgressBarState {
     updateAggregateGroup(group) {
         if (group && this.activeBars[group.serverValue]) {
             const { bars } = this.getGroupInfo(group);
-            this._updateAggregateGroup(group, bars, this.activeBars[group.serverValue]);
+            // Fire-and-forget refresh: catch to avoid unhandled rejections
+            this._updateAggregateGroup(
+                group,
+                bars,
+                this.activeBars[group.serverValue],
+            ).catch((error) => console.error(error));
         }
     }
 
@@ -658,6 +686,44 @@ class ProgressBarState {
                 this.activeBars[group.serverValue].count = groupInfo.bars.find(
                     (x) => x.value === this.activeBars[group.serverValue].value,
                 ).count;
+            }
+        }
+        this._deselectEmptyActiveBars();
+    }
+
+    /**
+     * Drop active bar selections whose segment count reached 0 (e.g. a
+     * restored selection whose records are gone, or a reload that emptied
+     * the bar), removing the group filter. Data-update counterpart of the
+     * count sync done in ``getGroupInfo``, which runs on render paths and
+     * must stay side-effect free.
+     */
+    _deselectEmptyActiveBars() {
+        if (this._pbCounts === null) {
+            return;
+        }
+        for (const group of this.model.root.groups) {
+            if (group.isFolded) {
+                continue;
+            }
+            const activeBar = this.activeBars[group.serverValue];
+            if (!activeBar || this._pendingBarDeselections.has(group.serverValue)) {
+                continue;
+            }
+            const { bars } = this.getGroupInfo(group);
+            const count = bars.find((x) => x.value === activeBar.value)?.count || 0;
+            if (count === 0) {
+                this._pendingBarDeselections.add(group.serverValue);
+                group
+                    .applyFilter(undefined)
+                    .then(() => {
+                        delete this.activeBars[group.serverValue];
+                        group.model.notify();
+                    })
+                    .catch((error) => console.error(error))
+                    .finally(() =>
+                        this._pendingBarDeselections.delete(group.serverValue),
+                    );
             }
         }
     }
@@ -782,6 +848,12 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             // view paints asap while the progress bar loads async.
             return prom.then(() => progressBarState._refreshBars());
         }
+        // First load (non-blocking): once the bars are known, drop restored
+        // active bar selections that turn out to be empty — getGroupInfo no
+        // longer does this from the render path.
+        prom.then(() => progressBarState._deselectEmptyActiveBars()).catch((error) =>
+            console.error(error),
+        );
     };
     onWillDestroy(() => progressBarState._moveReconcileDebounced?.cancel());
 

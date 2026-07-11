@@ -24,14 +24,23 @@ export function useTagNavigation(refName, options = {}) {
 
     const onBackspaceKeydown = (navigator) => {
         const el = navigator.activeItem.el;
+        // Tag indices are computed relative to the actual tag items rather
+        // than assuming the input is the last navigable item, so a template
+        // reordering can't silently delete the wrong tag.
+        const tagItems = navigator.items.filter((item) =>
+            item.el.classList.contains("o_tag"),
+        );
         if (el.classList.contains("o-autocomplete--input")) {
-            if (!el.value && navigator.items.length > 1) {
-                options.delete(navigator.items.length - 2);
+            if (!el.value && tagItems.length) {
+                options.delete(tagItems.length - 1);
             }
         } else {
-            options.delete(navigator.activeItemIndex);
+            options.delete(tagItems.indexOf(navigator.activeItem));
         }
-        navigator.items.at(-1).setActive();
+        const inputItem = navigator.items.find((item) =>
+            item.el.classList.contains("o-autocomplete--input"),
+        );
+        (inputItem ?? navigator.items.at(-1)).setActive();
     };
 
     const canNavigateFromInput = (navigator, navNext) => {

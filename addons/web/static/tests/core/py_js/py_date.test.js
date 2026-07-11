@@ -250,6 +250,29 @@ describe("datetime.time", () => {
             JSON.stringify(evaluateExpr("datetime.time(hour=11,minute=45,second=15)")),
         ).toBe(`"11:45:15"`);
     });
+
+    test("time equality compares the time of day", () => {
+        expect(evaluateExpr("datetime.time(1,0) == datetime.time(1,0)")).toBe(true);
+        expect(evaluateExpr("datetime.time(1,0) == datetime.time(2,0)")).toBe(false);
+        expect(evaluateExpr("datetime.time(1,0) == datetime.date(2020,1,1)")).toBe(
+            false,
+        );
+    });
+
+    test("time supports no arithmetic (Python TypeError)", () => {
+        expect(() =>
+            evaluateExpr("datetime.time(1,0) + datetime.timedelta(hours=1)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.time(1,0) - datetime.timedelta(hours=1)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.time(1,0) - datetime.time(0,30)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.date(2020,1,1) - datetime.time(1,0)"),
+        ).toThrow();
+    });
 });
 
 describe("relativedelta relative : period is plural", () => {
@@ -370,6 +393,43 @@ describe("relativedelta absolute : period is singular", () => {
 
         const expr2 = "relativedelta(month=-1)";
         expect(() => evaluateExpr(expr2)).toThrow("month -1 is out of range");
+    });
+
+    test("throws when absolute period is out of its dateutil range", () => {
+        // dateutil/CPython reject these when the delta is applied
+        // (IllegalMonthError / ValueError from datetime.replace); the check
+        // is made eagerly here instead of silently normalizing.
+        expect(() => evaluateExpr("relativedelta(month=15)")).toThrow(
+            "month 15 is out of range",
+        );
+        expect(() => evaluateExpr("relativedelta(month=0)")).toThrow(
+            "month 0 is out of range",
+        );
+        expect(() => evaluateExpr("relativedelta(hour=25)")).toThrow(
+            "hour 25 is out of range",
+        );
+        expect(() => evaluateExpr("relativedelta(minute=61)")).toThrow(
+            "minute 61 is out of range",
+        );
+        expect(() => evaluateExpr("relativedelta(second=61)")).toThrow(
+            "second 61 is out of range",
+        );
+        expect(() => evaluateExpr("relativedelta(day=0)")).toThrow(
+            "day 0 is out of range",
+        );
+        expect(() => evaluateExpr("relativedelta(year=0)")).toThrow(
+            "year 0 is out of range",
+        );
+        // day past month-end is VALID: dateutil clamps to the last day
+        expect(
+            evaluateExpr(
+                "(datetime.date(2020,2,10) + relativedelta(day=45)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2020-02-29");
+        // boundary values pass
+        expect(() => evaluateExpr("relativedelta(month=12, hour=23)")).not.toThrow();
+        // relative (plural) args stay unbounded
+        expect(() => evaluateExpr("relativedelta(months=-15)")).not.toThrow();
     });
 
     test("adding date and relative delta", () => {

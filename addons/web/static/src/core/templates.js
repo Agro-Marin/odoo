@@ -244,9 +244,25 @@ export class TemplateRegistry {
     registerTemplate(name, url, templateString) {
         const key = getKey([name, url, templateString]);
         if (this.registered.has(key)) {
-            return;
+            // Verify the hit against the actual stored registration: the
+            // dedup keys are 53-bit hashes, and treating a (however
+            // unlikely) collision as a duplicate would silently skip
+            // registering a template — an undiagnosable failure mode. A
+            // mismatch falls through to a real registration attempt.
+            if (
+                this.templates[name] === templateString &&
+                this.info[name]?.url === url
+            ) {
+                // True duplicate: return a callable no-op so
+                // ``const un = registerTemplate(...); un()`` works
+                // regardless of registration order in test lifecycles.
+                // Unregistration stays owned by the FIRST registration's
+                // callback.
+                return () => {};
+            }
+        } else {
+            this.registered.add(key);
         }
-        this.registered.add(key);
         log("register", name, "url=", url);
         if (this.blockType !== "templates") {
             this.blockType = "templates";
@@ -291,9 +307,21 @@ export class TemplateRegistry {
     registerTemplateExtension(inheritFrom, url, templateString) {
         const key = getKey([inheritFrom, url, templateString]);
         if (this.registered.has(key)) {
-            return;
+            // Same hash-collision guard as ``registerTemplate``: only treat
+            // the hit as a duplicate if this exact extension is registered.
+            const isRegistered = Object.values(
+                this.templateExtensions[inheritFrom] || {},
+            ).some((block) =>
+                block.some(
+                    (ext) => ext.templateString === templateString && ext.url === url,
+                ),
+            );
+            if (isRegistered) {
+                return () => {};
+            }
+        } else {
+            this.registered.add(key);
         }
-        this.registered.add(key);
         if (this.blockType !== "extensions") {
             this.blockType = "extensions";
             this.blockId++;

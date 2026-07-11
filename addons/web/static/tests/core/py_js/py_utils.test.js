@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { evaluateExpr, formatAST, parseExpr } from "@web/core/py_js/py";
-import { PyDate, PyDateTime } from "@web/core/py_js/py_date";
+import { PyDate, PyDateTime, PyTime } from "@web/core/py_js/py_date";
 import { toPyValue } from "@web/core/py_js/py_utils";
 
 const checkAST = (expr, message = expr) => {
@@ -240,12 +240,15 @@ describe("toPyValue", () => {
         expect(formatAST(ast)).toBe('{"a": 1}');
     });
 
+    // Date-like values are serialized EAGERLY: the node is a genuine string
+    // AST (it used to smuggle the Py* instance as `value`, which relied on
+    // formatAST's JSON.stringify calling toJSON). formatAST output unchanged.
     test("toPyValue a date", () => {
         const date = new Date(Date.UTC(2000, 0, 1));
         const ast = toPyValue(date);
         expect(ast.type).toBe(1);
         const expectedValue = PyDateTime.convertDate(date);
-        expect(ast.value.isEqual(expectedValue)).toBe(true);
+        expect(ast.value).toBe(expectedValue.strftime("%Y-%m-%d %H:%M:%S"));
         expect(formatAST(ast)).toBe(JSON.stringify(expectedValue));
     });
 
@@ -254,7 +257,7 @@ describe("toPyValue", () => {
         const ast = toPyValue(datetime);
         expect(ast.type).toBe(1);
         const expectedValue = PyDateTime.convertDate(datetime);
-        expect(ast.value.isEqual(expectedValue)).toBe(true);
+        expect(ast.value).toBe(expectedValue.strftime("%Y-%m-%d %H:%M:%S"));
         expect(formatAST(ast)).toBe(JSON.stringify(expectedValue));
     });
 
@@ -262,7 +265,7 @@ describe("toPyValue", () => {
         const value = new PyDate(2000, 1, 1);
         const ast = toPyValue(value);
         expect(ast.type).toBe(1);
-        expect(ast.value).toBe(value);
+        expect(ast.value).toBe("2000-01-01");
         expect(formatAST(ast)).toBe(JSON.stringify(value));
     });
 
@@ -270,7 +273,15 @@ describe("toPyValue", () => {
         const value = new PyDateTime(2000, 1, 1, 1, 0, 0, 0);
         const ast = toPyValue(value);
         expect(ast.type).toBe(1);
-        expect(ast.value).toBe(value);
+        expect(ast.value).toBe("2000-01-01 01:00:00");
+        expect(formatAST(ast)).toBe(JSON.stringify(value));
+    });
+
+    test("toPyValue a PyTime", () => {
+        const value = PyTime.create(11, 45, 15);
+        const ast = toPyValue(value);
+        expect(ast.type).toBe(1);
+        expect(ast.value).toBe("11:45:15");
         expect(formatAST(ast)).toBe(JSON.stringify(value));
     });
 });

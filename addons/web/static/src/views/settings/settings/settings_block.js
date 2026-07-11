@@ -11,7 +11,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { escapeRegExp } from "@web/core/utils/format/strings";
+import { normalizedMatch } from "@web/core/l10n/utils";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
 
 /** Collapsible group of settings within an app tab, with search-based visibility. */
@@ -42,10 +42,9 @@ export class SettingsBlock extends Component {
         this.settingsContainerTipRef = useRef("settingsContainerTip");
         useEffect(
             () => {
-                const regexp = new RegExp(escapeRegExp(this.state.search.value), "i");
                 const force =
                     this.state.search.value &&
-                    !regexp.test([this.props.title, this.props.tip].join()) &&
+                    !this.matchesTitleOrTip() &&
                     !this.settingsContainerRef.el.querySelector(
                         ".o_setting_box.o_searchable_setting",
                     );
@@ -54,13 +53,22 @@ export class SettingsBlock extends Component {
             () => [this.state.search.value],
         );
         onWillRender(() => {
-            const regexp = new RegExp(escapeRegExp(this.state.search.value), "i");
-            if (regexp.test([this.props.title, this.props.tip].join())) {
-                this.showAllContainerState.showAllContainer = true;
-            } else {
-                this.showAllContainerState.showAllContainer = false;
-            }
+            this.showAllContainerState.showAllContainer = this.matchesTitleOrTip();
         });
+    }
+    /**
+     * Whether the search value matches the block title or tip. Uses the same
+     * diacritic-insensitive matching as the individual settings
+     * (searchable_setting.js) and the highlighting, so block visibility never
+     * disagrees with setting visibility on accented text. An empty search
+     * matches (parity with the settings).
+     *
+     * @returns {boolean}
+     */
+    matchesTitleOrTip() {
+        const searchValue = this.state.search.value;
+        const blockText = [this.props.title, this.props.tip].join();
+        return normalizedMatch(blockText, searchValue).start !== -1;
     }
     /**
      * Show or hide the container title, tip, and body based on search match.

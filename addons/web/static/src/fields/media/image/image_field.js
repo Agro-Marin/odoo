@@ -73,12 +73,20 @@ export class ImageField extends Component {
         this.uniqueId = this.props.record.data.write_date;
         let resId = this.props.record.resId;
         let value = this.props.record.data[this.props.name];
+        // Many2one values are fresh `{id, display_name}` objects on every
+        // record reload: compare by content, not identity, so an unrelated
+        // reload doesn't mint a new cache-busting URL and force a refetch.
+        const valueChanged = (value, nextValue) =>
+            this.fieldType === "many2one"
+                ? value?.id !== nextValue?.id ||
+                  value?.display_name !== nextValue?.display_name
+                : value !== nextValue;
         onWillRender(() => {
             const { record } = this.props;
             const nextValue = record.data[this.props.name];
             if (record.resId !== resId) {
                 this.uniqueId = record.data.write_date;
-            } else if (value !== nextValue) {
+            } else if (valueChanged(value, nextValue)) {
                 // A many2one image URL targets the RELATED record, so neither
                 // a dotted-related change nor an m2o dialog edit (which only
                 // refreshes display_name) moves this record's write_date —
@@ -200,9 +208,15 @@ export class ImageField extends Component {
             const ctx = canvas.getContext("2d");
             ctx.drawImage(image, 0, 0);
 
-            info.data = canvas.toDataURL("image/webp").split(",")[1];
-            info.type = "image/webp";
-            info.name = info.name.replace(/\.[^/.]+$/, ".webp");
+            const dataURL = canvas.toDataURL("image/webp");
+            // Browsers without webp encoding support (e.g. old Safari) fall
+            // back to PNG: keep the original format rather than storing
+            // PNG bytes labeled as webp.
+            if (dataURL.startsWith("data:image/webp")) {
+                info.data = dataURL.split(",")[1];
+                info.type = "image/webp";
+                info.name = info.name.replace(/\.[^/.]+$/, ".webp");
+            }
         }
         if (info.type === "image/webp") {
             // Generate alternate sizes and format for reports.
@@ -219,11 +233,16 @@ export class ImageField extends Component {
                 return;
             }
             const originalSize = Math.max(image.width, image.height);
-            const smallerSizes = [1920, 1024, 512, 256, 128].filter(
-                (size) => size < originalSize,
-            );
-            let referenceId = undefined;
-            for (const size of [originalSize, ...smallerSizes]) {
+            // Resized variants need webp re-encoding: skip them on browsers
+            // without webp encoding support (the canvas falls back to PNG).
+            const canEncodeWebp = document
+                .createElement("canvas")
+                .toDataURL("image/webp")
+                .startsWith("data:image/webp");
+            const smallerSizes = canEncodeWebp
+                ? [1920, 1024, 512, 256, 128].filter((size) => size < originalSize)
+                : [];
+            const variants = [originalSize, ...smallerSizes].map((size) => {
                 const ratio = size / originalSize;
                 const canvas = document.createElement("canvas");
                 canvas.width = image.width * ratio;
@@ -244,41 +263,52 @@ export class ImageField extends Component {
                     canvas.width,
                     canvas.height,
                 );
-                const [resizedId] = await this.orm.call(
-                    "ir.attachment",
-                    "create_unique",
-                    [
-                        [
-                            {
-                                name: info.name,
-                                description:
-                                    size === originalSize ? "" : `resize: ${size}`,
-                                datas:
-                                    size === originalSize
-                                        ? info.data
-                                        : canvas.toDataURL("image/webp").split(",")[1],
-                                res_id: referenceId,
-                                res_model: "ir.attachment",
-                                mimetype: "image/webp",
-                            },
-                        ],
-                    ],
-                );
-                referenceId = referenceId || resizedId; // Keep track of original.
-                // Converted to JPEG for use in PDF files, alpha values will default to white
-                await this.orm.call("ir.attachment", "create_unique", [
-                    [
-                        {
-                            name: info.name.replace(/\.webp$/, ".jpg"),
-                            description: "format: jpeg",
-                            datas: canvas.toDataURL("image/jpeg").split(",")[1],
-                            res_id: resizedId,
-                            res_model: "ir.attachment",
-                            mimetype: "image/jpeg",
-                        },
-                    ],
-                ]);
-            }
+                return { size, canvas };
+            });
+            // The original must be created first: the resized variants
+            // reference its id. Batch the rest (create_unique returns ids in
+            // input order) instead of two sequential RPCs per size.
+            const [originalId] = await this.orm.call("ir.attachment", "create_unique", [
+                [
+                    {
+                        name: info.name,
+                        description: "",
+                        datas: info.data,
+                        res_model: "ir.attachment",
+                        mimetype: "image/webp",
+                    },
+                ],
+            ]);
+            const resizedVariants = variants.filter(
+                ({ size }) => size !== originalSize,
+            );
+            const resizedIds = resizedVariants.length
+                ? await this.orm.call("ir.attachment", "create_unique", [
+                      resizedVariants.map(({ size, canvas }) => ({
+                          name: info.name,
+                          description: `resize: ${size}`,
+                          datas: canvas.toDataURL("image/webp").split(",")[1],
+                          res_id: originalId,
+                          res_model: "ir.attachment",
+                          mimetype: "image/webp",
+                      })),
+                  ])
+                : [];
+            const idBySize = new Map([
+                [originalSize, originalId],
+                ...resizedVariants.map(({ size }, index) => [size, resizedIds[index]]),
+            ]);
+            // Converted to JPEG for use in PDF files, alpha values will default to white
+            await this.orm.call("ir.attachment", "create_unique", [
+                variants.map(({ size, canvas }) => ({
+                    name: info.name.replace(/\.webp$/, ".jpg"),
+                    description: "format: jpeg",
+                    datas: canvas.toDataURL("image/jpeg").split(",")[1],
+                    res_id: idBySize.get(size),
+                    res_model: "ir.attachment",
+                    mimetype: "image/jpeg",
+                })),
+            ]);
         }
         this.props.record.update({ [this.props.name]: info.data });
     }

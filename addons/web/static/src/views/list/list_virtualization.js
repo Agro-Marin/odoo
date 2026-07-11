@@ -194,21 +194,6 @@ export function useListVirtualization({
 
             let [start, end] = indexes;
 
-            // Keep the edited record within the visible range
-            const editedRecord = getEditedRecord();
-            if (editedRecord) {
-                const editedRow = gridState.findRowByRecordId(String(editedRecord.id));
-                if (editedRow) {
-                    const editIdx = editedRow.globalIndex;
-                    if (editIdx < start) {
-                        start = editIdx;
-                    }
-                    if (editIdx > end) {
-                        end = editIdx;
-                    }
-                }
-            }
-
             start = Math.max(0, start);
             end = Math.min(rowCount - 1, end);
 
@@ -225,6 +210,31 @@ export function useListVirtualization({
             topHeight = start > 0 ? cumHeights[start - 1] : 0;
             bottomHeight =
                 end < rowCount - 1 ? cumHeights[rowCount - 1] - cumHeights[end] : 0;
+
+            // Keep the edited record rendered even when scrolled out of the
+            // window, as an extra "island" row adjacent to the spacer on its
+            // side (NOT by extending the window to include it, which would
+            // materialize every row in between). The rows template keys rows
+            // by record id, so the row component — and with it focus and
+            // pending input — survives island ↔ window transitions. The
+            // island renders at the window edge rather than at its true
+            // offset, but that slot is beyond the buffer, hence off-screen;
+            // the spacer on that side shrinks by the row's height to keep
+            // the total scroll height exact.
+            const editedRecord = getEditedRecord();
+            if (editedRecord) {
+                const editedRow = gridState.findRowByRecordId(String(editedRecord.id));
+                if (editedRow) {
+                    const editIdx = editedRow.globalIndex;
+                    if (editIdx < start) {
+                        visible = [editedRow, ...visible];
+                        topHeight = Math.max(0, topHeight - heights[editIdx]);
+                    } else if (editIdx > end) {
+                        visible = [...visible, editedRow];
+                        bottomHeight = Math.max(0, bottomHeight - heights[editIdx]);
+                    }
+                }
+            }
         },
     };
 

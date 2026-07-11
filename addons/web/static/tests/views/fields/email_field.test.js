@@ -38,6 +38,20 @@ test("in form view", async () => {
     expect(`.o_field_email input[type="email"]`).toHaveValue("new@odoo.com");
 });
 
+test("required attribute is forwarded to the input", async () => {
+    Contact._records = [{ id: 1, email: "john.doe@odoo.com" }];
+    await mountView({
+        type: "form",
+        resModel: "contact",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="email" widget="email" required="1"/>
+            </form>`,
+    });
+    expect(`.o_field_email input[type="email"]`).toHaveAttribute("required");
+});
+
 test("in editable list view", async () => {
     Contact._records = [
         { id: 1, email: "john.doe@odoo.com" },

@@ -85,6 +85,7 @@ export class CustomColorPicker extends Component {
         );
 
         this.elRef = useRef("el");
+        this.hexInputRef = useRef("hexInput");
         this.colorPickerAreaRef = useRef("colorPickerArea");
         this.colorPickerPointerRef = useRef("colorPickerPointer");
         this.colorSliderRef = useRef("colorSlider");
@@ -268,12 +269,10 @@ export class CustomColorPicker extends Component {
             : this.opacitySliderRef.el;
         const opacitySliderHeight = opacitySlider ? opacitySlider.clientHeight : 0;
 
-        // Update inputs
-        for (const [color, value] of Object.entries(this.colorComponents)) {
-            const input = this.el.querySelector(`.o_${color}_input`);
-            if (input) {
-                /** @type {HTMLInputElement} */ (input).value = value;
-            }
+        // Update the hex input (the only input in the template)
+        if (this.hexInputRef.el) {
+            /** @type {HTMLInputElement} */ (this.hexInputRef.el).value =
+                this.colorComponents.hex;
         }
 
         // Update picker area and picker pointer position
@@ -701,32 +700,9 @@ export class CustomColorPicker extends Component {
      */
     onChangeInputs(ev) {
         const target = /** @type {HTMLInputElement} */ (ev.target);
-        switch (target.dataset.colorMethod) {
-            case "hex":
-                // Handled by the "input" event (see "onHexColorInput").
-                return;
-            case "hsl":
-                this._updateHsl(
-                    Number.parseInt(
-                        /** @type {HTMLInputElement} */ (
-                            this.el.querySelector(".o_hue_input")
-                        ).value,
-                        10,
-                    ),
-                    Number.parseInt(
-                        /** @type {HTMLInputElement} */ (
-                            this.el.querySelector(".o_saturation_input")
-                        ).value,
-                        10,
-                    ),
-                    Number.parseInt(
-                        /** @type {HTMLInputElement} */ (
-                            this.el.querySelector(".o_lightness_input")
-                        ).value,
-                        10,
-                    ),
-                );
-                break;
+        if (target.dataset.colorMethod === "hex") {
+            // Handled by the "input" event (see "onHexColorInput").
+            return;
         }
         this._updateUI();
         this._colorSelected();

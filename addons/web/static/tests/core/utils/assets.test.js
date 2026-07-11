@@ -104,6 +104,26 @@ test("loadCSS: concurrent loads of the same url share one link + retry chain", a
     expect(appended).toBe(4);
 });
 
+test("loadCSS: content-addressed bundle URLs fail fast without retries", async () => {
+    // A /web/assets/ stylesheet URL is content-addressed: re-requesting the
+    // same URL after a 404 (attachment GC-swept) can never succeed, so the
+    // retry chain must be skipped — recovery is the loader shim's one-shot
+    // page reload (handleAssetLoadError), which mints fresh URLs.
+    patchWithCleanup(assets, {
+        retries: { count: 3, delay: 1, extraDelay: 1 },
+    });
+    let appended = 0;
+    mockHeadAppendChild((node) => {
+        appended++;
+        manuallyDispatchProgrammaticEvent(node, "error");
+    });
+
+    await expect(loadCSS("/web/assets/1/web.assets_web.min.css")).rejects.toThrow(
+        /The loading of \/web\/assets\/1\/web.assets_web.min.css failed/,
+    );
+    expect(appended).toBe(1);
+});
+
 test("loadBundle: load js and css files", async () => {
     mockFetch((route) => {
         expect.step(`fetch bundle: ${route.pathname}`);

@@ -34,10 +34,15 @@ export const frequentEmojiService = {
             incrementEmojiUsage(codepoints) {
                 state.all[codepoints] ??= 0;
                 state.all[codepoints]++;
-                browser.localStorage.setItem(
-                    "web.emoji.frequent",
-                    JSON.stringify(state.all),
-                );
+                try {
+                    browser.localStorage.setItem(
+                        "web.emoji.frequent",
+                        JSON.stringify(state.all),
+                    );
+                } catch {
+                    // localStorage unavailable/full: usage tracking simply
+                    // isn't persisted; picking the emoji must still work.
+                }
             },
             /**
              * Return the most frequently used emoji codepoints, sorted by usage.

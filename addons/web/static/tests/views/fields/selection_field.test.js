@@ -148,6 +148,40 @@ test("SelectionField, edition and on many2one field", async () => {
     ]);
 });
 
+test("SelectionField on a many2one passes the field context to name_search", async () => {
+    onRpc("product", "name_search", ({ kwargs }) => {
+        expect.step(`name_search special_key: ${kwargs.context.special_key}`);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 2,
+        arch: /* xml */ `
+            <form>
+                <field name="product_id" widget="selection" context="{'special_key': 1}" />
+            </form>`,
+    });
+    expect.verifySteps(["name_search special_key: 1"]);
+});
+
+test("SelectionField keeps a current many2one value excluded by the domain", async () => {
+    Partner._records[1].product_id = 41;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 2,
+        arch: /* xml */ `
+            <form>
+                <field name="product_id" widget="selection" domain="[('name', '=', 'xphone')]" />
+            </form>`,
+    });
+
+    await contains(".o_field_widget[name='product_id'] input").click();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["xphone", "xpad"], {
+        message: "the selected record must stay visible even if domain-filtered",
+    });
+});
+
 test("unset selection field with 0 as key", async () => {
     // The server can't distinguish "unset" from selection value 0 — both
     // return false — so the client must convert false to 0 when it exists.

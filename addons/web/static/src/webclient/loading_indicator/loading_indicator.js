@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/loading_indicator/loading_indicator - Loading indicator counting active RPCs and blocking the UI after a 3s delay */
+/** @module @web/webclient/loading_indicator/loading_indicator - Loading indicator showing the count of active RPCs after a short display delay */
 
 import { Component, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
@@ -11,8 +11,8 @@ import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 /**
- * Shows a "Loading" rectangle with the count of running RPCs; blocks the UI
- * if an RPC is still pending after 3s.
+ * Shows a "Loading" rectangle with the count of running RPCs, after a 250ms
+ * delay so short bursts of fast RPCs don't flash it.
  */
 export class LoadingIndicator extends Component {
     static template = "web.LoadingIndicator";
@@ -44,7 +44,9 @@ export class LoadingIndicator extends Component {
             }, 250);
         }
         this.rpcIds.add(detail.data.id);
-        this.state.count++;
+        // Single source of truth (mirrors responseCall): the badge can never
+        // desynchronize from the tracked ids, whatever an emitter does.
+        this.state.count = this.rpcIds.size;
     }
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */

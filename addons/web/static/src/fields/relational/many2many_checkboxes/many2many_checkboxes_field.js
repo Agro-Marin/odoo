@@ -51,7 +51,16 @@ export class Many2ManyCheckboxesField extends Component {
                 ev.detail.proms.push(result);
             }
         });
-        onWillUnmount(this.commitChanges.bind(this));
+        useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) => {
+            const result = this.commitChanges();
+            if (result) {
+                ev.detail?.proms?.push(result);
+            }
+        });
+        onWillUnmount(() => {
+            this.debouncedCommitChanges.cancel();
+            this.commitChanges();
+        });
     }
 
     /** @returns {Array<[number, string]>} Name-search results for available checkboxes */

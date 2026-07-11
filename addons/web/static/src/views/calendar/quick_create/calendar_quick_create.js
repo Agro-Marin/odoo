@@ -5,6 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { RPCError } from "@web/core/network/rpc";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 
@@ -55,8 +56,16 @@ export class CalendarQuickCreate extends Component {
                 this.creatingRecord = true;
                 await this.props.model.createRecord(this.record);
                 this.props.close();
-            } catch {
+            } catch (error) {
+                // Only server (RPC) errors fall back to the full form dialog
+                // (same contract as kanban's showFormDialogInError); anything
+                // else (network loss, client crash) must surface normally.
+                if (!(error instanceof RPCError)) {
+                    throw error;
+                }
                 this.editRecord();
+            } finally {
+                this.creatingRecord = false;
             }
         } else {
             this.titleRef.el.classList.add("o_field_invalid");

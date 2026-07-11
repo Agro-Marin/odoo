@@ -21,6 +21,7 @@ export class SelectionField extends SelectionLikeField {
         placeholder: { type: String, optional: true },
         required: { type: Boolean, optional: true },
         domain: { type: [Array, Function], optional: true },
+        context: { type: Object, optional: true },
         autosave: { type: Boolean, optional: true },
     };
     static defaultProps = {
@@ -96,6 +97,7 @@ export const selectionField = {
             placeholder,
             required: dynamicInfo.required,
             domain: dynamicInfo.domain,
+            context: dynamicInfo.context,
         };
         if (viewType === "kanban") {
             props.readonly = dynamicInfo.readonly;

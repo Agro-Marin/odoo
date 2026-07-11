@@ -51,6 +51,8 @@ export class DomainField extends Component {
         // fired un-awaited from the record observer) cannot resolve out of order
         // and leave a stale count showing.
         this.keepLastCount = new KeepLast();
+        // Same for the facets computation (loadFacets is fired un-awaited too).
+        this.keepLastFacets = new KeepLast();
 
         this.state = useState({
             isValid: null,
@@ -167,43 +169,43 @@ export class DomainField extends Component {
     async loadFacets(props = this.props) {
         const resModel = this.getResModel(props);
 
-        if (!resModel) {
+        // Non-string res models are invalid (this method is fired un-awaited,
+        // so throwing would only surface as an unhandled rejection).
+        if (!resModel || typeof resModel !== "string") {
             this.state.facets = [];
             this.state.folded = false;
             return;
         }
 
-        if (typeof resModel !== "string") {
-            // we don't want to support invalid models
-            throw new Error(`Invalid model: ${resModel}`);
-        }
-
-        let promises = [];
         const domain = this.getDomain(props);
+        let facets;
         try {
-            const tree = await this.treeProcessor.treeFromDomain(
-                resModel,
-                domain,
-                !this.env.debug,
+            facets = await this.keepLastFacets.add(
+                (async () => {
+                    const tree = await this.treeProcessor.treeFromDomain(
+                        resModel,
+                        domain,
+                        !this.env.debug,
+                    );
+                    const castTree = /** @type {any} */ (tree);
+                    const trees =
+                        !castTree.negate && tree.value === "&"
+                            ? castTree.children
+                            : [tree];
+                    return Promise.all(
+                        trees.map((tree) =>
+                            this.treeProcessor.getDomainTreeDescription(resModel, tree),
+                        ),
+                    );
+                })(),
             );
-            const castTree = /** @type {any} */ (tree);
-            const trees =
-                !castTree.negate && tree.value === "&" ? castTree.children : [tree];
-            promises = trees.map((tree) =>
-                this.treeProcessor.getDomainTreeDescription(resModel, tree),
-            );
-        } catch (error) {
-            if (
-                error.data?.name === "builtins.KeyError" &&
-                error.data.message === resModel
-            ) {
-                // we don't want to support invalid models
-                throw new Error(`Invalid model: ${resModel}`, { cause: error });
-            }
+        } catch {
+            // Invalid model / domain: display no facets rather than crashing.
             this.state.facets = [];
             this.state.folded = false;
+            return;
         }
-        this.state.facets = await Promise.all(promises);
+        this.state.facets = facets;
     }
 
     async checkProps(props = this.props) {
@@ -214,8 +216,14 @@ export class DomainField extends Component {
         }
 
         if (typeof resModel !== "string") {
-            // we don't want to support invalid models
-            throw new Error(`Invalid model: ${resModel}`);
+            // Invalid model: flag the field instead of throwing from this
+            // un-awaited async method (unhandled rejection otherwise).
+            this.updateState({
+                isValid: false,
+                recordCount: 0,
+                hasLimitedCount: false,
+            });
+            return;
         }
 
         const domain = this.getEvaluatedDomain(props);
@@ -242,14 +250,9 @@ export class DomainField extends Component {
                     limit,
                 }),
             );
-        } catch (error) {
-            if (
-                error.data?.name === "builtins.KeyError" &&
-                error.data.message === resModel
-            ) {
-                // we don't want to support invalid models
-                throw new Error(`Invalid model: ${resModel}`, { cause: error });
-            }
+        } catch {
+            // Includes the invalid-model KeyError: flag the field instead of
+            // rethrowing from this un-awaited async method.
             this.updateState({
                 isValid: false,
                 recordCount: 0,

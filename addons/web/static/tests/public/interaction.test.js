@@ -1523,6 +1523,25 @@ describe("t-att-class", () => {
         expect(span).not.toHaveClass("b");
     });
 
+    test("multi-class key restores each class to its own initial presence", async () => {
+        class Test extends Interaction {
+            static selector = "span";
+            dynamicContent = {
+                _root: { "t-att-class": () => ({ "e f": true }) },
+            };
+        }
+
+        const { core } = await startInteraction(
+            Test,
+            getTemplateWithAttribute("class='f'"),
+        );
+        expect("span").toHaveClass(["e", "f"]);
+        core.stopInteractions();
+        // "f" was present before the interaction started; only "e" goes away.
+        expect("span").not.toHaveClass("e");
+        expect("span").toHaveClass("f");
+    });
+
     test("reset t-att-class to initial content", async () => {
         class Test extends Interaction {
             static selector = ".test";

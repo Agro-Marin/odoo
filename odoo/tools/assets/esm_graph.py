@@ -619,6 +619,15 @@ def _bridge_shim_source(
     default was requested; the shim then carries only the default/namespace
     fallback.  The flag feeds the ``star_fallback`` telemetry counter in
     ``esm_bridges``.
+
+    CONTRACT (mirrored in ``@web/core/module_bridge``): each
+    ``export const <name> = _m?.<name>`` line is a VALUE SNAPSHOT taken when
+    the bridge evaluates — ES-module live bindings cannot be reproduced by a
+    generated module.  Bridged modules therefore must not rely on mutable
+    ``export let`` bindings reassigned after load; lazily-loaded values must
+    be exposed through a stable ``const`` facade instead (see
+    ``makeLazyFacade`` in ``@web/core/module_bridge`` and its use in
+    ``@web/core/lib/chartjs``/``fullcalendar`` and ``@web/core/utils/pdfjs``).
     """
     # Shim target: the import map entry for this specifier.  The
     # runtime looks the module up in ``odoo.loader.modules``; the

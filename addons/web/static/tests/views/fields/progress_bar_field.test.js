@@ -327,7 +327,7 @@ test("ProgressBarField: readonly and editable attrs/options in kanban", async ()
     });
 });
 
-test("ProgressBarField: write float instead of int works, in locale", async () => {
+test("ProgressBarField: write int in locale format works", async () => {
     expect.assertions(4);
     Partner._records[0].int_field = 99;
     defineParams({
@@ -361,12 +361,95 @@ test("ProgressBarField: write float instead of int works, in locale", async () =
 
     await click(".o_field_widget input");
     await animationFrame();
-    await edit("1#037:9", { confirm: "enter" });
+    await edit("1#037", { confirm: "enter" });
     await animationFrame();
     await clickSave();
     await animationFrame();
     expect(".o_progressbar_value .o_input").toHaveValue("1k", {
         message: "New value should be different than initial after click",
+    });
+});
+
+test("ProgressBarField: write float instead of int is rejected, in locale", async () => {
+    Partner._records[0].int_field = 99;
+    defineParams({
+        lang_parameters: {
+            decimal_point: ":",
+            thousands_sep: "#",
+        },
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+            <form>
+                <field name="int_field" widget="progressbar" options="{'editable': true}"/>
+            </form>`,
+        resId: 1,
+    });
+
+    // Same integrality rule as the integer widget: a fractional value is
+    // rejected instead of being silently floored.
+    await click(".o_progressbar_value .o_input");
+    await animationFrame();
+    await edit("1#037:9", { confirm: "enter" });
+    await animationFrame();
+    await click(".o_form_button_save");
+    await animationFrame();
+    expect(".o_form_status_indicator span.text-danger").toHaveCount(1, {
+        message: "The form has not been saved",
+    });
+});
+
+test("ProgressBarField: out-of-bounds int is rejected", async () => {
+    Partner._records[0].int_field = 99;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+            <form>
+                <field name="int_field" widget="progressbar" options="{'editable': true}"/>
+            </form>`,
+        resId: 1,
+    });
+
+    // parseInteger's int32 bounds check: 1e12 must not reach the server
+    // (psycopg would reject the overflow).
+    await click(".o_progressbar_value .o_input");
+    await animationFrame();
+    await edit("1000000000000", { confirm: "enter" });
+    await animationFrame();
+    await click(".o_form_button_save");
+    await animationFrame();
+    expect(".o_form_status_indicator span.text-danger").toHaveCount(1, {
+        message: "The form has not been saved",
+    });
+});
+
+test("ProgressBarField: value can be edited with a formula", async () => {
+    expect.assertions(2);
+    Partner._records[0].int_field = 99;
+    onRpc("web_save", ({ args }) => {
+        expect(args[1].int_field).toBe(33);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+            <form>
+                <field name="int_field" widget="progressbar" options="{'editable': true}"/>
+            </form>`,
+        resId: 1,
+    });
+
+    await click(".o_progressbar_value .o_input");
+    await animationFrame();
+    await edit("=99/3", { confirm: "enter" });
+    await animationFrame();
+    await clickSave();
+    await animationFrame();
+    expect(".o_progressbar_value .o_input").toHaveValue("33", {
+        message: "The formula result should be committed",
     });
 });
 
@@ -399,6 +482,23 @@ test("ProgressBarField: write gibberish instead of int throws warning", async ()
     expect(".o_form_button_save").toHaveProperty("disabled", true, {
         message: "save button is disabled",
     });
+});
+
+test("ProgressBarField: bar exposes progressbar semantics", async () => {
+    Partner._records[0].int_field = 99;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+            <form>
+                <field name="int_field" widget="progressbar" title="Progress"/>
+            </form>`,
+        resId: 1,
+    });
+
+    expect(".o_progress").toHaveAttribute("role", "progressbar");
+    expect(".o_progress").toHaveAttribute("aria-valuenow", "99");
+    expect(".o_progress").toHaveAttribute("aria-label", "Progress");
 });
 
 test("ProgressBarField: color is correctly set when value > max value", async () => {

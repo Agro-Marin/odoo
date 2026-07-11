@@ -84,23 +84,32 @@ export const pwaService = {
         });
 
         /**
+         * Read the whole persisted state map from localStorage.
+         * A corrupted value must not throw: at service start an unguarded
+         * parse error would take pwa (and its dependents) down on every
+         * boot, and later in show()/decline() it would break the install
+         * flow. Treat it as no state (the next write resets it).
+         * @returns {Record<string, string>}
+         */
+        function _readState() {
+            try {
+                return (
+                    JSON.parse(
+                        browser.localStorage.getItem("pwaService.installationState"),
+                    ) || {}
+                );
+            } catch {
+                return {};
+            }
+        }
+
+        /**
          * Read the installation state from localStorage for a given scope.
          * @param {string} [scope] - defaults to the current startUrl
          * @returns {string} "accepted", "dismissed", or ""
          */
         function _getInstallationState(scope = state.startUrl) {
-            let parsed = null;
-            try {
-                parsed = JSON.parse(
-                    browser.localStorage.getItem("pwaService.installationState"),
-                );
-            } catch {
-                // A corrupted localStorage value must not throw here: this runs
-                // at service start, so an unguarded parse error would take pwa
-                // (and its dependents) down on every boot. Treat it as no state.
-                parsed = null;
-            }
-            return parsed ? parsed[scope] : "";
+            return _readState()[scope] || "";
         }
 
         /**
@@ -108,9 +117,7 @@ export const pwaService = {
          * @param {string} value - "accepted" or "dismissed"
          */
         function _setInstallationState(value) {
-            const ls = JSON.parse(
-                browser.localStorage.getItem("pwaService.installationState") || "{}",
-            );
+            const ls = _readState();
             ls[state.startUrl] = value;
             browser.localStorage.setItem(
                 "pwaService.installationState",
@@ -120,9 +127,7 @@ export const pwaService = {
 
         /** Remove the persisted installation state for the current scope. */
         function _removeInstallationState() {
-            const ls = JSON.parse(
-                browser.localStorage.getItem("pwaService.installationState") || "{}",
-            );
+            const ls = _readState();
             delete ls[state.startUrl];
             browser.localStorage.setItem(
                 "pwaService.installationState",
@@ -235,15 +240,22 @@ export const pwaService = {
                 }
             } else if (isBrowserSafari()) {
                 // since those platforms don't support a native installation prompt yet, we
-                // show a custom dialog to explain how to pin the app to the application menu
-                dialog.add(InstallPrompt, {
-                    onClose: () => {
-                        if (onDone) {
-                            onDone({});
-                        }
-                        decline();
+                // show a custom dialog to explain how to pin the app to the application menu.
+                // The callback is a dialog *option* (not a prop): it must fire on every
+                // removal path (ESC, closeAll, ...), not just the explicit close button —
+                // otherwise the dismissal is never persisted and the prompt reappears.
+                dialog.add(
+                    InstallPrompt,
+                    {},
+                    {
+                        onClose: () => {
+                            if (onDone) {
+                                onDone({});
+                            }
+                            decline();
+                        },
                     },
-                });
+                );
             }
         }
 

@@ -1,7 +1,12 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { complexCondition, condition, expression } from "@web/core/tree/condition_tree";
+import {
+    complexCondition,
+    condition,
+    connector,
+    expression,
+} from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
 
 test("expressionFromTree", () => {
@@ -138,4 +143,59 @@ test("expressionFromTree", () => {
         const o = { ...options, ...extraOptions };
         expect(expressionFromTree(expressionTree, o)).toBe(result);
     }
+});
+
+test("expressionFromTree: constant condition leaves", () => {
+    expect(expressionFromTree(condition(1, "=", 1))).toBe("True");
+    expect(expressionFromTree(condition(0, "=", 1))).toBe("False");
+    // A negated TRUE leaf normalizes to (1, "!=", 1), which has no expression
+    // representation: it must THROW (never return an Error object that could
+    // be persisted as the literal text "Error: Invalid condition").
+    expect(() => expressionFromTree(condition(1, "=", 1, true))).toThrow(
+        /Invalid condition/,
+    );
+    expect(() => expressionFromTree(condition(1, "!=", 1))).toThrow(
+        /Invalid condition/,
+    );
+    expect(() => expressionFromTree(condition(0, "=", 2))).toThrow(/Invalid condition/);
+});
+
+test("expressionFromTree: complex conditions are parenthesized when needed", () => {
+    const options = {
+        getFieldDef: (name) => (name === "foo" ? { type: "integer" } : null),
+    };
+    // a bare `or`/ternary inside a connector would regroup on re-parse
+    expect(
+        expressionFromTree(
+            connector("&", [condition("foo", "=", 1), complexCondition("a or b")]),
+            options,
+        ),
+    ).toBe("foo == 1 and ( a or b )");
+    expect(
+        expressionFromTree(
+            connector("&", [
+                condition("foo", "=", 1),
+                complexCondition("x if y else z"),
+            ]),
+            options,
+        ),
+    ).toBe("foo == 1 and ( x if y else z )");
+    // tighter-binding roots stay bare
+    expect(
+        expressionFromTree(
+            connector("&", [
+                condition("foo", "=", 1),
+                complexCondition(`context.get("k")`),
+            ]),
+            options,
+        ),
+    ).toBe(`foo == 1 and context.get("k")`);
+    expect(
+        expressionFromTree(
+            connector("&", [condition("foo", "=", 1), complexCondition("not a")]),
+            options,
+        ),
+    ).toBe("foo == 1 and not a");
+    // at the root, no parentheses
+    expect(expressionFromTree(complexCondition("a or b"), options)).toBe("a or b");
 });

@@ -146,9 +146,8 @@ test("Many2ManyTagsField with and without color on desktop", async () => {
 
     expect("[name=timmy] .o_tag").toHaveCount(0);
     await clickFieldDropdown("timmy");
-    expect("[name='timmy'] .o-autocomplete.dropdown li").toHaveCount(3, {
-        message:
-            "autocomplete dropdown should have 3 entries (2 values + 'Search more...')",
+    expect("[name='timmy'] .o-autocomplete.dropdown li").toHaveCount(2, {
+        message: "autocomplete dropdown should have 2 entries (2 values)",
     });
     await clickFieldDropdownItem("timmy", "gold");
     expect("[name=timmy] .o_tag").toHaveCount(1);
@@ -254,7 +253,7 @@ test("Many2ManyTagsField with color: rendering and edition on desktop", async ()
     await contains("div[name='timmy'] .o-autocomplete.dropdown input").click();
     expect(`.dropdown-item .fw-bold`).toHaveCount(2);
     expect(queryAllTexts`.dropdown-item .fw-bold`).toEqual(["gold", "silver"]);
-    expect(".o-autocomplete--dropdown-menu li").toHaveCount(4);
+    expect(".o-autocomplete--dropdown-menu li").toHaveCount(3);
     expect(".o-autocomplete--dropdown-menu li a:eq(2)").toHaveText("red");
 
     await contains(".o-autocomplete--dropdown-menu li a:eq(2)").click();
@@ -399,7 +398,7 @@ test("Many2ManyTagsField view a domain on desktop", async () => {
 
     await clickFieldDropdown("timmy");
 
-    expect(".o-autocomplete--dropdown-menu li").toHaveCount(3);
+    expect(".o-autocomplete--dropdown-menu li").toHaveCount(2);
 
     expect(".o-autocomplete--dropdown-menu li a:eq(0)").toHaveText("gold");
 
@@ -474,11 +473,10 @@ test("use binary field as the domain on desktop", async () => {
 
     await clickFieldDropdown("timmy");
 
-    expect(".o-autocomplete--dropdown-menu li").toHaveCount(3);
+    expect(".o-autocomplete--dropdown-menu li").toHaveCount(2);
     expect(queryAllTexts(".o-autocomplete--dropdown-menu li")).toEqual([
         "gold",
         "silver",
-        "Search more...",
     ]);
     expect(".o-autocomplete--dropdown-menu li a:eq(0)").toHaveText("gold");
 
@@ -541,13 +539,13 @@ test("Domain: allow python code domain in fieldInfo on desktop", async () => {
 
     // foo set => only silver (id=5) selectable
     await clickFieldDropdown("timmy");
-    expect(".o-autocomplete--dropdown-menu li").toHaveCount(2);
+    expect(".o-autocomplete--dropdown-menu li").toHaveCount(1);
     expect(".o-autocomplete--dropdown-menu li a:eq(0)").toHaveText("silver");
 
     // set foo = "" => only gold (id=2) selectable
     await contains("[name=foo] input").clear();
     await clickFieldDropdown("timmy");
-    expect(".o-autocomplete--dropdown-menu li").toHaveCount(2);
+    expect(".o-autocomplete--dropdown-menu li").toHaveCount(1);
     expect(".o-autocomplete--dropdown-menu li a:eq(0)").toHaveText("gold");
 });
 
@@ -571,7 +569,7 @@ test("Many2ManyTagsField in a new record on desktop", async () => {
     expect(".o_form_view .o_form_editable").toHaveCount(1);
 
     await clickFieldDropdown("timmy");
-    expect("[name='timmy'] .o-autocomplete.dropdown li").toHaveCount(3);
+    expect("[name='timmy'] .o-autocomplete.dropdown li").toHaveCount(2);
     await clickFieldDropdownItem("timmy", "gold");
 
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
@@ -1461,7 +1459,7 @@ test("Many2ManyTagsField supports 'create' props to be a Boolean on desktop", as
 
     await contains(".o_field_many2many_tags input").click();
     expect(".o_field_many2many_tags .o-autocomplete--dropdown-menu").toHaveText(
-        "gold\nsilver\nSearch more...",
+        "gold\nsilver",
     );
 });
 
@@ -2051,7 +2049,6 @@ test("search typeahead", async () => {
         "gold",
         'Create "gol"',
         "Create and edit...",
-        "Search more...",
     ]);
 });
 

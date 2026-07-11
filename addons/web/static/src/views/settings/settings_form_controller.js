@@ -36,29 +36,27 @@ export class SettingsFormController extends formView.Controller {
         useEffect(
             () => {
                 if (this.searchState.value) {
-                    if (
-                        this.rootRef.el.querySelector(
-                            ".o_settings_container:not(.d-none)",
-                        ) ||
-                        this.rootRef.el.querySelector(
-                            ".settings .o_settings_container:not(.d-none) .o_setting_box.o_searchable_setting",
-                        )
-                    ) {
-                        this.state.displayNoContent = false;
-                    } else {
-                        this.state.displayNoContent = true;
-                    }
+                    // OWL runs effects bottom-up: by the time this controller
+                    // effect runs, SettingsApp and SettingsBlock have already
+                    // applied their d-none classes for the same search value,
+                    // so one selector anchored on non-hidden apps suffices.
+                    this.state.displayNoContent = !this.rootRef.el.querySelector(
+                        ".app_settings_block:not(.d-none) .o_settings_container:not(.d-none)",
+                    );
                 } else {
                     this.state.displayNoContent = false;
                 }
             },
             () => [this.searchState.value],
         );
-        useEffect(() => {
-            if (this.env.__getLocalState__) {
-                this.env.__getLocalState__.remove(this);
-            }
-        });
+        useEffect(
+            () => {
+                if (this.env.__getLocalState__) {
+                    this.env.__getLocalState__.remove(this);
+                }
+            },
+            () => [],
+        );
 
         this.initialApp =
             "module" in this.props.context ? this.props.context.module : "";

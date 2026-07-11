@@ -448,6 +448,42 @@ describe("applyCommands — command log integrity", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Unhandled commands (SET / CLEAR)
+// ---------------------------------------------------------------------------
+
+describe("applyCommands — unhandled commands", () => {
+    test("SET and CLEAR are ignored with a console warning", () => {
+        const SET = 6;
+        const CLEAR = 5;
+        const list = makeList();
+        addRecord(list, 1);
+
+        const warnings = [];
+        const originalWarn = console.warn;
+        console.warn = (...args) => warnings.push(args.join(" "));
+        try {
+            applyCommands(list, [
+                [SET, false, [1, 2]],
+                [CLEAR, false, false],
+            ]);
+        } finally {
+            console.warn = originalWarn;
+        }
+
+        // SET is normally routed around the engine (preprocessX2manyChanges →
+        // _replaceWith); a raw server command list landing here must be loud,
+        // not silently dropped.
+        expect(warnings.length).toBe(2);
+        expect(warnings[0]).toInclude("unhandled x2many command 6");
+        expect(warnings[1]).toInclude("unhandled x2many command 5");
+        // The list itself is untouched.
+        expect(list.records.length).toBe(1);
+        expect(list._currentIds).toEqual([1]);
+        expect(list._commands).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Record loading (page fill / LINK without data)
 // ---------------------------------------------------------------------------
 

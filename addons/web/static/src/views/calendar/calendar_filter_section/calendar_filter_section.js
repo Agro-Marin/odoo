@@ -40,6 +40,9 @@ export class CalendarFilterSection extends Component {
         // ids it emits never collide with a sibling section's.
         this.filterIdBase = nextId++;
         this.filterIdSeq = 0;
+        // Double-click guard for filter removal, cleared in a `finally` so a
+        // failed unlink RPC doesn't leave a zombie remove button.
+        this.unlinkingFilterIds = new Set();
         // Reset the per-render sequence before every render: a given template
         // position then always yields the same id, so element ids stay stable
         // across re-renders instead of churning on each eval (nextFilterId used
@@ -174,12 +177,15 @@ export class CalendarFilterSection extends Component {
         this.render();
     }
 
-    onFilterRemoveBtnClick(filter, ev) {
-        if (!ev.currentTarget.dataset.unlinked) {
-            ev.currentTarget.dataset.unlinked = true;
-            this.props.model.unlinkFilter(this.section.fieldName, filter.recordId);
-            this.render();
+    onFilterRemoveBtnClick(filter) {
+        if (this.unlinkingFilterIds.has(filter.recordId)) {
+            return;
         }
+        this.unlinkingFilterIds.add(filter.recordId);
+        Promise.resolve(
+            this.props.model.unlinkFilter(this.section.fieldName, filter.recordId),
+        ).finally(() => this.unlinkingFilterIds.delete(filter.recordId));
+        this.render();
     }
 
     async onSearchMore(resModel, domain, request) {

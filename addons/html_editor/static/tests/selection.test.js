@@ -10,8 +10,8 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { useAutofocus } from "@web/core/utils/hooks";
-import { Plugin } from "../src/plugin.js";
-import { MAIN_PLUGINS } from "../src/plugin_sets.js";
+import { Plugin } from "@html_editor/plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
 import { insertText, tripleClick } from "./_helpers/user_actions.js";

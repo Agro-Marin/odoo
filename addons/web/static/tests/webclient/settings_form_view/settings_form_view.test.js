@@ -2590,6 +2590,36 @@ test("settings search is accent-insensitive", async () => {
     expect(queryAllTexts(".highlighter")).toEqual(["ÄZ", "áz"]);
 });
 
+test("settings search matches block titles accent-insensitively", async () => {
+    await mountView({
+        type: "form",
+        resModel: "res.config.settings",
+        arch: /* xml */ `
+            <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
+                <app string="CRM" name="crm">
+                    <block title="Gestion des Élèves">
+                        <setting help="student management">
+                            <field name="bar"/>
+                        </setting>
+                    </block>
+                    <block title="Other block">
+                        <setting help="other setting">
+                            <field name="foo"/>
+                        </setting>
+                    </block>
+                </app>
+            </form>
+        `,
+    });
+    // Only the block TITLE matches (no setting text contains "eleve"): the
+    // block must behave as on an exact title match and show all its settings.
+    await editSearch("eleve");
+    await animationFrame();
+    expect(queryAllTexts(".settings h2:not(.d-none)")).toEqual(["Gestion des Élèves"]);
+    expect(".o_settings_container:not(.d-none) .o_setting_box:visible").toHaveCount(1);
+    expect(".o_nocontent_help").toHaveCount(0);
+});
+
 test("settings search does not highlight escaped characters when highlighting the searched text", async () => {
     await mountView({
         type: "form",

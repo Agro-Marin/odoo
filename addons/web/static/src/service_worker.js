@@ -8,19 +8,37 @@ const offLineURL = `${homepageURL}/offline`;
 // Separate cache for long-lived static responses.  Distinct from
 // ``cacheName`` above so a ``caches.delete`` on logout purges user-scoped
 // data without nuking the offline page.  Holds translations, asset
-// bundles, and ``/web/image/`` responses — all content-addressable (the
-// URL changes when the content changes), so stale-while-revalidate is
-// safe.
+// bundles, and cache-busted ``/web/image/`` responses.
 const staticCacheName = "odoo-static-cache";
 
-// URL patterns eligible for stale-while-revalidate: translation bundles,
-// asset bundles, and /web/image/ responses. Matches path-only
-// (``url.pathname``) to avoid query-string false positives. All three are
-// keyed by a cache-busting hash/id in the URL, so reusing a cached entry
-// for a matching URL is always correct.
-const STALE_WHILE_REVALIDATE_RE =
-    /^\/web\/(webclient\/translations|assets|image)(\/|$)/;
+// URL patterns eligible for stale-while-revalidate.  Translation and asset
+// bundle URLs embed a content hash in the PATH, so a pathname match is
+// enough: reusing a cached entry for a matching URL is always correct.
+const STATIC_PATH_RE = /^\/web\/(webclient\/translations|assets)(\/|$)/;
+// ``/web/image/`` URLs are only content-addressable when the caller passed a
+// cache-busting token (``unique=`` — see ``core/utils/urls.js:imageUrl``); a
+// bare ``/web/image/<model>/<id>/<field>`` URL is mutable server-side and
+// must NOT be served stale-first.
+const IMAGE_PATH_RE = /^\/web\/image(\/|$)/;
 
+/**
+ * Whether a request URL may be served stale-while-revalidate from the
+ * static cache.
+ *
+ * @param {URL} url
+ * @returns {boolean}
+ */
+const isStaleWhileRevalidateURL = (url) =>
+    STATIC_PATH_RE.test(url.pathname) ||
+    (IMAGE_PATH_RE.test(url.pathname) && !!url.searchParams.get("unique"));
+
+// Synthetic cache key holding the session info scrubbed out of the cached
+// app shell.  Persisted in ``caches`` (module state does not survive the
+// ~30s idle termination of a service worker instance; a fresh instance
+// would otherwise never be able to serve the cached shell offline).
+const sessionInfoURL = "/web/__sw_session_info__";
+
+/** In-memory fast path over the persisted session info. */
 let sessionInfo = null;
 
 self.addEventListener("install", (event) => {
@@ -35,15 +53,131 @@ self.addEventListener("install", (event) => {
     );
 });
 
+self.addEventListener("activate", (event) => {
+    // "activate" fires exactly once per new service-worker version taking
+    // over.  Image entries are only correct while the record they belong to
+    // is — a version change is a cheap, reliable point to drop them
+    // (translations/assets stay: their URLs embed a content hash in the
+    // path).  This also bounds how long ACL-scoped image responses can
+    // outlive the session that fetched them when the "user_logout" message
+    // never arrives (server-side expiry, session switch via the login page,
+    // browser closed before logout).
+    event.waitUntil(purgeStaticImageEntries());
+});
+
 /**
- * Extracts the session info JSON string from an HTML page body.
+ * Deletes all ``/web/image`` entries from the static cache.
+ *
+ * @returns {Promise<void>}
+ */
+const purgeStaticImageEntries = async () => {
+    try {
+        const cache = await caches.open(staticCacheName);
+        for (const request of await cache.keys()) {
+            if (IMAGE_PATH_RE.test(new URL(request.url).pathname)) {
+                await cache.delete(request);
+            }
+        }
+    } catch {
+        // Storage unavailable — nothing to purge.
+    }
+};
+
+/**
+ * Extracts the session info JSON string from an HTML page body, using a
+ * balanced-brace scan from the ``odoo.__session_info__ = `` marker.  (A
+ * non-greedy ``({.*?});`` regex would truncate the capture at the first
+ * ``};`` occurring INSIDE a JSON string value — e.g. a company name —
+ * corrupting both the scrub and the later restore.)
  *
  * @param {string} htmlContent
  * @returns {string | null}
  */
 const extractSessionInfo = (htmlContent) => {
-    const match = htmlContent.match(/odoo\.__session_info__\s*=\s*({.*?});/s);
-    return match && match[1] ? match[1] : null;
+    const marker = htmlContent.match(/odoo\.__session_info__\s*=\s*/);
+    if (!marker) {
+        return null;
+    }
+    const start = marker.index + marker[0].length;
+    if (htmlContent[start] !== "{") {
+        return null;
+    }
+    // JSON string literals only use double quotes; track them (and escapes)
+    // so braces inside string values don't unbalance the scan.
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < htmlContent.length; i++) {
+        const ch = htmlContent[i];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (ch === "\\") {
+                escaped = true;
+            } else if (ch === '"') {
+                inString = false;
+            }
+        } else if (ch === '"') {
+            inString = true;
+        } else if (ch === "{") {
+            depth++;
+        } else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+                return htmlContent.slice(start, i + 1);
+            }
+        }
+    }
+    return null;
+};
+
+/**
+ * Persists the extracted session info (or clears it when ``info`` is null)
+ * in ``caches`` so a fresh service-worker instance can restore the cached
+ * app shell after this instance is terminated.
+ *
+ * @param {string | null} info
+ * @returns {Promise<void>}
+ */
+const saveSessionInfo = async (info) => {
+    sessionInfo = info;
+    try {
+        const cache = await caches.open(cacheName);
+        if (info) {
+            await cache.put(
+                sessionInfoURL,
+                new Response(info, {
+                    headers: { "Content-Type": "application/json" },
+                }),
+            );
+        } else {
+            await cache.delete(sessionInfoURL);
+        }
+    } catch {
+        // Storage unavailable — the in-memory copy still serves this
+        // instance's lifetime.
+    }
+};
+
+/**
+ * Returns the session info, falling back to the persisted copy when this
+ * service-worker instance has none in memory (fresh instance after idle
+ * termination).
+ *
+ * @returns {Promise<string | null>}
+ */
+const getSessionInfo = async () => {
+    if (sessionInfo) {
+        return sessionInfo;
+    }
+    try {
+        const cache = await caches.open(cacheName);
+        const response = await cache.match(sessionInfoURL);
+        sessionInfo = response ? await response.text() : null;
+    } catch {
+        sessionInfo = null;
+    }
+    return sessionInfo;
 };
 
 /**
@@ -76,11 +210,11 @@ const getTextFromResponse = async (response) => {
  */
 const storeDataOnCache = async (url, response) => {
     const htmlBody = await getTextFromResponse(response);
-    // store on ram, the session info
-    sessionInfo = extractSessionInfo(htmlBody);
+    const extracted = extractSessionInfo(htmlBody);
+    await saveSessionInfo(extracted);
     const cache = await caches.open(cacheName);
-    const body = sessionInfo
-        ? htmlBody.replace(sessionInfo, "@@@session_info_secret@@@")
+    const body = extracted
+        ? htmlBody.replace(extracted, "@@@session_info_secret@@@")
         : htmlBody;
     return cache.put(
         url.endsWith(offLineURL) ? url : homepageURL,
@@ -108,7 +242,13 @@ const readDataOnCache = async (url) => {
         return readDataOnCache(homepageURL);
     }
     const htmlBody = await getTextFromResponse(response);
-    return new Response(htmlBody.replaceAll("@@@session_info_secret@@@", sessionInfo), {
+    const info = await getSessionInfo();
+    if (!info) {
+        // No session info to splice back in: the scrubbed shell would boot
+        // with a corrupt placeholder — treat as uncacheable.
+        return undefined;
+    }
+    return new Response(htmlBody.replaceAll("@@@session_info_secret@@@", info), {
         headers: response.headers,
     });
 };
@@ -172,7 +312,11 @@ const navigateOrDisplayOfflinePage = async (request) => {
             requestError instanceof TypeError &&
             fetchErrorMessages.includes(requestError.message)
         ) {
-            if (sessionInfo?.length && !isDebugAssets) {
+            // getSessionInfo falls back to the persisted copy, so a fresh
+            // service-worker instance (idle termination re-evaluates the
+            // script) can still serve the cached app shell offline.
+            const info = await getSessionInfo();
+            if (info?.length && !isDebugAssets) {
                 const cachedResponse = await readDataOnCache(request.url);
                 if (cachedResponse) {
                     return cachedResponse;
@@ -222,12 +366,12 @@ self.addEventListener("fetch", (event) => {
     // Stale-while-revalidate for static, content-addressable resources.
     // Fires before the navigation branch because the URL patterns here
     // never match ``destination === "document"`` or ``accept: text/html``.
-    if (event.request.method === "GET") {
-        const pathname = new URL(event.request.url).pathname;
-        if (STALE_WHILE_REVALIDATE_RE.test(pathname)) {
-            event.respondWith(staleWhileRevalidate(event.request));
-            return;
-        }
+    if (
+        event.request.method === "GET" &&
+        isStaleWhileRevalidateURL(new URL(event.request.url))
+    ) {
+        event.respondWith(staleWhileRevalidate(event.request));
+        return;
     }
     if (
         (event.request.mode === "navigate" &&
@@ -265,7 +409,8 @@ self.addEventListener("message", (event) => {
         nextMessageMap.delete(event.data);
     }
     if (event.data === "user_logout") {
-        sessionInfo = null;
+        // Clears both the in-memory copy and the persisted cache entry.
+        saveSessionInfo(null);
         // Drop the static cache too — a different user might land on
         // this browser and any lingering hash-keyed responses that
         // depended on the prior user's ACLs (``/web/image/`` with a
@@ -278,6 +423,16 @@ self.addEventListener("message", (event) => {
         });
     }
 });
+
+// Pure helpers exposed for unit testing.  Service workers run as classic
+// scripts (no ``export``), so the hoot suite fetches this file's source,
+// evaluates it against a stub ``self``, and reads the functions back from
+// this hook object (see static/tests/core/service_worker.test.js).
+// Harmless in production: it only adds a property to the worker global.
+self.__ODOO_SW_TEST_HOOKS__ = {
+    extractSessionInfo,
+    isStaleWhileRevalidateURL,
+};
 
 // Service workers run as classic scripts (not ES modules).
 // TypeScript scope isolation is handled by the /// <reference lib="webworker" /> directive above.

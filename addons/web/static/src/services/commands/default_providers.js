@@ -103,8 +103,11 @@ commandProviderRegistry.add("data-hotkeys", {
         ).overlayModifier;
         // The hotkey service only replaces [accesskey] attrs by [data-hotkey]
         // on an overlay-modifier keypress: convert pending ones now so their
-        // commands appear without requiring a prior ALT press.
-        for (const el of document.querySelectorAll("[accesskey]")) {
+        // commands appear without requiring a prior ALT press. Scoped to the
+        // UI active element, like the hotkey service's own takeover.
+        for (const el of (options.activeElement ?? document).querySelectorAll(
+            "[accesskey]",
+        )) {
             if (el instanceof HTMLElement) {
                 el.dataset.hotkey = el.accessKey;
                 el.removeAttribute("accesskey");

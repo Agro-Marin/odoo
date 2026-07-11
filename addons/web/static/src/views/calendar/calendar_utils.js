@@ -33,12 +33,17 @@ export function convertRecordToEvent(record, forceAllDay = false) {
 
 const CSS_COLOR_REGEX =
     /^((#[A-F0-9]{3})|(#[A-F0-9]{6})|((hsl|rgb)a?\(\s*(?:(\s*\d{1,3}%?\s*),?){3}(\s*,[0-9.]{1,4})?\))|)$/i;
+// Module-global on purpose: a given key keeps the same color across every
+// calendar view visited during the session (renderers, popovers, filter
+// panels all resolve colors through this map).
 const colorMap = new Map();
 /**
  * Map a key to a stable calendar color index or CSS color string.
  *
  * CSS color strings are returned as-is. Numeric keys are mapped to a
- * palette index (1-55). Other keys receive a deterministic rotating index.
+ * palette index (1-55). Other keys hash to a deterministic index (1-24)
+ * derived from the key itself, so the color is stable across sessions and
+ * independent of which view was visited first.
  *
  * @param {string|number|false} key - color key (record id, CSS color, or falsy)
  * @returns {string|number|false} palette index, CSS color string, or false
@@ -56,7 +61,12 @@ export function getColor(key) {
     } else if (typeof key === "number") {
         colorMap.set(key, ((key - 1) % 55) + 1);
     } else {
-        colorMap.set(key, (((colorMap.size + 1) * 5) % 24) + 1);
+        const stringKey = String(key);
+        let hash = 0;
+        for (let i = 0; i < stringKey.length; i++) {
+            hash = (hash * 31 + stringKey.charCodeAt(i)) | 0;
+        }
+        colorMap.set(key, (Math.abs(hash) % 24) + 1);
     }
 
     return colorMap.get(key);

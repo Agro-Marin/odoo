@@ -6,7 +6,7 @@ import { describe, expect, queryAllTexts, test } from "@odoo/hoot";
 import { click, pointerDown, press, tick, waitFor } from "@odoo/hoot-dom";
 import { animationFrame, advanceTime } from "@odoo/hoot-mock";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { PowerboxPlugin } from "../src/main/powerbox/powerbox_plugin.js";
+import { PowerboxPlugin } from "@html_editor/main/powerbox/powerbox_plugin";
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
 import { insertText, redo, splitBlock, undo } from "./_helpers/user_actions.js";

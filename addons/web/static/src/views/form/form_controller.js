@@ -223,19 +223,21 @@ export class FormController extends Component {
 
         // select footers that are not in subviews and move them to another arch
         // that will be moved to the dialog's footer (if we are in a dialog)
-        const footers = [
-            ...this.archInfo.xmlDoc.querySelectorAll("footer:not(field footer)"),
-        ];
-        if (footers.length) {
+        if (this.archInfo.xmlDoc.querySelector("footer:not(field footer)")) {
+            // Work on clones: the shared props.archInfo (and its xmlDoc) must
+            // stay untouched — it can feed another controller instantiation
+            // (remount with identical props, error-recovery re-render), which
+            // would otherwise find its footers already stripped. The
+            // controller keeps its own footer-less copy on this.archInfo.
+            const xmlDoc = this.archInfo.xmlDoc.cloneNode(true);
             this.footerArchInfo = { ...this.archInfo };
             this.footerArchInfo.xmlDoc = createElement("t");
-            // Clone footers to avoid mutating the shared archInfo.xmlDoc
-            for (const footer of footers) {
-                this.footerArchInfo.xmlDoc.append(footer.cloneNode(true));
-                footer.remove();
+            for (const footer of xmlDoc.querySelectorAll("footer:not(field footer)")) {
+                // append() moves the node out of the cloned doc
+                this.footerArchInfo.xmlDoc.append(footer);
             }
             this.footerArchInfo.arch = this.footerArchInfo.xmlDoc.outerHTML;
-            this.archInfo.arch = this.archInfo.xmlDoc.outerHTML;
+            this.archInfo = { ...this.archInfo, xmlDoc, arch: xmlDoc.outerHTML };
         }
 
         const xmlDocButtonBox = this.archInfo.xmlDoc.querySelector(

@@ -4,7 +4,6 @@
 /** @module @web/model/relational_model/static_list - In-memory x2many list: add, remove, reorder records and generate ORM commands */
 
 import { markRaw } from "@odoo/owl";
-import { intersection } from "@web/core/utils/collections/arrays";
 import { deepEqual, omit } from "@web/core/utils/collections/objects";
 
 import { serializeCommands } from "./command_builder.js";
@@ -454,12 +453,18 @@ export class StaticList extends DataPoint {
         for (const record of records) {
             if (record.canBeAbandoned && (force || !record._checkValidity())) {
                 const virtualId = record._virtualId;
-                const index = this._currentIds.findIndex((id) => id === virtualId);
-                this._currentIds.splice(index, 1);
-                this.records.splice(
-                    this.records.findIndex((r) => r === record),
-                    1,
-                );
+                const idIndex = this._currentIds.findIndex((id) => id === virtualId);
+                if (idIndex < 0) {
+                    // Not in the list (e.g. a dialog-created record not yet
+                    // validated): splice(-1, 1) would corrupt the list by
+                    // removing its LAST id instead.
+                    continue;
+                }
+                this._currentIds.splice(idIndex, 1);
+                const recordIndex = this.records.findIndex((r) => r === record);
+                if (recordIndex >= 0) {
+                    this.records.splice(recordIndex, 1);
+                }
                 this._commands = this._commands.filter((c) => c[1] !== virtualId);
                 this.count--;
                 if (this._tmpIncreaseLimit > 0) {
@@ -530,11 +535,20 @@ export class StaticList extends DataPoint {
             this._bumpLimit(1);
         }
         await this._addRecord(newRecord);
-        await resequence(this, newRecord.id, this.records[index].id);
+        // ``index`` may be out of range (e.g. account's section widget passes
+        // ``sectionIndex - 1`` == -1 for a first section): a negative index
+        // means "insert at the top" (no target → resequence to the first
+        // position), an overflow clamps to the last record.
+        const targetRecord =
+            index >= 0
+                ? this.records[Math.min(index, this.records.length - 1)]
+                : undefined;
+        await resequence(this, newRecord.id, targetRecord ? targetRecord.id : null);
         // resequence() sets dirty=true and _changes[handleField] via
         // record._update() (Invariant 1, record.js). The user hasn't touched
         // this new row, so force dirty=false, but keep _changes[handleField]
-        // so it still ships with the parent's CREATE command on save.
+        // so it still ships with the parent's CREATE command on save (a
+        // sanctioned invariant exception — see _assertChangeSetInvariant).
         newRecord.dirty = false;
         return newRecord;
     }
@@ -552,6 +566,40 @@ export class StaticList extends DataPoint {
 
     _applyCommands(commands, options) {
         return applyCommands(this, commands, options);
+    }
+
+    /**
+     * Merge a raw server value for this x2many field (a list of row objects,
+     * bare ids, or commands) into the EXISTING list, preserving the pending
+     * command log. Counterpart of ``record._applyValues`` for lists that
+     * must not be rebuilt from scratch (a fresh StaticList has empty
+     * ``_commands``): fresh row values are folded into the cache
+     * (``_createRecordDatapoint`` merges into dirty cached records), and
+     * displayed records whose clean datapoint was replaced are swapped in
+     * place. Membership (``_currentIds``/``count``) is left to the pending
+     * client state, which is authoritative while commands are staged.
+     *
+     * @param {any[]} serverValue
+     */
+    _applyServerValues(serverValue) {
+        if (!Array.isArray(serverValue)) {
+            return;
+        }
+        if (serverValue.length && Array.isArray(serverValue[0])) {
+            // Command list — replay through the engine so UPDATE/LINK/…
+            // merge into the pending state; possibly async (page-fill
+            // loads), so track it like every other sync-chain application.
+            this._trackCommandsPromise(this._applyCommands(serverValue));
+            return;
+        }
+        for (const row of serverValue) {
+            const data = typeof row === "number" ? { id: row } : row;
+            const record = this._createRecordDatapoint(data);
+            const index = this.records.findIndex((r) => r.resId === record.resId);
+            if (index >= 0 && this.records[index] !== record) {
+                this.records[index] = record;
+            }
+        }
     }
 
     /**
@@ -664,7 +712,9 @@ export class StaticList extends DataPoint {
             // ``serializeCommands`` derives from them. Hit by ``sort()``'s
             // restricted-field reload (only orderBy fields as activeFields).
             // Merge the fresh values in instead — ``_applyValues`` preserves
-            // ``_changes`` and the record's fuller activeFields.
+            // ``_changes`` (scalars untouched; x2many entries with pending
+            // commands are merged via ``_applyServerValues``, not replaced)
+            // and the record's fuller activeFields.
             cachedRecord._applyValues(data);
             return cachedRecord;
         }
@@ -735,15 +785,29 @@ export class StaticList extends DataPoint {
      * Remove cache entries for records no longer referenced by _currentIds.
      * Prevents unbounded cache growth during long editing sessions with
      * repeated add/delete cycles on x2many fields.
+     *
+     * Ids referenced by a live ``_savePoint`` are pinned: ``_clearCommands``
+     * (the ``reload: false`` save path) runs this prune without clearing
+     * savepoints, and a later ``_discard`` rebuilds ``records`` by mapping
+     * the savepoint's ``_currentIds`` through ``_cache`` — an evicted entry
+     * would leave a hole. ``_extendedRecords`` entries are dropped only for
+     * evicted records: clearing it wholesale would force the next dialog
+     * open on a still-cached record through ``extendRecord``'s
+     * first-extension path again (an extra load RPC + ``_applyValues``).
      */
     _pruneCache() {
         const activeIds = new Set(this._currentIds);
+        if (this._savePoint) {
+            for (const id of this._savePoint._currentIds) {
+                activeIds.add(id);
+            }
+        }
         for (const id of Object.keys(this._cache)) {
             if (!activeIds.has(id) && !activeIds.has(Number(id))) {
+                this._extendedRecords.delete(this._cache[id].id);
                 delete this._cache[id];
             }
         }
-        this._extendedRecords.clear();
     }
 
     _discard() {
@@ -875,10 +939,15 @@ export class StaticList extends DataPoint {
                 // record hasn't been loaded yet
                 return true;
             }
-            // record has already been loaded -> check if we already read all orderBy fields
-            return (
-                intersection(relevantFields, record.fieldNames).length !==
-                relevantFields.length
+            // Test against the fields whose values were actually fetched
+            // (``_loadedFieldNames``), not ``record.fieldNames``: the latter
+            // derives from ``activeFields`` (what the view wants) and is
+            // already complete on a stub datapoint created from a bare
+            // ``{id}`` (e.g. a LINK command applied while the page was
+            // full), which would classify the stub as loaded and render a
+            // row of default values after a page navigation.
+            return relevantFields.some(
+                (fieldName) => !record._loadedFieldNames.has(fieldName),
             );
         });
     }
@@ -918,8 +987,9 @@ export class StaticList extends DataPoint {
             }
         }
         this.records = ids.map((id) => this._cache[id]);
+        const idSet = new Set(ids);
         const updateCommandsToKeep = this._commands.filter(
-            (c) => c[0] === x2ManyCommands.UPDATE && ids.includes(c[1]),
+            (c) => c[0] === x2ManyCommands.UPDATE && idSet.has(c[1]),
         );
         this._commands = [x2ManyCommands.set(ids), ...updateCommandsToKeep];
         this._currentIds = [...ids];

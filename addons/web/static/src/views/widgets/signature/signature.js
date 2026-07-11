@@ -43,7 +43,9 @@ export class SignatureWidget extends Component {
             } else {
                 signName = fullNameData;
             }
-            defaultName = signName === "" ? undefined : signName;
+            // Falsy char values (unset field => false) must not leak a
+            // non-string into SignatureDialog's defaultName prop.
+            defaultName = signName || undefined;
         }
 
         const dialogProps = {

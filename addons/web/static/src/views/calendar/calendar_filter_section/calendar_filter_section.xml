@@ -90,7 +90,7 @@
                     role="img"
                     title="Remove this favorite from the list"
                     aria-label="Remove this favorite from the list"
-                    t-on-click="(ev) => this.onFilterRemoveBtnClick(filter, ev)"
+                    t-on-click="() => this.onFilterRemoveBtnClick(filter)"
                 >
                     <i class="oi oi-close"/>
                 </button>

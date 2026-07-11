@@ -8,6 +8,7 @@ import {
     isEmpty,
     isInPre,
     isProtected,
+    isSelfClosingElement,
     isShrunkBlock,
     isTangible,
     isTextNode,
@@ -211,11 +212,19 @@ export class DeletePlugin extends Plugin {
         // targeted nodes here to be sure to include a partial text node
         // selection.
         const selectedNodes = this.dependencies.selection.getTargetedNodes();
-        const canBeDeleted = (node) =>
-            this.dependencies.selection.isNodeEditable(node) ||
-            selectedNodes.includes(
-                closestElement(node, (node) => this.dependencies.selection.isNodeEditable(node))
+        const canBeDeleted = (node) => {
+            const isEditableOrFullySelected = (a) =>
+                this.dependencies.selection.isNodeEditable(a) ||
+                (this.dependencies.selection.areNodeContentsFullySelected(a) &&
+                    isContentEditable(a.parentElement));
+
+            return (
+                isEditableOrFullySelected(node) ||
+                selectedNodes.includes(
+                    closestElement(node, (node) => isEditableOrFullySelected(node))
+                )
             );
+        };
         if (selectedNodes.some((node) => !canBeDeleted(node))) {
             return;
         }
@@ -662,7 +671,8 @@ export class DeletePlugin extends Plugin {
             }
             if (
                 this.isUnremovable(node, root) ||
-                !this.dependencies.selection.isNodeEditable(node)
+                (!this.dependencies.selection.isNodeEditable(node) &&
+                    !node.parentElement?.isContentEditable)
             ) {
                 return false;
             }
@@ -1441,7 +1451,7 @@ export class DeletePlugin extends Plugin {
 
     // @todo: no need for this once selection in the editable root is corrected?
     normalizeEnterBlock(node, offset) {
-        while (isBlock(node.childNodes[offset])) {
+        while (isBlock(node.childNodes[offset]) && !isSelfClosingElement(node.childNodes[offset])) {
             [node, offset] = [node.childNodes[offset], 0];
         }
         return [node, offset];

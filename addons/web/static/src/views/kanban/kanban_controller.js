@@ -179,10 +179,15 @@ export class KanbanController extends MultiRecordController {
                             const group = groups.find(
                                 (g) => g.id === columnEl.dataset.id,
                             );
-                            columnScrollTops.push([
-                                group.serverValue,
-                                columnEl.scrollTop,
-                            ]);
+                            // The DOM can hold a column the model no longer
+                            // knows (mid-patch snapshot while leaving the
+                            // action); skip it rather than break navigation.
+                            if (group) {
+                                columnScrollTops.push([
+                                    group.serverValue,
+                                    columnEl.scrollTop,
+                                ]);
+                            }
                         }
                     }
                     state.scrollPositions = {

@@ -196,9 +196,31 @@ describe("asset load self-heal", () => {
             loader.handleAssetLoadError(makeScript({ src: "/some/other/app.js" })),
         ).toBe(false);
         expect(loader.handleAssetLoadError(makeScript())).toBe(false);
+        // A LINK without an href (or with a non-bundle href) is ignored too.
         expect(loader.handleAssetLoadError(document.createElement("link"))).toBe(false);
         expect(loader.handleAssetLoadError(null)).toBe(false);
         expect.verifySteps([]);
+    });
+
+    test("failing bundle stylesheet (LINK) triggers one reload", () => {
+        // A GC-swept content-addressed stylesheet URL can never succeed by
+        // re-request: the self-heal must cover LINK elements like SCRIPTs,
+        // instead of leaving the page unstyled.
+        withGuard(null);
+        const loader = new ModuleLoader();
+        const reloads = [];
+        loader._reloadPage = () => reloads.push(1);
+
+        const link = document.createElement("link");
+        link.setAttribute("rel", "stylesheet");
+        link.setAttribute("href", "/web/assets/1/web.assets_web.min.css");
+        expect(loader.handleAssetLoadError(link)).toBe(true);
+        expect(reloads).toHaveLength(1);
+
+        const otherLink = document.createElement("link");
+        otherLink.setAttribute("href", "/some/other/style.css");
+        expect(loader.handleAssetLoadError(otherLink)).toBe(false);
+        expect(reloads).toHaveLength(1);
     });
 
     test("lazy-load scripts (data-src) are covered", () => {

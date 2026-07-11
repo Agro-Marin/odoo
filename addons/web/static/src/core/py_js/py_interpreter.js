@@ -11,6 +11,7 @@ import {
     execOnIterable,
     pyRepr,
     pyStr,
+    pyTypeName,
 } from "./py_builtin.js";
 import {
     NotSupportedError,
@@ -85,6 +86,26 @@ function isConstructor(obj) {
 }
 
 /**
+ * Concrete date/time kind of a Py* temporal value, or null. PyTime extends
+ * PyDate, so it must be tested first.
+ *
+ * @param {any} value
+ * @returns {"date" | "datetime" | "time" | null}
+ */
+function pyDateKind(value) {
+    if (value instanceof PyTime) {
+        return "time";
+    }
+    if (value instanceof PyDate) {
+        return "date";
+    }
+    if (value instanceof PyDateTime) {
+        return "datetime";
+    }
+    return null;
+}
+
+/**
  * Compare two values
  *
  * @param {any} left
@@ -100,6 +121,16 @@ function isLess(left, right) {
     }
     if (typeof right === "boolean") {
         right = right ? 1 : 0;
+    }
+    // Cross-kind temporal ordering is a TypeError in Python. Without this
+    // guard the relational operator would silently compare the incompatible
+    // valueOf() scales (date ordinal vs datetime epoch-µs vs time seconds).
+    const leftDateKind = pyDateKind(left);
+    const rightDateKind = pyDateKind(right);
+    if (leftDateKind && rightDateKind && leftDateKind !== rightDateKind) {
+        throw new NotSupportedError(
+            `not supported between instances of '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+        );
     }
     const leftIndex = pytypeIndex(left);
     const rightIndex = pytypeIndex(right);
@@ -228,6 +259,9 @@ const DICT = {
     },
 };
 
+// Read-only string methods mirroring the safe-eval-legal subset of Python's
+// str API. Every method receives the interpreter's trailing kwargs object as
+// its last argument (see the FunctionCall case), hence the bindArgs calls.
 const STRING = {
     /** @this {string} */
     lower() {
@@ -236,6 +270,209 @@ const STRING = {
     /** @this {string} */
     upper() {
         return this.toUpperCase();
+    },
+    /** @this {string} */
+    capitalize() {
+        return this.charAt(0).toUpperCase() + this.slice(1).toLowerCase();
+    },
+    /**
+     * ASCII approximation of str.title(): a word is a run of letters, so any
+     * non-letter (digit, apostrophe, ...) starts a new word, as in Python
+     * ("it's 2b".title() → "It'S 2B").
+     * @this {string}
+     */
+    title() {
+        return this.replace(
+            /[a-zA-Z]+/g,
+            (word) => word[0].toUpperCase() + word.slice(1).toLowerCase(),
+        );
+    },
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    strip(...args) {
+        const { chars } = bindArgs(args, ["chars"]);
+        if (chars === undefined || chars === null) {
+            return this.trim();
+        }
+        if (typeof chars !== "string") {
+            throw new EvaluationError("strip arg must be None or str");
+        }
+        const set = new Set(chars);
+        let start = 0;
+        let end = this.length;
+        while (start < end && set.has(this[start])) {
+            start++;
+        }
+        while (end > start && set.has(this[end - 1])) {
+            end--;
+        }
+        return this.slice(start, end);
+    },
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    startswith(...args) {
+        const { prefix, start, end } = bindArgs(args, ["prefix", "start", "end"]);
+        const prefixes = Array.isArray(prefix) ? prefix : [prefix];
+        if (!prefixes.every((p) => typeof p === "string")) {
+            throw new EvaluationError(
+                "startswith first arg must be str or a tuple of str",
+            );
+        }
+        const str = this.slice(start ?? 0, end ?? this.length);
+        return prefixes.some((p) => str.startsWith(p));
+    },
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    endswith(...args) {
+        const { suffix, start, end } = bindArgs(args, ["suffix", "start", "end"]);
+        const suffixes = Array.isArray(suffix) ? suffix : [suffix];
+        if (!suffixes.every((s) => typeof s === "string")) {
+            throw new EvaluationError(
+                "endswith first arg must be str or a tuple of str",
+            );
+        }
+        const str = this.slice(start ?? 0, end ?? this.length);
+        return suffixes.some((s) => str.endsWith(s));
+    },
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    replace(...args) {
+        const params = bindArgs(args, ["old", "new", "count"]);
+        const oldStr = params.old;
+        const newStr = params.new;
+        const count = params.count;
+        if (typeof oldStr !== "string" || typeof newStr !== "string") {
+            throw new EvaluationError("replace() arguments must be str");
+        }
+        if (count === undefined || count === null || count < 0) {
+            return this.replaceAll(oldStr, newStr);
+        }
+        let rest = String(this);
+        let out = "";
+        for (let k = 0; k < count; k++) {
+            const idx = rest.indexOf(oldStr);
+            if (idx === -1) {
+                break;
+            }
+            out += rest.slice(0, idx) + newStr;
+            rest = rest.slice(idx + oldStr.length);
+            if (oldStr === "") {
+                // Empty pattern matches between every char; advance one char
+                // per replacement, as Python does.
+                if (!rest) {
+                    break;
+                }
+                out += rest[0];
+                rest = rest.slice(1);
+            }
+        }
+        return out + rest;
+    },
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    split(...args) {
+        const { sep, maxsplit } = bindArgs(args, ["sep", "maxsplit"]);
+        const max =
+            maxsplit === undefined || maxsplit === null || maxsplit < 0
+                ? Infinity
+                : Math.trunc(maxsplit);
+        const str = String(this);
+        if (sep === undefined || sep === null) {
+            // Python split(): split on whitespace runs, dropping empty parts.
+            const result = [];
+            let rest = str.replace(/^\s+/, "");
+            while (rest && result.length < max) {
+                const m = rest.match(/\s+/);
+                if (!m) {
+                    break;
+                }
+                result.push(rest.slice(0, m.index));
+                rest = rest.slice(/** @type {number} */ (m.index) + m[0].length);
+            }
+            if (rest) {
+                result.push(rest);
+            }
+            return result;
+        }
+        if (typeof sep !== "string") {
+            throw new EvaluationError("must be str or None");
+        }
+        if (sep === "") {
+            throw new EvaluationError("empty separator");
+        }
+        const parts = str.split(sep);
+        if (parts.length - 1 <= max) {
+            return parts;
+        }
+        // Python keeps the un-split remainder; JS's split limit drops it.
+        return [...parts.slice(0, max), parts.slice(max).join(sep)];
+    },
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    join(...args) {
+        const { iterable } = bindArgs(args, ["iterable"]);
+        return execOnIterable(iterable, (/** @type {Iterable<any>} */ it) => {
+            const items = [...it];
+            for (const item of items) {
+                if (typeof item !== "string") {
+                    throw new EvaluationError(
+                        `sequence item: expected str instance, ${pyTypeName(item)} found`,
+                    );
+                }
+            }
+            return items.join(String(this));
+        });
+    },
+    /**
+     * Subset of str.format(): auto ({}), positional ({0}) and named ({name})
+     * fields plus {{ }} escapes. Format specs / conversions ({x:>8}, {x!r})
+     * and attribute/index access ({x.y}, {x[0]}) raise instead of rendering
+     * wrong output.
+     * @this {string}
+     * @param {...any} args
+     */
+    format(...args) {
+        const kwargs = args.at(-1) ?? {};
+        const positional = args.slice(0, -1);
+        let auto = 0;
+        return this.replace(/\{\{|\}\}|\{([^{}]*)\}/g, (m, field) => {
+            if (m === "{{") {
+                return "{";
+            }
+            if (m === "}}") {
+                return "}";
+            }
+            if (/[:!.[]/.test(field)) {
+                throw new EvaluationError(
+                    `str.format: unsupported replacement field '${field}'`,
+                );
+            }
+            if (field === "" || /^\d+$/.test(field)) {
+                const index = field === "" ? auto++ : Number(field);
+                if (index >= positional.length) {
+                    throw new EvaluationError(
+                        `Replacement index ${index} out of range for positional args tuple`,
+                    );
+                }
+                return pyStr(positional[index]);
+            }
+            if (!Object.hasOwn(kwargs, field)) {
+                throw new EvaluationError(`KeyError: '${field}'`);
+            }
+            return pyStr(kwargs[field]);
+        });
     },
 };
 
@@ -362,32 +599,6 @@ function _applyUnaryOp(ast, recurse) {
 }
 
 /**
- * Python-ish type name for error messages.
- * @param {any} value
- * @returns {string}
- */
-function pyTypeName(value) {
-    if (value === null || value === undefined) {
-        return "NoneType";
-    }
-    if (Array.isArray(value)) {
-        return "list";
-    }
-    switch (typeof value) {
-        case "boolean":
-            return "bool";
-        case "number":
-            return Number.isInteger(value) ? "int" : "float";
-        case "string":
-            return "str";
-        case "object":
-            return value.constructor?.name || "object";
-        default:
-            return typeof value;
-    }
-}
-
-/**
  * Reject non-numeric operands with a Python-style TypeError message instead
  * of letting JS coercion silently produce NaN (Python bools are ints, so
  * booleans are accepted).
@@ -420,10 +631,79 @@ function assertNumericOperands(op, left, right) {
 }
 
 /**
+ * Bitwise/shift operators are integer-only in Python: floats raise TypeError
+ * (JS would silently truncate) and non-numbers raise instead of coercing.
+ * Booleans are ints, as everywhere else.
+ *
+ * @param {string} op operator symbol, for the error message
+ * @param {any} left
+ * @param {any} right
+ */
+function assertIntegerOperands(op, left, right) {
+    const isInt = (/** @type {any} */ v) =>
+        typeof v === "boolean" || (typeof v === "number" && Number.isInteger(v));
+    if (!isInt(left) || !isInt(right)) {
+        throw new EvaluationError(
+            `unsupported operand type(s) for ${op}: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+        );
+    }
+}
+
+/**
+ * Python-style exponential notation: like toExponential but with the
+ * exponent padded to at least two digits (``1.5e+2`` → ``1.500000e+02``).
+ *
+ * @param {number} num
+ * @param {number} precision
+ * @returns {string}
+ */
+function formatExponential(num, precision) {
+    return num.toExponential(precision).replace(/e([+-])(\d)$/, "e$10$2");
+}
+
+/**
+ * Python ``%g`` conversion: ``precision`` significant digits (0 counts as 1);
+ * fixed notation when the decimal exponent is in [-4, precision), scientific
+ * otherwise; trailing zeros stripped in both cases.
+ *
+ * @param {number} num
+ * @param {number} precision
+ * @returns {string}
+ */
+function formatGeneral(num, precision) {
+    if (!Number.isFinite(num)) {
+        return String(num);
+    }
+    const p = precision === 0 ? 1 : precision;
+    if (num === 0) {
+        return "0";
+    }
+    const eStr = num.toExponential(p - 1);
+    const exp = Number(eStr.slice(eStr.indexOf("e") + 1));
+    if (exp >= -4 && exp < p) {
+        let str = num.toFixed(Math.max(0, p - 1 - exp));
+        if (str.includes(".")) {
+            str = str.replace(/\.?0+$/, "");
+        }
+        return str;
+    }
+    let [mantissa, exponent] = eStr.split("e");
+    if (mantissa.includes(".")) {
+        mantissa = mantissa.replace(/\.?0+$/, "");
+    }
+    return `${mantissa}e${exponent}`.replace(/e([+-])(\d)$/, "e$10$2");
+}
+
+/**
  * printf-style ``%`` formatting for strings (``'%s' % val`` /
  * ``'%s=%d' % (a, b)``). Supports the conversions that show up in real Odoo
  * expressions: s, r, d/i, f, e/g, x/X, o and the ``%%`` literal, with optional
  * flags / width / precision.
+ *
+ * Known limitation: py_js evaluates Python tuples AND lists to JS arrays, so
+ * ``'%s' % [1, 2]`` is indistinguishable from ``'%s' % (1, 2)`` at runtime and
+ * is spread as an argument tuple (→ "1", or "not enough arguments"), where
+ * Python renders the list itself (→ "[1, 2]").
  *
  * @param {string} fmt
  * @param {any} value single value or a tuple (array) of values
@@ -440,7 +720,17 @@ function pyStringFormat(fmt, value) {
             }
             let arg;
             if (mapKey != null) {
-                arg = value?.[mapKey];
+                if (
+                    value === null ||
+                    typeof value !== "object" ||
+                    Array.isArray(value)
+                ) {
+                    throw new EvaluationError("format requires a mapping");
+                }
+                if (!Object.hasOwn(value, mapKey)) {
+                    throw new EvaluationError(`KeyError: '${mapKey}'`);
+                }
+                arg = value[mapKey];
             } else {
                 if (i >= values.length) {
                     throw new EvaluationError("not enough arguments for format string");
@@ -461,18 +751,23 @@ function pyStringFormat(fmt, value) {
                     str = String(Math.trunc(Number(arg)));
                     break;
                 case "f":
+                    str = Number(arg).toFixed(prec != null ? Number(prec) : 6);
+                    break;
                 case "e":
-                case "E":
+                case "E": {
+                    str = formatExponential(
+                        Number(arg),
+                        prec != null ? Number(prec) : 6,
+                    );
+                    if (conv === "E") {
+                        str = str.toUpperCase();
+                    }
+                    break;
+                }
                 case "g":
                 case "G": {
-                    const p = prec != null ? Number(prec) : 6;
-                    str =
-                        conv === "f"
-                            ? Number(arg).toFixed(p)
-                            : conv === "e" || conv === "E"
-                              ? Number(arg).toExponential(p)
-                              : String(Number(arg));
-                    if (conv === "E" || conv === "G") {
+                    str = formatGeneral(Number(arg), prec != null ? Number(prec) : 6);
+                    if (conv === "G") {
                         str = str.toUpperCase();
                     }
                     break;
@@ -491,9 +786,16 @@ function pyStringFormat(fmt, value) {
             }
             if (width) {
                 const w = Number(width);
-                str = flags.includes("-")
-                    ? str.padEnd(w)
-                    : str.padStart(w, flags.includes("0") ? "0" : " ");
+                if (flags.includes("-")) {
+                    str = str.padEnd(w);
+                } else if (flags.includes("0") && conv !== "s" && conv !== "r") {
+                    // Python zero-pads AFTER the sign ('%05d' % -3 → "-0003")
+                    // and ignores the 0 flag for string conversions.
+                    const sign = str[0] === "-" || str[0] === "+" ? str[0] : "";
+                    str = sign + str.slice(sign.length).padStart(w - sign.length, "0");
+                } else {
+                    str = str.padStart(w);
+                }
             }
             return str;
         },
@@ -706,15 +1008,26 @@ function _applyBinaryOp(ast, recurse) {
         case "is not":
             return left === null ? right !== null : left !== right;
         case "|":
-            return left | right;
         case "^":
-            return left ^ right;
         case "&":
-            return left & right;
         case "<<":
-            return left << right;
-        case ">>":
-            return left >> right;
+        case ">>": {
+            assertIntegerOperands(ast.op, left, right);
+            const l = Number(left);
+            const r = Number(right);
+            switch (ast.op) {
+                case "|":
+                    return l | r;
+                case "^":
+                    return l ^ r;
+                case "&":
+                    return l & r;
+                case "<<":
+                    return l << r;
+                default:
+                    return l >> r;
+            }
+        }
     }
     throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
 }
@@ -913,7 +1226,14 @@ export function evaluate(ast, context = {}) {
                         result = /** @type {Record<string, any>} */ (STRING)[ast.key];
                     } else if (left instanceof Set) {
                         result = /** @type {Record<string, any>} */ (SET)[ast.key];
-                    } else if (ast.key === "get" && typeof left === "object") {
+                    } else if (
+                        ast.key === "get" &&
+                        typeof left === "object" &&
+                        left !== null &&
+                        !Array.isArray(left)
+                    ) {
+                        // dict-style .get on generic objects; lists have no
+                        // .get in Python, so let them fall through and fail.
                         result = /** @type {Record<string, any>} */ (DICT)[ast.key];
                         left = toPyDict(left);
                     } else {

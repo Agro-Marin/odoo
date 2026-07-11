@@ -5,6 +5,11 @@ import { click, queryAllTexts, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
+    assertDateTimePicker,
+    editTime,
+    getPickerCell,
+} from "@web/../tests/components/datetime/datetime_test_helpers";
+import {
     defineParams,
     makeMockEnv,
     mountWithCleanup,
@@ -13,12 +18,6 @@ import {
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
 import { luxon } from "@web/core/l10n/luxon";
 import { ensureArray } from "@web/core/utils/collections/arrays";
-
-import {
-    assertDateTimePicker,
-    editTime,
-    getPickerCell,
-} from "../../datetime/datetime_test_helpers.js";
 
 const { DateTime } = luxon;
 

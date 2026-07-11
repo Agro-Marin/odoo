@@ -466,10 +466,14 @@ export class RelationalModel extends Model {
                     }
 
                     // multi record case: either grouped or ungrouped
-                    if (root.records.some((r) => r.isInEdition || r.dirty)) {
-                        // A record is being edited or has unsaved changes: _setData
-                        // would rebuild all record datapoints and destroy edition
-                        // state => ignore this update.
+                    if (
+                        root.records.some((r) => r.isInEdition || r.dirty || r.selected)
+                    ) {
+                        // A record is being edited, has unsaved changes, or is
+                        // selected: _setData would rebuild all record datapoints
+                        // and destroy that state (e.g. checked rows losing their
+                        // selection under a bulk-action click) => ignore this
+                        // update.
                         return;
                     }
                     if (root.config.groupBy.length) {

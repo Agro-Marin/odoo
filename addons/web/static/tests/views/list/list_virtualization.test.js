@@ -24,6 +24,12 @@
  * bar on ArrowUp, default browser scroll on ArrowDown) must not fire while
  * that focus move is in flight (V3, V4). The true boundary behavior — ArrowUp
  * from the header row focuses the search bar — is preserved (V5).
+ *
+ * V6 — inline edit × virtualization
+ * Scrolling away from an inline-edited row must NOT extend the rendered
+ * window up to that row (which would materialize every row in between): the
+ * edited row is kept alive as a single island adjacent to the spacer, so
+ * the rendered row count stays bounded and the pending edit survives.
  */
 
 import { expect, test } from "@odoo/hoot";
@@ -164,6 +170,52 @@ test("ArrowDown at the bottom rendered edge focuses the next row (V4)", async ()
     expect(
         queryFirst(`.o_data_row[data-row-index='${rowIndex + 1}'] .o_data_cell`),
     ).toBeFocused();
+});
+
+test.tags("desktop");
+test("edited row scrolled far away stays a bounded island (V6)", async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list editable="bottom" limit="200"><field name="name"/></list>`,
+    });
+
+    // Enter edit on the first row and type a pending (unsaved) value.
+    await contains(".o_data_row:first-child .o_data_cell").click();
+    expect(".o_data_row.o_selected_row").toHaveCount(1);
+    const editedId = queryFirst(".o_data_row.o_selected_row").dataset.id;
+    await contains(".o_selected_row [name='name'] input").edit("pending edit", {
+        confirm: false,
+    });
+
+    // Scroll far away from the edited row.
+    await contains(".o_list_renderer").scroll({ top: 5000 });
+    await animationFrame();
+    await animationFrame();
+
+    // The rendered slice must NOT span from the edited row to the viewport:
+    // only the visible window plus the single edited-row island is rendered.
+    const rows = queryAll(".o_data_row");
+    expect(rows.length).toBeLessThan(100);
+
+    // The edited row is still rendered (island adjacent to the top spacer),
+    // still in edition, with its pending input intact.
+    expect(".o_data_row.o_selected_row").toHaveCount(1);
+    const island = queryFirst(".o_data_row.o_selected_row");
+    expect(island.dataset.id).toBe(editedId);
+    expect(island).toBe(rows[0]);
+    expect(".o_selected_row [name='name'] input").toHaveValue("pending edit");
+
+    // The rest of the window really is far away (no contiguous fill-in).
+    expect(Number(rows[1].dataset.rowIndex)).toBeGreaterThan(50);
+
+    // Scrolling back re-integrates the edited row into the window without
+    // losing the edition.
+    await contains(".o_list_renderer").scroll({ top: 0 });
+    await animationFrame();
+    await animationFrame();
+    expect(".o_data_row.o_selected_row").toHaveCount(1);
+    expect(".o_selected_row [name='name'] input").toHaveValue("pending edit");
 });
 
 test.tags("desktop");

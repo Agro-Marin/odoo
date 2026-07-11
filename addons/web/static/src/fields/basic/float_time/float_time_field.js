@@ -15,11 +15,7 @@ export class FloatTimeField extends NumericInputFieldBase {
     static template = "web.FloatTimeField";
     static props = {
         ...standardFieldProps,
-        inputType: { type: String, optional: true },
         displaySeconds: { type: Boolean, optional: true },
-    };
-    static defaultProps = {
-        inputType: "text",
     };
 
     /** @param {string} v @returns {number} */
@@ -46,18 +42,11 @@ export const floatTimeField = {
             name: "displaySeconds",
             type: "boolean",
         },
-        {
-            label: _t("Type"),
-            name: "type",
-            type: "string",
-            default: "text",
-        },
     ],
     supportedTypes: ["float"],
     isEmpty: () => false,
     extractProps: ({ options }) => ({
         displaySeconds: options.displaySeconds,
-        inputType: options.type,
     }),
 };
 

@@ -1,6 +1,8 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { press, queryOne } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     clickSave,
     contains,
@@ -102,6 +104,32 @@ test("BadgeSelectionField widget on a selection in a new record", async () => {
     });
 
     await contains(`span.o_selection_badge:last`).click();
+    await clickSave();
+    expect.verifySteps(["saved color: black"]);
+});
+
+test("BadgeSelectionField widget exposes radiogroup semantics and keyboard activation", async () => {
+    onRpc("web_save", ({ args }) => {
+        expect.step(`saved color: ${args[1]["color"]}`);
+    });
+    await mountView({
+        resModel: "res.partner",
+        type: "form",
+        arch: `<form><field name="color" widget="selection_badge"/></form>`,
+    });
+
+    expect("div.o_field_selection_badge [role='radiogroup']").toHaveCount(1);
+    expect("span.o_selection_badge[role='radio']").toHaveCount(2);
+    expect("span.o_selection_badge[tabindex='0']").toHaveCount(2);
+    expect("span.o_selection_badge[aria-checked='true']").toHaveCount(1);
+    expect("span.o_selection_badge[aria-checked='true']").toHaveText("Red");
+
+    queryOne("span.o_selection_badge:last").focus();
+    await press("Enter");
+    await animationFrame();
+    expect("span.o_selection_badge[aria-checked='true']").toHaveText("Black", {
+        message: "Enter must activate the focused badge",
+    });
     await clickSave();
     expect.verifySteps(["saved color: black"]);
 });

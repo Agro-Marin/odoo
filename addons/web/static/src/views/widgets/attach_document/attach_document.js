@@ -4,16 +4,12 @@
 /** @module @web/views/widgets/attach_document/attach_document - Widget button that uploads files as ir.attachment records and optionally calls a model action */
 
 import { Component } from "@odoo/owl";
-import { FileInput } from "@web/components/file_input/file_input";
 import { registry } from "@web/core/registry";
 import { checkFileSize } from "@web/core/utils/files";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 export class AttachDocumentWidget extends Component {
     static template = "web.AttachDocument";
-    static components = {
-        FileInput,
-    };
     static props = {
         ...standardWidgetProps,
         string: { type: String },
@@ -67,6 +63,8 @@ export class AttachDocumentWidget extends Component {
     /** Save the record first, then open the native file picker. */
     async triggerUpload() {
         if (await this.beforeOpen()) {
+            // Reset so re-selecting the same file still fires "change".
+            this.fileInput.value = "";
             this.fileInput.click();
         }
     }

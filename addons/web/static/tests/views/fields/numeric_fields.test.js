@@ -117,6 +117,27 @@ test("Numeric fields: fields with keydown on numpad decimal key", async () => {
     expect(".o_field_progressbar input").toHaveValue("0🇧🇪44🇧🇪🇧🇪");
 });
 
+test("Numeric fields: numpad decimal keystroke marks the field dirty", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `<form><field name="qux"/></form>`,
+        resId: 1,
+    });
+
+    expect(".o_form_status_indicator_buttons").not.toBeVisible();
+
+    await click(".o_field_float input");
+    await keyDown("ArrowRight", { code: "ArrowRight" });
+    await keyDown(".", { code: "NumpadDecimal" });
+    await animationFrame();
+    // setRangeText fires no native input event: the hook must dispatch a
+    // synthetic one so the status indicator reacts to the keystroke.
+    expect(".o_form_status_indicator_buttons").toBeVisible({
+        message: "the rewritten separator must mark the field dirty",
+    });
+});
+
 test("Numeric fields: NumpadDecimal key is different from the decimalPoint", async () => {
     await mountView({
         type: "form",
@@ -290,4 +311,24 @@ test("select all content on focus", async () => {
     await animationFrame();
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(4);
+});
+
+test("select all content on focus (human readable format)", async () => {
+    Partner._records[0].int_field = 5000;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `<form><field name="int_field" options="{'human_readable': true}"/></form>`,
+        resId: 1,
+    });
+
+    const input = queryFirst(".o_field_widget[name='int_field'] input");
+    expect(input).toHaveValue("5k");
+    await pointerDown(input);
+    await animationFrame();
+    // The focus-driven reformat ("5k" -> "5.000") must not collapse the
+    // select-all done by the focus handler.
+    expect(input).toHaveValue("5.000");
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(5);
 });

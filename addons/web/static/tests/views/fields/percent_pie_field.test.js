@@ -91,6 +91,60 @@ test("PercentPieField in form view with value > 50%", async () => {
     );
 });
 
+test("PercentPieField in form view with an unset value", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="float_field" widget="percentpie"/>
+                        </group>
+                    </sheet>
+                </form>`,
+        resId: 1,
+    });
+
+    expect(".o_field_percent_pie.o_field_widget .o_pie").toHaveCount(1);
+    // `false` must render a valid 0% gradient — "0% false%" is an invalid
+    // background declaration that the browser drops entirely (no pie at all).
+    expect(
+        queryOne(
+            ".o_field_percent_pie.o_field_widget .o_pie",
+        ).style.background.replaceAll(/\s+/g, " "),
+    ).toBe(
+        "conic-gradient( var(--PercentPieField-color-active) 0% 0%, var(--PercentPieField-color-static) 0% 100% )",
+        { message: "an unset value should render a valid 0% gradient" },
+    );
+});
+
+test("PercentPieField clamps out-of-range values in the gradient", async () => {
+    Partner._records[0].int_field = 150;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: /* xml */ `
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="int_field" widget="percentpie"/>
+                        </group>
+                    </sheet>
+                </form>`,
+        resId: 1,
+    });
+
+    expect(
+        queryOne(
+            ".o_field_percent_pie.o_field_widget .o_pie",
+        ).style.background.replaceAll(/\s+/g, " "),
+    ).toBe(
+        "conic-gradient( var(--PercentPieField-color-active) 0% 100%, var(--PercentPieField-color-static) 0% 100% )",
+        { message: "values above 100 should clamp to 100%" },
+    );
+});
+
 test("PercentPieField in form view with float value", async () => {
     await mountView({
         type: "form",

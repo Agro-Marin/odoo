@@ -584,9 +584,9 @@ export class FormatPlugin extends Plugin {
     }
 
     cleanElement(element, { preserveSelection }) {
-        delete element.dataset.oeZwsEmptyInline;
         if (!allWhitespaceRegex.test(element.textContent)) {
             // The element has some meaningful text. Remove the ZWS in it.
+            delete element.dataset.oeZwsEmptyInline;
             this.cleanZWS(element, { preserveSelection });
             return;
         }

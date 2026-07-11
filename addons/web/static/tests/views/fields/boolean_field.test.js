@@ -7,6 +7,7 @@ import {
     clickSave,
     defineModels,
     fields,
+    makeServerError,
     models,
     mountView,
     onRpc,
@@ -150,6 +151,29 @@ test("readonly boolean field", async () => {
     await animationFrame();
     expect(`.o_field_boolean input`).toBeChecked();
     expect(`.o_field_boolean input`).not.toBeEnabled();
+});
+
+test("checkbox rolls back when the update is rejected", async () => {
+    expect.errors(1);
+    Partner._onChanges.bar = () => {
+        throw makeServerError({ type: "ValidationError", message: "boom" });
+    };
+
+    await mountView({
+        resModel: "partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="bar"/></form>`,
+    });
+    expect(`.o_field_boolean input`).toBeChecked();
+
+    await click(`.o_field_boolean .o-checkbox`);
+    await animationFrame();
+    await animationFrame();
+    expect.verifyErrors([/RPC_ERROR/]);
+    expect(`.o_field_boolean input`).toBeChecked({
+        message: "a rejected update must roll the optimistic checkbox back",
+    });
 });
 
 test("onchange return value before toggle checkbox", async () => {

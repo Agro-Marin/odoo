@@ -98,7 +98,7 @@ test("skips silent requests entirely", async () => {
     expect.verifySteps([]);
 });
 
-test("handles concurrent requests independently", async () => {
+test("concurrent slow requests share a single toast", async () => {
     patchWithCleanup(SLOW_RPC_CONFIG, { thresholdMs: 100 });
     await makeMockEnv();
     patchNotification();
@@ -106,16 +106,38 @@ test("handles concurrent requests independently", async () => {
     fireRequest(1);
     fireRequest(2);
     await advanceTime(150);
-    expect.verifySteps([
-        "add:This is taking longer than usual…|sticky=true",
-        "add:This is taking longer than usual…|sticky=true",
-    ]);
+    // One toast for N concurrent slow RPCs, not N stacked ones.
+    expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
 
+    // Still one slow request pending: the toast stays.
     fireResponse(1);
-    expect.verifySteps(["close:This is taking longer than usual…"]);
+    expect.verifySteps([]);
 
+    // Last slow request settles: the toast closes.
     fireResponse(2);
     expect.verifySteps(["close:This is taking longer than usual…"]);
+});
+
+test("shared toast reopens for a slow request after the first batch settled", async () => {
+    patchWithCleanup(SLOW_RPC_CONFIG, { thresholdMs: 100 });
+    await makeMockEnv();
+    patchNotification();
+
+    fireRequest(1);
+    await advanceTime(150);
+    fireResponse(1);
+    expect.verifySteps([
+        "add:This is taking longer than usual…|sticky=true",
+        "close:This is taking longer than usual…",
+    ]);
+
+    fireRequest(2);
+    await advanceTime(150);
+    fireResponse(2);
+    expect.verifySteps([
+        "add:This is taking longer than usual…|sticky=true",
+        "close:This is taking longer than usual…",
+    ]);
 });
 
 test("response without matching request is a no-op", async () => {

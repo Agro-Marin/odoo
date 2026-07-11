@@ -4,6 +4,7 @@
 /** @module @web/fields/selection/selection_like_field - Abstract base class for selection-like fields with special data loading */
 
 import { Component } from "@odoo/owl";
+import { Domain } from "@web/core/domain";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
@@ -28,8 +29,19 @@ export class SelectionLikeField extends Component {
         if (this.type === "many2one") {
             this.specialData = useSpecialData((orm, props) => {
                 const { relation } = props.record.fields[props.name];
-                const domain = getFieldDomain(props.record, props.name, props.domain);
-                return orm.call(relation, "name_search", ["", domain]);
+                let domain = getFieldDomain(props.record, props.name, props.domain);
+                const value = props.record.data[props.name];
+                if (domain.length && value) {
+                    // OR-in the current value so a selected record filtered
+                    // out by the domain still renders among the options
+                    // (same approach as StatusBarField's specialData loader).
+                    domain = Domain.or([[["id", "=", value.id]], domain]).toList(
+                        props.record.evalContext,
+                    );
+                }
+                return orm.call(relation, "name_search", ["", domain], {
+                    context: props.context || {},
+                });
             });
         }
     }

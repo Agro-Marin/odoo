@@ -83,6 +83,13 @@ export class PdfViewerField extends Component {
         if (!this.state.isValid || !this.props.record.data[this.props.name]) {
             return null;
         }
+        if (!this.state.objectUrl && !this.props.record.resId) {
+            // Unsaved record without a fresh upload (e.g. a duplicated record):
+            // /web/content?...&id=false would render a broken frame.
+            return null;
+        }
+        // By convention, an optional sibling `<name>_page` field selects the
+        // page to open (not declared in fieldDependencies: it is view-provided).
         const page = this.props.record.data[`${this.props.name}_page`] || 1;
         const file = encodeURIComponent(this.urlFile);
         return `/web/static/lib/pdfjs/web/viewer.html?file=${file}#page=${page}`;

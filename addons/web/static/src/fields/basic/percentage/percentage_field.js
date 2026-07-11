@@ -5,7 +5,7 @@
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
-import { extractDigits } from "@web/fields/field_utils";
+import { extractDigits, isFalseEmpty } from "@web/fields/field_utils";
 import { formatPercentage } from "@web/fields/formatters";
 import { parsePercentage } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -50,6 +50,7 @@ export const percentageField = {
     component: PercentageField,
     displayName: _t("Percentage"),
     supportedTypes: ["integer", "float"],
+    isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({
         digits: extractDigits({ attrs, options }),
     }),

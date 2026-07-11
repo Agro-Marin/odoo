@@ -10,16 +10,27 @@ export class SettingsBinaryField extends BinaryField {
 
     /**
      * Resolve download URL data using the related field's relation model and ID.
+     *
+     * Only applies to the supported "m2o.binary" shape (e.g.
+     * "company_id.logo"); anything else — no related, deeper chains, a
+     * non-relational first hop, or an unset m2o on the settings
+     * pseudo-record — falls back to the base binary download.
+     *
      * @returns {{ model: string, field: string, id: number } & Record<string, any>}
      */
     getDownloadData() {
         const related = this.props.record.fields[this.props.name].related;
-        const [fieldName, relatedFieldName] = related.split(".");
+        const [fieldName, relatedFieldName, ...rest] = related?.split(".") || [];
+        const relation = fieldName && this.props.record.fields[fieldName]?.relation;
+        const relatedValue = fieldName && this.props.record.data[fieldName];
+        if (!relatedFieldName || rest.length || !relation || !relatedValue?.id) {
+            return super.getDownloadData();
+        }
         return {
             ...super.getDownloadData(),
-            model: this.props.record.fields[fieldName].relation,
-            field: relatedFieldName ?? fieldName,
-            id: this.props.record.data[fieldName].id,
+            model: relation,
+            field: relatedFieldName,
+            id: relatedValue.id,
         };
     }
 }
