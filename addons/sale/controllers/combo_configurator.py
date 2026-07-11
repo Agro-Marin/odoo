@@ -5,7 +5,6 @@ from odoo.tools import groupby
 
 
 class SaleComboConfiguratorController(Controller):
-
     @route(
         route="/sale/combo_configurator/get_data",
         type="jsonrpc",
@@ -169,8 +168,13 @@ class SaleComboConfiguratorController(Controller):
         return {
             "id": combo_item.id,
             "extra_price": combo_item.currency_id._convert(
-                combo_item.extra_price, currency, request.env.company, date,
-            ) if currency else combo_item.extra_price,
+                combo_item.extra_price,
+                currency,
+                request.env.company,
+                date,
+            )
+            if currency
+            else combo_item.extra_price,
             "is_preselected": is_preselected,
             "is_selected": bool(selected_combo_item) or is_preselected,
             "is_configurable": is_configurable,
@@ -254,8 +258,13 @@ class SaleComboConfiguratorController(Controller):
                 "id": ptav.id,
                 "name": ptav.name,
                 "price_extra": ptav.currency_id._convert(
-                    ptav.price_extra, currency, request.env.company, date,
-                ) if currency else ptav.price_extra,
+                    ptav.price_extra,
+                    currency,
+                    request.env.company,
+                    date,
+                )
+                if currency
+                else ptav.price_extra,
                 "custom_value": custom_value_by_ptav_id.get(ptav.id),
             }
             for ptav in selected_ptavs

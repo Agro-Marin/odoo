@@ -1,4 +1,3 @@
-
 from odoo.tests import tagged
 
 from odoo.addons.product.tests.test_product_attribute_value_config import (
@@ -8,7 +7,6 @@ from odoo.addons.product.tests.test_product_attribute_value_config import (
 
 @tagged("post_install", "-at_install")
 class TestSaleProductAttributeValueConfig(TestProductAttributeValueCommon):
-
     def test_01_is_combination_possible_archived(self):
         """The goal is to test the possibility of archived combinations.
 

@@ -1,4 +1,3 @@
-
 from odoo.tests import HttpCase, tagged
 from odoo.tools import mute_logger
 
@@ -8,7 +7,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestAccessRightsControllers(HttpCase, SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -75,7 +73,6 @@ class TestAccessRightsControllers(HttpCase, SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestSalesControllers(HttpCase, SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -110,7 +107,6 @@ class TestSalesControllers(HttpCase, SaleCommon):
 
 @tagged("post_install", "-at_install", "mail_flow")
 class TestSaleSignature(HttpCaseWithUserPortal):
-
     def test_01_portal_sale_signature_tour(self):
         """The goal of this test is to make sure the portal user can sign SO."""
 

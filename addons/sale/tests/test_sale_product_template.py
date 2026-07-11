@@ -1,4 +1,3 @@
-
 from datetime import datetime
 
 from odoo.tests import tagged, users
@@ -8,7 +7,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleProductTemplate(SaleCommon):
-
     @users("salesman")
     def test_sale_get_configurator_display_price(self):
         configurator_price = self.env[

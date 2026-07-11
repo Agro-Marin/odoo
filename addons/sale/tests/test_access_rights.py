@@ -1,4 +1,3 @@
-
 from odoo import Command
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import tagged
@@ -10,7 +9,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestAccessRights(SaleCommon, MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

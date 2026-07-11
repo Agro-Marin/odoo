@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
@@ -7,7 +6,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestProductCatalog(HttpCase, SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

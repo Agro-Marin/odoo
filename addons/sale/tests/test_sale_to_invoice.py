@@ -1,4 +1,3 @@
-
 from unittest.mock import patch
 
 from odoo import Command, fields
@@ -10,7 +9,6 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 
 @tagged("-at_install", "post_install")
 class TestSaleToInvoice(TestSaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -174,15 +172,21 @@ class TestSaleToInvoice(TestSaleCommon):
         self.assertEqual(
             len(
                 invoice.invoice_line_ids.filtered(
-                    lambda l: not (
-                        l.display_type == "line_section" and l.name == "Down Payments"
+                    lambda l: (
+                        not (
+                            l.display_type == "line_section"
+                            and l.name == "Down Payments"
+                        )
                     )
                 )
             ),
             len(
                 self.sale_order.line_ids.filtered(
-                    lambda l: not (
-                        l.display_type == "line_section" and l.name == "Down Payments"
+                    lambda l: (
+                        not (
+                            l.display_type == "line_section"
+                            and l.name == "Down Payments"
+                        )
                     )
                 )
             ),
@@ -191,8 +195,9 @@ class TestSaleToInvoice(TestSaleCommon):
         self.assertEqual(
             len(
                 invoice.invoice_line_ids.filtered(
-                    lambda l: l.display_type == "line_section"
-                    and l.name == "Down Payments"
+                    lambda l: (
+                        l.display_type == "line_section" and l.name == "Down Payments"
+                    )
                 )
             ),
             1,
@@ -416,9 +421,9 @@ class TestSaleToInvoice(TestSaleCommon):
                 "price_include_override": "tax_included",
             }
         )
-        self.sale_order.line_ids.filtered(lambda l: not l.display_type).tax_ids = (
-            tax_incl
-        )
+        self.sale_order.line_ids.filtered(
+            lambda l: not l.display_type
+        ).tax_ids = tax_incl
         # Confirm the SO
         self.sale_order.action_confirm()
         self.assertTrue(
@@ -455,8 +460,8 @@ class TestSaleToInvoice(TestSaleCommon):
 
         invoice = self.sale_order.invoice_ids[0]
         downpayment_aml = invoice.line_ids.filtered(
-            lambda l: not (
-                l.display_type == "line_section" and l.name == "Down Payments"
+            lambda l: (
+                not (l.display_type == "line_section" and l.name == "Down Payments")
             )
         )[0]
         self.assertEqual(
@@ -1001,7 +1006,9 @@ class TestSaleToInvoice(TestSaleCommon):
                     "linked_line_id": sale_order.line_ids.id,
                 }
             )
-            for product, combo in zip(product_a + product_b, combo_a + combo_b, strict=True)
+            for product, combo in zip(
+                product_a + product_b, combo_a + combo_b, strict=True
+            )
         ]
 
         # Confirm the SO
@@ -1786,7 +1793,7 @@ class TestSaleToInvoice(TestSaleCommon):
         self.assertIn(
             salesperson.partner_id,
             invoice.message_partner_ids,
-            "Salesperson not in the followers list of " "invoice created from SO",
+            "Salesperson not in the followers list of invoice created from SO",
         )
 
     def test_amount_to_invoice_multiple_so(self):
@@ -1988,9 +1995,9 @@ class TestSaleToInvoice(TestSaleCommon):
         # Adapt the SOL names to test the different cases
         so.line_ids[0].name = "just a description"
         so.line_ids[1].name = so.line_ids[1].product_id.display_name
-        so.line_ids[2].name = (
-            f"{so.line_ids[2].product_id.display_name} with more description"
-        )
+        so.line_ids[
+            2
+        ].name = f"{so.line_ids[2].product_id.display_name} with more description"
         so.line_ids[3].name = "product"
 
         # Invoice the sale order

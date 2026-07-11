@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
@@ -7,7 +6,6 @@ from odoo.addons.product.tests.common import ProductVariantsCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleOrderUI(HttpCase, ProductVariantsCommon):
-
     def test_sale_order_keep_uom_on_variant_wizard_quantity_change(self):
         so = self.env["sale.order"].create(
             {

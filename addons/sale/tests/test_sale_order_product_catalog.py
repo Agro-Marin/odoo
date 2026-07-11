@@ -1,10 +1,8 @@
-
 from odoo.tests import HttpCase, tagged
 
 
 @tagged("-at_install", "post_install")
 class TestSaleOrderProductCatalog(HttpCase):
-
     def test_sale_order_product_catalog_branch_company_tour(self):
         """Test adding products to a SO through the catalog view when in a branch company."""
 

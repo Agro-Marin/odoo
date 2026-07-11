@@ -1,4 +1,3 @@
-
 from odoo.fields import Command
 from odoo.tests import Form, tagged
 
@@ -7,7 +6,6 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleRefund(TestSaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -170,9 +168,7 @@ class TestSaleRefund(TestSaleCommon):
         credit_note_wizard.refund_moves()
         invoice_refund = self.sale_order.invoice_ids.sorted(
             key=lambda inv: inv.id, reverse=False
-        )[
-            -1
-        ]  # the first invoice, its refund, and the new invoice
+        )[-1]  # the first invoice, its refund, and the new invoice
 
         # Check invoice's type and number
         self.assertEqual(
@@ -742,15 +738,21 @@ class TestSaleRefund(TestSaleCommon):
         self.assertEqual(
             len(
                 so_invoice.invoice_line_ids.filtered(
-                    lambda l: not (
-                        l.display_type == "line_section" and l.name == "Down Payments"
+                    lambda l: (
+                        not (
+                            l.display_type == "line_section"
+                            and l.name == "Down Payments"
+                        )
                     )
                 )
             ),
             len(
                 sale_order_refund.line_ids.filtered(
-                    lambda l: not (
-                        l.display_type == "line_section" and l.name == "Down Payments"
+                    lambda l: (
+                        not (
+                            l.display_type == "line_section"
+                            and l.name == "Down Payments"
+                        )
                     )
                 )
             ),
@@ -759,8 +761,9 @@ class TestSaleRefund(TestSaleCommon):
         self.assertEqual(
             len(
                 so_invoice.invoice_line_ids.filtered(
-                    lambda l: l.display_type == "line_section"
-                    and l.name == "Down Payments"
+                    lambda l: (
+                        l.display_type == "line_section" and l.name == "Down Payments"
+                    )
                 )
             ),
             1,

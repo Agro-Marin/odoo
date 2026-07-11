@@ -1,4 +1,3 @@
-
 import base64
 
 from odoo.fields import Command
@@ -9,7 +8,6 @@ from odoo.addons.uom.tests.common import UomCommon
 
 
 class TestProductConfiguratorCommon(UomCommon, HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

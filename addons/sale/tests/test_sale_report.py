@@ -1,4 +1,3 @@
-
 from odoo import fields
 from odoo.fields import Command
 from odoo.libs.numbers.float_utils import float_compare
@@ -9,7 +8,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("-at_install", "post_install")
 class TestSaleReportCurrencyRate(SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

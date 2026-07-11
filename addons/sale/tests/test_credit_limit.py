@@ -1,4 +1,3 @@
-
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import Form, tagged, users
@@ -8,7 +7,6 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSaleOrderCreditLimit(TestSaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -340,9 +338,9 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
             "Total amount due (including sales orders and this document): $\xa01,100.00",
         )
 
-        invoice.invoice_line_ids[0].price_unit = (
-            2000  # > 1000 (sales order amount_total)
-        )
+        invoice.invoice_line_ids[
+            0
+        ].price_unit = 2000  # > 1000 (sales order amount_total)
         self.assertEqual(
             invoice.partner_credit_warning,
             "partner_a has reached its credit limit of: $\xa01,000.00\n"

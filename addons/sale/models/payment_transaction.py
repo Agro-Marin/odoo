@@ -205,9 +205,11 @@ class PaymentTransaction(models.Model):
                 company_id=tx.company_id.id,
             )
             invoice_to_send = tx.invoice_ids.filtered(
-                lambda i: not i.is_move_sent
-                and i.state == "posted"
-                and i._is_ready_to_be_sent()
+                lambda i: (
+                    not i.is_move_sent
+                    and i.state == "posted"
+                    and i._is_ready_to_be_sent()
+                )
             )
             invoice_to_send.is_move_sent = True  # Mark invoice as sent
 

@@ -1,4 +1,3 @@
-
 from datetime import timedelta
 
 from freezegun import freeze_time
@@ -13,7 +12,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestSalePrices(SaleCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

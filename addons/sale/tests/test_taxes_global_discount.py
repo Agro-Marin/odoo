@@ -8,7 +8,6 @@ from odoo.addons.sale.tests.common import TestTaxCommonSale
 
 @tagged("post_install", "-at_install")
 class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
-
     # -------------------------------------------------------------------------
     # HELPERS
     # -------------------------------------------------------------------------
