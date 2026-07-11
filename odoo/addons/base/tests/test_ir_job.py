@@ -228,6 +228,103 @@ class TestIrJob(TransactionCase):
         self.assertEqual(job.state, "failed")
 
     # ------------------------------------------------------------------
+    # Dependencies
+    # ------------------------------------------------------------------
+
+    def test_chain_releases_on_completion(self):
+        j1 = self.partner.delayed()._ir_job_test_append(" a")
+        j2 = self.partner.delayed(after=j1)._ir_job_test_append(" b")
+        self.assertEqual(j2.state, "wait_deps")
+        self.assertEqual(j2.depends_on_ids, j1)
+        self.assertEqual(j1.dependent_ids, j2)
+
+        claimed = self._claim()
+        self.assertEqual(claimed["id"], j1.id, "wait_deps must not be claimable")
+        IrJob._run_claimed(self.env.cr, claimed)
+        j2.invalidate_recordset()
+        self.assertEqual(j2.state, "pending", "released atomically with j1's done")
+
+        claimed = self._claim()
+        self.assertEqual(claimed["id"], j2.id)
+        IrJob._run_claimed(self.env.cr, claimed)
+        self.env.invalidate_all()
+        self.assertEqual(self.partner.name, "job target a b")
+
+    def test_fan_in_waits_for_all_dependencies(self):
+        j1 = self.partner.delayed()._ir_job_test_append()
+        j2 = self.partner.delayed(channel="other")._ir_job_test_append()
+        j3 = self.partner.delayed(after=j1 | j2)._ir_job_test_append()
+
+        IrJob._run_claimed(self.env.cr, self._claim())
+        j3.invalidate_recordset()
+        self.assertEqual(j3.state, "wait_deps", "one of two dependencies done")
+        IrJob._run_claimed(self.env.cr, self._claim())
+        j3.invalidate_recordset()
+        self.assertEqual(j3.state, "pending", "all dependencies done")
+
+    def test_enqueue_after_done_dependency_is_pending(self):
+        j1 = self.partner.delayed()._ir_job_test_append()
+        IrJob._run_claimed(self.env.cr, self._claim())
+        j2 = self.partner.delayed(after=j1)._ir_job_test_append()
+        self.assertEqual(j2.state, "pending")
+
+    def test_enqueue_after_failed_dependency_is_refused(self):
+        j1 = self.partner.delayed(max_retries=0)._ir_job_test_boom()
+        claimed = self._claim()
+        IrJob._record_failure(self.env.cr, claimed, ValueError("boom"))
+        with self.assertRaises(UserError):
+            self.partner.delayed(after=j1)._ir_job_test_append()
+
+    def test_failure_cascade_cancels_transitive_dependents(self):
+        j1 = self.partner.delayed(max_retries=0)._ir_job_test_boom()
+        j2 = self.partner.delayed(after=j1)._ir_job_test_append()
+        j3 = self.partner.delayed(after=j2)._ir_job_test_append()
+
+        claimed = self._claim()
+        IrJob._record_failure(self.env.cr, claimed, ValueError("boom"))
+        (j1 + j2 + j3).invalidate_recordset()
+        self.assertEqual(j1.state, "failed")
+        self.assertEqual(j2.state, "cancelled")
+        self.assertEqual(j3.state, "cancelled", "cascade is transitive")
+        self.assertEqual(j2.exc_name, "DependencyFailed")
+
+    def test_cancel_cascades_to_waiting_dependents(self):
+        j1 = self.partner.delayed()._ir_job_test_append()
+        j2 = self.partner.delayed(after=j1)._ir_job_test_append()
+        j1.action_cancel()
+        j2.invalidate_recordset()
+        self.assertEqual(j2.state, "cancelled")
+
+    def test_requeue_recomputes_dependency_state(self):
+        j1 = self.partner.delayed()._ir_job_test_append()
+        j2 = self.partner.delayed(after=j1)._ir_job_test_append()
+        j1.action_cancel()
+        j2.invalidate_recordset()
+        self.assertEqual(j2.state, "cancelled")
+        # requeue both: j1 is pending again, so j2 must wait, not run
+        (j1 + j2).action_requeue()
+        self.assertEqual(j1.state, "pending")
+        self.assertEqual(j2.state, "wait_deps")
+
+    def test_repair_sweep_resolves_stuck_jobs(self):
+        j1 = self.partner.delayed()._ir_job_test_append()
+        j2 = self.partner.delayed(after=j1)._ir_job_test_append()
+        # simulate the enqueue race: dependency done but dependent left waiting
+        self.env.cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (j1.id,))
+        IrJob._resolve_dependencies(self.env.cr)
+        j2.invalidate_recordset()
+        self.assertEqual(j2.state, "pending")
+
+        j3 = self.partner.delayed()._ir_job_test_append()
+        j4 = self.partner.delayed(after=j3)._ir_job_test_append()
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'failed' WHERE id = %s", (j3.id,)
+        )
+        IrJob._resolve_dependencies(self.env.cr)
+        j4.invalidate_recordset()
+        self.assertEqual(j4.state, "cancelled")
+
+    # ------------------------------------------------------------------
     # User actions
     # ------------------------------------------------------------------
 

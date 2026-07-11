@@ -60,6 +60,7 @@ DEAD_JOB_GRACE_S = 60
 RETRY_BACKOFF_BASE_S = 10
 RETRY_BACKOFF_MAX_S = 3600
 
+WAIT_DEPS = "wait_deps"
 PENDING = "pending"
 STARTED = "started"
 DONE = "done"
@@ -67,6 +68,7 @@ FAILED = "failed"
 CANCELLED = "cancelled"
 
 STATES = [
+    (WAIT_DEPS, "Waiting Dependencies"),
     (PENDING, "Pending"),
     (STARTED, "Started"),
     (DONE, "Done"),
@@ -115,6 +117,7 @@ class Base(models.AbstractModel):
         channel: str | None = None,
         max_retries: int | None = None,
         identity_key: str | None = None,
+        after: models.BaseModel | None = None,
     ) -> DelayedProxy:
         """Return a proxy that enqueues the next method call as an ``ir.job``.
 
@@ -128,7 +131,12 @@ class Base(models.AbstractModel):
         :param channel: ``ir.job.channel`` name (default: the decorator's)
         :param max_retries: retry budget (default: the decorator's)
         :param identity_key: dedup handle — while a job with the same key is
-            pending or started, re-enqueueing returns it instead of inserting
+            queued (waiting, pending or started), re-enqueueing returns it
+            instead of inserting
+        :param after: ``ir.job`` recordset this job depends on — it stays in
+            ``wait_deps`` until every dependency is ``done``, and is cancelled
+            if any of them fails or is cancelled.  Chain jobs by passing the
+            previous ``delayed()`` result; fan-in by passing a union.
         """
         return DelayedProxy(
             self,
@@ -138,6 +146,7 @@ class Base(models.AbstractModel):
                 "channel": channel,
                 "max_retries": max_retries,
                 "identity_key": identity_key,
+                "after": after,
             },
         )
 
@@ -206,11 +215,30 @@ class IrJob(models.Model):
     done_at = fields.Datetime(readonly=True)
     worker_ident = fields.Char(readonly=True)
 
+    depends_on_ids = fields.Many2many(
+        "ir.job",
+        relation="ir_job_dependency",
+        column1="job_id",
+        column2="depends_on_id",
+        string="Depends On",
+        readonly=True,
+        help="This job stays in 'Waiting Dependencies' until every listed "
+        "job is done; it is cancelled if any of them fails.",
+    )
+    dependent_ids = fields.Many2many(
+        "ir.job",
+        relation="ir_job_dependency",
+        column1="depends_on_id",
+        column2="job_id",
+        string="Dependents",
+        readonly=True,
+    )
+
     _claim_idx = models.Index(
         "(channel, priority, create_date) WHERE state = 'pending'"
     )
     _identity_uniq = models.UniqueIndex(
-        "(identity_key) WHERE state IN ('pending', 'started')"
+        "(identity_key) WHERE state IN ('wait_deps', 'pending', 'started')"
         " AND identity_key IS NOT NULL",
         "A job with the same identity key is already queued.",
     )
@@ -242,6 +270,7 @@ class IrJob(models.Model):
         channel: str | None = None,
         max_retries: int | None = None,
         identity_key: str | None = None,
+        after: models.BaseModel | None = None,
     ) -> models.BaseModel:
         """Persist a job row for ``records.method_name(*args, **kwargs)``.
 
@@ -250,6 +279,14 @@ class IrJob(models.Model):
         which a search-then-create cannot.  Called from ``delayed()`` only —
         it is not an RPC surface, and access control is the ``@api.job``
         marker check plus the model ACL on ``ir.job`` itself.
+
+        With ``after``, the job starts in ``wait_deps`` unless every
+        dependency is already done.  The dependency-state read is not locked
+        against a dependency finishing concurrently — the repair sweep in
+        ``_process_jobs`` re-resolves stuck jobs on every worker pass, so a
+        race delays the job by at most one pass instead of losing it.
+        On an ``identity_key`` dedup hit the existing job is returned as-is:
+        no new dependencies are attached.
         """
         func = getattr(type(records), method_name, None)
         job_config = getattr(func, "_job_config", None)
@@ -280,6 +317,29 @@ class IrJob(models.Model):
             eta = fields.Datetime.now() + timedelta(seconds=eta)
 
         env = self.env
+        state = PENDING
+        dep_ids: list[int] = []
+        if after:
+            if after._name != self._name:
+                raise UserError(self.env._("Job dependencies must be ir.job records."))
+            dep_ids = after.ids
+            env.cr.execute(
+                SQL(
+                    "SELECT state FROM ir_job WHERE id IN %s",
+                    tuple(dep_ids),
+                )
+            )
+            dep_states = {r[0] for r in env.cr.fetchall()}
+            if dep_states & {FAILED, CANCELLED}:
+                raise UserError(
+                    self.env._(
+                        "Cannot enqueue after a failed or cancelled job; "
+                        "requeue the dependency first."
+                    )
+                )
+            if dep_states - {DONE}:
+                state = WAIT_DEPS
+
         context = {
             key: env.context[key] for key in ALLOWED_CONTEXT_KEYS if key in env.context
         }
@@ -293,18 +353,19 @@ class IrJob(models.Model):
                     user_id, company_id, context, retry, max_retries,
                     create_uid, create_date, write_uid, write_date
                 ) VALUES (
-                    gen_random_uuid()::varchar, %s, 'pending', %s, %s, %s,
+                    gen_random_uuid()::varchar, %s, %s, %s, %s, %s,
                     %s, %s, %s::jsonb, %s::jsonb, %s::jsonb,
                     %s, %s, %s::jsonb, 0, %s,
                     %s, %s, %s, %s
                 )
                 ON CONFLICT (identity_key)
-                    WHERE state IN ('pending', 'started')
+                    WHERE state IN ('wait_deps', 'pending', 'started')
                     AND identity_key IS NOT NULL
                     DO NOTHING
                 RETURNING id
                 """,
                 channel or job_config["channel"],
+                state,
                 priority if priority is not None else job_config["priority"],
                 eta or None,
                 identity_key,
@@ -337,22 +398,37 @@ class IrJob(models.Model):
                 )
             )
             row = env.cr.fetchone()
-        env.cr.postcommit.add(self._notifydb)
+        elif dep_ids:
+            env.cr.execute(
+                SQL(
+                    "INSERT INTO ir_job_dependency (job_id, depends_on_id)"
+                    " SELECT %s, dep FROM unnest(%s::int[]) AS dep",
+                    row[0],
+                    dep_ids,
+                )
+            )
+        if state == PENDING:
+            env.cr.postcommit.add(self._notifydb)
         return self.browse(row[0])
 
     @api.model
     def _notifydb(self) -> None:
         """Wake up the job workers (cross-database: they LISTEN on 'postgres')."""
+        IrJob._notify_workers(self.env.cr.dbname)
+
+    @staticmethod
+    def _notify_workers(db_name: str) -> None:
+        """NOTIFY the job workers of ``db_name`` (they LISTEN on 'postgres')."""
         with db.db_connect("postgres").cursor() as cr:
             cr.execute(
                 SQL(
                     "SELECT %s(%s, %s)",
                     SQL.identifier(ODOO_NOTIFY_FUNCTION),
                     JOB_QUEUE_CHANNEL,
-                    self.env.cr.dbname,
+                    db_name,
                 )
             )
-        _logger.debug("job workers notified")
+        _logger.debug("job workers notified (%s)", db_name)
 
     # ------------------------------------------------------------------
     # Worker side (runs on a worker's own cursor; no request environment)
@@ -387,6 +463,13 @@ class IrJob(models.Model):
                 # Rescue jobs of dead workers first: their corpses hold
                 # channel capacity, so reaping must precede claiming.
                 IrJob._reap_dead_jobs(pre_cr)
+                # Repair sweep for the dependency graph: releases wait_deps
+                # jobs whose dependencies all completed and cascade-cancels
+                # those with a failed/cancelled dependency.  The inline
+                # resolution in _run_claimed/_record_failure is the fast
+                # path; this sweep guarantees enqueue-time races only delay
+                # a job by one worker pass instead of stranding it.
+                IrJob._resolve_dependencies(pre_cr)
                 pre_cr.commit()
                 pre_cr.execute(
                     "SELECT EXISTS (SELECT 1 FROM ir_job WHERE state = 'pending'"
@@ -539,6 +622,14 @@ class IrJob(models.Model):
                 job["id"],
             )
         )
+        # Release dependents in the SAME transaction: completion and the
+        # promotion of waiting jobs are atomic.  The worker's claim loop
+        # picks promoted jobs up immediately; the postcommit NOTIFY covers
+        # the manual-run path and other instances.
+        released = IrJob._release_dependents(cr, job["id"])
+        if released:
+            db_name = cr.dbname
+            cr.postcommit.add(lambda: IrJob._notify_workers(db_name))
         _logger.info("Job %s: done", job["id"])
 
     @classmethod
@@ -603,6 +694,7 @@ class IrJob(models.Model):
             _logger.error(
                 "Job %s: failed permanently after %s retries", job["id"], retry
             )
+            IrJob._cancel_dependents(cr, [job["id"]])
             cls._notify_failed(cr, job, exc)
 
     @staticmethod
@@ -669,6 +761,110 @@ class IrJob(models.Model):
                 )
 
     # ------------------------------------------------------------------
+    # Dependency graph resolution
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _release_dependents(cr, job_id: int) -> int:
+        """Promote ``wait_deps`` dependents of ``job_id`` whose every
+        dependency is now done.  Returns the number of promoted jobs.
+
+        Called inside the completing job's transaction, after its own row
+        turned ``done`` (visible in-snapshot), so promotion is atomic with
+        completion.
+        """
+        cr.execute(
+            SQL(
+                """
+                UPDATE ir_job d
+                SET state = 'pending', write_date = (now() AT TIME ZONE 'UTC')
+                WHERE d.state = 'wait_deps'
+                  AND d.id IN (SELECT job_id FROM ir_job_dependency
+                               WHERE depends_on_id = %s)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM ir_job_dependency dd
+                      JOIN ir_job pj ON pj.id = dd.depends_on_id
+                      WHERE dd.job_id = d.id AND pj.state != 'done'
+                  )
+                """,
+                job_id,
+            )
+        )
+        return cr.rowcount
+
+    @staticmethod
+    def _cancel_dependents(cr, job_ids: list[int]) -> int:
+        """Cascade-cancel the transitive ``wait_deps`` dependents of
+        failed/cancelled jobs.  Returns the number of cancelled jobs.
+        """
+        cr.execute(
+            SQL(
+                """
+                WITH RECURSIVE dependents AS (
+                    SELECT d.job_id FROM ir_job_dependency d
+                    WHERE d.depends_on_id = ANY(%s::int[])
+                    UNION
+                    SELECT d2.job_id FROM ir_job_dependency d2
+                    JOIN dependents ON d2.depends_on_id = dependents.job_id
+                )
+                UPDATE ir_job j
+                SET state = 'cancelled',
+                    done_at = (now() AT TIME ZONE 'UTC'),
+                    exc_name = 'DependencyFailed',
+                    exc_message = 'a job this one depends on failed'
+                                  ' or was cancelled',
+                    write_date = (now() AT TIME ZONE 'UTC')
+                WHERE j.id IN (SELECT job_id FROM dependents)
+                  AND j.state = 'wait_deps'
+                """,
+                job_ids,
+            )
+        )
+        if cr.rowcount:
+            _logger.info(
+                "Cancelled %s dependent job(s) of failed/cancelled %s",
+                cr.rowcount,
+                job_ids,
+            )
+        return cr.rowcount
+
+    @staticmethod
+    def _resolve_dependencies(cr) -> None:
+        """Repair sweep: re-derive the state of every ``wait_deps`` job.
+
+        Promotes jobs whose dependencies all completed and cascade-cancels
+        jobs with a failed/cancelled dependency.  Needed because enqueueing
+        with ``after=`` reads dependency states without locking them — a
+        dependency finishing in the race window is caught here on the next
+        worker pass (see ``_enqueue``).
+        """
+        cr.execute(
+            """
+            UPDATE ir_job d
+            SET state = 'pending', write_date = (now() AT TIME ZONE 'UTC')
+            WHERE d.state = 'wait_deps'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM ir_job_dependency dd
+                  JOIN ir_job pj ON pj.id = dd.depends_on_id
+                  WHERE dd.job_id = d.id AND pj.state != 'done'
+              )
+            """
+        )
+        promoted = cr.rowcount
+        cr.execute(
+            "SELECT DISTINCT depends_on_id FROM ir_job_dependency d"
+            " JOIN ir_job pj ON pj.id = d.depends_on_id"
+            " WHERE pj.state IN ('failed', 'cancelled')"
+        )
+        dead = [r[0] for r in cr.fetchall()]
+        if dead:
+            IrJob._cancel_dependents(cr, dead)
+        if promoted:
+            _logger.info("Promoted %s job(s) whose dependencies completed", promoted)
+
+    # ------------------------------------------------------------------
     # User-facing helpers
     # ------------------------------------------------------------------
 
@@ -717,20 +913,43 @@ class IrJob(models.Model):
         self.invalidate_recordset()
 
     def action_requeue(self) -> None:
-        """Put failed/cancelled jobs back in the queue (fresh retry budget)."""
+        """Put failed/cancelled jobs back in the queue (fresh retry budget).
+
+        A job with unfinished dependencies goes back to ``wait_deps``, not
+        ``pending``.  Requeue failed dependencies first (or together): a
+        requeued dependent whose dependency is still failed gets cancelled
+        again by the repair sweep, by design.
+        """
         self.browse().check_access("write")
         for job in self:
             if job.state not in (FAILED, CANCELLED):
                 raise UserError(
                     self.env._("Only failed or cancelled jobs can be requeued.")
                 )
-        self.sudo().write({"state": PENDING, "retry": 0, "eta": False})
+        for job in self:
+            waiting = any(dep.state != DONE for dep in job.depends_on_ids)
+            job.sudo().write(
+                {
+                    "state": WAIT_DEPS if waiting else PENDING,
+                    "retry": 0,
+                    "eta": False,
+                    "done_at": False,
+                }
+            )
         self.env.cr.postcommit.add(self._notifydb)
 
     def action_cancel(self) -> None:
-        """Cancel pending jobs (started jobs cannot be interrupted)."""
+        """Cancel waiting/pending jobs (started jobs cannot be interrupted).
+
+        Waiting dependents of a cancelled job are cascade-cancelled too —
+        they could never start otherwise.
+        """
         self.browse().check_access("write")
         for job in self:
-            if job.state != PENDING:
-                raise UserError(self.env._("Only pending jobs can be cancelled."))
+            if job.state not in (WAIT_DEPS, PENDING):
+                raise UserError(
+                    self.env._("Only waiting or pending jobs can be cancelled.")
+                )
         self.sudo().write({"state": CANCELLED, "done_at": fields.Datetime.now()})
+        self.env.flush_all()
+        type(self)._cancel_dependents(self.env.cr, self.ids)

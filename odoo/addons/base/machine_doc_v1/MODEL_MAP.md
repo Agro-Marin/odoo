@@ -575,27 +575,32 @@ instead of executed (the method must be decorated with `@api.job`).
 Background job queue — a persisted method call (model, method, records,
 JSON args) executed asynchronously by the job workers (`WorkerJob` /
 `job_thread`, LISTEN/NOTIFY on channel `job_queue`), each in its own
-transaction. States: pending → started → done / failed / cancelled.
+transaction. States: wait_deps → pending → started → done / failed /
+cancelled. Dependency graphs via `delayed(after=jobs)`: chains and fan-in;
+dependents are released atomically with the dependency's completion and
+cascade-cancelled (transitively) when a dependency fails or is cancelled.
 
 **Fields:**
 - `uuid` (Char), `channel` (Char, default='root'), `state` (Selection), `priority` (Integer, default=10)
-- `eta` (Datetime) — earliest execution; `identity_key` (Char) — dedup handle (partial unique index while pending/started)
+- `eta` (Datetime) — earliest execution; `identity_key` (Char) — dedup handle (partial unique index while wait_deps/pending/started)
 - `model_name`/`method_name` (Char, required), `record_ids`/`args`/`kwargs`/`context` (Json)
 - `user_id` (Many2one → res.users, required), `company_id` (Many2one → res.company)
 - `retry`/`max_retries` (Integer), `exc_name`/`exc_message` (Char), `exc_info` (Text)
 - `started_at`/`done_at` (Datetime), `worker_ident` (Char)
+- `depends_on_ids`/`dependent_ids` (Many2many self via `ir_job_dependency`)
 
 **Key Methods:**
-- `_enqueue(records, method_name, ...)` — transactional INSERT (ON CONFLICT dedup) + postcommit NOTIFY
-- `_process_jobs(db_name)` — Static: worker entry point (guards, reap, claim loop)
+- `_enqueue(records, method_name, ..., after=)` — transactional INSERT (ON CONFLICT dedup) + postcommit NOTIFY; with `after`, starts in wait_deps
+- `_process_jobs(db_name)` — Static: worker entry point (guards, reap, dependency repair sweep, claim loop)
 - `_claim_next(cr, worker_ident)` — claim under advisory xact-lock + SKIP LOCKED, per-channel capacity
-- `_run_claimed(cr, job)` — execute and mark done in the same transaction (atomic completion)
-- `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail
+- `_run_claimed(cr, job)` — execute, mark done and release ready dependents in the same transaction (atomic completion)
+- `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail + cascade-cancel dependents
+- `_release_dependents(cr, job_id)` / `_cancel_dependents(cr, job_ids)` / `_resolve_dependencies(cr)` — graph resolution (inline fast path + repair sweep for unlocked enqueue races)
 - `_reap_dead_jobs(cr)` — requeue started jobs whose session advisory lock is gone
-- `_notifydb()` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
+- `_notifydb()` / `_notify_workers(db_name)` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
 - `_notify_failed(cr, job, exc)` — hook on permanent failure (no-op in base; override per DB, cf. `IrCron._notify_admin`)
 - `action_run_now()` — execute a pending job inline in the current transaction (ignores eta/capacity, like cron's direct trigger)
-- `action_requeue()`, `action_cancel()` — UI/state actions
+- `action_requeue()` (recomputes wait_deps vs pending), `action_cancel()` (wait_deps/pending; cascades) — UI/state actions
 
 Views: `views/ir_job_views.xml` (list/form/search + channel list), menus under
 Settings > Technical > Automation (`menu_ir_job_act`, `menu_ir_job_channel_act`).
