@@ -185,6 +185,11 @@ def boot_server(db: str, verbose: bool = False) -> dict:
         str(VENV_PY), str(ODOO_BIN), "-c", str(CONF), "-d", db,
         "-p", str(port), "--http-interface", HOST,
         f"--db-filter=^{db}$", "--max-cron-threads=0",
+        # dev_mode makes the assets pipeline re-check source mtimes per request,
+        # so a JS edit is picked up by the warm server on the next run without a
+        # restart or an ir_attachment flush (the edit/run loop's whole point).
+        # 'xml,qweb' only — NOT 'reload' (that would py-autoreload the server).
+        "--dev=xml,qweb",
     ]
     _log.info("Booting warm server: db=%s port=%s (log: %s)", db, port, log_path)
     log_fh = log_path.open("wb")
