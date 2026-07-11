@@ -145,7 +145,9 @@ class TestFetchmail(TransactionCase):
             captured.append(records.mapped("name"))
 
         cron = self.env.ref("mail.ir_cron_mail_gateway_action")
-        with patch.object(self.registry["fetchmail.server"], "_fetch_mail", _fetch_mail):
+        with patch.object(
+            self.registry["fetchmail.server"], "_fetch_mail", _fetch_mail
+        ):
             Server.with_context(cron_id=cron.id, cron_end_time=0)._fetch_mails()
 
         # _fetch_mails calls _fetch_mail once on the whole priority-ordered

@@ -54,7 +54,7 @@ class MailAlias(models.Model):
         default=lambda self: self.env.company.alias_domain_id,
     )
     alias_domain = fields.Char("Alias domain name", related="alias_domain_id.name")
-    # target: create / update  # noqa: ERA001
+    # target: create / update
     alias_model_id = fields.Many2one(
         "ir.model",
         "Aliased Model",

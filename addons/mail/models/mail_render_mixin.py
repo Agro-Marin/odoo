@@ -269,7 +269,7 @@ class MailRenderMixin(models.AbstractModel):
         template_ctx.setdefault("signature", "")
         template_ctx.setdefault("show_unfollow", False)
         template_ctx.setdefault("website_url", "")
-        # display: actions / buttons  # noqa: ERA001
+        # display: actions / buttons
         template_ctx.setdefault("button_access", False)
         template_ctx.setdefault("has_button_access", False)
         # display
@@ -855,7 +855,7 @@ class MailRenderMixin(models.AbstractModel):
             options = {}
 
         if not isinstance(res_ids, (list, tuple)):
-            raise ValueError(  # noqa: TRY004
+            raise ValueError(
                 _(
                     "Template rendering should only be called with a list of IDs. Received “%(res_ids)s” instead.",
                     res_ids=res_ids,

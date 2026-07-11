@@ -126,9 +126,14 @@ class IrConfig_Parameter(models.Model):
             for record in self:
                 # key: from vals if being changed, otherwise from the record
                 key = vals.get("key", record.key)
-                records_by_value[self._sanitize_param_value(key, vals["value"])] |= record
+                records_by_value[self._sanitize_param_value(key, vals["value"])] |= (
+                    record
+                )
             result = True
             for value, records in records_by_value.items():
-                result = super(IrConfig_Parameter, records).write({**vals, "value": value}) and result
+                result = (
+                    super(IrConfig_Parameter, records).write({**vals, "value": value})
+                    and result
+                )
             return result
         return super().write(vals)

@@ -98,7 +98,9 @@ class TestWebsocketController(HttpCaseWithUserDemo):
                 "is_first_poll": True,
             },
         )
-        self.make_jsonrpc_request("/websocket/update_bus_presence", {"inactivity_period": 0})
+        self.make_jsonrpc_request(
+            "/websocket/update_bus_presence", {"inactivity_period": 0}
+        )
         self.assertEqual(self.opener.cookies["session_id"], original_session)
         self.url_open("/odoo")
         self.assertNotEqual(self.opener.cookies["session_id"], original_session)

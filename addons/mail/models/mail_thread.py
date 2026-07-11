@@ -61,7 +61,11 @@ from odoo.addons.mail.tools.web_push import (
 )
 
 MAX_DIRECT_PUSH = 5
-BAD_CONTENT_TYPES = ("binary/octet-stream", "*/*", "bin/plain")  # replaced by application/octet-stream
+BAD_CONTENT_TYPES = (
+    "binary/octet-stream",
+    "*/*",
+    "bin/plain",
+)  # replaced by application/octet-stream
 
 _logger = logging.getLogger(__name__)
 
@@ -2167,8 +2171,8 @@ class MailThread(models.AbstractModel):
         # following example so test the MIME type with startswith()
         #
         # Content-Type: multipart/related;
-        #   boundary="_004_3f1e4da175f349248b8d43cdeb9866f1AMSPR06MB343eurprd06pro_";  # noqa: ERA001
-        #   type="text/html"  # noqa: ERA001
+        #   boundary="_004_3f1e4da175f349248b8d43cdeb9866f1AMSPR06MB343eurprd06pro_";
+        #   type="text/html"
         if message.get_content_maintype() == "text":
             body = message.get_content()
             if message.get_content_type() == "text/plain":
@@ -2397,7 +2401,7 @@ class MailThread(models.AbstractModel):
                 }
         """
         if not isinstance(message, EmailMessage):
-            raise ValueError(_("Message should be a valid EmailMessage instance"))  # noqa: TRY004
+            raise ValueError(_("Message should be a valid EmailMessage instance"))
         msg_dict = {"message_type": "email"}
 
         message_id = message.get("Message-Id")
@@ -4052,7 +4056,7 @@ class MailThread(models.AbstractModel):
                     )
                 )
         else:
-            raise ValueError(  # noqa: TRY004
+            raise ValueError(
                 _(
                     "Invalid template or view source %(svalue)s (type %(stype)s), should be a record or an XMLID",
                     svalue=source_ref,
@@ -5710,7 +5714,7 @@ class MailThread(models.AbstractModel):
             "res_id": kwargs.get("res_id", self.ids[0] if self else False),
         }
         # keep only accepted parameters:
-        # - action (deprecated), token (assign), access_token (view)  # noqa: ERA001
+        # - action (deprecated), token (assign), access_token (view)
         # - auth_signup: auth_signup_token and auth_login
         # - portal: pid, hash
         params.update(
@@ -6177,7 +6181,7 @@ class MailThread(models.AbstractModel):
                 )
 
         # Step 3: per-record computation (pure Python, no DB queries)
-        # {record_id: {partner_id: set(subtype_ids)}}  # noqa: ERA001
+        # {record_id: {partner_id: set(subtype_ids)}}
         all_new_partner_subtypes = {}
         all_notify_data = {}  # {record_id: {(template, lang): [partner_ids]}}
 
@@ -6670,11 +6674,8 @@ class MailThread(models.AbstractModel):
             )
 
         thread = self.browse(thread_id)
-        if (
-            thread.exists()
-            and thread.sudo(False)
-            .with_context(allowed_company_ids=[])
-            .has_access(mode)
-        ):
+        if thread.exists() and thread.sudo(False).with_context(
+            allowed_company_ids=[]
+        ).has_access(mode):
             return thread
         return self.browse()

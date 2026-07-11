@@ -773,7 +773,7 @@ class MailTemplate(models.Model):
             "partner_to",  # recipients
             "report_template_ids",  # attachments
             "scheduled_date",  # specific
-            # not rendered (static)  # noqa: ERA001
+            # not rendered (static)
             "auto_delete",
             "email_layout_xmlid",
             "mail_server_id",
@@ -896,8 +896,7 @@ class MailTemplate(models.Model):
         mails_sudo = self.env["mail.mail"].sudo()
         try:
             batch_size = int(
-                self.env["ir.config_parameter"].sudo().get_param("mail.batch_size")
-                or 0
+                self.env["ir.config_parameter"].sudo().get_param("mail.batch_size") or 0
             )
         except ValueError:
             _logger.warning(
