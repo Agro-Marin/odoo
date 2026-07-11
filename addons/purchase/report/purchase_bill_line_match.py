@@ -241,10 +241,17 @@ class PurchaseBillLineMatch(models.Model):
                 remaining_po = list(po_lines)
                 remaining_aml = list(matching_bill_lines)
 
-                # Pass 1: exact match on price_unit
+                # Pass 1: match on price_unit within currency precision.
+                # Exact float '==' would drop pairs that differ only by
+                # rounding dust and mis-route them to the positional Pass 2.
                 for pol in list(remaining_po):
+                    currency = (
+                        pol.currency_id
+                        or pol.company_id.currency_id
+                        or self.env.company.currency_id
+                    )
                     for aml in list(remaining_aml):
-                        if aml.price_unit == pol.price_unit:
+                        if currency.compare_amounts(aml.price_unit, pol.price_unit) == 0:
                             aml.purchase_line_ids = [Command.link(pol.id)]
                             residual_purchase_order_lines -= pol
                             residual_account_move_lines -= aml

@@ -1,0 +1,223 @@
+"""Regression tests for fork-specific correctness fixes.
+
+Covers two previously-untested areas that broke during the order-state
+simplification (draft/done/cancel) and the base_order migration:
+
+* the portal RFQ list/counter state domain (was filtering the dead ``sent``
+  state, leaving ``/my/rfq`` and ``rfq_count`` permanently empty);
+* the mass-cancel wizard, which bypassed the ``_can_cancel`` guards and could
+  silently cancel locked orders or orders with posted vendor bills.
+"""
+
+from unittest.mock import patch
+
+from odoo import Command
+from odoo.exceptions import UserError
+from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.purchase.controllers.portal import CustomerPortal
+
+
+@tagged("-at_install", "post_install")
+class TestPurchasePortalRfqDomain(AccountTestInvoicingCommon):
+    """The portal RFQ page must select unconfirmed orders (state == draft)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.rfq = cls.env["purchase.order"].create(
+            {
+                "partner_id": cls.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": cls.product_a.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+        cls.confirmed = cls.env["purchase.order"].create(
+            {
+                "partner_id": cls.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": cls.product_a.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+        cls.confirmed.action_confirm()
+
+    def test_rfq_state_domain_is_draft(self):
+        """The domain must target ``draft`` (RFQ), never the removed ``sent``."""
+        domain = CustomerPortal()._purchase_get_page_state_domain("rfq")
+        self.assertEqual(domain, [("state", "=", "draft")])
+
+    def test_rfq_domain_matches_unconfirmed_orders(self):
+        """A draft PO is an RFQ; a confirmed PO is not — the domain must agree.
+
+        This guards the regression where the domain filtered ``state == 'sent'``
+        (a state that no longer exists), so ``/my/rfq`` returned nothing.
+        """
+        domain = CustomerPortal()._purchase_get_page_state_domain("rfq")
+        matched = self.env["purchase.order"].search(
+            domain + [("id", "in", (self.rfq | self.confirmed).ids)],
+        )
+        self.assertIn(self.rfq, matched, "Draft RFQ should show on /my/rfq")
+        self.assertNotIn(
+            self.confirmed, matched, "Confirmed PO should not show on /my/rfq",
+        )
+
+    def test_rfq_report_ref_uses_quotation_for_draft(self):
+        """RFQs (draft) render the quotation report; confirmed POs the order."""
+        self.assertEqual(
+            CustomerPortal._purchase_detail_report_ref(self.rfq),
+            "purchase.report_purchase_quotation",
+        )
+        self.assertEqual(
+            CustomerPortal._purchase_detail_report_ref(self.confirmed),
+            "purchase.action_report_purchase_order",
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseMassCancel(AccountTestInvoicingCommon):
+    """The mass-cancel wizard must honour the same guards as action_cancel."""
+
+    def _make_po(self, confirm=False):
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product_a.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+        if confirm:
+            po.action_confirm()
+        return po
+
+    def _wizard(self, orders):
+        return self.env["purchase.mass.cancel.orders"].create(
+            {"purchase_order_ids": [Command.set(orders.ids)]},
+        )
+
+    def test_mass_cancel_drafts(self):
+        """Plain draft RFQs cancel cleanly."""
+        pos = self._make_po() | self._make_po()
+        self._wizard(pos).action_mass_cancel()
+        self.assertEqual(set(pos.mapped("state")), {"cancel"})
+
+    def test_mass_cancel_blocks_locked_order(self):
+        """A locked PO in the selection must not be silently cancelled."""
+        locked = self._make_po(confirm=True)
+        locked.action_lock()
+        with self.assertRaises(UserError):
+            self._wizard(locked).action_mass_cancel()
+        self.assertEqual(locked.state, "done", "Locked PO must survive mass-cancel")
+
+    def test_mass_cancel_blocks_posted_bill(self):
+        """A PO with a posted vendor bill must not be silently cancelled."""
+        po = self._make_po(confirm=True)
+        bill = po.create_invoice()
+        bill.invoice_date = bill.invoice_date or po.date_order.date()
+        bill.action_post()
+        self.assertEqual(bill.state, "posted")
+        with self.assertRaises(UserError):
+            self._wizard(po).action_mass_cancel()
+        self.assertEqual(po.state, "done", "Invoiced PO must survive mass-cancel")
+
+    def test_mass_cancel_skips_already_cancelled(self):
+        """A mixed selection cancels the live orders and skips cancelled ones."""
+        live = self._make_po()
+        already = self._make_po()
+        already.action_cancel()
+        self._wizard(live | already).action_mass_cancel()
+        self.assertEqual(live.state, "cancel")
+        self.assertEqual(already.state, "cancel")
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseMergeConsolidation(AccountTestInvoicingCommon):
+    """RFQ merge line consolidation is date-sensitive (order.merge.mixin).
+
+    Guards the behaviour after removing purchase's parallel merge pipeline in
+    favour of the base_order mixin: same-product lines consolidate only when
+    their expected dates match within the 24h threshold.
+    """
+
+    def _rfq_with_date(self, date_planned):
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product_a.id, "product_qty": 3.0},
+                    ),
+                ],
+            },
+        )
+        po.line_ids.date_planned = date_planned
+        return po
+
+    def test_same_date_lines_consolidate(self):
+        po1 = self._rfq_with_date("2026-07-20 12:00:00")
+        po2 = self._rfq_with_date("2026-07-20 12:00:00")
+        (po1 | po2).action_merge()
+        target = po1 if po1.state != "cancel" else po2
+        product_lines = target.line_ids.filtered(lambda l: not l.display_type)
+        self.assertEqual(len(product_lines), 1, "matching dates should merge")
+        self.assertEqual(product_lines.product_qty, 6.0, "quantities summed")
+
+    def test_mismatched_date_lines_stay_separate(self):
+        po1 = self._rfq_with_date("2026-07-20 12:00:00")
+        po2 = self._rfq_with_date("2026-07-25 12:00:00")  # > 24h apart
+        (po1 | po2).action_merge()
+        target = po1 if po1.state != "cancel" else po2
+        product_lines = target.line_ids.filtered(lambda l: not l.display_type)
+        self.assertEqual(
+            len(product_lines), 2, "dates > 24h apart must not consolidate",
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseSellerCache(AccountTestInvoicingCommon):
+    """Guard the seller-lookup cache in ``_compute_selected_seller_id``.
+
+    Lines sharing ``(product, partner, order, uom, qty)`` must trigger a single
+    ``_select_seller`` resolution, not one per line — the benchmark docs rely on
+    this but nothing asserted it, so a broken cache key would pass every test.
+    """
+
+    def test_seller_lookup_cached_across_identical_lines(self):
+        pol_model = self.env["purchase.order.line"]
+        model_cls = type(pol_model)
+        original = model_cls._get_select_sellers_params
+        misses = []
+
+        def counting(line_self):
+            # One call per cache miss (unique key), inside _compute_selected_seller_id.
+            misses.append(line_self.product_id.id)
+            return original(line_self)
+
+        with patch.object(model_cls, "_get_select_sellers_params", counting):
+            self.env["purchase.order"].create(
+                {
+                    "partner_id": self.partner_a.id,
+                    "line_ids": [
+                        Command.create(
+                            {"product_id": self.product_a.id, "product_qty": 2.0},
+                        )
+                        for _ in range(5)
+                    ],
+                },
+            )
+
+        self.assertEqual(
+            len(misses),
+            1,
+            "Five identical-key lines should resolve the seller only once "
+            f"(got {len(misses)} lookups)",
+        )

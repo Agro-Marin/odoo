@@ -53,7 +53,10 @@ class CustomerPortal(portal.CustomerPortal):
     def _purchase_get_page_state_domain(self, page_key):
         """Return the state-filter domain for the given list page."""
         if page_key == "rfq":
-            return [("state", "=", "sent")]
+            # RFQs are unconfirmed orders. In this fork the order state was
+            # collapsed to draft/done/cancel, so an RFQ is state == "draft"
+            # (the legacy "sent" state no longer exists — "sent" is a Boolean).
+            return [("state", "=", "draft")]
         # /my/purchase narrows state via searchbar_filters.
         return []
 
@@ -89,14 +92,14 @@ class CustomerPortal(portal.CustomerPortal):
 
     def _purchase_get_detail_history_session_key(self, order):
         """Return the session-history key for the single-order detail page."""
-        if order.state == "sent":
+        if order.state == "draft":
             return "my_rfqs_history"
         return "my_purchases_history"
 
     @staticmethod
     def _purchase_detail_report_ref(order_sudo):
         """Return the xmlid of the report rendered for the detail page."""
-        if order_sudo.state in ("rfq", "sent"):
+        if order_sudo.state == "draft":
             return "purchase.report_purchase_quotation"
         return "purchase.action_report_purchase_order"
 
