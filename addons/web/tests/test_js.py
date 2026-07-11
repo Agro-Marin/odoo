@@ -84,8 +84,19 @@ class HOOTCommon(odoo.tests.HttpCase):
 
         Each suite_name (e.g. '@web/core') is hashed and passed as ``&id=``
         filter parameters so that only matching suites execute.
+
+        When ``--test-tags`` supplies explicit suite/test paths (e.g.
+        ``--test-tags '/web:@web/core/domain'`` for one suite, or a full test
+        path for one test), those override the method's default ``suite_names``
+        so a single suite or a single test can be driven without editing this
+        file. HOOT resolves each ``&id=`` against either a suite or a test, so a
+        full test path narrows the run to one test — the key lever for a fast
+        edit/run loop (see web/tooling/scripts/hoot for a warm-server runner).
         """
-        id_filters = "".join(f"&id={self._generate_hash(n)}" for n in suite_names)
+        if self.hoot_filters:
+            id_filters = self.hoot_filters
+        else:
+            id_filters = "".join(f"&id={self._generate_hash(n)}" for n in suite_names)
         tag_param = f"&tag={tag}" if tag else ""
         self.browser_js(
             f"/web/tests?headless&loglevel=2&preset={preset}&timeout=15000{id_filters}{tag_param}{extra}",
