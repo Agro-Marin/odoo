@@ -184,9 +184,9 @@
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    'esm': {
-        'bundles': [
-            'project.webclient',
+    "esm": {
+        "bundles": [
+            "project.webclient",
         ],
     },
 }

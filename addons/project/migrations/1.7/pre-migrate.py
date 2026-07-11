@@ -57,17 +57,14 @@ def migrate(cr, version):
 
     # scheduled_hours: column-only.  Value is recomputed in post-migrate.
     if not _column_exists(cr, "project_task", "scheduled_hours"):
-        cr.execute(
-            "ALTER TABLE project_task ADD COLUMN scheduled_hours numeric"
-        )
+        cr.execute("ALTER TABLE project_task ADD COLUMN scheduled_hours numeric")
 
     # planned_resources: planning intent, default 1 for legacy tasks.
     # Defensive cleanup against NULL / non-positive values before the
     # CHECK (planned_resources > 0) constraint loads with the model.
     if not _column_exists(cr, "project_task", "planned_resources"):
         cr.execute(
-            "ALTER TABLE project_task "
-            "ADD COLUMN planned_resources integer DEFAULT 1"
+            "ALTER TABLE project_task ADD COLUMN planned_resources integer DEFAULT 1"
         )
     cr.execute(
         "UPDATE project_task SET planned_resources = 1 "
@@ -88,9 +85,7 @@ def migrate(cr, version):
 
     # allocation_state: computed lazily on first read.
     if not _column_exists(cr, "project_task", "allocation_state"):
-        cr.execute(
-            "ALTER TABLE project_task ADD COLUMN allocation_state varchar"
-        )
+        cr.execute("ALTER TABLE project_task ADD COLUMN allocation_state varchar")
 
     # Drop the obsolete unallocated_hours column from an earlier draft of
     # the PMI model (replaced by allocation_state).

@@ -79,8 +79,10 @@ class ProjectHistory(models.Model):
     )
 
     @api.depends(
-        "planned_duration_days", "actual_duration_days",
-        "planned_hours", "actual_hours",
+        "planned_duration_days",
+        "actual_duration_days",
+        "planned_hours",
+        "actual_hours",
     )
     def _compute_variances(self) -> None:
         """Compute schedule and effort variance percentages."""
@@ -88,14 +90,14 @@ class ProjectHistory(models.Model):
             if rec.planned_duration_days:
                 rec.duration_variance_pct = (
                     (rec.actual_duration_days - rec.planned_duration_days)
-                    / rec.planned_duration_days * 100
+                    / rec.planned_duration_days
+                    * 100
                 )
             else:
                 rec.duration_variance_pct = 0.0
             if rec.planned_hours:
                 rec.hours_variance_pct = (
-                    (rec.actual_hours - rec.planned_hours)
-                    / rec.planned_hours * 100
+                    (rec.actual_hours - rec.planned_hours) / rec.planned_hours * 100
                 )
             else:
                 rec.hours_variance_pct = 0.0
@@ -145,22 +147,26 @@ class ProjectHistory(models.Model):
         dl_tasks = closed_tasks.filtered("date_end")
         dl_pct = 0.0
         if dl_tasks:
-            met = dl_tasks.filtered(lambda t: t.date_closed and t.date_closed <= t.date_end)
+            met = dl_tasks.filtered(
+                lambda t: t.date_closed and t.date_closed <= t.date_end
+            )
             dl_pct = len(met) / len(dl_tasks) * 100
 
-        return self.create({
-            "project_id": project.id,
-            "name": project.name,
-            "date_completed": fields.Date.today(),
-            "date_start": project.date_start,
-            "planned_duration_days": planned_days,
-            "actual_duration_days": actual_days,
-            "planned_hours": planned_hours,
-            "actual_hours": actual_hours,
-            "task_count": len(tasks),
-            "team_size": len(assignees),
-            "tag_ids": [(6, 0, project.tag_ids.ids)],
-            "avg_lead_time": avg_lt,
-            "avg_cycle_time": avg_ct,
-            "deadline_compliance_pct": dl_pct,
-        })
+        return self.create(
+            {
+                "project_id": project.id,
+                "name": project.name,
+                "date_completed": fields.Date.today(),
+                "date_start": project.date_start,
+                "planned_duration_days": planned_days,
+                "actual_duration_days": actual_days,
+                "planned_hours": planned_hours,
+                "actual_hours": actual_hours,
+                "task_count": len(tasks),
+                "team_size": len(assignees),
+                "tag_ids": [(6, 0, project.tag_ids.ids)],
+                "avg_lead_time": avg_lt,
+                "avg_cycle_time": avg_ct,
+                "deadline_compliance_pct": dl_pct,
+            }
+        )

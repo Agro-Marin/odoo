@@ -35,7 +35,9 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "In Progress",
             }
         )
-        cls.set_create_date("project_workflow_step", cls.in_progress_stage.id, create_date)
+        cls.set_create_date(
+            "project_workflow_step", cls.in_progress_stage.id, create_date
+        )
         cls.testing_stage = Stage.create(
             {
                 "sequence": 20,
@@ -58,7 +60,9 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Burndown Chart Test",
                 "privacy_visibility": "employees",
                 "alias_name": "project_burndown_chart",
-                "workflow_step_ids": [Command.link(stage_id) for stage_id in cls.stages.ids],
+                "workflow_step_ids": [
+                    Command.link(stage_id) for stage_id in cls.stages.ids
+                ],
             }
         )
         cls.set_create_date("project_project", cls.project.id, create_date)
@@ -136,7 +140,9 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Burndown Chart Test 2 mySearchTag",
                 "privacy_visibility": "employees",
                 "alias_name": "project_burndown_chart_2",
-                "workflow_step_ids": [Command.link(stage_id) for stage_id in cls.stages.ids],
+                "workflow_step_ids": [
+                    Command.link(stage_id) for stage_id in cls.stages.ids
+                ],
             }
         )
         cls.set_create_date("project_project", cls.project_2.id, create_date)
@@ -189,7 +195,9 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Burndown Chart Test",
                 "privacy_visibility": "employees",
                 "alias_name": "project_burndown_chart_bis",
-                "workflow_step_ids": [Command.link(stage_id) for stage_id in cls.stages_bis.ids],
+                "workflow_step_ids": [
+                    Command.link(stage_id) for stage_id in cls.stages_bis.ids
+                ],
             }
         )
         cls.set_create_date("project_project", cls.project_1.id, create_date)

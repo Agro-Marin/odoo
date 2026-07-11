@@ -235,7 +235,9 @@ class ProjectUpdate(models.Model):
          """
         if project.last_update_id.create_date:
             query = query + "AND mm.date > %(last_update_date)s"
-        query = query + """
+        query = (
+            query
+            + """
                      WINDOW w_partition AS (
                              PARTITION BY pm.id
                              ORDER BY mm.date ASC
@@ -243,6 +245,7 @@ class ProjectUpdate(models.Model):
                    ORDER BY pm.deadline ASC
                    LIMIT 1;
         """
+        )
         query_params = {"project_id": project.id}
         if project.last_update_id.create_date:
             query_params["last_update_date"] = project.last_update_id.create_date

@@ -275,7 +275,9 @@ class TestProjectSubtasks(TestProjectCommon):
         parent_task = self.task_1.with_context({"tracking_disable": True})
 
         stage_a = self.env["project.workflow.step"].create({"name": "a", "sequence": 1})
-        stage_b = self.env["project.workflow.step"].create({"name": "b", "sequence": 10})
+        stage_b = self.env["project.workflow.step"].create(
+            {"name": "b", "sequence": 10}
+        )
         self.project_pigs.workflow_step_ids |= stage_a
         self.project_pigs.workflow_step_ids |= stage_b
 

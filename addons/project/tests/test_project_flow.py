@@ -260,7 +260,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 raise AssertionError(
                     "Error raised unexpectedly while computing a field of the task ! Exception : "
                     + e.args[0]
-                )
+                ) from e
 
         for field in self.project_pigs._fields:
             try:
@@ -269,7 +269,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 raise AssertionError(
                     "Error raised unexpectedly while computing a field of the project ! Exception : "
                     + e.args[0]
-                )
+                ) from e
 
         # tasks with no project set should only be visible to the users assigned to them
         task_without_project.user_ids = [Command.link(self.user_projectuser.id)]

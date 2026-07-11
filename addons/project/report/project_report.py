@@ -30,9 +30,7 @@ class ReportProjectTaskUser(models.Model):
         string="Last Status Change", readonly=True
     )
     display_in_project = fields.Boolean(export_string_translation=False)
-    project_id = fields.Many2one(
-        "project.project", string="Project", readonly=True
-    )
+    project_id = fields.Many2one("project.project", string="Project", readonly=True)
     lead_time_days = fields.Float(
         string="Lead Time (days)",
         digits=(16, 2),
@@ -67,9 +65,7 @@ class ReportProjectTaskUser(models.Model):
     rating_last_value = fields.Float(
         "Last Rating (1-5)", aggregator="avg", readonly=True
     )
-    rating_avg = fields.Float(
-        "Average Rating (1-5)", readonly=True, aggregator="avg"
-    )
+    rating_avg = fields.Float("Average Rating (1-5)", readonly=True, aggregator="avg")
     priority = fields.Selection(
         [
             ("0", "Normal"),
@@ -94,12 +90,8 @@ class ReportProjectTaskUser(models.Model):
         readonly=True,
     )
     is_closed = fields.Boolean(string="Closed state", readonly=True)
-    company_id = fields.Many2one(
-        "res.company", string="Company", readonly=True
-    )
-    partner_id = fields.Many2one(
-        "res.partner", string="Customer", readonly=True
-    )
+    company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
     step_id = fields.Many2one(
         "project.workflow.step", string="Workflow Step", readonly=True
     )
@@ -112,13 +104,9 @@ class ReportProjectTaskUser(models.Model):
         string="Tags",
         readonly=True,
     )
-    parent_id = fields.Many2one(
-        "project.task", string="Parent Task", readonly=True
-    )
+    parent_id = fields.Many2one("project.task", string="Parent Task", readonly=True)
     milestone_id = fields.Many2one("project.milestone", readonly=True)
-    message_is_follower = fields.Boolean(
-        related="task_id.message_is_follower"
-    )
+    message_is_follower = fields.Boolean(related="task_id.message_is_follower")
     successor_ids = fields.Many2many(
         "project.task",
         relation="project_task_dependency_rel",

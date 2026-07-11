@@ -105,10 +105,12 @@ class ProjectTaskDependency(models.Model):
                     continue
                 visited.add(current)
                 # Follow downstream: tasks that depend on `current`
-                downstream = self.search([
-                    ("depends_on_id", "=", current),
-                    ("id", "!=", dep.id),
-                ])
+                downstream = self.search(
+                    [
+                        ("depends_on_id", "=", current),
+                        ("id", "!=", dep.id),
+                    ]
+                )
                 stack.extend(downstream.mapped("task_id.id"))
 
     @api.model_create_multi
@@ -121,15 +123,19 @@ class ProjectTaskDependency(models.Model):
     def unlink(self) -> bool:
         """Remove from M2M when typed dependency is deleted."""
         for dep in self:
-            dep.task_id.write({
-                "predecessor_ids": [fields.Command.unlink(dep.depends_on_id.id)],
-            })
+            dep.task_id.write(
+                {
+                    "predecessor_ids": [fields.Command.unlink(dep.depends_on_id.id)],
+                }
+            )
         return super().unlink()
 
     def _sync_to_m2m(self) -> None:
         """Ensure the legacy M2M predecessor_ids reflects typed dependencies."""
         for dep in self:
             if dep.depends_on_id not in dep.task_id.predecessor_ids:
-                dep.task_id.write({
-                    "predecessor_ids": [fields.Command.link(dep.depends_on_id.id)],
-                })
+                dep.task_id.write(
+                    {
+                        "predecessor_ids": [fields.Command.link(dep.depends_on_id.id)],
+                    }
+                )

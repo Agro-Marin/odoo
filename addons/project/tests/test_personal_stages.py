@@ -48,14 +48,10 @@ class TestPersonalStages(TestProjectCommon):
         )
 
         self.task_1.with_user(self.user_projectmanager)._compute_personal_triage_id()
-        task_1_manager_stage = self.task_1.with_user(
-            self.user_projectmanager
-        ).triage_id
+        task_1_manager_stage = self.task_1.with_user(self.user_projectmanager).triage_id
 
         self.task_1.with_user(self.user_projectuser)._compute_personal_triage_id()
-        self.task_1.with_user(self.user_projectuser).triage_id = (
-            self.user_stages[1]
-        )
+        self.task_1.with_user(self.user_projectuser).triage_id = self.user_stages[1]
         self.assertEqual(
             self.task_1.with_user(self.user_projectuser).triage_id,
             self.user_stages[1],
@@ -69,9 +65,9 @@ class TestPersonalStages(TestProjectCommon):
             "Modifying the personal stage of Project User should not have affected the personal stage of Project Manager.",
         )
 
-        self.task_2.with_user(self.user_projectmanager).triage_id = (
-            self.manager_stages[1]
-        )
+        self.task_2.with_user(self.user_projectmanager).triage_id = self.manager_stages[
+            1
+        ]
         self.assertEqual(
             self.task_1.with_user(self.user_projectmanager).triage_id,
             task_1_manager_stage,
@@ -81,12 +77,8 @@ class TestPersonalStages(TestProjectCommon):
     def test_personal_stage_search(self) -> None:
         self.task_2.user_ids += self.user_projectuser
         # Make sure both personal stages are different
-        self.task_1.with_user(self.user_projectuser).triage_id = (
-            self.user_stages[0]
-        )
-        self.task_2.with_user(self.user_projectuser).triage_id = (
-            self.user_stages[1]
-        )
+        self.task_1.with_user(self.user_projectuser).triage_id = self.user_stages[0]
+        self.task_2.with_user(self.user_projectuser).triage_id = self.user_stages[1]
         tasks = (
             self.env["project.task"]
             .with_user(self.user_projectuser)
@@ -118,9 +110,9 @@ class TestPersonalStages(TestProjectCommon):
         ).unlink()
 
         self.task_1.user_ids += self.user_projectmanager
-        self.task_1.with_user(self.user_projectmanager).triage_id = (
-            self.manager_stages[1]
-        )
+        self.task_1.with_user(self.user_projectmanager).triage_id = self.manager_stages[
+            1
+        ]
         # Makes sure the personal stage for project manager is saved in the database
         self.env.flush_all()
         read_group_user = (
@@ -292,26 +284,14 @@ class TestPersonalStages(TestProjectCommon):
         )
 
         # Put private tasks in personal stages for user 1
-        private_tasks[0].with_user(user_1.id).triage_id = user_1_stages[
-            2
-        ].id
-        private_tasks[1].with_user(user_1.id).triage_id = user_1_stages[
-            3
-        ].id
-        private_tasks[2].with_user(user_1.id).triage_id = user_1_stages[
-            4
-        ].id
-        private_tasks[3].with_user(user_1.id).triage_id = user_1_stages[
-            4
-        ].id
+        private_tasks[0].with_user(user_1.id).triage_id = user_1_stages[2].id
+        private_tasks[1].with_user(user_1.id).triage_id = user_1_stages[3].id
+        private_tasks[2].with_user(user_1.id).triage_id = user_1_stages[4].id
+        private_tasks[3].with_user(user_1.id).triage_id = user_1_stages[4].id
 
         # Put private tasks in personal stages for user 2
-        private_tasks[0].with_user(user_2.id).triage_id = user_2_stages[
-            0
-        ].id
-        private_tasks[1].with_user(user_2.id).triage_id = user_2_stages[
-            1
-        ].id
+        private_tasks[0].with_user(user_2.id).triage_id = user_2_stages[0].id
+        private_tasks[1].with_user(user_2.id).triage_id = user_2_stages[1].id
 
         # ------------------------------------
         # ------- A. Initial situation  ------
@@ -633,9 +613,7 @@ class TestPersonalStages(TestProjectCommon):
         empty_triages.sudo().unlink()
         empty_step.sudo().unlink()
         self.assertFalse(
-            self.env["project.triage"].search_count(
-                [("id", "in", empty_triages.ids)]
-            ),
+            self.env["project.triage"].search_count([("id", "in", empty_triages.ids)]),
             "Personal triage stages should be deletable in batch",
         )
         self.assertFalse(

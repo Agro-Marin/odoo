@@ -55,7 +55,7 @@ import logging
 _logger = logging.getLogger(__name__)
 
 
-def migrate(cr, version: str | None) -> None:  # noqa: ANN001 — cr is psycopg Cursor
+def migrate(cr, version: str | None) -> None:
     """Entry point called by Odoo's migration runner."""
     if not version:
         # Fresh install: ORM creates all tables from scratch.
@@ -103,7 +103,7 @@ def migrate(cr, version: str | None) -> None:  # noqa: ANN001 — cr is psycopg 
 # ---------------------------------------------------------------------------
 
 
-def _create_workflow_step_table(cr) -> None:  # noqa: ANN001
+def _create_workflow_step_table(cr) -> None:
     """Create project_workflow_step from project_task_type rows with user_id IS NULL.
 
     Fields match project.task.type minus user_id, with auto_validation_state
@@ -165,7 +165,7 @@ def _create_workflow_step_table(cr) -> None:  # noqa: ANN001
     """)
 
 
-def _create_workflow_step_project_rel(cr) -> None:  # noqa: ANN001
+def _create_workflow_step_project_rel(cr) -> None:
     """Create the M2M relation table between workflow steps and projects."""
     cr.execute("""
         CREATE TABLE IF NOT EXISTS project_workflow_step_project_rel (
@@ -186,7 +186,7 @@ def _create_workflow_step_project_rel(cr) -> None:  # noqa: ANN001
     _logger.info("project_workflow_step_project_rel: inserted %d rows", cr.rowcount)
 
 
-def _create_triage_table(cr) -> None:  # noqa: ANN001
+def _create_triage_table(cr) -> None:
     """Create project_triage from project_task_type rows with user_id IS NOT NULL.
 
     Only personal-bucket fields are kept; workflow-step fields are omitted.
@@ -231,7 +231,7 @@ def _create_triage_table(cr) -> None:  # noqa: ANN001
     """)
 
 
-def _create_task_triage_table(cr) -> None:  # noqa: ANN001
+def _create_task_triage_table(cr) -> None:
     """Create project_task_triage from project_task_user_rel.
 
     The triage_id column mirrors the old stage_id since project_triage.id values
@@ -283,7 +283,7 @@ def _create_task_triage_table(cr) -> None:  # noqa: ANN001
 # ---------------------------------------------------------------------------
 
 
-def _rename_project_stage_to_phase(cr) -> None:  # noqa: ANN001
+def _rename_project_stage_to_phase(cr) -> None:
     """Rename project_project_stage → project_phase."""
     # Check if already renamed
     cr.execute("""
@@ -310,7 +310,7 @@ def _rename_project_stage_to_phase(cr) -> None:  # noqa: ANN001
         )
 
 
-def _rename_task_dependency_rel(cr) -> None:  # noqa: ANN001
+def _rename_task_dependency_rel(cr) -> None:
     """Rename task_dependencies_rel → project_task_dependency_rel."""
     cr.execute("""
         SELECT 1 FROM information_schema.tables
@@ -334,7 +334,7 @@ def _rename_task_dependency_rel(cr) -> None:  # noqa: ANN001
 # ---------------------------------------------------------------------------
 
 
-def _column_exists(cr, table: str, column: str) -> bool:  # noqa: ANN001
+def _column_exists(cr, table: str, column: str) -> bool:
     """Check whether a column exists on a table via information_schema."""
     cr.execute(
         """
@@ -348,7 +348,7 @@ def _column_exists(cr, table: str, column: str) -> bool:  # noqa: ANN001
     return bool(cr.fetchone())
 
 
-def _rename_project_task_columns(cr) -> None:  # noqa: ANN001
+def _rename_project_task_columns(cr) -> None:
     """Rename stage_id → step_id and date_last_stage_update → date_last_status_change."""
     if _column_exists(cr, "project_task", "stage_id"):
         cr.execute("ALTER TABLE project_task RENAME COLUMN stage_id TO step_id")
@@ -371,7 +371,7 @@ def _rename_project_task_columns(cr) -> None:  # noqa: ANN001
         )
 
 
-def _rename_project_project_columns(cr) -> None:  # noqa: ANN001
+def _rename_project_project_columns(cr) -> None:
     """Rename stage_id → phase_id and allow_task_dependencies → allow_dependencies on project_project."""
     if _column_exists(cr, "project_project", "stage_id"):
         cr.execute("ALTER TABLE project_project RENAME COLUMN stage_id TO phase_id")
@@ -385,9 +385,13 @@ def _rename_project_project_columns(cr) -> None:  # noqa: ANN001
         cr.execute(
             "ALTER TABLE project_project RENAME COLUMN allow_task_dependencies TO allow_dependencies"
         )
-        _logger.info("Renamed column: project_project.allow_task_dependencies → allow_dependencies")
+        _logger.info(
+            "Renamed column: project_project.allow_task_dependencies → allow_dependencies"
+        )
     elif _column_exists(cr, "project_project", "allow_dependencies"):
-        _logger.info("project_project.allow_dependencies already exists, skipping rename")
+        _logger.info(
+            "project_project.allow_dependencies already exists, skipping rename"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +409,7 @@ _STATE_MAP = {
 }
 
 
-def _migrate_state_values(cr) -> None:  # noqa: ANN001
+def _migrate_state_values(cr) -> None:
     """Rename state values on project_task to drop numeric sort-hack prefixes."""
     old_values = list(_STATE_MAP.keys())
     cr.execute(
@@ -452,7 +456,7 @@ _FIELD_RENAMES = {
 }
 
 
-def _update_ir_model(cr) -> None:  # noqa: ANN001
+def _update_ir_model(cr) -> None:
     """Update ir_model entries for renamed models."""
     for old_name, new_name in _MODEL_RENAMES.items():
         cr.execute(
@@ -463,7 +467,7 @@ def _update_ir_model(cr) -> None:  # noqa: ANN001
             _logger.info("ir_model: %s → %s", old_name, new_name)
 
 
-def _update_ir_model_data(cr) -> None:  # noqa: ANN001
+def _update_ir_model_data(cr) -> None:
     """Update ir_model_data entries for renamed models.
 
     For the project.task.type split, we need to figure out which records
@@ -516,7 +520,7 @@ def _update_ir_model_data(cr) -> None:  # noqa: ANN001
     )
 
 
-def _update_ir_model_fields(cr) -> None:  # noqa: ANN001
+def _update_ir_model_fields(cr) -> None:
     """Update ir_model_fields for renamed fields.
 
     Also update the model name on fields that belong to renamed models.
@@ -597,7 +601,7 @@ _FILTER_STATE_RENAMES = [
 
 
 def _text_replace(
-    cr,  # noqa: ANN001
+    cr,
     table: str,
     column: str,
     old: str,
@@ -619,7 +623,7 @@ def _text_replace(
     return cr.rowcount
 
 
-def _update_ir_filters(cr) -> None:  # noqa: ANN001
+def _update_ir_filters(cr) -> None:
     """Update serialized field names and state values in user-created filters.
 
     ir_filters stores domain/context/sort as Python literal text.
@@ -688,7 +692,7 @@ def _update_ir_filters(cr) -> None:  # noqa: ANN001
     _logger.info("ir_filters: %d total updates", total)
 
 
-def _update_ir_rules(cr) -> None:  # noqa: ANN001
+def _update_ir_rules(cr) -> None:
     """Update domain_force text in user-created ir.rule records.
 
     XML-shipped rules are reloaded on upgrade, so only user-created rules
@@ -746,7 +750,7 @@ def _update_ir_rules(cr) -> None:  # noqa: ANN001
     _logger.info("ir_rule: %d total updates", total)
 
 
-def _update_server_actions(cr) -> None:  # noqa: ANN001
+def _update_server_actions(cr) -> None:
     """Update field references in ir.actions.server code and update_path.
 
     Server actions may contain Python code or dot-path field traversals
@@ -807,7 +811,7 @@ def _update_server_actions(cr) -> None:  # noqa: ANN001
 # ---------------------------------------------------------------------------
 
 
-def _drop_orphaned_stage_id_from_user_rel(cr) -> None:  # noqa: ANN001
+def _drop_orphaned_stage_id_from_user_rel(cr) -> None:
     """Drop the orphaned stage_id column from project_task_user_rel.
 
     After the triage split, project_task_user_rel is a pure M2M junction
@@ -832,7 +836,7 @@ def _drop_orphaned_stage_id_from_user_rel(cr) -> None:  # noqa: ANN001
         _logger.info("project_task_user_rel: dropped orphaned id column")
 
 
-def _update_foreign_keys(cr) -> None:  # noqa: ANN001
+def _update_foreign_keys(cr) -> None:
     """Update FK constraints after column/table renames.
 
     project_task.stage_id was renamed to step_id but the FK constraint
@@ -866,9 +870,11 @@ def _update_foreign_keys(cr) -> None:  # noqa: ANN001
     _logger.info("project_task_type_rel: dropped orphaned FK to project_task_type")
 
 
-def _drop_orphaned_wizard_rel(cr) -> None:  # noqa: ANN001
+def _drop_orphaned_wizard_rel(cr) -> None:
     """Drop the transient wizard junction table for the old task type delete wizard."""
     cr.execute("""
         DROP TABLE IF EXISTS project_task_type_project_task_type_delete_wizard_rel
     """)
-    _logger.info("Dropped orphaned table: project_task_type_project_task_type_delete_wizard_rel")
+    _logger.info(
+        "Dropped orphaned table: project_task_type_project_task_type_delete_wizard_rel"
+    )

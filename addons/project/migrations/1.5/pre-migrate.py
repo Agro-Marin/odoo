@@ -32,9 +32,7 @@ def migrate(cr, version):
             [old],
         )
         if cr.fetchone():
-            cr.execute(
-                f'ALTER TABLE project_task RENAME COLUMN "{old}" TO "{new}"'
-            )
+            cr.execute(f'ALTER TABLE project_task RENAME COLUMN "{old}" TO "{new}"')
 
     # Rename avg_cycle_time → avg_lead_time on project_history
     cr.execute(

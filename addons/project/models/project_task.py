@@ -1016,7 +1016,7 @@ class ProjectTask(models.Model):
         others = self - rot_enabled
         for stage, records in rot_enabled.grouped(self._track_duration_field).items():
             rotting = records.filtered(
-                lambda record: (
+                lambda record, stage=stage: (
                     (
                         record.date_last_status_change
                         or record.create_date
@@ -1557,9 +1557,7 @@ class ProjectTask(models.Model):
                 2,
             )
 
-    @api.depends(
-        "scheduled_hours", "planned_resources", "allocated_percentage"
-    )
+    @api.depends("scheduled_hours", "planned_resources", "allocated_percentage")
     def _compute_planned_hours(self) -> None:
         """PMBOK Effort = Duration x Resources x Units (uniform rate)."""
         for task in self:
@@ -2613,10 +2611,12 @@ class ProjectTask(models.Model):
 
     def action_unschedule_task(self):
         """Clear scheduling dates (used by gantt 'unschedule' action)."""
-        self.write({
-            "planned_date_begin": False,
-            "date_end": False,
-        })
+        self.write(
+            {
+                "planned_date_begin": False,
+                "date_end": False,
+            }
+        )
 
     @api.model
     def _calculate_planned_dates(
@@ -2649,8 +2649,7 @@ class ProjectTask(models.Model):
                 else self.env.user
             )
             calendar = (
-                user.resource_calendar_id
-                or self.env.company.resource_calendar_id
+                user.resource_calendar_id or self.env.company.resource_calendar_id
             )
             if not calendar:
                 return date_start, date_stop
