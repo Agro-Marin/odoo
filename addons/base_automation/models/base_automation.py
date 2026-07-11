@@ -1105,9 +1105,13 @@ class BaseAutomation(models.Model):
                 return (False, 401, "Timestamp verification failed")
 
         if self.webhook_auth_type and self.webhook_auth_type != "none":
+            # Source the shared secret from whichever storage the credential
+            # uses: the simple credential_value, or the JSON api_secret/api_key
+            # accessors (all base_credential_manager fields).
+            cred = self.webhook_credential_id
             secret = (
-                self.webhook_credential_id.credential_value
-                if self.webhook_credential_id
+                (cred.credential_value or cred.api_secret or cred.api_key)
+                if cred
                 else None
             )
             if not verify_signature(
@@ -1189,7 +1193,10 @@ class BaseAutomation(models.Model):
                     )
                 raise e
 
-        if not record.exists():
+        if not record.exists() and self.record_getter:
+            # A configured record_getter that resolves to nothing is a real
+            # misconfiguration. With no record_getter the rule runs record-less
+            # (create-from-payload receivers) — see _run_webhook_recordless.
             msg = "Webhook #%s could not be triggered because no record to run it on was found."
             msg_args = (self.id,)
             _logger.warning(msg, *msg_args)
@@ -1202,7 +1209,9 @@ class BaseAutomation(models.Model):
             )
 
         try:
-            return self._process(record)
+            if record:
+                return self._process(record)
+            return self._run_webhook_recordless(payload)
         except Exception as e:  # noqa: BLE001
             msg = "Webhook #%s failed with error:\n%s"
             msg_args = (self.id, traceback.format_exc())
@@ -1212,6 +1221,24 @@ class BaseAutomation(models.Model):
                     self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
                 )
             raise e
+
+    def _run_webhook_recordless(self, payload):
+        """Run an on_webhook rule that has no record_getter.
+
+        The classic on_webhook flow acts on a record resolved from the payload.
+        A rule with no record_getter is a "create-from-payload" receiver: its
+        server actions run once with no active record and the parsed body
+        exposed as ``env.context['webhook_payload']``.
+        """
+        self.ensure_one()
+        for action in self.sudo().action_server_ids.sorted("sequence"):
+            action.with_context(
+                active_model=self.model_name,
+                active_ids=[],
+                active_id=False,
+                webhook_payload=payload,
+            ).run()
+        return True
 
     def _filter_pre(self, records, feedback=False):
         """Filter records that satisfy the automation's pre-condition.

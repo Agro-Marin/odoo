@@ -1,11 +1,20 @@
 import hashlib
 import hmac
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 
 from odoo.http import request
 
 _logger = logging.getLogger(__name__)
+
+# A bare integer/decimal string is a Unix epoch (ISO 8601 always has separators).
+_EPOCH_RE = re.compile(r"^\d+(\.\d+)?$")
+
+
+def _looks_like_epoch(value):
+    """Return True if the string is a bare numeric Unix-epoch timestamp."""
+    return bool(_EPOCH_RE.match(value.strip()))
 
 
 def _get_future_tolerance(env=None):
@@ -279,6 +288,14 @@ def verify_timestamp(
                 timestamp_dt = datetime.strptime(timestamp_value, timestamp_format)
                 if timestamp_dt.tzinfo is None:
                     timestamp_dt = timestamp_dt.replace(tzinfo=UTC)
+            elif _looks_like_epoch(timestamp_value):
+                # Numeric string = Unix epoch seconds (Stripe/Slack/GitHub style),
+                # the most common webhook timestamp format.
+                epoch = float(timestamp_value.strip())
+                if epoch < 0 or epoch > 253402300799:
+                    _logger.warning("Timestamp out of bounds: %s", timestamp_value)
+                    return False
+                timestamp_dt = datetime.fromtimestamp(epoch, tz=UTC)
             else:
                 if timestamp_value.endswith("Z"):
                     timestamp_value = timestamp_value[:-1] + "+00:00"
