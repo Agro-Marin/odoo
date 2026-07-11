@@ -456,7 +456,12 @@ class ProductTemplate(models.Model):
         variants_available = {
             p["id"]: p
             for p in self.product_variant_ids._origin.read(
-                ["qty_available", "qty_available_virtual", "qty_incoming", "qty_outgoing"],
+                [
+                    "qty_available",
+                    "qty_available_virtual",
+                    "qty_incoming",
+                    "qty_outgoing",
+                ],
             )
         }
         prod_available = {}
@@ -467,7 +472,9 @@ class ProductTemplate(models.Model):
             qty_outgoing = 0
             for p in template.product_variant_ids._origin:
                 qty_available += variants_available[p.id]["qty_available"]
-                qty_available_virtual += variants_available[p.id]["qty_available_virtual"]
+                qty_available_virtual += variants_available[p.id][
+                    "qty_available_virtual"
+                ]
                 qty_incoming += variants_available[p.id]["qty_incoming"]
                 qty_outgoing += variants_available[p.id]["qty_outgoing"]
             prod_available[template.id] = {

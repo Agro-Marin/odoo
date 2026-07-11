@@ -1,6 +1,6 @@
+import json
 from ast import literal_eval
 from datetime import timedelta
-import json
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -388,24 +388,23 @@ class StockPickingType(models.Model):
                                     else common_days
                                 )
                             )
-            else:
-                if picking_types := self.filtered(
-                    lambda p: p.reservation_method == "by_date"
-                ):
-                    moves = self.env["stock.move"].search(
-                        [
-                            ("picking_type_id", "in", picking_types.ids),
-                            ("state", "not in", ("assigned", "done", "cancel")),
-                        ]
-                    )
-                    moves.date_reservation = False
+            elif picking_types := self.filtered(
+                lambda p: p.reservation_method == "by_date"
+            ):
+                moves = self.env["stock.move"].search(
+                    [
+                        ("picking_type_id", "in", picking_types.ids),
+                        ("state", "not in", ("assigned", "done", "cancel")),
+                    ]
+                )
+                moves.date_reservation = False
 
         return super().write(vals)
 
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
-        for picking, vals in zip(self, vals_list):
+        for picking, vals in zip(self, vals_list, strict=False):
             if "name" not in default:
                 vals["name"] = _("%s (copy)", picking.name)
             if "sequence_code" not in default and "sequence_id" not in default:
@@ -636,11 +635,12 @@ class StockPickingType(models.Model):
                     )
                 }
             }
+        return None
 
     @api.onchange("sequence_code")
     def _onchange_sequence_code(self):
         if not self.sequence_code:
-            return
+            return None
         domain = [
             ("sequence_code", "=", self.sequence_code),
             "|",
@@ -659,6 +659,7 @@ class StockPickingType(models.Model):
                     )
                 }
             }
+        return None
 
     # ------------------------------------------------------------
     # ACTION METHODS

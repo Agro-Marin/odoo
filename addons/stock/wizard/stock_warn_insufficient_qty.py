@@ -24,7 +24,7 @@ class StockWarnInsufficientQty(models.AbstractModel):
     product_uom_name = fields.Char(string="Unit", required=True)
 
     def _get_reference_document_company_id(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @api.depends("product_id")
     def _compute_quant_ids(self):
@@ -39,7 +39,7 @@ class StockWarnInsufficientQty(models.AbstractModel):
             )
 
     def action_done(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class StockWarnInsufficientQtyScrap(models.TransientModel):

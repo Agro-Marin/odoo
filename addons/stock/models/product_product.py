@@ -542,6 +542,7 @@ class ProductProduct(models.Model):
                     ),
                 }
             }
+        return None
 
     # ------------------------------------------------------------
     # ACTION METHODS
@@ -666,10 +667,9 @@ class ProductProduct(models.Model):
 
     def action_product_forecast_report(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        return self.env["ir.actions.actions"]._for_xml_id(
             "stock.stock_forecasted_product_product_action"
         )
-        return action
 
     # ------------------------------------------------------------
     # HELPER METHODS
@@ -819,7 +819,7 @@ class ProductProduct(models.Model):
                     product.uom_id,
                 )
 
-        res = dict()
+        res = {}
 
         for product in self.with_context(prefetch_fields=False):
             origin_product_id = product._origin.id
@@ -979,15 +979,14 @@ class ProductProduct(models.Model):
                 }
             else:
                 location_ids = w_ids
+        elif location:
+            location_ids = _search_ids("stock.location", location)
         else:
-            if location:
-                location_ids = _search_ids("stock.location", location)
-            else:
-                location_ids = set(
-                    Warehouse.search([("company_id", "in", self.env.companies.ids)])
-                    .mapped("view_location_id")
-                    .ids
-                )
+            location_ids = set(
+                Warehouse.search([("company_id", "in", self.env.companies.ids)])
+                .mapped("view_location_id")
+                .ids
+            )
 
         return self._get_domain_locations_new(location_ids)
 

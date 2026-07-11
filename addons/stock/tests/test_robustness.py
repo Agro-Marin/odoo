@@ -1,7 +1,4 @@
-
-from dateutil.relativedelta import relativedelta
-
-from odoo import Command, fields
+from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
 
@@ -9,7 +6,7 @@ from odoo.tests.common import TransactionCase
 class TestRobustness(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        super(TestRobustness, cls).setUpClass()
+        super().setUpClass()
         cls.supplier_location = cls.env.ref("stock.stock_location_suppliers")
         cls.stock_location = cls.env.ref("stock.stock_location_stock")
         cls.customer_location = cls.env.ref("stock.stock_location_customers")

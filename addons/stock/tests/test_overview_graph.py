@@ -1,8 +1,8 @@
-
 from datetime import datetime
 
-from odoo.addons.base.tests.common import BaseCommon
 from freezegun import freeze_time
+
+from odoo.addons.base.tests.common import BaseCommon
 
 
 class TestOverviewGraph(BaseCommon):

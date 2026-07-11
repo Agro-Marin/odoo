@@ -1,4 +1,4 @@
-from odoo import _, api, Command, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -181,7 +181,7 @@ class StockReturnPicking(models.TransientModel):
         else:
             location_dest = picking.location_id
 
-        vals = {
+        return {
             "move_ids": [],
             "picking_type_id": return_type.id or picking.picking_type_id.id,
             "state": "draft",
@@ -190,7 +190,6 @@ class StockReturnPicking(models.TransientModel):
             "location_id": location.id,
             "location_dest_id": location_dest.id,
         }
-        return vals
 
     def _create_return(self):
         if self.picking_id:

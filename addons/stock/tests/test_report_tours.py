@@ -1,11 +1,9 @@
-
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
 
 @tagged("-at_install", "post_install")
 class TestStockReportTour(HttpCase):
-
     def _get_report_url(self):
         return "/odoo/action-stock.product_template_action_product"
 

@@ -605,7 +605,9 @@ class StockLocation(models.Model):
             lambda rule: (
                 bool(rule.package_type_ids),
                 bool(rule.product_id),
-                bool(rule.category_id == leaf_category),  # exact category beats ancestor
+                bool(
+                    rule.category_id == leaf_category
+                ),  # exact category beats ancestor
                 bool(rule.category_id),
             ),
             reverse=True,
@@ -866,7 +868,9 @@ class StockLocation(models.Model):
         # policy == "same": the location may hold a single product only.
         # For a package, `product` isn't set, so fall back to the context products.
         product = product or self.env.context.get("products")
-        if (positive_quant and positive_quant.product_id != product) or len(product) > 1:
+        if (positive_quant and positive_quant.product_id != product) or len(
+            product
+        ) > 1:
             return False
         return not self.env["stock.move.line"].search_count(
             [

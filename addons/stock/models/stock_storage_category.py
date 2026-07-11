@@ -72,7 +72,7 @@ class StockStorageCategory(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", category.name))
-            for category, vals in zip(self, vals_list)
+            for category, vals in zip(self, vals_list, strict=False)
         ]
 
 

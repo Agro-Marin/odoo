@@ -20,12 +20,15 @@ class UomUom(models.Model):
         keys_to_protect = {"factor", "relative_factor", "relative_uom_id"}
         if any(key in vals for key in keys_to_protect):
             changed = self.filtered(
-                lambda u: any(
-                    f in vals and u[f] != vals[f] for f in ("factor", "relative_factor")
-                )
-                or (
-                    "relative_uom_id" in vals
-                    and u.relative_uom_id.id != int(vals["relative_uom_id"])
+                lambda u: (
+                    any(
+                        f in vals and u[f] != vals[f]
+                        for f in ("factor", "relative_factor")
+                    )
+                    or (
+                        "relative_uom_id" in vals
+                        and u.relative_uom_id.id != int(vals["relative_uom_id"])
+                    )
                 ),
             )
             if changed:

@@ -180,7 +180,7 @@ class StockPackageType(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", package_type.name))
-            for package_type, vals in zip(self, vals_list)
+            for package_type, vals in zip(self, vals_list, strict=False)
         ]
 
     # ------------------------------------------------------------

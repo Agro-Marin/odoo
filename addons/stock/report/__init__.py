@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from . import (
     stock_forecasted,
     report_stock_quantity,

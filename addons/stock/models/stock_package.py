@@ -1,14 +1,14 @@
+import json
 from ast import literal_eval
 from collections import defaultdict
 from collections.abc import Iterable
-import json
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import format_list, groupby
 from odoo.libs.barcode import check_barcode_encoding
 from odoo.libs.numbers.float_utils import float_is_zero
+from odoo.tools import format_list, groupby
 
 
 class StockPackage(models.Model):
@@ -185,7 +185,7 @@ class StockPackage(models.Model):
             is_pack_empty = any(not pack.contained_quant_ids for pack in self)
             if not vals["location_id"] and not is_pack_empty:
                 raise UserError(_("Cannot remove the location of a non empty package"))
-            elif vals["location_id"]:
+            if vals["location_id"]:
                 if is_pack_empty:
                     raise UserError(_("Cannot move an empty package"))
                 location_dest_id = self.env["stock.location"].browse(
@@ -680,8 +680,10 @@ class StockPackage(models.Model):
                     )
                 )
             contained_quants = container_package.contained_quant_ids.filtered(
-                lambda q: not float_is_zero(
-                    q.quantity, precision_rounding=q.product_uom_id.rounding
+                lambda q: (
+                    not float_is_zero(
+                        q.quantity, precision_rounding=q.product_uom_id.rounding
+                    )
                 )
             )
             if contained_quants and contained_quants.location_id != new_location:

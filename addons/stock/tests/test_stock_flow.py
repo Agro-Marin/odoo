@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
-
-from odoo.addons.stock.tests.common import TestStockCommon
+from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form, HttpCase, tagged
 from odoo.tests.common import users
-from odoo.tools import mute_logger, float_round
-from odoo import Command, fields
+from odoo.tools import float_round, mute_logger
+
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestStockFlow(TestStockCommon):
@@ -688,9 +687,7 @@ class TestStockFlow(TestStockCommon):
             ]
         )
         d_done_qty = [move.quantity for move in movesD]
-        self.assertEqual(
-            set(d_done_qty), set([8.0]), "Wrong quantity of moves product D."
-        )
+        self.assertEqual(set(d_done_qty), {8.0}, "Wrong quantity of moves product D.")
         # Check no back order is created.
         self.assertFalse(
             self.PickingObj.search([("backorder_id", "=", back_order_in.id)]),
@@ -1684,7 +1681,9 @@ class TestStockFlow(TestStockCommon):
             move.product_uom_qty, 1, "Wrong product quantity in done move."
         )
         self.assertEqual(
-            move.product_uom_id.id, self.uom_ton.id, "Wrong unit of measure in done move."
+            move.product_uom_id.id,
+            self.uom_ton.id,
+            "Wrong unit of measure in done move.",
         )
         self.assertEqual(
             productKG.qty_available,
@@ -1756,7 +1755,9 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 20)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id,
+            self.uom_gm.id,
+            "Wrong uom in move for product KG.",
         )
         bo_out_1.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1803,7 +1804,9 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 15)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id,
+            self.uom_gm.id,
+            "Wrong uom in move for product KG.",
         )
         bo_out_2.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1849,7 +1852,9 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 10)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id,
+            self.uom_gm.id,
+            "Wrong uom in move for product KG.",
         )
         bo_out_3.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1895,7 +1900,9 @@ class TestStockFlow(TestStockCommon):
             "Wrong move quantity (%s found instead of 5)" % (moves_KG.product_uom_qty),
         )
         self.assertEqual(
-            moves_KG.product_uom_id.id, self.uom_gm.id, "Wrong uom in move for product KG."
+            moves_KG.product_uom_id.id,
+            self.uom_gm.id,
+            "Wrong uom in move for product KG.",
         )
         bo_out_4.action_assign()
         pack_opt = self.StockPackObj.search(
@@ -1986,7 +1993,7 @@ class TestStockFlow(TestStockCommon):
                 ("package_id", "=", pack1.id),
             ]
         )
-        total_qty = sum([quant.quantity for quant in quants])
+        total_qty = sum(quant.quantity for quant in quants)
         self.assertEqual(
             total_qty,
             20,
@@ -2015,7 +2022,7 @@ class TestStockFlow(TestStockCommon):
                 ("lot_id", "=", lot1.id),
             ]
         )
-        total_qty = sum([quant.quantity for quant in quants])
+        total_qty = sum(quant.quantity for quant in quants)
         self.assertEqual(
             total_qty,
             10,
@@ -2029,7 +2036,7 @@ class TestStockFlow(TestStockCommon):
                 ("lot_id", "=", False),
             ]
         )
-        total_qty = sum([quant.quantity for quant in quants])
+        total_qty = sum(quant.quantity for quant in quants)
         self.assertEqual(
             total_qty,
             0,
@@ -2321,7 +2328,7 @@ class TestStockFlow(TestStockCommon):
         picking_in._action_done()
         quants = self.env["stock.quant"]._gather(self.productE, self.stock_location)
         self.assertEqual(
-            sum([x.quantity for x in quants]), 10.0, "Expecting 10 pieces in stock"
+            sum(x.quantity for x in quants), 10.0, "Expecting 10 pieces in stock"
         )
         # Check the quants are in the package
         self.assertEqual(
@@ -2407,7 +2414,7 @@ class TestStockFlow(TestStockCommon):
         picking_in._action_done()
         quants = self.env["stock.quant"]._gather(self.productE, self.stock_location)
         self.assertEqual(
-            sum([x.quantity for x in quants]), 200.0, "Expecting 200 pieces in stock"
+            sum(x.quantity for x in quants), 200.0, "Expecting 200 pieces in stock"
         )
         # Check the quants are in the package
         self.assertEqual(
@@ -3955,7 +3962,6 @@ class TestStockFlow(TestStockCommon):
 
 @tagged("-at_install", "post_install")
 class TestStockFlowTourPostInstall(TestStockCommon, HttpCase):
-
     @users("pauline")  # pauline is the login of the basic stock_user
     def test_basic_stock_flow_with_minimal_access_rights(self):
         """
@@ -4007,7 +4013,6 @@ class TestStockFlowTourPostInstall(TestStockCommon, HttpCase):
 
 @tagged("-at_install", "post_install")
 class TestStockFlowPostInstall(TestStockCommon):
-
     def test_last_delivery_partner_field_on_lot(self):
         partner = self.env["res.partner"].create({"name": "Super Partner"})
 

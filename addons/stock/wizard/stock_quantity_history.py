@@ -26,7 +26,7 @@ class StockQuantityHistory(models.TransientModel):
             domain &= Domain("product_tmpl_id", "=", product_tmpl_id)
         # We pass `to_date` in the context so that `qty_available` will be computed across
         # moves until date.
-        action = {
+        return {
             "type": "ir.actions.act_window",
             "views": [(tree_view_id, "list"), (form_view_id, "form")],
             "view_mode": "list,form",
@@ -37,4 +37,3 @@ class StockQuantityHistory(models.TransientModel):
             "search_view_id": [search_view_id],
             "display_name": format_datetime(self.env, self.inventory_datetime),
         }
-        return action

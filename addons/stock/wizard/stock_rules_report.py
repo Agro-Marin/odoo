@@ -27,7 +27,7 @@ class StockRulesReport(models.TransientModel):
 
     @api.model
     def default_get(self, fields):
-        res = super(StockRulesReport, self).default_get(fields)
+        res = super().default_get(fields)
         product_tmpl_id = self.env["product.template"]
         if "product_id" in fields:
             if self.env.context.get("default_product_id"):
@@ -60,11 +60,10 @@ class StockRulesReport(models.TransientModel):
         return res
 
     def _prepare_report_data(self):
-        data = {
+        return {
             "product_id": self.product_id.id,
             "warehouse_ids": self.warehouse_ids.ids,
         }
-        return data
 
     def print_report(self):
         self.ensure_one()

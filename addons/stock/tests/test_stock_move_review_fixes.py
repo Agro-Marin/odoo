@@ -194,7 +194,9 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {"name": "Review Storable", "type": "consu", "is_storable": True},
         )
         self.env["stock.quant"]._update_available_quantity(
-            storable, self.stock_location, 10,
+            storable,
+            self.stock_location,
+            10,
         )
         picking = self.env["stock.picking"].create(
             {
