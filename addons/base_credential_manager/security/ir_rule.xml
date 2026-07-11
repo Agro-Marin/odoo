@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo noupdate="1">
+
+    <!-- Credential Credential Multi-company Rule -->
+    <record id="credential_credential_company_rule" model="ir.rule">
+        <field name="name">Credential: Multi-company</field>
+        <field name="model_id" ref="model_credential_credential" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        <field name="global" eval="True" />
+    </record>
+
+    <!-- Credential Access Log Multi-company Rule -->
+    <record id="credential_access_log_company_rule" model="ir.rule">
+        <field name="name">Credential Access Log: Multi-company</field>
+        <field name="model_id" ref="model_credential_access_log" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        <field name="global" eval="True" />
+    </record>
+
+    <!-- Rate Limit Bucket Multi-company Rule -->
+    <record id="rate_limit_bucket_company_rule" model="ir.rule">
+        <field name="name">Rate Limit Bucket: Multi-company</field>
+        <field name="model_id" ref="model_rate_limit_bucket" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        <field name="global" eval="True" />
+    </record>
+
+</odoo>

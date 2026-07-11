@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+
+    <!-- Rate Limit Bucket Search View -->
+    <record id="view_rate_limit_bucket_search" model="ir.ui.view">
+        <field name="name">rate.limit.bucket.search</field>
+        <field name="model">rate.limit.bucket</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="bucket_key" />
+                <field name="endpoint_model" />
+                <field name="endpoint_id" />
+                <field name="company_id" />
+                <filter string="Low Tokens (&lt;10)" name="filter_low_tokens" domain="[('tokens', '&lt;', 10)]" />
+                <filter string="Empty" name="filter_empty" domain="[('tokens', '&lt;', 1)]" />
+                <group>
+                    <filter
+                        string="Endpoint Model"
+                        name="group_by_endpoint_model"
+                        context="{'group_by': 'endpoint_model'}"
+                    />
+                    <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Rate Limit Bucket List View -->
+    <record id="view_rate_limit_bucket_list" model="ir.ui.view">
+        <field name="name">rate.limit.bucket.list</field>
+        <field name="model">rate.limit.bucket</field>
+        <field name="arch" type="xml">
+            <list string="Rate Limit Buckets" create="false" edit="false">
+                <field name="bucket_key" />
+                <field name="endpoint_model" />
+                <field name="endpoint_id" />
+                <field name="company_id" optional="show" />
+                <field
+                    name="tokens"
+                    widget="float"
+                    decoration-danger="tokens &lt; 1"
+                    decoration-warning="tokens &lt; 10"
+                />
+                <field name="last_request_at" optional="show" />
+                <field name="last_refill" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <!-- Rate Limit Bucket Form View -->
+    <record id="view_rate_limit_bucket_form" model="ir.ui.view">
+        <field name="name">rate.limit.bucket.form</field>
+        <field name="model">rate.limit.bucket</field>
+        <field name="arch" type="xml">
+            <form string="Rate Limit Bucket" create="false" edit="false">
+                <header>
+                    <button
+                        name="reset_bucket"
+                        string="Reset Bucket"
+                        type="object"
+                        class="oe_highlight"
+                        help="Reset bucket to full capacity"
+                    />
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="bucket_key" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Endpoint">
+                            <field name="endpoint_model" />
+                            <field name="endpoint_id" />
+                            <field name="company_id" />
+                        </group>
+                        <group string="Token Status">
+                            <field name="tokens" widget="float" />
+                            <label for="tokens" string="Status" />
+                            <div>
+                                <span invisible="tokens &gt;= 10">⚠️ Low tokens</span>
+                                <span invisible="tokens &lt; 10">✅ Healthy</span>
+                            </div>
+                        </group>
+                    </group>
+                    <group string="Timestamps">
+                        <field name="last_refill" />
+                        <field name="last_request_at" />
+                    </group>
+                    <group string="Notes">
+                        <div>
+                            <p>Rate limit buckets track token consumption for rate limiting across
+                                multiple workers.</p>
+                            <p>Tokens refill automatically based on the endpoint's rate limit
+                                configuration.</p>
+                            <p>Click "Reset Bucket" to immediately restore to full capacity.</p>
+                        </div>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_rate_limit_bucket" model="ir.actions.act_window">
+        <field name="name">Rate Limit Buckets</field>
+        <field name="res_model">rate.limit.bucket</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No rate limit buckets yet
+            </p>
+            <p>
+                Rate limit buckets are created automatically when requests are received.
+                They track token consumption for rate limiting across multiple workers and servers.
+            </p>
+        </field>
+    </record>
+
+</odoo>
