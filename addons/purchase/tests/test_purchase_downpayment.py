@@ -6,7 +6,6 @@ from odoo.addons.purchase.tests.test_purchase_invoice import TestPurchaseToInvoi
 
 @tagged("-at_install", "post_install")
 class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
-
     def test_downpayment_basic(self):
         po = self.init_purchase(confirm=False, products=[self.product_order])
         po.line_ids.product_qty = 10.0

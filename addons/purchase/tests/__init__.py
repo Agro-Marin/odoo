@@ -1,4 +1,3 @@
-
 from . import test_purchase
 from . import test_purchase_advanced
 from . import test_purchase_downpayment

@@ -7,7 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

@@ -8,7 +8,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("-at_install", "post_install")
 class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
-
     def test_catalog_price(self):
         """
         Products having a SupplierInfo record in a foreign currency should have their price

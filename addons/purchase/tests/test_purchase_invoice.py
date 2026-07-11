@@ -8,7 +8,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -123,7 +122,6 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
 
 @tagged("post_install", "-at_install")
 class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
-
     def test_vendor_bill_delivered(self):
         """Test if a order of product invoiced by delivered quantity can be
         correctly invoiced."""
@@ -1052,7 +1050,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
 @tagged("post_install", "-at_install")
 class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
-
     def test_total_match_via_partner(self):
         po = self.init_purchase(
             confirm=True, partner=self.partner_a, products=[self.product_order]

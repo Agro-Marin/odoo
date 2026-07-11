@@ -6,7 +6,6 @@ from odoo.tools.misc import file_open
 
 @tagged("post_install", "-at_install")
 class TestImportFiles(TransactionCase):
-
     @unittest.skipUnless(
         can_import("openpyxl"),
         "openpyxl not available",

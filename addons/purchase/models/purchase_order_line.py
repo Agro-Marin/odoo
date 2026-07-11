@@ -1331,7 +1331,8 @@ class PurchaseOrderLine(models.Model):
         )
         if (
             seller
-            and (seller.product_uom_id or seller.product_tmpl_id.uom_id) != product_uom_id
+            and (seller.product_uom_id or seller.product_tmpl_id.uom_id)
+            != product_uom_id
         ):
             uom_po_qty = product_id.uom_id._compute_quantity(
                 uom_po_qty,

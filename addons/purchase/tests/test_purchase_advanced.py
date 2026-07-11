@@ -1,4 +1,3 @@
-
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import tagged
@@ -248,7 +247,9 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         po1.action_confirm()
 
         # Create a similar PO with same partner_ref (draft state for duplicate detection)
-        po2 = self.env["purchase.order"].create(
+        po2 = self.env[
+            "purchase.order"
+        ].create(
             {
                 "partner_id": self.partner_a.id,
                 "partner_ref": vendor_ref,  # Same vendor reference triggers duplicate detection

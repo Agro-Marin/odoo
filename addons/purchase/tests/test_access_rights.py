@@ -1,4 +1,3 @@
-
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import Form, tagged
@@ -8,7 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestPurchaseInvoice(AccountTestInvoicingCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

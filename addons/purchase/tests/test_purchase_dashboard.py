@@ -10,7 +10,6 @@ from odoo.addons.mail.tests.common import MailCase
 
 @tagged("-at_install", "post_install")
 class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
