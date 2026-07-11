@@ -1,0 +1,90 @@
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
+import hashlib
+import hmac
+
+from odoo.tests import TransactionCase, tagged
+
+
+@tagged("post_install", "-at_install")
+class TestWebhookSecurity(TransactionCase):
+    """Authentication/anti-abuse checks on the /web/hook receiver.
+
+    Exercises base.automation._verify_webhook_request (the logic the webhook
+    controller runs before dispatching), absorbed from the former agromarin
+    api_webhook module and backed by base_credential_manager for the secret.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        category = cls.env["credential.category"].search([], limit=1) or cls.env[
+            "credential.category"
+        ].create({"name": "Test", "code": "wh_test"})
+        cls.secret = "supersecret123"
+        cls.credential = cls.env["credential.credential"].create(
+            {
+                "name": "Webhook Secret",
+                "category_id": category.id,
+                "credential_value": cls.secret,
+            }
+        )
+        cls.rule = cls.env["base.automation"].create(
+            {
+                "name": "WH rule",
+                "model_id": cls.env.ref("base.model_res_partner").id,
+                "trigger": "on_webhook",
+                "webhook_auth_type": "hmac_sha256",
+                "webhook_credential_id": cls.credential.id,
+            }
+        )
+        cls.body = b'{"event": "test", "x": 1}'
+
+    def _sig(self, key):
+        return "sha256=" + hmac.new(
+            key.encode(), self.body, hashlib.sha256
+        ).hexdigest()
+
+    def test_hmac_valid(self):
+        ok, status, _msg = self.rule._verify_webhook_request(
+            {"X-Hub-Signature-256": self._sig(self.secret)}, self.body, "1.2.3.4"
+        )
+        self.assertTrue(ok)
+        self.assertEqual(status, 200)
+
+    def test_hmac_invalid_and_missing(self):
+        bad, status, _m = self.rule._verify_webhook_request(
+            {"X-Hub-Signature-256": self._sig("wrong")}, self.body, "1.2.3.4"
+        )
+        self.assertFalse(bad)
+        self.assertEqual(status, 401)
+        missing, status, _m = self.rule._verify_webhook_request(
+            {}, self.body, "1.2.3.4"
+        )
+        self.assertFalse(missing)
+        self.assertEqual(status, 401)
+
+    def test_ip_allowlist(self):
+        self.rule.webhook_ip_allowlist = "10.0.0.0/8, 192.168.1.5"
+        sig = {"X-Hub-Signature-256": self._sig(self.secret)}
+        self.assertTrue(self.rule._verify_webhook_request(sig, self.body, "10.5.5.5")[0])
+        blocked = self.rule._verify_webhook_request(sig, self.body, "1.2.3.4")
+        self.assertFalse(blocked[0])
+        self.assertEqual(blocked[1], 403)
+
+    def test_payload_size_limit(self):
+        self.rule.webhook_max_payload_size = 5
+        res = self.rule._verify_webhook_request(
+            {"X-Hub-Signature-256": self._sig(self.secret)}, self.body, "1.2.3.4"
+        )
+        self.assertFalse(res[0])
+        self.assertEqual(res[1], 413)
+
+    def test_none_auth_is_open_by_default(self):
+        rule = self.env["base.automation"].create(
+            {
+                "name": "open",
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "trigger": "on_webhook",
+            }
+        )
+        self.assertTrue(rule._verify_webhook_request({}, self.body, "1.2.3.4")[0])
