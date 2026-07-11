@@ -562,6 +562,46 @@ Progress tracking for long-running cron jobs.
 - `cron_id` (Many2one → ir.cron, required, cascade)
 - `remaining` (Integer), `done` (Integer), `deactivate` (Boolean)
 
+### models/ir_job.py
+
+#### Base (AbstractModel, `_inherit = 'base'`)
+
+Adds `delayed(priority, eta, channel, max_retries, identity_key)` to every
+model: returns a proxy whose next method call is enqueued as an `ir.job`
+instead of executed (the method must be decorated with `@api.job`).
+
+#### IrJob — `ir.job` (`_name`)
+
+Background job queue — a persisted method call (model, method, records,
+JSON args) executed asynchronously by the job workers (`WorkerJob` /
+`job_thread`, LISTEN/NOTIFY on channel `job_queue`), each in its own
+transaction. States: pending → started → done / failed / cancelled.
+
+**Fields:**
+- `uuid` (Char), `channel` (Char, default='root'), `state` (Selection), `priority` (Integer, default=10)
+- `eta` (Datetime) — earliest execution; `identity_key` (Char) — dedup handle (partial unique index while pending/started)
+- `model_name`/`method_name` (Char, required), `record_ids`/`args`/`kwargs`/`context` (Json)
+- `user_id` (Many2one → res.users, required), `company_id` (Many2one → res.company)
+- `retry`/`max_retries` (Integer), `exc_name`/`exc_message` (Char), `exc_info` (Text)
+- `started_at`/`done_at` (Datetime), `worker_ident` (Char)
+
+**Key Methods:**
+- `_enqueue(records, method_name, ...)` — transactional INSERT (ON CONFLICT dedup) + postcommit NOTIFY
+- `_process_jobs(db_name)` — Static: worker entry point (guards, reap, claim loop)
+- `_claim_next(cr, worker_ident)` — claim under advisory xact-lock + SKIP LOCKED, per-channel capacity
+- `_run_claimed(cr, job)` — execute and mark done in the same transaction (atomic completion)
+- `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail
+- `_reap_dead_jobs(cr)` — requeue started jobs whose session advisory lock is gone
+- `_notifydb()` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
+- `action_requeue()`, `action_cancel()` — UI/state actions
+
+#### IrJobChannel — `ir.job.channel` (`_name`)
+
+Per-channel concurrency capacity (cluster-wide, enforced by the claim query).
+
+**Fields:**
+- `name` (Char, required, unique), `capacity` (Integer, default=1, > 0), `active` (Boolean)
+
 ---
 
 ## Storage and Streaming

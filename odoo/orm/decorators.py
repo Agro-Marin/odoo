@@ -17,6 +17,7 @@ if typing.TYPE_CHECKING:
 #  - _ondelete: unlink-error checks (@ondelete)
 #  - _api_model / _api_private: bool flags marking model-style / RPC-blocked
 #    methods (@api.model, @api.private)
+#  - _job_config: background-job defaults marking enqueueable methods (@api.job)
 
 
 def attrsetter(attr: str, value: object) -> Decorator:
@@ -308,6 +309,56 @@ def autovacuum[C: Callable](method: C) -> C:
         )
     method._autovacuum = True  # type: ignore[attr-defined]
     return method
+
+
+def job(
+    method: Callable | None = None,
+    /,
+    *,
+    channel: str = "root",
+    priority: int = 10,
+    max_retries: int = 5,
+) -> Callable:
+    """Register a record-style method as executable as a background job.
+
+    Only decorated methods may be enqueued (``records.delayed().method(...)``)
+    and executed by the job workers (model ``ir.job``) — the worker resolves
+    the method on the registry class and refuses to run anything that does not
+    carry this marker, so a hand-crafted ``ir_job`` row cannot call arbitrary
+    code.  Usable bare or parameterized::
+
+        @api.job
+        def _refresh_cache(self): ...
+
+
+        @api.job(channel="heavy", max_retries=3)
+        def _sync_to_wms(self, batch_size=100): ...
+
+    :param channel: default ``ir.job.channel`` name; per-channel capacity
+        bounds how many such jobs run concurrently (default ``root``)
+    :param priority: default job priority, lower runs first (default 10)
+    :param max_retries: retries after a failed run before the job is marked
+        ``failed`` (default 5)
+    """
+
+    def decorate[C: Callable](func: C) -> C:
+        if not func.__name__.startswith("_"):
+            # raise (not assert) so the constraint holds under python -O; a
+            # public job method would also be RPC-callable, and jobs must only
+            # enter through ``delayed()``.
+            raise TypeError(
+                f"{func.__name__}: job methods must be private (start with '_')"
+            )
+        func._job_config = {  # type: ignore[attr-defined]
+            "channel": channel,
+            "priority": priority,
+            "max_retries": max_retries,
+        }
+        return func
+
+    if method is not None:
+        return decorate(method)
+    return decorate
 
 
 def model[C: Callable](method: C) -> C:

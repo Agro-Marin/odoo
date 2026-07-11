@@ -150,3 +150,22 @@ class ConcurrencyError(Exception):
     This exception is low-level and has very few use cases, it should
     only be used if all alternatives are deemed worse.
     """
+
+
+class RetryableJobError(Exception):
+    """Raised inside a background job (model ``ir.job``) to request a retry.
+
+    The job's transaction is rolled back and the job is rescheduled — after
+    ``seconds`` when given, else after the default exponential backoff — until
+    its ``max_retries`` budget is exhausted, at which point it is marked
+    ``failed`` like any other exception.
+
+    .. admonition:: Example
+
+        A job hit a transient condition (remote endpoint down, record locked
+        by a concurrent transaction) that a later attempt should not hit.
+    """
+
+    def __init__(self, message: str = "", seconds: int | None = None) -> None:
+        super().__init__(message)
+        self.seconds = seconds

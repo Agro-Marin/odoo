@@ -33,6 +33,7 @@ from . import ir_binary
 
 # --- Scheduling ---
 from . import ir_cron
+from . import ir_job  # imports from ir_cron; must follow it
 from . import ir_autovacuum
 
 # --- Filters, defaults, exports ---

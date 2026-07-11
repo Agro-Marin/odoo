@@ -32,6 +32,7 @@ from . import test_ir_attachment_storage
 from . import test_ir_binary
 from . import test_ir_cron
 from . import test_ir_cron_audit
+from . import test_ir_job
 from . import test_ir_filters
 from . import test_ir_http
 from . import test_ir_mail_server

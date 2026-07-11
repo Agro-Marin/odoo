@@ -35,7 +35,13 @@ from odoo.tools.misc import dumpstacks
 
 from . import lifecycle  # mutated for ``server_phoenix`` (single source of truth)
 from ._base_server import _SIGHUP_AVAILABLE, CommonServer
-from ._cron import arm_cron_listen, drain_cron_notifies, order_notified_first
+from ._cron import (
+    CRON_TRIGGER_CHANNEL,
+    JOB_QUEUE_CHANNEL,
+    arm_cron_listen,
+    drain_cron_notifies,
+    order_notified_first,
+)
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
@@ -105,11 +111,11 @@ class ThreadedServer(CommonServer):
         now = time.monotonic()
         for thread in threading.enumerate():
             thread_type = getattr(thread, "type", None)
-            # Limit cron and HTTP threads (websockets excluded).  Match on
+            # Limit cron, job and HTTP threads (websockets excluded).  Match on
             # ``type``, not ``daemon``: HTTP threads are daemon, so a
             # ``not daemon`` filter would drop them and make ``limit_time_real``
             # inert.
-            if thread_type in ("http", "cron"):
+            if thread_type in ("http", "cron", "job"):
                 # Snapshot start_time once: the worker sets it to None between
                 # units of work, so reading it twice (guard + subtraction) can
                 # race into ``now - None`` -> TypeError, which would crash the
@@ -121,7 +127,7 @@ class ThreadedServer(CommonServer):
                     thread_execution_time = now - start_time
                     thread_limit_time_real = config["limit_time_real"]
                     if (
-                        thread_type == "cron"
+                        thread_type in ("cron", "job")
                         and config["limit_time_real_cron"]
                         and config["limit_time_real_cron"] > 0
                     ):
@@ -149,6 +155,39 @@ class ThreadedServer(CommonServer):
             self.limit_reached_time = None
 
     def cron_thread(self, number: int) -> None:
+        from odoo.addons.base.models.ir_cron import IrCron
+
+        self._listen_thread(
+            number,
+            channel=CRON_TRIGGER_CHANNEL,
+            process_jobs=IrCron._process_jobs,
+            label="cron",
+        )
+
+    def job_thread(self, number: int) -> None:
+        from odoo.addons.base.models.ir_job import IrJob
+
+        self._listen_thread(
+            number,
+            channel=JOB_QUEUE_CHANNEL,
+            process_jobs=IrJob._process_jobs,
+            label="job",
+        )
+
+    def _listen_thread(
+        self,
+        number: int,
+        *,
+        channel: str,
+        process_jobs: Any,
+        label: str,
+    ) -> None:
+        """Shared LISTEN/NOTIFY worker loop of the cron and job threads.
+
+        ``process_jobs(db_name)`` is the per-database unit of work
+        (``IrCron._process_jobs`` / ``IrJob._process_jobs``); ``channel`` the
+        PG NOTIFY channel armed on the recycled ``postgres`` connection.
+        """
         # Steve Reich timing style with thundering herd mitigation.
         #
         # On startup, all workers bind on a notification channel in
@@ -161,9 +200,7 @@ class ThreadedServer(CommonServer):
         # just a bit prevents they all poll the database at the exact
         # same time. This is known as the thundering herd effect.
 
-        from odoo.addons.base.models.ir_cron import IrCron
-
-        cron_logger = self.logger.getChild(f"cron{number}")
+        cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
 
         # Sentinels returned by ``_run_cron`` to let the caller log the
@@ -173,10 +210,10 @@ class ThreadedServer(CommonServer):
 
         def _run_cron(cr):
             pg_conn = cr.connection
-            # Arm LISTEN cron_trigger (no-op on a replica).  This connection is
-            # recycled on the age limit, so the idle-session timeout is left as
-            # configured (unlike WorkerCron's persistent connection).
-            arm_cron_listen(cr, cron_logger)
+            # Arm LISTEN on our channel (no-op on a replica).  This connection
+            # is recycled on the age limit, so the idle-session timeout is left
+            # as configured (unlike the prefork workers' persistent connection).
+            arm_cron_listen(cr, cron_logger, channel=channel)
             cr.commit()
             # Both timestamps are monotonic: wall-clock jumps (NTP slew, DST,
             # manual clock correction) would otherwise mis-schedule the
@@ -199,7 +236,7 @@ class ThreadedServer(CommonServer):
                     # ``WorkerCron.sleep``.
                     time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
                     try:
-                        notified = drain_cron_notifies(pg_conn)
+                        notified = drain_cron_notifies(pg_conn, channel=channel)
                     except Exception:
                         if pg_conn.closed:
                             # connection closed, exit the loop with an
@@ -226,7 +263,7 @@ class ThreadedServer(CommonServer):
                         thread = threading.current_thread()
                         thread.start_time = time.monotonic()
                         try:
-                            IrCron._process_jobs(db_name)
+                            process_jobs(db_name)
                         except Exception:
                             cron_logger.warning(
                                 "Uncaught error for database %s",
@@ -271,6 +308,18 @@ class ThreadedServer(CommonServer):
                 daemon=True,
             )
             t.type = "cron"
+            t.start()
+
+    def job_spawn(self) -> None:
+        """Start ``job_workers`` daemon threads, each running ``job_thread``."""
+        for i in range(config["job_workers"]):
+            t = threading.Thread(
+                target=self.job_thread,
+                args=(i,),
+                name=f"odoo.service.job.job{i}",
+                daemon=True,
+            )
+            t.type = "job"
             t.start()
 
     def http_spawn(self) -> None:
@@ -392,6 +441,7 @@ class ThreadedServer(CommonServer):
             return rc
 
         self.cron_spawn()
+        self.job_spawn()
 
         # Wait for a first signal to be handled. (time.sleep will be interrupted
         # by the signal handler)

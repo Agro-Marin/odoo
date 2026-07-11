@@ -996,6 +996,15 @@ class configmanager:
             type="int",
         )
         group.add_option(
+            "--job-workers",
+            dest="job_workers",
+            my_default=1,
+            help="Number of background job queue (ir.job) workers — processes in "
+            "prefork mode, threads in threaded mode. Set to 0 to disable job "
+            "processing on this instance. (default 1)",
+            type="int",
+        )
+        group.add_option(
             "--unaccent",
             dest="unaccent",
             my_default=False,

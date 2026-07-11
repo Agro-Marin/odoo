@@ -35,7 +35,7 @@ from . import lifecycle  # mutated for ``server_phoenix`` (single source of trut
 from ._base_server import CommonServer
 from ._env import env_float
 from ._helpers import empty_pipe
-from ._worker import Worker, WorkerCron, WorkerHTTP
+from ._worker import Worker, WorkerCron, WorkerHTTP, WorkerJob
 from .lifecycle import _reexec, preload_registries
 
 _logger = logging.getLogger("odoo.service.server")
@@ -110,6 +110,7 @@ class PreforkServer(CommonServer):
         self.socket = None
         self.workers_http = {}
         self.workers_cron = {}
+        self.workers_job = {}
         self.workers = {}
         # Worker spawns over this server's lifetime (logs/diagnostics only).
         self.generation = 0
@@ -293,6 +294,7 @@ class PreforkServer(CommonServer):
             self.logger.debug("worker (%s) unregistered", pid)
             self.workers_http.pop(pid, None)
             self.workers_cron.pop(pid, None)
+            self.workers_job.pop(pid, None)
             self.workers.pop(pid).close()
 
     def worker_kill(self, pid: int, sig: int) -> None:
@@ -489,6 +491,10 @@ class PreforkServer(CommonServer):
         while len(self.workers_cron) < config["max_cron_threads"]:
             check_registries()
             if self.worker_spawn(WorkerCron, self.workers_cron) is None:
+                return
+        while len(self.workers_job) < config["job_workers"]:
+            check_registries()
+            if self.worker_spawn(WorkerJob, self.workers_job) is None:
                 return
 
     def sleep(self) -> None:
