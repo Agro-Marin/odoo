@@ -7,6 +7,7 @@ import {
     Component,
     onError,
     onMounted,
+    onWillDestroy,
     onWillUnmount,
     status,
     useChildSubEnv,
@@ -16,6 +17,7 @@ import { CallbackRecorder } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { useDebugCategory } from "@web/services/debug/debug_context";
@@ -105,7 +107,22 @@ export function makeControllerComponent(am) {
             }
             onMounted(this.onMounted);
             onWillUnmount(this.onWillUnmount);
+            onWillDestroy(this.onWillDestroy);
             onError(this.onError);
+        }
+
+        onWillDestroy() {
+            const { controller, reject } = this.props._context;
+            // A controller replaced by a newer ACTION_MANAGER:UPDATE before it
+            // ever mounts is destroyed without running onMounted (which
+            // resolves) or onError (which rejects). onWillDestroy DOES fire for
+            // a destroyed-before-mount component, so settle the outer
+            // currentActionProm here — otherwise every doAction awaiter of the
+            // superseded action would hang forever. The error service swallows
+            // the SupersededError, so this surfaces no dialog.
+            if (!controller.isMounted && status(this) !== "mounted") {
+                reject(new SupersededError());
+            }
         }
 
         onError(error) {

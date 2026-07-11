@@ -2,7 +2,7 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-import { afterEach, beforeEach, globals } from "@odoo/hoot";
+import { afterEach, beforeEach, globals, onError } from "@odoo/hoot";
 
 import { setupMockCurrencies } from "./mock_currency.hoot.js";
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
@@ -119,6 +119,21 @@ let nextRpcId = 1e9;
  * calls don't encounter stale registry entries.
  */
 export function setupTestEnvironment() {
+    // 0. Globally swallow SupersededError, mirroring production: the action
+    //    service's KeepLast (rejectSuperseded mode) rejects a doAction /
+    //    navigation superseded by a newer one with a SupersededError, which the
+    //    error service swallows silently (no dialog, no console). Supersession
+    //    is a normal control-flow signal, never a test failure — so any test
+    //    that triggers it (the concurrency suite, rapid navigation, pivot/list
+    //    reloads...) must not fail on the resulting unhandled rejection. Match
+    //    by name (not instanceof) to avoid importing a non-".hoot" module.
+    onError((ev) => {
+        const error = /** @type {any} */ (ev)?.reason ?? /** @type {any} */ (ev)?.error;
+        if (error?.name === "SupersededError") {
+            /** @type {any} */ (ev).preventDefault?.();
+        }
+    });
+
     const { loader } = odoo;
     const registryModule = loader.modules.get("@web/core/registry");
     if (!registryModule?.Registry) {

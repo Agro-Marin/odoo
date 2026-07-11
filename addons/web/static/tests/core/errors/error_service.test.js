@@ -17,11 +17,15 @@ import {
     RPCErrorDialog,
     standardErrorDialogProps,
 } from "@web/components/errors/error_dialogs";
-import { defaultHandler } from "@web/components/errors/error_handlers";
+import {
+    defaultHandler,
+    supersededErrorHandler,
+} from "@web/components/errors/error_handlers";
 import { browser } from "@web/core/browser/browser";
 import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
+import { SupersededError } from "@web/core/utils/concurrency";
 import { UncaughtPromiseError } from "@web/services/error_service";
 
 const errorDialogRegistry = registry.category("error_dialogs");
@@ -464,6 +468,25 @@ test("lazy loaded handlers", async () => {
 
     expect.verifyErrors(["Error: error"]);
     expect.verifySteps(["in handler"]);
+});
+
+test("supersededErrorHandler runs before the dialog handlers", async () => {
+    // Registered with a low sequence so no later handler (dialogs, RPC, etc.)
+    // ever sees a SupersededError.
+    const env = await makeMockEnv();
+    const names = errorHandlerRegistry.getEntries().map(([name]) => name);
+    expect(names.indexOf("supersededErrorHandler")).toBeLessThan(
+        names.indexOf("defaultHandler"),
+    );
+
+    let prevented = false;
+    const uncaught = new UncaughtPromiseError();
+    /** @type {any} */ (uncaught).event = { preventDefault: () => (prevented = true) };
+    // Swallows a SupersededError and prevents the browser/console log.
+    expect(supersededErrorHandler(env, uncaught, new SupersededError())).toBe(true);
+    expect(prevented).toBe(true);
+    // Leaves any other error for the next handler.
+    expect(supersededErrorHandler(env, uncaught, new Error("real"))).toBe(false);
 });
 
 let unhandledRejectionCb;

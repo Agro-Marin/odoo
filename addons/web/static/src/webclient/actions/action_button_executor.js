@@ -9,9 +9,7 @@
  */
 
 import { markup } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
-import { AppEvent } from "@web/core/events";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { omit } from "@web/core/utils/collections/objects";
@@ -24,87 +22,6 @@ import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js"
 /** @import { ActionManager } from "./action_service.js" */
 
 export class InvalidButtonParamsError extends Error {}
-
-/**
- * Sentinel for a {@link KeepLast}-guarded button task superseded by a newer
- * task on the same KeepLast (e.g. a ``doAction`` fired while the RPC was in
- * flight). KeepLast silently discards the superseded wrapper — never
- * resolving nor rejecting — so awaiting it directly hangs and skips the
- * ``finally`` that releases the ``block-ui`` overlay.
- *
- * @type {unique symbol}
- */
-const SUPERSEDED = Symbol("action button superseded");
-
-/**
- * Await a KeepLast-guarded task, resolving with {@link SUPERSEDED} instead of
- * hanging forever when the task is discarded by a newer one on the same
- * KeepLast. Callers must bail out (letting their ``finally`` run) on the
- * sentinel.
- *
- * @template T
- * @param {import("@web/core/utils/concurrency").KeepLast} keepLast
- * @param {Promise<T>} promise the raw task promise (always settles)
- * @returns {Promise<T | typeof SUPERSEDED>}
- */
-function addOrSupersede(keepLast, promise) {
-    // `keepLast.add` registers its `.then` first, so on a non-superseded
-    // settlement `guarded` resolves before the sentinel and wins the race
-    // (an extra microtask makes that robust). When superseded, `guarded`
-    // stays pending forever and the sentinel resolves instead.
-    const guarded = keepLast.add(promise);
-    return Promise.race([
-        guarded,
-        promise.then(
-            () => Promise.resolve().then(() => SUPERSEDED),
-            () => Promise.resolve().then(() => SUPERSEDED),
-        ),
-    ]);
-}
-
-/**
- * Await a ``doAction`` promise, resolving with {@link SUPERSEDED} instead of
- * hanging forever when the dispatched action is superseded — either its
- * internal KeepLast wrapper is discarded, or its controller is replaced by a
- * newer ``ACTION_MANAGER:UPDATE`` before mounting; in both cases the promise
- * never settles, so {@link addOrSupersede} (which races on the raw promise's
- * own settlement) cannot guard this phase. Instead, any completed action
- * render (``ACTION_MANAGER_UI_UPDATED`` — the same supersession signal
- * ``webclient.js`` uses for its pointer-events escape hatch) arms a macrotask
- * check: the macrotask drains every pending microtask first, so a promise
- * that was merely propagating through its async layers settles and wins the
- * race, while a genuinely superseded one resolves the sentinel.
- *
- * @param {ActionManager} am
- * @param {Promise<any>} promise the raw ``doAction`` promise (may never settle)
- * @returns {Promise<any | typeof SUPERSEDED>}
- */
-function awaitActionOrSupersede(am, promise) {
-    return new Promise((resolve, reject) => {
-        let done = false;
-        const finish = (callback, value) => {
-            if (!done) {
-                done = true;
-                am.env.bus.removeEventListener(
-                    AppEvent.ACTION_MANAGER_UI_UPDATED,
-                    onUiUpdated,
-                );
-                callback(value);
-            }
-        };
-        const onUiUpdated = () => {
-            // This may be our own action mounting (its resolve() runs just
-            // before the trigger): give the promise a full macrotask to
-            // settle through its async layers before declaring supersession.
-            browser.setTimeout(() => finish(resolve, SUPERSEDED));
-        };
-        am.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, onUiUpdated);
-        promise.then(
-            (value) => finish(resolve, value),
-            (error) => finish(reject, error),
-        );
-    });
-}
 
 /**
  * Build the positional ``args`` for a ``call_button`` RPC: the record id(s)
@@ -217,12 +134,10 @@ export async function executeActionButton(
                     model: params.resModel,
                 },
             );
-            action = await addOrSupersede(am.keepLast, callProm);
-            if (action === SUPERSEDED) {
-                // A newer task discarded this one; bail out so the `finally`
-                // releases the block-ui overlay instead of hanging forever.
-                return;
-            }
+            // am.keepLast rejects with a SupersededError if a newer task
+            // supersedes this one; the `finally` still releases the block-ui
+            // overlay and the error service swallows the rejection.
+            action = await am.keepLast.add(callProm);
             action =
                 action && typeof action === "object"
                     ? action
@@ -235,15 +150,7 @@ export async function executeActionButton(
             context.active_id = params.resId ?? null;
             context.active_ids = params.resIds;
             context.active_model = params.resModel;
-            action = await addOrSupersede(
-                am.keepLast,
-                am._loadAction(params.name, context),
-            );
-            if (action === SUPERSEDED) {
-                // A newer task discarded this one; bail out so the `finally`
-                // releases the block-ui overlay instead of hanging forever.
-                return;
-            }
+            action = await am.keepLast.add(am._loadAction(params.name, context));
         } else {
             throw new InvalidButtonParamsError(
                 "Missing type for doActionButton request",
@@ -316,20 +223,16 @@ export async function executeActionButton(
         // attribute on the button, the priority is given to the button attribute
         effect = params.effect ? evaluateExpr(params.effect) : action.effect;
         const { onClose, stackPosition, viewType } = params;
-        const result = await awaitActionOrSupersede(
-            am,
-            am.doAction(action, {
-                newWindow,
-                onClose,
-                stackPosition,
-                viewType,
-            }),
-        );
-        if (result === SUPERSEDED) {
-            // A newer action rendered before this one; bail out so the
-            // `finally` releases the block-ui overlay instead of hanging forever.
-            return;
-        }
+        // doAction rejects with a SupersededError when this dispatch is
+        // superseded before its controller mounts (its currentActionProm is
+        // rejected in ControllerComponent.onWillDestroy); the `finally` still
+        // releases the block-ui overlay and the error service swallows it.
+        await am.doAction(action, {
+            newWindow,
+            onClose,
+            stackPosition,
+            viewType,
+        });
         if (params.close) {
             await am._executeCloseAction();
         }

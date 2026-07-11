@@ -2,7 +2,14 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, tick } from "@odoo/hoot-mock";
-import { Deferred, delay, KeepLast, Mutex, Race } from "@web/core/utils/concurrency";
+import {
+    Deferred,
+    delay,
+    KeepLast,
+    Mutex,
+    Race,
+    SupersededError,
+} from "@web/core/utils/concurrency";
 
 describe.current.tags("headless");
 
@@ -225,6 +232,81 @@ describe("KeepLast", () => {
         def1.resolve();
         await tick();
         expect.verifySteps([]);
+    });
+
+    test("rejectSuperseded: superseded task rejects with SupersededError", async () => {
+        const keepLast = new KeepLast({ rejectSuperseded: true });
+        const def1 = new Deferred();
+        const def2 = new Deferred();
+
+        keepLast.add(def1).then(
+            () => expect.step("should not resolve"),
+            (error) => {
+                expect(error).toBeInstanceOf(SupersededError);
+                expect.step("ko [1]: superseded");
+            },
+        );
+        keepLast.add(def2).then(() => expect.step("ok [2]"));
+        expect.verifySteps([]);
+
+        // The superseded task settles server-side afterwards; its wrapper must
+        // reject (not hang, not resolve).
+        def1.resolve();
+        await tick();
+        expect.verifySteps(["ko [1]: superseded"]);
+
+        def2.resolve();
+        await tick();
+        expect.verifySteps(["ok [2]"]);
+    });
+
+    test("rejectSuperseded: superseded rejected task still rejects SupersededError", async () => {
+        const keepLast = new KeepLast({ rejectSuperseded: true });
+        const def1 = new Deferred();
+        const def2 = new Deferred();
+
+        keepLast.add(def1).catch((error) => {
+            expect(error).toBeInstanceOf(SupersededError);
+            expect.step("ko [1]: superseded");
+        });
+        keepLast.add(def2).then(() => expect.step("ok [2]"));
+
+        // Even if the superseded task itself rejects, the wrapper surfaces the
+        // supersession (not the original rejection reason).
+        def1.reject(new Error("stale error nobody should see"));
+        await tick();
+        expect.verifySteps(["ko [1]: superseded"]);
+
+        def2.resolve();
+        await tick();
+        expect.verifySteps(["ok [2]"]);
+    });
+
+    test("rejectSuperseded: the latest task still resolves normally", async () => {
+        const keepLast = new KeepLast({ rejectSuperseded: true });
+        const def = new Deferred();
+        keepLast.add(def).then((v) => expect.step(`ok (${v})`));
+        def.resolve(42);
+        await tick();
+        expect.verifySteps(["ok (42)"]);
+    });
+
+    test("default mode leaves a superseded task pending (backward compatible)", async () => {
+        const keepLast = new KeepLast();
+        const def1 = new Deferred();
+        const def2 = new Deferred();
+
+        keepLast.add(def1).then(
+            () => expect.step("should not resolve"),
+            () => expect.step("should not reject"),
+        );
+        keepLast.add(def2).then(() => expect.step("ok [2]"));
+
+        def1.resolve();
+        def2.resolve();
+        await tick();
+        // The superseded wrapper neither resolved nor rejected.
+        expect.verifySteps(["ok [2]"]);
     });
 });
 

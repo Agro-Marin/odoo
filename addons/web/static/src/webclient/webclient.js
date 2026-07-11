@@ -17,7 +17,7 @@ import { AppEvent, RouterEvent, RpcEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { Deferred } from "@web/core/utils/concurrency";
+import { Deferred, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useOwnDebugContext } from "@web/services/debug/debug_context";
 import { DebugMenu } from "@web/services/debug/debug_menu";
@@ -59,28 +59,13 @@ export class WebClient extends Component {
         this.state = useState({
             fullscreen: false,
         });
-        useBus(routerBus, RouterEvent.ROUTE_CHANGE, async () => {
-            document.body.style.pointerEvents = "none";
-            // The route-change load rides the action manager's shared
-            // KeepLast: if another doAction supersedes it (Ctrl+K palette,
-            // hotkey-triggered button...), the awaited promise NEVER settles
-            // and the finally would never restore pointer events — a
-            // permanently mouse-dead page. Any completed action render is
-            // therefore also a restore signal (idempotent).
-            const restore = () => {
-                document.body.style.pointerEvents = "auto";
-                this.env.bus.removeEventListener(
-                    AppEvent.ACTION_MANAGER_UI_UPDATED,
-                    restore,
-                );
-            };
-            this.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, restore);
-            try {
-                await this.loadRouterState();
-            } finally {
-                restore();
-            }
-        });
+        // The route-change load rides the action manager's shared KeepLast; if
+        // a newer doAction supersedes it (Ctrl+K palette, hotkey-triggered
+        // button...), loadRouterState rejects with a SupersededError, which the
+        // error service swallows. No escape hatch needed — supersession is now
+        // observable (was: a pointer-events freeze/thaw workaround around a
+        // never-settling promise).
+        useBus(routerBus, RouterEvent.ROUTE_CHANGE, () => this.loadRouterState());
         useBus(
             this.env.bus,
             AppEvent.ACTION_MANAGER_UI_UPDATED,
@@ -140,6 +125,13 @@ export class WebClient extends Component {
         try {
             stateLoaded = await this.actionService.loadState();
         } catch (error) {
+            if (error instanceof SupersededError) {
+                // A newer navigation superseded this route change; it owns the
+                // UI now. Re-throw so the error service swallows it silently —
+                // do NOT fall back to the default app (that would fight the
+                // newer navigation).
+                throw error;
+            }
             // Still surface the error (dialog) but don't let it strand the
             // webclient: with nothing on screen, load the default app; with
             // a controller already displayed, keep it. Don't fall through to
