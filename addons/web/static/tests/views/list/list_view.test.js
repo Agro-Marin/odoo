@@ -4947,7 +4947,10 @@ test(`monetary aggregates in grouped list (!= currencies in same group)`, async 
     await contains(`.o_group_header:last`).click();
     expect(`.o_group_header:first`).toHaveText("No (1)\n $ 0.00");
     expect(`.o_group_header:last`).toHaveText("Yes (3)\n $ 2,000.00?");
-    expect(`.o_list_footer .o_list_number span`).toHaveText("$ 2,000.00?");
+    // The "Yes" group mixes currencies: its sum cannot be converted
+    // client-side, so the footer shows the multi-currency indicator
+    // without a total.
+    expect(`.o_list_footer .o_list_number span`).toHaveText("?");
 });
 
 test(`monetary aggregates in grouped list (!= currencies in same group, delete)`, async () => {

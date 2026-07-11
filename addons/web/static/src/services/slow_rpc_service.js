@@ -17,10 +17,11 @@ import { registry } from "@web/core/registry";
 export const SLOW_RPC_CONFIG = { thresholdMs: 5000 };
 
 /**
- * Shows a toast when a non-silent RPC exceeds {@link SLOW_RPC_CONFIG}.thresholdMs;
- * clears it on the matching `RPC:RESPONSE` (success, error, abort, or timeout).
- * Silent RPCs (boot-time metadata, action loads, retries) opt out, same as
- * they do for error dialogs.
+ * Shows a single shared toast while at least one non-silent RPC exceeds
+ * {@link SLOW_RPC_CONFIG}.thresholdMs; clears it once every slow request got
+ * its `RPC:RESPONSE` (success, error, abort, or timeout). Silent RPCs
+ * (boot-time metadata, action loads, retries) opt out, same as they do for
+ * error dialogs.
  */
 export const slowRpcService = {
     dependencies: ["notification"],
@@ -29,8 +30,14 @@ export const slowRpcService = {
      * @param {{ notification: { add: (msg: string, opts?: any) => () => void } }} services
      */
     start(_env, { notification }) {
-        /** @type {Map<number, { timeoutId: any, closeNotification?: () => void }>} */
+        /** @type {Map<number, { timeoutId: any, isSlow: boolean }>} */
         const pending = new Map();
+        // One shared toast, refcounted: N concurrent slow RPCs must not stack
+        // N identical notifications. Shown on the first threshold crossing,
+        // closed when the last slow request settles.
+        let slowCount = 0;
+        /** @type {(() => void) | null} */
+        let closeNotification = null;
 
         rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
             const detail = /** @type {any} */ (event).detail;
@@ -43,14 +50,18 @@ export const slowRpcService = {
                 return;
             }
             const rpcId = data.id;
-            /** @type {{ timeoutId: number, closeNotification?: () => void }} */
-            const entry = { timeoutId: 0 };
+            /** @type {{ timeoutId: number, isSlow: boolean }} */
+            const entry = { timeoutId: 0, isSlow: false };
             pending.set(rpcId, entry);
             entry.timeoutId = browser.setTimeout(() => {
-                entry.closeNotification = notification.add(
-                    _t("This is taking longer than usual…"),
-                    { type: "info", sticky: true },
-                );
+                entry.isSlow = true;
+                slowCount++;
+                if (slowCount === 1) {
+                    closeNotification = notification.add(
+                        _t("This is taking longer than usual…"),
+                        { type: "info", sticky: true },
+                    );
+                }
             }, SLOW_RPC_CONFIG.thresholdMs);
         });
 
@@ -65,8 +76,14 @@ export const slowRpcService = {
                 return;
             }
             browser.clearTimeout(entry.timeoutId);
-            entry.closeNotification?.();
             pending.delete(rpcId);
+            if (entry.isSlow) {
+                slowCount--;
+                if (slowCount === 0) {
+                    closeNotification?.();
+                    closeNotification = null;
+                }
+            }
         });
     },
 };

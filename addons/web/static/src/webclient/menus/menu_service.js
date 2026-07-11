@@ -26,6 +26,12 @@ export const menuService = {
     async start(env) {
         let currentAppId;
         let menusData;
+        // Serializes the async writers of `menusData` (boot-time background
+        // revalidation vs. reload() vs. concurrent reload()s): each fetch
+        // snapshots the counter and only commits if still the latest, so a
+        // slow stale response can never overwrite fresher menus (nor persist
+        // its stale hash, which would 304-pin the stale copy on next boots).
+        let fetchGeneration = 0;
 
         /**
          * Fetch the menu tree from the server.
@@ -100,8 +106,14 @@ export const menuService = {
             browser.localStorage.getItem("webclient_menus_hash") || undefined;
 
         if (storedMenus && storedMenusVersion === session.registry_hash) {
+            const generation = ++fetchGeneration;
             fetchMenus(false, storedMenusHash)
                 .then((res) => {
+                    if (generation !== fetchGeneration) {
+                        // A reload() committed fresher menus while this
+                        // revalidation was in flight; drop this resolution.
+                        return;
+                    }
                     // res === null → 304: cached copy confirmed up-to-date.
                     if (res && res.menus) {
                         const fetchedMenus = JSON.stringify(res.menus);
@@ -150,6 +162,14 @@ export const menuService = {
                 // Last resort: a stale, version-mismatched copy beats a blank client.
                 menusData = JSON.parse(storedMenus);
             }
+        }
+        if (!menusData) {
+            // Total failure (fetch failed, no stored copy): a minimal root
+            // beats an exception on the first getAll()/getApps() call and a
+            // blanked webclient with an opaque error.
+            menusData = {
+                root: { id: "root", children: [], name: "root", appID: "root" },
+            };
         }
 
         /** @param {number|string} menuId */
@@ -205,7 +225,12 @@ export const menuService = {
             async reload() {
                 // Explicit reload (e.g. after app install): skip the cached hash,
                 // a change is expected, always take the full payload.
+                const generation = ++fetchGeneration;
                 const res = await fetchMenus(true);
+                if (generation !== fetchGeneration) {
+                    // Superseded by a newer fetch; it will commit and notify.
+                    return;
+                }
                 if (res && res.menus) {
                     menusData = res.menus;
                     // Persist so the next boot doesn't serve stale menus from localStorage.

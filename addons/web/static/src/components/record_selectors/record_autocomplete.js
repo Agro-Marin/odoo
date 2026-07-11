@@ -61,7 +61,10 @@ export class RecordAutocomplete extends Component {
             label ? label.split("\n")[0] : _t("Unnamed"),
         ]);
         this.addNames(nameGets);
-        const options = nameGets.map(([id, label]) => ({
+        // One extra record is fetched only to know whether more results exist:
+        // never display it, else exactly SEARCH_LIMIT + 1 matches would show a
+        // false "Search More...".
+        const options = nameGets.slice(0, SEARCH_LIMIT).map(([id, label]) => ({
             data: {
                 record: { id, display_name: label },
             },

@@ -297,6 +297,11 @@ function parseInfix(left, current, cur) {
                     left,
                     right,
                 };
+                // Chained comparisons desugar to `and` pairs sharing the
+                // middle operand AST NODE, so `a < f() < b` evaluates f()
+                // twice (Python evaluates each operand once). Harmless for
+                // the pure expressions py_js handles; a true fix would need a
+                // temporary-binding node the interpreter lacks.
                 while (
                     chainedOperators.has(/** @type {string} */ (current.value)) &&
                     cur.peek() &&

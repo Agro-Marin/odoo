@@ -264,4 +264,39 @@ describe("save barrier on pending commands", () => {
         expect(result).toBe(true);
         expect.verifySteps(["webSave"]);
     });
+
+    test("the barrier gives up after a bounded number of iterations", async () => {
+        const list = makeList();
+        list._applyCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
+        // A pathological list whose floating-commands promise regenerates on
+        // every read: without the iteration cap the save would hang forever
+        // inside the mutex with no diagnostic.
+        Object.defineProperty(list, "_commandsPromise", {
+            get: () => Promise.resolve(),
+            set: () => {},
+        });
+
+        const rec = makeRecord(list, {
+            webSave: async () => {
+                expect.step("webSave");
+                return [{ id: 1 }];
+            },
+        });
+
+        const warnings = [];
+        const originalWarn = console.warn;
+        console.warn = (...args) => warnings.push(args.join(" "));
+        let result;
+        try {
+            result = await save(rec, { reload: false });
+        } finally {
+            console.warn = originalWarn;
+        }
+
+        // Degraded mode: the save still goes through, loudly.
+        expect(result).toBe(true);
+        expect.verifySteps(["webSave"]);
+        expect(warnings.length).toBe(1);
+        expect(warnings[0]).toInclude("did not quiesce");
+    });
 });

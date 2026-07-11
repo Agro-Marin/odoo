@@ -28,7 +28,7 @@ export class DropdownItem extends Component {
             optional: true,
         },
         closingMode: {
-            type: ClosingMode,
+            type: Object.values(ClosingMode).map((value) => ({ value })),
             optional: true,
         },
         attrs: {

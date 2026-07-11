@@ -2550,10 +2550,13 @@ test("action and get_views rpcs are cached", async () => {
     expect.verifySteps(["web_search_read"]);
 
     await getService("orm").unlink("ir.actions.act_window", [333]);
-    expect.verifySteps(["unlink"]);
+    await animationFrame();
+    // The act_window mutation also refreshes the current stack's breadcrumb
+    // display names in place (see action_cache_invalidation).
+    expect.verifySteps(["unlink", "/web/action/load_breadcrumbs"]);
     await getService("action").doAction(1);
-    // cache was cleared => reload the action
-    expect.verifySteps(["/web/action/load", "web_search_read"]);
+    // action and get_views caches were cleared => reload both
+    expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
 });
 
 test("get_views rpcs are cached (different context.active_id)", async () => {

@@ -81,8 +81,14 @@ export function useActiveActions({
         let evalFn = () => true;
         if (crudOptions[actionName] != null) {
             const action = crudOptions[actionName];
-            evalFn = (evalContext) =>
-                Boolean(action && new Domain(action).contains(evalContext));
+            // Lazy: some crudOptions entries are plain booleans whose eval
+            // function is never invoked (e.g. createEdit); only build the
+            // Domain once, on first evaluation.
+            let domain;
+            evalFn = (evalContext) => {
+                domain ??= action ? new Domain(action) : null;
+                return Boolean(domain && domain.contains(evalContext));
+            };
         }
 
         if (actionName in subViewActiveActions) {

@@ -66,6 +66,11 @@ test("parseTime (various entries)", async () => {
 
         // Wrong inputs
         ["28:00", null],
+        // "24" is only valid as ISO 8601 end-of-day ("24:00"): accepting
+        // "24:30" would silently produce "0:30".
+        ["24:30", null],
+        ["24:00:01", null],
+        ["2430", null],
         ["10101010", null],
         ["abc", null],
         ["", null],
@@ -103,6 +108,7 @@ test("parseTime (no seconds)", async () => {
         ["8:55abc", "8:55"],
         ["8:55:", "8:55"],
 
+        ["24:30", null],
         ["8:55:33", null],
         ["08553", null],
         ["085533", null],

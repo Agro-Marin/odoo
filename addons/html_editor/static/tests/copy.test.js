@@ -2,8 +2,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { setupEditor } from "./_helpers/editor.js";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { getContent } from "./_helpers/selection";
-import { unformat } from "./_helpers/format";
+import { getContent } from "./_helpers/selection.js";
+import { unformat } from "./_helpers/format.js";
 
 describe("range collapsed", () => {
     test("should ignore copying an empty selection with empty clipboardData", async () => {

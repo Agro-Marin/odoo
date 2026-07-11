@@ -283,17 +283,18 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                     });
                     return {
                         component: List,
-                        extractProps: ({ value, update }) => {
-                            if (!disambiguate(value)) {
-                                const { stringify } = editorInfo;
-                                editorInfo.stringify = (val) => stringify(val, false);
-                            }
-                            return {
-                                value,
-                                update,
-                                editorInfo,
-                            };
-                        },
+                        extractProps: ({ value, update }) => ({
+                            value,
+                            update,
+                            // Per-call stringify: the ambiguity flag depends on
+                            // the CURRENT value, so it must not be baked into
+                            // the shared editorInfo (which outlives renders).
+                            editorInfo: {
+                                ...editorInfo,
+                                stringify: (val) =>
+                                    editorInfo.stringify(val, disambiguate(value)),
+                            },
+                        }),
                         isSupported: (value) => Array.isArray(value),
                         defaultValue: () => [],
                         shouldResetValue: (value) =>

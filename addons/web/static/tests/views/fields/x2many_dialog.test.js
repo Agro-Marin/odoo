@@ -17,7 +17,9 @@ import {
     models,
     mountView,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { RelationalRecord } from "@web/model/relational_model/record";
 
 describe.current.tags("desktop");
 
@@ -144,6 +146,46 @@ describe("dialog title", () => {
 
         // Title includes the one2many field's string ("Turtles")
         expect(".o_dialog .modal-title").toHaveText("Create Turtles");
+    });
+});
+
+// Shared archInfo isolation
+
+describe("shared archInfo", () => {
+    test("dialog is not permanently readonly after an open on a readonly parent", async () => {
+        // Regression test: the dialog used to flip `edit: false` on the SHARED
+        // cached archInfo of the inline form subview when the parent record
+        // was not in edition, permanently poisoning every later dialog opened
+        // for the same field.
+        let forceRootReadonly = false;
+        patchWithCleanup(RelationalRecord.prototype, {
+            get isInEdition() {
+                if (forceRootReadonly && this === this.model?.root) {
+                    return false;
+                }
+                return super.isInEdition;
+            },
+        });
+
+        await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
+
+        // Open the dialog while the parent record is not in edition: readonly
+        forceRootReadonly = true;
+        await contains(".o_data_row .o_data_cell").click();
+        expect(".o_dialog").toHaveCount(1);
+        expect(".o_dialog .o_field_widget[name=name] input").toHaveCount(0, {
+            message: "dialog form should be readonly",
+        });
+        await contains(".o_dialog .btn-close").click();
+        expect(".o_dialog").toHaveCount(0);
+
+        // Reopen it while the parent record is in edition: editable again
+        forceRootReadonly = false;
+        await contains(".o_data_row .o_data_cell").click();
+        expect(".o_dialog").toHaveCount(1);
+        expect(".o_dialog .o_field_widget[name=name] input").toHaveCount(1, {
+            message: "dialog form should be editable again",
+        });
     });
 });
 

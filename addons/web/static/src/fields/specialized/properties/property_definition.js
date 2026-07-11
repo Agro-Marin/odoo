@@ -67,6 +67,8 @@ export class PropertyDefinition extends Component {
         // (model/domain change) cannot resolve out of order and leave a stale
         // count showing.
         this.keepLastCount = new KeepLast();
+        // Same for the comodel description RPC on rapid comodel switches.
+        this.keepLastModelDescription = new KeepLast();
 
         this.propertyDefinitionRef = useRef("propertyDefinition");
         this.addDialog = useOwnedDialogs();
@@ -95,9 +97,10 @@ export class PropertyDefinition extends Component {
 
         this._domInputIdPrefix = uuid();
 
-        onWillUpdateProps((newProps) =>
-            this._syncStateWithProps(newProps.propertyDefinition),
-        );
+        onWillUpdateProps((newProps) => {
+            this.state.propertyIndex = newProps.propertyIndex;
+            return this._syncStateWithProps(newProps.propertyDefinition);
+        });
 
         useEffect((event) => {
             // focus the property label, when we open the property definition
@@ -436,7 +439,6 @@ export class PropertyDefinition extends Component {
         const currentModel = this.state.resModel;
 
         this.state.propertyDefinition = propertyDefinition;
-        this.state.resModel = propertyDefinition.comodel;
         this.state.typeLabel = this._typeLabel(propertyDefinition.type);
         this.state.resModel = newModel;
 
@@ -444,9 +446,9 @@ export class PropertyDefinition extends Component {
             // retrieve the model id and the model description from it's name
             // "res.partner" => (5, "Contact")
             try {
-                const result = await this.orm.call("ir.model", "display_name_for", [
-                    [newModel],
-                ]);
+                const result = await this.keepLastModelDescription.add(
+                    this.orm.call("ir.model", "display_name_for", [[newModel]]),
+                );
                 if (!result || !result.length) {
                     return;
                 }

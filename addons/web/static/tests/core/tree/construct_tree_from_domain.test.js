@@ -16,3 +16,45 @@ test("constructTreeFromDomain", async () => {
         expect(constructTreeFromDomain(domain)).toEqual(tree);
     }
 });
+
+test("constructTreeFromDomain: connectors, negation and distribution", () => {
+    expect(constructTreeFromDomain(`["!", "|", ("a", "=", 1), ("b", "=", 2)]`)).toEqual(
+        connector("|", [condition("a", "=", 1), condition("b", "=", 2)], true),
+    );
+    expect(
+        constructTreeFromDomain(`["!", "|", ("a", "=", 1), ("b", "=", 2)]`, true),
+    ).toEqual(
+        connector("&", [condition("a", "=", 1, true), condition("b", "=", 2, true)]),
+    );
+    // same-value children are flattened into the parent connector
+    expect(
+        constructTreeFromDomain(
+            `["&", "&", ("a", "=", 1), ("b", "=", 2), ("c", "=", 3)]`,
+        ),
+    ).toEqual(
+        connector("&", [
+            condition("a", "=", 1),
+            condition("b", "=", 2),
+            condition("c", "=", 3),
+        ]),
+    );
+    expect(constructTreeFromDomain(`["!", "!", ("a", "=", 1)]`)).toEqual(
+        condition("a", "=", 1),
+    );
+});
+
+test("constructTreeFromDomain: large domains do not overflow the stack", () => {
+    // The normalized prefix chain ["&", "&", ..., leaf, ...] used to be
+    // consumed recursively (depth O(N)) with an O(N²) tail spread.
+    const N = 5000;
+    const domain = [
+        ...Array(N - 1).fill("&"),
+        ...Array.from({ length: N }, (_, i) => ["f", "=", i]),
+    ];
+    const tree = /** @type {any} */ (constructTreeFromDomain(domain));
+    expect(tree.type).toBe("connector");
+    expect(tree.value).toBe("&");
+    expect(tree.children.length).toBe(N);
+    expect(tree.children[0]).toEqual(condition("f", "=", 0));
+    expect(tree.children[N - 1]).toEqual(condition("f", "=", N - 1));
+});

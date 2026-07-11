@@ -98,8 +98,16 @@ export class CropOverlay extends Component {
         const elementHeight = parseFloat(firstChildComputedStyle.height);
 
         const stringSavedPoint = browser.localStorage.getItem(this.localStorageKey);
+        let savedPoint;
         if (stringSavedPoint) {
-            const savedPoint = JSON.parse(stringSavedPoint);
+            try {
+                savedPoint = JSON.parse(stringSavedPoint);
+            } catch {
+                // A corrupt entry must not crash the scanner UI forever.
+                browser.localStorage.removeItem(this.localStorageKey);
+            }
+        }
+        if (typeof savedPoint?.x === "number" && typeof savedPoint?.y === "number") {
             this.relativePosition = {
                 x: clamp(savedPoint.x, 0, elementWidth),
                 y: clamp(savedPoint.y, 0, elementHeight),
@@ -150,6 +158,14 @@ export class CropOverlay extends Component {
         if (event.target.matches(".o_crop_icon")) {
             this.computeOverlayPosition();
             this.isMoving = true;
+            // Capture the pointer so move/up keep flowing to the overlay even
+            // when released outside it; otherwise isMoving stays true and the
+            // crop sticks to the pointer on its next entry.
+            try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+            } catch {
+                // no active pointer to capture (synthetic event)
+            }
         }
     }
 
@@ -157,13 +173,7 @@ export class CropOverlay extends Component {
         if (!this.isMoving) {
             return;
         }
-        let eventPosition;
-        if (event.touches && event.touches.length) {
-            eventPosition = event.touches[0];
-        } else {
-            eventPosition = event;
-        }
-        const { clientX, clientY } = eventPosition;
+        const { clientX, clientY } = event;
         const restrictedPosition = this.boundPoint(
             {
                 x: clientX,

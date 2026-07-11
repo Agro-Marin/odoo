@@ -10,7 +10,6 @@ import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
-import { symmetricalDifference } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -70,7 +69,7 @@ export class X2ManyField extends Component {
 
     setup() {
         this.field = this.props.record.fields[this.props.name];
-        const { saveRecord, updateRecord, removeRecord } = useX2ManyCrud(
+        const { linkRecords, saveAndLink, updateRecord, removeRecord } = useX2ManyCrud(
             () => this.list,
             this.isMany2Many,
         );
@@ -117,7 +116,7 @@ export class X2ManyField extends Component {
                 activeField: this.activeField,
                 activeActions: this.activeActions,
                 getList: () => this.list,
-                saveRecord,
+                saveRecord: saveAndLink,
                 updateRecord,
                 isMany2Many: this.isMany2Many,
             }),
@@ -142,9 +141,10 @@ export class X2ManyField extends Component {
         const selectCreate = useSelectCreate({
             resModel: this.props.record.data[this.props.name].resModel,
             activeActions: this.activeActions,
-            onSelected: (resIds) => saveRecord?.(resIds),
+            isToMany: this.isMany2Many,
+            onSelected: (resIds) => linkRecords?.(resIds),
             onCreateEdit: ({ context }) => this._openRecord({ context }),
-            onUnselect: this.isMany2Many ? undefined : () => saveRecord?.(),
+            onUnselect: this.isMany2Many ? undefined : () => saveAndLink?.(),
         });
 
         this.selectCreate = (params) => {
@@ -296,20 +296,24 @@ export class X2ManyField extends Component {
         let resId;
         if (record.isNew) {
             // New records have no resId until saved: locate the record's index
-            // among pending CREATE commands, save, then diff resIds before/after
-            // to find the id newly assigned at that index.
+            // among pending CREATE commands, save, then find the ids newly
+            // added to the list to identify the one assigned at that index.
             const createCommands = this.list._commands.filter(
                 ([command]) => command === x2ManyCommands.CREATE,
             );
             const newRecordIndex = createCommands.findIndex(
                 ([_command, virtualId]) => virtualId === record._virtualId,
             );
-            const previousResIds = this.list.resIds;
+            const previousResIds = new Set(this.list.resIds);
             const saved = await this.props.record.save();
             if (!saved) {
                 return;
             }
-            const newResIds = symmetricalDifference(this.list.resIds, previousResIds);
+            // Only ids added by the save: rows removed in the same save must
+            // not inflate the diff (they would spuriously fail the count check
+            // below). TODO(model): replace this heuristic with an explicit
+            // virtualId -> resId resolution exposed by the model layer.
+            const newResIds = this.list.resIds.filter((id) => !previousResIds.has(id));
             if (newResIds.length !== createCommands.length) {
                 return this.notificationService.add(
                     _t("Please save your changes first"),

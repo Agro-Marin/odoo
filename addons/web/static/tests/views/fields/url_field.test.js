@@ -43,6 +43,20 @@ test("UrlField in form view", async () => {
     expect(`.o_field_widget input[type="text"]`).toHaveValue("https://www.odoo.com");
 });
 
+test("required attribute is forwarded to the input", async () => {
+    Product._records = [{ id: 1, url: "https://www.example.com" }];
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="url" widget="url" required="1"/>
+            </form>`,
+    });
+    expect(`.o_field_url input[type="text"]`).toHaveAttribute("required");
+});
+
 test("in form view (readonly)", async () => {
     Product._records = [{ id: 1, url: "https://www.example.com" }];
     await mountView({

@@ -125,7 +125,10 @@ export function toKey(operator, negate = false) {
  * @returns {[import("./condition_tree").Value, boolean]} operator and negate flag
  */
 export function toOperator(key) {
-    if (!key.includes("[")) {
+    // Invariant (see toKey): the JSON-serialized form is always a
+    // `JSON.stringify([...])` — it starts with "[" — while the plain form is
+    // an operator from OPERATOR_DESCRIPTIONS, none of which starts with "[".
+    if (!key.startsWith("[")) {
         return [key, false];
     }
     const [expr, negate] = JSON.parse(key);

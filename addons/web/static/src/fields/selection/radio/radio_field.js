@@ -15,6 +15,7 @@ let nextId = 0;
  *     orientation?: string;
  *     label?: string;
  *     domain?: any[] | Function;
+ *     context?: object;
  * }} RadioFieldProps
  */
 /** @extends {SelectionLikeField} */
@@ -25,6 +26,7 @@ export class RadioField extends SelectionLikeField {
         orientation: { type: String, optional: true },
         label: { type: String, optional: true },
         domain: { type: [Array, Function], optional: true },
+        context: { type: Object, optional: true },
     };
     static defaultProps = {
         orientation: "vertical",
@@ -85,6 +87,7 @@ export const radioField = {
         orientation: options.horizontal ? "horizontal" : "vertical",
         label: string,
         domain: dynamicInfo.domain,
+        context: dynamicInfo.context,
     }),
 };
 

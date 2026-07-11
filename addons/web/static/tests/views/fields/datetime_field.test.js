@@ -25,8 +25,11 @@ import {
     models,
     mountView,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { ModelEvent } from "@web/core/events";
 import { resetDateFieldWidths } from "@web/fields/field_widths";
+import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
 
 class Partner extends models.Model {
     date = fields.Date({ string: "A date", searchable: true });
@@ -755,4 +758,37 @@ test("list datetime: column widths (numeric format)", async () => {
     expect(queryAllProperties(".o_list_table thead th", "offsetWidth")).toEqual([
         40, 144, 616,
     ]);
+});
+
+test("clean datetime does not re-emit FIELD_IS_DIRTY on unrelated re-renders", async () => {
+    Partner._fields.bar = fields.Boolean();
+    /** @type {boolean[]} */
+    const emissions = [];
+    patchWithCleanup(DateTimeField.prototype, {
+        setup() {
+            super.setup();
+            this.props.record.model.bus.addEventListener(
+                ModelEvent.FIELD_IS_DIRTY,
+                (ev) => emissions.push(ev.detail),
+            );
+        },
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <field name="bar"/>
+                <field name="datetime" readonly="not bar"/>
+            </form>`,
+    });
+    expect(emissions).toEqual([false]);
+
+    // Toggling the boolean flips the datetime's readonly modifier, forcing a
+    // re-render with unchanged dirtiness: FIELD_IS_DIRTY is last-writer-wins,
+    // so a clean field must not re-emit and clobber a dirty sibling's state.
+    await click(".o_field_boolean input");
+    await animationFrame();
+    expect(emissions).toEqual([false]);
 });

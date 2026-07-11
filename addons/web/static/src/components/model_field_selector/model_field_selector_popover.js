@@ -49,10 +49,12 @@ class Page {
         const name = this.selectedName;
 
         if (this.readProperty && this.selectedField && this.selectedField.is_property) {
+            // JSON.stringify: property names are user-created and may contain
+            // quotes; double-quoted JSON strings are valid Python literals.
             if (this.selectedField.relation) {
-                return `${previousPath}.get('${name}', env['${this.selectedField.relation}'])`;
+                return `${previousPath}.get(${JSON.stringify(name)}, env['${this.selectedField.relation}'])`;
             }
-            return `${previousPath}.get('${name}')`;
+            return `${previousPath}.get(${JSON.stringify(name)})`;
         }
         if (name) {
             if (previousPath) {

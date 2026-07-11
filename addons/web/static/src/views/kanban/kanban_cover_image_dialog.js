@@ -22,10 +22,6 @@ export class KanbanCoverImageDialog extends Component {
     static props = {
         record: Object,
         fieldName: String,
-        // Boolean from programmatic callers, but a String when emitted by
-        // kanban_compiler.js (extractAttributes reads the XML auto-open
-        // attribute as a string). setup() does a truthy check so both work.
-        autoOpen: { type: [Boolean, String], optional: true },
         close: Function,
     };
     setup() {
@@ -35,7 +31,6 @@ export class KanbanCoverImageDialog extends Component {
         const { record, fieldName } = this.props;
         const attachment = record.data[fieldName];
         this.state = useState({
-            selectFile: false,
             selectedAttachmentId: attachment?.id || false,
         });
         onWillStart(async () => {
@@ -48,7 +43,6 @@ export class KanbanCoverImageDialog extends Component {
                 ],
                 ["id"],
             );
-            this.state.selectFile = this.props.autoOpen && !!this.attachments.length;
         });
     }
 
@@ -65,7 +59,6 @@ export class KanbanCoverImageDialog extends Component {
         if (!attachment) {
             return;
         }
-        this.state.selectFile = false;
         this.selectAttachment(attachment, true);
     }
 
@@ -101,10 +94,5 @@ export class KanbanCoverImageDialog extends Component {
             { save: true },
         );
         this.props.close();
-    }
-
-    /** Show the file input widget. */
-    uploadImage() {
-        this.state.selectFile = true;
     }
 }

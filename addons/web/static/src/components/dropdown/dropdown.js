@@ -271,7 +271,18 @@ export class Dropdown extends Component {
         }
 
         if (this.hasParent || this.group.isOpen) {
-            this.target?.focus();
+            // Don't steal focus from an editable element the user is typing in
+            // (outside this dropdown) on a pure mouse-over.
+            const activeElement = /** @type {HTMLElement | null} */ (
+                document.activeElement
+            );
+            const isEditableActive =
+                activeElement &&
+                (["INPUT", "TEXTAREA"].includes(activeElement.nodeName) ||
+                    activeElement.isContentEditable);
+            if (!isEditableActive || this.target?.contains(activeElement)) {
+                this.target?.focus();
+            }
             this._captureFocusBeforeOpen();
             this.state.open();
         }

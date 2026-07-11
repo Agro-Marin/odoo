@@ -89,18 +89,14 @@ export class PropertiesField extends Component {
                 if (this.props.readonly || this.state.isInEditMode) {
                     return;
                 }
-                let canChangeDefinition = this.state.canChangeDefinition;
-                if (!canChangeDefinition) {
-                    canChangeDefinition = await this.checkDefinitionWriteAccess();
-                    if (!canChangeDefinition) {
-                        this.notification.add(this._getPropertyEditWarningText(), {
-                            type: "warning",
-                        });
-                    }
+                const isInEditMode = await this._recomputeEditMode(this.props, {
+                    force: true,
+                });
+                if (!this.state.canChangeDefinition) {
+                    this.notification.add(this._getPropertyEditWarningText(), {
+                        type: "warning",
+                    });
                 }
-                const isInEditMode = canChangeDefinition && !this.props.readonly;
-                this.state.canChangeDefinition = !!canChangeDefinition;
-                this.state.isInEditMode = isInEditMode;
                 if (isInEditMode && !this.propertiesList.length) {
                     this.onPropertyCreate();
                 }
@@ -111,11 +107,7 @@ export class PropertiesField extends Component {
             if (this.props.readonly || !this.props.editMode) {
                 return;
             }
-            const canChangeDefinition = await this.checkDefinitionWriteAccess();
-            if (canChangeDefinition) {
-                this.state.canChangeDefinition = true;
-                this.state.isInEditMode = !this.props.readonly;
-            }
+            await this._recomputeEditMode();
         });
 
         useEffect(
@@ -127,13 +119,7 @@ export class PropertiesField extends Component {
                 ) {
                     return;
                 }
-                this.checkDefinitionWriteAccess().then((canChangeDefinition) => {
-                    this.state.canChangeDefinition = !!canChangeDefinition;
-                    this.state.isInEditMode =
-                        canChangeDefinition &&
-                        !this.props.readonly &&
-                        (this.state.isInEditMode || this.props.editMode);
-                });
+                this._recomputeEditMode(this.props, { recheck: true });
             },
             () => [this.props.record.data[this.definitionRecordField]],
         );
@@ -146,15 +132,7 @@ export class PropertiesField extends Component {
                 !nextProps.readonly &&
                 (this.props.readonly || (nextProps.editMode && !this.props.editMode))
             ) {
-                let canChangeDefinition = this.state.canChangeDefinition;
-                if (!canChangeDefinition) {
-                    canChangeDefinition = await this.checkDefinitionWriteAccess();
-                }
-                this.state.canChangeDefinition = !!canChangeDefinition;
-                this.state.isInEditMode =
-                    canChangeDefinition &&
-                    !nextProps.readonly &&
-                    (this.state.isInEditMode || nextProps.editMode);
+                await this._recomputeEditMode(nextProps);
             }
         });
 
@@ -428,11 +406,15 @@ export class PropertiesField extends Component {
             ) &&
             Math.floor(fromIndex / columnSize) !== Math.floor(toIndex / columnSize)
         ) {
+            // Unfold the separators directly on the local copy (`value: false`):
+            // `_toggleSeparators` would re-read the record data, which doesn't
+            // contain the spliced separators yet.
             const newSeparators = [];
             for (let col = 0; col < this.renderedColumnsCount; ++col) {
                 const separatorIndex = columnSize * col + newSeparators.length;
 
                 if (propertiesValues[separatorIndex]?.type === "separator") {
+                    propertiesValues[separatorIndex].value = false;
                     newSeparators.push(propertiesValues[separatorIndex].name);
                     continue;
                 }
@@ -440,11 +422,11 @@ export class PropertiesField extends Component {
                     type: "separator",
                     string: _t("Group %s", col + 1),
                     name: this.generatePropertyName("separator"),
+                    value: false,
                 };
                 newSeparators.push(newSeparator.name);
                 propertiesValues.splice(separatorIndex, 0, newSeparator);
             }
-            await this._toggleSeparators(newSeparators, false);
             toPropertyName = toPropertyName || propertiesValues.at(-1).name;
 
             // indexes might have changed
@@ -757,6 +739,36 @@ export class PropertiesField extends Component {
     /* --------------------------------------------------------
      * Private methods
      * -------------------------------------------------------- */
+
+    /**
+     * Recompute `state.canChangeDefinition` / `state.isInEditMode` against
+     * the given props. Single implementation for every edit-mode transition
+     * (mount, cog-menu edit, definition record change, props update).
+     *
+     * @param {object} [props=this.props]
+     * @param {object} [options]
+     * @param {boolean} [options.recheck=false] force a fresh write-access
+     *  check instead of reusing a previously granted one (e.g. when the
+     *  definition record changed)
+     * @param {boolean} [options.force=false] enter edit mode regardless of
+     *  the current state / `editMode` prop (e.g. explicit user action)
+     * @returns {Promise<boolean>} whether edit mode is active
+     */
+    async _recomputeEditMode(
+        props = this.props,
+        { recheck = false, force = false } = {},
+    ) {
+        let canChangeDefinition = !recheck && this.state.canChangeDefinition;
+        if (!canChangeDefinition) {
+            canChangeDefinition = await this.checkDefinitionWriteAccess();
+        }
+        this.state.canChangeDefinition = !!canChangeDefinition;
+        this.state.isInEditMode =
+            !!canChangeDefinition &&
+            !props.readonly &&
+            (force || this.state.isInEditMode || !!props.editMode);
+        return this.state.isInEditMode;
+    }
 
     /**
      * Switch the folded state of the given separators.

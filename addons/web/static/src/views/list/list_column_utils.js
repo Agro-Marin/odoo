@@ -25,6 +25,20 @@ import { getPropertyFieldInfo } from "@web/fields/field";
 import { combineModifiers } from "@web/model/relational_model/utils";
 
 /**
+ * Memoized property-column expansions, keyed by the parent (arch) column
+ * object. Expanded column objects must be referentially stable across
+ * renders: they are compared by identity downstream (row-skipping via
+ * `_toStableColumns`, per-column format-option memoization in
+ * `view_utils.js`). Entries are validated against the identity of the
+ * matched property field definitions (and their active fields), so a change
+ * in the property definitions — which installs fresh field objects on the
+ * list — rebuilds the expansion.
+ *
+ * @type {WeakMap<object, { fields: any[], activeFields: any[], columns: Column[] }>}
+ */
+const propertyColumnsCache = new WeakMap();
+
+/**
  * Expand property fields into individual columns.
  *
  * @param {Column} column - a column of type "field" with a properties field
@@ -32,35 +46,52 @@ import { combineModifiers } from "@web/model/relational_model/utils";
  * @returns {Column[]} expanded property columns
  */
 export function getPropertyFieldColumns(column, list) {
-    return /** @type {any[]} */ (Object.values(list.fields))
-        .filter(
-            (field) =>
-                list.activeFields[field.name] &&
-                field.relatedPropertyField &&
-                field.relatedPropertyField.name === column.name &&
-                field.type !== "separator",
+    const propertyFields = /** @type {any[]} */ (Object.values(list.fields)).filter(
+        (field) =>
+            list.activeFields[field.name] &&
+            field.relatedPropertyField &&
+            field.relatedPropertyField.name === column.name &&
+            field.type !== "separator",
+    );
+    const cached = propertyColumnsCache.get(column);
+    if (
+        cached &&
+        cached.fields.length === propertyFields.length &&
+        propertyFields.every(
+            (field, i) =>
+                field === cached.fields[i] &&
+                list.activeFields[field.name] === cached.activeFields[i],
         )
-        .map((propertyField) => {
-            const activeField = list.activeFields[propertyField.name];
-            return {
-                ...getPropertyFieldInfo(propertyField),
-                relatedPropertyField: activeField.relatedPropertyField,
-                id: `${column.id}_${propertyField.name}`,
-                column_invisible: combineModifiers(
-                    propertyField.column_invisible,
-                    column.column_invisible,
-                    "OR",
-                ),
-                classNames: column.classNames,
-                optional: "hide",
-                type: "field",
-                hasLabel: true,
-                label: propertyField.string,
-                attrs: ["integer", "float"].includes(propertyField.type)
-                    ? { sum: propertyField.string }
-                    : {},
-            };
-        });
+    ) {
+        return cached.columns;
+    }
+    const columns = propertyFields.map((propertyField) => {
+        const activeField = list.activeFields[propertyField.name];
+        return {
+            ...getPropertyFieldInfo(propertyField),
+            relatedPropertyField: activeField.relatedPropertyField,
+            id: `${column.id}_${propertyField.name}`,
+            column_invisible: combineModifiers(
+                propertyField.column_invisible,
+                column.column_invisible,
+                "OR",
+            ),
+            classNames: column.classNames,
+            optional: "hide",
+            type: "field",
+            hasLabel: true,
+            label: propertyField.string,
+            attrs: ["integer", "float"].includes(propertyField.type)
+                ? { sum: propertyField.string }
+                : {},
+        };
+    });
+    propertyColumnsCache.set(column, {
+        fields: propertyFields,
+        activeFields: propertyFields.map((field) => list.activeFields[field.name]),
+        columns,
+    });
+    return columns;
 }
 
 /**

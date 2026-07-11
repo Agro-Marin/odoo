@@ -1620,3 +1620,35 @@ test("display spinner while loading results from providers", async () => {
     expect(".o_command_palette_search i.oi.oi-search").toHaveCount(1);
     expect(".o_command_palette_search i.fa-solid.fa-circle-notch").toHaveCount(0);
 });
+
+test("a throwing command action closes the palette and surfaces the error", async () => {
+    expect.errors(1);
+    await mountWithCleanup(MainComponentsContainer);
+    const config = {
+        providers: [
+            {
+                provide: () => [
+                    {
+                        name: "BoomCommand",
+                        action: () => {
+                            throw new Error("action boom");
+                        },
+                    },
+                ],
+            },
+        ],
+    };
+    getService("dialog").add(CommandPalette, {
+        config,
+    });
+    await animationFrame();
+    expect(".o_command_palette").toHaveCount(1);
+    expect(".o_command").toHaveCount(1);
+
+    await press("enter");
+    await animationFrame();
+    // The palette must not stay open with no feedback; the error then goes
+    // through the standard uncaught-error pipeline.
+    expect(".o_command_palette").toHaveCount(0);
+    expect.verifyErrors(["Error: action boom"]);
+});

@@ -98,8 +98,8 @@ function uiUpdate() {
 function cleanup() {
     browser.localStorage.removeItem("running.clickbot");
     env.bus.removeEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, uiUpdate);
-    rpcBus.removeEventListener("RPC:REQUEST", /** @type {any} */ (onRPCRequest));
-    rpcBus.removeEventListener("RPC:RESPONSE", /** @type {any} */ (onRPCResponse));
+    rpcBus.removeEventListener(RpcEvent.REQUEST, /** @type {any} */ (onRPCRequest));
+    rpcBus.removeEventListener(RpcEvent.RESPONSE, /** @type {any} */ (onRPCResponse));
     const stopButton = document.getElementById("stop-clickbot");
     stopButton.remove();
 }

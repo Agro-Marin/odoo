@@ -133,7 +133,25 @@ export function useInputField(params) {
             !isDirty &&
             !component.props.record.isFieldInvalid(fieldName)
         ) {
-            inputRef.el.value = value;
+            if (inputRef.el.value !== value) {
+                // Assign only on a genuine change: a same-value assignment
+                // would needlessly collapse the user's selection. When the
+                // rewrite happens on a fully-selected focused input (e.g. a
+                // human_readable field reformatting "5k" -> "5000" right
+                // after the focus handler's select-all), restore the
+                // selection instead of leaving the caret at the end.
+                const {
+                    selectionStart,
+                    selectionEnd,
+                    value: previousValue,
+                } = inputRef.el;
+                const wasFullySelected =
+                    selectionStart === 0 && selectionEnd === previousValue.length;
+                inputRef.el.value = value;
+                if (wasFullySelected && document.activeElement === inputRef.el) {
+                    inputRef.el.select();
+                }
+            }
             lastSetValue = inputRef.el.value;
         }
     });

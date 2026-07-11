@@ -90,6 +90,9 @@ export class DateTimeField extends Component {
 
     static template = "web.DateTimeField";
 
+    /** @type {boolean | undefined} last FIELD_IS_DIRTY value emitted on the bus */
+    lastIsDirty;
+
     //-------------------------------------------------------------------------
     // Getters
     //-------------------------------------------------------------------------
@@ -265,7 +268,16 @@ export class DateTimeField extends Component {
             ],
         );
 
-        onWillRender(() => this.triggerIsDirty());
+        // Emit only when the computed dirtiness actually changed:
+        // FIELD_IS_DIRTY is a global last-writer-wins bus event, so an
+        // unconditional per-render emission from a clean DateTimeField would
+        // overwrite the indicator state set by a dirty sibling field.
+        onWillRender(() => {
+            const isDirty = !areDatesEqual(this.getRecordValue(), this.state.value);
+            if (isDirty !== this.lastIsDirty) {
+                this.triggerIsDirty(isDirty);
+            }
+        });
 
         this.futureWarningMsg = _t("This date is in the future");
     }
@@ -414,10 +426,9 @@ export class DateTimeField extends Component {
      *  the record value vs. the datetime hook's state.
      */
     triggerIsDirty(isDirty) {
-        this.props.record.model.bus.trigger(
-            ModelEvent.FIELD_IS_DIRTY,
-            isDirty ?? !areDatesEqual(this.getRecordValue(), this.state.value),
-        );
+        isDirty = isDirty ?? !areDatesEqual(this.getRecordValue(), this.state.value);
+        this.lastIsDirty = isDirty;
+        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
     }
 
     //-------------------------------------------------------------------------

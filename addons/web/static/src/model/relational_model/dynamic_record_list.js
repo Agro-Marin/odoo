@@ -166,7 +166,8 @@ export class DynamicRecordList extends DynamicList {
     }
 
     _removeRecords(recordIds) {
-        const keptRecords = this.records.filter((r) => !recordIds.includes(r.id));
+        const idSet = new Set(recordIds);
+        const keptRecords = this.records.filter((r) => !idSet.has(r.id));
         this.count -= this.records.length - keptRecords.length;
         this._records = keptRecords;
         if (this.offset && !this.records.length) {

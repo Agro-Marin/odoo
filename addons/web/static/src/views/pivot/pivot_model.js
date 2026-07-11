@@ -319,6 +319,12 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
  * @property {any} data
  */
 
+/**
+ * Sentinel resolved by ``_keepLastAdd`` when the awaited request was
+ * superseded by a newer one (see the concurrency policy on PivotModel).
+ */
+const SUPERSEDED = Symbol("superseded");
+
 export class PivotModel extends Model {
     // The renderer subscribes to notify() itself via useReactiveModel;
     // the legacy deep-render bus listener is not needed (model.js).
@@ -344,13 +350,34 @@ export class PivotModel extends Model {
      * @param {Object} [params.data] previously exported data
      */
     setup(params) {
-        // concurrency management
+        // Concurrency policy
+        // ------------------
+        // Two interaction classes, two behaviours:
+        //
+        // - LOADS (load, expandAll, toggleMeasure) rebuild the whole table.
+        //   They go through `this.race` + `this.keepLast`: last one wins, an
+        //   in-flight load is silently superseded.
+        // - STRUCTURE MUTATIONS (expandGroup, addGroupBy, closeGroup) refine
+        //   the current table. They QUEUE on `this.expandMutex` so
+        //   back-to-back clicks are never lost and never interleave (a close
+        //   running mid-expansion would pull tree nodes from under
+        //   _prepareData).
+        //
+        // Across classes: every entry point DROPS the interaction while a
+        // load is in flight (`race.getCurrentProm()`), because it targets a
+        // table about to be replaced ("sort rows while loading a filter" &
+        // co. pin this); queued mutations re-check that guard when they
+        // dequeue, so they never clobber a load that started while they
+        // waited. Conversely a load fired while a mutation's RPC is pending
+        // supersedes it: the mutexed callback then settles with SUPERSEDED
+        // and discards its result (see _keepLastAdd) instead of hanging the
+        // mutex queue forever, as a bare KeepLast.add would.
+        // sortRows is synchronous and only race-guarded (no RPC).
         this.keepLast = new KeepLast();
         this.race = new Race();
-        // Serializes group expansions: they share this.keepLast (via
-        // _subdivideGroup), so back-to-back expands must not overlap or the
-        // second's read_group would cancel the first's (dropping its notify).
         this.expandMutex = new Mutex();
+        /** @type {((value: typeof SUPERSEDED) => void)[]} */
+        this._supersessionWatchers = [];
         /** @type {(...args: any[]) => any} */
         const _loadData = this._loadData.bind(this);
         /** @type {any} */
@@ -410,36 +437,43 @@ export class PivotModel extends Model {
      */
     async addGroupBy(params) {
         if (this.race.getCurrentProm()) {
-            return; // we are currently reloaded the table
+            return; // we are currently reloading the table
         }
 
         const { groupId, fieldName, type, custom } = params;
         let { interval } = params;
-        const metaData = this._buildMetaData();
-        if (custom && !metaData.customGroupBys.has(fieldName)) {
-            const field = metaData.fields[fieldName];
-            if (!interval && ["date", "datetime"].includes(field.type)) {
-                interval = DEFAULT_INTERVAL;
+        await this.expandMutex.exec(async () => {
+            if (this.race.getCurrentProm()) {
+                return; // a reload started while queued: it replaces the table
             }
-            metaData.customGroupBys.set(fieldName, {
-                ...field,
-                id: fieldName,
-            });
-        }
+            const metaData = this._buildMetaData();
+            if (custom && !metaData.customGroupBys.has(fieldName)) {
+                const field = metaData.fields[fieldName];
+                if (!interval && ["date", "datetime"].includes(field.type)) {
+                    interval = DEFAULT_INTERVAL;
+                }
+                metaData.customGroupBys.set(fieldName, {
+                    ...field,
+                    id: fieldName,
+                });
+            }
 
-        let groupBy = fieldName;
-        if (interval) {
-            groupBy = `${groupBy}:${interval}`;
-        }
-        if (type === "row") {
-            metaData.expandedRowGroupBys.push(groupBy);
-        } else {
-            metaData.expandedColGroupBys.push(groupBy);
-        }
-        const config = { metaData, data: this.data };
-        await this._expandGroup(groupId, type, config);
-        this.metaData = metaData;
-        this.notify();
+            let groupBy = fieldName;
+            if (interval) {
+                groupBy = `${groupBy}:${interval}`;
+            }
+            if (type === "row") {
+                metaData.expandedRowGroupBys.push(groupBy);
+            } else {
+                metaData.expandedColGroupBys.push(groupBy);
+            }
+            const config = { metaData, data: this.data };
+            if (!(await this._expandGroup(groupId, type, config))) {
+                return; // superseded by a reload: the table was replaced
+            }
+            this.metaData = metaData;
+            this.notify();
+        });
     }
     /**
      * Close the group with id given by groupId.
@@ -447,63 +481,79 @@ export class PivotModel extends Model {
      * @param {Array[]} groupId
      * @param {'row'|'col'} type
      */
-    closeGroup(groupId, type) {
+    async closeGroup(groupId, type) {
         if (this.race.getCurrentProm()) {
             return; // we are currently reloading the table
         }
 
-        let groupBys;
-        let expandedGroupBys;
-        let keyPart;
-        let group;
-        let tree;
-        if (type === "row") {
-            groupBys = this.metaData.rowGroupBys;
-            expandedGroupBys = this.metaData.expandedRowGroupBys;
-            tree = this.data.rowGroupTree;
-            group = findGroup(this.data.rowGroupTree, groupId[0]);
-            keyPart = 0;
-        } else {
-            groupBys = this.metaData.colGroupBys;
-            expandedGroupBys = this.metaData.expandedColGroupBys;
-            tree = this.data.colGroupTree;
-            group = findGroup(this.data.colGroupTree, groupId[1]);
-            keyPart = 1;
-        }
-
-        const groupIdPart = groupId[keyPart];
-        const range = groupIdPart.map((_, index) => index);
-        function keep(key) {
-            const idPart = JSON.parse(key)[keyPart];
-            return (
-                range.some((index) => groupIdPart[index] !== idPart[index]) ||
-                idPart.length === groupIdPart.length
-            );
-        }
-        function omitKeys(object) {
-            const newObject = {};
-            for (const key of Object.keys(object)) {
-                if (keep(key)) {
-                    newObject[key] = object[key];
-                }
+        await this.expandMutex.exec(() => {
+            if (this.race.getCurrentProm()) {
+                return; // a reload started while queued: it replaces the table
             }
-            return newObject;
-        }
-        this.data.measurements = omitKeys(this.data.measurements);
-        this.data.currencyIds = omitKeys(this.data.currencyIds);
-        this.data.counts = omitKeys(this.data.counts);
-        this.data.groupDomains = omitKeys(this.data.groupDomains);
+            let groupBys;
+            let expandedGroupBys;
+            let keyPart;
+            let group;
+            let tree;
+            if (type === "row") {
+                groupBys = this.metaData.rowGroupBys;
+                expandedGroupBys = this.metaData.expandedRowGroupBys;
+                tree = this.data.rowGroupTree;
+                group = findGroup(this.data.rowGroupTree, groupId[0]);
+                keyPart = 0;
+            } else {
+                groupBys = this.metaData.colGroupBys;
+                expandedGroupBys = this.metaData.expandedColGroupBys;
+                tree = this.data.colGroupTree;
+                group = findGroup(this.data.colGroupTree, groupId[1]);
+                keyPart = 1;
+            }
+            if (!group) {
+                return; // a queued mutation already removed this group
+            }
 
-        group.directSubTrees.clear();
-        delete group.sortedKeys;
-        const newGroupBysLength = getTreeHeight(tree) - 1;
-        if (newGroupBysLength <= groupBys.length) {
-            expandedGroupBys.splice(0);
-            groupBys.splice(newGroupBysLength);
-        } else {
-            expandedGroupBys.splice(newGroupBysLength - groupBys.length);
-        }
-        this.notify();
+            const groupIdPart = groupId[keyPart];
+            const range = groupIdPart.map((_, index) => index);
+            // The four cell maps share the same key set (see
+            // aggregateSubdivisions): parse and evaluate each key once
+            // instead of once per map.
+            const keepByKey = new Map();
+            function keep(key) {
+                let kept = keepByKey.get(key);
+                if (kept === undefined) {
+                    const idPart = JSON.parse(key)[keyPart];
+                    kept =
+                        range.some((index) => groupIdPart[index] !== idPart[index]) ||
+                        idPart.length === groupIdPart.length;
+                    keepByKey.set(key, kept);
+                }
+                return kept;
+            }
+            function omitKeys(object) {
+                const newObject = {};
+                for (const key of Object.keys(object)) {
+                    if (keep(key)) {
+                        newObject[key] = object[key];
+                    }
+                }
+                return newObject;
+            }
+            this.data.measurements = omitKeys(this.data.measurements);
+            this.data.currencyIds = omitKeys(this.data.currencyIds);
+            this.data.counts = omitKeys(this.data.counts);
+            this.data.groupDomains = omitKeys(this.data.groupDomains);
+
+            group.directSubTrees.clear();
+            delete group.sortedKeys;
+            const newGroupBysLength = getTreeHeight(tree) - 1;
+            if (newGroupBysLength <= groupBys.length) {
+                expandedGroupBys.splice(0);
+                groupBys.splice(newGroupBysLength);
+            } else {
+                expandedGroupBys.splice(newGroupBysLength - groupBys.length);
+            }
+            this.notify();
+        });
     }
     /**
      * Reload the view with the current rowGroupBys and colGroupBys.
@@ -524,18 +574,17 @@ export class PivotModel extends Model {
      */
     async expandGroup(groupId, type) {
         if (this.race.getCurrentProm()) {
-            return; // we are currently reloaded the table
+            return; // we are currently reloading the table
         }
 
-        // Run expansions one at a time. Each expansion goes through the shared
-        // this.keepLast (in _subdivideGroup); without serialization a second
-        // expand fired before the first resolves would supersede the first's
-        // read_group, so its _prepareData/notify would never run and that click
-        // would be silently lost.
         await this.expandMutex.exec(async () => {
+            if (this.race.getCurrentProm()) {
+                return; // a reload started while queued: it replaces the table
+            }
             const config = { metaData: this.metaData, data: this.data };
-            await this._expandGroup(/** @type {any} */ (groupId), type, config);
-            this.notify();
+            if (await this._expandGroup(/** @type {any} */ (groupId), type, config)) {
+                this.notify();
+            }
         });
     }
     /**
@@ -717,7 +766,7 @@ export class PivotModel extends Model {
      */
     sortRows(sortedColumn) {
         if (this.race.getCurrentProm()) {
-            return; // we are currently reloaded the table
+            return; // we are currently reloading the table
         }
 
         const config = { metaData: this.metaData, data: this.data };
@@ -793,6 +842,8 @@ export class PivotModel extends Model {
      * @param {Array[]} groupId
      * @param {'row'|'col'} type
      * @param {Config} config
+     * @returns {Promise<boolean>} false when the expansion was superseded by
+     *   a newer request and its result discarded
      */
     async _expandGroup(groupId, type, config) {
         const { metaData } = config;
@@ -819,7 +870,30 @@ export class PivotModel extends Model {
         }
         const divisors = cartesian(leftDivisors, rightDivisors);
         delete group.type;
-        await this._subdivideGroup(group, divisors, config);
+        return this._subdivideGroup(group, divisors, config);
+    }
+
+    /**
+     * Register ``promise`` on the shared ``this.keepLast``, but always
+     * settle: ``KeepLast.add``'s wrapper never resolves once superseded,
+     * which would leave a mutexed caller (expandGroup/addGroupBy) pending
+     * forever and wedge every queued mutation behind it. Instead, resolve
+     * with the SUPERSEDED sentinel as soon as a newer request is registered,
+     * so callers can discard their stale result and release the mutex.
+     *
+     * @protected
+     * @param {Promise<any>} promise
+     * @returns {Promise<any>} the promise result, or SUPERSEDED
+     */
+    _keepLastAdd(promise) {
+        for (const notifySuperseded of this._supersessionWatchers) {
+            notifySuperseded(SUPERSEDED);
+        }
+        this._supersessionWatchers.length = 0;
+        const supersededProm = new Promise((resolve) => {
+            this._supersessionWatchers.push(resolve);
+        });
+        return Promise.race([this.keepLast.add(promise), supersededProm]);
     }
 
     async _getGroupsSubdivision(params, groupInfo) {
@@ -868,7 +942,14 @@ export class PivotModel extends Model {
         const rightDivisors = sections(metaData.fullColGroupBys);
         const divisors = cartesian(leftDivisors, rightDivisors);
 
-        await this._subdivideGroup(group, divisors, config);
+        if (!(await this._subdivideGroup(group, divisors, config))) {
+            // Superseded by a newer load: leave the state to it and never
+            // settle (KeepLast semantics). The shared race must stay pending
+            // until the superseding load finishes, so the race-guards on
+            // mutations keep dropping clicks meanwhile; callers only ever
+            // await the race promise, which the newer load resolves.
+            return new Promise(() => {});
+        }
 
         // keep folded groups folded after the reload if the structure of the table is the same
         if (prune && hasData(data) && hasData(this.data)) {
@@ -910,6 +991,8 @@ export class PivotModel extends Model {
      * @param {Object} group
      * @param {Array[]} divisors
      * @param {Config} config
+     * @returns {Promise<boolean>} false when the fetch was superseded by a
+     *   newer request and its result discarded
      */
     async _subdivideGroup(group, divisors, config) {
         const { data } = config;
@@ -961,13 +1044,17 @@ export class PivotModel extends Model {
                 kwargs,
                 groupingSets,
             };
-            const groupSubdivisions = await this.keepLast.add(
+            const groupSubdivisions = await this._keepLastAdd(
                 this._getGroupsSubdivision(params, groupInfo),
             );
+            if (groupSubdivisions === SUPERSEDED) {
+                return false;
+            }
             if (groupSubdivisions.length) {
                 this._prepareData(group, groupSubdivisions, config);
             }
         }
+        return true;
     }
     /**
      * Sort the rows, depending on the values of a given column.

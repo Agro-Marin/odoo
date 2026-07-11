@@ -56,7 +56,7 @@ export function getMeasurements(group, config, measureSpecs) {
             const currencies =
                 group[
                     `${metaData.fields[fieldName].currency_field}:array_agg_distinct`
-                ];
+                ] || [];
             if (currencies.length === 1) {
                 return measurements;
             }

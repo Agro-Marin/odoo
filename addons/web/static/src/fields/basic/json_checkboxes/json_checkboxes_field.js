@@ -6,13 +6,14 @@
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
+import { deepCopy } from "@web/core/utils/collections/objects";
 import { useDebounced } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JsonCheckboxes extends Component {
-    static template = "account.JsonCheckboxes";
+    static template = "web.JsonCheckboxes";
     static components = { CheckBox };
     static props = {
         ...standardFieldProps,
@@ -20,19 +21,31 @@ export class JsonCheckboxes extends Component {
     };
 
     setup() {
-        this.checkboxes = useState(this.props.record.data[this.props.name]);
+        // Deep-copied local state: mutating the record's own data object in
+        // place would corrupt the discard/rollback baseline (both would share
+        // the same reference), and an unset json field reads `false`, which
+        // `useState` rejects (reactive() needs an object).
+        this.checkboxes = useState(
+            deepCopy(this.props.record.data[this.props.name] || {}),
+        );
         this.debouncedCommitChanges = useDebounced(this.commitChanges, 100, {
             execBeforeUnmount: true,
         });
 
         useRecordObserver((record) => {
-            Object.assign(this.checkboxes, record.data[this.props.name]);
+            const value = deepCopy(record.data[this.props.name] || {});
+            for (const key of Object.keys(this.checkboxes)) {
+                if (!(key in value)) {
+                    delete this.checkboxes[key];
+                }
+            }
+            Object.assign(this.checkboxes, value);
         });
     }
 
-    /** Writes the current checkbox state back to the record. */
+    /** Writes a copy of the current checkbox state back to the record. */
     commitChanges() {
-        this.props.record.update({ [this.props.name]: this.checkboxes });
+        this.props.record.update({ [this.props.name]: deepCopy(this.checkboxes) });
     }
 
     /**

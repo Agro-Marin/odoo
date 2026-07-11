@@ -200,7 +200,10 @@ function _leafFromAST(ast, options, negate = false) {
 
     const astValue = toValue(ast);
     if (["boolean", "number", "string"].includes(typeof astValue)) {
-        return condition(astValue ? 1 : 0, "=", 1);
+        // Fold the negation into the constant (`not 1` is FALSE_TREE) rather
+        // than passing `negate` through: the (0|1, "=", 1) serialization path
+        // in construct_expression_from_tree cannot render a negated constant.
+        return condition((negate ? !astValue : astValue) ? 1 : 0, "=", 1);
     }
 
     if (

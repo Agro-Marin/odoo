@@ -66,12 +66,12 @@ test("hotkey handles wrongly formed KeyboardEvent", async () => {
     onError(handler);
 
     const key = "q";
-    let removeHotkey = hotkey.add(key, () => expect.step(key), { global: true });
+    const removeHotkey = hotkey.add(key, () => expect.step(key), { global: true });
     await press(key);
     expect.verifySteps([key]);
     removeHotkey();
 
-    removeHotkey = hotkey.add(
+    hotkey.add(
         key,
         () => {
             throw new Error("error");
@@ -157,13 +157,13 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
     expect("main div[accesskey]").toHaveCount(1);
     expect("main div[data-hotkey]").toHaveCount(0);
 
-    // press any hotkey involving the overlay modifier (the swap is overlay-gated)
+    // press any hotkey involving the overlay modifier: the swap is scoped to
+    // the UI active element (the owner), so the div outside it keeps its
+    // native [accesskey] — dispatch couldn't route to it anyway.
     await press(["alt", "arrowleft"]);
-
-    // div should now only have [data-hotkey] attribute
     expect("main div").toHaveCount(1);
-    expect("main div[data-hotkey]").toHaveCount(1);
-    expect("main div[accesskey]").toHaveCount(0);
+    expect("main div[data-hotkey]").toHaveCount(0);
+    expect("main div[accesskey]").toHaveCount(1);
 
     // try to press the related hotkey, it should not work as the ui active element is different
     expect(getService("ui").getActiveElementOf(queryOne("main div"))).not.toBe(
@@ -173,6 +173,7 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
     await press(["alt", "a"]);
     await tick();
     expect.verifySteps([]);
+    expect("main div[accesskey]").toHaveCount(1);
 
     // remove the UIOwnershipTakerComponent
     comp.state.foo = false;
@@ -183,12 +184,14 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
 
     expect("main .owner").toHaveCount(0);
     expect("main div").toHaveCount(1);
-    expect("main div[data-hotkey]").toHaveCount(1);
-    expect("main div[accesskey]").toHaveCount(0);
 
+    // now that the div is inside the UI active element (document), the same
+    // press performs the takeover and dispatches to it
     expect.verifySteps([]);
     await press(["alt", "a"]);
     await tick();
+    expect("main div[data-hotkey]").toHaveCount(1);
+    expect("main div[accesskey]").toHaveCount(0);
     expect.verifySteps(["click"]);
 });
 

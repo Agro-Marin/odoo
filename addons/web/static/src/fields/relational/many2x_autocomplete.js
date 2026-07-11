@@ -27,6 +27,9 @@ import {
  * @param {Function} params.onSelected
  * @param {Function} params.onCreateEdit
  * @param {Function} [params.onUnselect]
+ * @param {boolean} [params.isToMany] - Drives multi-selection in the dialog.
+ *  When omitted (legacy callers), multi-selection falls back to the presence
+ *  of an explicit `link` active action.
  * @returns {Function} selectCreate
  */
 export function useSelectCreate({
@@ -35,6 +38,7 @@ export function useSelectCreate({
     onSelected,
     onCreateEdit,
     onUnselect,
+    isToMany,
 }) {
     const addDialog = useOwnedDialogs();
     const SelectCreateDialog = registry.category("dialogs").get("select_create");
@@ -43,7 +47,10 @@ export function useSelectCreate({
         addDialog(SelectCreateDialog, {
             title: title || _t("Select records"),
             noCreate: !activeActions.create,
-            multiSelect: "link" in activeActions ? activeActions.link : false, // LPE Fixme
+            multiSelect:
+                isToMany !== undefined
+                    ? isToMany && (activeActions.link ?? true)
+                    : (activeActions.link ?? false),
             resModel,
             context,
             domain,
@@ -153,19 +160,21 @@ export class Many2XAutocomplete extends Component {
                     // by a subclass bypassing onRecordSaved), so a past empty
                     // search result may no longer hold.
                     this.invalidateEmptySearch();
-                    const autoCompleteInput = /** @type {HTMLElement} */ (
-                        this.autoCompleteContainer.el
-                    ).querySelector("input");
+                    const autoCompleteInput = /** @type {HTMLInputElement | null} */ (
+                        this.autoCompleteContainer.el?.querySelector("input")
+                    );
+                    if (!autoCompleteInput) {
+                        // The field may have been unmounted while the dialog
+                        // was open (e.g. the parent view was reloaded).
+                        return;
+                    }
 
                     // Value matches input: record was saved and the UI re-rendered.
                     // Value differs: input was manually typed and nothing happened (discarded).
-                    if (
-                        this.props.value !==
-                        /** @type {HTMLInputElement} */ (autoCompleteInput).value
-                    ) {
-                        /** @type {HTMLInputElement} */ (autoCompleteInput).value = "";
+                    if (this.props.value !== autoCompleteInput.value) {
+                        autoCompleteInput.value = "";
                     }
-                    /** @type {HTMLInputElement} */ (autoCompleteInput).focus();
+                    autoCompleteInput.focus();
                 },
                 component: this.createDialog,
                 size: this.createDialogSize,
@@ -174,6 +183,7 @@ export class Many2XAutocomplete extends Component {
         this.selectCreate = useSelectCreate({
             resModel,
             activeActions,
+            isToMany,
             onSelected: (resId) => {
                 const resIds = Array.isArray(resId) ? resId : [resId];
                 const values = resIds.map((id) => ({ id }));
@@ -382,6 +392,9 @@ export class Many2XAutocomplete extends Component {
         const suggestions = [];
         /** @type {Record<string, any>[] | null} */
         let records = null;
+        // search() fetches searchLimit + 1 records to detect overflow: slice
+        // the extra one back and remember whether more records exist.
+        let hasMore = false;
 
         if (request.length < this.props.searchThreshold) {
             if (this.addStartTypingSuggestion({ request, records })) {
@@ -389,6 +402,10 @@ export class Many2XAutocomplete extends Component {
             }
         } else {
             records = await lock(this.search(request));
+            if (records && records.length > this.props.searchLimit) {
+                hasMore = true;
+                records = records.slice(0, this.props.searchLimit);
+            }
             if (records?.length) {
                 for (const record of records) {
                     suggestions.push(this.buildRecordSuggestion(request, record));
@@ -402,7 +419,7 @@ export class Many2XAutocomplete extends Component {
 
         for (const action of this.actionSuggestions) {
             const enabled = action.enabled ?? (() => true);
-            if (enabled({ request, records })) {
+            if (enabled({ request, records, hasMore })) {
                 suggestions.push(action.build(request));
             }
         }
@@ -456,13 +473,11 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {{ records: Array|null, request: string }} params
+     * @param {{ records: Array|null, request: string, hasMore: boolean }} params
      * @returns {boolean}
      */
-    addSearchMoreSuggestion({ records, request }) {
-        return (
-            request.length < this.props.searchThreshold || (records?.length ?? 0) > 0
-        );
+    addSearchMoreSuggestion({ records, request, hasMore }) {
+        return request.length < this.props.searchThreshold || !!hasMore;
     }
 
     /**
@@ -489,7 +504,7 @@ export class Many2XAutocomplete extends Component {
                     await this.props.quickCreate(request);
                     this.invalidateEmptySearch();
                 } catch (e) {
-                    this.onQuickCreateError(e, request);
+                    await this.onQuickCreateError(e, request);
                 }
             },
         };
@@ -565,12 +580,13 @@ export class Many2XAutocomplete extends Component {
 
     /** Triggers a "Search More" action using the current barcode input value */
     async onBarcodeSearch() {
-        const autoCompleteInput = /** @type {HTMLElement} */ (
-            this.autoCompleteContainer.el
-        ).querySelector("input");
-        return this.onSearchMore(
-            /** @type {HTMLInputElement} */ (autoCompleteInput).value,
+        const autoCompleteInput = /** @type {HTMLInputElement | null} */ (
+            this.autoCompleteContainer.el?.querySelector("input")
         );
+        if (!autoCompleteInput) {
+            return;
+        }
+        return this.onSearchMore(autoCompleteInput.value);
     }
 
     /** @param {string} request - Search text to pre-filter the SelectCreateDialog */

@@ -63,14 +63,18 @@ function collectPendingCommandsPromises(record, proms, seen) {
  * pending work removes that race.
  *
  * A settling load can replay deferred commands that trigger a further fetch
- * (tracked on the list again), so re-collect until quiescent. The tracked
- * promises never reject (rejections are surfaced separately, see
- * ``StaticList._trackCommandsPromise``).
+ * (tracked on the list again), so re-collect until quiescent — capped: a
+ * pathological replay chain (e.g. a server that keeps returning fewer rows
+ * than requested) must degrade into a best-effort save with a warning, not
+ * hang silently inside the mutex and wedge every later model operation.
+ * The tracked promises never reject (rejections are surfaced separately,
+ * see ``StaticList._trackCommandsPromise``).
  *
  * @param {RelationalRecord} record
  */
+const PENDING_COMMANDS_MAX_ITERATIONS = 100;
 async function waitForPendingCommands(record) {
-    for (;;) {
+    for (let i = 0; i < PENDING_COMMANDS_MAX_ITERATIONS; i++) {
         /** @type {Promise<void>[]} */
         const proms = [];
         collectPendingCommandsPromises(record, proms, new Set());
@@ -79,6 +83,11 @@ async function waitForPendingCommands(record) {
         }
         await Promise.all(proms);
     }
+    console.warn(
+        `record_save: x2many command replay did not quiesce after ` +
+            `${PENDING_COMMANDS_MAX_ITERATIONS} barrier iterations ` +
+            `(resModel: ${record.resModel}); proceeding with a best-effort save`,
+    );
 }
 
 /**
@@ -163,6 +172,12 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         }
         record._clearChanges();
         record.data = { ...record._values };
+        // ``_changes`` may have held entries that serialize to nothing
+        // (readonly-field edits, x2many lists without commands): ``data`` is
+        // visibly reverted above, so the eval contexts must follow — or
+        // modifier expressions keep evaluating against the discarded values
+        // (compare record_savepoint.discard, which always re-runs it).
+        record._setEvalContext();
         return true;
     }
     if (
@@ -268,61 +283,71 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     }
     /** @type {Record<string, any>[]} */
     let records;
+    // In-flight marker for urgentSave(): held from the RPC until the change
+    // bag is cleared, so a tab close anywhere in that window skips the
+    // beacon instead of re-sending the same (non-idempotent) x2many commands.
+    record._saveInFlight = true;
     try {
-        records = await record.model.orm.webSave(
-            record.resModel,
-            record.resId ? [record.resId] : [],
-            changes,
-            kwargs,
-        );
-    } catch (e) {
-        if (onError && !(e instanceof RequestEntityTooLargeError)) {
-            return onError(e, {
-                discard: () => record._discard(),
-                retry: () => save(record, { reload, onError, nextId }),
-            });
-        }
-        if (!record.isInEdition) {
-            await record._load({});
-        }
-        throw e;
-    }
-    if (reload && !records.length) {
-        throw new FetchRecordError([/** @type {number} */ (nextId || record.resId)]);
-    }
-    if (creation) {
-        const resId = records[0].id;
-        const resIds = [...record.resIds, resId];
-        record.model._patchConfig(record.config, { resId, resIds });
-    }
-    await record.model.hooks.lifecycle.onRecordSaved(record, changes);
-    if (reload) {
-        if (record.resId) {
-            record.model._updateSimilarRecords(record, records[0]);
-        }
-        if (nextId) {
-            record.model._patchConfig(record.config, { resId: nextId });
-        }
-        if (record.config.isRoot) {
-            record.model.hooks.lifecycle.onWillLoadRoot(record.config);
-        }
-        record._setData(records[0], { orderBys });
-    } else {
-        record._values = markRaw({ ...record._values, ...record._changes });
-        if ("id" in record.activeFields) {
-            record._values.id = records[0].id;
-        }
-        for (const fieldName of Object.keys(record.activeFields)) {
-            const field = record.fields[fieldName];
-            if (
-                ["one2many", "many2many"].includes(field.type) &&
-                !field.relatedPropertyField
-            ) {
-                record._changes[fieldName]?._clearCommands();
+        try {
+            records = await record.model.orm.webSave(
+                record.resModel,
+                record.resId ? [record.resId] : [],
+                changes,
+                kwargs,
+            );
+        } catch (e) {
+            if (onError && !(e instanceof RequestEntityTooLargeError)) {
+                return onError(e, {
+                    discard: () => record._discard(),
+                    retry: () => save(record, { reload, onError, nextId }),
+                });
             }
+            if (!record.isInEdition) {
+                await record._load({});
+            }
+            throw e;
         }
-        record._clearChanges();
-        record.data = { ...record._values };
+        if (reload && !records.length) {
+            throw new FetchRecordError([
+                /** @type {number} */ (nextId || record.resId),
+            ]);
+        }
+        if (creation) {
+            const resId = records[0].id;
+            const resIds = [...record.resIds, resId];
+            record.model._patchConfig(record.config, { resId, resIds });
+        }
+        await record.model.hooks.lifecycle.onRecordSaved(record, changes);
+        if (reload) {
+            if (record.resId) {
+                record.model._updateSimilarRecords(record, records[0]);
+            }
+            if (nextId) {
+                record.model._patchConfig(record.config, { resId: nextId });
+            }
+            if (record.config.isRoot) {
+                record.model.hooks.lifecycle.onWillLoadRoot(record.config);
+            }
+            record._setData(records[0], { orderBys });
+        } else {
+            record._values = markRaw({ ...record._values, ...record._changes });
+            if ("id" in record.activeFields) {
+                record._values.id = records[0].id;
+            }
+            for (const fieldName of Object.keys(record.activeFields)) {
+                const field = record.fields[fieldName];
+                if (
+                    ["one2many", "many2many"].includes(field.type) &&
+                    !field.relatedPropertyField
+                ) {
+                    record._changes[fieldName]?._clearCommands();
+                }
+            }
+            record._clearChanges();
+            record.data = { ...record._values };
+        }
+    } finally {
+        record._saveInFlight = false;
     }
     return true;
 }

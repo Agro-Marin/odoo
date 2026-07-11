@@ -17,6 +17,7 @@ export class UrlField extends Component {
         placeholder: { type: String, optional: true },
         text: { type: String, optional: true },
         websitePath: { type: Boolean, optional: true },
+        required: { type: Boolean, optional: true },
     };
 
     setup() {
@@ -67,10 +68,11 @@ export const urlField = {
         },
     ],
     supportedTypes: ["char"],
-    extractProps: ({ attrs, options, placeholder }) => ({
+    extractProps: ({ attrs, options, placeholder }, dynamicInfo) => ({
         placeholder,
         text: attrs.text,
         websitePath: options.website_path,
+        required: dynamicInfo.required,
     }),
 };
 

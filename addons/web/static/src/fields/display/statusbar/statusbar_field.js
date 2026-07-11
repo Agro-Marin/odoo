@@ -389,7 +389,11 @@ export const statusBarField = {
     isEmpty: (record, fieldName) => !record.data[fieldName],
     extractProps: ({ attrs, options, viewType }, dynamicInfo) => ({
         isDisabled: !options.clickable || dynamicInfo.readonly,
-        visibleSelection: attrs.statusbar_visible?.trim().split(/\s*,\s*/g),
+        // An empty attribute must mean "no restriction", not `[""]` (which
+        // would filter the selection down to the current value only).
+        visibleSelection: attrs.statusbar_visible?.trim()
+            ? attrs.statusbar_visible.trim().split(/\s*,\s*/g)
+            : undefined,
         withCommand: viewType === "form",
         foldField: options.fold_field,
         domain: dynamicInfo.domain,

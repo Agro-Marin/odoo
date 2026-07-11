@@ -33,6 +33,24 @@ export class IntegerField extends NumericInputFieldBase {
 
     /** @param {string} v @returns {number} */
     parse(v) {
+        if (this.props.inputType === "number") {
+            // A <input type="number"> value is always dot-decimal, regardless
+            // of locale: feeding it to parseInteger would strip the dot as a
+            // thousands separator in dot-thousands locales ("1.5" -> 15, a
+            // silent 10x error — same guard as FloatField.parse). Validate the
+            // already-numeric value with parseInteger's own rules instead.
+            const parsed = Number(v);
+            if (Number.isFinite(parsed)) {
+                if (
+                    !Number.isInteger(parsed) ||
+                    parsed < -2147483648 ||
+                    parsed > 2147483647
+                ) {
+                    throw new Error(`"${v}" is not a correct integer`);
+                }
+                return parsed;
+            }
+        }
         return parseInteger(v, { allowOperation: true });
     }
 

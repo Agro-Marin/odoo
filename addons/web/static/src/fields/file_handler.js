@@ -48,42 +48,49 @@ export class FileUploader extends Component {
             inputEl.value = "";
             return;
         }
-        for (const file of files) {
-            if (this.props.checkSize && !checkFileSize(file.size, this.notification)) {
-                // Skip this file but keep processing the rest of a multi-upload.
-                continue;
+        try {
+            for (const file of files) {
+                if (
+                    this.props.checkSize &&
+                    !checkFileSize(file.size, this.notification)
+                ) {
+                    // Skip this file but keep processing the rest of a multi-upload.
+                    continue;
+                }
+                this.state.isUploading = true;
+                try {
+                    const data = await getDataURLFromFile(file);
+                    if (!file.size) {
+                        console.warn(`Error while uploading file : ${file.name}`);
+                        this.notification.add(
+                            _t("There was a problem while uploading your file."),
+                            {
+                                type: "danger",
+                            },
+                        );
+                        continue;
+                    }
+                    await this.props.onUploaded({
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        data: data.split(",")[1],
+                        // Ownership transfers to the `onUploaded` consumer, which
+                        // must revoke it (see PdfViewerField, its only consumer).
+                        objectUrl:
+                            file.type === "application/pdf"
+                                ? URL.createObjectURL(file)
+                                : null,
+                    });
+                } finally {
+                    this.state.isUploading = false;
+                }
             }
-            this.state.isUploading = true;
-            const data = await getDataURLFromFile(file);
-            if (!file.size) {
-                console.warn(`Error while uploading file : ${file.name}`);
-                this.notification.add(
-                    _t("There was a problem while uploading your file."),
-                    {
-                        type: "danger",
-                    },
-                );
-                this.state.isUploading = false;
-                continue;
-            }
-            try {
-                await this.props.onUploaded({
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    data: data.split(",")[1],
-                    // Ownership transfers to the `onUploaded` consumer, which
-                    // must revoke it (see PdfViewerField, its only consumer).
-                    objectUrl:
-                        file.type === "application/pdf"
-                            ? URL.createObjectURL(file)
-                            : null,
-                });
-            } finally {
-                this.state.isUploading = false;
-            }
+        } finally {
+            // Always reset, even on failure, so re-selecting the same file
+            // still fires a "change" event.
+            inputEl.value = "";
         }
-        inputEl.value = "";
         if (this.props.multiUpload && this.props.onUploadComplete) {
             this.props.onUploadComplete({});
         }

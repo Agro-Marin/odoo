@@ -675,7 +675,15 @@ export const assets = {
                     linkEl,
                     resolve,
                     async (error) => {
-                        if (attempt < assets.retries.count) {
+                        // Content-addressed bundle URLs (``/web/assets/...``)
+                        // can never succeed by re-requesting the same URL — a
+                        // 404 means the attachment was GC-swept and only a
+                        // page reload (see the loader shim's
+                        // ``handleAssetLoadError``) mints a fresh URL. Retry
+                        // only external/plain URLs, where transient failures
+                        // are plausible.
+                        const retryable = !url.includes("/web/assets/");
+                        if (retryable && attempt < assets.retries.count) {
                             const delay =
                                 assets.retries.delay +
                                 assets.retries.extraDelay * attempt;

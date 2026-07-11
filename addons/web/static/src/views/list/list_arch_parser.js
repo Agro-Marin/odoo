@@ -249,11 +249,13 @@ export class ListArchParser {
                 };
                 return false;
             } else if (node.tagName === "header") {
-                headerButtons = [...node.children].map((node) => ({
-                    ...this.processButton(node),
-                    type: "button",
-                    id: buttonId++,
-                }));
+                headerButtons = [...node.children]
+                    .filter((child) => child.tagName === "button")
+                    .map((child) => ({
+                        ...this.processButton(child),
+                        type: "button",
+                        id: buttonId++,
+                    }));
                 return false;
             } else if (node.tagName === "control") {
                 for (const childNode of node.children) {

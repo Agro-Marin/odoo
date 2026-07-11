@@ -14,6 +14,7 @@ export class EmailField extends Component {
     static props = {
         ...standardFieldProps,
         placeholder: { type: String, optional: true },
+        required: { type: Boolean, optional: true },
     };
 
     setup() {
@@ -35,8 +36,9 @@ export const emailField = {
         },
     ],
     supportedTypes: ["char"],
-    extractProps: ({ placeholder }) => ({
+    extractProps: ({ placeholder }, dynamicInfo) => ({
         placeholder,
+        required: dynamicInfo.required,
     }),
 };
 

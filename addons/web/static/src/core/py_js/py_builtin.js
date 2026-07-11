@@ -32,8 +32,9 @@ export function pyRepr(value) {
         return value.size === 0 ? "set()" : `{${[...value].map(pyRepr).join(", ")}}`;
     }
     if (typeof value === "object") {
-        // A typed Py* object defines its own toString; a plain dict doesn't
-        // (dict literals are null-prototype and have no toString at all).
+        // A typed Py* object defines its own toString; a plain dict is a
+        // regular Object (see the defineProperty rework in py_parser /
+        // py_interpreter) and only inherits Object.prototype.toString.
         if (
             typeof value.toString === "function" &&
             value.toString !== Object.prototype.toString
@@ -67,8 +68,9 @@ export function pyStr(value) {
     }
     if (typeof value === "object") {
         // Plain dicts render via repr; typed Py* objects (custom toString) do
-        // not. Dict literals are built with a null prototype (see
-        // py_interpreter/py_parser), so "no toString at all" is a plain dict.
+        // not. Dict literals are regular Objects (see py_interpreter /
+        // py_parser), so inheriting Object.prototype.toString (or having
+        // none, for null-proto objects from other sources) means plain dict.
         return typeof value.toString !== "function" ||
             value.toString === Object.prototype.toString
             ? pyRepr(value)
@@ -155,6 +157,32 @@ function _pythonRound(value, ndigits) {
 }
 
 /**
+ * Python-ish type name for error messages.
+ * @param {any} value
+ * @returns {string}
+ */
+export function pyTypeName(value) {
+    if (value === null || value === undefined) {
+        return "NoneType";
+    }
+    if (Array.isArray(value)) {
+        return "list";
+    }
+    switch (typeof value) {
+        case "boolean":
+            return "bool";
+        case "number":
+            return Number.isInteger(value) ? "int" : "float";
+        case "string":
+            return "str";
+        case "object":
+            return value.constructor?.name || "object";
+        default:
+            return typeof value;
+    }
+}
+
+/**
  * @param {any} iterable
  * @param {Function} func
  */
@@ -184,13 +212,31 @@ export function execOnIterable(iterable, func) {
  * iterable argument or several positional ones. The trailing element is the
  * kwargs object the interpreter appends, so it is always dropped.
  *
+ * The single-argument form accepts any Python iterable: arrays and Sets
+ * spread into their elements, strings into their characters (``max("abc")``
+ * is ``"c"``) and plain dicts iterate over their keys — all matching CPython.
+ * A non-iterable single argument raises, as in Python.
+ *
  * @param {any[]} args raw call arguments (kwargs object last)
  * @param {"max" | "min"} name for the empty-sequence error message
  * @returns {any[]}
  */
 function maxMinItems(args, name) {
     const values = args.slice(0, -1); // remove kwargs
-    const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
+    let items = values;
+    if (values.length === 1) {
+        const arg = values[0];
+        if (typeof arg === "string") {
+            items = arg.split("");
+        } else if (arg !== null && typeof arg?.[Symbol.iterator] === "function") {
+            items = [...arg];
+        } else if (arg !== null && typeof arg === "object") {
+            // dicts iterate over their keys in Python
+            items = Object.keys(arg);
+        } else {
+            throw new EvaluationError(`'${pyTypeName(arg)}' object is not iterable`);
+        }
+    }
     if (items.length === 0) {
         throw new EvaluationError(`${name}() arg is an empty sequence`);
     }
@@ -307,13 +353,27 @@ export const BUILTINS = {
             }
             return Number.parseInt(trimmed, 10);
         }
-        return Math.trunc(Number(value));
+        if (typeof value !== "number") {
+            // Python: int(None)/int([]) raise TypeError; Number() would
+            // silently coerce them to 0.
+            throw new EvaluationError(
+                `int() argument must be a string, a bytes-like object or a real number, not '${pyTypeName(value)}'`,
+            );
+        }
+        return Math.trunc(value);
     },
 
     /** Convert to float. */
     float(/** @type {any} */ value) {
         if (typeof value === "boolean") {
             return value ? 1.0 : 0.0;
+        }
+        if (typeof value !== "number" && typeof value !== "string") {
+            // Python: float(None)/float([]) raise TypeError; Number() would
+            // silently coerce null to 0.
+            throw new EvaluationError(
+                `float() argument must be a string or a real number, not '${pyTypeName(value)}'`,
+            );
         }
         if (typeof value === "string" && !value.trim()) {
             throw new EvaluationError(`could not convert string to float: '${value}'`);
@@ -327,6 +387,8 @@ export const BUILTINS = {
 
     /** Convert to string. */
     str(/** @type {any} */ value) {
+        // Known divergence: JS numbers carry no int/float distinction, so
+        // str(1.0) returns "1" where Python returns "1.0".
         return pyStr(value);
     },
 

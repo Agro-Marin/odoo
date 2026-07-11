@@ -100,13 +100,24 @@ export function useActiveElement(refName) {
                      * The active element may no longer contain the focus
                      * (e.g. ConfirmationDialog disables its confirm button
                      * on click, losing focus) — restore it to the previous
-                     * active element in that case too.
+                     * active element in that case too. That element may
+                     * itself have left the DOM meanwhile (dialog A closing
+                     * after dialog B opened over it): focusing a detached
+                     * node is a silent no-op that drops focus on <body>, so
+                     * fall back to the new UI active element instead.
                      */
                     if (
                         el.contains(document.activeElement) ||
                         document.activeElement === document.body
                     ) {
-                        /** @type {HTMLElement} */ (oldActiveElement).focus();
+                        if (oldActiveElement.isConnected) {
+                            /** @type {HTMLElement} */ (oldActiveElement).focus();
+                        } else {
+                            const [firstTabableEl] = getFirstAndLastTabableElements(
+                                /** @type {HTMLElement} */ (uiService.activeElement),
+                            );
+                            firstTabableEl?.focus();
+                        }
                     }
                 };
             }
@@ -179,6 +190,7 @@ export const uiService = {
         /** @param {{ message?: string, delay?: number }} [data] */
         function block(data) {
             blockCount++;
+            ui.blocked = true;
             // TODO could probably be improved to handle multiple block demands
             // but that have different messages and delays
             if (blockCount === 1) {
@@ -197,6 +209,7 @@ export const uiService = {
                 blockCount = 0;
             }
             if (blockCount === 0) {
+                ui.blocked = false;
                 bus.trigger(AppEvent.UNBLOCK);
             }
         }
@@ -207,10 +220,12 @@ export const uiService = {
 
         function activateElement(/** @type {HTMLElement} */ el) {
             activeElems.push(el);
+            ui.activeElement = el;
             bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, el);
         }
         function deactivateElement(/** @type {HTMLElement} */ el) {
             activeElems = activeElems.filter((x) => x !== el);
+            ui.activeElement = activeElems.at(-1);
             bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, ui.activeElement);
         }
         function getActiveElementOf(/** @type {Node} */ el) {
@@ -229,9 +244,12 @@ export const uiService = {
         const ui = reactive({
             bus,
             size: utils.getSize(),
-            get activeElement() {
-                return activeElems.at(-1);
-            },
+            // Plain reactive properties (assigned in activate/deactivate and
+            // block/unblock): getters over closure state would be invisible
+            // to OWL reactivity, so `useState(useService("ui"))` consumers
+            // would silently never re-render on them.
+            activeElement: /** @type {Document | HTMLElement} */ (document),
+            blocked: false,
             get isBlocked() {
                 return blockCount > 0;
             },

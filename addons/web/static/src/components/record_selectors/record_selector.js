@@ -3,6 +3,7 @@
 
 /** @module @web/components/record_selectors/record_selector - Single-value record picker with avatar display and autocomplete */
 
+import { useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { isId } from "@web/core/tree/utils";
 
@@ -22,9 +23,19 @@ export class RecordSelector extends BaseRecordSelector {
     static components = { RecordAutocomplete };
     static template = "web.RecordSelector";
 
+    setup() {
+        super.setup();
+        this.state = useState({ displayName: "" });
+    }
+
     /** @returns {boolean} whether the current record should show an avatar */
     get hasAvatarImg() {
         return this.isAvatarModel && isId(this.props.resId);
+    }
+
+    /** @returns {string} reactive display name of the selected record */
+    get displayName() {
+        return this.state.displayName;
     }
 
     /**
@@ -32,7 +43,7 @@ export class RecordSelector extends BaseRecordSelector {
      * @param {Record<number, string>} displayNames
      */
     applyDisplayNames(props, displayNames) {
-        this.displayName = this.getDisplayName(props, displayNames);
+        this.state.displayName = this.getDisplayName(props, displayNames);
     }
 
     /**
@@ -69,6 +80,5 @@ export class RecordSelector extends BaseRecordSelector {
      */
     update(resIds) {
         this.props.update(resIds[0] || false);
-        this.render(true);
     }
 }

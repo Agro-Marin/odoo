@@ -6,24 +6,39 @@
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+/** How long to wait for the service worker's ack before giving up (ms). */
+const SHARE_TARGET_ACK_TIMEOUT = 5000;
+
 /**
  * Request shared file data from the PWA service worker via postMessage.
- * Resolves once the worker responds with `odoo_share_target_ack`.
- * @returns {Promise<File[]>}
+ * Resolves once the worker responds with `odoo_share_target_ack`, with
+ * `null` when the page is uncontrolled (e.g. after a hard refresh — see
+ * webclient.js's registerServiceWorker) or when the worker never acks.
+ * @returns {Promise<File[] | null>}
  */
 const getShareTargetDataFromServiceWorker = () =>
     new Promise((resolve) => {
+        const { serviceWorker } = browser.navigator;
+        if (!serviceWorker.controller) {
+            resolve(null);
+            return;
+        }
+        const cleanup = () => {
+            browser.clearTimeout(timeoutId);
+            serviceWorker.removeEventListener("message", onmessage);
+        };
         const onmessage = (event) => {
             if (event.data.action === "odoo_share_target_ack") {
+                cleanup();
                 resolve(event.data.shared_files);
-                browser.navigator.serviceWorker.removeEventListener(
-                    "message",
-                    onmessage,
-                );
             }
         };
-        browser.navigator.serviceWorker.addEventListener("message", onmessage);
-        browser.navigator.serviceWorker.controller.postMessage("odoo_share_target");
+        const timeoutId = browser.setTimeout(() => {
+            cleanup();
+            resolve(null);
+        }, SHARE_TARGET_ACK_TIMEOUT);
+        serviceWorker.addEventListener("message", onmessage);
+        serviceWorker.controller.postMessage("odoo_share_target");
     });
 
 export const shareTargetService = {

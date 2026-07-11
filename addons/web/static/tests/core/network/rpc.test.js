@@ -6,6 +6,7 @@ import { mockFetch } from "@odoo/hoot-mock";
 import {
     ConnectionAbortedError,
     ConnectionLostError,
+    InvalidResponseError,
     rpc,
     rpcBus,
     RPCError,
@@ -189,6 +190,64 @@ test("no content-type header falls back to ConnectionLostError (preserves prior 
     });
 
     await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
+});
+
+test("non-JSON response with a non-5xx status is an InvalidResponseError", async () => {
+    // fetch follows redirects: a session-expired POST redirected to the
+    // HTML login page arrives here as a 200 text/html response. That is
+    // deterministic — not a server overload — and must not be retried.
+    mockFetch(
+        () =>
+            new Response("<html>login page</html>", {
+                status: 200,
+                headers: { "Content-Type": "text/html" },
+            }),
+    );
+
+    await expect(rpc("/test/")).rejects.toThrow(InvalidResponseError);
+});
+
+test("InvalidResponseError is also a ConnectionLostError (backward compatibility)", async () => {
+    mockFetch(
+        () =>
+            new Response("<html>not found</html>", {
+                status: 404,
+                headers: { "Content-Type": "text/html" },
+            }),
+    );
+
+    await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
+});
+
+test("unparseable JSON body with a non-5xx status is an InvalidResponseError", async () => {
+    // A truncated/empty 200 body is deterministic garbage: only 5xx
+    // unparseable bodies keep the retryable ConnectionLostError treatment.
+    mockFetch(
+        () =>
+            new Response("", {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+    );
+
+    await expect(rpc("/test/")).rejects.toThrow(InvalidResponseError);
+});
+
+test("Retry: InvalidResponseError is never retried", async () => {
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        return new Response("<html>login page</html>", {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+        });
+    });
+
+    const prom = rpc("/test/", {}, { retry: 3 });
+    await expect(prom).rejects.toThrow(InvalidResponseError);
+    // A single attempt: retrying a deterministic non-JSON response would
+    // just burn retries with a backoff against an unchanging outcome.
+    expect(fetchCount).toBe(1);
 });
 
 test("rpc can send additional headers", async () => {

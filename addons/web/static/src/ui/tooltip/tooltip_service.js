@@ -85,6 +85,9 @@ export const tooltipService = {
             stopCleanupInterval();
             browser.clearTimeout(openTooltipTimeout);
             openTooltipTimeout = null;
+            // Also clear the touch pre-delay: rapid touchstarts would
+            // otherwise stack multiple pending openElementsTooltip calls.
+            browser.clearTimeout(showTimer);
             if (closeTooltip) {
                 closeTooltip();
                 closeTooltip = null;
@@ -277,22 +280,37 @@ export const tooltipService = {
             }
         }
 
+        /** @type {(() => void)[]} */
+        const listenerDisposers = [];
+        let destroyed = false;
+
+        /**
+         * @param {string} type
+         * @param {(ev: any) => void} handler
+         * @param {AddEventListenerOptions} [options]
+         */
+        function addBodyListener(type, handler, options) {
+            document.body.addEventListener(type, handler, options);
+            listenerDisposers.push(() =>
+                document.body.removeEventListener(type, handler, options),
+            );
+        }
+
         whenReady(() => {
+            if (destroyed) {
+                return;
+            }
             if (hasTouch()) {
-                document.body.addEventListener("touchstart", onTouchStart);
-                document.body.addEventListener("touchend", onTouchEnd);
-                document.body.addEventListener("touchcancel", onTouchEnd);
+                addBodyListener("touchstart", onTouchStart);
+                addBodyListener("touchend", onTouchEnd);
+                addBodyListener("touchcancel", onTouchEnd);
             }
 
             // Delegate "mouseenter" to open tooltips
-            document.body.addEventListener("mouseenter", onMouseenter, {
-                capture: true,
-            });
+            addBodyListener("mouseenter", onMouseenter, { capture: true });
             // Delegate "mouseleave" to close tooltips
-            document.body.addEventListener("mouseleave", cleanupTooltip, {
-                capture: true,
-            });
-            document.body.addEventListener("click", onClick, { capture: true });
+            addBodyListener("mouseleave", cleanupTooltip, { capture: true });
+            addBodyListener("click", onClick, { capture: true });
         });
 
         return {
@@ -309,9 +327,17 @@ export const tooltipService = {
                 };
             },
             destroy() {
+                destroyed = true;
                 stopCleanupInterval();
                 browser.clearTimeout(openTooltipTimeout);
                 browser.clearTimeout(showTimer);
+                // Detach the body listeners: a destroyed service (env
+                // teardown in embedded/public contexts) must not keep
+                // handling events against a dead popover service.
+                for (const dispose of listenerDisposers) {
+                    dispose();
+                }
+                listenerDisposers.length = 0;
             },
         };
     },

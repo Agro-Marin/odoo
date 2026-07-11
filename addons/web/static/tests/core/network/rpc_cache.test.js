@@ -1794,3 +1794,85 @@ test("invalidating an unrelated table does not drop a concurrent disk write", as
         'encrypted data:{"test":123}',
     );
 });
+
+test("joined subscribers receive callbacks through their OWN shape", async () => {
+    // A joiner's callback must not inherit the first caller's shape closure:
+    // an `immutable: false` joiner would otherwise receive the deep-frozen
+    // shared reference (mutating it throws in strict mode), and vice-versa.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const def = new Deferred();
+    const p1 = rpcCache.read("table", "key", () => def, {
+        update: "always",
+        immutable: true,
+        callback: (result) => {
+            expect.step("cb-immutable");
+            expect(Object.isFrozen(result)).toBe(true);
+        },
+    });
+    const p2 = rpcCache.read("table", "key", () => def, {
+        update: "always",
+        immutable: false,
+        callback: (result) => {
+            expect.step("cb-mutable");
+            expect(Object.isFrozen(result)).toBe(false);
+            result.mutated = true; // must not throw
+        },
+    });
+
+    def.resolve({ test: 1 });
+    await tick();
+    expect.verifySteps(["cb-immutable", "cb-mutable"]);
+    expect(Object.isFrozen(await p1)).toBe(true);
+    expect(Object.isFrozen(await p2)).toBe(false);
+});
+
+test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figure", async () => {
+    const TWO_GB = 2 * 1024 * 1024 * 1024;
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    /** @type {any} */
+    let estimateResult;
+    patchWithCleanup(navigator.storage, {
+        estimate: async () => estimateResult,
+    });
+    /** @type {any} */ (rpcCache).indexedDB = {
+        deleteDatabase: () => expect.step("deleteDatabase"),
+    };
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (...args) => warnings.push(args),
+    });
+
+    // Origin-wide usage over the cap, but the RPC IndexedDB itself is tiny
+    // (the service worker's static cache is the consumer): the database must
+    // NOT be deleted.
+    estimateResult = {
+        usage: TWO_GB + 1,
+        usageDetails: { indexedDB: 1024 },
+    };
+    await rpcCache.checkSize();
+    expect.verifySteps([]);
+
+    // IndexedDB usage itself over the cap: delete.
+    estimateResult = {
+        usage: TWO_GB + 1,
+        usageDetails: { indexedDB: TWO_GB + 1 },
+    };
+    await rpcCache.checkSize();
+    expect.verifySteps(["deleteDatabase"]);
+
+    // No per-storage breakdown (non-Chromium): degrade to a warning, never
+    // delete a database that may not be the space consumer.
+    warnings.length = 0;
+    estimateResult = { usage: TWO_GB + 1 };
+    await rpcCache.checkSize();
+    expect.verifySteps([]);
+    expect(warnings.length).toBe(1);
+});

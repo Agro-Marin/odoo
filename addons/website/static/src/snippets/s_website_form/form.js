@@ -222,21 +222,23 @@ export class Form extends Interaction {
         for (const fieldEl of this.dateFieldEls) {
             const inputEl = fieldEl.querySelector("input");
             const defaultValue = inputEl.getAttribute("value");
-            this.disableDateTimePickers.push(
-                this.services.datetime_picker
-                    .create({
-                        target: inputEl,
-                        onChange: () =>
-                            inputEl.dispatchEvent(new Event("input", { bubbles: true })),
-                        pickerProps: {
-                            type: fieldEl.matches(".s_website_form_date, .o_website_form_date")
-                                ? "date"
-                                : "datetime",
-                            value: defaultValue && DateTime.fromSeconds(parseInt(defaultValue)),
-                        },
-                    })
-                    .enable()
-            );
+            const picker = this.services.datetime_picker.create({
+                target: inputEl,
+                onChange: () =>
+                    inputEl.dispatchEvent(new Event("input", { bubbles: true })),
+                pickerProps: {
+                    type: fieldEl.matches(".s_website_form_date, .o_website_form_date")
+                        ? "date"
+                        : "datetime",
+                    value: defaultValue && DateTime.fromSeconds(parseInt(defaultValue)),
+                },
+            });
+            picker.enable();
+            // dispose() (not just the enable() cleanup): the service keeps every
+            // created picker in a page-lifetime registry, so each interaction
+            // restart would otherwise leak a registration retaining inputEl and
+            // leave an open popover behind.
+            this.disableDateTimePickers.push(() => picker.dispose());
             // Disable virtual keyboard to fix popover display issues on small
             // screens
             inputEl.setAttribute("inputmode", "none");

@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryAll, queryAllTexts, queryText } from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
-import { Component, onMounted, xml } from "@odoo/owl";
+import { Component, onMounted, onWillStart, xml } from "@odoo/owl";
 import {
     contains,
     defineActions,
@@ -155,6 +155,98 @@ describe("new", () => {
             infos: "closed",
         });
         expect.verifySteps(["origin on_close closed"]);
+        await animationFrame();
+        expect(".o_technical_modal").toHaveCount(0);
+    });
+
+    test("two rapid dialogs over a committed dialog: on_close fires once, on final close", async () => {
+        const def = new Deferred();
+        class SlowDialogAction extends Component {
+            static template = xml`<div class="slow_dialog_action"/>`;
+            static props = ["*"];
+            setup() {
+                onWillStart(() => def);
+            }
+        }
+        registry.category("actions").add("slow_dialog_action", SlowDialogAction);
+        const slowDialogRequest = {
+            type: "ir.actions.client",
+            tag: "slow_dialog_action",
+            target: "new",
+        };
+
+        await mountWithCleanup(WebClient);
+        // Commit dialog A, carrying the user onClose.
+        await getService("action").doAction(5, {
+            onClose: (infos) => expect.step(`committed on_close ${infos}`),
+        });
+        expect(".o_technical_modal").toHaveCount(1);
+
+        // Dialog B dispatches (steals A's onClose) but cannot mount...
+        getService("action").doAction(slowDialogRequest);
+        await animationFrame();
+        // ...and dialog C dispatches before B mounted: B is discarded.
+        const promC = getService("action").doAction(slowDialogRequest);
+        await animationFrame();
+
+        // Discarding the pending B must neither tear down the still-visible
+        // committed dialog A nor fire (or drop) its onClose.
+        expect(".o_technical_modal .o_form_view").toHaveCount(1);
+        expect(".o_technical_modal").toHaveCount(1);
+        expect.verifySteps([]);
+
+        // C mounts: it replaces A silently (the callback rode along to C).
+        def.resolve();
+        await promC;
+        await animationFrame();
+        expect(".o_technical_modal .slow_dialog_action").toHaveCount(1);
+        expect(".o_technical_modal").toHaveCount(1);
+        expect.verifySteps([]);
+
+        // Closing the surviving dialog fires the committed onClose, once.
+        await getService("action").doAction({
+            type: "ir.actions.act_window_close",
+            infos: "closed",
+        });
+        expect.verifySteps(["committed on_close closed"]);
+        await animationFrame();
+        expect(".o_technical_modal").toHaveCount(0);
+    });
+
+    test("failed dialog replacement keeps the committed dialog and its on_close", async () => {
+        class FailingClientAction extends Component {
+            static template = xml`<div/>`;
+            static props = ["*"];
+            setup() {
+                throw new Error("replacement failed");
+            }
+        }
+        registry.category("actions").add("failing_replacement", FailingClientAction);
+
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, {
+            onClose: (infos) => expect.step(`committed on_close ${infos}`),
+        });
+        expect(".o_technical_modal").toHaveCount(1);
+
+        // The replacement crashes before mounting: the committed dialog must
+        // survive, with its onClose handed back.
+        await expect(
+            getService("action").doAction({
+                type: "ir.actions.client",
+                tag: "failing_replacement",
+                target: "new",
+            }),
+        ).rejects.toThrow();
+        await animationFrame();
+        expect(".o_technical_modal .o_form_view").toHaveCount(1);
+        expect.verifySteps([]);
+
+        await getService("action").doAction({
+            type: "ir.actions.act_window_close",
+            infos: "closed",
+        });
+        expect.verifySteps(["committed on_close closed"]);
         await animationFrame();
         expect(".o_technical_modal").toHaveCount(0);
     });

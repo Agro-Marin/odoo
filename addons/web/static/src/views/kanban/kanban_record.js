@@ -43,11 +43,11 @@ function getColorIndex(value) {
     if (typeof value === "number") {
         return Math.round(value) % COLORS.length;
     } else if (typeof value === "string") {
-        const charCodeSum = [...value].reduce(
-            (acc, _, i) => acc + value.charCodeAt(i),
+        const codePointSum = [...value].reduce(
+            (acc, char) => acc + char.codePointAt(0),
             0,
         );
-        return charCodeSum % COLORS.length;
+        return codePointSum % COLORS.length;
     } else {
         return 0;
     }
@@ -414,7 +414,7 @@ export class KanbanRecord extends Component {
                 return deleteRecord(record);
             }
             case "set_cover": {
-                const { autoOpen, fieldName } = params;
+                const { fieldName } = params;
                 const widgets = Object.values(archInfo.fieldNodes)
                     .filter((x) => x.name === fieldName)
                     .map((x) => x.widget);
@@ -425,7 +425,6 @@ export class KanbanRecord extends Component {
                     widgets.includes("attachment_image")
                 ) {
                     this.dialog.add(KanbanCoverImageDialog, {
-                        autoOpen,
                         fieldName,
                         record,
                     });

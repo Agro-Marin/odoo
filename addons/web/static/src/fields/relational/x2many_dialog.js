@@ -296,7 +296,7 @@ export function useOpenX2ManyRecord({
                 : _t("Create %s", activeField.string);
         }
         const list = getList();
-        const { archInfo, fields: _fields } = await getFormViewInfo({
+        let { archInfo, fields: _fields } = await getFormViewInfo({
             list,
             context,
             activeField,
@@ -304,7 +304,13 @@ export function useOpenX2ManyRecord({
             env,
         });
         if (!component.props.record.isInEdition) {
-            archInfo.activeActions.edit = false;
+            // getFormViewInfo may return the shared, cached archInfo of the
+            // inline form subview: clone before mutating, otherwise the flag
+            // would poison every later dialog opened for the same field.
+            archInfo = {
+                ...archInfo,
+                activeActions: { ...archInfo.activeActions, edit: false },
+            };
         }
 
         const { activeFields, fields } = extractFieldsFromArchInfo(archInfo, _fields);
@@ -319,17 +325,23 @@ export function useOpenX2ManyRecord({
         } else {
             params.mode = readonly || !activeActions.write ? "readonly" : "edit";
         }
+        // Params for creating a blank record: used both when the dialog opens
+        // without a record and for the "Save & New" follow-up records (which
+        // must get the field context and, for m2m, `withoutParent` even when
+        // the dialog was opened on an existing record).
+        const creationParams = {
+            ...params,
+            context: makeContext([list.context, context]),
+            withoutParent: isMany2Many,
+        };
         if (record) {
             const { delete: canDelete, onDelete } = activeActions;
             deleteRecord =
                 viewMode === "kanban" && canDelete ? () => onDelete(record) : null;
             deleteButtonLabel =
                 activeActions.type === "one2many" ? _t("Delete") : _t("Remove");
-        } else {
-            params.context = makeContext([list.context, context]);
-            params.withoutParent = isMany2Many;
         }
-        record = await list.extendRecord(params, record);
+        record = await list.extendRecord(record ? params : creationParams, record);
 
         const _onClose = () => {
             list.editedRecord?.switchMode("readonly");
@@ -343,7 +355,7 @@ export function useOpenX2ManyRecord({
                 archInfo,
                 record,
                 controls,
-                addNew: () => getList().extendRecord(params),
+                addNew: () => getList().extendRecord(creationParams),
                 save: (rec) => {
                     if (isDuplicate && rec.id === record.id) {
                         return updateRecord(rec);

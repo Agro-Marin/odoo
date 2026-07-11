@@ -11,9 +11,9 @@
 import { makeContext } from "@web/core/context";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { withNotificationsBlocked } from "@web/search/search_query_mutations";
-/** SearchModel widened so this delegate module can read instance state
- * set across SearchModel's many methods. */
-/** @typedef {any} SearchModel */
+/** The delegate seam contract — see the SearchModelLike typedef for the
+ * instance state this module may read or write. */
+/** @typedef {import("./search_model").SearchModelLike} SearchModel */
 
 /**
  * Split a domain into individual filter conditions and add them to the search.
@@ -112,34 +112,49 @@ export async function splitAndAddDomain(searchModel, domain, groupId) {
                     }
                 }
                 if (createNewGroupBys) {
+                    const newGroupByIds = [];
                     for (const activeItemGroupBy of activeItemGroupBys) {
                         const [fieldName, interval] = activeItemGroupBy.split(":");
-                        searchModel.createNewGroupBy(fieldName, {
-                            interval,
-                            invisible: true,
-                        });
+                        newGroupByIds.push(
+                            searchModel.createNewGroupBy(fieldName, {
+                                interval,
+                                invisible: true,
+                            }),
+                        );
                     }
-                    const index = searchModel.query.length - activeItemGroupBys.length;
+                    // Move the new groupBys (pushed at the tail) to the front
+                    // by identity — the previous index arithmetic assumed each
+                    // createNewGroupBy pushed exactly one query element.
+                    const isNewGroupBy = (queryElem) =>
+                        newGroupByIds.includes(queryElem.searchItemId);
                     searchModel.query = [
-                        ...searchModel.query.slice(index),
-                        ...searchModel.query.slice(0, index),
+                        ...searchModel.query.filter(isNewGroupBy),
+                        ...searchModel.query.filter(
+                            (queryElem) => !isNewGroupBy(queryElem),
+                        ),
                     ];
                 }
             }
             searchModel.deactivateGroup(groupId);
         }
 
-        const queryLength = searchModel.query.length;
-        for (const preFilter of preFilters) {
-            searchModel.createNewFilters([preFilter]);
-        }
-        const queryElems = searchModel.query.slice(queryLength);
+        const newFilterIds = preFilters.flatMap((preFilter) =>
+            searchModel.createNewFilters([preFilter]),
+        );
 
         if (queryItemIndex !== undefined) {
+            // Reinsert the new filters (identified by id, not by slice
+            // arithmetic) at the position the replaced group occupied.
+            const isNewFilter = (queryElem) =>
+                newFilterIds.includes(queryElem.searchItemId);
+            const newQueryElems = searchModel.query.filter(isNewFilter);
+            const otherQueryElems = searchModel.query.filter(
+                (queryElem) => !isNewFilter(queryElem),
+            );
             searchModel.query = [
-                ...searchModel.query.slice(0, queryItemIndex),
-                ...queryElems,
-                ...searchModel.query.slice(queryItemIndex, queryLength),
+                ...otherQueryElems.slice(0, queryItemIndex),
+                ...newQueryElems,
+                ...otherQueryElems.slice(queryItemIndex),
             ];
         }
     });

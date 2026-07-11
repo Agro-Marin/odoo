@@ -202,17 +202,27 @@ export class ActionManager {
      * reload completes — matching the cancel path and the "wait for view
      * reload before closing" regression tests.
      *
+     * When ``removeFn`` is given (the dialog-service ``onClose`` closures
+     * built in ``_dispatchTargetNew`` pass their own remove function), the
+     * teardown only runs if the closing entry is the *committed* one:
+     * discarding a pending, never-mounted replacement must not tear down the
+     * still-visible committed dialog.
+     *
+     * @param {any} [closeParams]
+     * @param {Function} [removeFn] identity of the closing dialog's remove
      * @return {Promise<void>}
      */
-    async _removeDialog(closeParams) {
-        if (this.dialog) {
-            const { onClose, remove } = this.dialog;
-            this.dialog = null;
-            try {
-                await onClose?.(closeParams);
-            } finally {
-                remove();
-            }
+    async _removeDialog(closeParams, removeFn) {
+        const dialog = this.dialog;
+        if (!dialog || (removeFn && removeFn !== dialog.remove)) {
+            return;
+        }
+        const { onClose, remove } = dialog;
+        this.dialog = null;
+        try {
+            await onClose?.(closeParams);
+        } finally {
+            remove();
         }
     }
 
@@ -460,9 +470,15 @@ export class ActionManager {
                 this.env.services.title.setParts({ action: controller.displayName });
             }
             if (action.target !== "new") {
-                // This is a hack to force the reactivity when a new displayName is set
-                controller.config.breadcrumbs.push(undefined);
-                controller.config.breadcrumbs.pop();
+                // The crumb's `name` is a plain slot on the reactive
+                // breadcrumbs array: writing it through the array notifies
+                // exactly the subscribers that read this crumb's name.
+                const crumb = controller.config.breadcrumbs.find(
+                    (bc) => bc.jsId === controller.jsId,
+                );
+                if (crumb) {
+                    crumb.name = displayName;
+                }
             }
         };
         controller.config.historyBack = () => {
@@ -509,27 +525,37 @@ export class ActionManager {
         }
         actionDialogProps.header = action.context.header ?? actionDialogProps.header;
         actionDialogProps.footer = action.context.footer ?? actionDialogProps.footer;
-        // Propagate the committed dialog's onClose to the dialog replacing
-        // it: the callback transfers to the entry built below, and deleting
-        // it here guarantees the old dialog's removal (performed by
+        // Propagate the committed dialog's onClose through the replacement
+        // chain: the callback transfers to the entry built below (a pending
+        // replacement may already carry it as ``stolenOnClose``), and
+        // deleting it here guarantees the old dialog's removal (performed by
         // ControllerComponent.onMounted once the new dialog is mounted)
         // fires no user callback.
-        const onClose = this.dialog?.onClose;
+        const onClose = this.nextDialog?.stolenOnClose ?? this.dialog?.onClose;
         delete this.dialog?.onClose;
         const removeDialogFn = (removeDialogRef.current = this.env.services.dialog.add(
             ActionDialog,
             actionDialogProps,
-            { onClose: (closeParams) => this._removeDialog(closeParams) },
+            {
+                onClose: (closeParams) =>
+                    this._removeDialog(closeParams, removeDialogFn),
+            },
         ));
         if (this.nextDialog) {
             // Discard a dialog that was dispatched but never mounted (its
             // ControllerComponent has not committed it to ``this.dialog``
-            // yet) — the committed dialog, if any, is removed on mount.
+            // yet). _removeDialog's identity guard keeps the committed
+            // dialog alive, and the discarded entry's stolen onClose already
+            // transferred above.
             this.nextDialog.remove();
         }
         this.nextDialog = {
             remove: removeDialogFn,
             onClose: onClose || options.onClose,
+            // Tracked separately so a failed/discarded replacement can hand
+            // the committed dialog's callback back (see onError) instead of
+            // silently dropping it with the discarded entry.
+            stolenOnClose: onClose,
         };
         return currentActionProm;
     }
@@ -683,6 +709,10 @@ export class ActionManager {
      */
     async doAction(actionRequest, options = {}) {
         actionLog("doAction", actionRequest, options);
+        // Shallow-copy: options is caller-owned and possibly reused across
+        // calls; the executors (and the clearBreadcrumbs default below)
+        // must not mutate it in place.
+        options = { ...options };
         const actionProm = this._loadAction(actionRequest, options.additionalContext);
         let action = await this.keepLast.add(actionProm);
         action = this._preprocessAction(action, options.additionalContext);

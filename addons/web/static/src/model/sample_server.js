@@ -129,7 +129,6 @@ export class SampleServer {
         }
         this.existingGroups = null;
         this.populated = false;
-        this.existingGroupsPopulated = false;
     }
 
     //---------------------------------------------------------------------

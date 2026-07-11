@@ -5,6 +5,7 @@
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
@@ -50,13 +51,16 @@ export class ReferenceField extends Component {
             modelName: undefined, // Name get of the value of the model field
             currentRelation: undefined,
         });
+        // Serialize the async observers below: without it, two rapid value
+        // changes can resolve out of order and leave stale state behind.
+        const keepLast = new KeepLast();
         if (this._isCharField(this.props)) {
             /** Fetch the display name of the record referenced by the field */
             let currentValue = undefined;
             useRecordObserver(async (record, props) => {
                 if (currentValue !== record.data[props.name]) {
                     /** @type {any} */ (this.state).formattedCharValue =
-                        await this._fetchReferenceCharData(props);
+                        await keepLast.add(this._fetchReferenceCharData(props));
                     currentValue = record.data[props.name];
                 }
             });
@@ -64,8 +68,9 @@ export class ReferenceField extends Component {
             /** Fetch the technical name of the co model */
             useRecordObserver(async (record, props) => {
                 if (this.currentModelId !== record.data[props.modelField]?.id) {
-                    /** @type {any} */ (this.state).modelName =
-                        await this._fetchModelTechnicalName(props);
+                    /** @type {any} */ (this.state).modelName = await keepLast.add(
+                        this._fetchModelTechnicalName(props),
+                    );
                     if (this.currentModelId !== undefined) {
                         record.update({ [props.name]: false });
                     }

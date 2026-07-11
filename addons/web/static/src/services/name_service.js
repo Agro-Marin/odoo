@@ -80,13 +80,15 @@ export const nameService = {
         function addDisplayNames(resModel, displayNames) {
             const mapping = getMapping(resModel);
             for (const resId of Object.keys(displayNames)) {
-                // Reuse an existing (possibly in-flight) Deferred instead of
-                // replacing it — a concurrent loadDisplayNames caller may be
-                // awaiting it; resolving is idempotent so this is safe.
-                if (!(resId in mapping)) {
-                    mapping[resId] = new Deferred();
-                }
-                mapping[resId].resolve(displayNames[resId]);
+                // Settle any in-flight Deferred so concurrent loadDisplayNames
+                // callers get the value (a no-op if it already resolved), then
+                // swap in a freshly-settled entry: resolving a settled promise
+                // is a no-op, so reusing it would silently drop a newer name
+                // (e.g. a record renamed since its first resolution).
+                mapping[resId]?.resolve(displayNames[resId]);
+                const entry = new Deferred();
+                entry.resolve(displayNames[resId]);
+                mapping[resId] = entry;
             }
         }
 

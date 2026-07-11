@@ -31,7 +31,19 @@ export async function loadState(am, state) {
         browser.sessionStorage.removeItem("current_lang");
         browser.sessionStorage.removeItem("current_state");
     }
-    const newStack = await am._controllersFromState(state);
+    let newStack;
+    try {
+        newStack = await am._controllersFromState(state);
+    } catch (error) {
+        // A failed breadcrumb reconstruction must not turn the restore into
+        // a blank page: the leaf action can still load without its ancestry.
+        console.warn(
+            "Failed to restore the action stack from the url state; " +
+                "loading the last action without breadcrumbs.",
+            error,
+        );
+        newStack = [];
+    }
     const actionParams = am._getActionParams(state);
     if (actionParams) {
         const { actionRequest, options } = actionParams;

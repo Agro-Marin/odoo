@@ -11,7 +11,7 @@ import {
 } from "@html_editor/utils/dom_info";
 import { describe, expect, test } from "@odoo/hoot";
 import { insertTestHtml } from "../_helpers/editor.js";
-import { isBlock } from "../../src/utils/blocks.js";
+import { isBlock } from "@html_editor/utils/blocks";
 import { unformat } from "../_helpers/format.js";
 
 const base64Img =

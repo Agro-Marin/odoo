@@ -315,7 +315,15 @@ export class RPCCache {
         this.crypto = new Crypto(secret);
         this.indexedDB = new IndexedDB(name, version + CRYPTO_ALGO);
         this.ramCache = new RamCache();
-        /** @type {Record<string, { callbacks: Function[], invalidated: boolean }>} */
+        /**
+         * Subscribers are stored as ``{ callback, shape }`` pairs: joiners
+         * may request a different ``immutable`` setting than the first
+         * caller, and each callback must receive the result through ITS OWN
+         * shape (deep-frozen shared reference vs. deep copy) — not the first
+         * caller's.
+         *
+         * @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean }>}
+         */
         this.pendingRequests = {};
         // Monotonic invalidation generations guard the async disk-write
         // chain (see ``read``): once a request leaves ``pendingRequests``,
@@ -362,18 +370,39 @@ export class RPCCache {
     }
 
     async checkSize() {
-        let usage;
+        let estimate;
         try {
-            ({ usage } = await navigator.storage.estimate());
+            estimate = await navigator.storage.estimate();
         } catch {
             // StorageManager may be unavailable in insecure contexts
             return;
         }
-        if (usage > MAX_STORAGE_SIZE) {
+        // Prefer the IndexedDB-specific figure where available (Chromium's
+        // non-standard ``usageDetails``): ``usage`` alone is ORIGIN-WIDE and
+        // includes the service worker's static cache (asset bundles, images),
+        // which on a media-heavy database can exceed the cap on its own —
+        // deleting the RPC database then frees (almost) nothing while
+        // permanently disabling the disk cache, since this runs on every
+        // boot.
+        const idbUsage = /** @type {any} */ (estimate).usageDetails?.indexedDB;
+        if (idbUsage !== undefined) {
+            if (idbUsage > MAX_STORAGE_SIZE) {
+                console.warn(
+                    `Deleting indexedDB database as maximum storage size is reached`,
+                );
+                return this.indexedDB.deleteDatabase();
+            }
+            return;
+        }
+        if (estimate.usage > MAX_STORAGE_SIZE) {
+            // No per-storage breakdown: the RPC database may not be the
+            // consumer, so deleting it would be both lossy and ineffective.
+            // Degrade to a warning.
             console.warn(
-                `Deleting indexedDB database as maximum storage size is reached`,
+                "Origin storage usage exceeds the configured maximum " +
+                    "(no per-storage breakdown available); keeping the RPC " +
+                    "IndexedDB cache.",
             );
-            return this.indexedDB.deleteDatabase();
         }
     }
 
@@ -410,12 +439,15 @@ export class RPCCache {
         if (hasPendingRequest) {
             // never do the same call multiple times in parallel => return the same value for all
             // those calls, but store their callback to call them when/if the real value is obtained
-            this.pendingRequests[requestKey].callbacks.push(callback);
+            this.pendingRequests[requestKey].callbacks.push({ callback, shape });
             return ramValue.then(shape);
         }
 
         if (!ramValue || update === "always") {
-            const request = { callbacks: [callback], invalidated: false };
+            const request = {
+                callbacks: [{ callback, shape }],
+                invalidated: false,
+            };
             this.pendingRequests[requestKey] = request;
 
             const prom = new Promise((resolve, reject) => {
@@ -484,10 +516,13 @@ export class RPCCache {
                     // Always notify pending callbacks: they explicitly asked
                     // for fresh data via `update: "always"`, regardless of
                     // cache invalidation. Each callback is guarded so one
-                    // throwing subscriber can't starve the others.
-                    for (const cb of request.callbacks) {
+                    // throwing subscriber can't starve the others, and gets
+                    // the result through its OWN shape (a joiner that asked
+                    // `immutable: false` must not receive the first caller's
+                    // frozen shared reference, and vice-versa).
+                    for (const subscriber of request.callbacks) {
                         try {
-                            cb(shape(result), hasChanged);
+                            subscriber.callback(subscriber.shape(result), hasChanged);
                         } catch (error) {
                             console.error("RPC cache: update callback failed", error);
                         }

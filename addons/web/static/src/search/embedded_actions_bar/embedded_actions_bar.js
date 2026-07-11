@@ -74,14 +74,21 @@ export class EmbeddedActionsConfigHandler {
     }
 
     /**
-     * @param {Object} config - partial config to merge (e.g. { embedded_visibility: true })
-     * @returns {Promise<void>} never rejects: on failure, the local cache is
-     *  reverted and a notification is shown
+     * @param {Object} config - partial config to merge (e.g.
+     *  { embedded_visibility: true }); must be plain serializable data —
+     *  callers pass copies, never live reactive arrays
+     * @returns {Promise<boolean>} never rejects: on failure, the local cache
+     *  is reverted, a notification is shown and `false` is returned
      */
     async setEmbeddedActionsConfig(config) {
+        // Deep-copy both the incoming config and the revert snapshot: a
+        // shallow copy would alias caller-owned arrays (the main payload), so
+        // the cache would track later caller mutations and the failure revert
+        // would restore the already-mutated array.
+        config = structuredClone(config);
         const hadConfig = this.embeddedActionsKey in this.embeddedActionsConfig;
         const previousConfig = hadConfig
-            ? { ...this.embeddedActionsConfig[this.embeddedActionsKey] }
+            ? structuredClone(this.embeddedActionsConfig[this.embeddedActionsKey])
             : null;
         if (hadConfig) {
             Object.assign(this.embeddedActionsConfig[this.embeddedActionsKey], config);
@@ -95,6 +102,7 @@ export class EmbeddedActionsConfigHandler {
                 this.currentActiveId,
                 config,
             ]);
+            return true;
         } catch {
             // Revert the local cache so it stays in sync with the server.
             if (hadConfig) {
@@ -106,6 +114,7 @@ export class EmbeddedActionsConfigHandler {
                 _t("Failed to save the embedded actions configuration."),
                 { type: "danger" },
             );
+            return false;
         }
     }
 
@@ -209,10 +218,14 @@ export class EmbeddedActions {
             embeddedActions: this.defaultEmbeddedActions || [],
             newActionIsShared: false,
             newActionName: this.defaultNewActionName,
-            visibleEmbeddedActions:
-                this.configHandler.getEmbeddedActionsConfig(
+            // Copy: the reactive state must not alias the cached settings
+            // array, or in-place toggles would mutate the cache before its
+            // revert snapshot is taken.
+            visibleEmbeddedActions: [
+                ...(this.configHandler.getEmbeddedActionsConfig(
                     "embedded_actions_visibility",
-                ) || [],
+                ) || []),
+            ],
             currentEmbeddedAction: this.currentEmbeddedAction,
         });
 
@@ -288,10 +301,11 @@ export class EmbeddedActions {
                 await this.configHandler.fetchEmbeddedActionsConfig();
             if (this.configHandler.embeddedActionsKey in embeddedSettings) {
                 this.configHandler.updateEmbeddedActionsConfig(embeddedSettings);
-                this.embeddedInfos.visibleEmbeddedActions =
-                    this.configHandler.getEmbeddedActionsConfig(
+                this.embeddedInfos.visibleEmbeddedActions = [
+                    ...(this.configHandler.getEmbeddedActionsConfig(
                         "embedded_actions_visibility",
-                    ) || [];
+                    ) || []),
+                ];
                 const embeddedOrder = this.configHandler.getEmbeddedActionsConfig(
                     "embedded_actions_order",
                 );
@@ -322,8 +336,9 @@ export class EmbeddedActions {
                         this.embeddedInfos.visibleEmbeddedActions.push(
                             embeddedActionKey,
                         );
-                        config.embedded_actions_visibility =
-                            this.embeddedInfos.visibleEmbeddedActions;
+                        config.embedded_actions_visibility = [
+                            ...this.embeddedInfos.visibleEmbeddedActions,
+                        ];
                     }
                 }
                 await this.configHandler.setEmbeddedActionsConfig(config);
@@ -338,24 +353,26 @@ export class EmbeddedActions {
     /**
      * Toggles an action's visibility in the cached visibleEmbeddedActions
      * list (avoids re-parsing user settings on every access) and persists it.
+     * On persistence failure the visible UI is restored too, so it cannot
+     * silently diverge from the cache and the server.
      * @param {number|false} actionId
+     * @returns {Promise<void>}
      */
-    toggleActionVisibility(actionId) {
-        if (this.embeddedInfos.visibleEmbeddedActions.includes(actionId)) {
-            const embeddedActionIndex =
-                this.embeddedInfos.visibleEmbeddedActions.indexOf(actionId);
-            if (embeddedActionIndex !== -1) {
-                this.embeddedInfos.visibleEmbeddedActions.splice(
-                    embeddedActionIndex,
-                    1,
-                );
-            }
+    async toggleActionVisibility(actionId) {
+        const previousVisible = [...this.embeddedInfos.visibleEmbeddedActions];
+        const embeddedActionIndex =
+            this.embeddedInfos.visibleEmbeddedActions.indexOf(actionId);
+        if (embeddedActionIndex !== -1) {
+            this.embeddedInfos.visibleEmbeddedActions.splice(embeddedActionIndex, 1);
         } else {
             this.embeddedInfos.visibleEmbeddedActions.push(actionId);
         }
-        this.configHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: this.embeddedInfos.visibleEmbeddedActions,
+        const saved = await this.configHandler.setEmbeddedActionsConfig({
+            embedded_actions_visibility: [...this.embeddedInfos.visibleEmbeddedActions],
         });
+        if (!saved) {
+            this.embeddedInfos.visibleEmbeddedActions = previousVisible;
+        }
     }
 
     /**
@@ -423,7 +440,7 @@ export class EmbeddedActions {
         if (python_method) {
             values.python_method = python_method;
         } else {
-            values.action_id = action_id[0] || this.env.config.actionId;
+            values.action_id = action_id?.[0] || action_id || this.env.config.actionId;
         }
         const [embeddedActionId] = await this.orm.create("ir.embedded.actions", [
             values,
@@ -449,7 +466,7 @@ export class EmbeddedActions {
         visibleEmbeddedActions.push(embeddedActionId);
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
         await this.configHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: visibleEmbeddedActions,
+            embedded_actions_visibility: [...visibleEmbeddedActions],
             embedded_actions_order: order,
         });
         this.embeddedInfos.currentEmbeddedAction = enrichedNewEmbeddedAction;
@@ -496,7 +513,7 @@ export class EmbeddedActions {
         );
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
         await this.configHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: visibleEmbeddedActions,
+            embedded_actions_visibility: [...visibleEmbeddedActions],
             embedded_actions_order: order,
         });
         if (action.id === currentEmbeddedAction?.id) {

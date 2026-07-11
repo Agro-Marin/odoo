@@ -26,6 +26,11 @@ import {
     isVideoElementReady,
 } from "./ZXingBarcodeDetector.js";
 
+// A persistently failing detector (e.g. broken codec/canvas state) would
+// otherwise call onError in a 100ms loop forever: give up after this many
+// consecutive detect() rejections.
+const MAX_CONSECUTIVE_DETECT_ERRORS = 5;
+
 export class BarcodeVideoScanner extends Component {
     static template = "web.BarcodeVideoScanner";
     static components = {
@@ -58,6 +63,7 @@ export class BarcodeVideoScanner extends Component {
         this.overlayInfo = {};
         this.zoomRatio = 1;
         this.scanPaused = false;
+        this.consecutiveDetectErrors = 0;
         this.state = useState({
             isReady: false,
         });
@@ -183,8 +189,14 @@ export class BarcodeVideoScanner extends Component {
             codes = await this.detector.detect(
                 /** @type {HTMLVideoElement} */ (this.videoPreviewRef.el),
             );
+            this.consecutiveDetectErrors = 0;
         } catch (err) {
+            this.consecutiveDetectErrors++;
             this.props.onError(err);
+            if (this.consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+                this.cleanStreamAndTimeout();
+                return;
+            }
         }
         for (const code of codes) {
             if (

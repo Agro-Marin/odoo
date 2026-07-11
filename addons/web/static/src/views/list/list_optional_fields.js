@@ -3,8 +3,6 @@
 
 /** @module @web/views/list/list_optional_fields - Hook managing localStorage-backed optional column visibility for the list view */
 
-/** @odoo-module native */
-
 /**
  * Reads/writes the localStorage-backed set of visible optional columns,
  * plus the debug "open form view" toggle.

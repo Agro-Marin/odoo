@@ -132,6 +132,7 @@ export const datetimePickerService = {
                 function enable() {
                     /** @type {Array<[Element, string, (ev: any) => void]>} */
                     const addedListeners = [];
+                    disableListeners?.();
                     for (const [el, value] of zip(
                         getInputs(),
                         ensureArray(pickerProps.value),
@@ -174,12 +175,17 @@ export const datetimePickerService = {
                             onCalendarIconClick,
                         ]);
                     }
-                    return () => {
+                    const removeListeners = () => {
+                        if (disableListeners === removeListeners) {
+                            disableListeners = null;
+                        }
                         for (const [el, event, handler] of addedListeners) {
                             el.removeEventListener(event, handler);
                             listenedElements.delete(el);
                         }
                     };
+                    disableListeners = removeListeners;
+                    return removeListeners;
                 }
 
                 /**
@@ -225,7 +231,11 @@ export const datetimePickerService = {
                         return target;
                     }
                     if (pickerProps.range) {
-                        let parentElement = getInput(0).parentElement;
+                        const firstInput = getInput(0);
+                        if (!firstInput) {
+                            return getInput(1) ?? getTarget();
+                        }
+                        let parentElement = firstInput.parentElement;
                         const inputEls = getInputs();
                         while (
                             parentElement &&
@@ -235,7 +245,7 @@ export const datetimePickerService = {
                         ) {
                             parentElement = parentElement.parentElement;
                         }
-                        return parentElement || getInput(0);
+                        return parentElement || firstInput;
                     } else {
                         return getInput(0);
                     }
@@ -547,7 +557,7 @@ export const datetimePickerService = {
                             saveAndClose();
                         }
                     },
-                    ...markValuesRaw(params.pickerProps),
+                    ...markValuesRaw(params.pickerProps || {}),
                 };
                 const pickerProps = reactive(rawPickerProps, () => {
                     // Update inputs
@@ -593,6 +603,8 @@ export const datetimePickerService = {
                 /** @type {boolean[]} */
                 let inputsChanged = [];
                 let destroyed = false;
+                /** @type {(() => void) | null} */
+                let disableListeners = null;
                 let lastAppliedStringValue = "";
                 /** @type {(() => void) | null} */
                 let restoreTargetMargin = null;
@@ -606,16 +618,14 @@ export const datetimePickerService = {
                     // Registered before any onWillDestroy the caller adds, so the
                     // guard is set when a popover from the same destroy phase runs
                     // its close handler (OWL runs willDestroy in registration order).
-                    onWillDestroy(() => {
-                        destroyed = true;
-                    });
+                    onWillDestroy(() => dispose());
 
                     if (typeof params.target === "string") {
                         targetRef = useRef(params.target);
                     }
 
                     onWillRender(function computeBasePickerProps() {
-                        const nextProps = markValuesRaw(params.pickerProps);
+                        const nextProps = markValuesRaw(params.pickerProps || {});
                         const oldStringProps = stringProps;
 
                         stringProps = stringifyProps(nextProps);
@@ -648,9 +658,25 @@ export const datetimePickerService = {
                         `datetime picker service error: cannot use target as ref name when not using Owl hooks`,
                     );
                 }
+                /**
+                 * Full teardown: marks the picker destroyed (so the popover's
+                 * close handler no longer syncs/applies), closes the popover,
+                 * removes the input listeners added by `enable()` and releases
+                 * the service-lifetime registration. Auto-registered through
+                 * `onWillDestroy` when `useOwlHooks` is set; non-hook consumers
+                 * (public interactions) must call it in their cleanup or leak
+                 * a registration retaining their inputs on every restart.
+                 */
+                function dispose() {
+                    destroyed = true;
+                    popover.close();
+                    disableListeners?.();
+                    dateTimePickerList.delete(picker);
+                }
                 const picker = {
                     enable,
                     disable: () => dateTimePickerList.delete(picker),
+                    dispose,
                     isOpen,
                     open,
                     close: () => popover.close(),

@@ -13,6 +13,29 @@ import { useAutofocus } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 let htmlId = 0;
+
+// The font list is a static payload (tens to hundreds of KB): fetch it once
+// per font instead of on every mount. The promise is cached so concurrent
+// mounts share one request; a failed fetch is evicted to allow a retry.
+/** @type {Map<string, Promise<string[]>>} */
+const fontsCache = new Map();
+
+/**
+ * @param {string} fontName
+ * @returns {Promise<string[]>}
+ */
+function loadFonts(fontName) {
+    if (!fontsCache.has(fontName)) {
+        fontsCache.set(
+            fontName,
+            rpc(`/web/sign/get_fonts/${fontName}`).catch((error) => {
+                fontsCache.delete(fontName);
+                throw error;
+            }),
+        );
+    }
+    return fontsCache.get(fontName);
+}
 export class NameAndSignature extends Component {
     static template = "web.NameAndSignature";
     static components = { Dropdown, DropdownItem };
@@ -67,7 +90,7 @@ export class NameAndSignature extends Component {
         );
 
         onWillStart(async () => {
-            this.fonts = await rpc(`/web/sign/get_fonts/${this.props.defaultFont}`);
+            this.fonts = await loadFonts(this.props.defaultFont);
         });
 
         onWillStart(async () => {

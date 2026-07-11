@@ -31,6 +31,7 @@ export class FileInput extends Component {
         hidden: { type: Boolean, optional: true },
         multiUpload: { type: Boolean, optional: true },
         onUpload: { type: Function, optional: true },
+        onWillUploadFiles: { type: Function, optional: true },
         beforeOpen: { type: Function, optional: true },
         resId: { type: Number, optional: true },
         resModel: { type: String, optional: true },

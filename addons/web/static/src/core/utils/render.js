@@ -48,6 +48,14 @@ export function renderToString(template, context = {}) {
 }
 /** @type {import("@odoo/owl").App | undefined} */
 let app;
+// NOTE (cost): this lazily-created App is a SECOND full OWL app that lives
+// for the page lifetime. It maintains its own compiled-template cache (no
+// sharing with the main app, no dev/translation parity guarantees), so every
+// template rendered through renderToString/renderToMarkup/renderToElement
+// pays a one-time compile in THIS app even if the main app already compiled
+// it — and the compiled closures are retained forever. Avoid calling these
+// helpers in per-row/per-cell hot paths; render through a component (the
+// main app) when possible.
 Object.defineProperty(renderToString, "app", {
     get: () => {
         if (!app) {

@@ -9641,6 +9641,59 @@ test("d&d between columns updates both progressbars without a full-domain read_p
     ]);
 });
 
+test.tags("desktop");
+test("d&d between two bar-filtered columns updates both aggregates", async () => {
+    // Regression: the three aggregate fetchers used to share one epoch
+    // counter, so in _reconcileMove the source group's filtered aggregate
+    // fetch was discarded by the target group's (and both by the two-group
+    // refetch), leaving the source column header stale indefinitely.
+    Partner._records.push({
+        id: 5,
+        foo: "blip",
+        bar: false,
+        int_field: 100,
+    });
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <progressbar field="foo" colors='{"yop": "success", "gnap": "warning", "blip": "danger"}' sum_field="int_field"/>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        groupBy: ["bar"],
+    });
+
+    // Column 1 (bar=false): records 4 (blip, -4) and 5 (blip, 100).
+    // Column 2 (bar=true): records 1 (yop, 10), 2 (blip, 9), 3 (gnap, 17).
+    expect(getKanbanCounters()).toEqual(["96", "36"]);
+
+    // Activate the "blip" (danger) bar on both columns.
+    await contains(".o_kanban_group:first-child .progress-bar.bg-danger").click();
+    expect(getKanbanCounters()).toEqual(["96", "36"]);
+    await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-danger").click();
+    expect(getKanbanCounters()).toEqual(["96", "9"]);
+
+    // Drag record 4 (blip, -4) from the first column to the second one.
+    await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
+        ".o_kanban_group:nth-child(2)",
+    );
+
+    // Both filtered headers must be correct right after the local reconcile:
+    // source blip sum: 96 - (-4) = 100, target blip sum: 9 + (-4) = 5.
+    expect(getKanbanCounters()).toEqual(["100", "5"]);
+
+    // And they must survive the trailing authoritative refresh.
+    await runAllTimers();
+    await animationFrame();
+    expect(getKanbanCounters()).toEqual(["100", "5"]);
+});
+
 test("progress bar recompute after filter selection", async () => {
     Partner._records.push({ foo: "yop", bar: true, float_field: 100 });
     Partner._records.push({ foo: "yop", bar: true, float_field: 100 });

@@ -241,7 +241,15 @@ class InteractionService {
                     /** @type {import("@odoo/owl").ComponentConstructor} */ (
                         /** @type {unknown} */ (I)
                     ),
-                ),
+                ).catch((e) => {
+                    // Mirror the Interaction branch: forget the (el, I) pair
+                    // when preparing/mounting fails (prepareRoot and
+                    // root.mount() both reject through here), so a later
+                    // startInteractions() may retry it and `el` is not
+                    // retained forever.
+                    this.activeInteractions.delete(el, I);
+                    throw e;
+                }),
             );
         }
     }

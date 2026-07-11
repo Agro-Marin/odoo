@@ -244,6 +244,78 @@ test(`use stored menus, and update on load_menus return`, async () => {
 });
 
 test.tags("desktop");
+test(`stale background revalidation cannot overwrite a fresher reload()`, async () => {
+    const def = new Deferred();
+    redirect("/odoo/action-666");
+    onRpc("/web/webclient/load_menus", async (request) => {
+        if (new URL(request.url).searchParams.get("hash")) {
+            // Boot-time background revalidation: resolves late, with a
+            // payload/hash that predate the reload() below.
+            await def;
+            return new Response(
+                JSON.stringify({
+                    1: {
+                        appID: 1,
+                        children: [],
+                        name: "StaleApp",
+                        id: 1,
+                        actionID: 666,
+                    },
+                    root: { id: "root", name: "root", appID: "root", children: [1] },
+                }),
+                { headers: { "X-Menus-Hash": "stalehash" } },
+            );
+        }
+        // reload(): full fetch, no conditional hash.
+        return new Response(
+            JSON.stringify({
+                1: { appID: 1, children: [], name: "FreshApp", id: 1, actionID: 666 },
+                root: { id: "root", name: "root", appID: "root", children: [1] },
+            }),
+            { headers: { "X-Menus-Hash": "freshhash" } },
+        );
+    });
+
+    browser.localStorage.webclient_menus_version =
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_hash = "boothash";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "StoredApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+
+    await mountWebClient();
+    await getService("menu").reload();
+    expect(getService("menu").getMenu(1).name).toBe("FreshApp");
+
+    // The stale revalidation resolves after the reload committed: it must
+    // neither overwrite the menus nor persist its stale hash (which would
+    // 304-pin the stale payload on the next boots).
+    def.resolve();
+    await animationFrame();
+    expect(getService("menu").getMenu(1).name).toBe("FreshApp");
+    expect(browser.localStorage.webclient_menus_hash).toBe("freshhash");
+    expect(JSON.parse(browser.localStorage.webclient_menus)[1].name).toBe("FreshApp");
+});
+
+test.tags("desktop");
+test(`total menu fetch failure falls back to an empty root`, async () => {
+    // Cold boot (no stored copy), preload and refetch both fail: the menu
+    // service must still expose a usable (empty) tree instead of leaving
+    // menusData undefined and throwing on the first getAll()/getApps().
+    const preload = Promise.reject(new Error("preload failed"));
+    preload.catch(() => {}); // pre-handled: the service awaits it later
+    patchWithCleanup(odoo, { loadMenusPromise: preload });
+    onRpc("/web/webclient/load_menus", () => {
+        throw new Error("load_menus unavailable");
+    });
+    await makeMockEnv();
+    expect(getService("menu").getApps()).toEqual([]);
+    expect(getService("menu").getAll().length).toBe(1);
+    expect(getService("menu").getMenu("root").children).toEqual([]);
+});
+
+test.tags("desktop");
 test(`cold boot: a null parse-time preload refetches menus (no blank client)`, async () => {
     // No stored menus for this registry version → cold path. The bootstrap
     // preload resolves null (a 304 the server computed against a stale

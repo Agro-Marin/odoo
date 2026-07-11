@@ -743,7 +743,7 @@
       "TS2554": 2,
       "TS2722": 2
     },
-    "addons/web/static/tests/services/hotkey_sevice.test.js": {
+    "addons/web/static/tests/services/hotkey_service.test.js": {
       "TS2339": 1,
       "TS2345": 1,
       "TS2554": 4,

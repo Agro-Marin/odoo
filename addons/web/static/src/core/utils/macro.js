@@ -208,23 +208,37 @@ export class Macro {
                 await this.onStep({ step, trigger, index: this.currentIndex });
                 return result;
             };
-            const launchTimer = async () => {
-                await delay(timeoutDelay);
-                // Cancel the trigger polling loop, which would otherwise keep
-                // running (and leak) after losing the race.
-                abortController.abort();
-                throw new MacroError(
-                    "Timeout",
-                    `TIMEOUT step failed to complete within ${timeoutDelay} ms.`,
-                );
-            };
+            /** @type {ReturnType<typeof browser.setTimeout>} */
+            let timerHandle;
+            const timerPromise = new Promise((resolve, reject) => {
+                timerHandle = browser.setTimeout(() => {
+                    // Cancel the trigger polling loop, which would otherwise
+                    // keep running (and leak) after losing the race.
+                    abortController.abort();
+                    reject(
+                        new MacroError(
+                            "Timeout",
+                            `TIMEOUT step failed to complete within ${timeoutDelay} ms.`,
+                        ),
+                    );
+                }, timeoutDelay);
+            });
             const stepPromise = executeStep();
             // The race may settle with the timer's rejection: keep the losing
             // step promise's abort rejection from being reported as unhandled.
             stepPromise.catch(() => {});
             // Falsy result → proceed to next step. `Macro.STOP` (or a legacy
             // truthy value) halts without onComplete/onError.
-            const actionResult = await Promise.race([stepPromise, launchTimer()]);
+            let actionResult;
+            try {
+                actionResult = await Promise.race([stepPromise, timerPromise]);
+            } finally {
+                // Whichever way the race settles, the timer must not keep
+                // running: a won race would otherwise leave a live timeout
+                // (and closure) per step for its full duration, and its
+                // late abort() would target an already-finished step.
+                browser.clearTimeout(timerHandle);
+            }
             if (actionResult) {
                 if (actionResult !== Macro.STOP) {
                     // Backward-compat: some callers (e.g. web_tour) still return an

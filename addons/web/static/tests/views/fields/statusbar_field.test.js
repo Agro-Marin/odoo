@@ -134,6 +134,24 @@ test("static statusbar widget on many2one field", async () => {
     );
 });
 
+test("statusbar with an empty statusbar_visible attribute shows all stages", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <header>
+                    <field name="color" widget="statusbar" statusbar_visible="" />
+                </header>
+            </form>
+        `,
+    });
+
+    // An empty attribute means "no restriction", not "current value only".
+    expect(".o_statusbar_status button:not(.dropdown-toggle)").toHaveCount(2);
+});
+
 test("folded statusbar widget on selection field has selected value in the toggler", async () => {
     /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {

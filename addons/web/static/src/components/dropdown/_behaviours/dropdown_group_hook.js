@@ -33,10 +33,13 @@ export function useDropdownGroup() {
 
     if (group.isInGroup) {
         const dropdown = /** @type {any} */ (useComponent());
-        useEffect(() => {
-            envAny[DROPDOWN_GROUP].add(dropdown.state);
-            return () => envAny[DROPDOWN_GROUP].delete(dropdown.state);
-        });
+        useEffect(
+            () => {
+                envAny[DROPDOWN_GROUP].add(dropdown.state);
+                return () => envAny[DROPDOWN_GROUP].delete(dropdown.state);
+            },
+            () => [],
+        );
     }
 
     return group;

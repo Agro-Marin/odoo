@@ -434,7 +434,14 @@ export class AutoComplete extends Component {
             return;
         }
         // selectOnBlur: auto-select the first suggestion, if any, on blur.
-        if (this.props.selectOnBlur && !this.isOptionSelected && this.sources[0]) {
+        // Skip while a load is in flight: the displayed options belong to a
+        // previous search string and would auto-select a stale option.
+        if (
+            this.props.selectOnBlur &&
+            !this.isOptionSelected &&
+            !this.loadingPromise &&
+            this.sources[0]
+        ) {
             const firstOption = this.sources[0].options[0];
             if (firstOption) {
                 this.state.activeSourceOption = firstOption.unselectable
@@ -610,8 +617,10 @@ export class AutoComplete extends Component {
             return;
         }
         if (isScrollableY(this.listRef.el)) {
+            // props.id is embedded verbatim in the option ids: escape it so
+            // CSS-significant characters can't break the selector.
             const element = this.listRef.el.querySelector(
-                `#${this.activeSourceOptionId}`,
+                `#${CSS.escape(this.activeSourceOptionId)}`,
             );
             if (element) {
                 scrollTo(element);

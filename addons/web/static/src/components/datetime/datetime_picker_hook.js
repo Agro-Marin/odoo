@@ -3,7 +3,7 @@
 
 /** @module @web/components/datetime/datetime_picker_hook - Hook that wires input refs to the datetime picker service */
 
-import { onWillDestroy, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {import("./datetime_picker_service").DateTimePickerServiceParams & {
@@ -32,13 +32,7 @@ export function useDateTimePicker(params) {
         useOwlHooks: true,
     });
 
-    const picker = useService("datetime_picker").create(serviceParams);
-    onWillDestroy(() => {
-        // Proactively tear down the popover on owner destroy. The service marks
-        // itself destroyed first (its own onWillDestroy, registered earlier), so
-        // the resulting onClose no longer applies against the destroyed owner.
-        picker.close();
-        picker.disable();
-    });
-    return picker;
+    // With `useOwlHooks` the service auto-registers an onWillDestroy that
+    // disposes the picker (popover teardown + registration release).
+    return useService("datetime_picker").create(serviceParams);
 }

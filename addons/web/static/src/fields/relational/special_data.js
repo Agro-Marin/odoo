@@ -23,10 +23,12 @@ export function useSpecialData(loadFn) {
     const { specialDataCaches } = record.model;
     const orm = component.env.services.orm;
     const ormWithCache = Object.create(orm);
-    ormWithCache.call = async (...args) => {
+    ormWithCache.call = (...args) => {
         const key = JSON.stringify(args);
         if (!specialDataCaches[key]) {
-            return await orm
+            // Store the in-flight promise synchronously so concurrent first
+            // calls share it instead of re-entering the RPC cache layer.
+            const prom = orm
                 .cache({
                     type: "disk",
                     update: "always",
@@ -40,6 +42,13 @@ export function useSpecialData(loadFn) {
                     },
                 })
                 .call(...args);
+            specialDataCaches[key] = prom;
+            prom.catch(() => {
+                // Do not cache failures: the next call must retry.
+                if (specialDataCaches[key] === prom) {
+                    delete specialDataCaches[key];
+                }
+            });
         }
         return specialDataCaches[key];
     };

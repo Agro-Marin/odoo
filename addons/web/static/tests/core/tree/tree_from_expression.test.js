@@ -217,6 +217,40 @@ test("treeFromExpression", () => {
             expression: `expr in []`,
             result: complexCondition(`expr in []`),
         },
+        // `not <literal>`: the negation folds into the constant leaf
+        {
+            expression: `not 1`,
+            result: condition(0, "=", 1),
+        },
+        {
+            expression: `not 0`,
+            result: condition(1, "=", 1),
+        },
+        {
+            expression: `not True`,
+            result: condition(0, "=", 1),
+        },
+        {
+            expression: `not "a"`,
+            result: condition(0, "=", 1),
+        },
+        {
+            expression: `not not 1`,
+            result: condition(1, "=", 1),
+        },
+        {
+            expression: `1`,
+            result: condition(1, "=", 1),
+        },
+        // the legacy <> comparator normalizes to !=
+        {
+            expression: `foo <> 1`,
+            result: condition("foo", "!=", 1),
+        },
+        {
+            expression: `a <> b`,
+            result: complexCondition(`a != b`),
+        },
     ];
     for (const { expression, result, extraOptions } of toTest) {
         const o = { ...options, ...extraOptions };

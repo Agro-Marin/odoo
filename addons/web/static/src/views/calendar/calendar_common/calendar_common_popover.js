@@ -132,7 +132,11 @@ export class CalendarCommonPopover extends Component {
                 const minuteStr = duration.minutes === 1 ? _t("minute") : _t("minutes");
                 formatParts.push(`m '${minuteStr}'`);
             }
-            this.timeDuration = duration.toFormat(formatParts.join(", "));
+            // Zero-length timed events (start == end) would otherwise render
+            // an empty duration line (toFormat("") is "").
+            this.timeDuration = formatParts.length
+                ? duration.toFormat(formatParts.join(", "))
+                : _t("0 minutes");
         }
 
         if (!this.props.model.isDateHidden) {

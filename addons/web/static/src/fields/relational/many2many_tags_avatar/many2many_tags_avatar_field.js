@@ -69,13 +69,10 @@ export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
         close: { type: Function },
     };
 
-    setup() {
-        super.setup();
-        const originalUpdate = this.update;
-        this.update = async (recordList) => {
-            await originalUpdate(recordList);
-            await this._saveUpdate();
-        };
+    /** @override */
+    async update(recordList) {
+        await super.update(recordList);
+        await this._saveUpdate();
     }
 
     /** @override */

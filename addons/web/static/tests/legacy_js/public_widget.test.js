@@ -307,6 +307,53 @@ test("undelegate", async () => {
     });
 });
 
+test("delegated handler does not leak currentTarget to later listeners", async () => {
+    const fixture = getFixture();
+    renderToString.app.addTemplate(
+        "test.public.widget.template.5",
+        `<ol>
+            <li t-foreach="[0, 1, 2]" t-as="counter" t-key="counter_index" t-attf-class="class-#{counter}">
+                <t t-esc="counter"/>
+            </li>
+        </ol>`,
+    );
+
+    let capturedEvent = null;
+    const widget = useWidget(
+        new (Widget.extend({
+            template: "test.public.widget.template.5",
+            events: {
+                "click li": "onLiClick",
+            },
+            onLiClick(ev) {
+                capturedEvent = ev;
+                expect.step("delegated");
+                expect(ev.currentTarget).toBe(this.el.querySelector("li.class-1"), {
+                    message:
+                        "delegated handler should see the delegate target as currentTarget",
+                });
+            },
+        }))(),
+    );
+    widget.renderElement();
+    fixture.appendChild(widget.el);
+    fixture.addEventListener("click", function ancestorHandler(ev) {
+        expect.step("ancestor");
+        expect(ev.currentTarget).toBe(fixture, {
+            message:
+                "an ancestor plain handler running after the delegated one should see its own element",
+        });
+        fixture.removeEventListener("click", ancestorHandler);
+    });
+
+    click(widget.el.querySelector("li.class-1"));
+
+    expect.verifySteps(["delegated", "ancestor"]);
+    expect(Object.hasOwn(capturedEvent, "currentTarget")).toBe(false, {
+        message: "the own currentTarget property must not survive the dispatch",
+    });
+});
+
 test("start is not called when widget is destroyed", async () => {
     const fixture = getFixture();
     // Note: willStart is always async

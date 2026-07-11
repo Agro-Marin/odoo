@@ -3,7 +3,7 @@
 
 /** @module @web/views/list/list_controller - List view orchestrator: pagination, selection, inline editing, multi-edit, and export */
 
-import { onWillRender, useEffect, useState } from "@odoo/owl";
+import { onWillRender, status, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
@@ -98,7 +98,13 @@ export class ListController extends MultiRecordController {
         this.hasMousedownDiscard = false;
         this.nextActionAfterMouseup = null;
 
-        this.optionalActiveFields = {};
+        // Optional-column visibility, OWNED by the controller: the renderer
+        // receives this reactive object as a prop and reads/writes it in
+        // place (localStorage sync, toggle handlers), so controller-side
+        // consumers (getExportableFields) see the renderer's updates. Keep
+        // passing this same object — handing the renderer a copy would
+        // silently break export field filtering.
+        this.optionalActiveFields = useState({});
 
         this.editedRecord = null;
         onWillRender(() => {
@@ -259,7 +265,13 @@ export class ListController extends MultiRecordController {
                 .filter((col) => col.type === "field")
                 .filter(
                     (col) =>
-                        !evaluateBooleanExpr(col.column_invisible, this.props.context),
+                        // Same eval context as the renderer's
+                        // evalColumnInvisible, so the exportable set matches
+                        // the columns actually displayed.
+                        !evaluateBooleanExpr(
+                            col.column_invisible,
+                            this.model.root.evalContext,
+                        ),
                 )
                 .filter((col) => !col.optional || this.optionalActiveFields[col.name])
                 .map((col) => col.name),
@@ -436,6 +448,12 @@ export class ListController extends MultiRecordController {
             "mouseup",
             (mouseUpEvent) => {
                 this.hasMousedownDiscard = false;
+                if (status(this) === "destroyed") {
+                    // Action switch mid-press: never replay the deferred
+                    // save against a torn-down model.
+                    this.nextActionAfterMouseup = null;
+                    return;
+                }
                 if (mouseUpEvent.target !== mouseDownEvent.target) {
                     if (this.nextActionAfterMouseup) {
                         this.nextActionAfterMouseup();

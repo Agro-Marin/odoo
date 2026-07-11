@@ -168,11 +168,19 @@ export const commandService = {
          */
         function openPalette(config, onClose) {
             if (isPaletteOpened) {
-                // Reconfiguring an open palette adopts the new caller's
-                // onClose too — otherwise its cleanup (focus restore, input
-                // reset) silently never runs when the palette closes.
+                // Reconfiguring an open palette composes the new caller's
+                // onClose with the previous one — both cleanups (focus
+                // restore, input reset) must run when the palette closes,
+                // whichever caller registered them.
                 if (onClose) {
-                    currentOnClose = onClose;
+                    const previousOnClose = currentOnClose;
+                    currentOnClose = () => {
+                        try {
+                            previousOnClose?.();
+                        } finally {
+                            onClose();
+                        }
+                    };
                 }
                 bus.trigger(CommandPaletteEvent.SET_CONFIG, config);
                 return;
@@ -189,9 +197,12 @@ export const commandService = {
                 {
                     onClose: () => {
                         isPaletteOpened = false;
-                        if (currentOnClose) {
-                            currentOnClose();
-                        }
+                        // Snapshot and clear before invoking: a callback that
+                        // reopens a palette must not inherit (or grow) the
+                        // closing palette's onClose chain.
+                        const onCloseCallback = currentOnClose;
+                        currentOnClose = undefined;
+                        onCloseCallback?.();
                     },
                 },
             );

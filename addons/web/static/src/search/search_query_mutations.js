@@ -21,9 +21,9 @@ import {
 } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
-/** SearchModel widened so this delegate module can read instance state
- * set across SearchModel's many methods. */
-/** @typedef {any} SearchModel */
+/** The delegate seam contract — see the SearchModelLike typedef for the
+ * instance state this module may read or write. */
+/** @typedef {import("./search_model").SearchModelLike} SearchModel */
 
 /**
  * Deactivate the order-by-count flag when no active groupBy/dateGroupBy exists.
@@ -168,12 +168,13 @@ export async function createNewFavorite(searchModel, params) {
  * Create new search items of type 'filter' and activate them.
  * @param {SearchModel} searchModel
  * @param {Object[]} prefilters
- * @returns {number[]}
+ * @returns {number[]} ids of the created search items
  */
 export function createNewFilters(searchModel, prefilters) {
     if (!prefilters.length) {
         return [];
     }
+    const searchItemIds = [];
     prefilters.forEach((preFilter) => {
         // Copy rather than Object.assign onto the caller's prefilter — this is
         // public API (search_model.createNewFilters); stamping id/groupId/type
@@ -187,11 +188,13 @@ export function createNewFilters(searchModel, prefilters) {
         };
         searchModel.searchItems[searchModel.nextId] = filter;
         searchModel.query.push({ searchItemId: searchModel.nextId });
+        searchItemIds.push(searchModel.nextId);
         searchModel.nextId++;
     });
     searchModel.nextGroupId++;
     searchModel.nextGroupNumber++;
     searchModel._notify();
+    return searchItemIds;
 }
 
 /**
@@ -201,6 +204,7 @@ export function createNewFilters(searchModel, prefilters) {
  * @param {Object} [options]
  * @param {string} [options.interval]
  * @param {boolean} [options.invisible]
+ * @returns {number} id of the created search item
  */
 export function createNewGroupBy(searchModel, fieldName, { interval, invisible } = {}) {
     const field = searchModel.searchViewFields[fieldName];
@@ -244,6 +248,7 @@ export function createNewGroupBy(searchModel, fieldName, { interval, invisible }
         searchModel.nextId++;
     });
     searchModel._notify();
+    return preSearchItem.id;
 }
 
 /**

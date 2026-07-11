@@ -332,6 +332,26 @@ export default [
                 QUnit: "readonly",
             },
         },
+        rules: {
+            // Under native ESM, module identity is keyed by resolved URL, so a
+            // relative `../src/...` import and the canonical `@addon/...` bare
+            // specifier for the same file resolve to TWO distinct module
+            // instances. Tests that imported source that way got duplicate
+            // class references, breaking `instanceof`/`Array.includes` identity
+            // checks (e.g. plugin-set membership) and silently 404'ing on the
+            // un-normalized path. Always import addon source via its bare
+            // specifier. The old odoo.define loader hid this by normalizing
+            // paths; native ESM does not.
+            "no-restricted-imports": ["error", {
+                patterns: [
+                    {
+                        group: ["**/../src/**", "**/src/*"],
+                        message:
+                            "Do not import addon source from a test via a relative '../src/...' path — under native ESM it resolves to a DUPLICATE module instance (breaks class identity / plugin-set membership and 404s the un-normalized URL). Use the canonical bare specifier, e.g. `@html_editor/...` or `@web/...`.",
+                    },
+                ],
+            }],
+        },
     },
 
     // =========================================================================

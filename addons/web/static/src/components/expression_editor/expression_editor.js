@@ -143,11 +143,18 @@ export class ExpressionEditor extends Component {
      * @param {Object} tree - condition tree to serialize into a Python expression
      */
     update(tree) {
-        const expression = expressionFromTree(/** @type {any} */ (tree), {
-            getFieldDef: (name) =>
-                this.getFieldDef(/** @type {string | number} */ (name)),
-            generateSmartDates: false,
-        });
+        let expression;
+        try {
+            expression = expressionFromTree(/** @type {any} */ (tree), {
+                getFieldDef: (name) =>
+                    this.getFieldDef(/** @type {string | number} */ (name)),
+                generateSmartDates: false,
+            });
+        } catch {
+            // The edited tree has no expression representation: keep the
+            // previous expression instead of persisting an error artifact.
+            expression = this.props.expression;
+        }
         this.props.update(expression);
     }
 }

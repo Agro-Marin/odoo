@@ -20,6 +20,7 @@ import {
     getDefaultValue,
     getValueEditorInfo,
 } from "@web/components/tree_editor/tree_editor_value_editors";
+import { parseExpr } from "@web/core/py_js/py";
 import { cloneTree, connector, isTree, TRUE_TREE } from "@web/core/tree/condition_tree";
 import { getResModel } from "@web/core/tree/utils";
 import { areEquivalentTrees } from "@web/core/tree/virtual_operators";
@@ -148,6 +149,14 @@ export class TreeEditor extends Component {
      * @param {string} value
      */
     _updateComplexCondition(node, value) {
+        // Same validation as the complexCondition() factory: unparseable
+        // input would corrupt every later tree -> expression/domain
+        // conversion, so keep the previous value instead.
+        try {
+            parseExpr(value);
+        } catch {
+            return;
+        }
         node.value = value;
     }
 

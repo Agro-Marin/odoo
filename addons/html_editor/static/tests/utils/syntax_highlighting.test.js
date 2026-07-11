@@ -1,6 +1,6 @@
 import { getPreValue } from "@html_editor/others/embedded_components/core/syntax_highlighting/syntax_highlighting_utils";
 import { describe, expect, test } from "@odoo/hoot";
-import { insertTestHtml } from "../_helpers/editor";
+import { insertTestHtml } from "../_helpers/editor.js";
 
 describe("getPreValue", () => {
     test("preserves multiple consecutive br as multiple newlines", () => {

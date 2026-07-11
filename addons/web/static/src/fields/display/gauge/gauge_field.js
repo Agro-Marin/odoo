@@ -66,12 +66,17 @@ export class GaugeField extends Component {
         );
     }
 
+    /**
+     * @param {number | false} value
+     * @returns {string} Human-readable formatted value with 1 decimal.
+     */
+    formatValue(value) {
+        return formatFloat(value, { humanReadable: true, decimals: 1 });
+    }
+
     /** @returns {string} Human-readable formatted value with 1 decimal. */
     get formattedValue() {
-        return formatFloat(this.props.record.data[this.props.name], {
-            humanReadable: true,
-            decimals: 1,
-        });
+        return this.formatValue(this.props.record.data[this.props.name]);
     }
 
     /** Creates and renders the Chart.js doughnut gauge on the canvas element. */
@@ -115,13 +120,15 @@ export class GaugeField extends Component {
                     tooltip: {
                         displayColors: false,
                         callbacks: {
-                            label: function (tooltipItem) {
+                            label: (tooltipItem) => {
                                 if (tooltipItem.dataIndex === 0) {
                                     return _t("Value: %(value)s", {
-                                        value: gaugeValue,
+                                        value: this.formatValue(gaugeValue),
                                     });
                                 }
-                                return _t("Max: %(max)s", { max: maxLabel });
+                                return _t("Max: %(max)s", {
+                                    max: this.formatValue(maxLabel),
+                                });
                             },
                         },
                     },

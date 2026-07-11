@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import Class from "@web/legacy/js/core/class";
 
 // Hoot port of the former QUnit suite `tests/legacy/legacy_tests/core/class_tests.js`.
@@ -143,6 +144,35 @@ test("in-place extensions alter existing instances", () => {
     });
     expect(i.foo()).toBe(2);
     expect(i.bar()).toBe(3);
+});
+
+test("include: new method mentioning _super is installed, not dropped", () => {
+    patchWithCleanup(console, { warn: () => expect.step("warn") });
+    const C0 = Class.extend({});
+
+    C0.include({
+        foo() {
+            // an innocuous _super mention in a comment must not drop the method
+            return 42;
+        },
+    });
+
+    expect.verifySteps(["warn"]);
+    expect(new C0().foo()).toBe(42);
+});
+
+test("include: new method actually calling _super throws loudly", () => {
+    patchWithCleanup(console, { warn: () => expect.step("warn") });
+    const C0 = Class.extend({});
+
+    C0.include({
+        bar() {
+            return this._super();
+        },
+    });
+
+    expect.verifySteps(["warn"]);
+    expect(() => new C0().bar()).toThrow(/no _super implementation/);
 });
 
 test("in-place extension of subclassed types", () => {

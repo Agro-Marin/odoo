@@ -3297,6 +3297,93 @@ test("expand a group while loading a filter", async () => {
     expect(getCurrentValues()).toBe(["20", "20"].join(","));
 });
 
+test("load a filter while a group expansion is pending", async () => {
+    // Reverse interleaving of "expand a group while loading a filter": the
+    // reload supersedes the pending expansion, which must settle and release
+    // the expand mutex (otherwise every later expansion queues forever).
+    let def;
+    onRpc("formatted_read_grouping_sets", () => def);
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+			<pivot>
+				<field name="foo" type="measure"/>
+				<field name="product_id" type="row"/>
+			</pivot>`,
+        searchViewArch: `
+			<search>
+				<filter name="my_filter" string="My Filter" domain="[('product_id', '=', 41)]"/>
+			</search>`,
+    });
+
+    expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
+
+    // Add a groupby on the first row group; its read_group is delayed
+    def = new Deferred();
+    await contains("tbody .o_pivot_header_cell_closed").click();
+    await contains(".o-dropdown--menu .dropdown-item").click();
+    expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
+
+    // Set a domain while the expansion is in flight: it supersedes it
+    await toggleSearchBarMenu();
+    await toggleMenuItem("My Filter");
+    expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
+
+    def.resolve();
+    await animationFrame();
+
+    // The reload won; the superseded expansion was discarded
+    expect(getCurrentValues()).toBe(["20", "20"].join(","));
+
+    // The mutex was released: a new expansion still works
+    def = undefined;
+    await contains("tbody .o_pivot_header_cell_closed").click();
+    await contains(".o-dropdown--menu .dropdown-item").click();
+    expect(getCurrentValues()).toBe(["20", "20", "17", "3"].join(","));
+});
+
+test("close an ancestor while a descendant expansion is in flight", async () => {
+    let def;
+    onRpc("formatted_read_grouping_sets", () => def);
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+			<pivot>
+				<field name="foo" type="measure"/>
+				<field name="product_id" type="row"/>
+			</pivot>`,
+    });
+
+    // Add a groupby, to have a group to expand afterwards
+    await contains("tbody .o_pivot_header_cell_closed").click();
+    await contains(".o-dropdown--menu .dropdown-item").click();
+    expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
+
+    // Expand the xpad group (delayed read_group)
+    def = new Deferred();
+    await contains("tbody .o_pivot_header_cell_closed:eq(1)").click();
+    expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
+
+    // Close the ancestor (Total row) while the expansion is in flight: it
+    // queues after the expansion instead of pulling the tree from under it
+    await contains("tbody .o_pivot_header_cell_opened:eq(0)").click();
+    expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
+
+    def.resolve();
+    await animationFrame();
+
+    // No crash: the expansion applied, then the close collapsed everything
+    expect(getCurrentValues()).toBe(["32"].join(","));
+
+    // Still functional: group again from scratch
+    def = undefined;
+    await contains("tbody .o_pivot_header_cell_closed").click();
+    await contains(".o-dropdown--menu .dropdown-item").click();
+    expect(getCurrentValues()).toBe(["32", "29", "3"].join(","));
+});
+
 test("concurrent reloads: add a filter, and directly toggle a measure", async () => {
     let def;
     onRpc("formatted_read_grouping_sets", () => def);

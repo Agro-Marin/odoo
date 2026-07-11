@@ -108,7 +108,9 @@ export class PyDate {
      * @returns {boolean}
      */
     isEqual(other) {
-        if (!(other instanceof PyDate)) {
+        // PyTime extends PyDate (it stamps "today" as its date part), so an
+        // exact-kind guard is needed: Python date == time is always False.
+        if (!(other instanceof PyDate) || other instanceof PyTime) {
             return false;
         }
         return (
@@ -138,7 +140,10 @@ export class PyDate {
         if (other instanceof PyTimeDelta) {
             return this.add(other.negate());
         }
-        if (other instanceof PyDate) {
+        // Exact-kind guard: PyTime extends PyDate, and date - time is a
+        // TypeError in Python (the inherited date branch would return a
+        // nonsense timedelta based on the time's stamped "today").
+        if (other instanceof PyDate && !(other instanceof PyTime)) {
             return PyTimeDelta.create(this.toordinal() - other.toordinal());
         }
         throw new NotSupportedError();
@@ -440,6 +445,43 @@ export class PyTime extends PyDate {
     }
 
     /**
+     * Python's time supports no arithmetic at all (time ± timedelta and
+     * time - time are TypeErrors); block the operations inherited from PyDate,
+     * which would silently use the stamped "today" date part.
+     *
+     * @param {PyTimeDelta} [timedelta]
+     * @returns {PyDate}
+     */
+    add(timedelta) {
+        throw new NotSupportedError();
+    }
+
+    /**
+     * @param {PyTimeDelta | PyDate} [other]
+     * @returns {PyDate | PyTimeDelta}
+     */
+    subtract(other) {
+        throw new NotSupportedError();
+    }
+
+    /**
+     * @param {any} other
+     * @returns {boolean}
+     */
+    isEqual(other) {
+        // Overrides the inherited date-part comparison, which tied ALL times
+        // created the same day and could equate a time with a plain date.
+        if (!(other instanceof PyTime)) {
+            return false;
+        }
+        return (
+            this.hour === other.hour &&
+            this.minute === other.minute &&
+            this.second === other.second
+        );
+    }
+
+    /**
      * @param {string} format
      * @returns {string}
      */
@@ -480,8 +522,23 @@ export class PyTime extends PyDate {
  */
 const DAYS_IN_YEAR = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 366];
 
-const TIME_PERIODS = ["hour", "minute", "second"];
-const PERIODS = ["year", "month", "day", ...TIME_PERIODS];
+/**
+ * Valid ranges for the ABSOLUTE (singular) arguments, mirroring what
+ * dateutil/CPython ultimately enforce when the delta is applied
+ * (IllegalMonthError for month, ValueError from datetime.replace for the
+ * others). Relative (plural) arguments are unbounded, negative included.
+ */
+const PERIOD_RANGES = {
+    year: [1, 9999],
+    month: [1, 12],
+    // day has no upper bound: dateutil clamps any excess (day=31/45 both mean
+    // "last day of the month"), and PyRelativeDelta.add clamps identically.
+    day: [1, Infinity],
+    hour: [0, 23],
+    minute: [0, 59],
+    second: [0, 59],
+    microsecond: [0, 999999],
+};
 
 const RELATIVE_KEYS =
     "years months weeks days hours minutes seconds microseconds leapdays".split(" ");
@@ -501,10 +558,10 @@ export class PyRelativeDelta {
         if ("dt1" in params) {
             throw new Error("relativedelta(dt1, dt2) is not supported for now");
         }
-        for (const period of PERIODS) {
-            if (period in params) {
+        for (const [period, [min, max]] of Object.entries(PERIOD_RANGES)) {
+            if (period in params && params[period] !== null) {
                 const val = params[period];
-                assert(val >= 0, `${period} ${val} is out of range`);
+                assert(val >= min && val <= max, `${period} ${val} is out of range`);
             }
         }
 

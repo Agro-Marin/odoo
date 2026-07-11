@@ -243,6 +243,36 @@ test(`startServices: cascade-skips transitive consumers when a dep is missing`, 
     expect(warnings[0][0]).toMatch(/Skipped 2 service\(s\)/);
 });
 
+test(`registry UPDATE while missing-dep leftovers exist starts the new service (no false circular throw)`, async () => {
+    // The old implementation shared one ``toStart`` Map between the UPDATE
+    // listener and in-flight passes: a startable service landing while
+    // cascade-skip leftovers existed could reach the post-wave check and be
+    // misreported as "Circular service dependency detected". The listener
+    // now always schedules a fresh pass, and the final check only throws
+    // when findDependencyCycle actually finds a cycle.
+    const env = makeEnv();
+    after(() => env.disposeServiceRegistryListener?.());
+    // Leftover state: "b" depends on a never-registered "a".
+    registerService("b", ["a"], () => "b");
+
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args);
+    after(() => {
+        console.warn = originalWarn;
+    });
+
+    await startServices(env);
+    expect(env.services).toEqual({});
+
+    // A fully-satisfiable service registered afterwards must start via the
+    // UPDATE listener without throwing.
+    registerService("standalone", [], () => "s");
+    await tick();
+    await tick();
+    expect(env.services).toEqual({ standalone: "s" });
+});
+
 test(`startServices: still throws on genuine circular dependency`, async () => {
     // Cascade-skip removes services with truly missing deps; anything
     // remaining in toStart must have all deps registered yet failed to

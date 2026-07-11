@@ -152,13 +152,16 @@ export class KanbanArchParser {
                 return false;
             }
             if (node.tagName === "field") {
+                const fieldName = node.getAttribute("name");
+                const field = models[modelName].fields[fieldName];
+                if (!field) {
+                    throw new Error(
+                        `Kanban arch parsing error: <field name="${fieldName}"/> does not exist on model "${modelName}"`,
+                    );
+                }
                 // In kanban, we display many2many fields as tags by default
                 const widget = node.getAttribute("widget");
-                if (
-                    !widget &&
-                    models[modelName].fields[node.getAttribute("name")].type ===
-                        "many2many"
-                ) {
+                if (!widget && field.type === "many2many") {
                     node.setAttribute("widget", "many2many_tags");
                 }
                 const fieldInfo = parseFieldNode(
@@ -267,9 +270,18 @@ export class KanbanArchParser {
             "sum_field",
             "help",
         ]);
+        let colors;
+        try {
+            colors = JSON.parse(attrs.colors);
+        } catch (error) {
+            throw new Error(
+                `Kanban arch parsing error: invalid "colors" attribute on <progressbar/> (must be a JSON object mapping field values to color names): ${error.message}`,
+                { cause: error },
+            );
+        }
         return {
             fieldName: attrs.field,
-            colors: JSON.parse(attrs.colors),
+            colors,
             sumField: fields[attrs.sum_field] || false,
             help: attrs.help,
         };

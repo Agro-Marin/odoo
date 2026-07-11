@@ -48,7 +48,9 @@ export function buildFacets({
                 groupActiveItemDomains.push(domain);
             }
             const searchItem = searchItems[activeItem.searchItemId];
-            tooltip = searchItem.tooltip;
+            // ||=: keep the first tooltip found in the group — a later item
+            // without one (e.g. OR'd split filters) must not erase it.
+            tooltip ||= searchItem.tooltip;
             switch (searchItem.type) {
                 case "field_property":
                 case "field": {

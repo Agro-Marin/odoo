@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_model - Search state machine managing facets, domains, groupbys, favorites, and comparisons */
+/** @module @web/search/search_model - Search state machine managing facets, domains, groupbys, and favorites */
 
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -57,6 +57,51 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { Domain, DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
+
+/**
+ * Structural contract between SearchModel and its delegate modules
+ * (search_query_mutations, search_split_domain, search_properties,
+ * search_panel/search_panel_state). It documents the instance state those
+ * delegates read or write — the real seam left by the facade split — so a
+ * rename on the model side is caught at the seam instead of type-checking
+ * silently. Delegates also call back into model methods (`_notify`,
+ * `_getGroups`, `createNewFilters`, …); those, plus subclass extensions
+ * (documents, knowledge, account_reports, …), are admitted by the
+ * `Record<string, any>` intersection.
+ *
+ * @typedef {{
+ *   env: Object,
+ *   orm: Object,
+ *   dialog: Object,
+ *   DomainSelectorDialog: Function,
+ *   getDefaultDomain: Function,
+ *   treeProcessor: Object,
+ *   resModel: string,
+ *   isDebugMode: boolean,
+ *   globalContext: Object,
+ *   referenceMoment: Object,
+ *   blockNotification: boolean,
+ *   orderByCount: string | false,
+ *   defaultGroupBy: string[] | undefined,
+ *   query: Object[],
+ *   searchItems: Record<number, Object>,
+ *   searchViewFields: Record<string, Object>,
+ *   nextId: number,
+ *   nextGroupId: number,
+ *   nextGroupNumber: number,
+ *   facets: Object[],
+ *   sections: Map<number, Section>,
+ *   categories: Object[],
+ *   filters: Object[],
+ *   searchDomain: any[],
+ *   searchPanelInfo: Object,
+ *   sectionsPromise: Promise<void> | undefined,
+ *   categoriesLoadId: number,
+ *   filtersLoadId: number,
+ *   display: Object,
+ *   _sections: Object[] | null,
+ * } & Record<string, any>} SearchModelLike
+ */
 
 /**
  * @typedef {Object} Section
@@ -222,88 +267,100 @@ export class SearchModel extends EventBus {
             return;
         }
 
+        // try/finally: a throw between here and the end of load() (label
+        // callbacks, section fetches) must not leave the model permanently
+        // muted.
         this.blockNotification = true;
+        try {
+            this.searchItems = {};
+            this.query = [];
 
-        this.searchItems = {};
-        this.query = [];
+            this.nextId = 1;
+            this.nextGroupId = 1;
+            this.nextGroupNumber = 1;
 
-        this.nextId = 1;
-        this.nextGroupId = 1;
-        this.nextGroupNumber = 1;
+            const parser = new SearchArchParser(
+                searchViewDescription,
+                searchViewFields,
+                searchDefaults,
+                searchPanelDefaults,
+            );
+            const { labels, preSearchItems, searchPanelInfo, sections } =
+                parser.parse();
 
-        const parser = new SearchArchParser(
-            searchViewDescription,
-            searchViewFields,
-            searchDefaults,
-            searchPanelDefaults,
-        );
-        const { labels, preSearchItems, searchPanelInfo, sections } = parser.parse();
+            this.searchPanelInfo = {
+                ...searchPanelInfo,
+                loaded: false,
+                shouldReload: false,
+            };
 
-        this.searchPanelInfo = {
-            ...searchPanelInfo,
-            loaded: false,
-            shouldReload: false,
-        };
+            await Promise.all(labels.map((cb) => cb(this.orm)));
 
-        await Promise.all(labels.map((cb) => cb(this.orm)));
+            // prepare search items (populate this.searchItems)
+            for (const preGroup of preSearchItems || []) {
+                this._createGroupOfSearchItems(preGroup);
+            }
+            this.nextGroupNumber =
+                1 +
+                Math.max(
+                    ...Object.values(this.searchItems).map((i) => i.groupNumber || 0),
+                    0,
+                );
 
-        // prepare search items (populate this.searchItems)
-        for (const preGroup of preSearchItems || []) {
-            this._createGroupOfSearchItems(preGroup);
-        }
-        this.nextGroupNumber =
-            1 +
-            Math.max(
-                ...Object.values(this.searchItems).map((i) => i.groupNumber || 0),
-                0,
+            const { dynamicFilters } = config;
+            if (dynamicFilters) {
+                this._createGroupOfDynamicFilters(dynamicFilters);
+            }
+
+            const defaultFavoriteId = this._createGroupOfFavorites(
+                this.irFilters || [],
+            );
+            const activateFavorite =
+                "activateFavorite" in config ? config.activateFavorite : true;
+
+            // activate default search items (populate this.query)
+            this._activateDefaultSearchItems(
+                activateFavorite ? defaultFavoriteId : null,
             );
 
-        const { dynamicFilters } = config;
-        if (dynamicFilters) {
-            this._createGroupOfDynamicFilters(dynamicFilters);
-        }
+            // prepare search panel sections
 
-        const defaultFavoriteId = this._createGroupOfFavorites(this.irFilters || []);
-        const activateFavorite =
-            "activateFavorite" in config ? config.activateFavorite : true;
-
-        // activate default search items (populate this.query)
-        this._activateDefaultSearchItems(activateFavorite ? defaultFavoriteId : null);
-
-        // prepare search panel sections
-
-        /** @type Map<number,Section> */
-        // sections from the parser is an entries-compatible array; the typedef
-        // hasn't tracked that, so cast at the boundary.
-        this.sections = new Map(/** @type {[number, Section][]} */ (sections || []));
-        this.display = this._getDisplay(config.display);
-
-        if (this.display.searchPanel) {
-            /** @type {DomainListRepr} */
-            this.searchDomain = /** @type {DomainListRepr} */ (
-                this._getDomain({ withSearchPanel: false })
+            /** @type Map<number,Section> */
+            // sections from the parser is an entries-compatible array; the
+            // typedef hasn't tracked that, so cast at the boundary.
+            this.sections = new Map(
+                /** @type {[number, Section][]} */ (sections || []),
             );
-            this.sectionsPromise = (async () => {
-                await this._fetchSections(this.categories, this.filters);
-                for (const { fieldName, values } of this.filters) {
-                    const filterDefaults = searchPanelDefaults[fieldName] || [];
-                    for (const valueId of filterDefaults) {
-                        const value = values.get(valueId);
-                        if (value) {
-                            value.checked = true;
+            this.display = this._getDisplay(config.display);
+
+            if (this.display.searchPanel) {
+                /** @type {DomainListRepr} */
+                this.searchDomain = /** @type {DomainListRepr} */ (
+                    this._getDomain({ withSearchPanel: false })
+                );
+                this.sectionsPromise = (async () => {
+                    await this._fetchSections(this.categories, this.filters);
+                    for (const { fieldName, values } of this.filters) {
+                        const filterDefaults = searchPanelDefaults[fieldName] || [];
+                        for (const valueId of filterDefaults) {
+                            const value = values.get(valueId);
+                            if (value) {
+                                value.checked = true;
+                            }
                         }
                     }
+                    this._sections = null;
+                })();
+                if (
+                    Object.keys(searchPanelDefaults).length ||
+                    this._shouldWaitForData(false)
+                ) {
+                    await this.sectionsPromise;
                 }
-            })();
-            if (
-                Object.keys(searchPanelDefaults).length ||
-                this._shouldWaitForData(false)
-            ) {
-                await this.sectionsPromise;
             }
+        } finally {
+            this.blockNotification = false;
         }
-
-        this.blockNotification = false;
     }
 
     /**
@@ -464,7 +521,11 @@ export class SearchModel extends EventBus {
         return queryMut.createNewFavorite(this, params);
     }
 
-    /** Create new search items of type 'filter' and activate them. */
+    /**
+     * Create new search items of type 'filter' and activate them.
+     * @param {Object[]} prefilters
+     * @returns {number[]} ids of the created search items
+     */
     createNewFilters(prefilters) {
         return queryMut.createNewFilters(this, prefilters);
     }
@@ -473,6 +534,7 @@ export class SearchModel extends EventBus {
      * Create a new filter of type 'groupBy' or 'dateGroupBy' and activate it.
      * @param {string} fieldName
      * @param {Object} [param]
+     * @returns {number} id of the created search item
      */
     createNewGroupBy(fieldName, { interval, invisible } = {}) {
         return queryMut.createNewGroupBy(this, fieldName, { interval, invisible });
@@ -1045,6 +1107,7 @@ export class SearchModel extends EventBus {
         this._groups = null;
         this._facets = null;
         this._enrichedSearchItems = null;
+        this._sections = null;
     }
 
     /** Whether the query should wait for section data before proceeding. */

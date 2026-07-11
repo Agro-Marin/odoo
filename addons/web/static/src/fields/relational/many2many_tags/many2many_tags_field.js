@@ -97,10 +97,11 @@ export class Many2ManyTagsField extends Component {
         this.autoCompleteRef = useRef("autoComplete");
         this.mutex = new Mutex();
 
-        const { saveRecord, removeRecord } = useX2ManyCrud(
+        const { linkRecords, removeRecord } = useX2ManyCrud(
             () => this.props.record.data[this.props.name],
             true,
         );
+        this.linkRecords = linkRecords;
 
         this.activeActions = useActiveActions({
             fieldType: "many2many",
@@ -130,19 +131,9 @@ export class Many2ManyTagsField extends Component {
             }),
         );
 
-        this.update = (recordlist) => {
-            recordlist = recordlist
-                ? recordlist.filter(
-                      (element) =>
-                          !this.tags.some((record) => record.resId === element.id),
-                  )
-                : [];
-            if (!recordlist.length) {
-                return;
-            }
-            const resIds = recordlist.map((rec) => rec.id);
-            return saveRecord(resIds);
-        };
+        // Bind here (not in the template) so the bound function resolves
+        // subclass overrides of `update` through the prototype chain.
+        this.update = this.update.bind(this);
 
         if (this.props.canQuickCreate) {
             this.quickCreate = async (name) => {
@@ -154,9 +145,27 @@ export class Many2ManyTagsField extends Component {
                         context: this.props.context,
                     },
                 );
-                return saveRecord([created[0]]);
+                return linkRecords([created[0]]);
             };
         }
+    }
+
+    /**
+     * Links the given records (not already linked) to the many2many.
+     *
+     * @param {Array<{ id: number }>|false} recordList
+     */
+    update(recordList) {
+        recordList = recordList
+            ? recordList.filter(
+                  (element) => !this.tags.some((record) => record.resId === element.id),
+              )
+            : [];
+        if (!recordList.length) {
+            return;
+        }
+        const resIds = recordList.map((rec) => rec.id);
+        return this.linkRecords(resIds);
     }
 
     /** @returns {string} Co-model name for the relation */

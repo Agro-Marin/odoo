@@ -44,6 +44,13 @@ export function irFilterToFavorite(irFilter) {
         isInvalid = true;
         sort = [];
     }
+    // JSON.parse returns non-arrays without throwing (e.g. `false` for a NULL
+    // column read); quarantine those like an unparseable blob instead of
+    // crashing on sort.map below.
+    if (!Array.isArray(sort)) {
+        isInvalid = true;
+        sort = [];
+    }
     // Validate the stored domain up front: Domain.or([...favorite.domain]) in
     // facet building throws on an unparseable domain inside a notifications-
     // blocked window, poisoning the whole search model — mark invalid instead
@@ -114,7 +121,15 @@ export function reconciliateFavorites(
         }
         const irFilter = mapping[item.serverSideId];
         if (irFilter) {
-            Object.assign(item, irFilterToFavoriteFn(irFilter));
+            // Replace rather than merge: merging cannot remove stale keys
+            // (e.g. `isDefault` on a favorite un-defaulted server-side, which
+            // irFilterToFavorite only sets when truthy). Keep the identity
+            // keys assigned at creation time.
+            const { id, groupId } = item;
+            searchItems[id] = Object.assign(irFilterToFavoriteFn(irFilter), {
+                id,
+                groupId,
+            });
             delete mapping[item.serverSideId];
         } else {
             const queryIndex = query.findIndex((q) => q.searchItemId === item.id);

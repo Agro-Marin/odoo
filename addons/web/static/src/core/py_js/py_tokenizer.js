@@ -41,15 +41,14 @@ const directMap = {
 
 /**
  * Decodes a Python string literal (embedded in a JS string) into a JS
- * string, resolving escapes. ``unicode`` selects bytestring vs unicode
- * literal decoding, which only affects whether unicode escapes are decoded
- * (everything else ends up as a JS "unicode" string regardless).
+ * string, resolving escapes. Python 3 semantics: every string literal
+ * decodes ``\u``/``\U``/``\x``/octal escapes (a ``u``/``U`` prefix is
+ * accepted by the grammar but changes nothing, as in CPython).
  *
  * @param {string} str
- * @param {boolean} unicode
  * @returns {string}
  */
-function decodeStringLiteral(str, unicode) {
+function decodeStringLiteral(str) {
     const out = [];
     let code;
     for (let i = 0; i < str.length; ++i) {
@@ -68,16 +67,10 @@ function decodeStringLiteral(str, unicode) {
             case "\n":
                 ++i;
                 continue;
-            // Character named name in the Unicode database (Unicode only)
+            // Character named name in the Unicode database
             case "N":
-                if (!unicode) {
-                    break;
-                }
                 throw new TokenizerError("SyntaxError: \\N{} escape not implemented");
             case "u": {
-                if (!unicode) {
-                    break;
-                }
                 const uni = str.slice(i + 2, i + 6);
                 if (!/[0-9a-f]{4}/i.test(uni)) {
                     throw new TokenizerError(
@@ -98,9 +91,6 @@ function decodeStringLiteral(str, unicode) {
                 continue;
             }
             case "U": {
-                if (!unicode) {
-                    break;
-                }
                 // \UXXXXXXXX — 8-digit Unicode code point escape
                 const codePointHex = str.slice(i + 2, i + 10);
                 if (!/[0-9a-f]{8}/i.test(codePointHex)) {
@@ -122,9 +112,6 @@ function decodeStringLiteral(str, unicode) {
                 // get 2 hex digits
                 const hex = str.slice(i + 2, i + 4);
                 if (!/[0-9a-f]{2}/i.test(hex)) {
-                    if (!unicode) {
-                        throw new TokenizerError("ValueError: invalid \\x escape");
-                    }
                     throw new TokenizerError(
                         [
                             "SyntaxError: (unicode error) 'unicodeescape'",
@@ -303,12 +290,16 @@ export function tokenize(str) {
             const m = /** @type {RegExpExecArray} */ (StringPattern.exec(token));
             tokens.push({
                 type: TokenType.String,
-                value: decodeStringLiteral(
-                    m[3] !== undefined ? m[3] : m[5],
-                    !!(m[2] || m[4]),
-                ),
+                value: decodeStringLiteral(m[3] !== undefined ? m[3] : m[5]),
             });
         } else if (symbols.has(token)) {
+            if (token === "<>") {
+                // Normalize the legacy Python 2 inequality to `!=`, mirroring
+                // the server (orm/domain/optimizations.py: `a <> b => a != b`,
+                // deprecated since 19.0). Downstream consumers (tree
+                // comparators, formatAST) then only ever see `!=`.
+                token = "!=";
+            }
             // transform 'not in' and 'is not' in a single token
             if (token === "in" && tokens.length > 0 && tokens.at(-1)?.value === "not") {
                 token = "not in";

@@ -163,6 +163,28 @@ OdooClass.extend = function () {
                         return ret;
                     };
                 })(name, properties[name]);
+            } else {
+                // New method whose source merely mentions `_super` (fnTest
+                // matches comments/strings too) and that exists neither on the
+                // prototype nor on the parent: it used to be silently dropped.
+                // Install it with a throwing _super so an actual call fails
+                // loudly instead.
+                console.warn(
+                    `Class.include: method "${name}" mentions _super but has no previous or parent implementation; installing it with a throwing _super.`,
+                );
+                prototype[name] = (function (name, fn) {
+                    return function () {
+                        const tmp = this._super;
+                        this._super = function () {
+                            throw new Error(
+                                `Class.include: no _super implementation for "${name}"`,
+                            );
+                        };
+                        const ret = fn.apply(this, arguments);
+                        this._super = tmp;
+                        return ret;
+                    };
+                })(name, properties[name]);
             }
         }
     };

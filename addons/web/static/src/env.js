@@ -145,27 +145,27 @@ export async function startServices(env) {
     // start them regardless of the order they're added to the registry.
     await Promise.resolve();
 
-    const toStart = new Map();
     const onRegistryUpdate = async (ev) => {
         // Wait for all synchronous code so that if new services that depend on
         // one another are added to the registry, they're all present before we
         // start them regardless of the order they're added to the registry.
         await Promise.resolve();
-        const { operation, key: name, value: service } = ev.detail;
+        const { operation } = ev.detail;
         if (operation === "delete") {
             // We hardly see why it would be useful to remove a service.
             // Furthermore we could encounter problems with dependencies.
             // Keep it simple!
             return;
         }
-        if (toStart.size) {
-            const namedService = Object.assign(Object.create(service), {
-                name,
-            });
-            toStart.set(name, namedService);
-        } else {
-            await _startServices(env, toStart);
-        }
+        // Always schedule a FRESH pass with its own Map: ``_startServices``
+        // repopulates it from the registry (every registered service not yet
+        // in ``env.services``), and serializes behind any in-flight pass via
+        // ``startServicesPromise``. Sharing a Map with an in-flight pass
+        // could inject an already-startable service into ``toStart`` in the
+        // microtask window between the pass's last wave settling and its
+        // post-await checks — a leftover the old code misreported as a
+        // circular dependency.
+        await _startServices(env, new Map());
     };
     // If startServices is called more than once on the same env (test patterns
     // that re-run startup after an expected throw, for instance), drop the
@@ -176,7 +176,7 @@ export async function startServices(env) {
     env.disposeServiceRegistryListener = () => {
         serviceRegistry.removeEventListener("UPDATE", onRegistryUpdate);
     };
-    await _startServices(env, toStart);
+    await _startServices(env, new Map());
 }
 
 /**
@@ -382,17 +382,29 @@ async function _startServices(env, toStart) {
         if (toStart.size) {
             // After the cascade-skip (and wave-resolver fixpoint earlier),
             // anything still pending has all its deps registered but the
-            // resolver couldn't progress on it — a circular dependency.
-            // This remains a hard error (genuine programming bug).
+            // resolver couldn't progress on it — normally a circular
+            // dependency, which remains a hard error (genuine programming
+            // bug). Only throw when a cycle is actually FOUND: leftovers
+            // without one mean a startable service slipped in after the wave
+            // loop finished (a registry UPDATE racing the post-await checks)
+            // — the same documented lazy-bundle state as the cascade-skip;
+            // the next startServices/ensureServicesStarted pass recovers it.
             const depGraph = new Map();
             for (const [name, service] of toStart) {
                 depGraph.set(name, service.dependencies || []);
             }
             const cycle = findDependencyCycle(depGraph);
-            const cycleInfo = cycle
-                ? cycle.join(" \u2192 ")
-                : [...toStart.keys()].join(", ");
-            throw new Error(`Circular service dependency detected: ${cycleInfo}`);
+            if (cycle) {
+                throw new Error(
+                    `Circular service dependency detected: ${cycle.join(" \u2192 ")}`,
+                );
+            }
+            console.warn(
+                `[env] ${toStart.size} service(s) left unstarted with no ` +
+                    `dependency cycle: ${[...toStart.keys()].join(", ")}. ` +
+                    `A registry update raced this startup pass; the next ` +
+                    `startServices/ensureServicesStarted pass will start them.`,
+            );
         }
     }
     log(

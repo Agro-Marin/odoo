@@ -8,9 +8,9 @@
  * pattern) to preserve subclass polymorphism.
  */
 
-/** SearchModel widened so this delegate module can read instance state
- * set across SearchModel's many methods. */
-/** @typedef {any} SearchModel */
+/** The delegate seam contract — see the SearchModelLike typedef for the
+ * instance state this module may read or write. */
+/** @typedef {import("./search_model").SearchModelLike} SearchModel */
 
 /**
  * Generate (or refresh) property-based search items for a "properties" field.

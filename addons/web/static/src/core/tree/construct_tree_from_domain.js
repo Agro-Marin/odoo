@@ -13,33 +13,52 @@ import { addChild, connector, toValue } from "./condition_tree.js";
 /** @import { Tree } from "./condition_tree.js" */
 
 /**
+ * Build the tree for the prefix-notation AST list with an index cursor and an
+ * explicit connector stack. The previous version copied the tail array at
+ * every node (O(N²) in domain size) and recursed once per connector — the
+ * normalized ["&", "&", ..., leaf, ...] chain nests to depth O(N) and
+ * overflowed the stack on large generated domains.
+ *
  * @param {AST[]} ASTs
  * @param {boolean} [distributeNot=false]
- * @param {boolean} [negate=false]
- * @returns {{ tree: Tree, remainingASTs: AST[] }}
+ * @returns {Tree}
  */
-function _constructTree(ASTs, distributeNot = false, negate = false) {
-    const [firstAST, ...tailASTs] = ASTs;
-
-    if (
-        firstAST.type === ASTType.String &&
-        /** @type {any} */ (firstAST).value === "!"
-    ) {
-        return _constructTree(tailASTs, distributeNot, !negate);
-    }
-
-    /** @type {any} */
-    const tree = { type: firstAST.type === ASTType.String ? "connector" : "condition" };
-    if (tree.type === "connector") {
-        tree.value = /** @type {any} */ (firstAST).value;
-        if (distributeNot && negate) {
-            tree.value = tree.value === "&" ? "|" : "&";
-            tree.negate = false;
-        } else {
-            tree.negate = negate;
+function _constructTree(ASTs, distributeNot = false) {
+    let pos = 0;
+    /** @type {{ tree: any, remaining: number, childNegate: boolean }[]} */
+    const stack = [];
+    for (;;) {
+        let negate = stack.length ? stack.at(-1).childNegate : false;
+        let firstAST = ASTs[pos++];
+        while (
+            firstAST.type === ASTType.String &&
+            /** @type {any} */ (firstAST).value === "!"
+        ) {
+            negate = !negate;
+            firstAST = ASTs[pos++];
         }
-        tree.children = [];
-    } else {
+
+        /** @type {any} */
+        const tree = {
+            type: firstAST.type === ASTType.String ? "connector" : "condition",
+        };
+        if (tree.type === "connector") {
+            tree.value = /** @type {any} */ (firstAST).value;
+            if (distributeNot && negate) {
+                tree.value = tree.value === "&" ? "|" : "&";
+                tree.negate = false;
+            } else {
+                tree.negate = negate;
+            }
+            tree.children = [];
+            stack.push({
+                tree,
+                remaining: 2,
+                childNegate: distributeNot && negate,
+            });
+            continue;
+        }
+
         const [pathAST, operatorAST, valueAST] = /** @type {any} */ (firstAST).value;
         tree.path = toValue(pathAST);
         tree.negate = negate;
@@ -56,20 +75,25 @@ function _constructTree(ASTs, distributeNot = false, negate = false) {
                 tree.value = Array.isArray(tree.value) ? tree.value : [tree.value];
             }
         }
-    }
-    let remainingASTs = tailASTs;
-    if (tree.type === "connector") {
-        for (let i = 0; i < 2; i++) {
-            const { tree: child, remainingASTs: otherASTs } = _constructTree(
-                remainingASTs,
-                distributeNot,
-                distributeNot && negate,
-            );
-            remainingASTs = otherASTs;
-            addChild(tree, child);
+
+        // Attach the completed node upward, popping every connector it fills.
+        /** @type {Tree} */
+        let node = tree;
+        while (stack.length) {
+            const frame = stack.at(-1);
+            addChild(frame.tree, node);
+            frame.remaining--;
+            if (frame.remaining > 0) {
+                node = null;
+                break;
+            }
+            stack.pop();
+            node = frame.tree;
+        }
+        if (node) {
+            return node;
         }
     }
-    return { tree, remainingASTs };
 }
 
 /**
@@ -85,6 +109,5 @@ export function constructTreeFromDomain(domain, distributeNot = false) {
     if (!initialASTs.length) {
         return connector("&");
     }
-    const { tree } = _constructTree(initialASTs, distributeNot);
-    return tree;
+    return _constructTree(initialASTs, distributeNot);
 }

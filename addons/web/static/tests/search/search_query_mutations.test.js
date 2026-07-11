@@ -10,6 +10,8 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import {
     addAutoCompletionValues,
     clearFilters,
@@ -483,6 +485,64 @@ describe("toggleDateFilter", () => {
     });
 });
 
+// toggleDateFilter — generator id validation (fork-added, console.warn contract)
+
+describe("toggleDateFilter generator validation", () => {
+    const optionsParams = {
+        startYear: -2,
+        endYear: 0,
+        startMonth: -2,
+        endMonth: 0,
+        customOptions: [],
+    };
+
+    /** Model with a referenceMoment so getPeriodOptions can run. */
+    function makeDateModel() {
+        return makeSearchModel({ referenceMoment: luxon.DateTime.local() });
+    }
+
+    test("unknown generator id is dropped with a warning (filter stays inactive)", () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+        const model = makeDateModel();
+        addItem(model, 1, { type: "dateFilter", name: "filter_date", optionsParams });
+
+        toggleDateFilter(model, 1, "bogus");
+
+        expect.verifySteps(["warn"]);
+        expect(model.query.length).toBe(0);
+    });
+
+    test("known generator id activates the option plus its default year", () => {
+        const model = makeDateModel();
+        addItem(model, 1, { type: "dateFilter", name: "filter_date", optionsParams });
+
+        toggleDateFilter(model, 1, "month");
+
+        const generatorIds = model.query.map((q) => q.generatorId);
+        expect(generatorIds).toInclude("month");
+        expect(generatorIds).toInclude("year");
+    });
+
+    test("unknown ids in defaultGeneratorIds are filtered, valid ones proceed", () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+        const model = makeDateModel();
+        addItem(model, 1, {
+            type: "dateFilter",
+            name: "filter_date",
+            optionsParams,
+            defaultGeneratorIds: ["month", "bogus"],
+        });
+
+        toggleDateFilter(model, 1);
+
+        expect.verifySteps(["warn"]);
+        const generatorIds = model.query.map((q) => q.generatorId);
+        expect(generatorIds).toInclude("month");
+        expect(generatorIds).toInclude("year");
+        expect(generatorIds).not.toInclude("bogus");
+    });
+});
+
 // switchGroupBySort
 
 describe("switchGroupBySort", () => {
@@ -538,13 +598,26 @@ describe("createNewFilters", () => {
         expect(model.nextId).toBe(6);
     });
 
-    test("returns undefined for empty prefilters and does not call _notify", () => {
+    test("returns [] for empty prefilters and does not call _notify", () => {
         const model = makeSearchModel();
 
-        createNewFilters(model, []);
+        const ids = createNewFilters(model, []);
 
+        expect(ids).toEqual([]);
         expect(model.query.length).toBe(0);
         expect(model._notifications.length).toBe(0);
+    });
+
+    test("returns the ids of the created items", () => {
+        const model = makeSearchModel({ nextId: 5 });
+
+        const ids = createNewFilters(model, [
+            { description: "A", domain: "[]" },
+            { description: "B", domain: "[]" },
+        ]);
+
+        expect(ids).toEqual([5, 6]);
+        expect(model.query.map((q) => q.searchItemId)).toEqual([5, 6]);
     });
 
     test("all filters share the same groupId and groupNumber", () => {
@@ -609,6 +682,13 @@ describe("createNewGroupBy", () => {
         createNewGroupBy(model, "name");
 
         expect(model.searchItems[1].custom).toBe(true);
+    });
+
+    test("returns the id of the created item", () => {
+        const model = makeSearchModel({ nextId: 4 });
+        model.searchViewFields = { name: { string: "Name", type: "char" } };
+
+        expect(createNewGroupBy(model, "name")).toBe(4);
     });
 
     test("non-date field: notifies exactly once (single reload)", () => {

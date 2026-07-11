@@ -50,6 +50,11 @@ export class GraphModel extends Model {
         this.searchParams = null;
         // This dataset will be added as a line plot on top of stacked bar chart.
         this.lineOverlayDataset = null;
+        // Sticky "Load everything anyway" choice: once the user opts out of
+        // the DATA_LIMIT sample it must survive mode/order/stacked changes
+        // (which re-run _prepareData) and only reset when the data scope
+        // changes (domain/groupBy — see load()).
+        this.forceAllDataPoints = false;
     }
 
     //--------------------------------------------------------------------------
@@ -60,7 +65,18 @@ export class GraphModel extends Model {
      * @param {SearchParams} searchParams
      */
     async load(searchParams) {
+        const previousSearchParams = this.searchParams;
         this.searchParams = searchParams;
+        if (
+            this.forceAllDataPoints &&
+            previousSearchParams &&
+            (JSON.stringify(previousSearchParams.domain) !==
+                JSON.stringify(searchParams.domain) ||
+                JSON.stringify(previousSearchParams.groupBy) !==
+                    JSON.stringify(searchParams.groupBy))
+        ) {
+            this.forceAllDataPoints = false;
+        }
         if (!this.initialGroupBy) {
             this.initialGroupBy =
                 searchParams.context.graph_groupbys || this.metaData.groupBy; // = arch groupBy --> change that
@@ -83,8 +99,9 @@ export class GraphModel extends Model {
     }
 
     async forceLoadAll() {
+        this.forceAllDataPoints = true;
         const metaData = this._buildMetaData();
-        await this._fetchDataPoints(metaData, true);
+        await this._fetchDataPoints(metaData);
         this.notify();
     }
 
@@ -139,22 +156,31 @@ export class GraphModel extends Model {
             seen[key] = context[key];
             return true;
         };
-        if (changed("graph_measure") && context.graph_measure) {
+        // Always run the bookkeeping for every key, even when the current
+        // mode ignores the value: skipping it would leave `seen` stale, and a
+        // later mode switch (with an unchanged context) would suddenly treat
+        // the months-old value as "changed" and re-apply it.
+        const measureChanged = changed("graph_measure");
+        const modeChanged = changed("graph_mode");
+        const orderChanged = changed("graph_order");
+        const stackedChanged = changed("graph_stacked");
+        const cumulatedChanged = changed("graph_cumulated");
+        if (measureChanged && context.graph_measure) {
             metaData.measure = context.graph_measure;
         }
-        if (changed("graph_mode") && context.graph_mode) {
+        if (modeChanged && context.graph_mode) {
             metaData.mode = context.graph_mode;
         }
         if (metaData.mode !== "pie" && metaData.mode !== "scatter") {
-            if (changed("graph_order") && "graph_order" in context) {
+            if (orderChanged && "graph_order" in context) {
                 metaData.order = context.graph_order;
             }
-            if (changed("graph_stacked") && "graph_stacked" in context) {
+            if (stackedChanged && "graph_stacked" in context) {
                 metaData.stacked = context.graph_stacked;
             }
             if (
                 metaData.mode === "line" &&
-                changed("graph_cumulated") &&
+                cumulatedChanged &&
                 "graph_cumulated" in context
             ) {
                 metaData.cumulated = context.graph_cumulated;
@@ -193,14 +219,13 @@ export class GraphModel extends Model {
      * several side effects. It can alter this.metaData and set this.dataPoints.
      * @protected
      * @param {Object} metaData
-     * @param {boolean} [forceUseAllDataPoints=false]
      */
-    async _fetchDataPoints(metaData, forceUseAllDataPoints = false) {
+    async _fetchDataPoints(metaData) {
         /** @type {any} */ (this).dataPoints = await this.keepLast.add(
             this._loadDataPoints(metaData),
         );
         this.metaData = metaData;
-        this._prepareData(forceUseAllDataPoints);
+        this._prepareData();
     }
 
     /**
@@ -374,11 +399,14 @@ export class GraphModel extends Model {
         }
 
         if (order !== null && mode !== "pie" && groupBy.length) {
-            // group data by their x-axis value, and then sort datapoints
-            // based on the sum of values by group in ascending/descending order
+            // group data by their x-axis slot, and then sort datapoints
+            // based on the sum of values by group in ascending/descending
+            // order. Key on the raw identity, not the display label: a NULL
+            // integer group and a genuine 0 group both display "0" but are
+            // distinct x slots (same reason _getData keys on xIdentifier).
             const groupedDataPoints = Object.groupBy(
                 processedDataPoints,
-                (dataPt) => dataPt.labels[0], // = x-axis value under the current assumptions
+                (dataPt) => dataPt.xIdentifier ?? dataPt.labels[0],
             );
             const groups = Object.values(groupedDataPoints);
             const groupTotal = (group) =>
@@ -451,13 +479,16 @@ export class GraphModel extends Model {
         );
         /** @type {any} */
         let startGroups = false;
+        // The falsy ("None") date group may come first: the start of the
+        // cumulation window is the first group with an actual date.
+        const firstDatedGroup =
+            sequentialField && groups.find((group) => group[sequentialSpec]);
         if (
             cumulatedStart &&
-            sequentialField &&
-            groups.length &&
+            firstDatedGroup &&
             domain.some((leaf) => leaf.length === 3 && leaf[0] === sequentialField)
         ) {
-            const firstDate = groups[0][sequentialSpec][0];
+            const firstDate = firstDatedGroup[sequentialSpec][0];
             const newDomain = Domain.combine(
                 [
                     new Domain([[sequentialField, "<", firstDate]]),
@@ -477,8 +508,11 @@ export class GraphModel extends Model {
                 },
             );
         }
+        const graphCurrencies = new Set();
+        const defaultCurrency = user.activeCompany?.currency_id;
         const dataPoints = [];
         const cumulatedStartValue = {};
+        const cumulatedStartConverted = {};
         if (startGroups) {
             for (const group of /** @type {any[]} */ (startGroups)) {
                 const rawValues = [];
@@ -487,11 +521,24 @@ export class GraphModel extends Model {
                 )) {
                     rawValues.push({ [gb.spec]: group[gb.spec] });
                 }
-                cumulatedStartValue[JSON.stringify(rawValues)] = group[measures.at(-1)];
+                const key = JSON.stringify(rawValues);
+                let value = group[fieldAggregate];
+                // Same currency handling as the main loop below: the start
+                // value must stay in the same currency space as the series
+                // it seeds, otherwise the cumulated baseline is wrong.
+                if (monetaryAggregates) {
+                    const currencies = group[monetaryAggregates[0]] || [];
+                    cumulatedStartConverted[key] = group[monetaryAggregates[1]];
+                    if (currencies.length > 1) {
+                        value = cumulatedStartConverted[key];
+                        graphCurrencies.add(defaultCurrency);
+                    } else if (currencies.length === 1) {
+                        graphCurrencies.add(currencies[0]);
+                    }
+                }
+                cumulatedStartValue[key] = value;
             }
         }
-        const graphCurrencies = new Set();
-        const defaultCurrency = user.activeCompany?.currency_id;
         for (const group of groups) {
             const { __domain, __count } = group;
             const labels = [];
@@ -563,6 +610,7 @@ export class GraphModel extends Model {
                 xIdentifier: JSON.stringify(rawValues.slice(0, 1)),
                 datasetId: groupId,
                 cumulatedStart: cumulatedStartValue[groupId] || 0,
+                convertedCumulatedStart: cumulatedStartConverted[groupId] || 0,
             };
             if (monetaryAggregates) {
                 const currencies = group[monetaryAggregates[0]];
@@ -579,9 +627,13 @@ export class GraphModel extends Model {
         for (const dataPoint of dataPoints) {
             if (graphCurrencies.size > 1) {
                 dataPoint.currencyId = defaultCurrency;
-                dataPoint.value = dataPoint.convertedValue;
+                if (monetaryAggregates) {
+                    dataPoint.value = dataPoint.convertedValue;
+                    dataPoint.cumulatedStart = dataPoint.convertedCumulatedStart;
+                }
             }
             delete dataPoint.convertedValue;
+            delete dataPoint.convertedCumulatedStart;
         }
         return dataPoints;
     }
@@ -639,11 +691,10 @@ export class GraphModel extends Model {
 
     /**
      * @protected
-     * @param {boolean} [forceUseAllDataPoints=false]
      */
-    _prepareData(forceUseAllDataPoints = false) {
+    _prepareData() {
         const processedDataPoints = this._getProcessedDataPoints();
-        this.data = this._getData(processedDataPoints, forceUseAllDataPoints);
+        this.data = this._getData(processedDataPoints, this.forceAllDataPoints);
         this.lineOverlayDataset = null;
         if (this.metaData.mode === "bar") {
             this.lineOverlayDataset = this._getLineOverlayDataset();

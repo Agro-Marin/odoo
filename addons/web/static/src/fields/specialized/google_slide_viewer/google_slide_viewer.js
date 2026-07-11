@@ -3,8 +3,6 @@
 
 /** @module @web/fields/specialized/google_slide_viewer/google_slide_viewer - Embedded Google Slides presentation viewer field */
 
-/** @odoo-module native */
-
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
@@ -14,10 +12,10 @@ export function getGoogleSlideUrl(value, page) {
     /** @type {string | false} */
     let url = false;
     const googleRegExp =
-        /(^https:\/\/docs.google.com).*(\/d\/e\/|\/d\/)([A-Za-z0-9-_]+)/;
+        /(^https:\/\/docs\.google\.com).*(\/d\/e\/|\/d\/)([A-Za-z0-9-_]+)/;
     const google = value.match(googleRegExp);
     if (google && google[3]) {
-        url = `https://docs.google.com/presentation${google[2]}${google[3]}/preview?slide=${page}`;
+        url = `https://docs.google.com/presentation${google[2]}${google[3]}/preview?slide=${encodeURIComponent(page)}`;
     }
     return url;
 }
@@ -37,14 +35,8 @@ export class GoogleSlideViewer extends CharField {
     }
 
     get url() {
-        let url = /** @type {any} */ (this.props).value;
-        if (this.props.record.data[this.props.name]) {
-            url = getGoogleSlideUrl(
-                this.props.record.data[this.props.name],
-                this._get_slide_page(),
-            );
-        }
-        return url;
+        const value = this.props.record.data[this.props.name];
+        return value ? getGoogleSlideUrl(value, this._get_slide_page()) : false;
     }
 
     onLoadFailed() {

@@ -67,12 +67,17 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         currentPublicRoot = this;
         if (interactionsService && !interactionsServicePatched) {
             interactionsServicePatched = true;
+            // The `fromPublicRoot` option marks (re)starts/stops that the
+            // PublicRoot widget machinery itself performs: for those the patch
+            // must not start/stop widgets again. An explicit option (instead
+            // of instance booleans set across awaits) keeps two overlapping
+            // operations from reading each other's flag.
             patch(interactionsService.constructor.prototype, {
                 /** @this {any} */
-                startInteractions(el) {
+                startInteractions(el, options) {
                     super.startInteractions(el);
                     const publicRoot = currentPublicRoot;
-                    if (publicRoot && !publicRoot.startFromEventHandler) {
+                    if (publicRoot && !options?.fromPublicRoot) {
                         // this.editMode is assigned by website_edit_service
                         publicRoot._startWidgets(el || this.el, {
                             fromInteractionPatch: true,
@@ -81,11 +86,10 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
                     }
                 },
                 /** @this {any} */
-                stopInteractions(el) {
+                stopInteractions(el, options) {
                     super.stopInteractions(el);
                     const publicRoot = currentPublicRoot;
-                    // Call to interactions is only from the event handler.
-                    if (publicRoot && !publicRoot.stopFromEventHandler) {
+                    if (publicRoot && !options?.fromPublicRoot) {
                         publicRoot._stopWidgets(el || this.el);
                     }
                 },
@@ -171,8 +175,10 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
      */
     _restartInteractions(targetEl, options) {
         const publicInteractions = this.bindService("public.interactions");
-        publicInteractions.stopInteractions(targetEl);
-        publicInteractions.startInteractions(targetEl);
+        // fromPublicRoot: _startWidgets already handles the widgets around
+        // this restart; the interaction-service patch must not re-enter.
+        publicInteractions.stopInteractions(targetEl, { fromPublicRoot: true });
+        publicInteractions.startInteractions(targetEl, { fromPublicRoot: true });
     },
     /**
      * Creates a PublicWidget instance for each DOM element which matches the
@@ -341,7 +347,6 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
      * @param {any} ev
      */
     async _onWidgetsStartRequest(ev) {
-        this.startFromEventHandler = true;
         try {
             const target = ev.data.$target;
             await this._startWidgets(target, ev.data.options);
@@ -351,8 +356,6 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
             if (!(e instanceof RPCError)) {
                 throw e;
             }
-        } finally {
-            this.startFromEventHandler = false;
         }
     },
     /**
@@ -365,15 +368,11 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
     _onWidgetsStopRequest: function (ev) {
         const target = ev.data.$target;
         this._stopWidgets(target);
-        // also stops interactions
+        // also stops interactions; fromPublicRoot: the widgets were just
+        // stopped above, the interaction-service patch must not redo it.
         const targetEl = Array.isArray(target) ? target[0] : target;
         const publicInteractions = this.bindService("public.interactions");
-        this.stopFromEventHandler = true;
-        try {
-            publicInteractions.stopInteractions(targetEl);
-        } finally {
-            this.stopFromEventHandler = false;
-        }
+        publicInteractions.stopInteractions(targetEl, { fromPublicRoot: true });
     },
     /**
      * @private

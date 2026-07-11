@@ -30,12 +30,12 @@ export class BlockUI extends Component {
                 l2: _t("Please be patient."),
             },
             {
-                time: 180,
+                time: 120,
                 l1: _t("Don't leave yet,"),
                 l2: _t("it's still loading..."),
             },
             {
-                time: 120,
+                time: 180,
                 l1: _t("You may not believe it,"),
                 l2: _t("but the application is actually loading..."),
             },

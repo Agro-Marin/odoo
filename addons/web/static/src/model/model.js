@@ -358,10 +358,15 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
             sampleORM =
                 sampleORM ||
                 buildSampleORM(component.props.resModel, component.props.fields, orm);
-            // Load data with sampleORM then restore real ORM.
+            // Load data with sampleORM then restore real ORM — even on throw
+            // (e.g. UnimplementedRouteError), or every later action would
+            // keep routing to the in-memory fake.
             model.orm = sampleORM;
-            await model.load(searchParams);
-            model.orm = orm;
+            try {
+                await model.load(searchParams);
+            } finally {
+                model.orm = orm;
+            }
             model.useSampleModel = true;
         } else {
             useSampleModel = false;

@@ -51,6 +51,16 @@ export class MonetaryField extends NumericInputFieldBase {
 
     /** @param {string} v @returns {number} */
     parse(v) {
+        if (this.props.inputType === "number") {
+            // A <input type="number"> value is always dot-decimal, regardless
+            // of locale: feeding it to parseMonetary would strip the dot as a
+            // thousands separator in dot-thousands locales ("1.5" -> 15, a
+            // silent 10x error — same guard as FloatField.parse).
+            const parsed = Number(v);
+            if (Number.isFinite(parsed)) {
+                return parsed;
+            }
+        }
         return parseMonetary(v, { allowOperation: true });
     }
 

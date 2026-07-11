@@ -16,11 +16,14 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { mockSendBeacon } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, mockSendBeacon } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
+import { ChangeSet } from "@web/model/relational_model/change_set";
 import { FetchRecordError } from "@web/model/relational_model/errors";
+import { RelationalRecord } from "@web/model/relational_model/record";
 import { save } from "@web/model/relational_model/record_save";
+import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
 // Mock factory
 
@@ -78,6 +81,7 @@ function makeRecord({
         _discard: () => {},
         _load: async () => {},
         _setData: () => {},
+        _setEvalContext: () => {},
         model: {
             _closeUrgentSaveNotification: null,
             // ``record_save.save`` reads ``model.urgentSave.isActive`` (see
@@ -154,11 +158,16 @@ describe("no-changes short-circuit", () => {
                 return [{ id: 1 }];
             },
         });
+        let evalContextCalls = 0;
+        rec._setEvalContext = () => evalContextCalls++;
         const result = await save(rec, { reload: false });
         expect(result).toBe(true);
         expect(webSaveCalled).toBe(false);
         // Internal state must be reset
         expect(rec.dirty).toBe(false);
+        // ``data`` was rebuilt from ``_values``, so the eval contexts must
+        // follow — otherwise modifiers evaluate against the discarded values.
+        expect(evalContextCalls).toBe(1);
     });
 });
 
@@ -411,5 +420,105 @@ describe("urgent save (sendBeacon path)", () => {
         // the change bag was emptied.
         expect(list.clearCommandsCalls).toBe(1);
         expect(rec.clearChangesCalls).toBe(1);
+    });
+});
+
+// urgentSave duplicate-beacon guard — a save whose web_save RPC is still on
+// the wire keeps ``_changes`` fully populated (x2many CREATE commands
+// included, which are NOT idempotent) until the RPC settles. If the tab
+// closes in that window, urgentSave() must skip the beacon instead of
+// re-sending the same payload and duplicating child rows. The guard is the
+// ``_saveInFlight`` flag record_save.save holds from the RPC until the
+// change bag is cleared.
+
+describe("urgentSave in-flight guard", () => {
+    /**
+     * Record mock backed by the real RelationalRecord prototype, so the real
+     * ``urgentSave()``/``_save()``/``_clearChanges()`` methods run against
+     * record_save.save. State goes through ``_config``/``_changeSet`` so the
+     * prototype getters (resId, fields, fieldNames, …) work unmodified.
+     */
+    function makeProtoRecord({ webSave }) {
+        const rec = Object.create(RelationalRecord.prototype);
+        rec._changeSet = markRaw(new ChangeSet());
+        rec._config = {
+            resModel: "res.partner",
+            resId: 7,
+            resIds: [7],
+            mode: "edit",
+            context: {},
+            activeFields: {},
+            fields: { name: { type: "char" } },
+            isRoot: false,
+        };
+        rec.data = {};
+        rec.dirty = true;
+        rec._saveInFlight = false;
+        rec._values = markRaw({ name: "orig" });
+        rec._checkValidity = () => true;
+        rec._getChanges = () => ({ name: "X" });
+        rec._discard = () => {};
+        rec._load = async () => {};
+        rec._setData = () => {};
+        rec._setEvalContext = () => {};
+        rec.model = makeRecord({ resId: 7, webSave }).model;
+        rec.model.urgentSave = new UrgentSaveCoordinator();
+        rec.model.useSendBeaconToSaveUrgently = true;
+        return rec;
+    }
+
+    test("urgentSave skips the beacon while a save is on the wire", async () => {
+        let beaconCalls = 0;
+        mockSendBeacon(() => {
+            beaconCalls++;
+            return true;
+        });
+        const def = new Deferred();
+        let webSaveCalls = 0;
+        const rec = makeProtoRecord({
+            webSave: async () => {
+                webSaveCalls++;
+                await def;
+                return [{ id: 7 }];
+            },
+        });
+
+        const saveProm = save(rec, { reload: false });
+        await animationFrame();
+        expect(webSaveCalls).toBe(1);
+        expect(rec._saveInFlight).toBe(true);
+
+        // Tab closes while the RPC is pending: only ONE web_save may reach
+        // the server.
+        const urgentResult = await rec.urgentSave();
+        expect(urgentResult).toBe(true);
+        expect(beaconCalls).toBe(0);
+        expect(webSaveCalls).toBe(1);
+
+        def.resolve();
+        await saveProm;
+        expect(rec._saveInFlight).toBe(false);
+        expect(webSaveCalls).toBe(1);
+    });
+
+    test("urgentSave still fires when no save is in flight", async () => {
+        let beaconCalls = 0;
+        mockSendBeacon(() => {
+            beaconCalls++;
+            return true;
+        });
+        let webSaveCalls = 0;
+        const rec = makeProtoRecord({
+            webSave: async () => {
+                webSaveCalls++;
+                return [{ id: 7 }];
+            },
+        });
+
+        const result = await rec.urgentSave();
+
+        expect(result).toBe(true);
+        expect(beaconCalls).toBe(1);
+        expect(webSaveCalls).toBe(0);
     });
 });

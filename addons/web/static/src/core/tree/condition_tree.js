@@ -284,13 +284,16 @@ export function addChild(parent, child) {
 }
 
 /**
+ * Apply the transformations IN ARRAY ORDER: transformations[0] runs first.
+ * Callers whose passes depend on each other's output must order the array
+ * accordingly (see the ordering contracts in virtual_operators.js).
+ *
  * @param {Function[]} transformations
  * @param {any} transformed
  * @param {...any} fixedParams
  */
 export function applyTransformations(transformations, transformed, ...fixedParams) {
-    for (let i = transformations.length - 1; i >= 0; i--) {
-        const fn = transformations[i];
+    for (const fn of transformations) {
         transformed = fn(transformed, ...fixedParams);
     }
     return transformed;

@@ -15,7 +15,10 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { computeExportedTableWidth } from "@web/views/pivot/pivot_export";
+import {
+    computeExportedTableWidth,
+    formatPivotForExport,
+} from "@web/views/pivot/pivot_export";
 import {
     addGroup,
     findGroup,
@@ -493,6 +496,139 @@ describe("computeExportedTableWidth — exported column count", () => {
         // and produced a corrupt workbook.
         expect(computeExportedTableWidth(9000, 1) <= EXCEL_MAX_COLUMNS).toBe(true);
         expect(computeExportedTableWidth(9000, 2) > EXCEL_MAX_COLUMNS).toBe(true);
+    });
+});
+
+// formatPivotForExport — XLSX payload shape
+
+describe("formatPivotForExport — export payload", () => {
+    /**
+     * Table shaped like PivotModel.getTable() for:
+     *   1 measure ("Foo"), 2 leaf column groups + the Total column group,
+     *   a Total row and one sub-row with an empty cell.
+     */
+    function makeTable() {
+        return {
+            headers: [
+                [
+                    { title: "", width: 1, height: 2, groupId: [[], []] },
+                    { title: "Total", width: 2, height: 1, groupId: [[], []] },
+                ],
+                [
+                    { title: "A", width: 1, height: 1, groupId: [[], [1]] },
+                    { title: "B", width: 1, height: 1, groupId: [[], [2]] },
+                ],
+                [
+                    {
+                        title: "Foo",
+                        width: 1,
+                        height: 1,
+                        measure: "foo",
+                        groupId: [[], [1]],
+                    },
+                    {
+                        title: "Foo",
+                        width: 1,
+                        height: 1,
+                        measure: "foo",
+                        groupId: [[], [2]],
+                    },
+                    {
+                        title: "Foo",
+                        width: 1,
+                        height: 1,
+                        measure: "foo",
+                        groupId: [[], []],
+                    },
+                ],
+            ],
+            rows: [
+                {
+                    title: "Total",
+                    indent: 0,
+                    subGroupMeasurements: [
+                        { value: 12, isBold: false },
+                        { value: 20, isBold: false },
+                        { value: 32, isBold: true },
+                    ],
+                },
+                {
+                    title: "xphone",
+                    indent: 1,
+                    subGroupMeasurements: [
+                        { value: 12, isBold: false },
+                        { value: undefined, isBold: false },
+                        { value: 12, isBold: false },
+                    ],
+                },
+            ],
+        };
+    }
+
+    const metaData = {
+        activeMeasures: ["foo"],
+        resModel: "partner",
+        title: "Pivot Analysis",
+    };
+
+    test("payload identifies the model, title and measure count", () => {
+        const payload = formatPivotForExport(makeTable(), metaData);
+
+        expect(payload.model).toBe("partner");
+        expect(payload.title).toBe("Pivot Analysis");
+        expect(payload.measure_count).toBe(1);
+    });
+
+    test("col group headers drop the top-left corner cell", () => {
+        const payload = formatPivotForExport(makeTable(), metaData);
+
+        expect(payload.col_group_headers).toEqual([
+            [{ title: "Total", width: 2, height: 1, is_bold: false }],
+            [
+                { title: "A", width: 1, height: 1, is_bold: false },
+                { title: "B", width: 1, height: 1, is_bold: false },
+            ],
+        ]);
+    });
+
+    test("only measures of the Total column group are bold", () => {
+        const payload = formatPivotForExport(makeTable(), metaData);
+
+        expect(payload.measure_headers.map((header) => header.is_bold)).toEqual([
+            false,
+            false,
+            true,
+        ]);
+        expect(payload.measure_headers.map((header) => header.title)).toEqual([
+            "Foo",
+            "Foo",
+            "Foo",
+        ]);
+    });
+
+    test("rows keep title/indent and empty cells export as empty strings", () => {
+        const payload = formatPivotForExport(makeTable(), metaData);
+
+        expect(payload.rows).toEqual([
+            {
+                title: "Total",
+                indent: 0,
+                values: [
+                    { is_bold: false, value: 12 },
+                    { is_bold: false, value: 20 },
+                    { is_bold: true, value: 32 },
+                ],
+            },
+            {
+                title: "xphone",
+                indent: 1,
+                values: [
+                    { is_bold: false, value: 12 },
+                    { is_bold: false, value: "" },
+                    { is_bold: false, value: 12 },
+                ],
+            },
+        ]);
     });
 });
 

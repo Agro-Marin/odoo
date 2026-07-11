@@ -1,6 +1,6 @@
 // @ts-check
 
-import { beforeEach, expect, test } from "@odoo/hoot";
+import { beforeEach, expect, getFixture, test } from "@odoo/hoot";
 import { queryAllTexts, queryFirst } from "@odoo/hoot-dom";
 import { advanceFrame, animationFrame, disableAnimations } from "@odoo/hoot-mock";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
@@ -673,4 +673,36 @@ test("dragged element is removed from the DOM while being dragged", async () => 
     expect(".o_dragged").toHaveCount(0);
     await drop();
     expect.verifySteps(["end"]);
+});
+
+test("native useSortable leaves the caller's params object intact", async () => {
+    // The native variant used to `delete params.setupHooks`, silently
+    // breaking a caller that reuses its params object across two hook
+    // instantiations (the OWL wrapper spreads a fresh object, direct
+    // consumers may not).
+    const { useSortable: nativeUseSortable } =
+        await import("@web/core/utils/dnd/sortable");
+    const { throttleForAnimation } = await import("@web/core/utils/timing");
+    const fixture = getFixture();
+    const list = document.createElement("ul");
+    list.innerHTML = `<li class="item">1</li><li class="item">2</li>`;
+    fixture.appendChild(list);
+
+    const setupHooks = {
+        wrapState: reactive,
+        throttle: throttleForAnimation,
+        addListener: (el, type, listener) => el.addEventListener(type, listener),
+        setup: () => {},
+        teardown: () => {},
+    };
+    const params = {
+        setupHooks,
+        ref: { el: list },
+        elements: ".item",
+    };
+    nativeUseSortable(/** @type {any} */ (params));
+    expect(params.setupHooks).toBe(setupHooks);
+    // Reusing the same params object for a second instantiation must work.
+    expect(() => nativeUseSortable(/** @type {any} */ (params))).not.toThrow();
+    expect(params.setupHooks).toBe(setupHooks);
 });

@@ -191,22 +191,21 @@ export class NavBar extends Component {
         this.currentAppSectionsExtra = [];
 
         // ------- Check overflowing sections -------
-        // getBoundingClientRect (not offsetWidth) avoids rounding errors.
+        // Measure everything once (getBoundingClientRect, not offsetWidth,
+        // avoids rounding errors), then run the overflow arithmetic and the
+        // class mutations on the cached widths: interleaving reads with the
+        // d-none writes would force one synchronous reflow per iteration.
         const sectionsAvailableWidth = getBoundingClientRect.call(sectionsMenu).width;
-        const sectionsTotalWidth = sections.reduce(
-            (sum, s) => sum + getBoundingClientRect.call(s).width,
-            0,
-        );
+        const sectionWidths = sections.map((s) => getBoundingClientRect.call(s).width);
+        const sectionsTotalWidth = sectionWidths.reduce((sum, w) => sum + w, 0);
         if (sectionsAvailableWidth < sectionsTotalWidth) {
             // Sections are overflowing
             // Initial width is harcoded to the width the more menu dropdown will take
             let width = 46;
-            for (const section of sections) {
-                if (sectionsAvailableWidth < width + section.offsetWidth) {
+            for (const [index] of sections.entries()) {
+                if (sectionsAvailableWidth < width + sectionWidths[index]) {
                     // Last sections are overflowing
-                    const overflowingSections = sections.slice(
-                        sections.indexOf(section),
-                    );
+                    const overflowingSections = sections.slice(index);
                     for (const s of overflowingSections) {
                         // Hide from normal menu
                         s.classList.add("d-none");
@@ -223,7 +222,7 @@ export class NavBar extends Component {
                     }
                     break;
                 }
-                width += section.offsetWidth;
+                width += sectionWidths[index];
             }
         }
 

@@ -22,7 +22,17 @@ export function batched(callback, synchronize = () => Promise.resolve()) {
             scheduled = true;
             await synchronize();
             scheduled = false;
-            callback(...lastArgs);
+            try {
+                callback(...lastArgs);
+            } catch (error) {
+                // Nearly every caller invokes the batched function
+                // fire-and-forget, so a throwing callback would only surface
+                // as an unhandledrejection whose stack points at the
+                // microtask. Mirror it to the console (with the callback's
+                // real stack) and keep the rejection for callers that await.
+                console.error(error);
+                throw error;
+            }
         }
     };
 }

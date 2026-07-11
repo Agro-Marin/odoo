@@ -313,12 +313,13 @@ export class Colibri {
                 throw new Error("t-att-class directive expects an object");
             }
             for (const cl of Object.keys(value)) {
-                let toApply = value[cl];
+                const toApply = value[cl];
                 for (const c of cl.trim().split(" ")) {
-                    if (toApply === INITIAL_VALUE) {
-                        toApply = initialValue[cl];
-                    }
-                    el.classList.toggle(c, toApply || false);
+                    // initialValue is keyed per individual class (multi-class
+                    // keys are split at capture time), so each class of an
+                    // "a b" key restores to its own initial presence.
+                    const apply = toApply === INITIAL_VALUE ? initialValue[c] : toApply;
+                    el.classList.toggle(c, apply || false);
                 }
             }
         } else if (attr === "style") {
@@ -521,10 +522,15 @@ export class Colibri {
                         let attrValue;
                         switch (attr) {
                             case "class":
+                                // Capture per individual class: a multi-class
+                                // key ("a b") can never satisfy classList
+                                // .contains and each class may differ in
+                                // initial presence.
                                 attrValue = {};
                                 for (const classNames of Object.keys(value)) {
-                                    attrValue[classNames] =
-                                        node.classList.contains(classNames);
+                                    for (const c of classNames.trim().split(" ")) {
+                                        attrValue[c] = node.classList.contains(c);
+                                    }
                                 }
                                 break;
                             case "style":

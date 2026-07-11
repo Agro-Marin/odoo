@@ -122,15 +122,11 @@ export class DynamicGroupList extends DynamicList {
         }
 
         const sourceGroup = this.groups.find((g) => g.id === dataGroupId);
-        const recordIndex = sourceGroup.list.records.findIndex(
-            (r) => r.id === dataRecordId,
-        );
-        const record = sourceGroup.list.records[recordIndex];
+        const sourceRecords = sourceGroup.list.records;
+        const oldIndex = sourceRecords.findIndex((r) => r.id === dataRecordId);
+        const record = sourceRecords[oldIndex];
         // step 1: move record to correct position
         const refIndex = targetGroup.list.records.findIndex((r) => r.id === refId);
-        const oldIndex = sourceGroup.list.records.findIndex(
-            (r) => r.id === dataRecordId,
-        );
 
         const sourceList = sourceGroup.list;
         // if the source contains more records than what's loaded, reload it after moving the record
@@ -149,14 +145,30 @@ export class DynamicGroupList extends DynamicList {
                 : false;
         }
 
-        const revert = () => {
-            targetGroup._removeRecords([record.id]);
-            sourceGroup._addRecord(record, oldIndex);
-            // Also discard the (unsaved) groupby-field change: otherwise the
-            // reverted card renders in its original column but keeps the
-            // target column's dirty value. Mirrors record_save's onError path.
-            record._discard();
-        };
+        const sourceGroupValue = sourceGroup.value;
+        const targetGroupValue = targetGroup.value;
+        const revert = () =>
+            // The optimistic splices above deliberately ran outside the mutex
+            // (drag responsiveness), but the revert races whatever mutex job
+            // an earlier drag queued (e.g. the source-list reload below), and
+            // ``record._discard()`` must run under the mutex (Invariant I4) —
+            // so serialize it, resolving the groups by (stable) value at
+            // revert time instead of closing over possibly-rebuilt datapoints.
+            this.model.mutex.exec(() => {
+                const currentTargetGroup = this.groups.find(
+                    (g) => g.value === targetGroupValue,
+                );
+                const currentSourceGroup = this.groups.find(
+                    (g) => g.value === sourceGroupValue,
+                );
+                currentTargetGroup?._removeRecords([record.id]);
+                currentSourceGroup?._addRecord(record, oldIndex);
+                // Also discard the (unsaved) groupby-field change: otherwise
+                // the reverted card renders in its original column but keeps
+                // the target column's dirty value. Mirrors record_save's
+                // onError path.
+                record._discard();
+            });
         try {
             const changes = { [targetGroup.groupByField.name]: value };
             const res = await record.update(changes, { save: true });
@@ -165,7 +177,7 @@ export class DynamicGroupList extends DynamicList {
             }
         } catch (e) {
             // revert changes
-            revert();
+            await revert();
             throw e;
         }
 

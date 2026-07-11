@@ -340,6 +340,19 @@ export class SearchArchParser {
                     endMonth: Number(node.getAttribute("end_month") || 0),
                     customOptions: [],
                 };
+                if (optionsParams.endMonth < optionsParams.startMonth) {
+                    // Unvalidated arch input: an inverted month window makes
+                    // getMonthPeriodOptions throw (invalid array length),
+                    // crashing the whole search view — normalize it instead.
+                    console.warn(
+                        `[search] <filter date="${fieldName}">: end_month (${optionsParams.endMonth}) ` +
+                            `is lower than start_month (${optionsParams.startMonth}); swapping them.`,
+                    );
+                    [optionsParams.startMonth, optionsParams.endMonth] = [
+                        optionsParams.endMonth,
+                        optionsParams.startMonth,
+                    ];
+                }
                 // Current month (offset 0) clamped into the window — clamp's
                 // signature is (num, min, max); the previous arg order always
                 // yielded endMonth for any non-default window.

@@ -75,6 +75,12 @@ test("parseInteger", () => {
     expect(() => parseInteger("1,234.567")).toThrow();
     expect(() => parseInteger("-2,147,483,649")).toThrow();
     expect(() => parseInteger("2,147,483,648")).toThrow();
+    // "=" expressions must satisfy the same integrality rule as plain input:
+    // a non-integer result is rejected, not silently truncated.
+    expect(parseInteger("=4*3")).toBe(12);
+    expect(parseInteger("=99/3")).toBe(33);
+    expect(() => parseInteger("=100/3")).toThrow();
+    expect(() => parseInteger("=5/2")).toThrow();
 
     patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: "." });
 

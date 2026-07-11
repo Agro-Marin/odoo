@@ -864,6 +864,111 @@ test("Cumulative prop and cumulated start", async () => {
     checkDatasets(view, ["data"], expectedDatasets);
 });
 
+test("cumulated start ignores the falsy-date group when picking the start date", async () => {
+    const startDomains = [];
+    onRpc("formatted_read_group", ({ parent, kwargs }) => {
+        if (kwargs.groupby.includes("date:month")) {
+            // Serve the falsy ("None") date group FIRST, as the server may
+            const result = parent();
+            result.sort((g1, g2) =>
+                g1["date:month"] === false ? -1 : g2["date:month"] === false ? 1 : 0,
+            );
+            return result;
+        }
+        // Start-of-cumulation fetch (the date groupby is stripped from it)
+        startDomains.push(kwargs.domain);
+    });
+    const view = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: /* xml */ `
+            <graph type="line" stacked="0" cumulated="1" cumulated_start="1">
+                <field name="date" />
+            </graph>
+        `,
+        searchViewArch: /* xml */ `
+            <search>
+                <filter name="filter_dates"
+                    string="March or no date"
+                    domain="['|', ['date', '=', False], ['date', '&gt;=', '2016-03-01']]"
+                    />
+            </search>
+        `,
+        context: {
+            search_default_filter_dates: 1,
+        },
+    });
+
+    // The start domain is anchored on the first group with an ACTUAL date
+    // (March 2016), not on the falsy group served first
+    expect(startDomains).toHaveLength(1);
+    expect(startDomains[0]).toInclude(["date", "<", "2016-03-01"]);
+
+    // 2 records before March seed the count cumulation of [March, April, May]
+    checkDatasets(view, ["data"], { data: [4, 5, 6] });
+});
+
+test("cumulated start converts the start value like the series in multi-currency", async () => {
+    // simulate that the company currency is EUR
+    serverState.companies[0].currency_id = 2;
+
+    Foo._fields.amount = fields.Monetary({ currency_field: "currency_id" });
+    Foo._fields.currency_id = fields.Many2one({
+        relation: "res.currency",
+        default: 1,
+    });
+    Foo._records[0].amount = 100; // 2016-01-01, USD (before the domain)
+    Foo._records[1].amount = 200; // 2016-01-03, USD (before the domain)
+    Foo._records[2].amount = 300; // 2016-03-04, USD
+    Foo._records[3].amount = 400; // 2016-03-07
+    Foo._records[3].currency_id = 2; // EUR: March is multi-currency
+    Foo._records[4].amount = 600; // 2016-05-01
+    Foo._records[4].currency_id = 2; // EUR
+    Foo._records[5].amount = 0; // no date
+    Foo._records[6].amount = 0; // no date
+    Foo._records[7].amount = 500; // 2016-04-01, USD
+
+    // The mock server's sum_currency is a plain sum: fake a conversion
+    // instead, so converted and raw values can be told apart
+    onRpc("formatted_read_group", ({ parent }) => {
+        const result = parent();
+        for (const group of result) {
+            if ("amount:sum_currency" in group) {
+                group["amount:sum_currency"] = group["amount:sum"] * 2;
+            }
+        }
+        return result;
+    });
+
+    const view = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: /* xml */ `
+            <graph type="line" stacked="0" cumulated="1" cumulated_start="1">
+                <field name="date" />
+                <field name="amount" type="measure" />
+            </graph>
+        `,
+        searchViewArch: /* xml */ `
+            <search>
+                <filter name="filter_after_march"
+                    string="After March 2016"
+                    domain="[['date', '>=', '2016-03-01']]"
+                    />
+            </search>
+        `,
+        context: {
+            search_default_filter_after_march: 1,
+        },
+    });
+
+    // Mixed currencies (March mixes USD/EUR): the whole series is converted,
+    // and so must be the cumulated start (2 × (100 + 200) = 600), otherwise
+    // the baseline mixes currency spaces.
+    // [600 + 2×700, + 2×500, + 2×600] = [2000, 3000, 4200]
+    checkDatasets(view, ["data"], { data: [2000, 3000, 4200] });
+});
+
 test("displaying line chart with only 1 data point", async () => {
     Foo._records = Foo._records.filter((id) => id === 1);
 

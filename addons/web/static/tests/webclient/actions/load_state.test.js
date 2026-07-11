@@ -1446,6 +1446,80 @@ describe(`new urls`, () => {
         ]);
     });
 
+    test("failed load_breadcrumbs on restore degrades to the leaf action", async () => {
+        // A single failed /web/action/load_breadcrumbs must not fail the
+        // whole restore-from-URL: the affected ancestor crumbs are dropped
+        // (same degradation as inaccessible records) and the leaf action
+        // still loads — no error dialog, no blank action container.
+        defineActions(
+            [
+                {
+                    id: 27,
+                    xml_id: "action_27",
+                    name: "Partners Action 27",
+                    res_model: "partner",
+                    path: "partners",
+                    views: [
+                        [false, "list"],
+                        [false, "form"],
+                    ],
+                },
+                {
+                    id: 28,
+                    xml_id: "action_28",
+                    name: "Partners Action 28",
+                    res_model: "partner",
+                    views: [
+                        [1, "kanban"],
+                        [false, "form"],
+                    ],
+                },
+            ],
+            { mode: "replace" },
+        );
+        onRpc("/web/action/load_breadcrumbs", () => {
+            expect.step("/web/action/load_breadcrumbs");
+            return Promise.reject(new Error("breadcrumbs unavailable"));
+        });
+
+        redirect("/odoo/partners/2/action-28/1");
+        await mountWebClient();
+        await animationFrame();
+
+        expect.verifySteps(["/web/action/load_breadcrumbs"]);
+        expect(`.o_form_view`).toHaveCount(1);
+        expect(`.o_error_dialog`).toHaveCount(0);
+        expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
+            "Partners Action 28",
+            "First record",
+        ]);
+    });
+
+    test("hard failure on state restore falls back to the default app", async () => {
+        // loadRouterState catches a loadState rejection: the error is still
+        // surfaced, but with nothing on screen the default app is loaded
+        // instead of leaving an empty action container.
+        expect.errors(1);
+        defineMenus([{ id: 1, name: "App1", appID: 1, actionID: 1001 }], {
+            mode: "replace",
+        });
+        onRpc("/web/action/load", async (request) => {
+            const { params } = await request.json();
+            if (params.action_id === 1) {
+                throw new Error("action 1 load failed");
+            }
+        });
+
+        redirect("/odoo/action-1");
+        await mountWebClient();
+        await animationFrame();
+
+        expect.verifyErrors([/RPC_ERROR/]);
+        expect(`.test_client_action`).toHaveCount(1, {
+            message: "the default app was loaded",
+        });
+    });
+
     test("properly reload dynamic actions from sessionStorage (action without id)", async () => {
         patchWithCleanup(browser.sessionStorage, {
             setItem(key, value) {

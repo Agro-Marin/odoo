@@ -174,6 +174,25 @@ test("Close dropdown on escape keydown", async () => {
     expect(".o_select_menu_menu").toHaveCount(0);
 });
 
+test("Escape while a debounced search is pending keeps the dropdown closed", async () => {
+    await mountSingleApp(Parent);
+
+    await open();
+    expect(".o_select_menu_menu").toHaveCount(1);
+
+    // Type then close with Escape before the debounced input handler fires.
+    await edit("he", { confirm: false });
+    await press("escape");
+    await animationFrame();
+    expect(".o_select_menu_menu").toHaveCount(0);
+
+    // The pending debounce must have been cancelled: it used to fire here and
+    // force the dropdown back open.
+    await runAllTimers();
+    await animationFrame();
+    expect(".o_select_menu_menu").toHaveCount(0);
+});
+
 test("Search input should be present as a toggler, but cannot be edited if searchable=false", async () => {
     class MyParent extends Component {
         static props = ["*"];

@@ -18,7 +18,10 @@ export class IrUiViewCodeEditor extends CodeEditor {
         this.markers = [];
 
         onMounted(() => {
-            this.aceEditor.getSession().on("change", () => {
+            // Editor-level event (not session-level): the parent CodeEditor
+            // swaps sessions on sessionId change, which would orphan a
+            // listener attached to the initial session only.
+            this.aceEditor.on("change", () => {
                 // Markers have fixed pixel positions, so they get wonky on change.
                 this.clearMarkers();
             });

@@ -44,7 +44,13 @@ export class CalendarRenderer extends Component {
         return this.props;
     }
     get calendarKey() {
-        return `${this.props.model.scale}_${this.props.model.date.valueOf()}`;
+        // Scale only: a scale change swaps/rebuilds the concrete renderer,
+        // while date navigation must NOT remount it — the full_calendar_hook's
+        // onPatched gotoDate/changeView path updates the existing FullCalendar
+        // instance incrementally (a date in the key forced a full FC teardown
+        // and rebuild on every prev/next/today navigation — 12 instances in
+        // year scale).
+        return this.props.model.scale;
     }
     get actionSwiperProps() {
         return {

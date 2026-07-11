@@ -8,7 +8,6 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { utils } from "@web/ui/block/ui_service";
@@ -68,7 +67,14 @@ export class KanbanHeader extends Component {
         if (!this.hasTooltip) {
             return;
         }
-        const tooltip = await this.loadTooltip();
+        let tooltip;
+        try {
+            tooltip = await this.loadTooltip();
+        } catch {
+            // Transient failure (loadTooltip dropped its cache): no tooltip
+            // for this hover, the next one retries.
+            return;
+        }
         if (tooltip.length) {
             this.popover.open(/** @type {HTMLElement} */ (ev.target), { tooltip });
         }
@@ -136,10 +142,20 @@ export class KanbanHeader extends Component {
     }
 
     /**
-     * Fetch tooltip field values from the server (memoized).
+     * Fetch tooltip field values from the server. The resolved promise is
+     * cached; a rejected one is dropped so a transient RPC failure doesn't
+     * permanently break the tooltip for this header.
      * @returns {Promise<Array<{ title: string, value: any }>>}
      */
-    loadTooltip = memoize(async () => {
+    loadTooltip = () => {
+        this._tooltipProm ||= this._fetchTooltip().catch((error) => {
+            this._tooltipProm = null;
+            throw error;
+        });
+        return this._tooltipProm;
+    };
+
+    async _fetchTooltip() {
         const { name, relation: resModel } = this.group.groupByField;
         const tooltipInfo = this.props.tooltipInfo[name];
         const fieldNames = Object.keys(tooltipInfo);
@@ -155,7 +171,7 @@ export class KanbanHeader extends Component {
                 title: tooltipInfo[fieldName],
                 value: values[fieldName],
             }));
-    });
+    }
 
     /** Activate quick-create mode for this column. */
     quickCreate(group) {

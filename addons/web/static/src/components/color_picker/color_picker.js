@@ -218,7 +218,7 @@ export class ColorPicker extends Component {
         this.state.activeTab = tab;
         // Reset the preview revert callback, as it is tab-specific.
         this.setOperationCallbacks({ onPreviewRevertCallback: () => {} });
-        this.applyColorResetPreview();
+        this.resetColorPreview();
     }
 
     processColorFromEvent(ev) {
@@ -256,7 +256,7 @@ export class ColorPicker extends Component {
         }
     }
 
-    applyColor(color) {
+    selectColor(color) {
         this.state.currentCustomColor = color;
         this.props.applyColor(color);
         this.defaultColorSet = this.getDefaultColorSet();
@@ -268,11 +268,11 @@ export class ColorPicker extends Component {
             return;
         }
         const color = this.processColorFromEvent(ev);
-        this.applyColor(color);
+        this.selectColor(color);
         this.props.close();
     }
 
-    applyColorResetPreview() {
+    resetColorPreview() {
         this.props.applyColorResetPreview();
         this.state.currentColorPreview = undefined;
         this.onPreviewRevertCallback();
@@ -295,7 +295,7 @@ export class ColorPicker extends Component {
         if (!this.isColorButton(this.getTarget(ev))) {
             return;
         }
-        this.applyColorResetPreview();
+        this.resetColorPreview();
     }
     getTarget(ev) {
         const target = ev.target.closest(`[data-color]`);
@@ -327,7 +327,7 @@ export class ColorPicker extends Component {
             return;
         }
         const activeEl = document.activeElement;
-        this.applyColorResetPreview();
+        this.resetColorPreview();
         if (document.activeElement !== activeEl) {
             // The focus was lost during revert. Reset it where it should be.
             ev.relatedTarget.focus();
@@ -414,7 +414,6 @@ export function useColorPicker(refName, props, options = {}) {
     const setOnCloseCallback = (cb) => {
         onCloseCallback = cb;
     };
-    props.setOnCloseCallback = setOnCloseCallback;
     // Always run the close callback (e.g. the custom tab commits or reverts the
     // previewed color on close), even when the caller gave no `onClose`. Copy the
     // options instead of mutating the caller's object.
@@ -434,7 +433,9 @@ export function useColorPicker(refName, props, options = {}) {
         if (colorPicker.isOpen) {
             colorPicker.close();
         } else {
-            colorPicker.open(root.el, props);
+            // Forward setOnCloseCallback at open time instead of assigning it
+            // into the caller's props object (OWL props are not ours to mutate).
+            colorPicker.open(root.el, { ...props, setOnCloseCallback });
             popoverOptions.onOpen?.();
         }
     }

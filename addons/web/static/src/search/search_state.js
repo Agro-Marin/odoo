@@ -104,10 +104,12 @@ export function execute(op, source, target) {
 
     // ``op`` (mapToArray/arrayToMap) converts each section, its ``values`` and
     // ``groups`` Maps ONE level deep. This is NOT a full deep snapshot: nested
-    // arrays (e.g. ``childrenIds``) and value objects shared between
-    // ``filter.values`` and ``group.values`` stay referenced. Safe today
-    // because the only consumer stringifies immediately — do not read the
-    // export lazily and then mutate the model, or deep-copy here first.
+    // arrays (e.g. ``childrenIds``) stay referenced, and each value object is
+    // copied SEPARATELY for ``filter.values`` and ``group.values`` — the
+    // export breaks the identity invariant createFilterTree establishes
+    // between them (restored below on import). Safe on export because the
+    // only consumer stringifies immediately — do not read the export lazily
+    // and then mutate the model, or deep-copy here first.
     target.sections = op(sections);
     for (const [, section] of target.sections) {
         section.values = op(section.values);
@@ -115,6 +117,26 @@ export function execute(op, source, target) {
             section.groups = op(section.groups);
             for (const [, group] of section.groups) {
                 group.values = op(group.values);
+            }
+        }
+    }
+    if (op === arrayToMap) {
+        // Re-establish `filter.values.get(id) === group.values.get(id)`:
+        // toggleFilterValues mutates filter.values while computeFilterDomain
+        // reads group.values, so a grouped section that is not refetched after
+        // import (expand sections without counters) would otherwise ignore
+        // toggles until the next refetch re-aliases the two Maps.
+        for (const [, section] of target.sections) {
+            if (!section.groups) {
+                continue;
+            }
+            for (const [, group] of section.groups) {
+                for (const valueId of group.values.keys()) {
+                    const value = section.values.get(valueId);
+                    if (value) {
+                        group.values.set(valueId, value);
+                    }
+                }
             }
         }
     }

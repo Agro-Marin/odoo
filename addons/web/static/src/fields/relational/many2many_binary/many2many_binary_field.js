@@ -87,7 +87,7 @@ export class Many2ManyBinaryField extends Component {
         if (uploadedIds.length) {
             // Link all uploaded attachments in one operation (addAndRemove)
             // instead of one RPC per file.
-            await this.operations.saveRecord(uploadedIds);
+            await this.operations.linkRecords(uploadedIds);
         }
     }
 

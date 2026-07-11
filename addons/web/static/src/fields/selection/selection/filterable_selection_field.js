@@ -27,26 +27,27 @@ export class FilterableSelectionField extends SelectionField {
      */
     get options() {
         let options = super.options;
+        // `this.value` (not the raw record value) so the keep-current escape
+        // hatch also matches many2one fields, whose raw value is an
+        // `{id, display_name}` object while `option[0]` is an id.
         if (this.props.whitelist_fname) {
             // The whitelist field is a fields.Json compute that reads ``false``
             // when unset (new record / conditional compute), so guard against
             // ``false.includes`` crashing the form render.
             const whitelist = this.props.record.data[this.props.whitelist_fname] || [];
             options = options.filter(
-                (option) =>
-                    option[0] === this.props.record.data[this.props.name] ||
-                    whitelist.includes(option[0]),
+                (option) => option[0] === this.value || whitelist.includes(option[0]),
             );
         } else if (this.props.whitelisted_values) {
             options = options.filter(
                 (option) =>
-                    option[0] === this.props.record.data[this.props.name] ||
+                    option[0] === this.value ||
                     this.props.whitelisted_values.includes(option[0]),
             );
         } else if (this.props.blacklisted_values) {
             options = options.filter(
                 (option) =>
-                    option[0] === this.props.record.data[this.props.name] ||
+                    option[0] === this.value ||
                     !this.props.blacklisted_values.includes(option[0]),
             );
         }

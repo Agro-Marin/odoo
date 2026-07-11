@@ -267,6 +267,11 @@ export function parseTime(value, parseSeconds) {
         second < 60
     ) {
         if (hour === 24) {
+            // "24" is only a valid hour as ISO 8601 end-of-day ("24:00:00");
+            // accepting "24:30" would silently turn it into "00:30".
+            if (minute || second) {
+                return null;
+            }
             hour = 0;
         }
         return new Time({ hour, minute, second });

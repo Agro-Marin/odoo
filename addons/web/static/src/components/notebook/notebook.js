@@ -137,7 +137,7 @@ export class Notebook extends Component {
             return undefined;
         }
         const page = entry[1];
-        return page.Component && page;
+        return page.Component ? page : undefined;
     }
 
     /**

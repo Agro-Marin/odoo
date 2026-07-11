@@ -1,9 +1,13 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { Component } from "@odoo/owl";
-import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
-import { Registry } from "@web/core/registry";
+import { Component, xml } from "@odoo/owl";
+import {
+    mountWithCleanup,
+    patchWithCleanup,
+    serverState,
+} from "@web/../tests/web_test_helpers";
+import { Registry, useRegistry } from "@web/core/registry";
 
 describe.current.tags("headless");
 
@@ -343,4 +347,61 @@ test("non-debug: addValidation retroactively quarantines invalid existing entrie
     expect(() => registry.addValidation({ name: String })).not.toThrow();
     expect(registry.contains("good")).toBe(true);
     expect(registry.contains("bad")).toBe(false);
+});
+
+test("useRegistry: additions after a local splice keep sequence order", async () => {
+    // MainComponentsContainer.handleComponentError splices faulty entries
+    // out of the LOCAL reactive copy; a later registry addition must still
+    // land at its sequence-ordered position relative to the surviving local
+    // entries (the full-registry index would overshoot after the splice).
+    const testRegistry = new Registry();
+    testRegistry.add("a", "A", { sequence: 10 });
+    testRegistry.add("b", "B", { sequence: 20 });
+    testRegistry.add("d", "D", { sequence: 40 });
+
+    /** @type {any} */
+    let state;
+    class MyComponent extends Component {
+        static template = xml`<div/>`;
+        static props = ["*"];
+        setup() {
+            state = useRegistry(testRegistry);
+        }
+    }
+    await mountWithCleanup(MyComponent);
+    expect(state.entries.map(([k]) => k)).toEqual(["a", "b", "d"]);
+
+    // Local removal (not through the registry).
+    state.entries.splice(0, 1);
+    expect(state.entries.map(([k]) => k)).toEqual(["b", "d"]);
+
+    // Registry order is a(10), b(20), c(30), d(40) → locally c belongs
+    // between b and d, not at full-registry index 2 (after d).
+    testRegistry.add("c", "C", { sequence: 30 });
+    expect(state.entries.map(([k]) => k)).toEqual(["b", "c", "d"]);
+
+    // Appending at the end still works.
+    testRegistry.add("e", "E", { sequence: 50 });
+    expect(state.entries.map(([k]) => k)).toEqual(["b", "c", "d", "e"]);
+});
+
+test("useRegistry: listens from setup time, not onWillStart", async () => {
+    // An addition landing between setup and an async willStart chain must
+    // not be lost.
+    const testRegistry = new Registry();
+    testRegistry.add("a", "A", { sequence: 10 });
+
+    /** @type {any} */
+    let state;
+    class MyComponent extends Component {
+        static template = xml`<div/>`;
+        static props = ["*"];
+        setup() {
+            state = useRegistry(testRegistry);
+            // Registered during setup, before any lifecycle hook runs.
+            testRegistry.add("b", "B", { sequence: 20 });
+        }
+    }
+    await mountWithCleanup(MyComponent);
+    expect(state.entries.map(([k]) => k)).toEqual(["a", "b"]);
 });

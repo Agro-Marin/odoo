@@ -10,7 +10,11 @@ import {
 import { Domain } from "@web/core/domain";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
-import { constructDateDomain } from "@web/search/utils/dates";
+import {
+    constructDateDomain,
+    getMonthPeriodOptions,
+    getPeriodOptions,
+} from "@web/search/utils/dates";
 
 describe.current.tags("headless");
 
@@ -340,5 +344,75 @@ test("Quarter option: custom translation and right to left", async () => {
             `["&", ("date_field", ">=", "2020-04-01"), ("date_field", "<=", "2020-06-30")]`,
         ),
         description: "2020 2e Trimestre",
+    });
+});
+
+describe("month period options", () => {
+    const defaultWindow = { startYear: -2, endYear: 0, startMonth: -2, endMonth: 0 };
+
+    test("default window: three months, newest first, current-year defaults", () => {
+        mockDate("2020-06-01T13:00:00");
+        const referenceMoment = luxon.DateTime.local().setLocale("en");
+
+        const options = getMonthPeriodOptions(referenceMoment, defaultWindow);
+
+        expect(options.map((o) => o.id)).toEqual(["month", "month-1", "month-2"]);
+        expect(options.map((o) => o.description)).toEqual(["June", "May", "April"]);
+        expect(options.map((o) => o.defaultYearId)).toEqual(["year", "year", "year"]);
+    });
+
+    test("window crossing into the previous year keeps the real year offset", () => {
+        mockDate("2020-01-15T13:00:00");
+        const referenceMoment = luxon.DateTime.local().setLocale("en");
+
+        const options = getMonthPeriodOptions(referenceMoment, defaultWindow);
+
+        const december = options.find((o) => o.id === "month-1");
+        expect(december.description).toBe("December");
+        expect(december.defaultYearId).toBe("year-1");
+    });
+
+    test("month window spilling past the year window snaps into the window", () => {
+        mockDate("2020-12-15T13:00:00");
+        const referenceMoment = luxon.DateTime.local().setLocale("en");
+
+        const options = getMonthPeriodOptions(referenceMoment, {
+            ...defaultWindow,
+            startMonth: 0,
+            endMonth: 2,
+        });
+
+        const january = options.find((o) => o.id === "month+1");
+        expect(january.description).toBe("January");
+        // start_year/end_year is authoritative: January's natural year (+1)
+        // is outside the [-2, 0] window, so its default year snaps to the
+        // window edge (the auto-selected year option displays the effective
+        // year). Same semantics as the filter_menu "startYear in the future"
+        // test.
+        expect(january.defaultYearId).toBe("year");
+    });
+
+    test("future year window: year options stay in the window and defaults resolve", () => {
+        mockDate("2017-01-07T03:00:00");
+        const referenceMoment = luxon.DateTime.local().setLocale("en");
+
+        const options = getPeriodOptions(referenceMoment, {
+            startYear: 2,
+            endYear: 4,
+            startMonth: -2,
+            endMonth: 0,
+            customOptions: [],
+        });
+
+        // The year options are exactly the arch window — never widened.
+        expect(
+            options.filter((o) => o.granularity === "year").map((o) => o.id),
+        ).toEqual(["year+4", "year+3", "year+2"]);
+        // Every month option defaults into the window's first year and
+        // resolves to an existing year option.
+        for (const option of options.filter((o) => o.granularity === "month")) {
+            expect(option.defaultYearId).toBe("year+2");
+            expect(options.some((o) => o.id === option.defaultYearId)).toBe(true);
+        }
     });
 });

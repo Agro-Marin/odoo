@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<template>
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
 
-    <t t-name="account.JsonCheckboxes">
+    <t t-name="web.JsonCheckboxes">
         <div aria-atomic="true">
             <t t-foreach="checkboxes" t-as="checkbox" t-key="checkbox">
                 <div t-att-class="props.stacked ? 'd-block' : 'd-inline-block me-3'">
@@ -23,4 +23,4 @@
         </div>
     </t>
 
-</template>
+</templates>

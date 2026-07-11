@@ -4,6 +4,7 @@
 /** @module @web/views/list/list_aggregates - Hook computing column aggregates and multi-currency popovers for the list view */
 
 import { onWillStart, useState } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
 import { getCurrencyRates } from "@web/services/currency";
@@ -192,13 +193,14 @@ export function useListAggregates({
                     (attrs.min && "min");
                 let currencyId;
                 let multiCurrency = false;
+                let hasMixedCurrencyGroup = false;
                 if (type === "monetary" || widget === "monetary") {
                     const currencyField = self.getCurrencyField(column);
                     if (currencyField in list.activeFields) {
-                        if (
+                        const isGroupedAggregation =
                             /** @type {any} */ (list).isGrouped &&
-                            !list.selection.length
-                        ) {
+                            !list.selection.length;
+                        if (isGroupedAggregation) {
                             currencyId = values.find((v) => v[currencyField]?.length)?.[
                                 currencyField
                             ][0];
@@ -211,26 +213,43 @@ export function useListAggregates({
                             if (currencies.size > 1) {
                                 multiCurrency = true;
                                 currencyId = user.activeCompany?.currency_id;
-                                for (const entry of fieldEntries) {
-                                    let currency = entry.record[currencyField]?.id;
-                                    if (
-                                        /** @type {any} */ (list).isGrouped &&
-                                        !list.selection.length
-                                    ) {
-                                        currency =
-                                            entry.record[currencyField]?.length > 1
-                                                ? currencyId
-                                                : entry.record[currencyField]?.[0];
-                                    }
-                                    if (currency !== currencyId) {
-                                        entry.value *= currency
-                                            ? (state.currencyRates[currency]?.rate ?? 1)
-                                            : 1;
+                                // A group whose own sum already mixes
+                                // currencies cannot be converted client-side
+                                // (the per-currency breakdown is not
+                                // available): no meaningful footer total
+                                // exists, so render the multi-currency
+                                // indicator without one.
+                                hasMixedCurrencyGroup =
+                                    isGroupedAggregation &&
+                                    fieldEntries.some(
+                                        (entry) =>
+                                            entry.record[currencyField]?.length > 1,
+                                    );
+                                if (!hasMixedCurrencyGroup) {
+                                    for (const entry of fieldEntries) {
+                                        const currency = isGroupedAggregation
+                                            ? entry.record[currencyField]?.[0]
+                                            : entry.record[currencyField]?.id;
+                                        if (currency !== currencyId) {
+                                            entry.value *= currency
+                                                ? (state.currencyRates[currency]
+                                                      ?.rate ?? 1)
+                                                : 1;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
+                if (hasMixedCurrencyGroup) {
+                    aggregates[fieldName] = {
+                        help: _t("No total: a group mixes several currencies"),
+                        value: "",
+                        multiCurrency: true,
+                        rawValue: undefined,
+                    };
+                    continue;
                 }
                 if (func) {
                     let aggregatedValue;
@@ -353,6 +372,11 @@ export function useListAggregates({
          * @param {string} fieldName
          */
         openMultiCurrencyPopover(ev, value, fieldName) {
+            if (value === undefined) {
+                // Indicator without a total (mixed-currency group): there is
+                // no value to convert.
+                return;
+            }
             if (!multiCurrencyPopover.isOpen) {
                 multiCurrencyPopover.open(/** @type {HTMLElement} */ (ev.target), {
                     currencyIds: Array.from(self.getFieldCurrencies(fieldName)),

@@ -2001,6 +2001,32 @@ describe("internal links", () => {
         expect(defaultPrevented).toBe(true);
     });
 
+    test("click on internal link from a non-webclient '/odoo*'-prefixed page is not hijacked", async () => {
+        // The current-page gate must not prefix-match unrelated paths like
+        // "/odoofoo/...": such a document is not the webclient, so an
+        // internal "/odoo/..." link must navigate normally.
+        redirect("/odoofoo/some-page");
+        createRouter({ onPushState: () => expect.step("pushState") });
+        const fixture = getFixture();
+        const link = document.createElement("a");
+        link.href = "/odoo/some-action/2";
+        fixture.appendChild(link);
+
+        expect(router.current).toEqual({});
+
+        browser.addEventListener("click", () => expect.step("click"));
+        await click("a");
+        await tick();
+        expect.verifySteps(["click"]);
+        // Not intercepted: the router left its state untouched (no SPA
+        // loadState) and the browser followed the link normally, moving the
+        // location. (`defaultPrevented` cannot tell hijacking apart here: the
+        // test harness prevents the anchor's default to emulate that
+        // navigation, so it is true whether or not the router intercepted.)
+        expect(router.current).toEqual({});
+        expect(browser.location.pathname).toBe("/odoo/some-action/2");
+    });
+
     test("click on internal link with children does a loadState instead of a full reload", async () => {
         redirect("/odoo");
         createRouter({ onPushState: () => expect.step("pushState") });

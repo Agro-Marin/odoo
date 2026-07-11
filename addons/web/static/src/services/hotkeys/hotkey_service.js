@@ -113,9 +113,11 @@ export const hotkeyService = {
 
             // Replace [accesskey] attrs with [data-hotkey] to take over the default accesskey
             // behavior and avoid conflicts. Only overlay-modifier presses reach these elements,
-            // so skip the full-document scan otherwise.
+            // and only within the UI active element — dispatch can't route outside it, so
+            // stripping accesskeys there would destroy native behavior for nothing.
             if (includesOverlayModifier(hotkey)) {
-                const elementsWithAccessKey = document.querySelectorAll("[accesskey]");
+                const elementsWithAccessKey =
+                    activeElement.querySelectorAll("[accesskey]");
                 for (const el of elementsWithAccessKey) {
                     if (el instanceof HTMLElement) {
                         el.dataset.hotkey = el.accessKey;
@@ -341,7 +343,11 @@ export const hotkeyService = {
                     overlayParent = item.el;
                 }
 
-                if (overlayParent.style.position !== "absolute") {
+                // Check the computed position (not the inline style): an element
+                // positioned fixed/sticky/absolute via CSS class would otherwise
+                // be forced to inline relative, causing a layout jump while the
+                // overlays are visible.
+                if (getComputedStyle(overlayParent).position === "static") {
                     overlayParent.dataset.hotkeyOrigPosition =
                         overlayParent.style.position;
                     overlayParent.style.position = "relative";
@@ -352,6 +358,11 @@ export const hotkeyService = {
         }
 
         function removeHotkeyOverlays() {
+            if (!overlaysVisible) {
+                // Bound to every keyup/blur/click: skip the document-wide
+                // query when no overlay can exist.
+                return;
+            }
             for (const overlay of document.querySelectorAll(".o_web_hotkey_overlay")) {
                 const parent = overlay.parentElement;
                 overlay.remove();

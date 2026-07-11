@@ -193,7 +193,8 @@ test("formatMonetary", () => {
 });
 
 test("formatPercentage", () => {
-    expect(formatPercentage(false)).toBe("0%");
+    // `false` (unset) renders empty like formatFloat, not as "0%".
+    expect(formatPercentage(false)).toBe("");
     expect(formatPercentage(0)).toBe("0%");
     expect(formatPercentage(0.5)).toBe("50%");
 

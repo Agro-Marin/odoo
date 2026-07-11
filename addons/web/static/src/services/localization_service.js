@@ -62,9 +62,15 @@ export const localizationService = {
     start: async () => {
         const localizationDB = new IndexedDB("localization", session.registry_hash);
         const translationURL = session.translationURL || "/web/webclient/translations";
-        const lang = jsToPyLocale(
-            user.lang || document.documentElement.getAttribute("lang"),
-        );
+        // Single locale source for BOTH the translations fetch and the
+        // Luxon/localization.code configuration below — deriving them from
+        // different fallbacks would render terms in one language and format
+        // dates/numbers in another on public/portal pages (no user.lang).
+        const locale =
+            user.lang ||
+            document.documentElement.getAttribute("lang") ||
+            browser.navigator.language;
+        const lang = jsToPyLocale(locale);
 
         /**
          * Synchronous localStorage mirror of the (asynchronous) IndexedDB
@@ -258,7 +264,6 @@ export const localizationService = {
         translatedTerms[translationLoaded] = true;
         translationIsReady.resolve(true);
 
-        const locale = user.lang || browser.navigator.language;
         Settings.defaultLocale = locale;
         for (const [re, numberingSystem] of NUMBERING_SYSTEMS) {
             if (re.test(locale)) {
@@ -266,7 +271,7 @@ export const localizationService = {
                 break;
             }
         }
-        localization.code = jsToPyLocale(locale);
+        localization.code = lang;
         return localization;
     },
 };

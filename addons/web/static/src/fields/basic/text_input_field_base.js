@@ -67,23 +67,8 @@ export class TextInputFieldBase extends Component {
      * @param {string} [defaultValue] - Fallback value when the placeholder resolves to empty
      */
     async onDynamicPlaceholderValidate(chain, defaultValue) {
-        if (chain) {
-            // `inputEl` is an abstract getter (null here, overridden by subclasses).
-            const el = /** @type {any} */ (this.inputEl);
-            el.focus();
-            const dynamicPlaceholder = ` {{object.${chain}${
-                defaultValue?.length ? ` ||| ${defaultValue}` : ""
-            }}}`;
-            el.setRangeText(
-                dynamicPlaceholder,
-                /** @type {any} */ (this).selectionStart,
-                /** @type {any} */ (this).selectionStart,
-                "end",
-            );
-            // trigger events to make the field dirty
-            el.dispatchEvent(new InputEvent("input"));
-            el.dispatchEvent(new KeyboardEvent("keydown"));
-            el.focus();
-        }
+        this.dynamicPlaceholder.insert(chain, defaultValue, {
+            rangeIndex: /** @type {any} */ (this).selectionStart,
+        });
     }
 }

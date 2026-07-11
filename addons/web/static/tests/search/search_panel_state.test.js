@@ -23,6 +23,7 @@ import {
     toggleCategoryValue,
     toggleFilterValues,
 } from "@web/search/search_panel/search_panel_state";
+import { hasValues } from "@web/search/search_state";
 
 // Helpers
 
@@ -170,6 +171,20 @@ describe("toggleFilterValues", () => {
 
         expect(model._notifications.length).toBe(1);
     });
+
+    test("ignores ids that no longer exist (refetch between render and click)", () => {
+        const filter = makeFilter(1, [[10, false]]);
+        const sections = new Map([[1, filter]]);
+        const model = makeSearchModel(sections);
+
+        // Value 20 was rendered but a counter refetch rebuilt `values`
+        // without it: the click must not throw and 10 still toggles.
+        toggleFilterValues(model, 1, [10, 20]);
+
+        expect(filter.values.get(10).checked).toBe(true);
+        expect(filter.values.has(20)).toBe(false);
+        expect(model._notifications.length).toBe(1);
+    });
 });
 
 // clearSections
@@ -287,6 +302,26 @@ describe("getSections", () => {
         // Original is unchanged
         expect(cat.activeValueId).toBe(false);
     });
+
+    test("memoizes the list until a tree rebuild invalidates it", () => {
+        const cat = makeCategory(1, { hierarchize: false });
+        cat.values.set(false, { id: false, childrenIds: [], parentId: false });
+        const sections = new Map([[1, cat]]);
+        const model = makeSearchModel(sections);
+
+        const first = getSections(model);
+        expect(getSections(model)).toBe(first);
+        expect(first[0].empty).toBe(true);
+
+        createCategoryTree(model, 1, {
+            parent_field: "parent_id",
+            values: [{ id: 10, parent_id: false }],
+        });
+
+        const second = getSections(model);
+        expect(second).not.toBe(first);
+        expect(second[0].empty).toBe(false);
+    });
 });
 
 // ensureCategoryValue
@@ -386,6 +421,29 @@ describe("createCategoryTree", () => {
         expect(cat.values.size).toBe(0);
     });
 
+    test("recovers from a failed fetch: a successful rebuild clears errorMsg", () => {
+        const cat = makeCategory(1, { hierarchize: false });
+        cat.values.set(false, { id: false, childrenIds: [], parentId: false });
+        const sections = new Map([[1, cat]]);
+        const model = makeSearchModel(sections);
+
+        // First fetch fails (server-side error or stamped by the client-side
+        // catch in fetchCategories): the section becomes an error tile.
+        createCategoryTree(model, 1, { values: [], error_msg: "Network error" });
+        expect(cat.errorMsg).toBe("Network error");
+        expect(hasValues(cat)).toBe(true); // error tile rendered
+
+        // A later refetch succeeds: the section must render its values again.
+        createCategoryTree(model, 1, {
+            parent_field: "parent_id",
+            values: [{ id: 10, parent_id: false }],
+        });
+
+        expect("errorMsg" in cat).toBe(false);
+        expect(cat.values.has(10)).toBe(true);
+        expect(hasValues(cat)).toBe(true); // now from actual values
+    });
+
     test("drops values removed server-side on a subsequent fetch", () => {
         const cat = makeCategory(1, { hierarchize: false });
         // Seed the synthetic "All" root as the arch parser does.
@@ -463,6 +521,24 @@ describe("createFilterTree", () => {
         });
 
         expect(filter.errorMsg).toBe("Server error");
+    });
+
+    test("recovers from a failed fetch: a successful rebuild clears errorMsg", () => {
+        const filter = makeFilter(1);
+        const sections = new Map([[1, filter]]);
+        const model = makeSearchModel(sections);
+
+        createFilterTree(model, 1, { values: [], error_msg: "Network error" });
+        expect(filter.errorMsg).toBe("Network error");
+        expect(hasValues(filter)).toBe(true); // error tile rendered
+
+        createFilterTree(model, 1, {
+            values: [{ id: 10, display_name: "Tag A" }],
+        });
+
+        expect("errorMsg" in filter).toBe(false);
+        expect(filter.values.has(10)).toBe(true);
+        expect(hasValues(filter)).toBe(true); // now from actual values
     });
 });
 
