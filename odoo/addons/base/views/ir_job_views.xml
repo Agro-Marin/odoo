@@ -12,6 +12,7 @@
                 <field name="uuid" />
                 <field name="identity_key" />
                 <separator />
+                <filter string="Waiting Dependencies" name="wait_deps" domain="[('state', '=', 'wait_deps')]" />
                 <filter string="Pending" name="pending" domain="[('state', '=', 'pending')]" />
                 <filter string="Started" name="started" domain="[('state', '=', 'started')]" />
                 <filter string="Done" name="done" domain="[('state', '=', 'done')]" />
@@ -44,6 +45,7 @@
                 <field name="state" widget="badge"
                        decoration-success="state == 'done'"
                        decoration-info="state in ('pending', 'started')"
+                       decoration-warning="state == 'wait_deps'"
                        decoration-danger="state == 'failed'" />
                 <field name="retry" optional="show" />
                 <field name="eta" optional="show" />
@@ -65,7 +67,7 @@
                     <button name="action_run_now" type="object" string="Run Manually"
                             class="oe_highlight" invisible="state != 'pending'" />
                     <button name="action_cancel" type="object" string="Cancel"
-                            invisible="state != 'pending'" />
+                            invisible="state not in ('wait_deps', 'pending')" />
                     <button name="action_requeue" type="object" string="Requeue"
                             class="oe_highlight" invisible="state not in ('failed', 'cancelled')" />
                     <field name="state" widget="statusbar"
@@ -100,6 +102,11 @@
                             <field name="create_date" />
                             <field name="started_at" />
                             <field name="done_at" />
+                        </group>
+                        <group string="Dependencies"
+                               invisible="not depends_on_ids and not dependent_ids">
+                            <field name="depends_on_ids" widget="many2many_tags" />
+                            <field name="dependent_ids" widget="many2many_tags" />
                         </group>
                     </group>
                     <notebook invisible="not exc_name">
