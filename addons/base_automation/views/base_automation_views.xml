@@ -189,6 +189,39 @@
                             </div>
                             <field name="log_webhook_calls" widget="boolean_toggle"
                                 invisible="trigger != 'on_webhook'" groups="base.group_no_one" />
+                            <label for="webhook_auth_type" string="Authentication"
+                                invisible="trigger != 'on_webhook'" />
+                            <div invisible="trigger != 'on_webhook'">
+                                <field name="webhook_auth_type" class="oe_inline" />
+                                <field name="webhook_credential_id"
+                                    invisible="webhook_auth_type == 'none'"
+                                    required="webhook_auth_type != 'none'" class="oe_inline ms-2" />
+                                <div class="d-flex flex-row gap-2 mt8"
+                                    invisible="webhook_auth_type not in ['hmac_sha256', 'hmac_sha512']">
+                                    <field name="webhook_signature_header" placeholder="Signature header" />
+                                    <field name="webhook_signature_prefix" placeholder="Prefix" />
+                                </div>
+                                <div class="mt8">
+                                    <field name="webhook_timestamp_check" widget="boolean_toggle" class="oe_inline" />
+                                    <span class="ms-1">Verify timestamp (replay protection)</span>
+                                    <div class="d-flex flex-row gap-2" invisible="not webhook_timestamp_check">
+                                        <field name="webhook_timestamp_header" placeholder="Timestamp header" />
+                                        <field name="webhook_timestamp_max_age" />
+                                    </div>
+                                </div>
+                                <div class="mt8">
+                                    <field name="webhook_rate_limit" widget="boolean_toggle" class="oe_inline" />
+                                    <span class="ms-1">Rate limit</span>
+                                    <div class="d-flex flex-row gap-2" invisible="not webhook_rate_limit">
+                                        <field name="rate_limit_requests" />
+                                        <field name="webhook_rate_limit_window" />
+                                    </div>
+                                </div>
+                                <div class="d-flex flex-row gap-2 mt8">
+                                    <field name="webhook_ip_allowlist" placeholder="IP allowlist (CIDR, comma-separated)" />
+                                    <field name="webhook_max_payload_size" />
+                                </div>
+                            </div>
                             <label for="trg_date_range"
                                 invisible="trigger not in ['on_time', 'on_time_created', 'on_time_updated']" />
                             <div class="d-flex flex-row gap-2"

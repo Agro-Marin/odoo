@@ -24,6 +24,18 @@ class BaseAutomationController(Controller):
         if not rule:
             return request.make_json_response({"status": "error"}, status=404)
 
+        # Authenticate / rate-check before doing any work. remote_addr is the
+        # ProxyFix-corrected peer (trust X-Forwarded-For only via proxy_mode).
+        ok, status, message = rule._verify_webhook_request(
+            headers=dict(request.httprequest.headers),
+            body=request.httprequest.get_data(as_text=False),
+            remote_addr=request.httprequest.remote_addr,
+        )
+        if not ok:
+            return request.make_json_response(
+                {"status": "error", "message": message}, status=status
+            )
+
         data = get_webhook_request_payload()
         try:
             rule._execute_webhook(data)

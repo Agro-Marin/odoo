@@ -13,6 +13,7 @@ Sales Team, or an opportunity which still has status pending after 14 days might
 trigger an automatic reminder email.
     """,
     "depends": [
+        "base_credential_manager",
         "digest",
         "resource",
         "sms",

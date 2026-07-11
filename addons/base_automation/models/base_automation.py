@@ -1,4 +1,5 @@
 import datetime
+import ipaddress
 import logging
 import re
 import traceback
@@ -8,9 +9,14 @@ from uuid import uuid4
 from dateutil.relativedelta import relativedelta
 from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import LockError, MissingError
-from odoo.fields import Command, Domain
+from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import safe_eval
+
+from odoo.addons.base_credential_manager.tools import (
+    verify_signature,
+    verify_timestamp,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -267,6 +273,59 @@ class BaseAutomation(models.Model):
     log_webhook_calls = fields.Boolean(
         string="Log Calls",
         default=False,
+    )
+
+    # ------------------------------------------------------------------
+    # Webhook security (absorbed from the agromarin api_webhook module).
+    # The bare /web/hook/<uuid> endpoint authenticates only by the unguessable
+    # UUID; these optional controls add real request authentication and abuse
+    # protection, backed by base_credential_manager for the encrypted secret and
+    # the rate-limit bucket. Defaults keep the historical "open" behaviour.
+    # ------------------------------------------------------------------
+    webhook_auth_type = fields.Selection(
+        selection=[
+            ("none", "None (UUID only)"),
+            ("hmac_sha256", "HMAC SHA-256 signature"),
+            ("hmac_sha512", "HMAC SHA-512 signature"),
+            ("bearer", "Bearer token"),
+        ],
+        string="Webhook Authentication",
+        default="none",
+        help="How incoming webhook calls are authenticated. HMAC/bearer read "
+        "their secret from the linked credential.",
+    )
+    webhook_credential_id = fields.Many2one(
+        "credential.credential",
+        string="Webhook Secret",
+        ondelete="restrict",
+        help="Credential holding the shared secret / token used to verify calls.",
+    )
+    webhook_signature_header = fields.Char(default="X-Hub-Signature-256")
+    webhook_signature_prefix = fields.Char(default="sha256=")
+    webhook_timestamp_check = fields.Boolean(
+        string="Verify Timestamp",
+        help="Reject calls whose timestamp header is missing or outside the "
+        "allowed age window (replay-attack protection).",
+    )
+    webhook_timestamp_header = fields.Char(default="X-Webhook-Timestamp")
+    webhook_timestamp_max_age = fields.Integer(
+        string="Max Timestamp Age (s)", default=300
+    )
+    webhook_ip_allowlist = fields.Char(
+        string="IP Allowlist",
+        help="Comma-separated IPs/CIDRs allowed to call this webhook. Empty = any. "
+        "Requires proxy_mode when behind a reverse proxy.",
+    )
+    webhook_max_payload_size = fields.Integer(
+        string="Max Payload Size (bytes)", default=1048576
+    )
+    webhook_rate_limit = fields.Boolean(string="Rate Limit")
+    rate_limit_requests = fields.Integer(
+        string="Requests / Window", default=100,
+        help="Token-bucket capacity (read by the rate-limit bucket).",
+    )
+    webhook_rate_limit_window = fields.Integer(
+        string="Rate Window (s)", default=60
     )
 
     trigger = fields.Selection(
@@ -1015,6 +1074,85 @@ class BaseAutomation(models.Model):
         if final_exception is not None:
             # raise the last found exception to mark the cron job as failing
             raise final_exception
+
+    def _verify_webhook_request(self, headers, body, remote_addr):
+        """Authenticate and rate-check an incoming webhook call.
+
+        Returns ``(ok, status_code, message)``. Called by the ``/web/hook``
+        controller before the automation runs. Every check is opt-in through the
+        ``webhook_*`` fields; with the defaults this is a no-op and the endpoint
+        keeps its historical UUID-only behaviour.
+        """
+        self.ensure_one()
+
+        if self.webhook_ip_allowlist and not self._webhook_ip_allowed(remote_addr):
+            return (False, 403, "IP address not allowed")
+
+        if (
+            self.webhook_max_payload_size
+            and len(body) > self.webhook_max_payload_size
+        ):
+            return (False, 413, "Payload too large")
+
+        if self.webhook_rate_limit and not self._webhook_rate_ok():
+            return (False, 429, "Rate limit exceeded")
+
+        if self.webhook_timestamp_check:
+            ts = headers.get(self.webhook_timestamp_header)
+            if not ts or not verify_timestamp(
+                ts, max_age_seconds=self.webhook_timestamp_max_age, env=self.env
+            ):
+                return (False, 401, "Timestamp verification failed")
+
+        if self.webhook_auth_type and self.webhook_auth_type != "none":
+            secret = (
+                self.webhook_credential_id.credential_value
+                if self.webhook_credential_id
+                else None
+            )
+            if not verify_signature(
+                signature_type=self.webhook_auth_type,
+                headers=headers,
+                body=body,
+                secret=secret,
+                signature_header=self.webhook_signature_header,
+                signature_prefix=self.webhook_signature_prefix,
+                env=self.env,
+            ):
+                return (False, 401, "Invalid signature")
+
+        return (True, 200, "OK")
+
+    def _webhook_ip_allowed(self, remote_addr):
+        """Return True if remote_addr matches the comma-separated IP/CIDR list."""
+        if not remote_addr:
+            return False
+        try:
+            ip = ipaddress.ip_address(remote_addr)
+        except ValueError:
+            return False
+        for token in (self.webhook_ip_allowlist or "").split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                if "/" in token:
+                    if ip in ipaddress.ip_network(token, strict=False):
+                        return True
+                elif ip == ipaddress.ip_address(token):
+                    return True
+            except ValueError:
+                continue
+        return False
+
+    def _webhook_rate_ok(self):
+        """Consume one token from this rule's DB-backed rate-limit bucket."""
+        bucket = (
+            self.env["rate.limit.bucket"]
+            .sudo()
+            .get_or_create_bucket(self, self.env.company.id)
+        )
+        return bucket.consume_token()
 
     def _execute_webhook(self, payload):
         """Execute the webhook for the given payload.
