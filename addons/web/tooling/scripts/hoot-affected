@@ -1,0 +1,46 @@
+#!/home/marin/Odoo/venv/p314o19marin/bin/python
+"""Print the minimal set of @web/... HOOT suites affected by changed JS files.
+
+With no arguments, uses ``git diff --name-only HEAD`` inside addons/odoo and
+keeps files under an addon ``static/`` tree. Otherwise treats each argument as a
+changed file path.
+
+Uses a conservative import-scan of the fork's ESM specifiers (direct importers
+of the changed module, plus one hop through src files). Feed the output to the
+runner, or just run ``hoot --affected`` which does the same selection.
+
+Examples
+--------
+  hoot-affected
+  hoot-affected addons/web/static/src/core/domain.js
+  hoot --affected      # run them
+"""
+
+from __future__ import annotations
+
+# CLI tool: print() is the user-facing output channel.
+# ruff: noqa: T201
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import hoot_lib as H
+
+
+def main() -> int:
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    changed = H.changed_web_js(args or None)
+    if not changed:
+        print("# no changed JS files under a static/ tree", file=sys.stderr)
+        return 0
+    suites = H.affected_suites(changed)
+    if not suites:
+        print("# no affected suites detected", file=sys.stderr)
+        return 0
+    for suite in suites:
+        print(suite)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

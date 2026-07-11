@@ -1,0 +1,234 @@
+#!/home/marin/Odoo/venv/p314o19marin/bin/python
+"""Fast warm-server HOOT test runner for the Odoo 19 web module.
+
+Replaces the ~8-11 min ``odoo-bin --test-tags /web:WebSuite.test_X`` loop:
+boots ONE persistent threaded dev server (once), keeps it warm across
+invocations, and drives Chrome via Odoo's own ``ChromeBrowser`` CDP driver
+against ``/web/tests``. The ERP boot and the esbuild bundle build are paid once;
+every later run is seconds-to-~1min instead of minutes.
+
+Examples
+--------
+  hoot '@web/core/domain'              # run one suite
+  hoot '@web/services' '@web/model'    # several suites
+  hoot --affected                      # suites touched by your git diff
+  hoot --watch '@web/core/domain'      # re-run on file change
+  hoot --status                        # show warm-server state
+  hoot --stop                          # stop warm server (keep DB)
+  hoot --clean                         # stop warm server AND drop its DB
+
+Full test path form works too (HOOT resolves an id against a suite OR a single
+test), e.g.  hoot '@web/core/domain/Basic Properties/empty'.
+"""
+
+from __future__ import annotations
+
+# CLI tool: print() is the user-facing output channel.
+# ruff: noqa: T201
+import argparse
+import contextlib
+import logging
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import hoot_lib as H
+
+C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
+    "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+)
+
+
+def _color(txt: str, code: str) -> str:
+    return f"{code}{txt}{C_RST}" if sys.stdout.isatty() else txt
+
+
+def _setup_logging(verbose: bool) -> None:
+    level = logging.INFO if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format=f"{C_DIM}%(asctime)s %(name)s %(levelname)s{C_RST} %(message)s"
+        if sys.stdout.isatty() else "%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    # ChromeBrowser console noise is muted in run_suites (propagate=False)
+    # unless -v is passed; nothing to do here.
+
+
+def _report(result: H.RunResult) -> None:
+    header = " ".join(result.suites) or "(no suites)"
+    if result.ok:
+        print(_color(
+            f"PASS  {header}  "
+            f"({result.passed} passed, {result.wall:.1f}s)", C_GREEN))
+        return
+    print(_color(
+        f"FAIL  {header}  "
+        f"({result.failed} failed / {result.passed} passed, "
+        f"{result.wall:.1f}s)", C_RED))
+    if result.error:
+        print(_color(f"  error: {result.error}", C_YEL))
+    for name in result.failed_tests[:50]:
+        print(_color(f"  - {name}", C_RED))
+    if len(result.failed_tests) > 50:
+        print(_color(f"  ... and {len(result.failed_tests) - 50} more", C_RED))
+
+
+def _resolve_suites(args) -> list[str]:
+    if args.affected:
+        changed = H.changed_web_js(args.suites or None)
+        suites = H.affected_suites(changed)
+        if not suites:
+            print(_color(
+                "No affected suites detected from the changed JS files.",
+                C_YEL))
+        else:
+            print(_color(f"Affected suites ({len(suites)}): "
+                        + " ".join(suites), C_DIM))
+        return suites
+    return list(args.suites)
+
+
+def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
+    return H.run_suites(
+        suites,
+        port=state["port"],
+        db=state["db"],
+        preset=args.preset,
+        hoot_timeout_ms=args.hoot_timeout,
+        wall_timeout_s=args.timeout,
+        browser_size=args.browser_size,
+        touch_enabled=args.touch,
+        extra=(f"&filter={args.filter}" if args.filter else ""),
+        verbose=args.verbose,
+    )
+
+
+def _watch(suites: list[str], state: dict, args) -> int:
+    """Poll web/static/src + tests mtimes; re-run affected/given suites."""
+    watch_roots = []
+    for addon in (H.WEB_ADDONS_ROOT).iterdir():
+        for kind in ("src", "tests"):
+            d = addon / "static" / kind
+            if d.is_dir():
+                watch_roots.append(d)
+
+    def snapshot() -> dict[str, float]:
+        snap = {}
+        for root in watch_roots:
+            for p in root.rglob("*.js"):
+                with contextlib.suppress(OSError):
+                    snap[str(p)] = p.stat().st_mtime
+        return snap
+
+    print(_color("Watch mode: edit a .js file to re-run. Ctrl-C to exit.",
+                C_YEL))
+    last = snapshot()
+    _report(_run_once(suites, state, args))
+    try:
+        while True:
+            time.sleep(1.0)
+            cur = snapshot()
+            changed = [Path(k) for k in cur
+                       if cur[k] != last.get(k)]
+            if not changed:
+                last = cur
+                continue
+            last = cur
+            print(_color(f"\nChanged: {len(changed)} file(s) -> re-running",
+                        C_DIM))
+            run_suites = suites
+            if args.affected:
+                run_suites = H.affected_suites(changed) or suites
+                print(_color("Affected: " + " ".join(run_suites), C_DIM))
+            _report(_run_once(run_suites, state, args))
+    except KeyboardInterrupt:
+        print("\nWatch stopped.")
+        return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        prog="hoot",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__,
+    )
+    ap.add_argument("suites", nargs="*",
+                    help="@web/... suite paths (or full test paths) to run. "
+                         "With --affected, these are treated as changed files.")
+    ap.add_argument("--affected", action="store_true",
+                    help="Run only suites affected by changed JS "
+                         "(default: git diff on addons/odoo).")
+    ap.add_argument("--watch", action="store_true",
+                    help="Re-run on JS file changes (mtime poll).")
+    ap.add_argument("--preset", default="desktop",
+                    choices=["desktop", "mobile"],
+                    help="HOOT preset (default: desktop).")
+    ap.add_argument("--db", default=H.DEFAULT_DB,
+                    help=f"Warm-server database (default: {H.DEFAULT_DB}).")
+    ap.add_argument("--timeout", type=int, default=300,
+                    help="Wall-clock timeout per run, seconds (default: 300).")
+    ap.add_argument("--hoot-timeout", type=int, default=15000,
+                    help="HOOT in-page timeout, ms (default: 15000).")
+    ap.add_argument("--filter", default="",
+                    help="Extra HOOT text filter appended to the URL.")
+    ap.add_argument("--browser-size", default="1366x768")
+    ap.add_argument("--touch", action="store_true")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="Verbose (server + browser INFO logs).")
+    # Lifecycle-only actions.
+    ap.add_argument("--status", action="store_true",
+                    help="Print warm-server status and exit.")
+    ap.add_argument("--stop", action="store_true",
+                    help="Stop the warm server (keep its DB) and exit.")
+    ap.add_argument("--clean", action="store_true",
+                    help="Stop the warm server AND drop its DB, then exit.")
+    ap.add_argument("--restart", action="store_true",
+                    help="Force a fresh warm server before running.")
+    args = ap.parse_args()
+    _setup_logging(args.verbose)
+
+    if args.status:
+        st = H.read_state()
+        if H.server_is_warm(st):
+            print(_color(
+                f"WARM  pid={st['pid']} port={st['port']} db={st['db']}",
+                C_GREEN))
+        else:
+            print(_color("COLD  no warm server", C_YEL))
+        return 0
+    if args.stop:
+        print(H.stop_server(clean=False))
+        return 0
+    if args.clean:
+        print(H.stop_server(clean=True))
+        return 0
+    if args.restart:
+        H.stop_server(clean=False)
+
+    suites = _resolve_suites(args)
+    if not suites:
+        return 0
+
+    t0 = time.time()
+    state, booted = H.ensure_server(args.db, verbose=args.verbose)
+    if booted:
+        print(_color(
+            f"Warm server booted (port={state['port']} db={state['db']}) "
+            f"in {time.time() - t0:.1f}s", C_DIM))
+    else:
+        print(_color(
+            f"Reusing warm server (port={state['port']} db={state['db']})",
+            C_DIM))
+
+    if args.watch:
+        return _watch(suites, state, args)
+
+    result = _run_once(suites, state, args)
+    _report(result)
+    return 0 if result.ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
