@@ -26,7 +26,6 @@ import {
     isShrunkBlock,
     isTangible,
     isUnprotecting,
-    listElementSelector,
     isEditorTab,
     isPhrasingContent,
 } from "../utils/dom_info.js";
@@ -185,15 +184,23 @@ export class DomPlugin extends Plugin {
         // In case the html inserted starts with a list and will be inserted within
         // a list, unwrap the list elements from the list.
         const hasSingleChild = nodeSize(container) === 1;
-        if (
-            closestElement(selection.anchorNode, listElementSelector) &&
-            isListElement(container.firstChild)
-        ) {
+        // Walk up through blocks only: the insertion point is "within a list"
+        // for unwrapping purposes when its closest *block* is a list item, not
+        // merely when a list ancestor exists (which would wrongly unwrap a list
+        // inserted inside an inline element nested in a list item).
+        const closestList = (node) => {
+            if (isBlock(node)) {
+                return node && isListItemElement(node);
+            }
+            return closestList(node.parentElement);
+        };
+
+        if (closestList(selection.anchorNode) && isListElement(container.firstChild)) {
             unwrapContents(container.firstChild);
         }
         // Similarly if the html inserted ends with a list.
         if (
-            closestElement(selection.focusNode, listElementSelector) &&
+            closestList(selection.focusNode) &&
             isListElement(container.lastChild) &&
             !hasSingleChild
         ) {
