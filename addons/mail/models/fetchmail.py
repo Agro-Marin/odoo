@@ -251,7 +251,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                 else OdooPOP3(server, port, timeout=MAIL_TIMEOUT)
             )
             # TODO: use this to remove only unread messages
-            # connection.user("recent:"+server.user)  # noqa: ERA001
+            # connection.user("recent:"+server.user)
             connection.user(self.user)
             connection.pass_(self.password)
         return connection

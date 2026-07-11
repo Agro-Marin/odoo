@@ -16,9 +16,7 @@ class DiscussGifController(Controller):
     def _request_gifs(self, endpoint):
         response = None
         try:
-            response = requests.get(
-                f"https://api.klipy.com/v2/{endpoint}", timeout=3
-            )
+            response = requests.get(f"https://api.klipy.com/v2/{endpoint}", timeout=3)
             response.raise_for_status()
         except requests.exceptions.ConnectionError:
             _logger.error("Failed to connect to Tenor GIF API.")

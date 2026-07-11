@@ -321,7 +321,7 @@ class ThreadController(http.Controller):
         message = self._get_message_with_access(message_id, mode="create", **kwargs)
         if not message or not self._can_edit_message(message, **kwargs):
             raise NotFound
-        # sudo: mail.message - access is checked in _get_with_access and _can_edit_message  # noqa: ERA001
+        # sudo: mail.message - access is checked in _get_with_access and _can_edit_message
         message = message.sudo()
         thread = request.env[message.model].browse(message.res_id)
         thread._message_update_content(

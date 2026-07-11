@@ -1037,7 +1037,7 @@ class Base(models.AbstractModel):
         )
 
     # ------------------------------------------------------------
-    # GATEWAY: NOTIFICATION  # noqa: ERA001
+    # GATEWAY: NOTIFICATION
     # ------------------------------------------------------------
 
     def _notify_by_email_get_headers(self, headers=None):

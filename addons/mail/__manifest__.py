@@ -255,16 +255,16 @@ For more specific needs, you may also assign custom-defined actions
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    'esm': {
-        'bundles': [
-            'mail.assets_lamejs',
-            'mail.assets_odoo_sfu',
-            'mail.assets_public',
+    "esm": {
+        "bundles": [
+            "mail.assets_lamejs",
+            "mail.assets_odoo_sfu",
+            "mail.assets_public",
         ],
-        'dynamic_children': {
-            'web.assets_web': [
-                'mail.assets_lamejs',
-                'mail.assets_odoo_sfu',
+        "dynamic_children": {
+            "web.assets_web": [
+                "mail.assets_lamejs",
+                "mail.assets_odoo_sfu",
             ],
         },
     },

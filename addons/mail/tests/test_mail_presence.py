@@ -31,14 +31,22 @@ class TestMailPresence(HttpCase):
 
     def test_unlinking_sends_correct_im_status(self):
         bob = new_test_user(self.env, login="bob_userg", groups="base.group_user")
-        self.env["mail.presence"]._update_presence(inactivity_period=0, user_or_guest=bob)
+        self.env["mail.presence"]._update_presence(
+            inactivity_period=0, user_or_guest=bob
+        )
         self.env["mail.presence"].search([("user_id", "=", bob.id)]).unlink()
         self.env.cr.precommit.run()  # trigger the creation of bus.bus records
-        channel = json_dump(channel_with_db(self.env.cr.dbname, (bob.partner_id, "presence")))
+        channel = json_dump(
+            channel_with_db(self.env.cr.dbname, (bob.partner_id, "presence"))
+        )
         bus_notif = (
             self.env["bus.bus"]
             .sudo()
             .search([("channel", "=", channel)], order="id desc", limit=1)
         )
-        self.assertEqual(json.loads(bus_notif.message)["payload"]["presence_status"], "offline")
-        self.assertEqual(json.loads(bus_notif.message)["payload"]["im_status"], "offline")
+        self.assertEqual(
+            json.loads(bus_notif.message)["payload"]["presence_status"], "offline"
+        )
+        self.assertEqual(
+            json.loads(bus_notif.message)["payload"]["im_status"], "offline"
+        )

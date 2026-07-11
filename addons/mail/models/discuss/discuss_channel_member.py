@@ -487,7 +487,7 @@ class DiscussChannelMember(models.Model):
         return fields
 
     # --------------------------------------------------------------------------
-    # RTC (voice/video)  # noqa: ERA001
+    # RTC (voice/video)
     # --------------------------------------------------------------------------
 
     def _rtc_join_call(

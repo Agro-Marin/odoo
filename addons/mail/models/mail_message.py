@@ -747,7 +747,7 @@ class MailMessage(models.Model):
                 return forbidden
 
         # CRUD: Access rights related to the document
-        # {document_model_name: {document_id: message_ids}}  # noqa: ERA001
+        # {document_model_name: {document_id: message_ids}}
         model_docid_msgids = defaultdict(lambda: defaultdict(list))
         for mid, message in messages_to_check.items():
             if (
