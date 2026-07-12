@@ -802,61 +802,79 @@ class PurchaseOrderLine(models.Model):
         "amount_taxexc_to_invoice",
     )
     def _compute_invoice_state(self):
-        """
-        Compute the invoice status of a SO line. Possible statuses:
-        - no: if the SO is not in status 'done', we consider that there is nothing to
-          invoice. This is also the default value if the conditions of no other status is met.
-        - to invoice: we refer to the quantity to invoice of the line. Refer to method
-          `_compute_qty_to_invoice()` for more information on how this quantity is calculated.
-        - upselling: this is possible only for a product invoiced on ordered quantities for which
-          we delivered more than expected. The could arise if, for example, a project took more
-          time than expected but we decided not to invoice the extra cost to the client. This
-          occurs only in state 'done', the upselling opportunity is removed from the list.
-        - invoiced: the quantity invoiced is larger or equal to the quantity ordered.
+        """Compute the invoice status of a PO line. Possible statuses:
+
+        - no: nothing to bill (zero qty, or a non-billable/not-yet-received line).
+        - to do: quantity left to bill with nothing billed yet, or a credit note
+          is needed on a 'transferred' line (billed more than received).
+        - partial: quantity left to bill AND some already billed.
+        - done: fully billed (qty_invoiced == the billable quantity).
+        - over done: over-billed on an 'ordered' line (qty_invoiced > product_qty).
+
+        Mirrors sale.order.line._compute_invoice_state, keyed on ``bill_policy``
+        (purchase's analogue of sale's ``invoice_policy``). The over-billed case
+        splits by policy: on 'ordered' lines it is a genuine over-invoice
+        ('over done'); on 'transferred' lines it means a return happened and a
+        credit note is required, which is actionable ('to do').
         """
         precision = self.env["decimal.precision"].precision_get("Product Unit")
         for line in self.filtered(lambda l: not l.display_type):
-            if line.is_downpayment and line.amount_taxexc_to_invoice == 0:
-                line.invoice_state = "done"
+            # Downpayment lines: state follows the remaining amount to bill.
+            if line.is_downpayment:
+                if line.currency_id.is_zero(line.amount_taxexc_to_invoice):
+                    line.invoice_state = "done"
+                else:
+                    line.invoice_state = "to do"
+                continue
 
-            elif float_is_zero(line.product_qty, precision_digits=precision):
+            if float_is_zero(line.product_qty, precision_digits=precision):
                 line.invoice_state = "no"
 
             elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
                 if line.qty_to_invoice < 0:
-                    # Negative qty_to_invoice means credit note is needed
-                    line.invoice_state = "to do"
+                    # Billed more than due.
+                    if line.product_id.bill_policy == "ordered":
+                        line.invoice_state = "over done"
+                    else:
+                        line.invoice_state = "to do"
                 elif float_is_zero(line.qty_invoiced, precision_digits=precision):
-                    # Nothing invoiced yet
+                    # Nothing billed yet, positive qty to bill
                     line.invoice_state = "to do"
-                elif not float_is_zero(line.qty_invoiced, precision_digits=precision):
-                    # Some quantity already invoiced
+                else:
+                    # Some quantity already billed, more to bill
                     line.invoice_state = "partial"
 
             elif float_is_zero(line.qty_to_invoice, precision_digits=precision):
-                # Compare against qty_to_consider based on bill_policy
-                qty_to_consider = (
+                # 'transferred' lines compare to qty received; 'ordered' to qty ordered.
+                qty_to_compare = (
                     line.qty_transferred
                     if line.product_id.bill_policy == "transferred"
                     else line.product_qty
                 )
-                # If nothing to consider (e.g., nothing received yet for 'transferred' policy),
-                # there's nothing to invoice
-                if float_is_zero(qty_to_consider, precision_digits=precision):
+                # transferred policy with nothing received and nothing billed:
+                # nothing to bill yet.
+                if (
+                    line.product_id.bill_policy == "transferred"
+                    and float_is_zero(line.qty_transferred, precision_digits=precision)
+                    and float_is_zero(line.qty_invoiced, precision_digits=precision)
+                ):
                     line.invoice_state = "no"
                     continue
                 compare = float_compare(
                     line.qty_invoiced,
-                    qty_to_consider,
+                    qty_to_compare,
                     precision_digits=precision,
                 )
                 if compare == 0:
                     line.invoice_state = "done"
                 elif compare > 0:
-                    line.invoice_state = "over done"
+                    # Over-billed vs the basis.
+                    if line.product_id.bill_policy == "transferred":
+                        line.invoice_state = "to do"
+                    else:
+                        line.invoice_state = "over done"
                 else:
-                    # qty_invoiced < qty_to_consider
-                    line.invoice_state = "partial"
+                    line.invoice_state = "no"
 
     # -------------------------------------------------------------------------
     # ONCHANGE METHODS
