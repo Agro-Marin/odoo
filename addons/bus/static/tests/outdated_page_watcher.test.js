@@ -1,6 +1,6 @@
 import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker";
-import { describe, expect, test } from "@odoo/hoot";
-import { runAllTimers, waitFor } from "@odoo/hoot-dom";
+import { after, describe, expect, test } from "@odoo/hoot";
+import { on, runAllTimers, waitFor } from "@odoo/hoot-dom";
 import {
     asyncStep,
     contains,
@@ -18,7 +18,9 @@ defineBusModels();
 describe.current.tags("desktop");
 
 test("disconnect during vacuum should ask for reload", async () => {
-    browser.location.addEventListener("reload", () => asyncStep("reload"));
+    // Auto-removed (`after`) so this listener on the shared `browser.location`
+    // mock does not leak a stray "reload" step into later suites.
+    after(on(browser.location, "reload", () => asyncStep("reload")));
     addBusServiceListeners(
         ["BUS:CONNECT", () => asyncStep("BUS:CONNECT")],
         ["BUS:DISCONNECT", () => asyncStep("BUS:DISCONNECT")],

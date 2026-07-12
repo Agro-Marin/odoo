@@ -1,8 +1,9 @@
+import { beforeEach } from "@odoo/hoot";
 import { luxon } from "@web/core/l10n/luxon";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 
-onRpc("get_rainbowman_message", function getRainbowmanMessage({ args, model }) {
+function getRainbowmanMessage({ args, model }) {
     let message = false;
     if (model !== "crm.lead") {
         return message;
@@ -68,4 +69,9 @@ onRpc("get_rainbowman_message", function getRainbowmanMessage({ args, model }) {
         }
     }
     return message;
-});
+}
+
+// Register inside a global `beforeEach` (not module top-level) so the route is
+// applied before every test under native ESM. See the same pattern in other
+// `*_mock_server.js` files.
+beforeEach(() => onRpc("get_rainbowman_message", getRainbowmanMessage), { global: true });

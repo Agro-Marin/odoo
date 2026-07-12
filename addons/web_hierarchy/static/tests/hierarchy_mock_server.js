@@ -1,6 +1,7 @@
+import { beforeEach } from "@odoo/hoot";
 import { onRpc } from "@web/../tests/web_test_helpers";
 
-onRpc("hierarchy_read", function hierarchyRead({ model, args, kwargs }) {
+function hierarchyRead({ model, args, kwargs }) {
     const [domain, specification, parentFieldName, childFieldName, order] = args;
     kwargs.order = order;
     if (!(parentFieldName in specification)) {
@@ -73,4 +74,7 @@ onRpc("hierarchy_read", function hierarchyRead({ model, args, kwargs }) {
         }
     }
     return records;
-});
+}
+
+// See esm-migration note: register at runtime so the route applies per test.
+beforeEach(() => onRpc("hierarchy_read", hierarchyRead), { global: true });

@@ -96,6 +96,14 @@ patch(MockServer.prototype, {
     start() {
         setupWebSocketWorker();
         after(cleanupWebSocketWorker);
+        // Cross-origin worker startup (serverURL !== window.origin) pre-fetches
+        // the worker bundle before creating the (mocked) Worker; see
+        // `worker_service.startWorker`. Register the route on the instance so
+        // that fetch resolves. This can't go through module-level `onRpc` in a
+        // shared helper: its `before()` hook is dropped during hoot's dry
+        // collection pass, so the route would never register. The route pattern
+        // starts with "/", so it matches on any origin.
+        this._onRpc("/bus/websocket_worker_bundle", () => "/* mocked worker bundle */");
         return super.start(...arguments);
     },
 });
