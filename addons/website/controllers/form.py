@@ -101,25 +101,27 @@ class WebsiteForm(http.Controller):
                 # for the email queue to process
 
                 if model_name == "mail.mail":
+                    # The signature is generated at render time by
+                    # ``tools.add_form_signature`` and binds the (builder-set)
+                    # ``email_to`` recipient so a public visitor cannot turn the
+                    # endpoint into an open mail relay. Missing signature must be
+                    # treated as an authentication failure, never a KeyError, and
+                    # the check must run unconditionally: gating it on
+                    # ``email_to`` being present let an attacker skip validation
+                    # entirely by POSTing with only ``email_cc``/``email_bcc``.
+                    signature = kwargs.get("website_form_signature", "")
                     form_has_email_cc = {
                         "email_cc",
                         "email_bcc",
-                    } & kwargs.keys() or "email_cc" in kwargs["website_form_signature"]
-                    # remove the email_cc information from the signature
-                    kwargs["website_form_signature"] = kwargs[
-                        "website_form_signature"
-                    ].split(":")[0]
-                    if kwargs.get("email_to"):
-                        value = kwargs["email_to"] + (
-                            ":email_cc" if form_has_email_cc else ""
-                        )
-                        hash_value = hmac(
-                            model_record.env, "website_form_signature", value
-                        )
-                        if not consteq(kwargs["website_form_signature"], hash_value):
-                            raise AccessDenied(
-                                self.env._("invalid website_form_signature")
-                            )
+                    } & kwargs.keys() or "email_cc" in signature
+                    # remove the ":email_cc" marker appended to the signature
+                    signature = signature.split(":")[0]
+                    value = (kwargs.get("email_to") or "") + (
+                        ":email_cc" if form_has_email_cc else ""
+                    )
+                    hash_value = hmac(model_record.env, "website_form_signature", value)
+                    if not consteq(signature, hash_value):
+                        raise AccessDenied(self.env._("invalid website_form_signature"))
                     request.env[model_name].sudo().browse(id_record).send()
 
         # Some fields have additional SQL constraints that we can't check generically

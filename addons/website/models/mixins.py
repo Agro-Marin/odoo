@@ -42,7 +42,7 @@ class WebsiteSeoMetadata(models.AbstractModel):
     )
     def _compute_is_seo_optimized(self):
         for record in self:
-            record.is_seo_optimized = (
+            record.is_seo_optimized = bool(
                 record.website_meta_title
                 and record.website_meta_description
                 and record.website_meta_keywords
@@ -361,9 +361,11 @@ class WebsitePublishedMultiMixin(WebsitePublishedMixin):
             record.is_published = record.website_published
 
     def _search_website_published(self, operator, value):
-        if operator != "in":
+        if operator != "in" or list(value) != [True]:
+            # Only ``website_published in (True,)`` is supported; defer anything
+            # else to the ORM (which raises a clear error) instead of crashing
+            # the request with an AssertionError (HTTP 500).
             return NotImplemented
-        assert list(value) == [True]
 
         current_website_id = self.env.context.get("website_id")
         is_published = Domain("is_published", "=", True)

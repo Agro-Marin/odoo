@@ -1,6 +1,7 @@
 import logging
 import re
 import uuid
+from xml.sax.saxutils import quoteattr
 
 from lxml import etree, html
 
@@ -339,7 +340,12 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
                 )
                 for el in wrapping_html
                 for tag, attrs in [
-                    (el["tag"], " ".join([f'{k}="{v}"' for k, v in el["attr"].items()]))
+                    (
+                        el["tag"],
+                        " ".join(
+                            f"{k}={quoteattr(str(v))}" for k, v in el["attr"].items()
+                        ),
+                    )
                 ]
             ]
             opening_tags, closing_tags = zip(*tags, strict=False)
@@ -392,7 +398,12 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
             tag = hashes_to_tags_and_attributes[hash_value]["tag"]
             attr = hashes_to_tags_and_attributes[hash_value]["attr"]
             attr_string = (
-                (" " + " ".join([f'{key}="{value}"' for key, value in attr.items()]))
+                (
+                    " "
+                    + " ".join(
+                        f"{key}={quoteattr(str(value))}" for key, value in attr.items()
+                    )
+                )
                 if attr
                 else ""
             )

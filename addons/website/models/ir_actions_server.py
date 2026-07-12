@@ -58,7 +58,7 @@ class IrActionsServer(models.Model):
     def _get_eval_context(self, action=None):
         """Override to add the request object in eval_context."""
         eval_context = super()._get_eval_context(action)
-        if action.state == "code":
+        if action and action.state == "code":
             eval_context["request"] = request
             eval_context["json"] = json_scriptsafe
         return eval_context

@@ -84,9 +84,10 @@ class WebsiteSnippetFilter(models.Model):
         """Renders the website dynamic snippet items"""
         self and self.ensure_one()
 
-        assert ".dynamic_filter_template_" in template_key, _(
-            "You can only use template prefixed by dynamic_filter_template_ "
-        )
+        if ".dynamic_filter_template_" not in template_key:
+            raise ValueError(
+                _("You can only use template prefixed by dynamic_filter_template_ ")
+            )
         if search_domain is None:
             search_domain = []
 
@@ -137,31 +138,45 @@ class WebsiteSnippetFilter(models.Model):
 
         # Either a multi-record filter is provided, or a single record is specified.
         if self.filter_id or single_record_filter:
-            if not single_record_filter:
-                filter_sudo = self.filter_id.sudo()
+            model = self.env[model_name]
+            filter_sudo = self.filter_id.sudo()
+            if single_record_filter:
+                # A specific record was requested by id (res_model/res_id come
+                # straight from the client). We must NOT trust that id to bypass
+                # publication / website / company scoping and record rules:
+                # restrict the search to that id and apply the exact same scoping
+                # (and caller access rights) as the multi-record path below.
+                domain = Domain("id", "=", res_id)
+                context = {}
+                order = None
+            else:
                 domain = Domain(filter_sudo._get_eval_domain())
-                if "website_id" in self.env[model_name]:
-                    domain &= self.env["website"].get_current_website().website_domain()
-                if "company_id" in self.env[model_name]:
-                    website = self.env["website"].get_current_website()
-                    domain &= Domain("company_id", "in", [False, website.company_id.id])
-                if "is_published" in self.env[model_name]:
-                    domain &= Domain("is_published", "=", True)
-                if search_domain:
-                    search_domain = Domain(search_domain)
-                    domain &= search_domain
+                context = literal_eval(filter_sudo.context)
+                order = ",".join(literal_eval(filter_sudo.sort)) or None
+            if "website_id" in model:
+                domain &= self.env["website"].get_current_website().website_domain()
+            if "company_id" in model:
+                website = self.env["website"].get_current_website()
+                domain &= Domain("company_id", "in", [False, website.company_id.id])
+            if "is_published" in model:
+                domain &= Domain("is_published", "=", True)
+            if search_domain:
+                search_domain = Domain(search_domain)
+                # ``search_domain`` is client-supplied on the public route;
+                # only allow leaves that reference real fields of the target
+                # model (mirrors the editor route's validation).
+                for condition in search_domain.iter_conditions():
+                    if condition.field_expr.split(".")[0] not in model._fields:
+                        raise ValueError(
+                            _("Invalid field %r in search domain")
+                            % condition.field_expr
+                        )
+                domain &= search_domain
             try:
                 records = (
-                    self.env[model_name]
-                    .sudo(False)
-                    .with_context(**literal_eval(filter_sudo.context))
-                    .search(
-                        domain,
-                        order=",".join(literal_eval(filter_sudo.sort)) or None,
-                        limit=limit,
-                    )
-                    if not single_record_filter
-                    else self.env[model_name].browse([res_id])
+                    model.sudo(False)
+                    .with_context(**context)
+                    .search(domain, order=order, limit=limit)
                 )
                 return self._filter_records_to_values(
                     records.sudo(), res_model=model_name

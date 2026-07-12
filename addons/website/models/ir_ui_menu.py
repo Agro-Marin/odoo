@@ -16,14 +16,15 @@ class IrUiMenu(models.Model):
         if self.env.context.get("force_action"):
             web_menus = self.load_web_menus(request.session.debug if request else False)
             for menu in root_menus["children"]:
-                # Force the action.
+                # Force the action. Guard the lookup: a root menu id is not
+                # guaranteed to be present in web_menus (KeyError otherwise).
+                web_menu = web_menus.get(menu["id"])
                 if (
                     not menu["action"]
-                    and web_menus[menu["id"]]["actionModel"]
-                    and web_menus[menu["id"]]["actionID"]
+                    and web_menu
+                    and web_menu["actionModel"]
+                    and web_menu["actionID"]
                 ):
-                    menu["action"] = (
-                        f"{web_menus[menu['id']]['actionModel']},{web_menus[menu['id']]['actionID']}"
-                    )
+                    menu["action"] = f"{web_menu['actionModel']},{web_menu['actionID']}"
 
         return root_menus

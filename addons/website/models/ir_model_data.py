@@ -5,6 +5,8 @@ import logging
 from odoo import api, models
 from odoo.http import request
 
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
+
 _logger = logging.getLogger(__name__)
 
 
@@ -17,9 +19,13 @@ class IrModelData(models.Model):
             theme_records = self.env["ir.module.module"]._theme_model_names.values()
             if record._name in theme_records:
                 # use active_test to also unlink archived models
-                # and use MODULE_UNINSTALL_FLAG to also unlink inherited models
+                # and MODULE_UNINSTALL_FLAG to also unlink inherited models.
+                # Pass them as keywords (not a positional dict, which would
+                # replace the whole context) and use the constant's value —
+                # the literal "MODULE_UNINSTALL_FLAG" key had no effect, so
+                # child views were never cascade-unlinked (FK restrict).
                 copy_ids = record.with_context(
-                    {"active_test": False, "MODULE_UNINSTALL_FLAG": True}
+                    **{"active_test": False, MODULE_UNINSTALL_FLAG: True}
                 ).copy_ids
                 if request:
                     # we are in a website context, see `write()` override of

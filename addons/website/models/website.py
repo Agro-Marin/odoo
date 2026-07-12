@@ -301,8 +301,10 @@ class Website(models.Model):
                 # Note: each line of the custom list is already ensured to not
                 # have leading or trailing whitespaces.
                 lines = custom_list.splitlines()
-                custom_domains = "\n".join([line for line in lines if line[0] != "#"])
-                if lines[0].startswith("#ignore_default"):
+                custom_domains = "\n".join(
+                    line for line in lines if line and line[0] != "#"
+                )
+                if lines and lines[0].startswith("#ignore_default"):
                     full_list = custom_domains
                 else:
                     full_list += f"\n{custom_domains}"
@@ -391,43 +393,48 @@ class Website(models.Model):
 
         result = super(Website, self - public_user_to_change_websites).write(values)
 
-        if "cdn_activated" in values or "cdn_url" in values or "cdn_filters" in values:
-            # invalidate the caches from static node at compile time
-            self.env.registry.clear_cache()
+        # NB: the unconditional ``clear_cache()`` above (before ``super().write``)
+        # already flushes every registry cache, including the compiled-template
+        # ("static node at compile time") cache, so no CDN-specific re-clear is
+        # needed here — nothing repopulates it between the two points.
 
         # invalidate cache for `company.website_id` to be recomputed
         if "sequence" in values or "company_id" in values:
             (original_company | self.company_id)._compute_website_id()
 
         if "cookies_bar" in values:
-            existing_policy_page = self.env["website.page"].search(
-                [
-                    ("website_id", "=", self.id),
-                    ("url", "=", "/cookie-policy"),
-                ]
-            )
-            if not values["cookies_bar"]:
-                existing_policy_page.unlink()
-            elif not existing_policy_page:
-                cookies_view = self.env.ref(
-                    "website.cookie_policy", raise_if_not_found=False
+            # ``self`` may hold several websites (e.g. bulk settings save), so
+            # iterate rather than read ``self.id`` (which raises on a multi-
+            # record set).
+            for website in self:
+                existing_policy_page = self.env["website.page"].search(
+                    [
+                        ("website_id", "=", website.id),
+                        ("url", "=", "/cookie-policy"),
+                    ]
                 )
-                if cookies_view:
-                    cookies_view.with_context(website_id=self.id).write(
-                        {"website_id": self.id}
+                if not values["cookies_bar"]:
+                    existing_policy_page.unlink()
+                elif not existing_policy_page:
+                    cookies_view = self.env.ref(
+                        "website.cookie_policy", raise_if_not_found=False
                     )
-                    specific_cook_view = self.with_context(website_id=self.id).viewref(
-                        "website.cookie_policy"
-                    )
-                    self.env["website.page"].create(
-                        {
-                            "is_published": True,
-                            "website_indexed": False,
-                            "url": "/cookie-policy",
-                            "website_id": self.id,
-                            "view_id": specific_cook_view.id,
-                        }
-                    )
+                    if cookies_view:
+                        cookies_view.with_context(website_id=website.id).write(
+                            {"website_id": website.id}
+                        )
+                        specific_cook_view = website.with_context(
+                            website_id=website.id
+                        ).viewref("website.cookie_policy")
+                        self.env["website.page"].create(
+                            {
+                                "is_published": True,
+                                "website_indexed": False,
+                                "url": "/cookie-policy",
+                                "website_id": website.id,
+                                "view_id": specific_cook_view.id,
+                            }
+                        )
 
         return result
 
@@ -457,11 +464,11 @@ class Website(models.Model):
     def _normalize_domain_url(self, url):
         """
         This method:
-        - Prefixes 'https://' if it doesn't start with 'http'
+        - Prefixes 'https://' if it has no http(s) scheme
         - Strips any tailing '/'
         """
         normalized_url = url
-        if not normalized_url.startswith("http"):
+        if not normalized_url.startswith(("http://", "https://")):
             normalized_url = "https://%s" % normalized_url
         return normalized_url.rstrip("/")
 
@@ -1701,18 +1708,20 @@ class Website(models.Model):
             if model_name == "ir.ui.view":
                 dependency_records = _handle_views_and_pages(dependency_records)
             if dependency_records:
-                model_name = self.env["ir.model"]._display_name_for([model_name])[0][
+                # Keep the technical model name for the fallback backend link;
+                # only the user-facing grouping/label uses the display name.
+                model_label = self.env["ir.model"]._display_name_for([model_name])[0][
                     "display_name"
                 ]
                 field_string = Model.fields_get()[field_name]["string"]
-                dependencies.setdefault(model_name, [])
-                dependencies[model_name] += [
+                dependencies.setdefault(model_label, [])
+                dependencies[model_label] += [
                     {
                         "field_name": field_string,
                         "record_name": rec.display_name,
                         "link": ("website_url" in rec and rec.website_url)
                         or f"/odoo/{model_name}/{rec.id}",
-                        "model_name": model_name,
+                        "model_name": model_label,
                     }
                     for rec in dependency_records
                 ]
