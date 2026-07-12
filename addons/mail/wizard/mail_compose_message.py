@@ -937,12 +937,16 @@ class MailComposeMessage(models.TransientModel):
         ):
             raise UserError(_("A message can only be scheduled in monocomment mode"))
         create_values = []
-        # some actions might be triggered on message post based on some context keys
-        clean_context(self.env.context)
         for wizard in self:
+            # some actions might be triggered on message post based on some
+            # context keys: strip them (clean_context was previously computed
+            # and discarded, a no-op). Use `wizard`, not `self`:
+            # _prepare_mail_values does ensure_one() and would raise on a
+            # multi-wizard recordset.
+            wizard = wizard.with_context(clean_context(wizard.env.context))
             res_id = wizard._evaluate_res_ids()[0]
-            post_values = self._manage_mail_values(
-                self._prepare_mail_values([res_id])
+            post_values = wizard._manage_mail_values(
+                wizard._prepare_mail_values([res_id])
             ).get(res_id)
             if not post_values:
                 continue

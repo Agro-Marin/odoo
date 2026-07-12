@@ -40,6 +40,16 @@ class DiscussSettingsController(Controller):
         :param custom_notifications: (false|all|mentions|no_notif) custom notifications to set
         :param channel_id: (integer) id of the discuss.channel record, if not set, set for res.users.settings
         """
+        # Validate against the Selection values before writing: an arbitrary
+        # string would otherwise raise ValueError deep in the ORM write -> 500.
+        # The per-member field allows "mentions"; the user-settings one does not.
+        allowed = (
+            {False, "all", "mentions", "no_notif"}
+            if channel_id
+            else {False, "all", "no_notif"}
+        )
+        if custom_notifications not in allowed:
+            raise request.not_found()
         if channel_id:
             channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
             if not channel:

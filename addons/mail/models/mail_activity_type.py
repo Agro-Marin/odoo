@@ -240,7 +240,13 @@ class MailActivityType(models.Model):
     def unlink(self):
         """When removing an activity type, put activities into a Todo."""
         todo_type = self.env.ref("mail.mail_activity_data_todo")
-        self.env["mail.activity"].search([("activity_type_id", "in", self.ids)]).write(
+        # sudo: activity_type_id is ondelete="restrict". A deleter who lacks read
+        # access to some referencing records would, with an access-filtered
+        # search, leave those activities unreassigned and hit the FK on
+        # super().unlink(). Defense-in-depth: reassign every referencing row.
+        self.env["mail.activity"].sudo().search(
+            [("activity_type_id", "in", self.ids)]
+        ).write(
             {
                 "activity_type_id": todo_type.id,
             }

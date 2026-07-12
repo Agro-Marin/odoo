@@ -546,7 +546,12 @@ export class PeerToPeer extends EventTarget {
                         return;
                     }
                 } catch (error) {
+                    // Bail out like the non-throwing rejection path above:
+                    // without this return, a failed acceptOffer (e.g.
+                    // setRemoteDescription on a bad/racing SDP) fell through and
+                    // advanced the peer against a half-applied offer.
                     this._emitLog(id, `offer rejected: ${error}`, LOG_LEVEL.INFO);
+                    return;
                 }
                 if (!peer) {
                     peer = this._createPeer(id, { sequence: payload.sequence });

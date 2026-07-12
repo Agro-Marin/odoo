@@ -59,6 +59,10 @@ export class NavigableList extends Component {
             () => {
                 if (!this.props.isLoading) {
                     clearTimeout(this.loadingTimeoutId);
+                    // Reset the id, otherwise the `!this.loadingTimeoutId`
+                    // guard below stays false forever and the spinner never
+                    // re-arms on later loading cycles of the same instance.
+                    this.loadingTimeoutId = undefined;
                     this.state.showLoading = false;
                 } else if (!this.loadingTimeoutId) {
                     this.loadingTimeoutId = setTimeout(
@@ -78,7 +82,12 @@ export class NavigableList extends Component {
     }
 
     get sortedOptions() {
-        return this.props.options.sort((o1, o2) => (o1.group ?? 0) - (o2.group ?? 0));
+        // Copy before sorting: Array.sort mutates in place, and props.options
+        // is parent-owned (often a reactive/store array) — reordering it from a
+        // render getter corrupts the parent's order and can trigger re-renders.
+        return [...this.props.options].sort(
+            (o1, o2) => (o1.group ?? 0) - (o2.group ?? 0),
+        );
     }
 
     open() {

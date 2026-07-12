@@ -2006,8 +2006,15 @@ export class Rtc extends Record {
                 }
                 case "screen": {
                     this.state.screenTrack = undefined;
+                    // Also stop the captured tab/system audio: leaving it live
+                    // kept the shared audio in the outgoing mix after the user
+                    // stopped screen-sharing (other participants kept hearing
+                    // it). Rebuild the audio mix without it.
+                    this.state.screenAudioTrack?.stop();
+                    this.state.screenAudioTrack = undefined;
                     closeStream(this.state.sourceScreenStream);
                     this.state.sourceScreenStream = null;
+                    this.updateAudioTrack();
                     break;
                 }
             }

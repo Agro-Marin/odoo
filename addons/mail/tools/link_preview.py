@@ -1,9 +1,89 @@
+import ipaddress
+import logging
 import re
+import socket
+from urllib.parse import urljoin, urlsplit
 
 import chardet
 import requests
 from lxml import html
 from urllib3.exceptions import LocationParseError
+
+_logger = logging.getLogger(__name__)
+
+# Open Graph / <title> metadata lives in <head>; never buffer more than this
+# while scanning for </head> (guards against unbounded streamed responses).
+MAX_HEAD_BYTES = 512 * 1024
+# Cap redirect chains we follow ourselves (see _fetch_link_preview_response).
+MAX_REDIRECTS = 5
+
+
+def _url_is_safe(url):
+    """Return True only if ``url`` is an http(s) URL whose host resolves
+    exclusively to public IP addresses.
+
+    The link previewer fetches arbitrary URLs pulled from message bodies,
+    server-side and as sudo, so without this guard any user who can post a
+    message could drive a request to internal services (SSRF) —
+    ``http://169.254.169.254/…`` (cloud metadata), ``http://localhost:8069/…``,
+    private ranges, etc. ``ipaddress.is_global`` is False for
+    loopback/private/link-local/reserved/multicast/CGNAT, which is exactly the
+    set we want to reject.
+
+    Caveat: validation happens at resolution time; an attacker who controls DNS
+    could still rebind between this check and the socket connect (residual
+    TOCTOU). Blocking direct internal URLs and redirect-to-internal covers the
+    overwhelming majority of the SSRF surface.
+    """
+    split = urlsplit(url)
+    if split.scheme not in ("http", "https"):
+        return False
+    try:
+        host = split.hostname
+        port = split.port or (443 if split.scheme == "https" else 80)
+    except ValueError:
+        return False
+    if not host:
+        return False
+    try:
+        addrinfos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror, UnicodeError, ValueError:
+        return False
+    if not addrinfos:
+        return False
+    for *_, sockaddr in addrinfos:
+        try:
+            ip = ipaddress.ip_address(sockaddr[0])
+        except ValueError:
+            return False
+        if not ip.is_global:
+            return False
+    return True
+
+
+def _fetch_link_preview_response(url, request_session, headers):
+    """GET ``url`` for a link preview, following redirects manually so every
+    hop is re-validated by :func:`_url_is_safe` (an SSRF-safe host can still
+    302 to an internal one). Returns the final ``requests.Response`` (streamed)
+    or None if a hop is unsafe or the redirect budget is exhausted."""
+    getter = request_session or requests
+    current = url
+    for _ in range(MAX_REDIRECTS + 1):
+        if not _url_is_safe(current):
+            _logger.info("Link preview blocked for non-public URL: %s", current)
+            return None
+        response = getter.get(
+            current, timeout=3, headers=headers, allow_redirects=False, stream=True
+        )
+        if response.is_redirect:
+            location = response.headers.get("location")
+            response.close()
+            if not location:
+                return None
+            current = urljoin(current, location)
+            continue
+        return response
+    return None
 
 
 def get_link_preview_from_url(url, request_session=None):
@@ -26,17 +106,12 @@ def get_link_preview_from_url(url, request_session=None):
         "Odoo-Link-Preview": "True",  # Used to identify coming from the link previewer
     }
     try:
-        if request_session:
-            response = request_session.get(
-                url, timeout=3, headers=headers, allow_redirects=True, stream=True
-            )
-        else:
-            response = requests.get(
-                url, timeout=3, headers=headers, allow_redirects=True, stream=True
-            )
+        response = _fetch_link_preview_response(url, request_session, headers)
     except requests.exceptions.RequestException:
         return False
     except LocationParseError:
+        return False
+    if response is None:
         return False
     if not response.ok or not response.headers.get("Content-Type"):
         return False
@@ -70,11 +145,19 @@ def get_link_preview_from_html(url, response):
         if pos != -1:
             content = content[: pos + 7]
             break
+        # requests' timeout is a per-read inactivity timeout, not a total-size
+        # cap: a server that streams a large body with no </head> would grow
+        # `content` without bound (memory DoS). The <head> we need is tiny; stop
+        # accumulating past a sane ceiling and parse what we have.
+        if len(content) > MAX_HEAD_BYTES:
+            break
 
     if not content:
         return False
 
-    encoding = response.encoding or chardet.detect(content).get("encoding", "utf-8")
+    # chardet may return {"encoding": None}; .get(..., "utf-8") keeps that None,
+    # so fall back explicitly rather than relying on decode() raising TypeError.
+    encoding = response.encoding or chardet.detect(content).get("encoding") or "utf-8"
     try:
         decoded_content = content.decode(encoding)
     except UnicodeDecodeError, TypeError:
