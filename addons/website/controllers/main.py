@@ -573,6 +573,8 @@ class Website(Home):
     )
     def save_session_layout_mode(self, layout_mode, view_id):
         assert layout_mode in ("grid", "list"), "Invalid layout mode"
+        # Coerce to int so a public caller cannot inject arbitrary session keys.
+        view_id = int(view_id)
         request.session[f"website_{view_id}_layout_mode"] = layout_mode
 
     @http.route(
@@ -781,7 +783,7 @@ class Website(Home):
                 ):
                     opt = {}
                     if field_type == "monetary":
-                        opt["display_currency"] = options["display_currency"]
+                        opt["display_currency"] = options.get("display_currency")
                     value = request.env[
                         ("ir.qweb.field.%s" % field_type)
                     ].value_to_html(value, opt)
@@ -1136,7 +1138,7 @@ class Website(Home):
             connection issues), an empty list is returned.
         """
         pattern = r"^([a-zA-Z]+)(?:_(\w+))?(?:@(\w+))?$"
-        match = re.match(pattern, lang)
+        match = re.match(pattern, lang or "")
         language = [match.group(1), match.group(2) or ""] if match else ["en", "US"]
         url = "http://google.com/complete/search"
         try:
@@ -1150,6 +1152,7 @@ class Website(Home):
                     "hl": language[0],
                     "gl": language[1],
                 },
+                timeout=5,
             )
             req.raise_for_status()
             response = req.content
@@ -1166,9 +1169,15 @@ class Website(Home):
 
     @http.route(["/website/get_alt_images"], type="jsonrpc", auth="user", website=True)
     def get_alt_images(self, models):
+        # Same gate as the sibling update_alt_images/update_broken_links routes:
+        # only restricted editors may introspect arbitrary model/field content.
+        if not request.env.user.has_group("website.group_website_restricted_editor"):
+            raise werkzeug.exceptions.Forbidden
         result = []
         for model in models:
             record = request.env[model["model"]].browse(model["id"])
+            if not record.has_access("read"):
+                continue
             model["field"] = "arch_db" if model["field"] == "arch" else model["field"]
             tree = html.fromstring(str(record[model["field"]]))
             # Only process static img elements (with src) - skip dynamic
@@ -1341,11 +1350,12 @@ class Website(Home):
         ]
 
         if key != trusted:
-            if key.startswith(trusted):
-                request.website.sudo().google_search_console = "google%s.html" % key
-            else:
-                logger.warning("Google Search Console %s not recognize" % key)
-                raise werkzeug.exceptions.NotFound
+            # Require an exact match. The previous ``startswith`` branch let an
+            # unauthenticated caller rewrite the stored verification token
+            # (``request.website.sudo().google_search_console = ...``) just by
+            # requesting a longer ``/google<token><extra>.html`` path.
+            logger.warning("Google Search Console %s not recognize" % key)
+            raise werkzeug.exceptions.NotFound
 
         return request.make_response(
             "google-site-verification: %s" % request.website.google_search_console

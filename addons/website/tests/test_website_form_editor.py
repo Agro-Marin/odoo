@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessDenied, ValidationError
 from odoo.http import request
 from odoo.tests.common import TransactionCase, tagged
+from odoo.tools.misc import hmac
 
 from odoo.addons.base.tests.common import HttpCaseWithUserPortal
 from odoo.addons.http_routing.tests.common import MockRequest
@@ -182,3 +183,69 @@ class TestWebsiteForm(TransactionCase):
         with self.assertRaises(ValidationError):
             self.test_field.unlink()
         self.assertTrue(self.test_field.exists())
+
+    def test_mail_form_signature_is_mandatory(self):
+        """A ``mail.mail`` submission must carry a valid ``website_form_signature``
+        bound to ``email_to``. Previously the check was skipped whenever
+        ``email_to`` was absent, letting a public visitor turn the endpoint into
+        an open mail relay by supplying only ``email_cc``/``email_bcc`` (and a
+        missing signature raised a 500 KeyError instead of being rejected).
+        """
+        website = self.env["website"].browse(1)
+        self.env["ir.model"].search(
+            [("model", "=", "mail.mail")]
+        ).website_form_access = True
+        controller = WebsiteForm()
+        before = self.env["mail.mail"].search_count([])
+
+        with MockRequest(self.env, website=website):
+            # Exploit B: no email_to, arbitrary Cc, junk signature -> rejected.
+            with self.assertRaises(AccessDenied):
+                controller._handle_website_form(
+                    "mail.mail",
+                    email_from="attacker@evil.example",
+                    email_cc="victim1@example.com,victim2@example.com",
+                    subject="spam",
+                    body="spam",
+                    website_form_signature="not-a-valid-signature",
+                )
+            # A missing signature must be an auth failure, not a KeyError/500.
+            with self.assertRaises(AccessDenied):
+                controller._handle_website_form(
+                    "mail.mail",
+                    email_from="attacker@evil.example",
+                    email_cc="victim@example.com",
+                    subject="spam",
+                    body="spam",
+                )
+            # Tampering with a signed email_to must also be rejected.
+            good_to = "company@company.example"
+            good_sig = hmac(self.env, "website_form_signature", good_to)
+            with self.assertRaises(AccessDenied):
+                controller._handle_website_form(
+                    "mail.mail",
+                    email_from="visitor@example.com",
+                    email_to="attacker@evil.example",
+                    subject="hello",
+                    body="hello",
+                    website_form_signature=good_sig,
+                )
+
+        # No relayed mail must have been created/sent by any rejected attempt.
+        self.assertEqual(self.env["mail.mail"].search_count([]), before)
+
+        # Sanity: a correctly signed submission is accepted (no AccessDenied).
+        with MockRequest(self.env, website=website):
+            controller._handle_website_form(
+                "mail.mail",
+                email_from="visitor@example.com",
+                email_to=good_to,
+                subject="hello",
+                body="hello",
+                website_form_signature=good_sig,
+            )
+        self.assertEqual(
+            self.env["mail.mail"].search_count([]),
+            before + 1,
+            "A validly signed submission should create the mail.",
+        )

@@ -87,7 +87,24 @@ class ModelPageController(Controller):
             layout_mode = page.default_layout
 
         searches.setdefault("search", "")
-        searches.setdefault("order", "create_date desc")
+        # ``order`` comes from the (public) query string and flows into
+        # ``search(order=...)``; an unknown/non-stored field would raise
+        # ValueError and 500 the public page. Only allow stored, sortable
+        # columns, falling back to the default otherwise.
+        default_order = "create_date desc"
+        sortable_fields = {
+            name
+            for name, field in Model._fields.items()
+            if field.store and field.column_type
+        }
+        order = searches.get("order") or default_order
+        if not all(
+            term.strip().split(" ")[0] in sortable_fields
+            for term in order.split(",")
+            if term.strip()
+        ):
+            order = default_order
+        searches["order"] = order
 
         def record_to_url(record):
             return "/model/%s/%s" % (

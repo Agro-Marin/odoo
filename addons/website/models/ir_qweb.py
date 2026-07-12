@@ -165,13 +165,26 @@ class IrQweb(models.AbstractModel):
         if website and tagName == "img" and "loading" not in atts:
             atts["loading"] = "lazy"  # default is auto
 
-        if (
+        skip_post_processing = (
             self.env.context.get("inherit_branding")
             or self.env.context.get("rendering_bundle")
             or self.env.context.get("edit_translations")
-            or self.env.context.get("debug")
-            or (request and request.session.debug)
-        ):
+        )
+        # The debug flag is per-request and is NOT part of the compiled-template
+        # cache signature (see ``_template_cache_signature``). Honoring it while
+        # compiling a STATIC node would bake a debug-only variant (no CDN
+        # rewriting, no third-party cookie blocking) into the process-wide
+        # ``templates`` cache and then serve it to every subsequent visitor
+        # sharing the signature — silently defeating the GDPR cookie barrier.
+        # The debug bypass must therefore only affect dynamic, per-render
+        # attributes, never the cached static ones.
+        if not is_static:
+            skip_post_processing = (
+                skip_post_processing
+                or self.env.context.get("debug")
+                or (request and request.session.debug)
+            )
+        if skip_post_processing:
             return atts
 
         if not website:
@@ -191,7 +204,15 @@ class IrQweb(models.AbstractModel):
             # - 'classes' is a watchlist on container elements in which iframes
             # are/could be built on the fly client-side for some reason.
             cookies_watchlist = {
-                "domains": website.blocked_third_party_domains.split("\n"),
+                # Normalize each entry: the admin-managed list comes from a
+                # textarea (CRLF line endings, stray spaces, mixed case) while
+                # ``src_host`` below is lowercased, so an un-stripped/uppercased
+                # entry would silently fail to match and let the embed through.
+                "domains": [
+                    domain.strip().lower()
+                    for domain in website.blocked_third_party_domains.split("\n")
+                    if domain.strip()
+                ],
                 "classes": website._get_blocked_iframe_containers_classes(),
             }
             remove_src = False

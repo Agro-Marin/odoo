@@ -321,7 +321,11 @@ class IrHttp(models.AbstractModel):
         # is set.
         website_id = False
         if getattr(request, "is_frontend", True):
-            website_id = self.env.get("website_id", request.website_routing)
+            # ``self.env.get`` resolves a *model name*, so "website_id" would
+            # never be found and the fallback was always used. Read the context
+            # key so an explicit ``website_id`` (e.g. multi-website rendering)
+            # is honored, falling back to the routed website.
+            website_id = self.env.context.get("website_id", request.website_routing)
         return super(IrHttp, self.with_context(website_id=website_id)).get_nearest_lang(
             lang_code
         )
