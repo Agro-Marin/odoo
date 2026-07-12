@@ -244,3 +244,22 @@ class TestControllerRedirect(TestLangUrlCommon):
             "/fr/page_1?a=b",
             "Check for website.page with language in URL + URL params.",
         )
+
+    def test_02_homepage_trailing_slash_cookie(self):
+        """The bare ``/<lang>/`` homepage redirect (case /8 of
+        ``ir.http._match``) must pin the ``frontend_lang`` cookie to the
+        destination language, not the website default.
+
+        Regression: it used to write ``default_lang`` there, so hitting the
+        French homepage with a trailing slash emitted a 301 that briefly
+        advertised ``en_US`` before the followed ``/fr`` request corrected it.
+        """
+        r = self.url_open("/fr/", allow_redirects=False)
+        self.assertEqual(r.status_code, 301)
+        self.assertEqual(urlparse(r.headers.get("Location", "")).path, "/fr")
+        self.assertEqual(
+            r.cookies.get("frontend_lang"),
+            "fr_FR",
+            "the /fr/ -> /fr redirect must remember the destination lang "
+            "(fr_FR), not the website default (en_US)",
+        )
