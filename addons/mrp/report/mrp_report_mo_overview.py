@@ -285,15 +285,21 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 / production.product_uom_qty,
             )
         ]
-        for index, product in enumerate(quantities_by_product.keys()):
+        index = 0
+        for product, quantity in quantities_by_product.items():
+            # A byproduct with a cost share but no produced quantity (e.g. fully
+            # backordered / zero yield) would divide by zero: skip its unit-cost line.
+            if product.uom_id.is_zero(quantity):
+                continue
+            index += 1
             breakdown_lines.append(
                 self._format_cost_breakdown_lines(
-                    index + 1,
+                    index,
                     product.display_name,
                     product.uom_id.display_name,
-                    component_cost_by_product[product] / quantities_by_product[product],
-                    operation_cost_by_product[product] / quantities_by_product[product],
-                    total_cost_by_product[product] / quantities_by_product[product],
+                    component_cost_by_product[product] / quantity,
+                    operation_cost_by_product[product] / quantity,
+                    total_cost_by_product[product] / quantity,
                 )
             )
         return breakdown_lines
@@ -1710,7 +1716,10 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         return replenish_data["warehouses"][warehouse.id]
 
     def _get_reserved_qty(self, move_raw, warehouse, replenish_data):
-        if not replenish_data["qty_reserved"].get(move_raw):
+        # Presence check, not truthiness: a cached 0.0 (nothing reserved, the common
+        # case) must still count as a hit, otherwise the expensive move-graph rollup
+        # below re-runs on every call for every unreserved component.
+        if move_raw not in replenish_data["qty_reserved"]:
             total_reserved = 0
             wh_location_ids = self._get_warehouse_locations(warehouse, replenish_data)
             linked_moves = (

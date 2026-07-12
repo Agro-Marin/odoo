@@ -276,10 +276,7 @@ class MrpWorkorder(models.Model):
             ):
                 continue
             has_qty_ready = workorder.product_uom_id.compare(workorder.qty_ready, 0) > 0
-            if has_qty_ready:
-                workorder.write({"state": "ready"})
-            else:
-                workorder.write({"state": "blocked"})
+            workorder.state = "ready" if has_qty_ready else "blocked"
 
     def set_state(self, state):
         ids_to_update = []
@@ -409,7 +406,11 @@ class MrpWorkorder(models.Model):
                 workorder.production_id._set_qty_producing(False)
 
     @api.depends(
-        "blocked_by_workorder_ids.qty_produced", "blocked_by_workorder_ids.state"
+        "blocked_by_workorder_ids.qty_produced",
+        "blocked_by_workorder_ids.state",
+        "qty_remaining",
+        "qty_produced",
+        "qty_reported_from_previous_wo",
     )
     def _compute_qty_ready(self):
         for workorder in self:

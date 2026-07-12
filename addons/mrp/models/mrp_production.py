@@ -1165,7 +1165,12 @@ class MrpProduction(models.Model):
                     ).mapped("id")
                 ]
 
-    @api.depends("state", "move_raw_ids.state")
+    @api.depends(
+        "state",
+        "move_raw_ids.state",
+        "move_raw_ids.picked",
+        "move_raw_ids.product_uom_qty",
+    )
     def _compute_reservation_state(self):
         for production in self:
             if production.state in ("draft", "done", "cancel"):
@@ -1198,7 +1203,13 @@ class MrpProduction(models.Model):
             else:
                 production.reservation_state = False
 
-    @api.depends("move_raw_ids", "state", "move_raw_ids.product_uom_qty")
+    @api.depends(
+        "move_raw_ids",
+        "state",
+        "move_raw_ids.product_uom_qty",
+        "move_raw_ids.picked",
+        "move_raw_ids.move_line_ids",
+    )
     def _compute_unreserve_visible(self):
         for order in self:
             already_reserved = order.state not in ("done", "cancel") and order.mapped(
@@ -1218,7 +1229,10 @@ class MrpProduction(models.Model):
             )
 
     @api.depends(
-        "workorder_ids.state", "move_finished_ids", "move_finished_ids.quantity"
+        "workorder_ids.state",
+        "move_finished_ids",
+        "move_finished_ids.quantity",
+        "move_finished_ids.picked",
     )
     def _get_produced_qty(self):
         for production in self:
@@ -1283,7 +1297,7 @@ class MrpProduction(models.Model):
             return
         for mo in self:
             if not mo.picking_type_id:
-                return
+                continue
             lines = mo.move_finished_ids.filtered(
                 lambda m: m.product_id.is_storable and m.state != "cancel"
             )
@@ -1808,18 +1822,19 @@ class MrpProduction(models.Model):
         for vals in vals_list:
             # Remove from `move_finished_ids` the by-product moves and then move `move_byproduct_ids`
             # into `move_finished_ids` to avoid duplicate and inconsistency.
-            if vals.get("move_finished_ids", False) and vals.get(
-                "move_byproduct_ids", False
-            ):
-                vals["move_finished_ids"] = list(
-                    filter(
-                        lambda move: move[2]["product_id"] == vals["product_id"],
-                        vals["move_finished_ids"],
-                    )
-                )
-                vals["move_finished_ids"] = (
-                    vals.get("move_finished_ids", []) + vals["move_byproduct_ids"]
-                )
+            if vals.get("move_finished_ids") and vals.get("move_byproduct_ids"):
+                # Keep only the finished move for the MO's product; by-products are
+                # supplied via move_byproduct_ids. Guard against non-CREATE commands
+                # (e.g. LINK/SET, whose [2] is not a values dict) and a missing
+                # product_id (precomputed product), which the old raw indexing assumed.
+                main_product_id = vals.get("product_id")
+                vals["move_finished_ids"] = [
+                    command
+                    for command in vals["move_finished_ids"]
+                    if command[0] != Command.CREATE
+                    or not main_product_id
+                    or command[2].get("product_id") == main_product_id
+                ] + vals["move_byproduct_ids"]
                 del vals["move_byproduct_ids"]
             if not vals.get("name", False) or vals["name"] == _("New"):
                 picking_type_id = vals.get("picking_type_id")
