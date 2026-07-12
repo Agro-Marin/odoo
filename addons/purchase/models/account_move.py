@@ -74,6 +74,12 @@ class AccountMove(models.Model):
 
     def write(self, vals):
         """Post a chatter note on the bill when its linked purchase order(s) change."""
+        # A move's purchase links (account.move.line.purchase_line_ids) can only
+        # change through a line_ids/invoice_line_ids write here; skip the double
+        # m2m traversal on every other account.move write (state, ref, date,
+        # reconciliation, ...) — one of the hottest write paths in accounting.
+        if not ({"line_ids", "invoice_line_ids"} & vals.keys()):
+            return super().write(vals)
         old_purchases = [
             move.mapped("line_ids.purchase_line_ids.order_id") for move in self
         ]

@@ -20,6 +20,10 @@ class AccountAnalyticAccount(models.Model):
 
     @api.depends("line_ids")
     def _compute_purchase_order_count(self):
+        # Drives a single form smart button (analytic_account_views.xml), so it
+        # is computed one record at a time — the per-account search_count is
+        # fine here. If this field is ever exposed in a list/kanban, batch it by
+        # plan_id first (a raw-SQL join would be needed, which bypasses ir.rule).
         for account in self:
             account.purchase_order_count = (
                 self.env["purchase.order"].search_count(

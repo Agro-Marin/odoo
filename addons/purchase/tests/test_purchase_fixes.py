@@ -273,3 +273,74 @@ class TestSrmTag(AccountTestInvoicingCommon):
         )
         parent.unlink()
         self.assertFalse(child.exists())
+
+
+@tagged("-at_install", "post_install")
+class TestBillPoLinkTracking(AccountTestInvoicingCommon):
+    """account.move.write posts a chatter note when a PO link is added, and the
+    diff work is skipped for writes that can't change purchase links.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.po = cls.env["purchase.order"].create(
+            {
+                "partner_id": cls.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": cls.product_a.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+        cls.po.action_confirm()
+
+    def _new_bill(self):
+        return self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "quantity": 1,
+                            "price_unit": 100,
+                        },
+                    ),
+                ],
+            },
+        )
+
+    def _has_modified_note(self, move):
+        return any(
+            "modified from" in (m.body or "") for m in move.message_ids
+        )
+
+    def test_linking_po_via_write_posts_note(self):
+        bill = self._new_bill()
+        self.assertFalse(self._has_modified_note(bill))
+        bill.write(
+            {
+                "invoice_line_ids": [
+                    Command.update(
+                        bill.invoice_line_ids.id,
+                        {"purchase_line_ids": [Command.link(self.po.line_ids.id)]},
+                    ),
+                ],
+            },
+        )
+        self.assertTrue(
+            self._has_modified_note(bill),
+            "linking a PO via invoice_line_ids write should post the note",
+        )
+
+    def test_non_line_write_does_not_post_note(self):
+        bill = self._new_bill()
+        bill.write({"ref": "SOME-REF"})
+        self.assertFalse(
+            self._has_modified_note(bill),
+            "a ref-only write must not post a PO-modified note",
+        )
