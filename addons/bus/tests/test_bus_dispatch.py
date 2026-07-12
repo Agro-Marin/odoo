@@ -217,5 +217,7 @@ class TestSendPgNotify(TransactionCase):
             ),
             patch("odoo.addons.bus.models.bus._close_notify_conn_locked"),
         ):
-            with self.assertRaises(Exception, msg="persistent error"):
+            with self.assertRaisesRegex(Exception, "persistent error"):
                 _send_pg_notify(["payload1"])
+        # Both attempts were made before giving up.
+        self.assertEqual(mock_conn.execute.call_count, 2)

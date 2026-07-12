@@ -35,8 +35,8 @@ from odoo.http import (
 )
 from odoo.modules.registry import Registry
 from odoo.service.security import check_session
-from odoo.service.transaction import retrying
 from odoo.service.server import CommonServer
+from odoo.service.transaction import retrying
 from odoo.tools import config
 
 from .models.bus import dispatch
@@ -288,6 +288,71 @@ class CloseFrame(Frame):
 _websocket_instances = WeakSet()
 
 
+class NotificationDispatchState:
+    """Per-websocket bookkeeping for bus notification dispatching.
+
+    Deduplicates notifications by id while holding the low-water-mark id
+    (``last_id``) back for a few seconds, so that notifications committed out of
+    id order by concurrent transactions are not skipped. See
+    ``Websocket.MAX_NOTIFICATION_HISTORY_SEC`` for the full rationale.
+
+    Kept free of any socket/ORM coupling so the tricky ordering logic can be
+    unit-tested in isolation.
+    """
+
+    __slots__ = ("_history", "_retention_sec", "last_id")
+
+    def __init__(self, retention_sec):
+        # Seconds a dispatched id is kept in history before it may raise last_id.
+        self._retention_sec = retention_sec
+        # Id of the last dispatched notification no longer held in _history.
+        self.last_id = 0
+        # Dispatched notifications as (id, dispatch_time), always sorted by id ASC.
+        self._history = []
+
+    @property
+    def ignore_ids(self):
+        """Ids already dispatched but still held back, to exclude from polling."""
+        return [nid for nid, _sent_at in self._history]
+
+    def initialize_last_id(self, last):
+        """Adopt the client's ``last`` id, but only while still at the initial 0.
+
+        After the first assignment the server's own tracking is authoritative
+        (the client may reconnect with a stale value).
+        """
+        if self.last_id == 0:
+            self.last_id = last
+
+    def record_dispatched(self, notif_ids, now):
+        """Record that ``notif_ids`` were dispatched at ``now`` and advance
+        ``last_id`` past the contiguous prefix of expired ids.
+
+        Only the contiguous run of the lowest expired ids may be dropped: an id
+        cannot be forgotten while any smaller id is still held back, otherwise
+        the next ``id > last_id`` poll would fetch it again.
+
+        For example, if the threshold is 10s and the state is
+        ``last_id 2, history [(3, 8s), (6, 10s), (7, 7s)]``: if 6 were removed
+        because it is above the threshold, the next query would be
+        ``id > 2 AND id NOT IN (3, 7)`` which would fetch 6 again. 6 can only be
+        removed after 3 reaches the threshold and is removed as well; and if 4
+        appears in the meantime, 3 can be removed but 6 must wait for 4 to reach
+        the threshold too.
+        """
+        for nid in notif_ids:
+            bisect.insort(self._history, (nid, now), key=lambda entry: entry[0])
+        last_index = -1
+        for i, (_nid, sent_at) in enumerate(self._history):
+            if now - sent_at > self._retention_sec:
+                last_index = i
+            else:
+                break
+        if last_index != -1:
+            self.last_id = self._history[last_index][0]
+            self._history = self._history[last_index + 1 :]
+
+
 class Websocket:
     __event_callbacks = defaultdict(set)
     # Maximum size for a message in bytes, whether it is sent as one
@@ -305,12 +370,12 @@ class Websocket:
     # and in particular not sufficient for those with a lower id coming after a
     # higher id was dispatched.
     # To solve the issue of missed notifications, the lowest id, stored in
-    # ``_last_notif_sent_id``, is held back by a few seconds to give time for
-    # concurrent transactions to finish. To avoid dispatching duplicate
-    # notifications, the history of already dispatched notifications during this
-    # period is kept in memory in ``_notif_history`` and the corresponding
-    # notifications are discarded from subsequent dispatching even if their id
-    # is higher than ``_last_notif_sent_id``.
+    # ``NotificationDispatchState.last_id``, is held back by a few seconds to
+    # give time for concurrent transactions to finish. To avoid dispatching
+    # duplicate notifications, the history of already dispatched notifications
+    # during this period is kept in memory and the corresponding notifications
+    # are discarded from subsequent dispatching even if their id is higher than
+    # ``last_id``.
     # In practice, what is important functionally is the time between the create
     # of the notification and the commit of the transaction in business code.
     # If this time exceeds this threshold, the notification will never be
@@ -341,13 +406,11 @@ class Websocket:
         self.__cmd_queue = PollablePriorityQueue()
         self._waiting_for_dispatch = False
         self._channels = set()
-        # For ``_last_notif_sent_id and ``_notif_history``, see
-        # ``MAX_NOTIFICATION_HISTORY_SEC`` for more details.
-        # id of the last sent notification that is no longer in _notif_history
-        self._last_notif_sent_id = 0
-        # history of last sent notifications in the format (notif_id, send_time)
-        # always sorted by notif_id ASC
-        self._notif_history = []
+        # Notification dedup / hold-back bookkeeping, see
+        # ``MAX_NOTIFICATION_HISTORY_SEC`` and ``NotificationDispatchState``.
+        self._dispatch_state = NotificationDispatchState(
+            self.MAX_NOTIFICATION_HISTORY_SEC
+        )
         # Websocket start up
         self.__selector = selectors.DefaultSelector()
         self.__selector.register(self.__socket, selectors.EVENT_READ)
@@ -414,8 +477,7 @@ class Websocket:
         self._channels = channels
         # Only assign the last id according to the client once: the server is
         # more reliable later on, see ``MAX_NOTIFICATION_HISTORY_SEC``.
-        if self._last_notif_sent_id == 0:
-            self._last_notif_sent_id = last
+        self._dispatch_state.initialize_last_id(last)
         # Dispatch past notifications if there are any.
         self.trigger_notification_dispatching()
 
@@ -779,36 +841,14 @@ class Websocket:
                 raise SessionExpiredException
             notifications = env["bus.bus"]._poll(
                 self._channels,
-                self._last_notif_sent_id,
-                [n[0] for n in self._notif_history],
+                self._dispatch_state.last_id,
+                self._dispatch_state.ignore_ids,
             )
         if not notifications:
             return
-        for notif in notifications:
-            bisect.insort(
-                self._notif_history, (notif["id"], time.time()), key=lambda x: x[0]
-            )
-        # Discard all the smallest notification ids that have expired and
-        # increment the last id accordingly. History can only be trimmed of ids
-        # that are below the new last id otherwise some notifications might be
-        # dispatched again.
-        # For example, if the theshold is 10s, and the state is:
-        # last id 2, history [(3, 8s), (6, 10s), (7, 7s)]
-        # If 6 is removed because it is above the threshold, the next query will
-        # be (id > 2 AND id NOT IN (3, 7)) which will fetch 6 again.
-        # 6 can only be removed after 3 reaches the threshold and is removed as
-        # well, and if 4 appears in the meantime, 3 can be removed but 6 will
-        # have to wait for 4 to reach the threshold as well.
-        now = time.time()
-        last_index = -1
-        for i, notif in enumerate(self._notif_history):
-            if now - notif[1] > self.MAX_NOTIFICATION_HISTORY_SEC:
-                last_index = i
-            else:
-                break
-        if last_index != -1:
-            self._last_notif_sent_id = self._notif_history[last_index][0]
-            self._notif_history = self._notif_history[last_index + 1 :]
+        self._dispatch_state.record_dispatched(
+            [notif["id"] for notif in notifications], time.time()
+        )
         self._send(notifications)
 
     def new_env(self, cr, session, *, set_lang=False):
@@ -1024,7 +1064,7 @@ class WebsocketConnectionHandler:
     # Latest version of the websocket worker. This version should be incremented
     # every time `websocket_worker.js` is modified to force the browser to fetch
     # the new worker bundle.
-    _VERSION = "19.0-2"
+    _VERSION = "19.0-3"
 
     @classmethod
     def websocket_allowed(cls, request):

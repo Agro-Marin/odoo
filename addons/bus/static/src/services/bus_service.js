@@ -230,7 +230,14 @@ export const busService = {
                     const { id, payload } = detail;
                     callback(JSON.parse(JSON.stringify(payload)), { id });
                 };
-                subscribeFnToWrapper.set(callback, wrapper);
+                // Key by (callback, notificationType): a single callback may be
+                // subscribed to several types, so one wrapper per type must be
+                // kept, otherwise unsubscribe would remove the wrong listener
+                // and leak the others.
+                if (!subscribeFnToWrapper.has(callback)) {
+                    subscribeFnToWrapper.set(callback, new Map());
+                }
+                subscribeFnToWrapper.get(callback).set(notificationType, wrapper);
                 notificationBus.addEventListener(notificationType, wrapper);
             },
             /**
@@ -240,11 +247,16 @@ export const busService = {
              * @param {function} callback
              */
             unsubscribe(notificationType, callback) {
-                notificationBus.removeEventListener(
-                    notificationType,
-                    subscribeFnToWrapper.get(callback),
-                );
-                subscribeFnToWrapper.delete(callback);
+                const wrappersByType = subscribeFnToWrapper.get(callback);
+                const wrapper = wrappersByType?.get(notificationType);
+                if (!wrapper) {
+                    return;
+                }
+                notificationBus.removeEventListener(notificationType, wrapper);
+                wrappersByType.delete(notificationType);
+                if (wrappersByType.size === 0) {
+                    subscribeFnToWrapper.delete(callback);
+                }
             },
             startedAt,
             workerState: null,
