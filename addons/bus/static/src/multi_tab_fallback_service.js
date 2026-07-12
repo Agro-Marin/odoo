@@ -33,7 +33,13 @@ export const multiTabFallbackService = {
         let lastHeartbeat = 0;
         let heartbeatTimeout;
         const now = new Date().getTime();
-        const tabId = `${this.name}${multiTabId++}:${now}`;
+        // `this.name` is undefined on a service value (the registry key is not
+        // copied onto it), so it contributed nothing but the string
+        // "undefined". Two tabs opened in the same millisecond would then share
+        // an identical tabId (per-tab `multiTabId` both start at 0) and clobber
+        // each other's `lastPresenceByTab` entry, corrupting the election. A
+        // random suffix makes the id collision-proof.
+        const tabId = `${multiTabId++}:${now}:${Math.random().toString(36).slice(2)}`;
 
         function startElection() {
             if (_isOnMainTab) {
@@ -172,6 +178,25 @@ export const multiTabFallbackService = {
         }
 
         browser.addEventListener("pagehide", unregister);
+        browser.addEventListener("pageshow", (ev) => {
+            if (!ev.persisted) {
+                return;
+            }
+            // Restored from bfcache: `pagehide` unregistered this tab (cleared
+            // its heartbeat and removed it from `lastPresenceByTab`). Without
+            // re-registering, the tab can never become main again. Re-add its
+            // presence and resume the heartbeat loop (unregister cleared the
+            // pending timeout, so this doesn't double-schedule).
+            const lastPresenceByTab = JSON.parse(
+                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+            );
+            lastPresenceByTab[tabId] = new Date().getTime();
+            localStorage.setItem(
+                "multi_tab_service.lastPresenceByTab",
+                JSON.stringify(lastPresenceByTab),
+            );
+            heartbeat();
+        });
         browser.addEventListener("storage", onStorage);
 
         // REGISTER THIS TAB

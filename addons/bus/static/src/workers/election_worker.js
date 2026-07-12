@@ -71,9 +71,18 @@ export class ElectionWorker {
         switch (action) {
             case "ELECTION:REGISTER":
                 this.candidates.add(event.target);
-                await this.electionDeferred;
                 if (!this.masterTab) {
-                    this.startElection();
+                    if (this.electionDeferred) {
+                        // An election is already in progress: poll the newcomer
+                        // directly so it can win it. Previously this awaited
+                        // ``electionDeferred``, which — if that election had
+                        // stalled with no candidates — blocked the new tab for
+                        // up to ``MAIN_TAB_TIMEOUT_PERIOD`` until the periodic
+                        // staleness check re-broadcast heartbeat requests.
+                        this.requestHeartbeat(event.target);
+                    } else {
+                        this.startElection();
+                    }
                 }
                 break;
             case "ELECTION:UNREGISTER":
