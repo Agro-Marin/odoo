@@ -4,7 +4,6 @@ from odoo import api, fields, models
 from odoo.models import add_to_registry
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
-from odoo.tools import SQL
 
 
 @tagged("post_install", "-at_install")
@@ -71,67 +70,33 @@ class TestSchedulingMixin(TransactionCase):
             def _get_reservation_date_fields(self):
                 return ("date_start", "date_end")
 
-            @api.depends(
-                "date_start",
-                "date_end",
-                "resource_id",
-                "resource_calendar_id",
-                "allocated_percentage",
-            )
-            def _compute_allocated_hours(self):
-                # Full compute using local date/resource fields (the generic
-                # mixin compute would otherwise skip because it has no
-                # explicit dependencies on this model's scheduling columns).
-                return super()._compute_allocated_hours()
+            def _get_reservation_vals_list(self):
+                # Faithful consumer: project the local scheduling columns into a
+                # single reservation so the mixin's create/write sync path and
+                # the reservation-ledger aggregation of ``allocated_hours`` /
+                # ``schedule_overlap_count`` are exercised end-to-end (rather
+                # than re-implementing that logic inside the test model).
+                self.ensure_one()
+                if not self.date_start or not self.date_end:
+                    return []
+                return [
+                    {
+                        "name": self.name or "Reservation",
+                        "date_start": self.date_start,
+                        "date_end": self.date_end,
+                        "resource_id": self.resource_id.id or False,
+                        "allocated_percentage": self.allocated_percentage or 100.0,
+                        "enforcement_mode": "soft",
+                    }
+                ]
 
-            @api.depends(
-                "date_start", "date_end", "resource_id", "allocated_percentage"
-            )
-            def _compute_schedule_overlap_count(self):
-                stored = self.filtered(
-                    lambda r: (
-                        r.id
-                        and isinstance(r.id, int)
-                        and r.resource_id
-                        and r.date_start
-                        and r.date_end
-                    )
-                )
-                (self - stored).schedule_overlap_count = 0
-                if not stored:
-                    return
-
-                stored.flush_recordset(
-                    [
-                        "date_start",
-                        "date_end",
-                        "resource_id",
-                        "allocated_percentage",
-                    ]
-                )
-                table = SQL.identifier(self._table)
-                query = SQL(
-                    """
-                    SELECT s1.id, COUNT(s2.id)
-                      FROM %s s1
-                      JOIN %s s2
-                        ON s1.resource_id = s2.resource_id
-                       AND s1.id != s2.id
-                       AND s1.date_start < s2.date_end
-                       AND s1.date_end > s2.date_start
-                       AND COALESCE(s1.allocated_percentage, 100)
-                         + COALESCE(s2.allocated_percentage, 100) > 100
-                     WHERE s1.id = ANY(%s)
-                     GROUP BY s1.id
-                    """,
-                    table,
-                    table,
-                    list(stored.ids),
-                )
-                self.env.cr.execute(query)
-                counts = dict(self.env.cr.fetchall())
-                for record in stored:
-                    record.schedule_overlap_count = counts.get(record.id, 0)
+            def _get_sync_trigger_fields(self):
+                # Re-sync the reservation when the resource or the allocation
+                # share changes, not only the dates (the mixin default).
+                return super()._get_sync_trigger_fields() | {
+                    "resource_id",
+                    "allocated_percentage",
+                }
 
         add_to_registry(cls.registry, SchedulingTest)
         cls.registry._setup_models__(cls.env.cr, [])
@@ -228,7 +193,7 @@ class TestSchedulingMixin(TransactionCase):
         self.assertEqual(record.allocated_hours, 16.0)
 
     def test_allocated_hours_no_resource(self):
-        """No resource → uses company calendar (not raw timedelta)."""
+        """No resource → uses the company calendar (not a raw timedelta)."""
         record = self.Model.create(
             {
                 "name": "No resource",
@@ -236,10 +201,17 @@ class TestSchedulingMixin(TransactionCase):
                 "date_end": datetime(2025, 1, 6, 17, 0),  # Mon 17:00
             }
         )
-        # Should use company calendar (standard 40h/week) → 8h
-        self.assertEqual(record.resource_id.id, False)
-        self.assertGreater(record.allocated_hours, 0.0)
-        self.assertEqual(record.allocated_hours, 8.0)
+        self.assertFalse(record.resource_id)
+        # The reservation falls back to the company calendar; assert against
+        # its actual output rather than a hard-coded number so the test does
+        # not depend on which default calendar the database ships with.
+        expected = self.env.company.resource_calendar_id.get_work_hours_count(
+            datetime(2025, 1, 6, 8, 0),
+            datetime(2025, 1, 6, 17, 0),
+        )
+        # Calendar-aware (lunch excluded) → strictly less than the 9h raw span.
+        self.assertLess(record.allocated_hours, 9.0)
+        self.assertAlmostEqual(record.allocated_hours, expected, places=2)
 
     def test_allocated_hours_flexible_resource(self):
         """Flexible resource: work hours capped by flex calendar constraints."""
@@ -333,9 +305,9 @@ class TestSchedulingMixin(TransactionCase):
                 "allocated_percentage": 100.0,
             }
         )
-        # Force recompute
-        rec1.invalidate_recordset(["schedule_overlap_count"])
-        rec2.invalidate_recordset(["schedule_overlap_count"])
+        # Overlap counts are cross-record (a new reservation cannot invalidate
+        # a sibling's cached count), so flush the whole env before reading.
+        self.env.invalidate_all()
         self.assertGreater(rec1.schedule_overlap_count, 0)
         self.assertGreater(rec2.schedule_overlap_count, 0)
 
@@ -359,19 +331,16 @@ class TestSchedulingMixin(TransactionCase):
                 "allocated_percentage": 50.0,
             }
         )
-        rec1.invalidate_recordset(["schedule_overlap_count"])
-        rec2.invalidate_recordset(["schedule_overlap_count"])
+        self.env.invalidate_all()
         # 50 + 50 = 100 → not > 100 → no conflict
         self.assertEqual(rec1.schedule_overlap_count, 0)
         self.assertEqual(rec2.schedule_overlap_count, 0)
 
-        # Now bump to 60% each → 120% > 100 → conflict
+        # Now bump to 60% each → 120% > 100 → conflict. The allocation change
+        # re-syncs each reservation (see _get_sync_trigger_fields override).
         rec1.allocated_percentage = 60.0
         rec2.allocated_percentage = 60.0
-        rec1.flush_recordset()
-        rec2.flush_recordset()
-        rec1.invalidate_recordset(["schedule_overlap_count"])
-        rec2.invalidate_recordset(["schedule_overlap_count"])
+        self.env.invalidate_all()
         self.assertGreater(rec1.schedule_overlap_count, 0)
         self.assertGreater(rec2.schedule_overlap_count, 0)
 
@@ -402,8 +371,7 @@ class TestSchedulingMixin(TransactionCase):
                 "allocated_percentage": 100.0,
             }
         )
-        rec1.invalidate_recordset(["schedule_overlap_count"])
-        rec2.invalidate_recordset(["schedule_overlap_count"])
+        self.env.invalidate_all()
         self.assertEqual(rec1.schedule_overlap_count, 0)
         self.assertEqual(rec2.schedule_overlap_count, 0)
 

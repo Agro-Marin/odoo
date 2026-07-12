@@ -5,6 +5,7 @@ from . import resource_calendar_attendance
 from . import resource_calendar_leaves
 from . import resource_mixin
 from . import resource_resource
+from . import resource_scheduling_tools
 from . import resource_scheduling_mixin
 from . import resource_reservation
 from . import utils

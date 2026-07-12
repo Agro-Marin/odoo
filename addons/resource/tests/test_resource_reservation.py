@@ -52,7 +52,12 @@ class TestResourceReservation(TransactionCase):
                 "date_end": datetime(2025, 1, 6, 17, 0),  # Mon 17:00
             }
         )
-        self.assertTrue(res.allocated_hours > 0, "Allocated hours should be computed")
+        expected = self.calendar.get_work_hours_count(
+            datetime(2025, 1, 6, 8, 0), datetime(2025, 1, 6, 17, 0)
+        )
+        # Calendar-aware (lunch excluded) → strictly less than the 9h raw span.
+        self.assertLess(res.allocated_hours, 9.0)
+        self.assertAlmostEqual(res.allocated_hours, expected, places=2)
         self.assertEqual(res.allocated_percentage, 100.0)
         self.assertEqual(res.enforcement_mode, "soft")
         self.assertTrue(res.active)
@@ -245,6 +250,69 @@ class TestResourceReservation(TransactionCase):
             }
         )
         self.assertTrue(res2.id, "50%+50% hard should be allowed")
+        res2.invalidate_recordset(["schedule_overlap_count"])
+        self.assertEqual(
+            res2.schedule_overlap_count, 0, "50%+50% must not be a conflict"
+        )
+
+    # ------------------------------------------------------------------
+    # Archived reservations must not count as conflicts
+    # ------------------------------------------------------------------
+
+    def test_archived_reservation_not_a_conflict(self):
+        """An archived (active=False) reservation is no longer a claim on the
+        resource: it must not be counted as an overlap by an active one."""
+        res1 = self.Reservation.create(
+            {
+                "name": "Active",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 12, 0),
+            }
+        )
+        res2 = self.Reservation.create(
+            {
+                "name": "To be archived",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 9, 0),
+                "date_end": datetime(2025, 1, 6, 11, 0),
+            }
+        )
+        self.env.invalidate_all()
+        self.assertGreater(res1.schedule_overlap_count, 0, "both active → conflict")
+
+        res2.active = False
+        self.env.invalidate_all()
+        self.assertEqual(
+            res1.schedule_overlap_count,
+            0,
+            "archived reservation must not be counted as a conflict",
+        )
+        self.assertEqual(res2.schedule_overlap_count, 0)
+
+    def test_hard_enforcement_ignores_archived(self):
+        """A hard reservation must not be blocked by an archived overlap."""
+        blocker = self.Reservation.create(
+            {
+                "name": "Archived blocker",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 12, 0),
+                "enforcement_mode": "hard",
+            }
+        )
+        blocker.active = False
+        # Should NOT raise now that the overlapping reservation is archived.
+        res = self.Reservation.create(
+            {
+                "name": "New hard",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 10, 0),
+                "date_end": datetime(2025, 1, 6, 14, 0),
+                "enforcement_mode": "hard",
+            }
+        )
+        self.assertTrue(res.id)
 
     # ------------------------------------------------------------------
     # Cross-origin overlap detection
