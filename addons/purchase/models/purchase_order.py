@@ -672,7 +672,15 @@ class PurchaseOrder(models.Model):
             order._create_supplier_to_product()
 
     def action_draft(self):
-        self.write({"state": "draft"})
+        # Consistent with sale.order.action_draft: only draft/cancelled orders
+        # are resettable to draft. A confirmed order must be cancelled first, so
+        # calling this on one (e.g. via a server action or a mixed selection) is
+        # a graceful no-op rather than surfacing the low-level state-transition
+        # guard (done -> draft is intentionally illegal; see
+        # test_illegal_transition_done_to_draft_raises).
+        self.filtered(lambda order: order.state in ("draft", "cancel")).write(
+            {"state": "draft"},
+        )
 
     def action_lock(self):
         """Lock purchase orders to prevent modifications."""
