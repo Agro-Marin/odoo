@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import ast
-import re
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
@@ -21,7 +20,7 @@ class HrDepartment(models.Model):
         "Complete Name",
         compute="_compute_complete_name",
         recursive=True,
-        search="_search_complete_name",
+        store=True,
     )
     active = fields.Boolean("Active", default=True)
     company_id = fields.Many2one(
@@ -92,45 +91,6 @@ class HrDepartment(models.Model):
         )
         return [("id", "child_of", departments_ids)]
 
-    def _search_complete_name(self, operator, value):
-        supported_operators = [
-            "=",
-            "!=",
-            "ilike",
-            "not ilike",
-            "in",
-            "not in",
-            "=ilike",
-        ]
-        if operator not in supported_operators or not isinstance(value, (str, list)):
-            raise NotImplementedError(_("Operation not Supported."))
-        department = self.env["hr.department"].search([])
-        if operator == "=":
-            department = department.filtered(lambda m: m.complete_name == value)
-        elif operator == "!=":
-            department = department.filtered(lambda m: m.complete_name != value)
-        elif operator == "ilike":
-            department = department.filtered(
-                lambda m: value.lower() in m.complete_name.lower()
-            )
-        elif operator == "not ilike":
-            department = department.filtered(
-                lambda m: value.lower() not in m.complete_name.lower()
-            )
-        elif operator == "in":
-            department = department.filtered(lambda m: m.complete_name in value)
-        elif operator == "not in":
-            department = department.filtered(lambda m: m.complete_name not in value)
-        elif operator == "=ilike":
-            pattern = re.compile(
-                re.escape(value).replace("%", ".*").replace("_", "."),
-                flags=re.IGNORECASE,
-            )
-            department = department.filtered(
-                lambda m: pattern.fullmatch(m.complete_name)
-            )
-        return [("id", "in", department.ids)]
-
     @api.model
     def name_create(self, name):
         record = self.create({"name": name})
@@ -149,8 +109,10 @@ class HrDepartment(models.Model):
 
     @api.depends("parent_path")
     def _compute_master_department_id(self):
-        for department in self:
-            department.master_department_id = int(department.parent_path.split("/")[0])
+        for dept in self:
+            dept.master_department_id = (
+                int(dept.parent_path.split("/")[0]) if dept.parent_path else dept.id
+            )
 
     def _compute_total_employee(self):
         emp_data = (
@@ -199,8 +161,8 @@ class HrDepartment(models.Model):
 
     @api.depends("parent_id", "parent_id.company_id")
     def _compute_company_id(self):
-        if self.parent_id and self.parent_id.company_id:
-            self.company_id = self.parent_id.company_id
+        for dept in self:
+            dept.company_id = dept.parent_id.company_id or dept.company_id
 
     def write(self, vals):
         """If updating manager of a department, we need to update all the employees
@@ -213,14 +175,19 @@ class HrDepartment(models.Model):
         return super().write(vals)
 
     def _update_employee_manager(self, manager_id):
+        department_employees = self.env["hr.employee"].search(
+            [
+                ("id", "!=", manager_id),
+                ("department_id", "in", self.ids),
+            ]
+        )
         employees = self.env["hr.employee"]
         for department in self:
-            employees = employees | self.env["hr.employee"].search(
-                [
-                    ("id", "!=", manager_id),
-                    ("department_id", "=", department.id),
-                    ("parent_id", "=", department.manager_id.id),
-                ]
+            employees |= department_employees.filtered(
+                lambda employee, department=department: (
+                    employee.department_id == department
+                    and employee.parent_id == department.manager_id
+                )
             )
         employees.write({"parent_id": manager_id})
 

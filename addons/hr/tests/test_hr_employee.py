@@ -51,6 +51,51 @@ class TestHrEmployee(TestHrCommon):
         ):
             employee_version.write({"active": False})
 
+    def test_related_partners_count_is_per_employee(self):
+        """Regression: ``related_partners_count`` must be computed per employee,
+        not as the whole-recordset union written onto every record."""
+        e1 = self.env["hr.employee"].create({"name": "RP One"})
+        e2 = self.env["hr.employee"].create({"name": "RP Two"})
+        # Each employee gets its own (distinct) auto-created work contact and has
+        # no user, so each must report exactly one related partner -- not two
+        # (the combined union, which the pre-fix batch compute wrote to all).
+        (e1 | e2)._compute_related_partners_count()
+        self.assertEqual(e1.related_partners_count, 1)
+        self.assertEqual(e2.related_partners_count, 1)
+        self.assertNotEqual(e1.work_contact_id, e2.work_contact_id)
+
+    def test_user_image_write_preserves_custom_employee_image(self):
+        """Regression: writing image_1920 on a user must not overwrite the photo
+        of an employee that already has its own custom image."""
+        import base64
+        import io
+
+        from PIL import Image
+
+        def _png(color):
+            buf = io.BytesIO()
+            Image.new("RGB", (1, 1), color).save(buf, "PNG")
+            return base64.b64encode(buf.getvalue())
+
+        img_a, img_b = _png((255, 0, 0)), _png((0, 0, 255))
+        user = self.env["res.users"].create(
+            {
+                "name": "Img User",
+                "login": "img_user",
+                "email": "img.user@example.com",
+                "image_1920": False,
+            }
+        )
+        employee = self.env["hr.employee"].create(
+            {"user_id": user.id, "image_1920": img_a}
+        )
+        stored_custom = employee.image_1920
+        self.assertTrue(stored_custom)
+        # Sync a brand new avatar onto the user.
+        user.write({"image_1920": img_b})
+        # The employee kept its own custom photo (not clobbered by the user's).
+        self.assertEqual(employee.image_1920, stored_custom)
+
     def test_employee_smart_button_multi_company(self):
         partner = self.env["res.partner"].create({"name": "Partner Test"})
         company_A = self.env["res.company"].create({"name": "company_A"})

@@ -48,6 +48,15 @@ class HrEmployee(models.Model):
     _primary_email = "work_email"
     _inherits = {"hr.version": "version_id"}
 
+    # DISCLAIMER: Dirty hack fields (see check_field_access_rights / _has_field_access):
+    # not prefetched (not stored) and would crash if read directly by non-hr users.
+    _DIRTY_HACK_PRIVATE_FIELDS = (
+        "activity_calendar_event_id",
+        "rating_ids",
+        "website_message_ids",
+        "message_has_sms_error",
+    )
+
     # versions
     version_id = fields.Many2one(
         "hr.version",
@@ -297,6 +306,16 @@ class HrEmployee(models.Model):
     )
 
     # All version fields needing a specific group to be accessible should also have `inherited=True` set on its definition to make sure those fields are linked to `_inherits` on `hr.version`
+    # Explicitly redefined (like resource_calendar_id) so the delegate is
+    # related_sudo=True: reading it must not traverse the group-restricted
+    # `version_id` as the current user, which would break self-service access
+    # (work_location_id is exposed in HR_WRITABLE_FIELDS / the preferences view).
+    work_location_id = fields.Many2one(
+        related="version_id.work_location_id",
+        inherited=True,
+        store=False,
+        check_company=True,
+    )
     contract_date_start = fields.Date(
         readonly=False,
         related="version_id.contract_date_start",
@@ -482,7 +501,10 @@ class HrEmployee(models.Model):
             )
         return new_vals_list
 
-    @api.depends("bank_account_ids.allow_out_payment")
+    @api.depends(
+        "bank_account_ids.allow_out_payment",
+        "primary_bank_account_id.allow_out_payment",
+    )
     def _compute_is_trusted_bank_account(self):
         for employee in self:
             employee.is_trusted_bank_account = (
@@ -551,7 +573,7 @@ class HrEmployee(models.Model):
                 if added_ids
                 else 0.0
             )
-            for i, new_id in enumerate(added_ids):
+            for i, new_id in enumerate(sorted(added_ids)):
                 seq += 1
                 if i == len(added_ids) - 1:
                     amount = remaining
@@ -621,13 +643,7 @@ class HrEmployee(models.Model):
             result = [
                 field
                 for field in result
-                if field
-                not in [
-                    "activity_calendar_event_id",
-                    "rating_ids",
-                    "website_message_ids",
-                    "message_has_sms_error",
-                ]
+                if field not in self._DIRTY_HACK_PRIVATE_FIELDS
             ]
         return result
 
@@ -639,13 +655,7 @@ class HrEmployee(models.Model):
         return super()._has_field_access(field, operation) and (
             self.env.su
             or self.env.user.has_group("hr.group_hr_user")
-            or field.name
-            not in (
-                "activity_calendar_event_id",
-                "rating_ids",
-                "website_message_ids",
-                "message_has_sms_error",
-            )
+            or field.name not in self._DIRTY_HACK_PRIVATE_FIELDS
         )
 
     def check_no_existing_contract(self, date):
@@ -809,19 +819,22 @@ class HrEmployee(models.Model):
 
     @api.depends("version_ids.date_version", "version_ids.active", "active")
     def _compute_current_version_id(self):
+        # Single batched query for all employees to avoid an N+1 search
+        # (the cron runs this over the whole table).
+        versions = self.env["hr.version"].search(
+            [
+                ("employee_id", "in", self.ids),
+                ("date_version", "<=", fields.Date.today()),
+            ],
+            order="date_version asc",
+        )
+        # Latest matching version per employee (ascending order => last wins).
+        latest_version_by_employee = {}
+        for version in versions:
+            latest_version_by_employee[version.employee_id.id] = version
         for employee in self:
-            version = self.env["hr.version"].search(
-                [
-                    ("employee_id", "in", employee.ids),
-                    ("date_version", "<=", fields.Date.today()),
-                ],
-                order="date_version desc",
-                limit=1,
-            )
-            new_current_version = False
-            if version:
-                new_current_version = version
-            elif employee.version_ids:
+            new_current_version = latest_version_by_employee.get(employee.id, False)
+            if not new_current_version and employee.version_ids:
                 new_current_version = employee.version_ids[0]
             # To not trigger computed properties if still the same version
             if employee.current_version_id != new_current_version:
@@ -846,11 +859,12 @@ class HrEmployee(models.Model):
             field_expr = "current_version_id"
         return super()._field_to_sql(alias, field_expr, query)
 
-    def _get_version(self, date=fields.Date.today()):
+    def _get_version(self, date=None):
         """
         Return the version that should be used for the given date.
         If no valid version is found, we return the very first version of the employee.
         """
+        date = date or fields.Date.today()
         self.ensure_one()
         versions = self.version_ids.filtered_domain([("date_version", "<=", date)])
         return (
@@ -1030,6 +1044,13 @@ class HrEmployee(models.Model):
             date_start, date_end, domain
         )
         contracts_by_employee = defaultdict(lambda: self.env["hr.version"])
+        # NOTE: the ``use_latest_version=False`` path is currently unimplemented
+        # (the whole body is gated on ``use_latest_version``): it returns an empty
+        # result. No production caller passes ``use_latest_version=False`` today,
+        # and the intended "version effective at the contract start" semantics are
+        # under-specified/contradictory in the existing tests (see
+        # test_hr_contract_versions), so implementing it needs product
+        # clarification before it can be done correctly.
         for employee_id in contract_versions_by_employee:
             for contract_versions in contract_versions_by_employee[
                 employee_id
@@ -1227,7 +1248,7 @@ class HrEmployee(models.Model):
                     working_now += res_employee_ids.ids
         return working_now
 
-    @api.depends("user_id.im_status")
+    @api.depends("user_id.im_status", "active")
     def _compute_presence_state(self):
         """
         This method is overritten in several other modules which add additional
@@ -1261,7 +1282,7 @@ class HrEmployee(models.Model):
             if last_presence := employee.user_id.sudo().presence_ids.last_presence:
                 last_activity_datetime = (
                     last_presence.replace(tzinfo=UTC)
-                    .astimezone(timezone(tz))
+                    .astimezone(timezone(tz or "UTC"))
                     .replace(tzinfo=None)
                 )
                 employee.last_activity = last_activity_datetime.date()
@@ -1327,11 +1348,12 @@ class HrEmployee(models.Model):
             employee.work_permit_name = "%swork_permit%s" % (name, permit_no)
 
     def _get_partner_count_depends(self):
-        return ["user_id"]
+        return ["user_id", "work_contact_id"]
 
     @api.depends(lambda self: self._get_partner_count_depends())
     def _compute_related_partners_count(self):
-        self.related_partners_count = len(self._get_related_partners())
+        for employee in self:
+            employee.related_partners_count = len(employee._get_related_partners())
 
     def _get_related_partners(self):
         return self.work_contact_id | self.user_id.partner_id
@@ -1704,7 +1726,12 @@ We can redirect you to the public employee list."""
             ids = self.env["hr.employee.public"]._search(
                 domain, offset, limit, order, **kwargs
             )
-        except ValueError as e:
+        except (ValueError, RuntimeError) as e:
+            # A RuntimeError is raised when the domain references a field that
+            # resolves onto another model (e.g. an HR-only field related to
+            # ``version_id``, optimized for hr.version) which the public model
+            # cannot query: for a non-HR user that is an access violation, not an
+            # internal error.
             raise AccessError(
                 self.env._("You do not have access to this document.")
             ) from e
@@ -2421,8 +2448,8 @@ We can redirect you to the public employee list."""
             ]
         )
 
-    def get_avatar_card_data(self, fields):
-        return self.read(fields)
+    def get_avatar_card_data(self, field_names):
+        return self.read(field_names)
 
     # ---------------------------------------------------------
     # Messaging
@@ -2473,7 +2500,7 @@ We can redirect you to the public employee list."""
             )
         return employee_fields
 
-    @api.depends("bank_account_ids")
+    @api.depends("bank_account_ids", "salary_distribution")
     def _compute_primary_bank_account_id(self):
         for employee in self:
             if employee.bank_account_ids:

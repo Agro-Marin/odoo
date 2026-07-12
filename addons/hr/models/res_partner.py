@@ -78,9 +78,13 @@ class ResPartner(models.Model):
 
     @api.depends("employee_ids")
     def _compute_employee(self):
-        employee_data = self.env["hr.employee"]._read_group(
-            domain=[("work_contact_id", "in", self.ids)],
-            groupby=["work_contact_id"],
+        employee_data = (
+            self.env["hr.employee"]
+            .sudo()
+            ._read_group(
+                domain=[("work_contact_id", "in", self.ids)],
+                groupby=["work_contact_id"],
+            )
         )
         employees = {employee for [employee] in employee_data}
         for partner in self:

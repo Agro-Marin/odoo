@@ -14,7 +14,7 @@ class MailActivitySchedule(models.TransientModel):
         compute="_compute_plan_department_filterable"
     )
 
-    @api.depends("department_id")
+    @api.depends("company_id", "res_model", "department_id")
     def _compute_plan_available_ids(self):
         todo = self.filtered(lambda s: s.plan_department_filterable)
         for scheduler in todo:
@@ -45,6 +45,7 @@ class MailActivitySchedule(models.TransientModel):
             else:
                 wizard.department_id = False
 
+    @api.depends("res_model", "res_ids")
     def _compute_plan_date(self):
         todo = self.filtered(lambda s: s.res_model == "hr.employee")
         for scheduler in todo:

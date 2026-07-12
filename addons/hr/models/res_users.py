@@ -21,6 +21,8 @@ HR_READABLE_FIELDS = [
     "employee_resource_calendar_id",
     "work_contact_id",
     "bank_account_ids",
+    "work_location_name",
+    "work_location_type",
 ]
 
 HR_WRITABLE_FIELDS = [
@@ -141,7 +143,10 @@ class ResUsers(models.Model):
         related="employee_id.private_phone", readonly=False, related_sudo=False
     )
     private_email = fields.Char(
-        related="employee_id.private_email", string="Private Email", readonly=False
+        related="employee_id.private_email",
+        string="Private Email",
+        readonly=False,
+        related_sudo=False,
     )
     km_home_work = fields.Integer(
         related="employee_id.km_home_work", readonly=False, related_sudo=False
@@ -199,6 +204,7 @@ class ResUsers(models.Model):
     def _compute_is_system(self):
         self.is_system = self.env.user._is_system()
 
+    @api.depends_context("uid")
     def _compute_is_hr_user(self):
         is_hr_user = self.env.user.has_group("hr.group_hr_user")
         for user in self:
@@ -307,14 +313,36 @@ class ResUsers(models.Model):
             *self.env["hr.employee"]._check_company_domain(self.env.company),
             ("user_id", "in", self.ids),
         ]
-        if hr_fields:
+
+        # Capture the pre-write values of the hr-related fields so that, after
+        # the write, we can notify HR only about the fields that actually changed
+        # (writing a field with its current value must not trigger a notification).
+        # Read via sudo: these related fields may be group-restricted
+        # (e.g. private_*), and a self-service user writing their own record
+        # must not hit an AccessError just so we can detect a value change.
+        old_hr_values = {
+            field_name: {user.id: user.sudo()[field_name] for user in self}
+            for field_name in hr_fields
+        }
+
+        result = super().write(vals)
+
+        changed_hr_fields = [
+            field_name
+            for field_name in hr_fields
+            if any(
+                old_hr_values[field_name][user.id] != user.sudo()[field_name]
+                for user in self
+            )
+        ]
+        if changed_hr_fields:
             employees = self.env["hr.employee"].sudo().search(employee_domain)
             get_field = self.env["ir.model.fields"]._get
             field_names = Markup().join(
                 [
                     Markup("<li>%s</li>")
                     % get_field("res.users", fname).field_description
-                    for fname in hr_fields
+                    for fname in changed_hr_fields
                 ]
             )
             for employee in employees:
@@ -335,7 +363,6 @@ class ResUsers(models.Model):
                         ),
                         partner_ids=partner_ids,
                     )
-        result = super().write(vals)
 
         employee_values = {}
         for fname in [f for f in self._get_employee_fields_to_sync() if f in vals]:
@@ -356,7 +383,11 @@ class ResUsers(models.Model):
                     .search(employee_domain + [("image_1920", "!=", False)])
                 )
                 without_image.write(employee_values)
-                with_image.write(employee_values)
+                # Employees that already have a custom photo must keep it: only
+                # sync the non-image values to them, never overwrite their image.
+                with_image.write(
+                    {k: v for k, v in employee_values.items() if k != "image_1920"}
+                )
             else:
                 employees = self.env["hr.employee"].sudo().search(employee_domain)
                 if employees:

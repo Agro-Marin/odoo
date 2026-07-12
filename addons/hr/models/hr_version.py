@@ -416,12 +416,24 @@ class HrVersion(models.Model):
 
     @api.depends("private_country_id")
     def _compute_allowed_country_state_ids(self):
-        states = self.env["res.country.state"].search([])
+        states = None
         for version in self:
             if version.private_country_id:
                 version.allowed_country_state_ids = version.private_country_id.state_ids
             else:
+                if states is None:
+                    states = self.env["res.country.state"].search([])
                 version.allowed_country_state_ids = states
+
+    @staticmethod
+    def _periods_overlap(start_a, end_a, start_b, end_b):
+        """Return True if the two date intervals overlap.
+
+        A falsy end date is treated as open-ended (``date.max``).
+        """
+        end_a = end_a or date.max
+        end_b = end_b or date.max
+        return start_a <= end_b and start_b <= end_a
 
     @api.constrains("employee_id", "contract_date_start", "contract_date_end")
     def _check_dates(self):
@@ -459,7 +471,7 @@ class HrVersion(models.Model):
                 continue
             contract_date_end = version.contract_date_end or date.max
             contract_period_exists = False
-            for date_start, date_end, versions in dates_per_employee[
+            for date_start, date_end, _versions in dates_per_employee[
                 version.employee_id
             ]:
                 date_to = date_end or date.max
@@ -469,9 +481,11 @@ class HrVersion(models.Model):
                 ):
                     contract_period_exists = True
                     continue
-                if (
-                    date_start <= contract_date_end
-                    and version.contract_date_start <= date_to
+                if self._periods_overlap(
+                    date_start,
+                    date_end,
+                    version.contract_date_start,
+                    version.contract_date_end,
                 ):
                     raise ValidationError(
                         self.env._(
@@ -645,6 +659,7 @@ class HrVersion(models.Model):
                 else format_date_abbr(version.env, version.date_version)
             )
 
+    @api.depends("date_start", "date_end")
     def _compute_is_current(self):
         today = fields.Date.today()
         for version in self:
@@ -652,21 +667,25 @@ class HrVersion(models.Model):
                 not version.date_end or version.date_end >= today
             )
 
+    @api.depends("date_start", "date_end")
     def _compute_is_past(self):
         today = fields.Date.today()
         for version in self:
             version.is_past = version.date_end and version.date_end < today
 
+    @api.depends("date_start", "date_end")
     def _compute_is_future(self):
         today = fields.Date.today()
         for version in self:
             version.is_future = version.date_start > today
 
+    @api.depends("date_start", "date_end", "contract_date_start")
     def _compute_is_in_contract(self):
         for version in self:
             version.is_in_contract = version._is_in_contract()
 
-    def _is_in_contract(self, date=fields.Date.today()):
+    def _is_in_contract(self, date=None):
+        date = date or fields.Date.today()
         # Return True if the employee is in contract on a given date
         if not self.contract_date_start:
             return False
@@ -780,14 +799,9 @@ class HrVersion(models.Model):
         if not active_department:
             self.member_of_department = False
         else:
-
-            def get_all_children(department):
-                children = department.child_ids
-                if not children:
-                    return self.env["hr.department"]
-                return children + get_all_children(children)
-
-            child_departments = active_department + get_all_children(active_department)
+            child_departments = self.env["hr.department"].search(
+                [("id", "child_of", active_department.ids)]
+            )
             for version in self:
                 version.member_of_department = (
                     version.department_id in child_departments
@@ -852,6 +866,17 @@ class HrVersion(models.Model):
         "employee_id.version_ids.date_version",
     )
     def _compute_dates(self):
+        # Batch the sibling lookup: one search over all versions of the involved
+        # employees (respecting the current active_test context, as the previous
+        # per-version search did) instead of one search per version (N+1).
+        sibling_versions = self.env["hr.version"].search(
+            [("employee_id", "in", self.employee_id.ids)],
+            order="date_version",
+        )
+        date_versions_by_employee = defaultdict(list)
+        for sibling in sibling_versions:
+            date_versions_by_employee[sibling.employee_id].append(sibling.date_version)
+
         for version in self:
             version.date_start = (
                 max(version.date_version, version.contract_date_start)
@@ -859,16 +884,19 @@ class HrVersion(models.Model):
                 else version.date_version
             )
 
-            next_version = self.env["hr.version"].search(
-                [
-                    ("employee_id", "in", version.employee_id.ids),
-                    ("date_version", ">", version.date_version),
-                ],
-                limit=1,
+            # siblings are ordered by date_version, so the first one strictly
+            # after this version is the next version bounding the interval
+            next_date_version = next(
+                (
+                    date_version
+                    for date_version in date_versions_by_employee[version.employee_id]
+                    if date_version > version.date_version
+                ),
+                False,
             )
             date_version_end = (
-                next_version.date_version + relativedelta(days=-1)
-                if next_version
+                next_date_version + relativedelta(days=-1)
+                if next_date_version
                 else False
             )
 
