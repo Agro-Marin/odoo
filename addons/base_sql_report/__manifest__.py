@@ -1,6 +1,6 @@
 {
     "name": "Base SQL Report",
-    "version": "19.0.2.0.0",
+    "version": "19.0.3.0.0",
     "category": "Hidden",
     "summary": "SQL report construction and materialized view mixins",
     "description": """
@@ -30,7 +30,13 @@ Safe (re)creation and refresh of PostgreSQL materialized views.
 * Refuses to silently overwrite a regular table with an MV of the same name.
 * ``refresh()`` falls back to blocking REFRESH on unpopulated MVs (PG rejects
   CONCURRENTLY there) and only swallows transient errors — programming errors
-  propagate to the cron log.
+  propagate to the cron log.  The REFRESH runs inside a SAVEPOINT so a swallowed
+  transient error can't leave the transaction aborted (which would break every
+  later statement, e.g. the next MV in a refresh-many cron).
+* A default ``init()`` creates the MV from the ``_mv_index_field`` class
+  attribute, so concrete models rarely need their own ``init()``.
+* ``_create_materialized_view(index_field=...)`` accepts a single column or a
+  list/tuple for a composite UNIQUE index.
 * ``with_data=True`` by default — PG18 raises ``ObjectNotInPrerequisiteState``
   on SELECT from unpopulated MVs, so the previous default would break queries
   until the first cron tick.
