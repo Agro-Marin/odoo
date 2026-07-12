@@ -46,7 +46,20 @@ class OrderMixin(models.AbstractModel):
     # when sharing/notifying — it is not a business field and must remain
     # writable even on locked orders, matching upstream (which has no hard
     # locked-write guard).
-    _LOCKED_WRITABLE_FIELDS = {"locked", "priority", "access_token"}
+    # Communication/acknowledgement tracking fields are lifecycle metadata,
+    # not business content: actions like ``action_acknowledge`` / marking an
+    # order as sent/printed legitimately fire on confirmed (hence often locked)
+    # orders, matching upstream which has no hard locked-write guard.
+    _LOCKED_WRITABLE_FIELDS = {
+        "locked",
+        "priority",
+        "access_token",
+        "acknowledged",
+        "sent",
+        "count_sent",
+        "printed_before",
+        "count_print",
+    }
 
     @property
     def _rec_names_search(self):
@@ -944,17 +957,35 @@ class OrderMixin(models.AbstractModel):
         locked = self.filtered("locked")
         if not locked:
             return
-        forbidden = (
+        candidate = (
             set(vals) & locked._get_user_editable_fields()
         ) - self._LOCKED_WRITABLE_FIELDS
-        if forbidden:
-            raise UserError(
-                _(
-                    "This order is locked and cannot be modified. "
-                    "Unlock it first to change: %s",
-                    locked._get_field_labels(forbidden),
-                ),
-            )
+        if not candidate:
+            return
+        for order in locked:
+            # Skip no-op re-writes (value unchanged): integration/ORM callers
+            # that re-set a field to its current value must not be blocked.
+            # Scalars and many2one are compared by value/id; x2many command
+            # lists can't be cheaply compared, so they stay strict.
+            forbidden = set()
+            for name in candidate:
+                field = order._fields[name]
+                if field.type in ("many2many", "one2many"):
+                    forbidden.add(name)
+                    continue
+                current = order[name]
+                if field.type == "many2one":
+                    current = current.id
+                if current != vals[name]:
+                    forbidden.add(name)
+            if forbidden:
+                raise UserError(
+                    _(
+                        "This order is locked and cannot be modified. "
+                        "Unlock it first to change: %s",
+                        order._get_field_labels(forbidden),
+                    ),
+                )
 
     def _get_user_editable_fields(self):
         """User-settable business fields.
@@ -972,17 +1003,26 @@ class OrderMixin(models.AbstractModel):
         }
 
     def _validate_write_state_frozen_fields(self, vals):
-        """Reject writes to fields frozen in the record's current state."""
+        """Reject writes to fields frozen in the current *or* target state.
+
+        Checking the target state as well closes the bypass where a single
+        write sets both ``state`` and a field frozen in that new state
+        (e.g. ``{"state": "done", "pricelist_id": X}`` on a draft order).
+        """
         frozen_map = self._get_state_frozen_fields()
         changed = set(vals)
+        target_state = vals.get("state")
         for order in self:
-            frozen = frozen_map.get(order.state, set()) & changed
+            relevant_states = {order.state, target_state} - {None}
+            frozen = set().union(
+                *(frozen_map.get(state, set()) for state in relevant_states),
+            ) & changed
             if frozen:
                 raise UserError(
                     _(
                         "You cannot modify %(fields)s on a %(state)s order.",
                         fields=order._get_field_labels(frozen),
-                        state=order.state,
+                        state=target_state or order.state,
                     ),
                 )
 

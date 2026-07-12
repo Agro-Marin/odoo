@@ -124,29 +124,31 @@ class OrderAmountMixin(models.AbstractModel):
         "payment_term_id",
         "line_ids.price_subtotal",
     )
-    def _compute_amounts(self):
-        """Compute stored amount fields from tax totals."""
-        for order in self:
-            tax_totals = order._build_tax_totals_data()
-            order.amount_untaxed = tax_totals["base_amount_currency"]
-            order.amount_tax = tax_totals["tax_amount_currency"]
-            order.amount_total = tax_totals["total_amount_currency"]
-
-    @api.depends_context("lang")
-    @api.depends(
-        "company_id",
-        "currency_id",
-        "payment_term_id",
-        "line_ids.price_subtotal",
-    )
     def _compute_tax_totals(self):
-        """Compute the non-stored ``tax_totals`` display field.
+        """Compute the ``tax_totals`` summary — the single source of truth.
 
-        Separated from ``_compute_amounts`` to avoid inconsistent store
-        attribute warnings (Binary, not stored).
+        This is the only place the ``account.tax`` engine is invoked for the
+        order; both the display field and the stored monetary totals
+        (``_compute_amounts``) derive from this one computation.
         """
         for order in self:
             order.tax_totals = order._build_tax_totals_data()
+
+    @api.depends("tax_totals")
+    def _compute_amounts(self):
+        """Derive the stored monetary totals from the ``tax_totals`` summary.
+
+        ``tax_totals`` is the source of truth (see ``_compute_tax_totals``);
+        projecting the three scalars out of it runs the tax engine **once** per
+        order per recompute instead of twice (upstream recomputes it here too).
+        Within a request ``tax_totals`` is computed once and cached, so the
+        display widget reuses it for free.
+        """
+        for order in self:
+            tax_totals = order.tax_totals
+            order.amount_untaxed = tax_totals["base_amount_currency"]
+            order.amount_tax = tax_totals["tax_amount_currency"]
+            order.amount_total = tax_totals["total_amount_currency"]
 
     # ─── Invoice Amounts ───────────────────────────────────────────
 
@@ -194,7 +196,7 @@ class OrderAmountMixin(models.AbstractModel):
                     "account.move"
                 ]._build_credit_warning_message(
                     order.sudo(),  # ensure access to `credit` & `credit_limit` fields
-                    current_amount=(order.amount_total / order.currency_rate),
+                    current_amount=(order.amount_total / (order.currency_rate or 1.0)),
                 )
 
 
@@ -559,6 +561,9 @@ class OrderLineAmountMixin(models.AbstractModel):
     @api.depends("product_qty", "price_total")
     def _compute_price_unit_discounted_taxinc(self):
         for line in self:
+            if line.display_type:
+                line.price_unit_discounted_taxinc = False
+                continue
             line.price_unit_discounted_taxinc = (
                 line.price_total / line.product_qty if line.product_qty else 0.0
             )
