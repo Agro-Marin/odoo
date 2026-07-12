@@ -204,6 +204,11 @@ class DiscussChannelRtcSession(models.Model):
                 self.env["discuss.channel.rtc.session"]
                 .browse(target_session_ids)
                 .exists()
+                # only peers of the sender's own channel may be signaled: the
+                # target session ids are attacker-controlled, so without this
+                # scope a caller could push forged peer notifications onto the
+                # bus of any session in any other channel.
+                .filtered(lambda target: target.channel_id == self.channel_id)
             ):
                 payload_by_target[target_session]["notifications"].append(content)
         for target, payload in payload_by_target.items():

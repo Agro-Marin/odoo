@@ -327,13 +327,28 @@ class DiscussChannelMember(models.Model):
                 return field_description.field_name
             return field_description
 
+        sync_fields = self._sync_field_names()
+        if "new_message_separator" not in vals:
+            # 'message_unread_counter' is an unstored GROUP BY compute over
+            # mail_message; on a member write it can only change through
+            # 'new_message_separator' (its sole writable dependency, channel_id
+            # being immutable here). Skip its recompute — snapshotted both before
+            # and after — when that field is not being written, so unrelated writes
+            # (mute, rename, unpin, last_interest_dt, ...) do not pay for a
+            # message-count aggregation each time.
+            sync_fields = [
+                field_description
+                for field_description in sync_fields
+                if get_field_name(field_description) != "message_unread_counter"
+            ]
+
         def get_vals(member):
             return {
                 get_field_name(field_description): (
                     member[get_field_name(field_description)],
                     field_description,
                 )
-                for field_description in self._sync_field_names()
+                for field_description in sync_fields
             }
 
         old_vals_by_member = {member: get_vals(member) for member in self}

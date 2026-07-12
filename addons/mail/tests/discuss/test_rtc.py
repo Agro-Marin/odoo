@@ -13,6 +13,19 @@ from odoo.addons.mail.tools.discuss import Store
 
 @tagged("RTC", "post_install", "-at_install")
 class TestChannelRTC(MailCommon, HttpCase):
+    def _backdate_sessions(self, sessions, days=2):
+        """Push ``write_date`` past the RTC garbage-collection threshold.
+
+        A regular ``write`` would reset ``write_date`` to now (defeating the
+        purpose), so update the column directly and drop the stale cache.
+        """
+        sessions.flush_model()
+        self.env.cr.execute(
+            "UPDATE discuss_channel_rtc_session SET write_date = %s WHERE id = ANY(%s)",
+            (fields.Datetime.now() - relativedelta(days=days), list(sessions.ids)),
+        )
+        sessions.invalidate_recordset(["write_date"])
+
     @users("employee")
     @mute_logger("odoo.models.unlink")
     @freeze_time("2023-03-15 12:34:56")
@@ -1326,10 +1339,7 @@ class TestChannelRTC(MailCommon, HttpCase):
             )
         )
         channel_member._rtc_join_call()
-        channel_member.rtc_session_ids.flush_model()
-        channel_member.rtc_session_ids._write(
-            {"write_date": fields.Datetime.now() - relativedelta(days=2)}
-        )
+        self._backdate_sessions(channel_member.rtc_session_ids)
         with self.assertBus(
             [
                 # update list of sessions
@@ -1434,10 +1444,7 @@ class TestChannelRTC(MailCommon, HttpCase):
             .sudo()
             .create({"channel_member_id": test_channel_member.id})
         )
-        test_session.flush_model()
-        test_session._write(
-            {"write_date": fields.Datetime.now() - relativedelta(days=2)}
-        )
+        self._backdate_sessions(test_session)
         unused_ids = [9998, 9999]
         with self.assertBus(
             [
@@ -1489,3 +1496,62 @@ class TestChannelRTC(MailCommon, HttpCase):
         channel.with_user(bob).self_member_id.sudo()._rtc_join_call()
         self._reset_bus()
         self.start_tour("/odoo", "discuss_call_invitation.js", login="john")
+
+    @mute_logger("odoo.models.unlink")
+    def test_notify_peers_scoped_to_sender_channel(self):
+        """Peer notifications carry attacker-controlled target session ids, so
+        `_notify_peers` must only deliver to sessions of the sender's own channel
+        and never to sessions belonging to another channel.
+        """
+        # three distinct users: a call ends a partner's other sessions, so the
+        # sender and the two targets must be different personas.
+        bob = new_test_user(
+            self.env, "rtc_bob", groups="base.group_user", email="rtc_bob@test.com"
+        )
+        carol = new_test_user(
+            self.env, "rtc_carol", groups="base.group_user", email="rtc_carol@test.com"
+        )
+        dave = new_test_user(
+            self.env, "rtc_dave", groups="base.group_user", email="rtc_dave@test.com"
+        )
+        group_id = self.env.ref("base.group_user").id
+        channel_a = self.env["discuss.channel"]._create_channel(
+            name="A", group_id=group_id
+        )
+        channel_b = self.env["discuss.channel"]._create_channel(
+            name="B", group_id=group_id
+        )
+        channel_a.sudo()._add_members(partners=bob.partner_id | carol.partner_id)
+        channel_b.sudo()._add_members(partners=dave.partner_id)
+
+        def member_of(channel, partner):
+            return channel.sudo().channel_member_ids.filtered(
+                lambda m: m.partner_id == partner
+            )
+
+        sender_member = member_of(channel_a, bob.partner_id)
+        same_channel_member = member_of(channel_a, carol.partner_id)
+        other_channel_member = member_of(channel_b, dave.partner_id)
+        sender_member.sudo()._rtc_join_call()
+        same_channel_member.sudo()._rtc_join_call()
+        other_channel_member.sudo()._rtc_join_call()
+
+        sender = sender_member.rtc_session_ids
+        same_channel_target = same_channel_member.rtc_session_ids
+        other_channel_target = other_channel_member.rtc_session_ids
+
+        with patch.object(type(sender), "_bus_send", autospec=True) as bus_send:
+            sender._notify_peers(
+                [([same_channel_target.id, other_channel_target.id], "payload")]
+            )
+        signaled_ids = {call.args[0].id for call in bus_send.call_args_list}
+        self.assertIn(
+            same_channel_target.id,
+            signaled_ids,
+            "a peer in the sender's own channel must still be signaled",
+        )
+        self.assertNotIn(
+            other_channel_target.id,
+            signaled_ids,
+            "a session in a different channel must never be signaled",
+        )

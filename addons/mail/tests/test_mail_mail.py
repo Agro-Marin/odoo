@@ -1,3 +1,4 @@
+import datetime
 import smtplib
 from unittest import mock
 
@@ -5,6 +6,58 @@ from odoo.tests import TransactionCase
 
 
 class MailCase(TransactionCase):
+    def test_schedule_notification_parameters_roundtrip(self):
+        """Record-valued notify kwargs (e.g. force_email_company) must survive the
+        JSON round-trip through mail.message.schedule.
+
+        Regression: notification_parameters used to be json.dumps(kwargs) directly,
+        which raised ``TypeError: Object of type res.company is not JSON
+        serializable`` whenever a scheduled notification carried a recordset.
+        """
+        Schedule = self.env["mail.message.schedule"]
+        company = self.env.company
+        kwargs = {
+            "force_email_company": company,
+            "force_send": True,
+            "subtitles": ["hello"],
+        }
+        raw = Schedule._serialize_notification_parameters(kwargs)
+        # the company is stored as its id, keeping the payload JSON-serializable
+        self.assertIn(f'"force_email_company": {company.id}', raw)
+
+        partner = self.env["res.partner"].create({"name": "sched"})
+        message = partner.message_post(body="hi", partner_ids=partner.ids)
+        schedule = Schedule.create(
+            {
+                "scheduled_datetime": "2050-01-01 00:00:00",
+                "mail_message_id": message.id,
+                "notification_parameters": raw,
+            }
+        )
+        params = schedule._deserialize_notification_parameters()
+        # ... and rebuilt into the original recordset on replay
+        self.assertEqual(params["force_email_company"], company)
+        self.assertIs(params["force_send"], True)
+        self.assertEqual(params["subtitles"], ["hello"])
+
+    def test_scheduled_date_accepts_plain_date(self):
+        """A ``datetime.date`` (not a ``datetime``) passed as ``scheduled_date``
+        must be stored at midnight, without raising.
+
+        Regression: the ``import datetime`` refactor left a call to
+        ``datetime.combine`` (which only exists on ``datetime.datetime``), so any
+        plain ``date`` reaching ``_parse_scheduled_datetime`` crashed with
+        ``AttributeError: module 'datetime' has no attribute 'combine'``.
+        """
+        # create() path
+        mail = self.env["mail.mail"].create(
+            {"scheduled_date": datetime.date(2050, 1, 15)}
+        )
+        self.assertEqual(mail.scheduled_date, datetime.datetime(2050, 1, 15, 0, 0, 0))
+        # write() path
+        mail.write({"scheduled_date": datetime.date(2050, 2, 20)})
+        self.assertEqual(mail.scheduled_date, datetime.datetime(2050, 2, 20, 0, 0, 0))
+
     def test_mail_send_non_connected_smtp_session(self):
         """Check to avoid SMTPServerDisconnected error while trying to
         disconnect smtp session that is not connected.

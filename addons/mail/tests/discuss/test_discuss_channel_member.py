@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+from unittest.mock import patch
+
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import new_test_user, tagged
 
@@ -392,6 +395,49 @@ class TestDiscussChannelMember(MailCommon):
             1,
             "should have 1 unread message after someone else posted a message",
         )
+
+    def test_write_skips_unread_recompute_for_unrelated_fields(self):
+        """A member write unrelated to the unread counter must not trigger its
+        (GROUP BY) recompute; writing new_message_separator still must.
+
+        The write() sync-diff snapshots each field before and after the write; the
+        unread counter is an unstored aggregate whose only writable dependency is
+        new_message_separator, so recomputing it for e.g. a mute write is waste.
+        """
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(self.user_1)
+            ._create_channel(group_id=None, name="unread perf channel")
+        )
+        channel._add_members(users=self.user_1 | self.user_2)
+        member = self.env["discuss.channel.member"].search(
+            [
+                ("channel_id", "=", channel.id),
+                ("partner_id", "=", self.user_2.partner_id.id),
+            ]
+        )
+        channel.message_post(
+            body="m", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+
+        member_model = type(member)
+        original_compute = member_model._compute_message_unread
+        calls = []
+
+        def _counting(records):
+            calls.append(records.ids)
+            return original_compute(records)
+
+        with patch.object(member_model, "_compute_message_unread", _counting):
+            member.write({"mute_until_dt": datetime.now() + timedelta(days=1)})
+            self.assertEqual(
+                calls, [], "unrelated member write recomputed the unread counter"
+            )
+            member.write({"new_message_separator": 1})
+            self.assertTrue(
+                calls,
+                "writing new_message_separator must recompute the unread counter",
+            )
 
     def test_unread_counter_with_message_post_multi_channel(self):
         channel_1_as_user_1 = (

@@ -469,14 +469,19 @@ class MailRenderMixin(models.AbstractModel):
 
         is_restricted = self._is_restricted()
 
+        # parse the template once, out of the per-record loop: re-parsing the
+        # same HTML for every record is pure overhead on batch/mass rendering.
+        template_node = html.fragment_fromstring(template_src, create_parent="div")
+
+        options = options or {}
+        if is_restricted:
+            options["raise_on_forbidden_code_for_model"] = model
+
         for record in self.env[model].browse(res_ids):
             variables["object"] = record
-            options = options or {}
-            if is_restricted:
-                options["raise_on_forbidden_code_for_model"] = model
             try:
                 render_result = self.env["ir.qweb"]._render(
-                    html.fragment_fromstring(template_src, create_parent="div"),
+                    template_node,
                     variables,
                     **options,
                 )
