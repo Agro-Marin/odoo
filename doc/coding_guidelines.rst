@@ -1330,6 +1330,51 @@ ORM helpers from ``odoo.tools``\ :
 Pass ``precision_rounding=<currency>.rounding`` (or
 ``precision_digits=<n>``\ ) — do not invent epsilons.
 
+2.9.14 Background jobs (``ir.job``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For deferred one-off work, use the framework job queue — **not** ad-hoc
+threads, ``cr.commit()`` loops, or the legacy OCA ``queue_job`` module
+(being phased out; its jobrunner/HTTP transport is superseded). Crons remain
+the tool for *recurring* work; ``ir.job`` is for "run this call later,
+in the background, with retries" 👁:
+
+.. code-block:: python
+
+   class StockPicking(models.Model):
+       _inherit = "stock.picking"
+
+       @api.job(channel="wms", max_retries=3)
+       def _sync_to_wms(self, batch_size=100):
+           ...
+
+   # call site — enqueued in the current transaction, executed after commit
+   picking.delayed(priority=5, eta=60)._sync_to_wms(batch_size=50)
+
+Rules 👁:
+
+* Job methods are **private** (``_``\ -prefixed; the ``@api.job`` decorator
+  enforces it) and only decorated methods can be enqueued or executed —
+  never widen a public method into a job.
+* Arguments must be **JSON-serializable** (no recordsets or datetimes in
+  ``args``\ /\ ``kwargs`` — pass ids and let the job re-browse; records the
+  job targets go through ``delayed()``\ 's recordset itself).
+* Write job bodies **idempotent or transactional-safe**: a job whose
+  transaction rolled back may be retried; completion is atomic with the
+  job's own writes, so partial effects never survive a crash — but external
+  side effects (HTTP calls, mails) need their own guards.
+* Transient conditions raise ``RetryableJobError(seconds=...)``
+  (``odoo.exceptions``); any other exception also consumes a retry from
+  ``max_retries`` before the job fails permanently.
+* Concurrency is bounded per **channel** (``ir.job.channel`` capacity,
+  implicit 1) — give heavy integrations their own channel instead of
+  tuning priorities.
+* Chain or fan-in with ``delayed(after=job_or_union)``; dedup bursts with
+  ``identity_key``.
+* Ops surface: Settings → Technical → Automation → Background Jobs
+  (requeue / cancel / run manually); smoke-test a deployment with
+  ``env["ir.job"].delayed()._job_ping()``.
+
 2.10 Lazy imports
 ^^^^^^^^^^^^^^^^^
 
