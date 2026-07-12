@@ -496,13 +496,11 @@ class ResourceResource(models.Model):
                 year_week = weeknumber(locale, day, week_start_day)
                 year, week = year_week
                 if (year < end_year) or (year == end_year and week <= end_week):
-                    # cap weekly hours to the calendar's configured hours_per_week
-                    # (not the company default full_time_required_hours which does
-                    # not respect part-time schedules).
-                    cap = (
-                        resource.calendar_id.hours_per_week
-                        or resource.calendar_id.full_time_required_hours
-                    )
+                    # Cap weekly hours to the flexible calendar's weekly budget
+                    # (single source of truth; falls back to the full-time
+                    # equivalent when hours_per_week is unset for a flexible
+                    # calendar).
+                    cap = resource.calendar_id._get_flexible_hours_per_week()
                     resource_hours_per_week[resource.id][year_week] = min(
                         cap,
                         day_working_hours

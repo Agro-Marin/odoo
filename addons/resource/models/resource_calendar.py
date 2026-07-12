@@ -14,7 +14,7 @@ from odoo.fields import Command, Domain
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers.float_utils import float_round
 from odoo.models import ValuesType
-from odoo.tools import date_utils, float_compare, ormcache
+from odoo.tools import SQL, date_utils, float_compare, ormcache
 from odoo.tools.date_utils import float_to_time, localized, to_timezone
 
 from odoo.addons.base.models.res_partner import _tz_get
@@ -26,6 +26,14 @@ class DummyAttendance(NamedTuple):
     dayofweek: str
     day_period: str | None
     week_type: str | None
+
+
+# ``plan_hours`` / ``plan_days`` scan forward (or backward) one fixed window at
+# a time, giving up after a bounded number of windows so a request that can
+# never be satisfied (e.g. hours on a calendar with no attendances) terminates
+# instead of looping forever.  14-day windows × 100 iterations ≈ 3.8 years.
+_PLAN_WINDOW = timedelta(days=14)
+_PLAN_MAX_ITERATIONS = 100
 
 
 class ResourceCalendar(models.Model):
@@ -408,46 +416,45 @@ class ResourceCalendar(models.Model):
                 == 0
             )
 
+    # SQL mirror of the ``_compute_work_time_rate`` formula, kept as the single
+    # source of truth for the pushed-down search below.  Keep the two in sync.
+    _WORK_TIME_RATE_SQL = SQL(
+        "CASE WHEN COALESCE(full_time_required_hours, 0) > 0"
+        " THEN hours_per_week / full_time_required_hours * 100"
+        " ELSE 100 END"
+    )
+
     @api.model
     def _search_work_time_rate(self, operator, value):
         """Search calendars by work time rate using SQL on stored fields.
 
-        ``work_time_rate`` is computed as
-        ``hours_per_week / full_time_required_hours * 100`` (or 100 when
-        ``full_time_required_hours`` is zero).  Both numerator and denominator
-        are stored, so we push the filter down to SQL instead of loading every
+        ``work_time_rate`` is ``hours_per_week / full_time_required_hours * 100``
+        (or 100 when ``full_time_required_hours`` is zero).  Both operands are
+        stored, so the filter is pushed down to SQL instead of loading every
         calendar into Python.
         """
-        if operator in ("in", "not in"):
-            if not all(isinstance(v, int | float) for v in value):
-                return NotImplemented
-        elif operator in ("<", ">", "<=", ">=", "=", "!="):
+        # Whitelisted scalar comparison operators → fixed SQL fragments (no
+        # operator string ever reaches the query except through this map).
+        scalar_ops = {op: SQL(op) for op in ("<", ">", "<=", ">=", "=", "!=")}
+        rate = self._WORK_TIME_RATE_SQL
+        if operator in scalar_ops:
             if not isinstance(value, int | float):
                 return NotImplemented
+            condition = SQL("%s %s %s", rate, scalar_ops[operator], value)
+        elif operator in ("in", "not in"):
+            if not all(isinstance(v, int | float) for v in value):
+                return NotImplemented
+            values = list(value)
+            condition = (
+                SQL("%s = ANY(%s)", rate, values)
+                if operator == "in"
+                else SQL("%s != ALL(%s)", rate, values)
+            )
         else:
             return NotImplemented
 
-        # rate = hours_per_week / full_time_required_hours * 100 (or 100 if 0)
-        rate = (
-            "CASE WHEN COALESCE(full_time_required_hours, 0) > 0"
-            " THEN hours_per_week / full_time_required_hours * 100"
-            " ELSE 100 END"
-        )
-        # Hardcoded operator whitelist — no user input reaches the query
-        safe_ops = {"<": "<", ">": ">", "<=": "<=", ">=": ">=", "=": "=", "!=": "!="}
-        if operator in safe_ops:
-            query = (
-                f"SELECT id FROM resource_calendar WHERE {rate} {safe_ops[operator]} %s"
-            )
-            self.env.cr.execute(query, [value])
-        elif operator == "in":
-            query = f"SELECT id FROM resource_calendar WHERE {rate} = ANY(%s)"
-            self.env.cr.execute(query, [list(value)])
-        else:  # "not in"
-            query = f"SELECT id FROM resource_calendar WHERE {rate} != ALL(%s)"
-            self.env.cr.execute(query, [list(value)])
-        calendar_ids = [row[0] for row in self.env.cr.fetchall()]
-        return [("id", "in", calendar_ids)]
+        self.env.cr.execute(SQL("SELECT id FROM resource_calendar WHERE %s", condition))
+        return [("id", "in", [row[0] for row in self.env.cr.fetchall()])]
 
     # --------------------------------------------------
     # Overrides
@@ -491,6 +498,116 @@ class ResourceCalendar(models.Model):
     # --------------------------------------------------
     # Computation API
     # --------------------------------------------------
+
+    def _make_dummy_attendance(self, hours, days):
+        """Build a transient (unsaved) attendance carrying only a duration.
+
+        Flexible / fully-flexible resources have no stored attendance lines, so
+        the interval payload is a throwaway ``resource.calendar.attendance``
+        record whose ``duration_hours`` / ``duration_days`` let downstream
+        day-count helpers (``_get_attendance_intervals_days_data``) work
+        unchanged.
+        """
+        return self.env["resource.calendar.attendance"].new(
+            {"duration_hours": hours, "duration_days": days}
+        )
+
+    @staticmethod
+    def _center_block_on_noon(day, hours, tz, lower, upper):
+        """Center a ``hours``-long block on 12:00 of ``day``, tz-localized.
+
+        The block is shifted (not shrunk) to stay within ``[lower, upper]`` —
+        the queried window clipped to the day — so short days at the edges of
+        the range keep their full allotted duration.
+        """
+        midpoint = tz.localize(datetime.combine(day, time(12, 0)))
+        start_time = midpoint - timedelta(hours=hours / 2)
+        end_time = midpoint + timedelta(hours=hours / 2)
+        if start_time < lower:
+            start_time = lower
+            end_time = start_time + timedelta(hours=hours)
+        elif end_time > upper:
+            end_time = upper
+            start_time = end_time - timedelta(hours=hours)
+        return start_time, end_time
+
+    def _get_flexible_hours_per_week(self):
+        """Weekly working-hours budget for a flexible calendar.
+
+        Flexible calendars have no fixed attendances, so ``_compute_hours_per_week``
+        skips them and ``hours_per_week`` stays 0 unless a user sets it
+        explicitly.  The effective weekly budget is therefore that explicit
+        value when present, otherwise the full-time equivalent.  This is the
+        single source of truth for every flexible-hours consumer (interval
+        synthesis here, work-hours capping in ``resource.resource``).
+        """
+        self.ensure_one()
+        return self.hours_per_week or self.full_time_required_hours
+
+    def _flexible_attendance_intervals(self, start_datetime, end_datetime, tz):
+        """Approximate a flexible calendar's work intervals over a window.
+
+        Flexible calendars have no fixed attendance lines, so we synthesize
+        them: fill each week up to the flexible weekly budget and each day up
+        to ``hours_per_day``, centering each day's block on noon.  This is the
+        best daily/weekly approximation for time-off, overtime and work-entry
+        computations.  Each interval carries a throwaway attendance holding
+        only its duration (see :meth:`_make_dummy_attendance`).
+        """
+        self.ensure_one()
+        max_hours_per_week = self._get_flexible_hours_per_week()
+        max_hours_per_day = self.hours_per_day
+        # The last microsecond of the range belongs to the final day.
+        end_date = end_datetime - relativedelta(seconds=1)
+        # Total span duration is timezone-independent (same instants).
+        total_hours = (end_datetime - start_datetime).total_seconds() / 3600
+
+        intervals = []
+        week_start_day = start_datetime
+        while week_start_day <= end_date:
+            week_start = max(week_start_day, start_datetime)
+            week_end = min(week_start_day + timedelta(days=6), end_date)
+
+            # Hours already consumed by days of this week that precede the
+            # queried range (defensive: the loop starts on ``start_datetime``,
+            # so this only bites if a caller ever misaligns the window).
+            if week_start_day < start_datetime:
+                prior_days = (start_datetime - week_start_day).days
+                prior_hours = min(max_hours_per_week, max_hours_per_day * prior_days)
+            else:
+                prior_hours = 0
+            remaining_hours = min(max(0, max_hours_per_week - prior_hours), total_hours)
+
+            current_day = week_start
+            while current_day <= week_end:
+                if remaining_hours > 0:
+                    day_start = tz.localize(datetime.combine(current_day, time.min))
+                    day_end = tz.localize(datetime.combine(current_day, time.max))
+                    day_period_start = max(start_datetime, day_start)
+                    day_period_end = min(end_datetime, day_end)
+                    allocate_hours = min(
+                        max_hours_per_day,
+                        remaining_hours,
+                        (day_period_end - day_period_start).total_seconds() / 3600,
+                    )
+                    remaining_hours -= allocate_hours
+                    start_time, end_time = self._center_block_on_noon(
+                        current_day,
+                        allocate_hours,
+                        tz,
+                        day_period_start,
+                        day_period_end,
+                    )
+                    intervals.append(
+                        (
+                            start_time,
+                            end_time,
+                            self._make_dummy_attendance(allocate_hours, 1),
+                        )
+                    )
+                current_day += timedelta(days=1)
+            week_start_day += timedelta(days=7)
+        return intervals
 
     def _attendance_intervals_batch(
         self,
@@ -598,13 +715,7 @@ class ResourceCalendar(models.Model):
                 if resource and not resource_calendars.get(resource, False):
                     # If the resource is fully flexible, return the whole period from start_dt to end_dt with a dummy attendance
                     hours = (end_dt - start_dt).total_seconds() / 3600
-                    days = hours / 24
-                    dummy_attendance = self.env["resource.calendar.attendance"].new(
-                        {
-                            "duration_hours": hours,
-                            "duration_days": days,
-                        }
-                    )
+                    dummy_attendance = self._make_dummy_attendance(hours, hours / 24)
                     result_per_resource_id[resource.id] = Intervals(
                         [(start_datetime, end_datetime, dummy_attendance)],
                         keep_distinct=True,
@@ -612,98 +723,10 @@ class ResourceCalendar(models.Model):
                 elif self.flexible_hours or (
                     resource and resource_calendars[resource].flexible_hours
                 ):
-                    # For flexible Calendars, we create intervals to fill in the weekly intervals with the average daily hours
-                    # until the full time required hours are met. This gives us the most correct approximation when looking at a daily
-                    # and weekly range for time offs and overtime calculations and work entry generation
-                    start_date = start_datetime
-                    end_datetime_adjusted = end_datetime - relativedelta(seconds=1)
-                    end_date = end_datetime_adjusted
-
                     calendar = resource_calendars[resource] if resource else self
-
-                    max_hours_per_week = calendar.hours_per_week
-                    max_hours_per_day = calendar.hours_per_day
-
-                    intervals = []
-                    current_start_day = start_date
-
-                    while current_start_day <= end_date:
-                        current_end_of_week = current_start_day + timedelta(days=6)
-
-                        week_start = max(current_start_day, start_date)
-                        week_end = min(current_end_of_week, end_date)
-
-                        if current_start_day < start_date:
-                            prior_days = (start_date - current_start_day).days
-                            prior_hours = min(
-                                max_hours_per_week, max_hours_per_day * prior_days
-                            )
-                        else:
-                            prior_hours = 0
-
-                        remaining_hours = max(0, max_hours_per_week - prior_hours)
-                        remaining_hours = min(
-                            remaining_hours, (end_dt - start_dt).total_seconds() / 3600
-                        )
-
-                        current_day = week_start
-                        while current_day <= week_end:
-                            if remaining_hours > 0:
-                                day_start = tz.localize(
-                                    datetime.combine(current_day, time.min)
-                                )
-                                day_end = tz.localize(
-                                    datetime.combine(current_day, time.max)
-                                )
-                                day_period_start = max(start_datetime, day_start)
-                                day_period_end = min(end_datetime, day_end)
-                                allocate_hours = min(
-                                    max_hours_per_day,
-                                    remaining_hours,
-                                    (day_period_end - day_period_start).total_seconds()
-                                    / 3600,
-                                )
-                                remaining_hours -= allocate_hours
-
-                                # Create interval centered at 12:00 PM (or as close as possible)
-                                midpoint = tz.localize(
-                                    datetime.combine(current_day, time(12, 0))
-                                )
-                                start_time = midpoint - timedelta(
-                                    hours=allocate_hours / 2
-                                )
-                                end_time = midpoint + timedelta(
-                                    hours=allocate_hours / 2
-                                )
-
-                                if start_time < day_period_start:
-                                    start_time = day_period_start
-                                    end_time = start_time + timedelta(
-                                        hours=allocate_hours
-                                    )
-                                elif end_time > day_period_end:
-                                    end_time = day_period_end
-                                    start_time = end_time - timedelta(
-                                        hours=allocate_hours
-                                    )
-
-                                dummy_attendance = self.env[
-                                    "resource.calendar.attendance"
-                                ].new(
-                                    {
-                                        "duration_hours": allocate_hours,
-                                        "duration_days": 1,
-                                    }
-                                )
-
-                                intervals.append(
-                                    (start_time, end_time, dummy_attendance)
-                                )
-
-                            current_day += timedelta(days=1)
-
-                        current_start_day += timedelta(days=7)
-
+                    intervals = calendar._flexible_attendance_intervals(
+                        start_datetime, end_datetime, tz
+                    )
                     result_per_resource_id[resource.id] = Intervals(
                         intervals, keep_distinct=True
                     )
@@ -880,8 +903,7 @@ class ResourceCalendar(models.Model):
                 )
                 if res_leaves := leaves.get(resource.id, []):
                     result[resource.id] = [
-                        (i[0].astimezone(utc), i[1].astimezone(utc))
-                        for i in res_leaves
+                        (i[0].astimezone(utc), i[1].astimezone(utc)) for i in res_leaves
                     ]
                 continue
             work_intervals = [
@@ -1109,142 +1131,56 @@ class ResourceCalendar(models.Model):
                 )
                 for attendance in attendances
             ]
+        # Standard Mon-Fri 8-12 / 12-13 (lunch) / 13-17.  The full per-day
+        # names are kept verbatim as translation keys so existing ``.po``
+        # entries keep matching.
+        default_days = (
+            (
+                "0",
+                self.env._("Monday Morning"),
+                self.env._("Monday Lunch"),
+                self.env._("Monday Afternoon"),
+            ),
+            (
+                "1",
+                self.env._("Tuesday Morning"),
+                self.env._("Tuesday Lunch"),
+                self.env._("Tuesday Afternoon"),
+            ),
+            (
+                "2",
+                self.env._("Wednesday Morning"),
+                self.env._("Wednesday Lunch"),
+                self.env._("Wednesday Afternoon"),
+            ),
+            (
+                "3",
+                self.env._("Thursday Morning"),
+                self.env._("Thursday Lunch"),
+                self.env._("Thursday Afternoon"),
+            ),
+            (
+                "4",
+                self.env._("Friday Morning"),
+                self.env._("Friday Lunch"),
+                self.env._("Friday Afternoon"),
+            ),
+        )
+        periods = (("morning", 8, 12), ("lunch", 12, 13), ("afternoon", 13, 17))
         return [
             Command.create(
                 {
-                    "name": self.env._("Monday Morning"),
-                    "dayofweek": "0",
-                    "hour_from": 8,
-                    "hour_to": 12,
-                    "day_period": "morning",
+                    "name": name,
+                    "dayofweek": dayofweek,
+                    "hour_from": hour_from,
+                    "hour_to": hour_to,
+                    "day_period": day_period,
                 }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Monday Lunch"),
-                    "dayofweek": "0",
-                    "hour_from": 12,
-                    "hour_to": 13,
-                    "day_period": "lunch",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Monday Afternoon"),
-                    "dayofweek": "0",
-                    "hour_from": 13,
-                    "hour_to": 17,
-                    "day_period": "afternoon",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Tuesday Morning"),
-                    "dayofweek": "1",
-                    "hour_from": 8,
-                    "hour_to": 12,
-                    "day_period": "morning",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Tuesday Lunch"),
-                    "dayofweek": "1",
-                    "hour_from": 12,
-                    "hour_to": 13,
-                    "day_period": "lunch",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Tuesday Afternoon"),
-                    "dayofweek": "1",
-                    "hour_from": 13,
-                    "hour_to": 17,
-                    "day_period": "afternoon",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Wednesday Morning"),
-                    "dayofweek": "2",
-                    "hour_from": 8,
-                    "hour_to": 12,
-                    "day_period": "morning",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Wednesday Lunch"),
-                    "dayofweek": "2",
-                    "hour_from": 12,
-                    "hour_to": 13,
-                    "day_period": "lunch",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Wednesday Afternoon"),
-                    "dayofweek": "2",
-                    "hour_from": 13,
-                    "hour_to": 17,
-                    "day_period": "afternoon",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Thursday Morning"),
-                    "dayofweek": "3",
-                    "hour_from": 8,
-                    "hour_to": 12,
-                    "day_period": "morning",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Thursday Lunch"),
-                    "dayofweek": "3",
-                    "hour_from": 12,
-                    "hour_to": 13,
-                    "day_period": "lunch",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Thursday Afternoon"),
-                    "dayofweek": "3",
-                    "hour_from": 13,
-                    "hour_to": 17,
-                    "day_period": "afternoon",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Friday Morning"),
-                    "dayofweek": "4",
-                    "hour_from": 8,
-                    "hour_to": 12,
-                    "day_period": "morning",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Friday Lunch"),
-                    "dayofweek": "4",
-                    "hour_from": 12,
-                    "hour_to": 13,
-                    "day_period": "lunch",
-                }
-            ),
-            Command.create(
-                {
-                    "name": self.env._("Friday Afternoon"),
-                    "dayofweek": "4",
-                    "hour_from": 13,
-                    "hour_to": 17,
-                    "day_period": "afternoon",
-                }
-            ),
+            )
+            for dayofweek, *names in default_days
+            for (day_period, hour_from, hour_to), name in zip(
+                periods, names, strict=True
+            )
         ]
 
     def _get_two_weeks_attendance(self):
@@ -1393,8 +1329,8 @@ class ResourceCalendar(models.Model):
             resource_id = False
 
         if hours >= 0:
-            delta = timedelta(days=14)
-            for n in range(100):
+            delta = _PLAN_WINDOW
+            for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt + delta * n
                 for start, stop, _meta in get_intervals(dt, dt + delta)[resource_id]:
                     interval_hours = (stop - start).total_seconds() / 3600
@@ -1403,8 +1339,8 @@ class ResourceCalendar(models.Model):
                     hours -= interval_hours
             return False
         hours = abs(hours)
-        delta = timedelta(days=14)
-        for n in range(100):
+        delta = _PLAN_WINDOW
+        for n in range(_PLAN_MAX_ITERATIONS):
             dt = day_dt - delta * n
             for start, stop, _meta in reversed(
                 get_intervals(dt - delta, dt)[resource_id]
@@ -1442,8 +1378,8 @@ class ResourceCalendar(models.Model):
 
         if days > 0:
             found = set()
-            delta = timedelta(days=14)
-            for n in range(100):
+            delta = _PLAN_WINDOW
+            for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt + delta * n
                 for start, stop, _meta in get_intervals(dt, dt + delta)[False]:
                     found.add(start.date())
@@ -1454,8 +1390,8 @@ class ResourceCalendar(models.Model):
         if days < 0:
             days = abs(days)
             found = set()
-            delta = timedelta(days=14)
-            for n in range(100):
+            delta = _PLAN_WINDOW
+            for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt - delta * n
                 for start, _stop, _meta in reversed(
                     get_intervals(dt - delta, dt)[False]
