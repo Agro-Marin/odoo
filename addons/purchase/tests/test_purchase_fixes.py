@@ -439,3 +439,159 @@ class TestPurchaseOverInvoiceState(AccountTestInvoicingCommon):
         self.assertEqual(line.qty_to_invoice, -2.0)
         self.assertEqual(line.invoice_state, "over done")
         self.assertEqual(po.invoice_state, "over done")
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseAmountToInvoice(AccountTestInvoicingCommon):
+    """Coverage-parity port of sale's amount_to_invoice tests (test_sale_to_invoice).
+
+    Purchase had ZERO tests for amount_*_to_invoice / amount_*_invoiced, the
+    shared invoice-amount compute (incl. the discount-adjustment path).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.svc_ordered = cls.env["product.product"].create(
+            {
+                "name": "Svc ordered notax",
+                "type": "service",
+                "bill_policy": "ordered",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.clear()],
+            },
+        )
+        cls.svc_transferred = cls.env["product.product"].create(
+            {
+                "name": "Svc transferred notax",
+                "type": "service",
+                "bill_policy": "transferred",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.clear()],
+            },
+        )
+
+    def test_amount_to_invoice_with_discount(self):
+        """Port of sale.test_amount_to_invoice_with_discount."""
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.svc_ordered.id,
+                            "product_qty": 5,
+                            "price_unit": 100,
+                            "discount": 10,
+                            "tax_ids": [Command.clear()],
+                        },
+                    ),
+                ],
+            },
+        )
+        po.action_confirm()
+        self.assertEqual(po.amount_taxinc_to_invoice, 450.0)
+
+        bill = po.create_invoice()
+        bill.invoice_date = "2026-01-01"
+        bill.invoice_line_ids.quantity = 3
+        bill.action_post()
+        self.assertEqual(po.amount_taxinc_to_invoice, 180.0)
+
+    def test_amount_to_invoice_price_unit_change(self):
+        """Port of sale.test_amount_to_invoice_price_unit_change.
+
+        amount_to_invoice depends only on posted invoice *quantity*, not on
+        price changes; draft invoices don't count.
+        """
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.svc_transferred.id,
+                            "product_qty": 5,
+                            "price_unit": 100,
+                            "tax_ids": [Command.clear()],
+                        },
+                    ),
+                ],
+            },
+        )
+        po.action_confirm()
+        line = po.line_ids
+        line.qty_transferred = 5.0
+
+        bill = po.create_invoice()
+        # Draft bill: no effect on qty_invoiced / amounts.
+        self.assertEqual(line.qty_invoiced, 0.0)
+        self.assertEqual(line.amount_taxinc_to_invoice, line.price_total)
+        self.assertEqual(line.amount_taxinc_invoiced, 0.0)
+
+        bill.invoice_date = "2026-01-01"
+        bill.invoice_line_ids.price_unit /= 2
+        bill.action_post()
+        # All qty billed -> nothing left to invoice, regardless of the price change.
+        self.assertEqual(line.qty_invoiced, 5.0)
+        self.assertEqual(line.amount_taxinc_to_invoice, 0.0)
+        self.assertEqual(line.amount_taxinc_invoiced, line.price_total / 2)
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseInvoiceSections(AccountTestInvoicingCommon):
+    """Coverage-parity port of sale's section-invoicing test, plus the
+    fork-specific rule: a section is billed only when directly followed by a
+    product line (purchase._prepare_invoice_line_commands).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.svc = cls.env["product.product"].create(
+            {
+                "name": "Svc ordered notax",
+                "type": "service",
+                "bill_policy": "ordered",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.clear()],
+            },
+        )
+
+    def _po(self, line_cmds):
+        po = self.env["purchase.order"].create(
+            {"partner_id": self.partner_a.id, "line_ids": line_cmds},
+        )
+        po.action_confirm()
+        return po
+
+    def _product_cmd(self):
+        return Command.create(
+            {"product_id": self.svc.id, "product_qty": 5, "price_unit": 100,
+             "tax_ids": [Command.clear()]},
+        )
+
+    def test_section_before_product_is_billed(self):
+        po = self._po([
+            Command.create({"display_type": "line_section", "name": "Sec A"}),
+            self._product_cmd(),
+        ])
+        bill = po.create_invoice()
+        sections = bill.invoice_line_ids.filtered(
+            lambda l: l.display_type == "line_section",
+        )
+        self.assertEqual(sections.mapped("name"), ["Sec A"])
+
+    def test_trailing_section_not_billed(self):
+        po = self._po([
+            self._product_cmd(),
+            Command.create({"display_type": "line_section", "name": "Trailing"}),
+        ])
+        bill = po.create_invoice()
+        names = bill.invoice_line_ids.filtered(
+            lambda l: l.display_type == "line_section",
+        ).mapped("name")
+        self.assertNotIn("Trailing", names, "trailing section must not be billed")
