@@ -498,6 +498,53 @@ class TestFlexibleCalendarUnusualDays(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestFlexibleWeeklyBudgetFallback(TransactionCase):
+    """A flexible calendar with ``hours_per_week`` unset must still synthesize
+    work intervals, falling back to ``full_time_required_hours``.
+
+    Regression: ``_compute_hours_per_week`` skips flexible calendars, leaving
+    ``hours_per_week`` at 0.  The interval synthesis capped weekly hours at
+    that 0 and produced *no* intervals, so work-entry generation for a
+    flexible contract yielded nothing (upstream hr_work_entry
+    ``test_work_entry_different_calendars``)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.calendar = cls.env["resource.calendar"].create(
+            {
+                "name": "Flexible 3h/day, 21h/week",
+                "tz": "UTC",
+                "flexible_hours": True,
+                "full_time_required_hours": 21,
+                "hours_per_day": 3,
+            }
+        )
+
+    def test_flexible_weekly_budget_falls_back_to_ftrh(self):
+        """hours_per_week unset (0) → weekly budget = full_time_required_hours."""
+        self.assertEqual(self.calendar.hours_per_week, 0.0)
+        self.assertEqual(self.calendar._get_flexible_hours_per_week(), 21.0)
+
+    def test_flexible_intervals_generated_without_hours_per_week(self):
+        """One interval per day (incl. weekend) at hours_per_day, even though
+        hours_per_week is 0."""
+        start = datetime(2025, 9, 1, 0, 0).replace(tzinfo=UTC)  # Mon
+        end = datetime(2025, 9, 14, 23, 59).replace(tzinfo=UTC)  # Sun (2 weeks)
+        intervals = list(self.calendar._attendance_intervals_batch(start, end)[False])
+        # 14 days, one 3h block each (weekly cap 21h ≥ 7×3h so every day fills).
+        self.assertEqual(len(intervals), 14, "every day must get a work block")
+        for interval_start, interval_end, _meta in intervals:
+            hours = (interval_end - interval_start).total_seconds() / 3600
+            self.assertAlmostEqual(hours, 3.0, places=6)
+
+    def test_explicit_hours_per_week_takes_precedence(self):
+        """An explicitly-set hours_per_week wins over the FTE fallback."""
+        self.calendar.hours_per_week = 10.0
+        self.assertEqual(self.calendar._get_flexible_hours_per_week(), 10.0)
+
+
+@tagged("post_install", "-at_install")
 class TestPlanHoursWithResource(TransactionCase):
     """Test plan_hours with a specific resource and leaves."""
 

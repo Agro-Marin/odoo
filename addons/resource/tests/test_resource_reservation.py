@@ -440,6 +440,161 @@ class TestResourceReservation(TransactionCase):
         )
         self.assertEqual(len(old), 0)
 
+    def test_sync_reservation_reconciles_duplicate_resource(self):
+        """Several existing reservations sharing one resource must all be
+        reconciled: the surplus ones are deleted, never left orphaned.
+
+        Regression: keying ``existing`` by a single record per resource_id
+        hid duplicates, so they were neither updated nor deleted and lingered
+        as phantom conflicts on the resource.
+        """
+        partner = self.env["res.partner"].create({"name": "Dup Consumer"})
+        # Seed two reservations sharing resource_a, bypassing the sync helper.
+        self.Reservation.create(
+            [
+                {
+                    "name": f"Dup {i}",
+                    "res_model": "res.partner",
+                    "res_id": partner.id,
+                    "resource_id": self.resource_a.id,
+                    "date_start": datetime(2025, 1, 6, 8, 0),
+                    "date_end": datetime(2025, 1, 6, 12, 0),
+                }
+                for i in range(2)
+            ]
+        )
+        result = self.Reservation._sync_reservation(
+            partner,
+            [
+                {
+                    "name": "Only one",
+                    "date_start": datetime(2025, 1, 7, 8, 0),
+                    "date_end": datetime(2025, 1, 7, 12, 0),
+                    "resource_id": self.resource_a.id,
+                    "allocated_percentage": 100.0,
+                    "enforcement_mode": "soft",
+                },
+            ],
+        )
+        self.assertEqual(len(result), 1)
+        remaining = self.Reservation.search(
+            [("res_model", "=", "res.partner"), ("res_id", "=", partner.id)]
+        )
+        self.assertEqual(
+            len(remaining),
+            1,
+            "surplus duplicate reservation must be deleted, not orphaned",
+        )
+
+    def test_calendar_recomputes_on_company_change(self):
+        """For a resourceless reservation the calendar follows ``company_id``;
+        changing the company must recompute it (regression: ``company_id`` was
+        missing from the compute's dependencies)."""
+        company_b = self.env["res.company"].create({"name": "Reservation Co B"})
+        self.assertNotEqual(
+            self.env.company.resource_calendar_id,
+            company_b.resource_calendar_id,
+            "each company should get its own default calendar",
+        )
+        res = self.Reservation.create(
+            {
+                "name": "Company-scoped",
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 12, 0),
+                "company_id": self.env.company.id,
+            }
+        )
+        self.assertEqual(
+            res.resource_calendar_id, self.env.company.resource_calendar_id
+        )
+        res.company_id = company_b
+        self.assertEqual(
+            res.resource_calendar_id,
+            company_b.resource_calendar_id,
+            "calendar must recompute when the company changes",
+        )
+
+    # ------------------------------------------------------------------
+    # Cumulative (N-way) overlap detection
+    # ------------------------------------------------------------------
+
+    def test_cumulative_overlap_three_partial(self):
+        """Three 50% reservations overlapping at the same instant sum to 150%
+        — each must report the other two as conflicts, even though no single
+        *pair* exceeds 100%."""
+        reservations = self.Reservation.create(
+            [
+                {
+                    "name": f"Third {i}",
+                    "resource_id": self.resource_a.id,
+                    "date_start": datetime(2025, 1, 6, 8, 0),
+                    "date_end": datetime(2025, 1, 6, 12, 0),
+                    "allocated_percentage": 50.0,
+                }
+                for i in range(3)
+            ]
+        )
+        self.env.invalidate_all()
+        for res in reservations:
+            self.assertEqual(
+                res.schedule_overlap_count,
+                2,
+                "each of 3×50% must see the other two as cumulative conflicts",
+            )
+
+    def test_cumulative_overlap_below_100_no_conflict(self):
+        """Three 30% reservations sum to 90% ≤ 100% → no conflict."""
+        reservations = self.Reservation.create(
+            [
+                {
+                    "name": f"Small {i}",
+                    "resource_id": self.resource_a.id,
+                    "date_start": datetime(2025, 1, 6, 8, 0),
+                    "date_end": datetime(2025, 1, 6, 12, 0),
+                    "allocated_percentage": 30.0,
+                }
+                for i in range(3)
+            ]
+        )
+        self.env.invalidate_all()
+        for res in reservations:
+            self.assertEqual(res.schedule_overlap_count, 0)
+
+    def test_cumulative_overlap_partial_time_window(self):
+        """Cumulative over-allocation is detected only for reservations that
+        share the over-100% instant, not merely the same resource."""
+        # A 08-12 @60%, B 10-14 @60% (overlap 10-12 → 120%), C 14-16 @60%
+        # (starts exactly when B ends → never shares an over-100% instant).
+        a, b, c = self.Reservation.create(
+            [
+                {
+                    "name": "A",
+                    "resource_id": self.resource_a.id,
+                    "date_start": datetime(2025, 1, 6, 8, 0),
+                    "date_end": datetime(2025, 1, 6, 12, 0),
+                    "allocated_percentage": 60.0,
+                },
+                {
+                    "name": "B",
+                    "resource_id": self.resource_a.id,
+                    "date_start": datetime(2025, 1, 6, 10, 0),
+                    "date_end": datetime(2025, 1, 6, 14, 0),
+                    "allocated_percentage": 60.0,
+                },
+                {
+                    "name": "C",
+                    "resource_id": self.resource_a.id,
+                    "date_start": datetime(2025, 1, 6, 14, 0),
+                    "date_end": datetime(2025, 1, 6, 16, 0),
+                    "allocated_percentage": 60.0,
+                },
+            ]
+        )
+        self.env.invalidate_all()
+        self.assertEqual(a.schedule_overlap_count, 1, "A conflicts with B only")
+        self.assertEqual(b.schedule_overlap_count, 1, "B conflicts with A only")
+        self.assertEqual(c.schedule_overlap_count, 0, "C never exceeds 100%")
+
     # ------------------------------------------------------------------
     # _reservation_intervals_batch
     # ------------------------------------------------------------------

@@ -161,7 +161,7 @@ class ResourceReservation(models.Model):
     # Compute
     # ------------------------------------------------------------------
 
-    @api.depends("resource_id", "resource_id.calendar_id")
+    @api.depends("resource_id", "resource_id.calendar_id", "company_id")
     def _compute_resource_calendar_id(self):
         """Use the resource's calendar, falling back to the company calendar."""
         for record in self:
@@ -200,21 +200,23 @@ class ResourceReservation(models.Model):
 
     @api.depends("date_start", "date_end", "resource_id", "allocated_percentage")
     def _compute_schedule_overlap_count(self):
-        """SQL-based overlap detection for same-resource schedule conflicts.
+        """Sweep-line overlap detection for same-resource schedule conflicts.
 
-        Two records overlap when their datetime ranges intersect AND they
-        share the same resource AND their combined allocation exceeds 100%.
-        Only ``active`` reservations are considered on both sides: an archived
-        reservation is no longer a claim on the resource.  Records without an
-        id (unsaved) or without a resource are skipped.
+        A reservation is in conflict when, at some instant within its window,
+        the *cumulative* allocation of all active reservations on the same
+        resource covering that instant exceeds 100%.  ``schedule_overlap_count``
+        is the number of distinct other reservations that share at least one
+        such over-allocated instant with it.
 
-        Known limitation: the check is *pairwise* — it flags a record only if
-        it exceeds 100% against some single other reservation.  A cumulative
+        This is strictly more correct than a pairwise check: a cumulative
         over-allocation spread over three or more partial reservations (e.g.
-        3 × 50 % = 150 %) where no individual pair exceeds 100 % is NOT
-        detected.  Fixing that requires a windowed/sweep-line sum of
-        allocations per resource; deferred as it changes the meaning of the
-        displayed conflict count.
+        3 × 50% = 150%) where no individual *pair* exceeds 100% is detected,
+        while the pairwise cases (2 × 100%, adjacent, different resource) keep
+        their previous counts.
+
+        Only ``active`` reservations count on both sides — an archived
+        reservation is no longer a claim on the resource.  Records without a
+        stored id, a resource, or a date range are skipped (count 0).
         """
         stored = self.filtered(
             lambda r: (
@@ -229,38 +231,66 @@ class ResourceReservation(models.Model):
         if not stored:
             return
 
-        # The self-join below reads sibling rows (s2) straight from the table,
-        # so every pending change to those columns — not just on ``stored`` —
-        # must be flushed first, otherwise an unflushed archive/allocation edit
-        # on another reservation would be invisible to the overlap query.
+        # The query below reads sibling rows straight from the table, so every
+        # pending change to those columns — not just on ``stored`` — must be
+        # flushed first, otherwise an unflushed archive/allocation edit on
+        # another reservation would be invisible to the sweep.
         self.flush_model(
             ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
         )
-        table = SQL.identifier(self._table)
-        query = SQL(
-            """
-            SELECT s1.id, COUNT(s2.id)
-              FROM %s s1
-              JOIN %s s2
-                ON s1.resource_id = s2.resource_id
-               AND s1.id != s2.id
-               AND s2.active
-               AND s1.date_start < s2.date_end
-               AND s1.date_end > s2.date_start
-               AND COALESCE(s1.allocated_percentage, 100)
-                 + COALESCE(s2.allocated_percentage, 100) > 100
-             WHERE s1.id = ANY(%s)
-               AND s1.active
-             GROUP BY s1.id
-            """,
-            table,
-            table,
-            list(stored.ids),
+        # Fetch every active, dated reservation for the involved resources in a
+        # single query, then sweep each resource's timeline in Python (the row
+        # count per resource is small in practice).
+        self.env.cr.execute(
+            SQL(
+                """
+                SELECT id, resource_id, date_start, date_end,
+                       COALESCE(allocated_percentage, 100)
+                  FROM %s
+                 WHERE resource_id = ANY(%s)
+                   AND active
+                   AND date_start IS NOT NULL
+                   AND date_end IS NOT NULL
+                """,
+                SQL.identifier(self._table),
+                list(set(stored.resource_id.ids)),
+            )
         )
-        self.env.cr.execute(query)
-        counts = dict(self.env.cr.fetchall())
+        rows_by_resource = defaultdict(list)
+        for res_id, resource_id, date_start, date_end, pct in self.env.cr.fetchall():
+            rows_by_resource[resource_id].append((res_id, date_start, date_end, pct))
+
+        conflict_partners = self._sweep_overlap_partners(rows_by_resource)
         for record in stored:
-            record.schedule_overlap_count = counts.get(record.id, 0)
+            record.schedule_overlap_count = len(conflict_partners.get(record.id, ()))
+
+    @staticmethod
+    def _sweep_overlap_partners(rows_by_resource):
+        """Return ``{reservation_id: set(conflicting reservation ids)}``.
+
+        The cumulative allocation on a resource is a step function that only
+        changes at reservation boundaries and can only *rise* at a start.  So
+        every maximal over-100% region begins exactly at some start boundary;
+        evaluating the covering set at each start instant is therefore
+        sufficient to find all conflicts.
+        """
+        partners = defaultdict(set)
+        for rows in rows_by_resource.values():
+            starts = sorted({row[1] for row in rows})
+            for instant in starts:
+                covering = [
+                    (res_id, pct)
+                    for res_id, date_start, date_end, pct in rows
+                    if date_start <= instant < date_end
+                ]
+                if sum(pct for _res_id, pct in covering) <= 100:
+                    continue
+                ids_here = [res_id for res_id, _pct in covering]
+                for res_id in ids_here:
+                    partners[res_id].update(
+                        other for other in ids_here if other != res_id
+                    )
+        return partners
 
     @api.depends("res_model", "res_id")
     def _compute_origin_display(self):
@@ -346,29 +376,39 @@ class ResourceReservation(models.Model):
             existing.unlink()
             return self.browse()
 
-        # Reconcile by resource_id
-        existing_by_resource = {r.resource_id.id: r for r in existing}
+        # Reconcile by resource_id.  Keep a *list* per resource: a consumer may
+        # legitimately hold several reservations sharing one resource (or
+        # several with no resource, all keyed ``False``).  Keying by a single
+        # record would hide the duplicates — they would be neither updated nor
+        # deleted and would linger as phantom conflicts on the resource.
+        existing_by_resource = defaultdict(list)
+        for reservation in existing:
+            existing_by_resource[reservation.resource_id.id].append(reservation)
         to_create = []
-        to_delete = self.browse()
 
-        target_resource_ids = set()
         for vals in reservation_vals_list:
             res_id = vals.get("resource_id") or False
-            target_resource_ids.add(res_id)
             base_vals = {
                 **vals,
                 "res_model": record._name,
                 "res_id": record.id,
             }
-            if res_id in existing_by_resource:
-                existing_by_resource[res_id].write(base_vals)
+            bucket = existing_by_resource.get(res_id)
+            if bucket:
+                # Reuse one existing reservation per requested val.
+                bucket.pop(0).write(base_vals)
             else:
                 to_create.append(base_vals)
 
-        # Delete reservations for resources no longer needed
-        for res_id, reservation in existing_by_resource.items():
-            if res_id not in target_resource_ids:
-                to_delete |= reservation
+        # Whatever is left unclaimed in any bucket is surplus: the resource is
+        # no longer wanted, or it was a duplicate now needing fewer records.
+        to_delete = self.browse().union(
+            *(
+                reservation
+                for bucket in existing_by_resource.values()
+                for reservation in bucket
+            )
+        )
 
         created = self.sudo().create(to_create) if to_create else self.browse()
         if to_delete:
@@ -397,7 +437,6 @@ class ResourceReservation(models.Model):
         if not resources:
             return {}
 
-        result = defaultdict(Intervals)
         base_domain = [
             ("resource_id", "in", resources.ids),
             ("date_start", "<", end_dt.astimezone(utc).replace(tzinfo=None)),
@@ -407,15 +446,17 @@ class ResourceReservation(models.Model):
         if domain:
             base_domain += domain
 
-        reservations = self.sudo().search(base_domain)
-        for res in reservations:
-            start = localized(res.date_start)
-            end = localized(res.date_end)
-            result[res.resource_id.id] |= Intervals([(start, end, res)])
+        # Collect the raw tuples per resource first, then build each Intervals
+        # once.  Merging with ``|=`` inside the loop re-sorts and re-merges the
+        # whole set on every reservation (O(n²) for a busy resource).
+        tuples_by_resource = defaultdict(list)
+        for res in self.sudo().search(base_domain):
+            tuples_by_resource[res.resource_id.id].append(
+                (localized(res.date_start), localized(res.date_end), res)
+            )
 
-        # Ensure all requested resources have an entry
-        for resource in resources:
-            if resource.id not in result:
-                result[resource.id] = Intervals()
-
-        return dict(result)
+        # Ensure all requested resources have an entry (empty if unbooked).
+        return {
+            resource.id: Intervals(tuples_by_resource.get(resource.id, []))
+            for resource in resources
+        }

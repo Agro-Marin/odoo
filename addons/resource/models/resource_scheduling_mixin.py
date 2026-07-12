@@ -130,10 +130,12 @@ class ResourceSchedulingMixin(models.AbstractModel):
         triggers = self._get_sync_trigger_fields()
         if triggers and triggers.intersection(vals.keys()):
             self._sync_reservations()
-        if "active" in vals:
+        start_field, end_field = self._get_reservation_date_fields()
+        if "active" in vals and start_field and end_field:
             # Mirror archive state: a record's reservations are no longer
-            # claims on the resource once the record is archived, and
-            # they come back when it is restored.
+            # claims on the resource once the record is archived, and they come
+            # back when it is restored.  Skipped for consumers that never
+            # create reservations (no scheduling date fields).
             self.env["resource.reservation"].sudo().with_context(
                 active_test=False
             ).search(
