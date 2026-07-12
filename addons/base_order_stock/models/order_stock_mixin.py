@@ -68,6 +68,8 @@ class OrderStockMixin(models.AbstractModel):
     incoterm_id = fields.Many2one(
         comodel_name="account.incoterms",
         string="Incoterm",
+        help="International Commercial Terms are a series of predefined commercial "
+        "terms used in international transactions.",
     )
     incoterm_location = fields.Char(string="Incoterm Location")
 
@@ -80,8 +82,7 @@ class OrderStockMixin(models.AbstractModel):
         IDENTICAL in sale_stock and purchase_stock.  The logic:
         - No pickings or all canceled → ``False``
         - All done/canceled → ``'done'``
-        - Some done with transferred qty → ``'partial'``
-        - Some done without transferred qty → ``'partial'``
+        - Some (but not all) done → ``'partial'``
         - Otherwise → ``'to do'``
         """
         for order in self:
@@ -93,10 +94,6 @@ class OrderStockMixin(models.AbstractModel):
                 p.state in ["done", "cancel"] for p in order.picking_ids
             ):
                 order.transfer_state = "done"
-            elif any(
-                p.state == "done" for p in order.picking_ids
-            ) and any(l.qty_transferred for l in order.line_ids):
-                order.transfer_state = "partial"
             elif any(p.state == "done" for p in order.picking_ids):
                 order.transfer_state = "partial"
             else:

@@ -11,7 +11,8 @@ from odoo.tools.translate import _
 
 
 class PurchaseOrder(models.Model):
-    _inherit = "purchase.order"
+    _name = "purchase.order"
+    _inherit = ["purchase.order", "order.stock.mixin"]
 
     # ------------------------------------------------------------
     # FIELDS
@@ -40,15 +41,6 @@ class PurchaseOrder(models.Model):
         compute="_compute_dest_address_id",
         store=True,
         readonly=False,
-    )
-    incoterm_id = fields.Many2one(
-        comodel_name="account.incoterms",
-        string="Incoterm",
-        help="International Commercial Terms are a series of predefined commercial "
-        "terms used in international transactions.",
-    )
-    incoterm_location = fields.Char(
-        string="Incoterm Location",
     )
     picking_ids = fields.One2many(
         comodel_name="stock.picking",
@@ -144,13 +136,12 @@ class PurchaseOrder(models.Model):
         for order in self:
             order.count_transfer_incoming = len(order.picking_ids)
 
-    @api.depends("picking_ids.date_done")
-    def _compute_date_effective(self):
-        for order in self:
-            pickings = order.picking_ids.filtered(
-                lambda x: x.state == "done" and x.location_dest_id.usage != "supplier" and x.date_done,
-            )
-            order.date_effective = min(pickings.mapped("date_done"), default=False)
+    def _filter_effective_pickings(self, pickings):
+        # Purchase: any non-supplier-destination receipt sets the effective date.
+        # Overrides order.stock.mixin (base_order_stock).
+        return pickings.filtered(
+            lambda p: p.state == "done" and p.location_dest_id.usage != "supplier",
+        )
 
     @api.depends("picking_ids", "picking_ids.state")
     def _compute_is_shipped(self):
@@ -160,21 +151,8 @@ class PurchaseOrder(models.Model):
             else:
                 order.is_shipped = False
 
-    @api.depends("picking_ids", "picking_ids.state")
-    def _compute_transfer_state(self):
-        for order in self:
-            if not order.picking_ids or all(p.state == "cancel" for p in order.picking_ids):
-                order.transfer_state = False
-            elif all(p.state in ["done", "cancel"] for p in order.picking_ids):
-                order.transfer_state = "done"
-            elif any(p.state == "done" for p in order.picking_ids) and any(
-                l.qty_transferred for l in order.line_ids
-            ):
-                order.transfer_state = "partial"
-            elif any(p.state == "done" for p in order.picking_ids):
-                order.transfer_state = "partial"
-            else:
-                order.transfer_state = "to do"
+    # _compute_transfer_state is inherited from order.stock.mixin (base_order_stock);
+    # the logic is identical between sale_stock and purchase_stock.
 
     # ----------------------------------------------------------------------
     # ONCHANGE METHODS

@@ -9,7 +9,8 @@ from odoo.tools.translate import _
 
 
 class SaleOrderLine(models.Model):
-    _inherit = "sale.order.line"
+    _name = "sale.order.line"
+    _inherit = ["sale.order.line", "order.line.stock.mixin"]
 
     # ------------------------------------------------------------
     # FIELDS
@@ -60,11 +61,8 @@ class SaleOrderLine(models.Model):
         digits="Product Unit",
         compute="_compute_qty_at_date",
     )
-    qty_to_transfer = fields.Float(
-        digits="Product Unit",
-        compute="_compute_qty_transferred",
-        store=True,
-    )
+    # qty_to_transfer is inherited from order.line.stock.mixin (base_order_stock);
+    # it is populated by this model's _compute_qty_transferred override.
     display_qty_widget = fields.Boolean(
         compute="_compute_display_qty_widget",
         compute_sudo=False,

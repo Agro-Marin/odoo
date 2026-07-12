@@ -16,7 +16,7 @@ Preferences
 * Incoterms: International Commercial terms
 
 """,
-    "depends": ["stock_account", "sale"],
+    "depends": ["stock_account", "sale", "base_order_stock"],
     "data": [
         "security/sale_stock_security.xml",
         "security/ir.model.access.csv",
