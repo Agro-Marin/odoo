@@ -7,7 +7,6 @@ from pytz import UTC
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
 from odoo.tools.translate import _
 
@@ -802,79 +801,10 @@ class PurchaseOrderLine(models.Model):
         "amount_taxexc_to_invoice",
     )
     def _compute_invoice_state(self):
-        """Compute the invoice status of a PO line. Possible statuses:
-
-        - no: nothing to bill (zero qty, or a non-billable/not-yet-received line).
-        - to do: quantity left to bill with nothing billed yet, or a credit note
-          is needed on a 'transferred' line (billed more than received).
-        - partial: quantity left to bill AND some already billed.
-        - done: fully billed (qty_invoiced == the billable quantity).
-        - over done: over-billed on an 'ordered' line (qty_invoiced > product_qty).
-
-        Mirrors sale.order.line._compute_invoice_state, keyed on ``bill_policy``
-        (purchase's analogue of sale's ``invoice_policy``). The over-billed case
-        splits by policy: on 'ordered' lines it is a genuine over-invoice
-        ('over done'); on 'transferred' lines it means a return happened and a
-        credit note is required, which is actionable ('to do').
-        """
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
-        for line in self.filtered(lambda l: not l.display_type):
-            # Downpayment lines: state follows the remaining amount to bill.
-            if line.is_downpayment:
-                if line.currency_id.is_zero(line.amount_taxexc_to_invoice):
-                    line.invoice_state = "done"
-                else:
-                    line.invoice_state = "to do"
-                continue
-
-            if float_is_zero(line.product_qty, precision_digits=precision):
-                line.invoice_state = "no"
-
-            elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
-                if line.qty_to_invoice < 0:
-                    # Billed more than due.
-                    if line.product_id.bill_policy == "ordered":
-                        line.invoice_state = "over done"
-                    else:
-                        line.invoice_state = "to do"
-                elif float_is_zero(line.qty_invoiced, precision_digits=precision):
-                    # Nothing billed yet, positive qty to bill
-                    line.invoice_state = "to do"
-                else:
-                    # Some quantity already billed, more to bill
-                    line.invoice_state = "partial"
-
-            elif float_is_zero(line.qty_to_invoice, precision_digits=precision):
-                # 'transferred' lines compare to qty received; 'ordered' to qty ordered.
-                qty_to_compare = (
-                    line.qty_transferred
-                    if line.product_id.bill_policy == "transferred"
-                    else line.product_qty
-                )
-                # transferred policy with nothing received and nothing billed:
-                # nothing to bill yet.
-                if (
-                    line.product_id.bill_policy == "transferred"
-                    and float_is_zero(line.qty_transferred, precision_digits=precision)
-                    and float_is_zero(line.qty_invoiced, precision_digits=precision)
-                ):
-                    line.invoice_state = "no"
-                    continue
-                compare = float_compare(
-                    line.qty_invoiced,
-                    qty_to_compare,
-                    precision_digits=precision,
-                )
-                if compare == 0:
-                    line.invoice_state = "done"
-                elif compare > 0:
-                    # Over-billed vs the basis.
-                    if line.product_id.bill_policy == "transferred":
-                        line.invoice_state = "to do"
-                    else:
-                        line.invoice_state = "over done"
-                else:
-                    line.invoice_state = "no"
+        # Shared logic in order.line.invoice.mixin, keyed on bill_policy via
+        # _get_invoice_policy_field(). This override only carries the
+        # purchase-specific @api.depends above.
+        return super()._compute_invoice_state()
 
     # -------------------------------------------------------------------------
     # ONCHANGE METHODS

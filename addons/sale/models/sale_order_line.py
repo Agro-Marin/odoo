@@ -496,6 +496,12 @@ class SaleOrderLine(models.Model):
         for line in self.filtered(lambda x: not x.display_type):
             line.customer_lead = 0.0
 
+    @api.depends(
+        "sequence",
+        "display_type",
+        "order_id.line_ids.sequence",
+        "order_id.line_ids.display_type",
+    )
     def _compute_parent_id(self):
         sale_order_lines = set(self)
         for order, lines in self.grouped("order_id").items():
@@ -582,7 +588,13 @@ class SaleOrderLine(models.Model):
                 # If company_id is set, always filter taxes by the company
                 line.tax_ids = result
 
-    @api.depends("partner_id", "product_id")
+    @api.depends(
+        "partner_id",
+        "product_id",
+        "product_categ_id",
+        "company_id",
+        "order_id.partner_id.category_id",
+    )
     def _compute_analytic_distribution(self):
         """Compute analytic distribution for each line.
 
@@ -756,7 +768,13 @@ class SaleOrderLine(models.Model):
                     **line._get_pricelist_kwargs(),
                 )
 
-    @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
+    @api.depends(
+        "product_id",
+        "product_uom_id",
+        "product_qty",
+        "display_type",
+        "linked_line_id.discount",
+    )
     def _compute_price_and_discount(self):
         """Compute price and discount from pricelist.
 
@@ -780,6 +798,14 @@ class SaleOrderLine(models.Model):
         discount_enabled = self.env[
             "product.pricelist.item"
         ]._is_discount_feature_enabled()
+
+        # Batch-read origin auto-prices once. A form virtual record may not
+        # carry price_unit_auto in cache; reading it from the persisted
+        # ``_origin`` recordset prefetches all of them in a single query
+        # instead of a per-line read() inside the loop below.
+        origin_price_auto = {
+            origin.id: origin.price_unit_auto for origin in self._origin
+        }
 
         # Single pass through all lines
         for line in self:
@@ -843,18 +869,9 @@ class SaleOrderLine(models.Model):
 
                 # Get old auto price for comparison - must read BEFORE updating
                 old_auto_price = line.price_unit_auto
-                origin = getattr(line, "_origin", None)
-
-                if not old_auto_price and origin and origin.id:
-                    # Form virtual record may not have price_unit_auto in cache
-                    # Force read from DB by using read() on the origin record
-                    origin_data = (
-                        self.env["sale.order.line"]
-                        .browse(origin.id)
-                        .read(["price_unit_auto"])
-                    )
-                    if origin_data:
-                        old_auto_price = origin_data[0].get("price_unit_auto", 0.0)
+                if not old_auto_price and line._origin.id:
+                    # Fall back to the batched origin price (see above).
+                    old_auto_price = origin_price_auto.get(line._origin.id, 0.0)
 
                 # Check if price update is allowed (compare with current auto before updating)
                 should_update = line._should_update_price(
@@ -986,6 +1003,7 @@ class SaleOrderLine(models.Model):
         """
         combo_lines = set()
         precision = self.env["decimal.precision"].precision_get("Product Unit")
+        discount_precision = self.env["decimal.precision"].precision_get("Discount")
 
         for line in self.filtered(lambda x: not x.display_type):
             qty_to_consider = (
@@ -1041,9 +1059,10 @@ class SaleOrderLine(models.Model):
                 amount_taxinc_invoiced += amount_taxinc_unsigned * direction_sign
 
                 # Track if any invoice line has a different discount (for later use)
-                if (
-                    not has_different_discount
-                    and invoice_line.discount != line.discount
+                if not has_different_discount and float_compare(
+                    invoice_line.discount,
+                    line.discount,
+                    precision_digits=discount_precision,
                 ):
                     has_different_discount = True
 
@@ -1127,6 +1146,11 @@ class SaleOrderLine(models.Model):
                 if float_is_zero(line.product_qty, precision_digits=precision)
                 else line.price_total / line.product_qty
             )
+            # Note: unlike the tax-excluded balance, this field is intentionally
+            # left signed for regular lines — an over-invoiced line (e.g. two
+            # SOs sharing one invoice line) legitimately reports a negative
+            # tax-included balance to invoice (see test_amount_to_invoice_one_
+            # line_multiple_so).
             line.amount_taxinc_to_invoice = unit_price_total * (
                 qty_to_consider - line.qty_invoiced
             )
@@ -1156,7 +1180,13 @@ class SaleOrderLine(models.Model):
 
     @api.depends_context("accrual_entry_date")
     @api.depends(
-        "price_unit", "discount", "qty_invoiced_at_date", "qty_transferred_at_date"
+        "price_unit",
+        "discount",
+        "qty_invoiced_at_date",
+        "qty_transferred_at_date",
+        "tax_ids",
+        "product_qty",
+        "product_uom_id",
     )
     def _compute_amount_to_invoice_at_date(self):
         for line in self:
@@ -1170,86 +1200,22 @@ class SaleOrderLine(models.Model):
         "amount_taxexc_to_invoice",
     )
     def _compute_invoice_state(self):
-        """
-        Compute the invoice status of a SO line. Possible statuses:
-        - no: Nothing to invoice (zero qty or non-invoiceable line).
-        - to do: Has quantity to invoice, nothing invoiced yet.
-        - partially: Has quantity to invoice AND some already invoiced.
-        - done: Fully invoiced (qty_invoiced == qty_ordered).
-        - over done: Over-invoiced (qty_invoiced > qty_ordered).
+        # Shared logic in order.line.invoice.mixin, keyed on invoice_policy via
+        # _get_invoice_policy_field(). This override only carries the
+        # sale-specific @api.depends above.
+        #
+        # Note: Upselling opportunities (qty_delivered > qty_ordered) are tracked
+        # at the order level via the has_upsell_opportunity field.
+        return super()._compute_invoice_state()
 
-        Note: Upselling opportunities (qty_delivered > qty_ordered) are tracked
-        at the order level via the has_upsell_opportunity field.
-        """
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
-        for line in self.filtered(lambda l: not l.display_type):
-            # Downpayment lines: check amount_taxexc_to_invoice for invoice state
-            if line.is_downpayment:
-                if line.amount_taxexc_to_invoice == 0:
-                    line.invoice_state = "done"
-                else:
-                    # Non-zero amount to invoice (positive or negative)
-                    line.invoice_state = "to do"
-                continue
-
-            if float_is_zero(line.product_qty, precision_digits=precision):
-                line.invoice_state = "no"
-
-            elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
-                if line.qty_to_invoice < 0:
-                    # Negative qty_to_invoice: more has been invoiced than is due.
-                    # For order-based products this is a genuine over-invoice.
-                    # For delivery-based products it means a return happened and a
-                    # refund/credit note is needed → action required ("to do").
-                    if line.product_id.invoice_policy == "ordered":
-                        line.invoice_state = "over done"
-                    else:
-                        line.invoice_state = "to do"
-                elif float_is_zero(line.qty_invoiced, precision_digits=precision):
-                    # Nothing invoiced yet, positive qty to invoice
-                    line.invoice_state = "to do"
-                else:
-                    # Some quantity already invoiced, more to invoice
-                    line.invoice_state = "partial"
-
-            elif float_is_zero(line.qty_to_invoice, precision_digits=precision):
-                # For delivery-based products, compare to qty_transferred (what was delivered)
-                # For order-based products, compare to product_qty (what was ordered)
-                qty_to_compare = (
-                    line.qty_transferred
-                    if line.product_id.invoice_policy == "transferred"
-                    else line.product_qty
-                )
-                # Special case: nothing delivered and nothing invoiced = nothing to invoice yet
-                if (
-                    line.product_id.invoice_policy == "transferred"
-                    and float_is_zero(line.qty_transferred, precision_digits=precision)
-                    and float_is_zero(line.qty_invoiced, precision_digits=precision)
-                ):
-                    line.invoice_state = "no"
-                    continue
-                compare = float_compare(
-                    line.qty_invoiced,
-                    qty_to_compare,
-                    precision_digits=precision,
-                )
-                if compare == 0:
-                    line.invoice_state = "done"
-                elif compare > 0:
-                    # Over-invoiced: qty_invoiced > qty_to_compare
-                    # For delivery-based products, this typically means a return happened
-                    # and a credit note/refund is needed → action required ("to do")
-                    # For order-based products, this is truly over-invoiced
-                    if line.product_id.invoice_policy == "transferred":
-                        line.invoice_state = "to do"
-                    else:
-                        line.invoice_state = "over done"
-                else:
-                    # qty_invoiced < qty_to_compare but nothing to invoice right now
-                    # (e.g., delivery-based invoicing with no delivery yet)
-                    line.invoice_state = "no"
-
-    @api.depends("state", "product_id", "qty_invoiced", "qty_transferred")
+    @api.depends(
+        "state",
+        "product_id",
+        "qty_invoiced",
+        "qty_transferred",
+        "is_downpayment",
+        "order_id.locked",
+    )
     def _compute_product_readonly(self):
         """Compute whether product field should be readonly.
 

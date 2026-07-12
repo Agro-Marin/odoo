@@ -4,6 +4,7 @@ from itertools import groupby
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command, Domain
+from odoo.libs.numbers.float_utils import float_compare, float_is_zero
 from odoo.tools import SQL
 
 INVOICE_STATE = [
@@ -175,7 +176,10 @@ class OrderInvoiceMixin(models.AbstractModel):
                     rel_line_col=SQL.identifier(rel_field.column1),
                     rel_move_col=SQL.identifier(rel_field.column2),
                     move_types=tuple(move_types),
-                    move_ids=list(value),
+                    # Strip a possible ``False`` sentinel (handled by
+                    # falsy_domain) so the SQL array stays int-typed —
+                    # ``ANY(ARRAY[False, 5])`` raises a Postgres type error.
+                    move_ids=[v for v in value if v is not False],
                 ),
             )
             o_ids = rows[0][0] or []
@@ -214,7 +218,7 @@ class OrderInvoiceMixin(models.AbstractModel):
         ]
         line_invoice_state_all = {}
         for order, invoice_state in self.env[self._get_line_model()]._read_group(
-            lines_domain + [("order_id", "in", confirmed_orders.ids)],
+            lines_domain + [("order_id", "in", confirmed_orders._origin.ids)],
             ["order_id", "invoice_state"],
         ):
             line_invoice_state_all.setdefault(order.id, set()).add(invoice_state)
@@ -733,15 +737,79 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         )
 
     def _compute_invoice_state(self):
-        """Compute the per-line invoice state.
+        """Compute the per-line invoice state (shared sale/purchase logic).
 
-        Implementations differ in policy field (``invoice_policy`` vs
-        ``bill_policy``) and over-invoicing semantics.  Concrete models must
-        override entirely with their own ``@api.depends`` decorator.
+        Keyed on the product's invoice/bill policy via
+        ``_get_invoice_policy_field()`` ('ordered' vs 'transferred'). Concrete
+        models override only to declare their own ``@api.depends`` (the policy
+        field name differs) and call ``super()``.
+
+        States:
+
+        - no: nothing to invoice (zero qty, or not-yet-received transferred line).
+        - to do: quantity left to invoice with nothing invoiced yet, or a credit
+          note is needed on a 'transferred' line (invoiced more than received).
+        - partial: quantity left to invoice AND some already invoiced.
+        - done: fully invoiced (qty_invoiced == the invoiceable quantity).
+        - over done: over-invoiced on an 'ordered' line (qty_invoiced > product_qty).
         """
-        raise NotImplementedError(
-            f"{self._name} must implement _compute_invoice_state()"
-        )
+        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        policy_field = self._get_invoice_policy_field()
+        for line in self.filtered(lambda l: not l.display_type):
+            policy = line.product_id[policy_field]
+
+            # Downpayment lines: state follows the remaining amount to invoice.
+            if line.is_downpayment:
+                if line.currency_id.is_zero(line.amount_taxexc_to_invoice):
+                    line.invoice_state = "done"
+                else:
+                    line.invoice_state = "to do"
+                continue
+
+            if float_is_zero(line.product_qty, precision_digits=precision):
+                line.invoice_state = "no"
+
+            elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
+                if line.qty_to_invoice < 0:
+                    # Invoiced more than due: genuine over-invoice on 'ordered';
+                    # on 'transferred' a return happened -> credit note ('to do').
+                    if policy == "ordered":
+                        line.invoice_state = "over done"
+                    else:
+                        line.invoice_state = "to do"
+                elif float_is_zero(line.qty_invoiced, precision_digits=precision):
+                    # Nothing invoiced yet, positive qty to invoice
+                    line.invoice_state = "to do"
+                else:
+                    # Some quantity already invoiced, more to invoice
+                    line.invoice_state = "partial"
+
+            elif float_is_zero(line.qty_to_invoice, precision_digits=precision):
+                # 'transferred' compares to qty received; 'ordered' to qty ordered.
+                qty_to_compare = (
+                    line.qty_transferred if policy == "transferred" else line.product_qty
+                )
+                # transferred, nothing received and nothing invoiced -> nothing yet.
+                if (
+                    policy == "transferred"
+                    and float_is_zero(line.qty_transferred, precision_digits=precision)
+                    and float_is_zero(line.qty_invoiced, precision_digits=precision)
+                ):
+                    line.invoice_state = "no"
+                    continue
+                compare = float_compare(
+                    line.qty_invoiced, qty_to_compare, precision_digits=precision
+                )
+                if compare == 0:
+                    line.invoice_state = "done"
+                elif compare > 0:
+                    # Over-invoiced vs the basis.
+                    if policy == "transferred":
+                        line.invoice_state = "to do"
+                    else:
+                        line.invoice_state = "over done"
+                else:
+                    line.invoice_state = "no"
 
     # ─── Invoice Line Preparation ──────────────────────────────────
 
