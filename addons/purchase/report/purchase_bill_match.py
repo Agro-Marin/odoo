@@ -59,7 +59,6 @@ class PurchaseBillUnion(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    @api.depends_context("show_total_amount")
     @api.depends("currency_id", "reference", "amount", "purchase_order_id")
     def _compute_display_name(self):
         for doc in self:
@@ -254,6 +253,11 @@ class PurchaseBillUnion(models.Model):
         Returns:
             SQL: Conditions for selecting POs awaiting invoicing
         """
+        # Over-invoiced POs are already covered here: an over-billed line has
+        # qty_to_invoice < 0 and is classified 'to do' (credit note needed), so
+        # its PO shows up via 'to do'. The 'over done' invoice_state is currently
+        # unreachable in purchase.order.line._compute_invoice_state, so it is not
+        # listed. 'done' (fully invoiced) is excluded: nothing left to bill.
         return SQL(
             """
             po.state = 'done'
