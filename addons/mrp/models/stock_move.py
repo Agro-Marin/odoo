@@ -137,7 +137,7 @@ class StockMove(models.Model):
             if move.production_id:
                 move.packaging_uom_id = move.production_id.product_uom_id
 
-    @api.depends("product_id")
+    @api.depends("product_id", "bom_line_id", "bom_line_id.operation_id")
     def _compute_manual_consumption(self):
         for move in self:
             # when computed for new_id in onchange, use value from _origin
@@ -409,15 +409,19 @@ class StockMove(models.Model):
 
     def write(self, vals):
         if "product_id" in vals:
+            # A finished production move whose product changes while it is live must be
+            # replaced (copy + confirm + unlink), not edited in place. Evaluate the
+            # guard per record: `self.filtered` avoids a singleton crash when several
+            # finished/by-product moves change product at once.
             move_to_unlink = self.filtered(
-                lambda m: m.product_id.id != vals.get("product_id")
+                lambda m: (
+                    m.product_id.id != vals.get("product_id")
+                    and m.production_id
+                    and m.state not in ("draft", "cancel", "done")
+                )
             )
-            other_move = self - move_to_unlink
-            if move_to_unlink.production_id and move_to_unlink.state not in [
-                "draft",
-                "cancel",
-                "done",
-            ]:
+            if move_to_unlink:
+                other_move = self - move_to_unlink
                 moves_data = move_to_unlink.copy_data()
                 for move_data in moves_data:
                     move_data.update({"product_id": vals.get("product_id")})

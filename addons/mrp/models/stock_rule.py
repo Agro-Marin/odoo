@@ -41,9 +41,9 @@ class StockRule(models.Model):
         super()._compute_picking_type_code_domain()
         for rule in self:
             if rule.action == "manufacture":
-                rule.picking_type_code_domain = rule.picking_type_code_domain or [] + [
-                    "mrp_operation"
-                ]
+                rule.picking_type_code_domain = (
+                    rule.picking_type_code_domain or []
+                ) + ["mrp_operation"]
 
     def _should_auto_confirm_procurement_mo(self, p):
         if not p.move_raw_ids:
