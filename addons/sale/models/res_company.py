@@ -67,7 +67,7 @@ class ResCompany(models.Model):
         "You cannot set a negative number for the default quotation validity. Leave empty (or 0) to disable the automatic expiration of quotations.",
     )
 
-    @api.constrains("prepayment_percent")
+    @api.constrains("prepayment_percent", "portal_confirmation_pay")
     def _check_prepayment_percent(self):
         for company in self:
             if company.portal_confirmation_pay and not (

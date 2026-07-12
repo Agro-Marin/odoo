@@ -174,11 +174,16 @@ class ProductTemplate(models.Model):
 
     @api.depends("product_variant_ids.sales_count")
     def _compute_sales_count(self):
+        # Batch every variant's sales_count into a single sale.report read_group
+        # (shared active_test=False env cache) instead of one query per template.
+        variants = self.with_context(active_test=False).product_variant_ids
+        variants.mapped("sales_count")  # single batched read_group
+        count_by_variant = {variant.id: variant.sales_count for variant in variants}
         for template in self:
             template.sales_count = template.uom_id.round(
                 sum(
-                    p.sales_count
-                    for p in template.with_context(
+                    count_by_variant.get(variant.id, 0.0)
+                    for variant in template.with_context(
                         active_test=False,
                     ).product_variant_ids
                 ),

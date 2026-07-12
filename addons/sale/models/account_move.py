@@ -270,7 +270,9 @@ class AccountMove(models.Model):
                 prices * -invoice.direction_sign,
                 order.currency_id,
                 invoice.company_id,
-                invoice.date,
+                # Draft invoices have no accounting ``date`` yet; fall back to
+                # the document date so the FX rate matches the eventual posting.
+                invoice.invoice_date or invoice.date or fields.Date.context_today(self),
             )
         return order_amount
 

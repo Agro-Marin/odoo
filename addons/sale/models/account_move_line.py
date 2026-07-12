@@ -42,7 +42,11 @@ class AccountMoveLine(models.Model):
                 # Normal downpayments have a negative balance (credit on customer invoice)
                 # Positive balance indicate reversal lines for previous downpayments,
                 # which should be treated as storno line if storno accounting is enabled.
-                line.is_storno = line.company_id.account_storno and line.balance > 0.0
+                line.is_storno = (
+                    line.company_id.account_storno
+                    and line.company_id.currency_id.compare_amounts(line.balance, 0.0)
+                    > 0
+                )
 
     # ------------------------------------------------------------
     # HELPER METHODS
@@ -311,11 +315,10 @@ class AccountMoveLine(models.Model):
         self.ensure_one()
         if self.sale_line_ids:
             return False
-        uom_precision_digits = self.env["decimal.precision"].precision_get(
-            "Product Unit",
-        )
+        # credit/debit are monetary — compare with the company currency's
+        # precision, not the (coarser) product-quantity UoM precision.
         return float_compare(
             self.credit or 0.0,
             self.debit or 0.0,
-            precision_digits=uom_precision_digits,
+            precision_rounding=self.company_id.currency_id.rounding,
         ) != 1 and self.product_id.expense_policy not in [False, "no"]

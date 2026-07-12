@@ -1,6 +1,5 @@
 import json
 from collections import defaultdict
-from datetime import timedelta
 from itertools import groupby
 
 from odoo import api, fields, models
@@ -516,16 +515,8 @@ class SaleOrder(models.Model):
                 ]
         return vals_list
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_draft_or_cancel(self):
-        for order in self:
-            if order.state not in ("draft", "cancel"):
-                raise UserError(
-                    _(
-                        "You cannot delete confirmed orders. "
-                        "You must cancel them first.",
-                    ),
-                )
+    # _unlink_except_draft_or_cancel: inherited from base_order.order.mixin
+    # (batched, lists the offending order names).
 
     @api.model
     def get_empty_list_help(self, help_message):
@@ -564,15 +555,11 @@ class SaleOrder(models.Model):
     def _get_portal_url_prefix(self):
         return "orders"
 
-    @api.depends("company_id")
-    def _compute_date_validity(self):
-        today = fields.Date.context_today(self)
-        for order in self:
-            days = order.company_id.quotation_validity_days
-            if days > 0:
-                order.date_validity = today + timedelta(days)
-            else:
-                order.date_validity = False
+    def _get_validity_days(self):
+        # Hook for base_order.order.mixin._compute_date_validity: sale derives
+        # the default expiry from the company's quotation validity setting.
+        self.ensure_one()
+        return self.company_id.quotation_validity_days
 
     @api.depends("company_id")
     def _compute_has_active_pricelist(self):
@@ -656,14 +643,15 @@ class SaleOrder(models.Model):
         if not use_invoice_terms:
             return
         for order in self:
-            order_company = order.with_company(order.company_id)
-            if (
-                order_company.terms_type == "html"
-                and self.env.company.invoice_terms_html
-            ):
+            # Resolve terms against the *order's* company, not the user's active
+            # company, so the guard and the written value never diverge in a
+            # multi-company batch.
+            company = order.company_id
+            order_company = order.with_company(company)
+            if order_company.terms_type == "html" and company.invoice_terms_html:
                 baseurl = html_keep_url(order_company._get_note_url() + "/terms")
                 order.notes = _("Terms & Conditions: %s", baseurl)
-            elif not is_html_empty(self.env.company.invoice_terms):
+            elif not is_html_empty(company.invoice_terms):
                 order_ctx = order_company
                 if order.partner_id.lang:
                     order_ctx = order_company.with_context(lang=order.partner_id.lang)
@@ -864,65 +852,17 @@ class SaleOrder(models.Model):
                     warnings.add(line.product_id.display_name + " - " + product_msg)
             order.sale_warning_text = "\n".join(warnings)
 
-    def _prepare_tax_totals_data(self):
-        """Prepare tax totals data for a single order.
+    def _get_additional_base_lines(self):
+        """Inject sale's early-payment-discount lines into the shared tax
+        computation.
 
-        This helper method computes the tax totals structure that is used by both
-        _compute_amounts (for stored monetary fields) and _compute_tax_totals
-        (for the non-stored tax_totals field).
-
-        Returns:
-            dict: Tax totals summary with base_amount_currency, tax_amount_currency,
-                  total_amount_currency, and detailed tax breakdown.
+        This is the hook base_order.order.amount.mixin provides precisely so
+        sale need not duplicate the whole amount/tax_totals compute stack:
+        ``_compute_amounts``, ``_compute_tax_totals`` and the underlying
+        ``_build_tax_totals_data`` are all inherited from the mixin (which runs
+        the tax engine once — see ``_compute_amounts`` there).
         """
-        self.ensure_one()
-        AccountTax = self.env["account.tax"]
-        order_lines = self.line_ids.filtered(lambda x: not x.display_type)
-        base_lines = [
-            line._prepare_base_line_for_taxes_computation() for line in order_lines
-        ]
-        base_lines += self._add_base_lines_for_early_payment_discount()
-        AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)
-        AccountTax._round_base_lines_tax_details(base_lines, self.company_id)
-        return AccountTax._get_tax_totals_summary(
-            base_lines=base_lines,
-            currency=self.currency_id or self.company_id.currency_id,
-            company=self.company_id,
-        )
-
-    @api.depends_context("lang")
-    @api.depends(
-        "company_id",
-        "currency_id",
-        "payment_term_id",
-        "line_ids.price_subtotal",
-    )
-    def _compute_amounts(self):
-        """Compute stored amount fields (amount_untaxed, amount_tax, amount_total).
-
-        Uses _prepare_tax_totals_data() to get the computed values.
-        """
-        for order in self:
-            tax_totals = order._prepare_tax_totals_data()
-            order.amount_untaxed = tax_totals["base_amount_currency"]
-            order.amount_tax = tax_totals["tax_amount_currency"]
-            order.amount_total = tax_totals["total_amount_currency"]
-
-    @api.depends_context("lang")
-    @api.depends(
-        "company_id",
-        "currency_id",
-        "payment_term_id",
-        "line_ids.price_subtotal",
-    )
-    def _compute_tax_totals(self):
-        """Compute the non-stored tax_totals field.
-
-        Uses _prepare_tax_totals_data() to get the complete tax breakdown structure.
-        Separated from _compute_amounts to avoid inconsistent store attribute warnings.
-        """
-        for order in self:
-            order.tax_totals = order._prepare_tax_totals_data()
+        return self._add_base_lines_for_early_payment_discount()
 
     @api.depends("state", "line_ids.invoice_state", "invoice_ids")
     def _compute_invoice_state(self):
@@ -2507,7 +2447,11 @@ class SaleOrder(models.Model):
         :return: Sales Order confirmation values
         :rtype: dict
         """
-        return {"state": "done", "date_order": fields.Datetime.now()}
+        return {
+            "state": "done",
+            "date_order": fields.Datetime.now(),
+            "date_confirmed": fields.Datetime.now(),
+        }
 
     def _prepare_down_payment_section_line(self, **optional_values):
         """Prepare the values to create a new down payment section.
@@ -2727,90 +2671,15 @@ class SaleOrder(models.Model):
                 ),
             )
 
-    def _can_confirm_has_lines(self):
-        """Ensure orders have at least one order line.
-
-        Sale orders must have at least one line item to be confirmed.
-        Empty orders cannot be processed.
-        """
-        orders_without_lines = self.filtered(lambda order: not order.line_ids)
-        if orders_without_lines:
-            raise UserError(
-                _(
-                    "Cannot confirm sale orders without lines: %s\n\n"
-                    "Please add at least one product line before confirming.",
-                    format_list(self.env, orders_without_lines.mapped("display_name")),
-                ),
-            )
-
-    def _can_confirm_lines_have_product(self):
-        """Ensure all non-display lines have products assigned.
-
-        All product lines (excluding section/note lines and down payments) must
-        have a product selected before the order can be confirmed.
-        """
-        orders_without_line_product = self.filtered(
-            lambda order: any(
-                not line.display_type
-                and not line.is_downpayment
-                and not line.product_id
-                for line in order.line_ids
-            ),
-        )
-        if orders_without_line_product:
-            error_details = []
-            for order in orders_without_line_product:
-                missing_product_lines = order.line_ids.filtered(
-                    lambda l: (
-                        not l.display_type and not l.is_downpayment and not l.product_id
-                    ),
-                )
-                error_details.append(
-                    _(
-                        "• %(order)s has %(count)d line(s) without products",
-                        order=order.display_name,
-                        count=len(missing_product_lines),
-                    ),
-                )
-
-            raise UserError(
-                _(
-                    "Cannot confirm sale orders with lines missing products:\n\n%s\n\n"
-                    "Please assign a product to all order lines before confirming.",
-                    "\n".join(error_details),
-                ),
-            )
+    # _can_confirm_has_lines / _can_confirm_lines_have_product: inherited from
+    # base_order.order.mixin (identical logic; the mixin uses ``_description``).
 
     def _can_confirm_analytic_distribution(self):
         """Validate analytic distributions on all order lines."""
         self.line_ids._validate_analytic_distribution()
 
-    def _can_cancel_check_state(self):
-        """Ensure orders are not already cancelled."""
-        cancelled_orders = self.filtered(lambda order: order.state == "cancel")
-        if cancelled_orders:
-            raise UserError(
-                _(
-                    "The following sale orders are already cancelled: %s",
-                    format_list(self.env, cancelled_orders.mapped("display_name")),
-                ),
-            )
-
-    def _can_cancel_except_locked(self):
-        """Ensure orders are not locked.
-
-        Locked orders require explicit unlocking before cancellation to prevent
-        accidental modifications to confirmed sale orders.
-        """
-        orders_locked = self.filtered(lambda order: order.locked)
-        if orders_locked:
-            raise UserError(
-                _(
-                    "Cannot cancel locked sale orders: %s. "
-                    "Please unlock them first using the 'Unlock' button.",
-                    format_list(self.env, orders_locked.mapped("display_name")),
-                ),
-            )
+    # _can_cancel_check_state / _can_cancel_except_locked: inherited from
+    # base_order.order.mixin (identical logic; the mixin uses ``_description``).
 
     # ------------------------------------------------------------
     # WRITE VALIDATION
