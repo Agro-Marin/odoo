@@ -4,7 +4,7 @@
     "category": "Supply Chain/Purchase",
     "sequence": 60,
     "summary": "Purchase Orders, Receipts, Vendor Bills for Stock",
-    "depends": ["stock_account", "purchase"],
+    "depends": ["stock_account", "purchase", "base_order_stock"],
     "data": [
         "security/ir.model.access.csv",
         "data/purchase_stock_data.xml",

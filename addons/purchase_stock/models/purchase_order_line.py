@@ -9,7 +9,8 @@ from odoo.tools.translate import _
 
 
 class PurchaseOrderLine(models.Model):
-    _inherit = "purchase.order.line"
+    _name = "purchase.order.line"
+    _inherit = ["purchase.order.line", "order.line.stock.mixin"]
 
     # ------------------------------------------------------------
     # FIELDS
@@ -44,11 +45,8 @@ class PurchaseOrderLine(models.Model):
         readonly=True,
         copy=False,
     )
-    qty_to_transfer = fields.Float(
-        digits="Product Unit",
-        compute="_compute_qty_transferred",
-        store=True,
-    )
+    # qty_to_transfer is inherited from order.line.stock.mixin (base_order_stock);
+    # it is populated by this model's _compute_qty_transferred override.
     product_description_variants = fields.Char(
         string="Custom Description",
     )
