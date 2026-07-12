@@ -11,8 +11,8 @@ import {
     WebsocketWorker,
     WORKER_STATE,
 } from "@bus/workers/websocket_worker";
-import { describe, expect, test } from "@odoo/hoot";
-import { Deferred, manuallyDispatchProgrammaticEvent, runAllTimers, waitFor } from "@odoo/hoot-dom";
+import { after, describe, expect, test } from "@odoo/hoot";
+import { Deferred, manuallyDispatchProgrammaticEvent, on, runAllTimers, waitFor } from "@odoo/hoot-dom";
 import { mockWebSocket } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -461,7 +461,9 @@ test("remove from main tab candidates when version is outdated", async () => {
 });
 
 test("show notification when version is outdated", async () => {
-    browser.location.addEventListener("reload", () => asyncStep("reload"));
+    // Auto-removed (`after`) so this listener on the shared `browser.location`
+    // mock does not leak a stray "reload" step into later suites.
+    after(on(browser.location, "reload", () => asyncStep("reload")));
     addBusServiceListeners(
         ["BUS:CONNECT", () => asyncStep("BUS:CONNECT")],
         ["BUS:DISCONNECT", () => asyncStep("BUS:DISCONNECT")]

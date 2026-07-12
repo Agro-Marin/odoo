@@ -21,6 +21,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
 import { HierarchyModel } from "@web_hierarchy/hierarchy_model";
+import "./hierarchy_mock_server.js";
 
 async function enableFilters(filterNames = []) {
     await toggleSearchBarMenu();

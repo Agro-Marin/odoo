@@ -8,6 +8,8 @@ import {
     patchWithCleanup,
     MockServer,
 } from "@web/../tests/web_test_helpers";
+// Side-effect import: registers the livechat mock routes (/im_livechat/get_session, ...).
+import "./mock_server/livechat_mock_server.js";
 import { DiscussChannel } from "./mock_server/mock_models/discuss_channel.js";
 import { DiscussChannelMember } from "./mock_server/mock_models/discuss_channel_member.js";
 import { LivechatChannel } from "./mock_server/mock_models/im_livechat_channel.js";

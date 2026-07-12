@@ -10,6 +10,8 @@ import {
     onRpc,
 } from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";
+// Side-effect import: registers the get_rainbowman_message mock route.
+import "@crm/../tests/crm_mock_server";
 
 const now = luxon.DateTime.now();
 class Users extends models.Model {

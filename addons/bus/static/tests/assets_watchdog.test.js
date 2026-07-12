@@ -1,5 +1,5 @@
-import { describe, test } from "@odoo/hoot";
-import { runAllTimers, waitFor } from "@odoo/hoot-dom";
+import { after, describe, test } from "@odoo/hoot";
+import { on, runAllTimers, waitFor } from "@odoo/hoot-dom";
 import {
     asyncStep,
     contains,
@@ -16,7 +16,10 @@ defineBusModels();
 describe.current.tags("desktop");
 
 test("can listen on bus and display notifications in DOM", async () => {
-    browser.location.addEventListener("reload", () => asyncStep("reload-page"));
+    // Use hoot's `on` (auto-removed via `after`) so this listener on the shared
+    // `browser.location` mock does not leak into later suites, where a stray
+    // "reload-page" step would corrupt their `waitForSteps` assertions.
+    after(on(browser.location, "reload", () => asyncStep("reload-page")));
     await mountWithCleanup(WebClient);
     getService("bus_service").subscribe("bundle_changed", () => asyncStep("bundle_changed"));
     MockServer.env["bus.bus"]._sendone("broadcast", "bundle_changed", {

@@ -4,6 +4,8 @@ import { queryOne } from "@odoo/hoot-dom";
 import { Component, markup, onWillDestroy, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { getContent, getSelection, setContent } from "./selection.js";
+// Side-effect import: registers the res.lang/get_installed mock route.
+import "./html_editor_mock_server.js";
 import { Deferred, animationFrame, tick } from "@odoo/hoot-mock";
 import { dispatchCleanForSave } from "./dispatch.js";
 import { fixInvalidHTML } from "@html_editor/utils/sanitize";
