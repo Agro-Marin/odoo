@@ -912,7 +912,11 @@ class MailActivity(models.Model):
                        }
         :rtype: dict
         """
-        user_tz = self.user_id.sudo().tz
+        # This is an @api.model call (self is empty), so self.user_id.tz is always
+        # False and every activity state would be computed against the server's
+        # midnight. Use the requesting user's timezone, which is what this
+        # activity view is being rendered for.
+        user_tz = self.env.user.tz
         DocModel = self.env[res_model]
         Activity = self.env["mail.activity"]
 

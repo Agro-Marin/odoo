@@ -219,7 +219,7 @@ class MailFollowers(models.Model):
            COALESCE(sub_user.notification_type, 'email') as notif,
            sub_user.groups as groups,
            sub_followers.res_id as res_id,
-           sub_followers.is_follower as _insert_followerslower
+           sub_followers.is_follower as is_follower
       FROM res_partner partner
       JOIN sub_followers ON sub_followers.pid = partner.id
                         AND (sub_followers.internal IS NOT TRUE OR partner.partner_share IS NOT TRUE)

@@ -783,6 +783,7 @@ class DiscussChannel(models.Model):
         guests = guests or self.env["mail.guest"]
         current_partner, current_guest = self.env["res.partner"]._get_current_persona()
         all_new_members = self.env["discuss.channel.member"]
+        new_members_by_channel = {}
         for channel in self:
             members_to_create = []
             existing_members = self.env["discuss.channel.member"].search(
@@ -819,6 +820,7 @@ class DiscussChannel(models.Model):
                     members_to_create
                 )
             all_new_members += new_members
+            new_members_by_channel[channel] = new_members
             for member in new_members:
                 payload = {
                     "channel_id": member.channel_id.id,
@@ -864,6 +866,9 @@ class DiscussChannel(models.Model):
                 ).add(channel, "member_count").add(existing_members).bus_send()
         if invite_to_rtc_call:
             for channel in self:
+                channel_new_members = new_members_by_channel.get(channel)
+                if not channel_new_members:
+                    continue
                 current_channel_member = self.env["discuss.channel.member"].search(
                     [("channel_id", "=", channel.id), ("is_self", "=", True)]
                 )
@@ -874,7 +879,7 @@ class DiscussChannel(models.Model):
                 ):
                     # sudo: discuss.channel.rtc.session - current user can invite new members in call
                     current_channel_member.sudo()._rtc_invite_members(
-                        member_ids=new_members.ids
+                        member_ids=channel_new_members.ids
                     )
         return all_new_members
 

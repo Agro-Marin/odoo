@@ -255,6 +255,11 @@ class MailScheduledMessage(models.Model):
                     )
                 )
                 scheduled_message._message_created_hook(message)
+                # Delete this scheduled message together with its own commit so a
+                # crash between posting and cleanup can never repost it. A single
+                # trailing unlink() would leave already-committed rows behind,
+                # which the next cron run would post a second time.
+                scheduled_message.unlink()
                 if auto_commit:
                     self.env.cr.commit()
             except Exception:
@@ -280,8 +285,6 @@ class MailScheduledMessage(models.Model):
                             % scheduled_message.body,
                         ),
                     )
-                    if auto_commit:
-                        self.env.cr.commit()
                 except Exception:
                     # in case even message_notify fails, make sure the failing scheduled message
                     # will be deleted
@@ -290,7 +293,11 @@ class MailScheduledMessage(models.Model):
                     )
                     if auto_commit:
                         self.env.cr.rollback()
-        self.unlink()
+                # Always drop the failed scheduled message (even if the failure
+                # notice could not be sent) so the cron does not retry it forever.
+                scheduled_message.unlink()
+                if auto_commit:
+                    self.env.cr.commit()
 
     # ------------------------------------------------------
     # Business Methods

@@ -882,7 +882,7 @@ export class PeerToPeer extends EventTarget {
                     break;
                 case "failed":
                 case "disconnected":
-                    this._recover(peer.id, 1000, "ice connection disconnected");
+                    this._recover(peer.id, "ice connection disconnected");
                     break;
             }
         });
@@ -904,7 +904,7 @@ export class PeerToPeer extends EventTarget {
                     break;
                 case "failed":
                 case "disconnected":
-                    this._recover(peer.id, 1000, "connection disconnected");
+                    this._recover(peer.id, "connection disconnected");
                     break;
             }
             this._emitLog(

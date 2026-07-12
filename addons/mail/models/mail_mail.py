@@ -338,6 +338,20 @@ class MailMail(models.Model):
 
         return res
 
+    @api.model
+    def _pending_email_notifications_domain(self, mail_ids):
+        """Domain matching the still-in-flight (not yet sent/canceled) email
+        notifications of the given mails.
+
+        Centralized so the send-path call sites cannot drift apart on what counts
+        as a "pending" notification.
+        """
+        return [
+            ("notification_type", "=", "email"),
+            ("mail_mail_id", "in", mail_ids),
+            ("notification_status", "not in", ("sent", "canceled")),
+        ]
+
     def _postprocess_sent_message(
         self, success_pids, success_emails, failure_reason=False, failure_type=None
     ):
@@ -351,11 +365,7 @@ class MailMail(models.Model):
         notif_mails_ids = [mail.id for mail in self if mail.is_notification]
         if notif_mails_ids:
             notifications = self.env["mail.notification"].search(
-                [
-                    ("notification_type", "=", "email"),
-                    ("mail_mail_id", "in", notif_mails_ids),
-                    ("notification_status", "not in", ("sent", "canceled")),
-                ]
+                self._pending_email_notifications_domain(notif_mails_ids)
             )
             if notifications:
                 # find all notification linked to a failure
@@ -416,7 +426,9 @@ class MailMail(models.Model):
         if isinstance(scheduled_datetime, datetime.datetime):
             parsed_datetime = scheduled_datetime
         elif isinstance(scheduled_datetime, datetime.date):
-            parsed_datetime = datetime.combine(scheduled_datetime, datetime.time.min)
+            parsed_datetime = datetime.datetime.combine(
+                scheduled_datetime, datetime.time.min
+            )
         else:
             try:
                 parsed_datetime = parse(scheduled_datetime, yearfirst=True)
@@ -827,13 +839,7 @@ class MailMail(models.Model):
         notifs = (
             self.env["mail.notification"]
             .sudo()
-            .search(
-                [
-                    ("notification_type", "=", "email"),
-                    ("mail_mail_id", "in", self.ids),
-                    ("notification_status", "not in", ("sent", "canceled")),
-                ]
-            )
+            .search(self._pending_email_notifications_domain(self.ids))
         )
         for mail in self.sorted(lambda k: (k.create_date, k.id)):
             if mail_server.owner_limit_count >= MAX_SEND:
@@ -1079,11 +1085,7 @@ class MailMail(models.Model):
                 # update in case an email bounces while sending all emails related to current
                 # mail record.
                 notifs = self.env["mail.notification"].search(
-                    [
-                        ("notification_type", "=", "email"),
-                        ("mail_mail_id", "in", mail.ids),
-                        ("notification_status", "not in", ("sent", "canceled")),
-                    ]
+                    self._pending_email_notifications_domain(mail.ids)
                 )
                 if notifs:
                     notif_msg = _(
@@ -1163,7 +1165,13 @@ class MailMail(models.Model):
                         if processing_pid:
                             success_pids.append(processing_pid)
                         else:
-                            success_emails.extend(email["email_to"] or [])
+                            # normalized form (already popped into email_to_normalized
+                            # above): post-processing matches these against
+                            # mail.notification.mail_email_address (also normalized), so
+                            # collecting the display-formatted email_to here would
+                            # spuriously flag recipients whose address carries a display
+                            # name as failed.
+                            success_emails.extend(email_to_normalized or [])
                         processing_pid = None
                     except OutgoingEmailError as error:
                         if error.code == IrMailServer.NO_VALID_RECIPIENT:

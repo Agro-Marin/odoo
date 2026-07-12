@@ -75,8 +75,8 @@ class MailMessageSchedule(models.Model):
                     continue
                 notify_kwargs = dict(default_notify_kwargs or {}, skip_existing=True)
                 try:
-                    schedule_notify_kwargs = json.loads(
-                        schedule.notification_parameters
+                    schedule_notify_kwargs = (
+                        schedule._deserialize_notification_parameters()
                     )
                 except Exception:  # noqa: S110
                     pass
@@ -90,6 +90,30 @@ class MailMessageSchedule(models.Model):
 
         self.unlink()
         return True
+
+    @api.model
+    def _serialize_notification_parameters(self, notify_kwargs):
+        """JSON-encode notify kwargs for the ``notification_parameters`` field.
+
+        Some valid notify parameters are recordsets (e.g. ``force_email_company``,
+        a ``res.company``) that ``json.dumps`` cannot serialize; store them as ids
+        so they survive the round-trip through the queue and can be rebuilt on
+        replay by ``_deserialize_notification_parameters``.
+        """
+        serializable = dict(notify_kwargs)
+        company = serializable.get("force_email_company")
+        if company is not None and not isinstance(company, (bool, int)):
+            serializable["force_email_company"] = company.id
+        return json.dumps(serializable)
+
+    def _deserialize_notification_parameters(self):
+        """Decode ``notification_parameters``, rebuilding recordset-valued kwargs."""
+        self.ensure_one()
+        params = json.loads(self.notification_parameters or "{}")
+        company_id = params.get("force_email_company")
+        if company_id:
+            params["force_email_company"] = self.env["res.company"].browse(company_id)
+        return params
 
     @api.model
     def _send_message_notifications(self, messages, default_notify_kwargs=None):

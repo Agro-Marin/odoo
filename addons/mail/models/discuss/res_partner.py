@@ -47,7 +47,11 @@ class ResPartner(models.Model):
         )
         selectable_email = None
         email_already_sent = None
-        if channel_invites["count"] == 0 and single_email_re.match(search_term):
+        if (
+            channel_id
+            and channel_invites["count"] == 0
+            and single_email_re.match(search_term)
+        ):
             email = email_normalize(search_term)
             channel = self.env["discuss.channel"].search_fetch(
                 [("id", "=", int(channel_id))]

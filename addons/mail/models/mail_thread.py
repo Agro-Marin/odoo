@@ -968,7 +968,8 @@ class MailThread(models.AbstractModel):
                 self.env["mail.alias.domain"].search([]).mapped("catchall_email")
             )
             if not any(
-                catchall_email in message["To"] for catchall_email in catchall_aliases
+                catchall_email in (message["To"] or "")
+                for catchall_email in catchall_aliases
             ):
                 email_from = decode_message_header(message, "To")
         if not email_from:
@@ -2651,6 +2652,7 @@ class MailThread(models.AbstractModel):
         return self._partner_find_from_emails(
             {self: emails},
             avoid_alias=avoid_alias,
+            ban_emails=ban_emails,
             filter_found=filter_found,
             additional_values=additional_values,
             no_create=no_create,
@@ -4111,9 +4113,14 @@ class MailThread(models.AbstractModel):
             notify_scheduled_date = (
                 parsed_datetime.replace(tzinfo=None) if parsed_datetime else False
             )
+        # compare two naive UTC instants: cr.now() is naive in production but may be
+        # tz-aware under mocked clocks, so normalize it rather than assume awareness.
+        now = self.env.cr.now()
+        if now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
         return (
             notify_scheduled_date
-            if notify_scheduled_date and notify_scheduled_date > self.env.cr.now()
+            if notify_scheduled_date and notify_scheduled_date > now
             else False
         )
 
@@ -4253,7 +4260,9 @@ class MailThread(models.AbstractModel):
                 {
                     "scheduled_datetime": scheduled_date,
                     "mail_message_id": message.id,
-                    "notification_parameters": json.dumps(kwargs),
+                    "notification_parameters": self.env[
+                        "mail.message.schedule"
+                    ]._serialize_notification_parameters(kwargs),
                 }
             )
         else:
