@@ -121,7 +121,8 @@ class TestEngagementSnapshot(common.TransactionCase):
         self.assertTrue(snapshot.snapshot_date, "Snapshot should have a date")
         # At minimum, active_users should reflect our test users
         self.assertGreaterEqual(
-            snapshot.total_karma_users, 0,
+            snapshot.users_with_karma,
+            0,
             "Snapshot should capture karma user count",
         )
 

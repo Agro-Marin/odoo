@@ -383,7 +383,10 @@ class TestKarmaTrackingCommon(common.TransactionCase):
         last_tracking_3 = self.test_user_2.karma_tracking_ids[-1]
 
         users = (user | self.test_user | self.test_user_2).with_user(self.test_user)
-        with self.assertQueryCount(14):
+        # A direct ``karma`` write now recomputes rank_id/next_rank_id (and fires
+        # the rank-up notifications) just like ``_add_karma`` does — previously it
+        # created the tracking but left the rank stale.  Hence the higher budget.
+        with self.assertQueryCount(23):
             users.karma = 100
 
         tracking_1 = user.karma_tracking_ids[-1]

@@ -208,10 +208,17 @@ class GamificationActivity(models.Model):
         :param int limit: max entries.
         :return: list of dicts for the OWL component.
         """
+        # An activity is two-party (e.g. kudos sender ↔ recipient, badge awarder
+        # ↔ earner) and its ``summary`` bakes in both names.  Exclude the row if
+        # *either* party is private, otherwise a private user still surfaces as
+        # the counterparty of a public user's event.
         activities = self.search(
             [
                 ("company_id", "=", self.env.company.id),
                 ("user_id.gamification_visibility", "!=", "private"),
+                "|",
+                ("target_user_id", "=", False),
+                ("target_user_id.gamification_visibility", "!=", "private"),
             ],
             limit=limit,
         )
