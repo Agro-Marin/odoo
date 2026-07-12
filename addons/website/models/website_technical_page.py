@@ -1,6 +1,7 @@
-from odoo import models, fields
-from odoo.tools import ormcache, SQL
 import re
+
+from odoo import fields, models
+from odoo.tools import SQL, ormcache
 
 
 class WebsiteTechnicalPage(models.Model):
@@ -8,6 +9,7 @@ class WebsiteTechnicalPage(models.Model):
     This model allows listing technical pages whose route decorator is marked
     thanks to the `list_as_website_content` option.
     """
+
     _name = "website.technical.page"
     _description = "Website Technical Page"
     _auto = False
@@ -21,7 +23,7 @@ class WebsiteTechnicalPage(models.Model):
         """
         return self.env["website"].get_client_action(self.website_url)
 
-    @ormcache(cache='routing')
+    @ormcache(cache="routing")
     def get_static_routes(self):
         """
         Returns a set of website content static routes.
@@ -33,7 +35,8 @@ class WebsiteTechnicalPage(models.Model):
             route_title = endpoint.get("list_as_website_content")
             if route_title:
                 last_static_route = next(
-                    r for r in reversed(endpoint.get("routes", []))
+                    r
+                    for r in reversed(endpoint.get("routes", []))
                     if not dynamic_route_re.search(r)
                 )
                 routes.add((str(route_title), last_static_route))
@@ -43,13 +46,16 @@ class WebsiteTechnicalPage(models.Model):
     def _table_query(self):
         routes = self.get_static_routes()
         values = SQL(", ").join(
-            SQL('(%s, %s)', route_title, route_path)
+            SQL("(%s, %s)", route_title, route_path)
             for route_title, route_path in routes
         )
 
-        return SQL("""
+        return SQL(
+            """
             SELECT row_number() OVER () AS id,
                 column1 AS name,
                 column2 AS website_url
             FROM (VALUES %s) AS t(column1, column2)
-        """, values)
+        """,
+            values,
+        )

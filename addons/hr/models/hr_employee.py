@@ -1,24 +1,24 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
-
 from collections import defaultdict
-
-from pytz import timezone, UTC, utc
-from datetime import datetime, time, timedelta, date
+from datetime import date, datetime, time, timedelta
 from random import choice
 from string import digits
+
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
+from pytz import UTC, timezone, utc
 
-from odoo import api, fields, models, _, tools
+from odoo import _, api, fields, models, tools
+from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.exceptions import ValidationError, AccessError, RedirectWarning, UserError
-from odoo.tools import convert, format_time, email_normalize, SQL, Query
 from odoo.libs.intervals import Intervals
+from odoo.libs.numbers.float_utils import float_is_zero
+from odoo.tools import SQL, Query, convert, email_normalize, format_time
+
 from odoo.addons.hr.models.hr_version import format_date_abbr
 from odoo.addons.mail.tools.discuss import Store
-from odoo.libs.numbers.float_utils import float_is_zero
 
 # This sentinel object, when in the context, provides read access to the
 # model 'hr.employee' in certain situations, like when setting a many2many
@@ -599,7 +599,9 @@ class HrEmployee(models.Model):
     def _create(self, data_list):
         versions = [vals["stored"].pop("version_id", None) for vals in data_list]
         result = super()._create(data_list)
-        for employee, version_id, vals in zip(result, versions, data_list):
+        for employee, version_id, vals in zip(
+            result, versions, data_list, strict=False
+        ):
             version = self.env["hr.version"].browse(version_id)
             version.employee_id = employee.id
             version.write(
@@ -1156,7 +1158,7 @@ class HrEmployee(models.Model):
                 for employee in self
             ]
         )
-        for employee, work_contact in zip(self, work_contacts):
+        for employee, work_contact in zip(self, work_contacts, strict=False):
             employee.work_contact_id = work_contact
 
     @api.depends("parent_id")
@@ -1184,14 +1186,13 @@ class HrEmployee(models.Model):
         for employee in self:
             if not employee.work_contact_id:
                 employees_without_work_contact += employee
-            else:
-                if len(employee.work_contact_id.employee_ids) <= 1:
-                    employee.work_contact_id.sudo().write(
-                        {
-                            "email": employee.work_email,
-                            "phone": employee.work_phone,
-                        }
-                    )
+            elif len(employee.work_contact_id.employee_ids) <= 1:
+                employee.work_contact_id.sudo().write(
+                    {
+                        "email": employee.work_email,
+                        "phone": employee.work_phone,
+                    }
+                )
         if employees_without_work_contact:
             employees_without_work_contact.sudo()._create_work_contacts()
 
@@ -1502,9 +1503,10 @@ class HrEmployee(models.Model):
         if self.browse().has_access("read"):
             return super()._compute_display_name()
         for employee_private, employee_public in zip(
-            self, self.env["hr.employee.public"].browse(self.ids)
+            self, self.env["hr.employee.public"].browse(self.ids), strict=False
         ):
             employee_private.display_name = employee_public.display_name
+        return None
 
     @api.model
     def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):
@@ -1551,11 +1553,13 @@ class HrEmployee(models.Model):
             if (
                 public_field.related
                 and public_field.related_field.model_name == "hr.employee"
-                or private_field.inherited
+            ) or (
+                private_field.inherited
                 and private_field.inherited_field.model_name == "hr.version"
             ):
                 public.mapped(field_name)
         self._copy_cache_from(public, field_names)
+        return None
 
     def _check_access(self, operation):
         # This method override provides read access to 'hr.employee' in some
@@ -1798,10 +1802,10 @@ We can redirect you to the public employee list."""
         old_partner_employee_ids.work_contact_id = None
 
     def _sync_user(self, user, employee_has_image=False):
-        vals = dict(
-            work_contact_id=user.partner_id.id if user else self.work_contact_id.id,
-            user_id=user.id,
-        )
+        vals = {
+            "work_contact_id": user.partner_id.id if user else self.work_contact_id.id,
+            "user_id": user.id,
+        }
         if not employee_has_image:
             vals["image_1920"] = user.image_1920
         if user.tz:
@@ -1862,11 +1866,11 @@ We can redirect you to the public employee list."""
         index_per_employee = {}
         employees = self.env["hr.employee"]
         for company, vals_list in vals_per_company.items():
-            idxs, vals_list = zip(*vals_list)
+            idxs, vals_list = zip(*vals_list, strict=False)
             new_employees = super(HrEmployee, self.with_company(company)).create(
                 vals_list
             )
-            index_per_employee.update(dict(zip(new_employees, idxs)))
+            index_per_employee.update(dict(zip(new_employees, idxs, strict=False)))
             employees |= new_employees
         # As we do a custom batch by company, we must reorder the records to respect the original order.
         employees = employees.sorted(key=lambda employee: index_per_employee[employee])
@@ -2063,6 +2067,7 @@ We can redirect you to the public employee list."""
                     ),
                 }
             }
+        return None
 
     def _load_scenario(self):
         demo_tag = self.env.ref("hr.employee_category_demo", raise_if_not_found=False)
@@ -2108,7 +2113,7 @@ We can redirect you to the public employee list."""
         employees_by_tz = self.grouped(lambda emp: emp._get_tz())
 
         employee_timezones = {}
-        for tz, employee_ids in employees_by_tz.items():
+        for tz in employees_by_tz:
             date_at = timezone(tz).localize(dt).date()
             calendars = self._get_calendars(date_at)
             employee_timezones |= {
@@ -2303,7 +2308,7 @@ We can redirect you to the public employee list."""
         employee_tz = timezone(self.tz) if self.tz else None
         if not valid_versions:
             calendar = self.resource_calendar_id or self.company_id.resource_calendar_id
-            calendar_intervals = calendar._work_intervals_batch(
+            return calendar._work_intervals_batch(
                 date_from,
                 date_to,
                 tz=employee_tz,
@@ -2311,7 +2316,6 @@ We can redirect you to the public employee list."""
                 compute_leaves=True,
                 domain=[("company_id", "in", [False, self.company_id.id])],
             )[self.resource_id.id]
-            return calendar_intervals
         duration_data = Intervals()
         version_prev = datetime.combine(
             valid_versions[0].date_start, time.min, employee_tz
@@ -2502,7 +2506,7 @@ We can redirect you to the public employee list."""
         distribution = self.salary_distribution or {}
         allocated = 0.0
 
-        for ba_id, vals in distribution.items():
+        for vals in distribution.values():
             if vals.get("amount_is_percentage"):
                 allocated += vals.get("amount", 0.0)
 

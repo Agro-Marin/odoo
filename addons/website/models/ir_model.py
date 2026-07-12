@@ -1,11 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from . import ir_http
 from odoo import models
+
+from . import ir_http
 
 
 class Base(models.AbstractModel):
-    _inherit = 'base'
+    _inherit = "base"
 
     def get_base_url(self):
         """
@@ -26,12 +27,12 @@ class Base(models.AbstractModel):
             return super().get_base_url()
         self.ensure_one()
 
-        if self._name == 'website':
+        if self._name == "website":
             # Note that website_1.company_id.website_id might not be website_1
             return self.domain or super().get_base_url()
-        if 'website_id' in self and self.sudo().website_id.domain:
+        if "website_id" in self and self.sudo().website_id.domain:
             return self.sudo().website_id.domain
-        if 'company_id' in self and self.company_id.website_id.domain:
+        if "company_id" in self and self.company_id.website_id.domain:
             return self.company_id.website_id.domain
         return super().get_base_url()
 
@@ -41,7 +42,7 @@ class Base(models.AbstractModel):
         return {}
 
     def _get_base_lang(self):
-        """ Returns the default language of the website as the base language if the record is bound to it """
+        """Returns the default language of the website as the base language if the record is bound to it"""
         website = ir_http.get_request_website()
         if website:
             return website.default_lang_id.code

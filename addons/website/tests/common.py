@@ -8,7 +8,6 @@ from odoo.tools import file_open
 
 
 class HttpCaseWithWebsiteUser(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -29,16 +28,24 @@ class HttpCaseWithWebsiteUser(HttpCase):
             "phone": "+1(492)-563-3759",
         }
         cls.partner_website_user = cls.env["res.partner"].create(partner_vals)
-        cls.user_website_user = cls.env["res.users"].create({
-            "partner_id": cls.partner_website_user.id,
-            "login": "website_user",
-            "password": "website_user",
-            "signature": "<span>-- <br/>+Mr Restricted</span>",
-            "company_id": company.id,
-            "image_1920": base64.b64encode(file_open("website/static/src/img/user-restricted-image.png", "rb").read()),
-            "group_ids": [
-                Command.unlink(cls.env.ref("website.group_website_designer").id),
-                Command.link(cls.env.ref("website.group_website_restricted_editor").id),
-                Command.link(cls.env.ref("base.group_user").id),
-            ],
-        })
+        cls.user_website_user = cls.env["res.users"].create(
+            {
+                "partner_id": cls.partner_website_user.id,
+                "login": "website_user",
+                "password": "website_user",
+                "signature": "<span>-- <br/>+Mr Restricted</span>",
+                "company_id": company.id,
+                "image_1920": base64.b64encode(
+                    file_open(
+                        "website/static/src/img/user-restricted-image.png", "rb"
+                    ).read()
+                ),
+                "group_ids": [
+                    Command.unlink(cls.env.ref("website.group_website_designer").id),
+                    Command.link(
+                        cls.env.ref("website.group_website_restricted_editor").id
+                    ),
+                    Command.link(cls.env.ref("base.group_user").id),
+                ],
+            }
+        )

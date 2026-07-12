@@ -16,11 +16,18 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
     website configurator, ai_website, and other modules that need
     HTML text processing capabilities.
     """
-    _name = 'website.html.text.processor'
-    _description = 'HTML Text Processor Abstract Model'
+
+    _name = "website.html.text.processor"
+    _description = "HTML Text Processor Abstract Model"
 
     @api.model
-    def _with_processing_context(self, IrQweb, cta_data, text_generation_target_lang, text_must_be_translated_for_openai=False):
+    def _with_processing_context(
+        self,
+        IrQweb,
+        cta_data,
+        text_generation_target_lang,
+        text_must_be_translated_for_openai=False,
+    ):
         """
         Initialize HTML processing context similar to website.with_context() pattern
         :param IrQweb: QWeb rendering environment
@@ -70,11 +77,15 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         generated_content = {}
         updated_processor = self
         # Generate content for all snippets to collect placeholders
-        updated_processor, _dummy, placeholders = updated_processor._render_snippet(snippet_key)
+        updated_processor, _dummy, placeholders = updated_processor._render_snippet(
+            snippet_key
+        )
         for placeholder in placeholders:
             # Update the cached generated content instead of local dict
-            generated_content[placeholder] = ''
-        translated_content = updated_processor._get_processing_cache('html_translated_content')
+            generated_content[placeholder] = ""
+        translated_content = updated_processor._get_processing_cache(
+            "html_translated_content"
+        )
         return (updated_processor, generated_content, translated_content)
 
     @api.model
@@ -89,23 +100,29 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         """
         generated_content = {}
         updated_processor = self
-        snippets_cache = self._get_processing_cache('html_snippets_cache')
+        snippets_cache = self._get_processing_cache("html_snippets_cache")
         for key, snippet in snippets.items():
             data = snippets_cache.get(key)
             if data:
                 placeholders = data[1]
                 for placeholder in placeholders:
-                    generated_content[placeholder] = ''
+                    generated_content[placeholder] = ""
             else:
-                snippet_html = snippet['section']
-                snippet_html_en = snippet['translated_section']
-                updated_processor, placeholders = updated_processor._process_snippet(snippet_html, snippet_html_en)
+                snippet_html = snippet["section"]
+                snippet_html_en = snippet["translated_section"]
+                updated_processor, placeholders = updated_processor._process_snippet(
+                    snippet_html, snippet_html_en
+                )
                 render_data = (snippet_html, placeholders)
                 # Update cache in context
-                updated_processor = updated_processor._update_processing_cache('html_snippets_cache', {key: render_data})
+                updated_processor = updated_processor._update_processing_cache(
+                    "html_snippets_cache", {key: render_data}
+                )
                 for placeholder in placeholders:
-                    generated_content[placeholder] = ''
-        translated_content = updated_processor._get_processing_cache('html_translated_content')
+                    generated_content[placeholder] = ""
+        translated_content = updated_processor._get_processing_cache(
+            "html_translated_content"
+        )
         return updated_processor, generated_content, translated_content
 
     def _process_snippet(self, snippet, snippet_en):
@@ -117,20 +134,30 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         :return: (updated_processor, placeholders)
         :rtype: tuple
         """
-        text_generation_target_lang = self.env.context['html_text_generation_target_lang']
-        text_must_be_translated_for_openai = self.env.context['html_text_must_be_translated_for_openai']
+        text_generation_target_lang = self.env.context[
+            "html_text_generation_target_lang"
+        ]
+        text_must_be_translated_for_openai = self.env.context[
+            "html_text_must_be_translated_for_openai"
+        ]
         terms = []
         xml_translate(terms.append, snippet)
         placeholders = []
         updated_processor = self
         for term in terms:
-            updated_processor, placeholder = updated_processor._compute_placeholder(term)
+            updated_processor, placeholder = updated_processor._compute_placeholder(
+                term
+            )
             placeholders.append(placeholder)
         if text_must_be_translated_for_openai:
             # Check if terms are translated.
-            translation_dictionary = self.env['website.page']._fields['arch_db'].get_translation_dictionary(
-                snippet_en,
-                {text_generation_target_lang: snippet},
+            translation_dictionary = (
+                self.env["website.page"]
+                ._fields["arch_db"]
+                .get_translation_dictionary(
+                    snippet_en,
+                    {text_generation_target_lang: snippet},
+                )
             )
             # Remove all numeric keys.
             translation_dictionary = {
@@ -141,10 +168,14 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
             # Update translated content in context
             translated_updates = {}
             for from_lang_term, to_lang_terms in translation_dictionary.items():
-                translated_updates[from_lang_term] = to_lang_terms[text_generation_target_lang]
+                translated_updates[from_lang_term] = to_lang_terms[
+                    text_generation_target_lang
+                ]
 
             if translated_updates:
-                updated_processor = updated_processor._update_processing_cache('html_translated_content', translated_updates)
+                updated_processor = updated_processor._update_processing_cache(
+                    "html_translated_content", translated_updates
+                )
         return updated_processor, placeholders
 
     def _render_snippet(self, snippet_key):
@@ -155,9 +186,9 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         :rtype: tuple
         """
         # Get processing state from context
-        snippets_cache = self._get_processing_cache('html_snippets_cache')
-        IrQweb = self.env.context['html_IrQweb']
-        cta_data = self.env.context['html_cta_data']
+        snippets_cache = self._get_processing_cache("html_snippets_cache")
+        IrQweb = self.env.context["html_IrQweb"]
+        cta_data = self.env.context["html_cta_data"]
 
         # Using this avoids rendering the same snippet multiple times
         data = snippets_cache.get(snippet_key)
@@ -167,10 +198,14 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         render = IrQweb._render(snippet_key, cta_data)
         render_en = IrQweb._render(snippet_key, cta_data, lang="en_US")
         updated_processor = self
-        updated_processor, placeholders = updated_processor._process_snippet(render, render_en)
+        updated_processor, placeholders = updated_processor._process_snippet(
+            render, render_en
+        )
         data = (render, placeholders)
         # Update cache in context
-        updated_processor = updated_processor._update_processing_cache('html_snippets_cache', {snippet_key: data})
+        updated_processor = updated_processor._update_processing_cache(
+            "html_snippets_cache", {snippet_key: data}
+        )
 
         return updated_processor, render, placeholders
 
@@ -183,20 +218,31 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         :return: Translation ratio
         :rtype: float
         """
-        text_must_be_translated_for_openai = self.env.context.get('html_text_must_be_translated_for_openai', False)
+        text_must_be_translated_for_openai = self.env.context.get(
+            "html_text_must_be_translated_for_openai", False
+        )
         if text_must_be_translated_for_openai:
-            nb_terms_translated = len([k for k, v in translated_content.items() if k != v])
+            nb_terms_translated = len(
+                [k for k, v in translated_content.items() if k != v]
+            )
             nb_terms_total = len(translated_content)
         else:
             nb_terms_translated = len(generated_content)
             nb_terms_total = len(generated_content)
 
-        translated_ratio = nb_terms_translated / nb_terms_total if nb_terms_total > 0 else 0
-        _logger.debug("Ratio of translated content: %s%% (%s/%s)", translated_ratio * 100, nb_terms_translated, nb_terms_total)
+        translated_ratio = (
+            nb_terms_translated / nb_terms_total if nb_terms_total > 0 else 0
+        )
+        _logger.debug(
+            "Ratio of translated content: %s%% (%s/%s)",
+            translated_ratio * 100,
+            nb_terms_translated,
+            nb_terms_total,
+        )
         return translated_ratio
 
     @api.model
-    def _update_snippet_content(self, generated_content, snippet_key, snippet_html=''):
+    def _update_snippet_content(self, generated_content, snippet_key, snippet_html=""):
         """
         Update the content of a snippet with the generated content
         :param generated_content: Generated content to update
@@ -213,9 +259,13 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         else:
             updated_processor = self
             render = snippet_html
-        render = xml_translate(lambda html_string: updated_processor._format_replacement(html_string, generated_content), render)
-        el = html.fromstring(render)
-        return el
+        render = xml_translate(
+            lambda html_string: updated_processor._format_replacement(
+                html_string, generated_content
+            ),
+            render,
+        )
+        return html.fromstring(render)
 
     def _compute_placeholder(self, html_string):
         """
@@ -230,7 +280,7 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         if not html_string or not html_string.strip():
             return self, html_string
 
-        tree = etree.fromstring(f'<div>{html_string}</div>')
+        tree = etree.fromstring(f"<div>{html_string}</div>")
 
         # Identifying one or more wrapping tags that enclose the entire HTML
         # content e.g., <strong><em>text ...</em></strong>. Store them to
@@ -238,9 +288,11 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         wrapping_html = []
         for element in tree.iter():
             wrapping_html.append({"tag": element.tag, "attr": element.attrib})
-            if len(element) != 1 \
-                    or (element.text and element.text.strip()) \
-                    or (element[-1].tail and element[-1].tail.strip()):
+            if (
+                len(element) != 1
+                or (element.text and element.text.strip())
+                or (element[-1].tail and element[-1].tail.strip())
+            ):
                 break
         # Remove the wrapping element used for parsing into a tree
         wrapping_html = wrapping_html[1:]
@@ -256,39 +308,47 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
 
             # Generate a unique hash based on the element's text, tag
             # and attributes.
-            attrib_string = ','.join(f'{key}={value}' for key, value in sorted(element.attrib.items()))
-            combined_string = f'{element.text or ""}-{element.tag}-{attrib_string}'
+            attrib_string = ",".join(
+                f"{key}={value}" for key, value in sorted(element.attrib.items())
+            )
+            combined_string = f"{element.text or ''}-{element.tag}-{attrib_string}"
             unique_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, combined_string)
             hash_value = unique_uuid.hex[:12]
 
             hash_updates[hash_value] = {"tag": element.tag, "attr": element.attrib}
-            element.text = f'#[{element.text or "0"}]({hash_value})'
+            element.text = f"#[{element.text or '0'}]({hash_value})"
 
         # Start with current processor
         updated_processor = self
 
         # Update context with new hashes
         if hash_updates:
-            updated_processor = updated_processor._update_processing_cache('html_hashes_to_tags_and_attributes', hash_updates)
+            updated_processor = updated_processor._update_processing_cache(
+                "html_hashes_to_tags_and_attributes", hash_updates
+            )
 
-        res = tree.xpath('string()')
+        res = tree.xpath("string()")
 
         # If there is at least one wrapping tag, save the way it needs to
         # be re-applied.
         if wrapping_html:
             tags = [
                 (
-                    f'<{tag}{" " if attrs else ""}{attrs}>',
-                    f'</{tag}>',
+                    f"<{tag}{' ' if attrs else ''}{attrs}>",
+                    f"</{tag}>",
                 )
                 for el in wrapping_html
-                for tag, attrs in [(el["tag"], " ".join([f'{k}="{v}"' for k, v in el["attr"].items()]))]
+                for tag, attrs in [
+                    (el["tag"], " ".join([f'{k}="{v}"' for k, v in el["attr"].items()]))
+                ]
             ]
-            opening_tags, closing_tags = zip(*tags)
-            wrapping_pattern = f'{"".join(opening_tags)}$0{"".join(closing_tags[::-1])}'
+            opening_tags, closing_tags = zip(*tags, strict=False)
+            wrapping_pattern = f"{''.join(opening_tags)}$0{''.join(closing_tags[::-1])}"
 
             # Update context with wrapping tags
-            updated_processor = updated_processor._update_processing_cache('html_string_to_wrapping_tags', {html_string: wrapping_pattern})
+            updated_processor = updated_processor._update_processing_cache(
+                "html_string_to_wrapping_tags", {html_string: wrapping_pattern}
+            )
 
         # Note that `get_text_content` here is still needed despite the use
         # of `string()` in the XPath expression above. Indeed, it allows to
@@ -314,8 +374,12 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
             return html_string
 
         # Get state from context
-        hashes_to_tags_and_attributes = self._get_processing_cache('html_hashes_to_tags_and_attributes')
-        html_string_to_wrapping_tags = self._get_processing_cache('html_string_to_wrapping_tags')
+        hashes_to_tags_and_attributes = self._get_processing_cache(
+            "html_hashes_to_tags_and_attributes"
+        )
+        html_string_to_wrapping_tags = self._get_processing_cache(
+            "html_string_to_wrapping_tags"
+        )
 
         # Replace #[string](hash) with <tag>...</tag> based on stored tag
         # and attribute information
@@ -325,23 +389,29 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
             if hash_value not in hashes_to_tags_and_attributes:
                 return content
 
-            tag = hashes_to_tags_and_attributes[hash_value]['tag']
-            attr = hashes_to_tags_and_attributes[hash_value]['attr']
-            attr_string = (" " + " ".join([f'{key}="{value}"' for key, value in attr.items()])) if attr else ''
+            tag = hashes_to_tags_and_attributes[hash_value]["tag"]
+            attr = hashes_to_tags_and_attributes[hash_value]["attr"]
+            attr_string = (
+                (" " + " ".join([f'{key}="{value}"' for key, value in attr.items()]))
+                if attr
+                else ""
+            )
 
             # Handle self-closing tag if content is "0"
             if content == "0":
-                return f'<{tag}{attr_string}/>'
+                return f"<{tag}{attr_string}/>"
 
-            return f'<{tag}{attr_string}>{content}</{tag}>'
+            return f"<{tag}{attr_string}>{content}</{tag}>"
 
         # Use regular expression to find instances of #[string](hash) and
         # replace them
-        tag_pattern = r'#\[([^\]]+)\]\(([^)]+)\)'
+        tag_pattern = r"#\[([^\]]+)\]\(([^)]+)\)"
         replacement = re.sub(tag_pattern, _replace_tag, replacement)
 
         # Handle possible wrapping tags identified
         if html_string in html_string_to_wrapping_tags:
-            replacement = html_string_to_wrapping_tags[html_string].replace('$0', replacement)
+            replacement = html_string_to_wrapping_tags[html_string].replace(
+                "$0", replacement
+            )
 
         return replacement

@@ -1,10 +1,10 @@
-from odoo import models, api
+from odoo import api, models
 
 
 class DecimalPrecision(models.Model):
-    _name = 'decimal.precision'
-    _inherit = ['decimal.precision', 'pos.load.mixin']
+    _name = "decimal.precision"
+    _inherit = ["decimal.precision", "pos.load.mixin"]
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['id', 'name', 'digits']
+        return ["id", "name", "digits"]

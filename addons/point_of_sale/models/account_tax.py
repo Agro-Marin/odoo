@@ -1,32 +1,47 @@
-# -*- coding: utf-8 -*-
+from itertools import batched
 
 from odoo import _, api, models
 from odoo.exceptions import UserError
-from itertools import batched
 
 
 class AccountTax(models.Model):
-    _name = 'account.tax'
-    _inherit = ['account.tax', 'pos.load.mixin']
+    _name = "account.tax"
+    _inherit = ["account.tax", "pos.load.mixin"]
 
     def write(self, vals):
         forbidden_fields = {
-            'amount_type', 'amount', 'type_tax_use', 'tax_group_id', 'price_include',
-            'price_include_override', 'include_base_amount', 'is_base_affected',
+            "amount_type",
+            "amount",
+            "type_tax_use",
+            "tax_group_id",
+            "price_include",
+            "price_include_override",
+            "include_base_amount",
+            "is_base_affected",
         }
         if forbidden_fields & set(vals.keys()):
-            lines = self.env['pos.order.line'].sudo().search([
-                ('order_id.session_id.state', '!=', 'closed')
-            ])
+            lines = (
+                self.env["pos.order.line"]
+                .sudo()
+                .search([("order_id.session_id.state", "!=", "closed")])
+            )
             self_ids = set(self.ids)
-            for lines_chunk in map(self.env['pos.order.line'].sudo().browse, batched(lines.ids, 100000)):
-                if any(tid in self_ids for ts in lines_chunk.read(['tax_ids']) for tid in ts['tax_ids']):
-                    raise UserError(_(
-                        'It is forbidden to modify a tax used in a POS order not posted. '
-                        'You must close the POS sessions before modifying the tax.'
-                    ))
-                lines_chunk.invalidate_recordset(['tax_ids'])
-        return super(AccountTax, self).write(vals)
+            for lines_chunk in map(
+                self.env["pos.order.line"].sudo().browse, batched(lines.ids, 100000)
+            ):
+                if any(
+                    tid in self_ids
+                    for ts in lines_chunk.read(["tax_ids"])
+                    for tid in ts["tax_ids"]
+                ):
+                    raise UserError(
+                        _(
+                            "It is forbidden to modify a tax used in a POS order not posted. "
+                            "You must close the POS sessions before modifying the tax."
+                        )
+                    )
+                lines_chunk.invalidate_recordset(["tax_ids"])
+        return super().write(vals)
 
     def _hook_compute_is_used(self, taxes_to_compute):
         # OVERRIDE in order to fetch taxes used in pos
@@ -35,8 +50,9 @@ class AccountTax(models.Model):
         taxes_to_compute -= used_taxes
 
         if taxes_to_compute:
-            self.env['pos.order.line'].flush_model(['tax_ids'])
-            self.env.cr.execute("""
+            self.env["pos.order.line"].flush_model(["tax_ids"])
+            self.env.cr.execute(
+                """
                 SELECT id
                 FROM account_tax
                 WHERE EXISTS(
@@ -44,7 +60,9 @@ class AccountTax(models.Model):
                     FROM account_tax_pos_order_line_rel AS pos
                     WHERE account_tax.id = pos.account_tax_id
                 ) AND id = ANY(%s)
-            """, [list(taxes_to_compute)])
+            """,
+                [list(taxes_to_compute)],
+            )
 
             used_taxes.update([tax[0] for tax in self.env.cr.fetchall()])
 
@@ -52,12 +70,23 @@ class AccountTax(models.Model):
 
     @api.model
     def _load_pos_data_domain(self, data, config):
-        return self.env['account.tax']._check_company_domain(config.company_id.id)
+        return self.env["account.tax"]._check_company_domain(config.company_id.id)
 
     @api.model
     def _load_pos_data_fields(self, config):
         return [
-            'id', 'name', 'price_include', 'include_base_amount', 'is_base_affected', 'has_negative_factor',
-            'amount_type', 'children_tax_ids', 'amount', 'company_id', 'id', 'sequence', 'tax_group_id',
-            'fiscal_position_ids',
+            "id",
+            "name",
+            "price_include",
+            "include_base_amount",
+            "is_base_affected",
+            "has_negative_factor",
+            "amount_type",
+            "children_tax_ids",
+            "amount",
+            "company_id",
+            "id",
+            "sequence",
+            "tax_group_id",
+            "fiscal_position_ids",
         ]
