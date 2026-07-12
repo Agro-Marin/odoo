@@ -95,33 +95,33 @@ class ProjectBenefit(models.Model):
         activity_type = self.env.ref(
             "mail.mail_activity_data_todo", raise_if_not_found=False
         )
-        for benefit in benefits:
-            existing = self.env["mail.activity"].search(
-                [
-                    ("res_model", "=", self._name),
-                    ("res_id", "=", benefit.id),
-                    (
-                        "activity_type_id",
-                        "=",
-                        activity_type.id if activity_type else False,
-                    ),
-                    ("user_id", "=", benefit.accountable_id.id),
-                ],
-                limit=1,
-            )
-            if existing:
-                continue
-            self.env["mail.activity"].create(
-                {
-                    "res_model_id": self.env["ir.model"]._get_id(self._name),
-                    "res_id": benefit.id,
-                    "activity_type_id": activity_type.id if activity_type else False,
-                    "user_id": benefit.accountable_id.id,
-                    "date_end": benefit.review_date,
-                    "summary": f"Benefit review: {benefit.name}",
-                }
-            )
-        _logger.info("Benefit review cron: scheduled %d activities", len(benefits))
+        activity_type_id = activity_type.id if activity_type else False
+        # Batch the dedup lookup: one search over all candidate benefits instead
+        # of one query per benefit. Existing reminders are keyed on
+        # (res_id, user_id) — the same pair used when creating below.
+        existing = self.env["mail.activity"].search(
+            [
+                ("res_model", "=", self._name),
+                ("res_id", "in", benefits.ids),
+                ("activity_type_id", "=", activity_type_id),
+            ]
+        )
+        already_scheduled = {(act.res_id, act.user_id.id) for act in existing}
+        model_id = self.env["ir.model"]._get_id(self._name)
+        vals_list = [
+            {
+                "res_model_id": model_id,
+                "res_id": benefit.id,
+                "activity_type_id": activity_type_id,
+                "user_id": benefit.accountable_id.id,
+                "date_deadline": benefit.review_date,
+                "summary": f"Benefit review: {benefit.name}",
+            }
+            for benefit in benefits
+            if (benefit.id, benefit.accountable_id.id) not in already_scheduled
+        ]
+        self.env["mail.activity"].create(vals_list)
+        _logger.info("Benefit review cron: scheduled %d activities", len(vals_list))
 
     @api.depends("target_value", "actual_value")
     def _compute_achievement_pct(self) -> None:

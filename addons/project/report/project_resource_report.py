@@ -65,7 +65,7 @@ class ProjectResourceReport(models.Model):
                         AND rr.res_model = 'project.task'
                     WHERE t.state NOT IN ('done', 'canceled')
                       AND t.project_id IS NOT NULL
-                      AND t.is_template = FALSE
+                      AND t.is_template IS NOT TRUE
                       AND res.user_id IS NOT NULL
                     GROUP BY res.user_id, t.project_id
                 ),

@@ -1002,8 +1002,8 @@ class ProjectCustomerPortal(CustomerPortal):
             )
 
         # ensure attachment are accessible with access token inside template
-        for attachment in task_sudo.attachment_ids:
-            attachment.generate_access_token()
+        # (batched on the whole recordset — one write, not one per attachment)
+        task_sudo.attachment_ids.generate_access_token()
         if project_sharing is True:
             # Then the user arrives to the stat button shown in form view of project.task and the portal user can see only 1 task
             # so the history should be reset.

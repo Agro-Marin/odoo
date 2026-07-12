@@ -22,6 +22,7 @@ class ProjectTriage(models.Model):
 
     _name = "project.triage"
     _description = "Personal Task Triage Bucket"
+    _inherit = ["project.pm.mixin"]
     _order = "sequence, id"
 
     active = fields.Boolean("Active", default=True, export_string_translation=False)
@@ -35,14 +36,6 @@ class ProjectTriage(models.Model):
         required=True,
         index=True,
     )
-
-    def copy_data(self, default: dict | None = None) -> list[dict]:
-        """Append '(copy)' to the name when duplicating a triage bucket."""
-        vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=self.env._("%s (copy)", bucket.name))
-            for bucket, vals in zip(self, vals_list, strict=True)
-        ]
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_remaining_triage_buckets(self) -> None:

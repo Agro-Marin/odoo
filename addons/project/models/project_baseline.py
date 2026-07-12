@@ -54,6 +54,11 @@ class ProjectBaseline(models.Model):
         export_string_translation=False,
     )
 
+    _unique_current_baseline = models.UniqueIndex(
+        "(project_id) WHERE (is_current IS TRUE)",
+        "Only one baseline per project can be marked as current.",
+    )
+
     @api.depends("line_ids")
     def _compute_line_count(self) -> None:
         for baseline in self:

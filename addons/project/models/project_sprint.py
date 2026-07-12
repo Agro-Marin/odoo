@@ -50,11 +50,9 @@ class ProjectSprint(models.Model):
         "Team Capacity (hours)",
         help="Total team hours available for this sprint.",
     )
-    task_ids = fields.Many2many(
+    task_ids = fields.One2many(
         "project.task",
-        "project_sprint_task_rel",
         "sprint_id",
-        "task_id",
         string="Sprint Tasks",
     )
     task_count = fields.Integer(
@@ -98,6 +96,10 @@ class ProjectSprint(models.Model):
     _sprint_date_check = models.Constraint(
         "check(date_end >= date_start)",
         "Sprint end date must be after start date.",
+    )
+    _unique_active_sprint = models.UniqueIndex(
+        "(project_id) WHERE (state = 'active')",
+        "A project can only have one active sprint at a time.",
     )
 
     @api.depends(
@@ -147,29 +149,3 @@ class ProjectSprint(models.Model):
         if incomplete:
             incomplete.write({"sprint_id": False})
         self.state = "closed"
-
-    def write(self, vals: dict) -> bool:
-        """Sync task_ids M2M changes to task.sprint_id."""
-        res = super().write(vals)
-        if "task_ids" in vals:
-            self._sync_task_sprint_id()
-        return res
-
-    def _sync_task_sprint_id(self) -> None:
-        """Keep task.sprint_id in sync with sprint.task_ids M2M."""
-        for sprint in self:
-            # Set sprint_id on tasks currently in this sprint
-            tasks_in_sprint = sprint.task_ids
-            sprint_rec = sprint  # bind for lambda
-            tasks_in_sprint.filtered(lambda t, s=sprint_rec: t.sprint_id != s).write(
-                {"sprint_id": sprint.id}
-            )
-            # Clear sprint_id on tasks removed from this sprint
-            orphaned = self.env["project.task"].search(
-                [
-                    ("sprint_id", "=", sprint.id),
-                    ("id", "not in", tasks_in_sprint.ids),
-                ]
-            )
-            if orphaned:
-                orphaned.write({"sprint_id": False})

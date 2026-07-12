@@ -1341,7 +1341,7 @@ class ProjectTask(models.Model):
         for task in recurring_tasks:
             task.recurring_count = tasks_count.get(task.recurrence_id.id, 0)
 
-    @api.depends("predecessor_ids")
+    @api.depends("predecessor_ids", "predecessor_ids.state")
     def _compute_predecessor_count(self) -> None:
         tasks_with_dependency = self.filtered("allow_dependencies")
         tasks_without_dependency = self - tasks_with_dependency
@@ -1374,7 +1374,7 @@ class ProjectTask(models.Model):
                     )
                 )
 
-    @api.depends("successor_ids")
+    @api.depends("successor_ids", "successor_ids.is_closed")
     def _compute_successor_count(self) -> None:
         tasks_with_dependency = self.filtered("allow_dependencies")
         (self - tasks_with_dependency).successor_count = 0
@@ -1606,7 +1606,7 @@ class ProjectTask(models.Model):
             else:
                 task.allocation_state = "under_allocated"
 
-    @api.depends("child_ids")
+    @api.depends("child_ids", "child_ids.state")
     def _compute_subtask_count(self) -> None:
         if not any(self._ids):
             for task in self:
@@ -1889,18 +1889,21 @@ class ProjectTask(models.Model):
                     if self.env.context.get("copy_from_template")
                     else []
                 )
-                default = {
+                # Use a distinct dict for the recursive child copy — rebinding
+                # the loop-shared `default` here would narrow the caller's
+                # defaults for every subsequent task in this batch.
+                child_default = {
                     key: value
                     for key, value in default.items()
                     if key in whitelisted_fields
                 }
-                default["parent_id"] = False
+                child_default["parent_id"] = False
                 current_task = task
                 if self.env.context.get("copy_from_template"):
                     current_task = current_task.with_context(active_test=True)
                 child_ids = current_task.child_ids
                 vals["child_ids"] = [
-                    Command.create(child_id.copy_data(default)[0])
+                    Command.create(child_id.copy_data(child_default)[0])
                     for child_id in child_ids.filtered(lambda c: c.active)
                 ]
             if not has_default_users and vals["user_ids"]:
@@ -1935,10 +1938,15 @@ class ProjectTask(models.Model):
                     original_task.predecessor_ids.ids,
                     original_task.successor_ids.ids,
                 ]
-            if original_task.child_ids:
+            # Only active children are duplicated by copy_data (archived subtasks
+            # are skipped), so the mapping must walk the same active-only set —
+            # otherwise the strict zip above blows up when an archived subtask
+            # exists (project duplication would crash).
+            active_children = original_task.child_ids.filtered("active")
+            if active_children:
                 # If the task has children, we have to call the method create_task_mapping to get their ids and dependencies mapping too.
                 children_mapping, children_dependencies = (
-                    original_task.child_ids._create_task_mapping(copied_task.child_ids)
+                    active_children._create_task_mapping(copied_task.child_ids)
                 )
                 task_mapping.update(children_mapping)
                 task_dependencies.update(children_dependencies)
@@ -2322,7 +2330,10 @@ class ProjectTask(models.Model):
 
         if "milestone_id" in vals:
             # WARNING: has to be done after 'project_id' vals is written on subtasks
-            milestone = self.env["project.milestone"].browse(vals["milestone_id"])
+            # Capture the target milestone id up front: `vals["milestone_id"]` may be
+            # popped below (branch 1) yet is still needed for the subtask propagation.
+            milestone_id_val = vals["milestone_id"]
+            milestone = self.env["project.milestone"].browse(milestone_id_val)
 
             # 1. Task for which the milestone is unvalid -> milestone_id is reset
             if "project_id" not in vals:
@@ -2343,7 +2354,7 @@ class ProjectTask(models.Model):
                 unvalid_milestone_tasks.sudo().write({"milestone_id": False})
                 if valid_milestone_tasks:
                     valid_milestone_tasks.sudo().write(
-                        {"milestone_id": vals["milestone_id"]}
+                        {"milestone_id": milestone_id_val}
                     )
                 del vals["milestone_id"]
 
@@ -2380,7 +2391,7 @@ class ProjectTask(models.Model):
                     )
                 )
             if subtasks_to_update:
-                subtasks_to_update.sudo().write({"milestone_id": vals["milestone_id"]})
+                subtasks_to_update.sudo().write({"milestone_id": milestone_id_val})
 
         if vals.get("parent_id") in self.ids:
             raise UserError(_("Sorry. You can't set a task as its parent task."))
@@ -2786,7 +2797,7 @@ class ProjectTask(models.Model):
     # Subtasks
     # ---------------------------------------------------
 
-    @api.depends("parent_id.partner_id", "project_id")
+    @api.depends("parent_id.partner_id", "project_id", "project_id.partner_id")
     def _compute_partner_id(self) -> None:
         """Compute the partner_id when the tasks have no partner_id.
 
@@ -3252,7 +3263,7 @@ class ProjectTask(models.Model):
     def _message_post_after_hook(self, message: Any, msg_vals: dict[str, Any]) -> None:
         if message.attachment_ids and not self.displayed_image_id:
             image_attachments = message.attachment_ids.filtered(
-                lambda a: a.mimetype == "image"
+                lambda a: a.mimetype and a.mimetype.startswith("image/")
             )
             if image_attachments:
                 self.displayed_image_id = image_attachments[0]
