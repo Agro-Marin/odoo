@@ -422,3 +422,20 @@ class TestPurchaseOverInvoiceState(AccountTestInvoicingCommon):
         self._post_bill(po, self.svc_transferred, 2)  # billed 2 > received 1
         self.assertEqual(po.line_ids.invoice_state, "to do")
         self.assertEqual(po.invoice_state, "to do")
+
+    def test_reduce_qty_below_invoiced_is_over_done(self):
+        """Mirror of sale's test_invoice_state_over_invoiced_ordered_policy:
+        fully bill, then amend the ordered qty below what was billed.
+        """
+        po = self._confirmed_po(self.svc_ordered, 5)
+        line = po.line_ids
+        self._post_bill(po, self.svc_ordered, 5)  # fully bill the ordered qty
+        self.assertEqual(line.qty_invoiced, 5.0)
+        self.assertEqual(line.invoice_state, "done")
+
+        line.product_qty = 3  # ordered amended below invoiced -> over-invoiced
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(line.qty_to_invoice, -2.0)
+        self.assertEqual(line.invoice_state, "over done")
+        self.assertEqual(po.invoice_state, "over done")
