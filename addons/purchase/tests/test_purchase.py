@@ -936,7 +936,6 @@ class TestPurchase(AccountTestInvoicingCommon):
                 }
             ),
         ]
-        self.assertFalse(False)
         # Create PO and set vendor A
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner_a

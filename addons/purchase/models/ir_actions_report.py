@@ -55,6 +55,7 @@ class IrActionsReport(models.Model):
             pdf_stream.close()
             new_pdf_stream = io.BytesIO()
             writer.write(new_pdf_stream)
+            reader_buffer.close()
             collected_streams[purchase_order.id]["stream"] = new_pdf_stream
 
         return collected_streams
