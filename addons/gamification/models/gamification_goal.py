@@ -265,18 +265,22 @@ class GamificationGoal(models.Model):
                                 aggregates=[f"{value_field_name}:sum"],
                             )
 
-                        # user_values has format of _read_group: [(<partner>, <aggregate>), ...]
+                        # user_values has format of _read_group: [(<key>, <aggregate>), ...]
+                        # _read_group emits no row for a key with zero matches,
+                        # so build a lookup and default missing goals to 0 —
+                        # otherwise a goal whose value dropped to 0 would keep
+                        # its stale (possibly still 'reached') value.
+                        value_by_key = {
+                            (
+                                field_value.id
+                                if isinstance(field_value, models.Model)
+                                else field_value
+                            ): aggregate
+                            for field_value, aggregate in user_values
+                        }
                         for goal in [g for g in goals if g.id in query_goals]:
-                            for field_value, aggregate in user_values:
-                                queried_value = (
-                                    field_value.id
-                                    if isinstance(field_value, models.Model)
-                                    else field_value
-                                )
-                                if queried_value == query_goals[goal.id]:
-                                    goals_to_write.update(
-                                        goal._get_write_values(aggregate)
-                                    )
+                            new_value = value_by_key.get(query_goals[goal.id], 0)
+                            goals_to_write.update(goal._get_write_values(new_value))
 
                 else:
                     field_name = definition.field_id.name
@@ -382,6 +386,24 @@ class GamificationGoal(models.Model):
             if any(g.state != "draft" for g in self):
                 raise exceptions.UserError(
                     _("Can not modify the configuration of a started goal")
+                )
+
+        # Automatic goals (count/sum/python) are computed by the challenge cron.
+        # Only managers/system may write their value or state directly; a regular
+        # employee could otherwise force their own goal to 'reached' and trigger
+        # challenge rewards.  Manual goals remain user-updatable (their whole point).
+        if ("current" in vals or "state" in vals) and not (
+            self.env.su or self.env.user.has_group("base.group_erp_manager")
+        ):
+            automatic = self.filtered(
+                lambda g: g.definition_id.computation_mode != "manually"
+            )
+            if automatic:
+                raise exceptions.UserError(
+                    _(
+                        "Automatic goals are computed by the system and can not be"
+                        " updated manually."
+                    )
                 )
 
         vals["last_update"] = fields.Date.context_today(self)

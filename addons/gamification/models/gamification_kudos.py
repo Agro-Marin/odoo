@@ -118,6 +118,11 @@ class GamificationKudos(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         """Validate and create kudos, granting karma and posting notifications."""
         for vals in vals_list:
+            # A non-system caller can only send kudos *as themselves*: force the
+            # sender to the current user so a spoofed ``sender_id`` cannot be used
+            # to impersonate a colleague or farm karma onto oneself.
+            if not self.env.su:
+                vals["sender_id"] = self.env.uid
             if vals.get("sender_id", self.env.uid) == vals.get("recipient_id"):
                 raise exceptions.UserError(_("You cannot send kudos to yourself."))
 

@@ -1,6 +1,6 @@
 from typing import Any, Self
 
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 from odoo.models import ValuesType
 
 
@@ -83,9 +83,39 @@ class GamificationBadgeUser(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # Check granting once per unique badge (not per record in the batch)
-        checked_badge_ids: set[int] = set()
         Badge = self.env["gamification.badge"]
+        # System grants (challenge rewards, achievement/rank badges) run under
+        # sudo and are exempt from the peer-granting guards below.
+        if not self.env.su:
+            uid = self.env.uid
+            grants_per_badge: dict[int, int] = {}
+            for vals in vals_list:
+                if vals.get("user_id") == uid:
+                    raise exceptions.UserError(
+                        _("You can not grant a badge to yourself.")
+                    )
+                grants_per_badge[vals["badge_id"]] = (
+                    grants_per_badge.get(vals["badge_id"], 0) + 1
+                )
+            # Enforce the monthly cap over the whole batch: check_granting()
+            # only sees the pre-batch count, so N grants of a limited badge in
+            # a single create would otherwise slip past a per-record limit.
+            if not self.env.is_admin():
+                for badge_id, count in grants_per_badge.items():
+                    badge = Badge.browse(badge_id)
+                    if (
+                        badge.rule_max
+                        and badge.stat_my_monthly_sending + count
+                        > badge.rule_max_number
+                    ):
+                        raise exceptions.UserError(
+                            _(
+                                "You have already sent this badge too many time"
+                                " this month."
+                            )
+                        )
+        # Per-badge granting rules (auth list, required badges, current limit)
+        checked_badge_ids: set[int] = set()
         for vals in vals_list:
             badge_id = vals["badge_id"]
             if badge_id not in checked_badge_ids:

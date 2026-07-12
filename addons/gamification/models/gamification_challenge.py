@@ -475,13 +475,19 @@ class GamificationChallenge(models.Model):
                 participant_user_ids = set(challenge.user_ids.ids)
                 user_squating_challenge_ids = user_with_goal_ids - participant_user_ids
                 if user_squating_challenge_ids:
-                    # users that used to match the challenge
-                    Goals.search(
-                        [
-                            ("challenge_id", "=", challenge.id),
-                            ("user_id", "in", list(user_squating_challenge_ids)),
-                        ]
-                    ).unlink()
+                    # Users that used to match the challenge: drop only their
+                    # goal for THIS line and period.  Scoping to line + period
+                    # preserves their goals on other lines and their closed
+                    # historical goals (which adaptive difficulty reads back).
+                    squat_domain = [
+                        ("line_id", "=", line.id),
+                        ("user_id", "in", list(user_squating_challenge_ids)),
+                    ]
+                    if start_date:
+                        squat_domain.append(("start_date", "=", start_date))
+                    if end_date:
+                        squat_domain.append(("end_date", "=", end_date))
+                    Goals.search(squat_domain).unlink()
 
                 values = {
                     "definition_id": line.definition_id.id,
@@ -1053,17 +1059,27 @@ class GamificationChallenge(models.Model):
                 bucket.append(g)
 
         for line in self.line_ids:
+            is_higher = line.condition == "higher"
             for user in self.user_ids:
                 past_goals = goals_by_key.get((line.id, user.id), [])
                 if len(past_goals) < 2:
                     continue  # Not enough history
 
-                # Compute average completion rate
+                # Compute an average achievement ratio that is direction-aware:
+                # >1 means the user comfortably beat the target, <1 means they
+                # missed it — for both 'higher' (bigger is better) and 'lower'
+                # (smaller is better) goals.
                 rates = []
                 for g in past_goals:
-                    if g.target_goal:
-                        rate = min(g.current / g.target_goal, 2.0)
-                        rates.append(rate)
+                    if not g.target_goal:
+                        continue
+                    if is_higher:
+                        rates.append(min(g.current / g.target_goal, 2.0))
+                    elif g.current:
+                        rates.append(min(g.target_goal / g.current, 2.0))
+                    else:
+                        # perfect 'lower' result (0) — treat as strongly beating
+                        rates.append(2.0)
                 if not rates:
                     continue
 
@@ -1071,14 +1087,17 @@ class GamificationChallenge(models.Model):
                 base_target = line.target_goal
 
                 if avg_rate > 0.9:
-                    # Consistently exceeding — increase by 15%
-                    adjusted = round(base_target * 1.15, 2)
+                    # Consistently beating the target — make it 15% harder.
+                    # Harder means a bigger target for 'higher', a smaller one
+                    # for 'lower'.
+                    factor = 1.15 if is_higher else 0.85
                 elif avg_rate < 0.5:
-                    # Consistently missing — decrease by 15%
-                    adjusted = round(max(base_target * 0.85, 1), 2)
+                    # Consistently missing — make it 15% easier.
+                    factor = 0.85 if is_higher else 1.15
                 else:
                     continue  # No adjustment needed
 
+                adjusted = round(max(base_target * factor, 1), 2)
                 adjustments[(user.id, line.id)] = adjusted
 
         return adjustments

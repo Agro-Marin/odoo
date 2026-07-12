@@ -21,9 +21,9 @@ badge_manager,"Badge Manager",model_gamification_badge,base.group_erp_manager,1,
 badge_portal,"Badge Portal",gamification.model_gamification_badge,base.group_portal,1,0,0,0
 badge_public,"Badge Public",gamification.model_gamification_badge,base.group_public,1,0,0,0
 
-badge_user_employee,"Badge-user Employee",model_gamification_badge_user,base.group_user,1,1,1,0
+badge_user_employee,"Badge-user Employee",model_gamification_badge_user,base.group_user,1,0,1,0
 badge_user_manager,"Badge-user Manager",model_gamification_badge_user,base.group_erp_manager,1,1,1,1
-badge_user_portal,"Badge-user Portal",gamification.model_gamification_badge_user,base.group_portal,1,1,1,0
+badge_user_portal,"Badge-user Portal",gamification.model_gamification_badge_user,base.group_portal,1,0,0,0
 badge_user_public,"Badge-user Public",gamification.model_gamification_badge_user,base.group_public,1,0,0,0
 
 gamification_karma_rank_access_public,gamification.karma.rank.access.all,gamification.model_gamification_karma_rank,base.group_public,1,0,0,0
@@ -36,7 +36,7 @@ gamification_karma_tracking_access_user_manager,gamification.karma.tracking.acce
 streak_type_employee,"Streak Type Employee",model_gamification_streak_type,base.group_user,1,0,0,0
 streak_type_manager,"Streak Type Manager",model_gamification_streak_type,base.group_erp_manager,1,1,1,1
 
-streak_employee,"Streak Employee",model_gamification_streak,base.group_user,1,1,0,0
+streak_employee,"Streak Employee",model_gamification_streak,base.group_user,1,0,0,0
 streak_manager,"Streak Manager",model_gamification_streak,base.group_erp_manager,1,1,1,1
 
 kudos_category_employee,"Kudos Category Employee",model_gamification_kudos_category,base.group_user,1,0,0,0

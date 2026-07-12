@@ -186,11 +186,18 @@ class ResUsers(models.Model):
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if "karma" in vals:
+            # Record the change as a tracking entry and let ``_compute_karma``
+            # (and the ``_recompute_rank`` it triggers) set the karma value.
+            # Writing ``karma`` directly in ``vals`` would protect the stored
+            # computed field from recomputation for these records, so the
+            # tracking would be created but ``rank_id`` / ``next_rank_id`` would
+            # stay stale until some later karma event.
+            target = int(vals.pop("karma"))
             self._add_karma_batch(
                 {
-                    user: {"gain": int(vals["karma"]) - user.karma}
+                    user: {"gain": target - user.karma}
                     for user in self
-                    if int(vals["karma"]) != user.karma
+                    if target != user.karma
                 }
             )
         return super().write(vals)
