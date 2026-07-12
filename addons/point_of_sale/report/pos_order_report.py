@@ -1,43 +1,61 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models, tools
 
 
 class ReportPosOrder(models.Model):
-    _name = 'report.pos.order'
+    _name = "report.pos.order"
     _description = "Point of Sale Orders Report"
     _auto = False
-    _order = 'date desc'
-    _rec_name = 'order_id'
+    _order = "date desc"
+    _rec_name = "order_id"
 
-    date = fields.Datetime(string='Order Date', readonly=True)
-    order_id = fields.Many2one('pos.order', string='Order', readonly=True)
-    partner_id = fields.Many2one('res.partner', string='Customer', readonly=True)
-    product_id = fields.Many2one('product.product', string='Product', readonly=True)
-    product_tmpl_id = fields.Many2one('product.template', string='Product Template', readonly=True)
+    date = fields.Datetime(string="Order Date", readonly=True)
+    order_id = fields.Many2one("pos.order", string="Order", readonly=True)
+    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
+    product_id = fields.Many2one("product.product", string="Product", readonly=True)
+    product_tmpl_id = fields.Many2one(
+        "product.template", string="Product Template", readonly=True
+    )
     state = fields.Selection(
-        [('draft', 'New'), ('paid', 'Paid'), ('done', 'Posted'), ('cancel', 'Cancelled')],
-        string='Status', readonly=True)
-    user_id = fields.Many2one('res.users', string='User', readonly=True)
-    price_total = fields.Float(string='Total Price', readonly=True)
-    price_sub_total = fields.Float(string='Subtotal w/o discount', readonly=True)
-    price_subtotal_excl = fields.Float(string='Subtotal w/o Tax', readonly=True)
-    total_discount = fields.Float(string='Total Discount', readonly=True)
-    average_price = fields.Float(string='Average Price', readonly=True, aggregator="avg")
-    company_id = fields.Many2one('res.company', string='Company', readonly=True)
-    nbr_lines = fields.Integer(string='Sale Line Count', readonly=True)
-    product_qty = fields.Integer(string='Product Quantity', readonly=True)
-    journal_id = fields.Many2one('account.journal', string='Journal', readonly=True)
-    delay_validation = fields.Integer(string='Delay Validation', readonly=True)
-    product_categ_id = fields.Many2one('product.category', string='Product Category', readonly=True)
-    pos_categ_id = fields.Many2one('pos.category', string='Point of Sale Category', readonly=True)
+        [
+            ("draft", "New"),
+            ("paid", "Paid"),
+            ("done", "Posted"),
+            ("cancel", "Cancelled"),
+        ],
+        string="Status",
+        readonly=True,
+    )
+    user_id = fields.Many2one("res.users", string="User", readonly=True)
+    price_total = fields.Float(string="Total Price", readonly=True)
+    price_sub_total = fields.Float(string="Subtotal w/o discount", readonly=True)
+    price_subtotal_excl = fields.Float(string="Subtotal w/o Tax", readonly=True)
+    total_discount = fields.Float(string="Total Discount", readonly=True)
+    average_price = fields.Float(
+        string="Average Price", readonly=True, aggregator="avg"
+    )
+    company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    nbr_lines = fields.Integer(string="Sale Line Count", readonly=True)
+    product_qty = fields.Integer(string="Product Quantity", readonly=True)
+    journal_id = fields.Many2one("account.journal", string="Journal", readonly=True)
+    delay_validation = fields.Integer(string="Delay Validation", readonly=True)
+    product_categ_id = fields.Many2one(
+        "product.category", string="Product Category", readonly=True
+    )
+    pos_categ_id = fields.Many2one(
+        "pos.category", string="Point of Sale Category", readonly=True
+    )
     invoiced = fields.Boolean(readonly=True)
-    config_id = fields.Many2one('pos.config', string='Point of Sale', readonly=True)
-    pricelist_id = fields.Many2one('product.pricelist', string='Pricelist', readonly=True)
-    session_id = fields.Many2one('pos.session', string='Session', readonly=True)
-    margin = fields.Float(string='Margin', readonly=True)
-    payment_method_id = fields.Many2one('pos.payment.method', string='Payment Method', readonly=True)
+    config_id = fields.Many2one("pos.config", string="Point of Sale", readonly=True)
+    pricelist_id = fields.Many2one(
+        "product.pricelist", string="Pricelist", readonly=True
+    )
+    session_id = fields.Many2one("pos.session", string="Session", readonly=True)
+    margin = fields.Float(string="Margin", readonly=True)
+    payment_method_id = fields.Many2one(
+        "pos.payment.method", string="Payment Method", readonly=True
+    )
 
     def _select(self):
         return """
@@ -115,10 +133,12 @@ class ReportPosOrder(models.Model):
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
             CREATE OR REPLACE VIEW %s AS (
                 %s
                 %s
             )
-        """ % (self._table, self._select(), self._from())
+        """
+            % (self._table, self._select(), self._from())
         )

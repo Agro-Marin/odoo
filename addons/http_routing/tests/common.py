@@ -5,16 +5,26 @@ from werkzeug.exceptions import NotFound
 from werkzeug.test import EnvironBuilder
 
 import odoo.http
+from odoo.libs.web.urls import urljoin as url_join
 from odoo.tests import HOST, HttpCase
 from odoo.tools import DotDict, config, frozendict
-from odoo.libs.web.urls import urljoin as url_join
 
 
 @contextlib.contextmanager
 def MockRequest(
-    env, *, path='/mockrequest', routing=True, multilang=True,
-    context=frozendict(), cookies=frozendict(), country_code=None, city_name=None,
-    website=None, remote_addr=HOST, environ_base=None, url_root=None,
+    env,
+    *,
+    path="/mockrequest",
+    routing=True,
+    multilang=True,
+    context=frozendict(),
+    cookies=frozendict(),
+    country_code=None,
+    city_name=None,
+    website=None,
+    remote_addr=HOST,
+    environ_base=None,
+    url_root=None,
 ):
     """Mock of the ``http.request``.
 
@@ -23,7 +33,7 @@ def MockRequest(
     It is in this module, because website adds properties which are not defined
     in base module.
     """
-    lang_code = context.get('lang', env.context.get('lang', 'en_US'))
+    lang_code = context.get("lang", env.context.get("lang", "en_US"))
     env = env(context=dict(context, lang=lang_code))
     if HttpCase.http_port():
         base_url = HttpCase.base_url()
@@ -32,7 +42,7 @@ def MockRequest(
     request = Mock(
         # request
         httprequest=Mock(
-            host='localhost',
+            host="localhost",
             path=path,
             app=odoo.http.root,
             environ=dict(
@@ -44,28 +54,28 @@ def MockRequest(
                 REMOTE_ADDR=remote_addr,
             ),
             cookies=cookies,
-            referrer='',
+            referrer="",
             remote_addr=remote_addr,
             url_root=url_root,
             args=[],
         ),
-        type='http',
+        type="http",
         future_response=odoo.http.FutureResponse(),
         params={},
-        redirect=env['ir.http']._redirect,
+        redirect=env["ir.http"]._redirect,
         session=DotDict(
             odoo.http.get_default_session(),
-            context={'lang': ''},
+            context={"lang": ""},
             force_website_id=website and website.id,
         ),
-        geoip=odoo.http.GeoIP('127.0.0.1'),
+        geoip=odoo.http.GeoIP("127.0.0.1"),
         db=env.registry.db_name,
         env=env,
         registry=env.registry,
         cookies=cookies,
-        lang=env['res.lang']._get_data(code=lang_code),
+        lang=env["res.lang"]._get_data(code=lang_code),
         website=website,
-        render=lambda *a, **kw: '<MockResponse>',
+        render=lambda *a, **kw: "<MockResponse>",
     )
     if url_root is not None:
         request.httprequest.url = url_join(url_root, path)
@@ -73,9 +83,9 @@ def MockRequest(
         request.website_routing = website.id
     if country_code or city_name:
         request.geoip._city_record = odoo.http.geoip2.models.City(
-            ['en'],
-            country=(country_code and {'iso_code': country_code}) or {},
-            city=(city_name and {'names': {'en': city_name}}) or {},
+            ["en"],
+            country=(country_code and {"iso_code": country_code}) or {},
+            city=(city_name and {"names": {"en": city_name}}) or {},
         )
 
     # The following code mocks match() to return a fake rule with a fake
@@ -90,9 +100,9 @@ def MockRequest(
     match = router.return_value.bind.return_value.match
     if routing:
         match.return_value[0].routing = {
-            'type': 'http',
-            'website': True,
-            'multilang': multilang
+            "type": "http",
+            "website": True,
+            "multilang": multilang,
         }
     else:
         match.side_effect = NotFound
@@ -105,6 +115,6 @@ def MockRequest(
     with contextlib.ExitStack() as s:
         odoo.http._request_stack.push(request)
         s.callback(odoo.http._request_stack.pop)
-        s.enter_context(patch('odoo.http.root.get_db_router', router))
+        s.enter_context(patch("odoo.http.root.get_db_router", router))
 
         yield request

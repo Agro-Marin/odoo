@@ -5,27 +5,35 @@ from odoo.fields import Domain
 
 
 class IrAsset(models.Model):
-    _inherit = 'ir.asset'
+    _inherit = "ir.asset"
 
-    key = fields.Char(copy=False) # used to resolve multiple assets in a multi-website environment
-    website_id = fields.Many2one('website', ondelete='cascade')
+    key = fields.Char(
+        copy=False
+    )  # used to resolve multiple assets in a multi-website environment
+    website_id = fields.Many2one("website", ondelete="cascade")
 
     def _get_asset_params(self):
         params = super()._get_asset_params()
-        params['website_id'] = self.env['website'].get_current_website(fallback=False).id
+        params["website_id"] = (
+            self.env["website"].get_current_website(fallback=False).id
+        )
         return params
 
-    def _get_asset_bundle_url(self, filename, unique, assets_params, ignore_params=False):
-        route_prefix = '/web/assets'
-        if ignore_params: # we dont care about website id, match both
-            route_prefix = '/web/assets%'
-        elif website_id := assets_params.get('website_id', None):
-            route_prefix = f'/web/assets/{website_id}'
-        return f'{route_prefix}/{unique}/{filename}'
+    def _get_asset_bundle_url(
+        self, filename, unique, assets_params, ignore_params=False
+    ):
+        route_prefix = "/web/assets"
+        if ignore_params:  # we dont care about website id, match both
+            route_prefix = "/web/assets%"
+        elif website_id := assets_params.get("website_id", None):
+            route_prefix = f"/web/assets/{website_id}"
+        return f"{route_prefix}/{unique}/{filename}"
 
     def _get_related_assets(self, domain, *, website_id=None, **params):
         if website_id:
-            domain = Domain(domain) & self.env['website'].browse(website_id).website_domain()
+            domain = (
+                Domain(domain) & self.env["website"].browse(website_id).website_domain()
+            )
         assets = super()._get_related_assets(domain, **params)
         return assets.filter_duplicate(website_id)
 
@@ -36,26 +44,33 @@ class IrAsset(models.Model):
         if not website_id:
             return addons_list
 
-        IrModule = self.env['ir.module.module'].sudo()
+        IrModule = self.env["ir.module.module"].sudo()
         # discard all theme modules except website.theme_id
-        themes = IrModule.search(IrModule.get_themes_domain()) - self.env["website"].browse(website_id).theme_id
-        to_remove = set(themes.mapped('name'))
+        themes = (
+            IrModule.search(IrModule.get_themes_domain())
+            - self.env["website"].browse(website_id).theme_id
+        )
+        to_remove = set(themes.mapped("name"))
 
         return [name for name in addons_list if name not in to_remove]
 
     def filter_duplicate(self, website_id=None):
-        """ Filter current recordset only keeping the most suitable asset per distinct name.
-            Every non-accessible asset will be removed from the set:
+        """Filter current recordset only keeping the most suitable asset per distinct name.
+        Every non-accessible asset will be removed from the set:
 
-              * In non website context, every asset with a website will be removed
-              * In a website context, every asset from another website
+          * In non website context, every asset with a website will be removed
+          * In a website context, every asset from another website
         """
         if website_id is None:
-            website_id = self.env['website'].get_current_website(fallback=False).id
+            website_id = self.env["website"].get_current_website(fallback=False).id
         if not website_id:
             return self.filtered(lambda asset: not asset.website_id)
 
-        specific_asset_keys = {asset.key for asset in self if asset.website_id.id == website_id and asset.key}
+        specific_asset_keys = {
+            asset.key
+            for asset in self
+            if asset.website_id.id == website_id and asset.key
+        }
         most_specific_assets = []
         for asset in self:
             if asset.website_id:
@@ -64,7 +79,7 @@ class IrAsset(models.Model):
                 if asset.website_id.id == website_id:
                     most_specific_assets.append(asset)
                 continue
-            elif not asset.key:
+            if not asset.key:
                 # no key: added either way
                 most_specific_assets.append(asset)
             elif asset.key not in specific_asset_keys:
@@ -79,8 +94,8 @@ class IrAsset(models.Model):
         websites. Also this way newly created websites will only
         contain the default assets.
         """
-        current_website_id = self.env.context.get('website_id')
-        if not current_website_id or self.env.context.get('no_cow'):
+        current_website_id = self.env.context.get("website_id")
+        if not current_website_id or self.env.context.get("no_cow"):
             return super().write(vals)
 
         for asset in self.with_context(active_test=False):
@@ -90,15 +105,15 @@ class IrAsset(models.Model):
                 continue
 
             # If already a specific asset for this generic asset, write on it
-            website_specific_asset = asset.search([
-                ('key', '=', asset.key),
-                ('website_id', '=', current_website_id)
-            ], limit=1)
+            website_specific_asset = asset.search(
+                [("key", "=", asset.key), ("website_id", "=", current_website_id)],
+                limit=1,
+            )
             if website_specific_asset:
                 super(IrAsset, website_specific_asset).write(vals)
                 continue
 
-            copy_vals = {'website_id': current_website_id, 'key': asset.key}
+            copy_vals = {"website_id": current_website_id, "key": asset.key}
             website_specific_asset = asset.copy(copy_vals)
 
             super(IrAsset, website_specific_asset).write(vals)

@@ -5,7 +5,7 @@ from odoo import api, models
 
 
 class BasePartnerMergeAutomaticWizard(models.TransientModel):
-    _inherit = 'base.partner.merge.automatic.wizard'
+    _inherit = "base.partner.merge.automatic.wizard"
 
     @api.model
     def _update_foreign_keys(self, src_partners, dst_partner):
@@ -23,9 +23,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         # Case 2: there is a visitor only for src_partners.
         # Need to fix the "de-sync" values between `access_token` and
         # `partner_id`.
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
             UPDATE website_visitor
                SET access_token = partner_id
              WHERE partner_id::int != access_token::int
                AND partner_id = %s;
-        """, (dst_partner.id,))
+        """,
+            (dst_partner.id,),
+        )

@@ -3,7 +3,7 @@
 import ast
 import re
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
@@ -77,6 +77,7 @@ class HrDepartment(models.Model):
             return super()._compute_display_name()
         for record in self:
             record.display_name = record.name
+        return None
 
     def _search_has_read_access(self, operator, value):
         if operator != "in":
@@ -310,7 +311,7 @@ class HrDepartment(models.Model):
         if not self:
             return {}
 
-        hierarchy = {
+        return {
             "parent": {
                 "id": self.parent_id.id,
                 "name": self.parent_id.name,
@@ -328,5 +329,3 @@ class HrDepartment(models.Model):
                 for child in self.child_ids
             ],
         }
-
-        return hierarchy

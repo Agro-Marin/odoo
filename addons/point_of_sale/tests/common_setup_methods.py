@@ -29,15 +29,21 @@ def setup_product_combo_items(self):
         }
     )
 
-    pos_category_1 = self.env["pos.category"].create({
-        "name": "Category 1",
-    })
-    pos_category_2 = self.env["pos.category"].create({ 
-        "name": "Category 2",
-    })
-    pos_category_3 = self.env["pos.category"].create({
-        "name": "Category 3",
-    })
+    pos_category_1 = self.env["pos.category"].create(
+        {
+            "name": "Category 1",
+        }
+    )
+    pos_category_2 = self.env["pos.category"].create(
+        {
+            "name": "Category 2",
+        }
+    )
+    pos_category_3 = self.env["pos.category"].create(
+        {
+            "name": "Category 3",
+        }
+    )
 
     combo_product_1 = self.env["product.product"].create(
         {
@@ -76,18 +82,24 @@ def setup_product_combo_items(self):
         {
             "name": "Desk Accessories Combo",
             "combo_item_ids": [
-                Command.create({
-                    "product_id": combo_product_1.id,
-                    "extra_price": 0,
-                }),
-                Command.create({
-                    "product_id": combo_product_2.id,
-                    "extra_price": 0,
-                }),
-                Command.create({
-                    "product_id": combo_product_3.id,
-                    "extra_price": 2,
-                }),
+                Command.create(
+                    {
+                        "product_id": combo_product_1.id,
+                        "extra_price": 0,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": combo_product_2.id,
+                        "extra_price": 0,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": combo_product_3.id,
+                        "extra_price": 2,
+                    }
+                ),
             ],
         }
     )
@@ -118,14 +130,18 @@ def setup_product_combo_items(self):
         {
             "name": "Desks Combo",
             "combo_item_ids": [
-                Command.create({
-                    "product_id": combo_product_4.id,
-                    "extra_price": 0,
-                }),
-                Command.create({
-                    "product_id": combo_product_5.id,
-                    "extra_price": 2,
-                }),
+                Command.create(
+                    {
+                        "product_id": combo_product_4.id,
+                        "extra_price": 0,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": combo_product_5.id,
+                        "extra_price": 2,
+                    }
+                ),
             ],
         }
     )
@@ -174,47 +190,63 @@ def setup_product_combo_items(self):
         }
     )
 
-    chair_color_attribute = self.env['product.attribute'].create({
-        'name': 'Color',
-        'display_type': 'color',
-        'create_variant': 'no_variant',
-    })
-    chair_color_red = self.env['product.attribute.value'].create({
-        'name': 'Red',
-        'attribute_id': chair_color_attribute.id,
-        'html_color': '#ff0000',
-    })
-    chair_color_blue = self.env['product.attribute.value'].create({
-        'name': 'Blue',
-        'attribute_id': chair_color_attribute.id,
-        'html_color': '#0000ff',
-    })
-    self.env['product.template.attribute.line'].create({
-        'product_tmpl_id': combo_product_9.product_tmpl_id.id,
-        'attribute_id': chair_color_attribute.id,
-        'value_ids': [(6, 0, [chair_color_red.id, chair_color_blue.id])]
-    })
+    chair_color_attribute = self.env["product.attribute"].create(
+        {
+            "name": "Color",
+            "display_type": "color",
+            "create_variant": "no_variant",
+        }
+    )
+    chair_color_red = self.env["product.attribute.value"].create(
+        {
+            "name": "Red",
+            "attribute_id": chair_color_attribute.id,
+            "html_color": "#ff0000",
+        }
+    )
+    chair_color_blue = self.env["product.attribute.value"].create(
+        {
+            "name": "Blue",
+            "attribute_id": chair_color_attribute.id,
+            "html_color": "#0000ff",
+        }
+    )
+    self.env["product.template.attribute.line"].create(
+        {
+            "product_tmpl_id": combo_product_9.product_tmpl_id.id,
+            "attribute_id": chair_color_attribute.id,
+            "value_ids": [(6, 0, [chair_color_red.id, chair_color_blue.id])],
+        }
+    )
 
     self.chairs_combo = self.env["product.combo"].create(
         {
             "name": "Chairs Combo",
             "combo_item_ids": [
-                Command.create({
-                    "product_id": combo_product_6.id,
-                    "extra_price": 0,
-                }),
-                Command.create({
-                    "product_id": combo_product_7.id,
-                    "extra_price": 0,
-                }),
-                Command.create({
-                    "product_id": combo_product_8.id,
-                    "extra_price": 5,
-                }),
-                Command.create({
-                    "product_id": combo_product_9.id,
-                    "extra_price": 0,
-                }),
+                Command.create(
+                    {
+                        "product_id": combo_product_6.id,
+                        "extra_price": 0,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": combo_product_7.id,
+                        "extra_price": 0,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": combo_product_8.id,
+                        "extra_price": 5,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": combo_product_9.id,
+                        "extra_price": 0,
+                    }
+                ),
             ],
         }
     )
@@ -228,7 +260,15 @@ def setup_product_combo_items(self):
             "type": "combo",
             "uom_id": self.env.ref("uom.product_uom_unit").id,
             "combo_ids": [
-                (6, 0, [self.desks_combo.id, self.chairs_combo.id, self.desk_accessories_combo.id])
+                (
+                    6,
+                    0,
+                    [
+                        self.desks_combo.id,
+                        self.chairs_combo.id,
+                        self.desk_accessories_combo.id,
+                    ],
+                )
             ],
             "pos_categ_ids": [(6, 0, [pos_category_2.id])],
         }

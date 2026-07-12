@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import re
+from urllib.parse import urlsplit
 
 from lxml import etree
-from urllib.parse import urlsplit
 
 from odoo.tools.misc import hmac
 
@@ -27,8 +27,8 @@ def distance(s1="", s2="", limit=4):
     if l2 - l1 > limit:
         return -1
     boundary = min(l1, limit) + 1
-    p = [i if i < boundary else BIG for i in range(0, l1 + 1)]
-    d = [BIG for _ in range(0, l1 + 1)]
+    p = [i if i < boundary else BIG for i in range(l1 + 1)]
+    d = [BIG for _ in range(l1 + 1)]
     for j in range(1, l2 + 1):
         j2 = s2[j - 1]
         d[0] = j
@@ -74,22 +74,23 @@ def text_from_html(html_fragment, collapse_whitespace=False):
     :return: text extracted from the html
     """
     # lxml requires one single root element
-    tree = etree.fromstring('<p>%s</p>' % html_fragment, etree.XMLParser(recover=True))
+    tree = etree.fromstring("<p>%s</p>" % html_fragment, etree.XMLParser(recover=True))
 
     # Remove scripts or other technical elements that should not be converted
     # into text.
     xpath_filters = [
-        '//script',
-        '//style',
-        '//svg',
+        "//script",
+        "//style",
+        "//svg",
         '//*[@class="css_non_editable_mode_hidden"]',
     ]
     for xpath_filter in xpath_filters:
-        for element in tree.xpath(xpath_filter): element.getparent().remove(element)
+        for element in tree.xpath(xpath_filter):
+            element.getparent().remove(element)
 
-    content = ' '.join(tree.itertext())
+    content = " ".join(tree.itertext())
     if collapse_whitespace:
-        content = re.sub(r'\s+', ' ', content).strip()
+        content = re.sub(r"\s+", " ", content).strip()
     return content
 
 
@@ -104,44 +105,57 @@ def get_base_domain(url, strip_www=False):
     :return: domain of the url
     """
     if not url:
-        return ''
+        return ""
 
     url = urlsplit(url).netloc
-    if strip_www and url.startswith('www.'):
+    if strip_www and url.startswith("www."):
         url = url[4:]
     return url
 
 
 def add_form_signature(html_fragment, env_sudo):
-    for form in html_fragment.iter('form'):
-        if '/website/form/' not in form.attrib.get('action', ''):
+    for form in html_fragment.iter("form"):
+        if "/website/form/" not in form.attrib.get("action", ""):
             continue
 
-        existing_hash_node = form.find('.//input[@type="hidden"][@name="website_form_signature"]')
+        existing_hash_node = form.find(
+            './/input[@type="hidden"][@name="website_form_signature"]'
+        )
         if existing_hash_node is not None:
             existing_hash_node.getparent().remove(existing_hash_node)
         input_nodes = form.xpath('.//input[contains(@name, "email_")]')
-        form_values = {input_node.attrib['name']: input_node for input_node in input_nodes}
+        form_values = {
+            input_node.attrib["name"]: input_node for input_node in input_nodes
+        }
         # if this form does not send an email, ignore. But at this stage,
         # the value of email_to can still be None in case of default value
-        if 'email_to' not in form_values:
+        if "email_to" not in form_values:
             continue
 
-        email_to_value = form_values['email_to'].attrib.get('value')
-        if (not email_to_value
-            or (email_to_value == 'info@yourcompany.example.com'
-                and html_fragment.xpath('//span[@data-for="contactus_form"]'))):
+        email_to_value = form_values["email_to"].attrib.get("value")
+        if not email_to_value or (
+            email_to_value == "info@yourcompany.example.com"
+            and html_fragment.xpath('//span[@data-for="contactus_form"]')
+        ):
             # This means that the mail will be sent to the value of the dataFor
             # which is the company email.
-            email_to_value = env_sudo.company.email or ''
+            email_to_value = env_sudo.company.email or ""
 
-        has_cc = {'email_cc', 'email_bcc'} & form_values.keys()
-        value = email_to_value + (':email_cc' if has_cc else '')
-        hash_value = hmac(env_sudo, 'website_form_signature', value)
+        has_cc = {"email_cc", "email_bcc"} & form_values.keys()
+        value = email_to_value + (":email_cc" if has_cc else "")
+        hash_value = hmac(env_sudo, "website_form_signature", value)
         if has_cc:
-            hash_value += ':email_cc'
-        hash_node = etree.Element('input', attrib={'type': "hidden", 'value': hash_value, 'class': "form-control s_website_form_input s_website_form_custom", 'name': "website_form_signature"})
-        form_values['email_to'].addnext(hash_node)
+            hash_value += ":email_cc"
+        hash_node = etree.Element(
+            "input",
+            attrib={
+                "type": "hidden",
+                "value": hash_value,
+                "class": "form-control s_website_form_input s_website_form_custom",
+                "name": "website_form_signature",
+            },
+        )
+        form_values["email_to"].addnext(hash_node)
 
 
 def create_image_attachment(env, image_path, image_name):
@@ -153,11 +167,12 @@ def create_image_attachment(env, image_path, image_name):
     :param image_name: the name to give to the image (e.g. 's_banner_default_image.jpg')
     :return: the image attachment
     """
-    Attachments = env['ir.attachment']
-    img = Attachments.create({
-        'public': True,
-        'name': image_name,
-        'type': 'url',
-        'url': Attachments.get_base_url() + image_path,
-    })
-    return img
+    Attachments = env["ir.attachment"]
+    return Attachments.create(
+        {
+            "public": True,
+            "name": image_name,
+            "type": "url",
+            "url": Attachments.get_base_url() + image_path,
+        }
+    )

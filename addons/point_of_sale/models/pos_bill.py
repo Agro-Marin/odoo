@@ -1,9 +1,9 @@
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class PosBill(models.Model):
-    _name = 'pos.bill'
+    _name = "pos.bill"
     _order = "value"
     _description = "Coins/Bills"
     _inherit = ["pos.load.mixin"]
@@ -23,8 +23,12 @@ class PosBill(models.Model):
 
     @api.model
     def _load_pos_data_domain(self, data, config):
-        return ['|', ('id', 'in', config.default_bill_ids.ids), ('pos_config_ids', '=', False)]
+        return [
+            "|",
+            ("id", "in", config.default_bill_ids.ids),
+            ("pos_config_ids", "=", False),
+        ]
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['id', 'name', 'value']
+        return ["id", "name", "value"]

@@ -1,99 +1,138 @@
-
+import logging
 from ast import literal_eval
 from collections import OrderedDict
-from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError, MissingError
-from odoo.fields import Domain
-from lxml import etree, html
-import logging
 from random import randint
+
+from lxml import etree, html
+
+from odoo import _, api, fields, models
+from odoo.exceptions import MissingError, ValidationError
+from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
 
 
 class WebsiteSnippetFilter(models.Model):
-    _name = 'website.snippet.filter'
-    _inherit = ['website.published.multi.mixin']
-    _description = 'Website Snippet Filter'
-    _order = 'name ASC'
+    _name = "website.snippet.filter"
+    _inherit = ["website.published.multi.mixin"]
+    _description = "Website Snippet Filter"
+    _order = "name ASC"
 
     name = fields.Char(required=True, translate=True)
-    action_server_id = fields.Many2one('ir.actions.server', 'Server Action', ondelete='cascade')
-    field_names = fields.Char(help="A list of comma-separated field names", required=True, default='')
-    filter_id = fields.Many2one('ir.filters', 'Filter', ondelete='cascade')
-    limit = fields.Integer(help='The limit is the maximum number of records retrieved', required=True)
-    website_id = fields.Many2one('website', string='Website', ondelete='cascade')
-    model_name = fields.Char(string='Model name', compute='_compute_model_name')
+    action_server_id = fields.Many2one(
+        "ir.actions.server", "Server Action", ondelete="cascade"
+    )
+    field_names = fields.Char(
+        help="A list of comma-separated field names", required=True, default=""
+    )
+    filter_id = fields.Many2one("ir.filters", "Filter", ondelete="cascade")
+    limit = fields.Integer(
+        help="The limit is the maximum number of records retrieved", required=True
+    )
+    website_id = fields.Many2one("website", string="Website", ondelete="cascade")
+    model_name = fields.Char(string="Model name", compute="_compute_model_name")
     help = fields.Text(
         string="Description",
         help="Optional help text describing the filter usage and/or purpose.",
         translate=True,
     )
 
-    @api.depends('filter_id', 'action_server_id')
+    @api.depends("filter_id", "action_server_id")
     def _compute_model_name(self):
         for snippet_filter in self:
             if snippet_filter.filter_id:
                 snippet_filter.model_name = snippet_filter.filter_id.model_id
             else:  # self.action_server_id
-                snippet_filter.model_name = snippet_filter.action_server_id.model_id.model
+                snippet_filter.model_name = (
+                    snippet_filter.action_server_id.model_id.model
+                )
 
-    @api.constrains('action_server_id', 'filter_id')
+    @api.constrains("action_server_id", "filter_id")
     def _check_data_source_is_provided(self):
         for record in self:
             if bool(record.action_server_id) == bool(record.filter_id):
-                raise ValidationError(_("Either action_server_id or filter_id must be provided."))
+                raise ValidationError(
+                    _("Either action_server_id or filter_id must be provided.")
+                )
 
-    @api.constrains('limit')
+    @api.constrains("limit")
     def _check_limit(self):
         """Limit must be between 1 and 16."""
         for record in self:
             if not 0 < record.limit <= 16:
                 raise ValidationError(_("The limit must be between 1 and 16."))
 
-    @api.constrains('field_names')
+    @api.constrains("field_names")
     def _check_field_names(self):
         for record in self:
             for field_name in record.field_names.split(","):
                 if not field_name.strip():
-                    raise ValidationError(_("Empty field name in “%s”", record.field_names))
+                    raise ValidationError(
+                        _("Empty field name in “%s”", record.field_names)
+                    )
 
-    def _render(self, template_key, limit, search_domain=None, with_sample=False, res_model=None, res_id=None, **custom_template_data):
+    def _render(
+        self,
+        template_key,
+        limit,
+        search_domain=None,
+        with_sample=False,
+        res_model=None,
+        res_id=None,
+        **custom_template_data,
+    ):
         """Renders the website dynamic snippet items"""
         self and self.ensure_one()
 
-        assert '.dynamic_filter_template_' in template_key, _("You can only use template prefixed by dynamic_filter_template_ ")
+        assert ".dynamic_filter_template_" in template_key, _(
+            "You can only use template prefixed by dynamic_filter_template_ "
+        )
         if search_domain is None:
             search_domain = []
 
-        if self.website_id and self.env['website'].get_current_website() != self.website_id:
-            return ''
+        if (
+            self.website_id
+            and self.env["website"].get_current_website() != self.website_id
+        ):
+            return ""
 
-        if self.model_name and self.model_name.replace('.', '_') not in template_key:
-            return ''
+        if self.model_name and self.model_name.replace(".", "_") not in template_key:
+            return ""
 
-        records = self._prepare_values(limit=limit, search_domain=search_domain, res_model=res_model, res_id=res_id)
+        records = self._prepare_values(
+            limit=limit, search_domain=search_domain, res_model=res_model, res_id=res_id
+        )
         is_sample = with_sample and not records
         if is_sample:
             records = self._prepare_sample(limit, res_model=res_model)
-        content = self.env['ir.qweb'].with_context(inherit_branding=False)._render(template_key, dict(
-            records=records,
-            is_sample=is_sample,
-            **custom_template_data,
-        ))
-        return [etree.tostring(el, encoding='unicode', method='html') for el in list(html.fromstring('<root>%s</root>' % str(content)))]
+        content = (
+            self.env["ir.qweb"]
+            .with_context(inherit_branding=False)
+            ._render(
+                template_key,
+                dict(
+                    records=records,
+                    is_sample=is_sample,
+                    **custom_template_data,
+                ),
+            )
+        )
+        return [
+            etree.tostring(el, encoding="unicode", method="html")
+            for el in list(html.fromstring("<root>%s</root>" % str(content)))
+        ]
 
     def _prepare_values(self, limit=None, search_domain=None, **options):
         """Gets the data and returns it the right format for render."""
         self and self.ensure_one()
 
-        model_name = options.get('res_model') or self.filter_id.sudo().model_id
-        res_id = options.get('res_id')
+        model_name = options.get("res_model") or self.filter_id.sudo().model_id
+        res_id = options.get("res_id")
         # The "limit" field is there to prevent loading an arbitrary number of
         # records asked by the client side. This here makes sure you can always
         # load at least 16 records as it is what the editor allows.
         max_limit = max(self.limit, 16)
-        limit = limit and min(limit, max_limit) or max_limit
+        limit = (limit and min(limit, max_limit)) or max_limit
         single_record_filter = limit == 1 and model_name and res_id
 
         # Either a multi-record filter is provided, or a single record is specified.
@@ -101,37 +140,60 @@ class WebsiteSnippetFilter(models.Model):
             if not single_record_filter:
                 filter_sudo = self.filter_id.sudo()
                 domain = Domain(filter_sudo._get_eval_domain())
-                if 'website_id' in self.env[model_name]:
-                    domain &= self.env['website'].get_current_website().website_domain()
-                if 'company_id' in self.env[model_name]:
-                    website = self.env['website'].get_current_website()
-                    domain &= Domain('company_id', 'in', [False, website.company_id.id])
-                if 'is_published' in self.env[model_name]:
-                    domain &= Domain('is_published', '=', True)
+                if "website_id" in self.env[model_name]:
+                    domain &= self.env["website"].get_current_website().website_domain()
+                if "company_id" in self.env[model_name]:
+                    website = self.env["website"].get_current_website()
+                    domain &= Domain("company_id", "in", [False, website.company_id.id])
+                if "is_published" in self.env[model_name]:
+                    domain &= Domain("is_published", "=", True)
                 if search_domain:
                     search_domain = Domain(search_domain)
                     domain &= search_domain
             try:
-                records = self.env[model_name].sudo(False).with_context(**literal_eval(filter_sudo.context)).search(
-                    domain,
-                    order=','.join(literal_eval(filter_sudo.sort)) or None,
-                    limit=limit
-                ) if not single_record_filter else self.env[model_name].browse([res_id])
-                return self._filter_records_to_values(records.sudo(), res_model=model_name)
+                records = (
+                    self.env[model_name]
+                    .sudo(False)
+                    .with_context(**literal_eval(filter_sudo.context))
+                    .search(
+                        domain,
+                        order=",".join(literal_eval(filter_sudo.sort)) or None,
+                        limit=limit,
+                    )
+                    if not single_record_filter
+                    else self.env[model_name].browse([res_id])
+                )
+                return self._filter_records_to_values(
+                    records.sudo(), res_model=model_name
+                )
             except MissingError:
                 if not single_record_filter:
-                    _logger.warning("The provided domain %s in 'ir.filters' generated a MissingError in '%s'", domain, self._name)
+                    _logger.warning(
+                        "The provided domain %s in 'ir.filters' generated a MissingError in '%s'",
+                        domain,
+                        self._name,
+                    )
                 return []
         elif self.action_server_id:
             try:
-                return self.action_server_id.with_context(
-                    dynamic_filter=self,
-                    limit=limit,
-                    search_domain=search_domain,
-                ).sudo().run() or []
+                return (
+                    self.action_server_id.with_context(
+                        dynamic_filter=self,
+                        limit=limit,
+                        search_domain=search_domain,
+                    )
+                    .sudo()
+                    .run()
+                    or []
+                )
             except MissingError:
-                _logger.warning("The provided domain %s in 'ir.actions.server' generated a MissingError in '%s'", search_domain, self._name)
+                _logger.warning(
+                    "The provided domain %s in 'ir.actions.server' generated a MissingError in '%s'",
+                    search_domain,
+                    self._name,
+                )
                 return []
+        return None
 
     def _get_field_name_and_type(self, model, field_name):
         """
@@ -147,12 +209,12 @@ class WebsiteSnippetFilter(models.Model):
             field = model._fields.get(field_name)
             if field:
                 field_type = field.type
-            elif 'image' in field_name:
-                field_type = 'image'
-            elif 'price' in field_name:
-                field_type = 'monetary'
+            elif "image" in field_name:
+                field_type = "image"
+            elif "price" in field_name:
+                field_type = "monetary"
             else:
-                field_type = 'text'
+                field_type = "text"
         return field_name, field_widget or field_type
 
     def _get_filter_meta_data(self, model):
@@ -162,7 +224,9 @@ class WebsiteSnippetFilter(models.Model):
         @return OrderedDict containing the widget type for each field name
         """
         meta_data = OrderedDict({})
-        field_names = self.field_names or self.with_context(model=model._name).default_get(['field_names']).get('field_names')
+        field_names = self.field_names or self.with_context(
+            model=model._name
+        ).default_get(["field_names"]).get("field_names")
         for field_name in field_names.split(","):
             field_name, field_widget = self._get_field_name_and_type(model, field_name)
             meta_data[field_name] = field_widget
@@ -181,7 +245,7 @@ class WebsiteSnippetFilter(models.Model):
         if not length:
             return []
         records = self._prepare_sample_records(length, **options)
-        options['is_sample'] = True
+        options["is_sample"] = True
         return self._filter_records_to_values(records, **options)
 
     def _prepare_sample_records(self, length, **options):
@@ -198,10 +262,10 @@ class WebsiteSnippetFilter(models.Model):
             return []
 
         sample = []
-        model = self.env[(self.model_name or options.get('res_model'))]
+        model = self.env[(self.model_name or options.get("res_model"))]
         sample_data = self._get_hardcoded_sample(model)
         if sample_data:
-            for index in range(0, length):
+            for index in range(length):
                 single_sample_data = sample_data[index % len(sample_data)].copy()
                 self._fill_sample(model, single_sample_data, index)
                 sample.append(model.new(single_sample_data))
@@ -217,14 +281,14 @@ class WebsiteSnippetFilter(models.Model):
         meta_data = self._get_filter_meta_data(model)
         for field_name, field_widget in meta_data.items():
             if field_name not in sample and field_name in model:
-                if field_widget in ('image', 'binary'):
+                if field_widget in ("image", "binary"):
                     sample[field_name] = None
-                elif field_widget == 'monetary':
+                elif field_widget == "monetary":
                     sample[field_name] = randint(100, 10000) / 10.0
-                elif field_widget in ('integer', 'float'):
+                elif field_widget in ("integer", "float"):
                     sample[field_name] = index
                 else:
-                    sample[field_name] = _('Sample %s', index + 1)
+                    sample[field_name] = _("Sample %s", index + 1)
         return sample
 
     def _get_hardcoded_sample(self, model):
@@ -249,45 +313,51 @@ class WebsiteSnippetFilter(models.Model):
         @return List of dict associating the field value to each field name
         """
         self and self.ensure_one()
-        model = self.env[self.model_name or options.get('res_model')]
+        model = self.env[self.model_name or options.get("res_model")]
         meta_data = self._get_filter_meta_data(model)
 
         values = []
-        Website = self.env['website']
+        Website = self.env["website"]
         for record in records:
             data = {}
             for field_name, field_widget in meta_data.items():
                 field = model._fields.get(field_name)
-                if field and field.type in ('binary', 'image'):
-                    if options.get('is_sample'):
-                        data[field_name] = record[field_name].decode('utf8') if field_name in record else '/web/image'
+                if field and field.type in ("binary", "image"):
+                    if options.get("is_sample"):
+                        data[field_name] = (
+                            record[field_name].decode("utf8")
+                            if field_name in record
+                            else "/web/image"
+                        )
                     else:
                         data[field_name] = Website.image_url(record, field_name)
-                elif field_widget == 'monetary':
+                elif field_widget == "monetary":
                     model_currency = None
-                    if field and field.type == 'monetary':
+                    if field and field.type == "monetary":
                         model_currency = record[field.get_currency_field(record)]
-                    elif 'currency_id' in model._fields:
-                        model_currency = record['currency_id']
+                    elif "currency_id" in model._fields:
+                        model_currency = record["currency_id"]
                     if model_currency:
                         website_currency = self._get_website_currency()
                         data[field_name] = model_currency._convert(
                             record[field_name],
                             website_currency,
                             Website.get_current_website().company_id,
-                            fields.Date.today()
+                            fields.Date.today(),
                         )
                     else:
                         data[field_name] = record[field_name]
                 else:
                     data[field_name] = record[field_name]
 
-            data['call_to_action_url'] = 'website_url' in record and record['website_url']
-            data['_record'] = record
+            data["call_to_action_url"] = (
+                "website_url" in record and record["website_url"]
+            )
+            data["_record"] = record
             values.append(data)
         return values
 
     @api.model
     def _get_website_currency(self):
-        company = self.env['website'].get_current_website().company_id
+        company = self.env["website"].get_current_website().company_id
         return company.currency_id

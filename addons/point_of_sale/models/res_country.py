@@ -1,10 +1,10 @@
-from odoo import models, api
+from odoo import api, models
 
 
 class ResCountry(models.Model):
-    _name = 'res.country'
-    _inherit = ['res.country', 'pos.load.mixin']
+    _name = "res.country"
+    _inherit = ["res.country", "pos.load.mixin"]
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['id', 'name', 'code', 'vat_label']
+        return ["id", "name", "code", "vat_label"]

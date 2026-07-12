@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
+
 from odoo import models
 from odoo.http import request
 
@@ -37,11 +38,11 @@ class IrQweb(models.AbstractModel):
 
     def _prepare_environment(self, values):
         irQweb = super()._prepare_environment(values)
-        values['slug'] = self.env['ir.http']._slug
-        values['unslug_url'] = self.env['ir.http']._unslug_url
+        values["slug"] = self.env["ir.http"]._slug
+        values["unslug_url"] = self.env["ir.http"]._unslug_url
 
-        if not irQweb.env.context.get('minimal_qcontext') and request:
-            if not hasattr(request, 'is_frontend'):
+        if not irQweb.env.context.get("minimal_qcontext") and request:
+            if not hasattr(request, "is_frontend"):
                 _logger.warning(BAD_REQUEST, stack_info=True)
             elif request.is_frontend:
                 return irQweb._prepare_frontend_environment(values)
@@ -49,6 +50,6 @@ class IrQweb(models.AbstractModel):
         return irQweb
 
     def _prepare_frontend_environment(self, values):
-        values['url_for'] = self.env['ir.http']._url_for
-        values['url_localized'] = self.env['ir.http']._url_localized
+        values["url_for"] = self.env["ir.http"]._url_for
+        values["url_localized"] = self.env["ir.http"]._url_localized
         return self

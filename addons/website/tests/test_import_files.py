@@ -6,13 +6,13 @@ from odoo.tools.misc import file_open
 
 @tagged("post_install", "-at_install")
 class TestImportFiles(TransactionCase):
-
     @unittest.skipUnless(
-        can_import("openpyxl"), "openpyxl not available",
+        can_import("openpyxl"),
+        "openpyxl not available",
     )
     def test_import_task_template_xls(self):
         if not loaded_demo_data(self.env):
-            self.skipTest('Needs demo data to be able to import those files')
+            self.skipTest("Needs demo data to be able to import those files")
         model = "website.rewrite"
         filename = "redirects_import_template.xlsx"
 
@@ -31,7 +31,7 @@ class TestImportFiles(TransactionCase):
             },
         )
         self.assertIsNone(result.get("error"))
-        field_names = ['/'.join(v) for v in result["matches"].values()]
+        field_names = ["/".join(v) for v in result["matches"].values()]
         results = import_wizard.execute_import(
             field_names,
             [r.lower() for r in result["headers"]],
@@ -60,5 +60,14 @@ class TestImportFiles(TransactionCase):
             "results should be empty on successful import of ",
         )
         self.assertEqual(len(result), 10)
-        self.assertEqual(result['num_rows'], 2)
-        self.assertItemsEqual(result['preview'], [['301 Moved permanently'], ['Shop'], ['/shop'], ['/boutique'], ['My Website']])
+        self.assertEqual(result["num_rows"], 2)
+        self.assertItemsEqual(
+            result["preview"],
+            [
+                ["301 Moved permanently"],
+                ["Shop"],
+                ["/shop"],
+                ["/boutique"],
+                ["My Website"],
+            ],
+        )

@@ -14,8 +14,8 @@ _match_asset_file_url_regex = re.compile(r"^(/_custom/([^/]+))?/(\w+)/([/\w]+\.\
 
 
 class WebsiteAssets(models.AbstractModel):
-    _name = 'website.assets'
-    _description = 'Assets Utils'
+    _name = "website.assets"
+    _description = "Assets Utils"
 
     @api.model
     def reset_asset(self, url, bundle):
@@ -64,36 +64,39 @@ class WebsiteAssets(models.AbstractModel):
             # If it was already modified, simply override the corresponding
             # attachment content
             custom_attachment.write({"datas": datas})
-            self.env.registry.clear_cache('assets')
+            self.env.registry.clear_cache("assets")
         else:
             # If not, create a new attachment to copy the original scss/js file
             # content, with its modifications
             new_attach = {
-                'name': url.split("/")[-1],
-                'type': "binary",
-                'mimetype': ((file_type == 'js' and 'text/javascript') or 'text/scss'),
-                'datas': datas,
-                'url': custom_url,
+                "name": url.split("/")[-1],
+                "type": "binary",
+                "mimetype": ((file_type == "js" and "text/javascript") or "text/scss"),
+                "datas": datas,
+                "url": custom_url,
                 **self._add_website_id({}),
             }
             self.env["ir.attachment"].create(new_attach)
 
             # Create an asset with the new attachment
-            IrAsset = self.env['ir.asset']
+            IrAsset = self.env["ir.asset"]
             new_asset = {
-                'path': custom_url,
-                'target': url,
-                'directive': 'replace',
+                "path": custom_url,
+                "target": url,
+                "directive": "replace",
                 **self._add_website_id({}),
             }
             target_asset = self._get_custom_asset(url)
             if target_asset:
-                new_asset['name'] = target_asset.name + ' override'
-                new_asset['bundle'] = target_asset.bundle
-                new_asset['sequence'] = target_asset.sequence
+                new_asset["name"] = target_asset.name + " override"
+                new_asset["bundle"] = target_asset.bundle
+                new_asset["sequence"] = target_asset.sequence
             else:
-                new_asset['name'] = '%s: replace %s' % (bundle, custom_url.split('/')[-1])
-                new_asset['bundle'] = IrAsset._get_related_bundle(url, bundle)
+                new_asset["name"] = "%s: replace %s" % (
+                    bundle,
+                    custom_url.split("/")[-1],
+                )
+                new_asset["bundle"] = IrAsset._get_related_bundle(url, bundle)
             IrAsset.create(new_asset)
 
     @api.model
@@ -134,7 +137,7 @@ class WebsiteAssets(models.AbstractModel):
 
         # If the file is not yet customized, the content is found by reading
         # the local file
-        with misc.file_open(url.strip('/'), 'rb', filter_ext=EXTENSIONS) as f:
+        with misc.file_open(url.strip("/"), "rb", filter_ext=EXTENSIONS) as f:
             return f.read()
 
     @api.model
@@ -163,10 +166,10 @@ class WebsiteAssets(models.AbstractModel):
         if not m:
             return False
         return {
-            'module': m.group(3),
-            'resource_path': m.group(4),
-            'customized': bool(m.group(1)),
-            'bundle': m.group(2) or False
+            "module": m.group(3),
+            "resource_path": m.group(4),
+            "customized": bool(m.group(1)),
+            "bundle": m.group(2) or False,
         }
 
     @api.model
@@ -202,45 +205,62 @@ class WebsiteAssets(models.AbstractModel):
                 word hook). If a key is already in the file's map, its value is
                 overridden.
         """
-        IrAttachment = self.env['ir.attachment']
-        if 'color-palettes-name' in values:
-            self.reset_asset('/website/static/src/scss/options/colors/user_color_palette.scss', 'web.assets_frontend')
-            self.reset_asset('/website/static/src/scss/options/colors/user_gray_color_palette.scss', 'web.assets_frontend')
+        IrAttachment = self.env["ir.attachment"]
+        if "color-palettes-name" in values:
+            self.reset_asset(
+                "/website/static/src/scss/options/colors/user_color_palette.scss",
+                "web.assets_frontend",
+            )
+            self.reset_asset(
+                "/website/static/src/scss/options/colors/user_gray_color_palette.scss",
+                "web.assets_frontend",
+            )
             # Do not reset all theme colors for compatibility (not removing alpha -> epsilon colors)
-            self.make_scss_customization('/website/static/src/scss/options/colors/user_theme_color_palette.scss', {
-                'success': 'null',
-                'info': 'null',
-                'warning': 'null',
-                'danger': 'null',
-            })
+            self.make_scss_customization(
+                "/website/static/src/scss/options/colors/user_theme_color_palette.scss",
+                {
+                    "success": "null",
+                    "info": "null",
+                    "warning": "null",
+                    "danger": "null",
+                },
+            )
             # Also reset gradients which are in the "website" values palette
-            preset_gradients = {f'o-cc{cc}-bg-gradient': 'null' for cc in range(1, 6)}
-            self.make_scss_customization('/website/static/src/scss/options/user_values.scss', {
-                'menu-gradient': 'null',
-                'menu-secondary-gradient': 'null',
-                'footer-gradient': 'null',
-                'copyright-gradient': 'null',
-                **preset_gradients,
-            })
+            preset_gradients = {f"o-cc{cc}-bg-gradient": "null" for cc in range(1, 6)}
+            self.make_scss_customization(
+                "/website/static/src/scss/options/user_values.scss",
+                {
+                    "menu-gradient": "null",
+                    "menu-secondary-gradient": "null",
+                    "footer-gradient": "null",
+                    "copyright-gradient": "null",
+                    **preset_gradients,
+                },
+            )
 
-        delete_attachment_id = values.pop('delete-font-attachment-id', None)
+        delete_attachment_id = values.pop("delete-font-attachment-id", None)
         if delete_attachment_id:
             delete_attachment_id = int(delete_attachment_id)
-            IrAttachment.search([
-                '|', ('id', '=', delete_attachment_id),
-                ('original_id', '=', delete_attachment_id),
-                ('name', 'like', 'google-font'),
-            ]).unlink()
+            IrAttachment.search(
+                [
+                    "|",
+                    ("id", "=", delete_attachment_id),
+                    ("original_id", "=", delete_attachment_id),
+                    ("name", "like", "google-font"),
+                ]
+            ).unlink()
 
-        google_local_fonts = values.get('google-local-fonts')
-        if google_local_fonts and google_local_fonts != 'null':
+        google_local_fonts = values.get("google-local-fonts")
+        if google_local_fonts and google_local_fonts != "null":
             # "('font_x': 45, 'font_y': '')" -> {'font_x': '45', 'font_y': ''}
-            google_local_fonts = dict(re.findall(r"'([^']+)': '?(\d*)", google_local_fonts))
+            google_local_fonts = dict(
+                re.findall(r"'([^']+)': '?(\d*)", google_local_fonts)
+            )
             # Google is serving different font format (woff, woff2, ttf, eot..)
             # based on the user agent. We need to get the woff2 as this is
             # supported by all the browers we support.
             headers_woff2 = {
-                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Safari/537.36',
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Safari/537.36",
             }
             for font_name in google_local_fonts:
                 if google_local_fonts[font_name]:
@@ -248,40 +268,49 @@ class WebsiteAssets(models.AbstractModel):
                 else:
                     font_family_attachments = IrAttachment
                     font_content = requests.get(
-                        f'https://fonts.googleapis.com/css?family={font_name}:300,300i,400,400i,700,700i&display=swap',
-                        timeout=5, headers=headers_woff2,
+                        f"https://fonts.googleapis.com/css?family={font_name}:300,300i,400,400i,700,700i&display=swap",
+                        timeout=5,
+                        headers=headers_woff2,
                     ).content.decode()
 
                     def fetch_google_font(src):
                         statement = src.group()
-                        url, font_format = re.match(r'src: url\(([^\)]+)\) (.+)', statement).groups()
+                        url, font_format = re.match(
+                            r"src: url\(([^\)]+)\) (.+)", statement
+                        ).groups()
                         req = requests.get(url, timeout=5, headers=headers_woff2)
                         # https://fonts.gstatic.com/s/modak/v18/EJRYQgs1XtIEskMB-hRp7w.woff2
                         # -> s-modak-v18-EJRYQgs1XtIEskMB-hRp7w.woff2
-                        name = urlsplit(url).path.lstrip('/').replace('/', '-')
-                        attachment = IrAttachment.create({
-                            'name': f'google-font-{name}',
-                            'type': 'binary',
-                            'datas': base64.b64encode(req.content),
-                            'public': True,
-                        })
+                        name = urlsplit(url).path.lstrip("/").replace("/", "-")
+                        attachment = IrAttachment.create(
+                            {
+                                "name": f"google-font-{name}",
+                                "type": "binary",
+                                "datas": base64.b64encode(req.content),
+                                "public": True,
+                            }
+                        )
                         nonlocal font_family_attachments
                         font_family_attachments += attachment
-                        return 'src: url(/web/content/%s/%s) %s' % (
+                        return "src: url(/web/content/%s/%s) %s" % (
                             attachment.id,
                             name,
                             font_format,
                         )
 
-                    font_content = re.sub(r'src: url\(.+\)', fetch_google_font, font_content)
+                    font_content = re.sub(
+                        r"src: url\(.+\)", fetch_google_font, font_content
+                    )
 
-                    attach_font = IrAttachment.create({
-                        'name': f'{font_name} (google-font)',
-                        'type': 'binary',
-                        'datas': base64.encodebytes(font_content.encode()),
-                        'mimetype': 'text/css',
-                        'public': True,
-                    })
+                    attach_font = IrAttachment.create(
+                        {
+                            "name": f"{font_name} (google-font)",
+                            "type": "binary",
+                            "datas": base64.encodebytes(font_content.encode()),
+                            "mimetype": "text/css",
+                            "public": True,
+                        }
+                    )
                     google_local_fonts[font_name] = attach_font.id
                     # That field is meant to keep track of the original
                     # image attachment when an image is being modified (by the
@@ -291,11 +320,15 @@ class WebsiteAssets(models.AbstractModel):
                     font_family_attachments.original_id = attach_font.id
 
             # {'font_x': 45, 'font_y': 55} -> "('font_x': 45, 'font_y': 55)"
-            values['google-local-fonts'] = str(google_local_fonts).replace('{', '(').replace('}', ')')
+            values["google-local-fonts"] = (
+                str(google_local_fonts).replace("{", "(").replace("}", ")")
+            )
 
-        custom_url = self._make_custom_asset_url(url, 'web.assets_frontend')
-        updatedFileContent = self._get_content_from_url(custom_url) or self._get_content_from_url(url)
-        updatedFileContent = updatedFileContent.decode('utf-8')
+        custom_url = self._make_custom_asset_url(url, "web.assets_frontend")
+        updatedFileContent = self._get_content_from_url(
+            custom_url
+        ) or self._get_content_from_url(url)
+        updatedFileContent = updatedFileContent.decode("utf-8")
         for name, value in values.items():
             # Protect variable names so they cannot be computed as numbers
             # on SCSS compilation (e.g. var(--700) => var(700)).
@@ -303,19 +336,26 @@ class WebsiteAssets(models.AbstractModel):
                 value = re.sub(
                     r"var\(--([0-9]+)\)",
                     lambda matchobj: "var(--#{" + matchobj.group(1) + "})",
-                    value)
+                    value,
+                )
             pattern = "'%s': %%s,\n" % name
             regex = re.compile(pattern % ".+")
             replacement = pattern % value
             if regex.search(updatedFileContent):
                 updatedFileContent = re.sub(regex, replacement, updatedFileContent)
             else:
-                updatedFileContent = re.sub(r'^( *)(.*hook.*)', r'\1%s\1\2' % replacement, updatedFileContent, count=1, flags=re.MULTILINE)
+                updatedFileContent = re.sub(
+                    r"^( *)(.*hook.*)",
+                    r"\1%s\1\2" % replacement,
+                    updatedFileContent,
+                    count=1,
+                    flags=re.MULTILINE,
+                )
 
-        self.save_asset(url, 'web.assets_frontend', updatedFileContent, 'scss')
+        self.save_asset(url, "web.assets_frontend", updatedFileContent, "scss")
 
     @api.model
-    def _get_custom_attachment(self, custom_url, op='='):
+    def _get_custom_attachment(self, custom_url, op="="):
         """
         Fetch the ir.attachment record related to the given customized asset.
 
@@ -327,17 +367,19 @@ class WebsiteAssets(models.AbstractModel):
             ir.attachment()
         Only return the attachments related to the current website.
         """
-        assert op in ('in', '='), 'Invalid operator'
-        if self.env.user.has_group('website.group_website_designer'):
+        assert op in ("in", "="), "Invalid operator"
+        if self.env.user.has_group("website.group_website_designer"):
             self = self.sudo()
-        website = self.env['website'].get_current_website()
+        website = self.env["website"].get_current_website()
         res = self.env["ir.attachment"].search([("url", op, custom_url)])
         # It is guaranteed that the attachment we are looking for has a website_id.
         # When we serve an attachment we normally serve the ones which have the right website_id
         # or no website_id at all (which means "available to all websites", of
         # course if they are marked "public"). But this does not apply in this
         # case of customized asset files.
-        return res.with_context(website_id=website.id).filtered(lambda x: x.website_id == website)
+        return res.with_context(website_id=website.id).filtered(
+            lambda x: x.website_id == website
+        )
 
     @api.model
     def _get_custom_asset(self, custom_url):
@@ -352,13 +394,13 @@ class WebsiteAssets(models.AbstractModel):
             ir.asset()
         Return the views related to the current website.
         """
-        website = self.env['website'].get_current_website()
-        url = custom_url[1:] if custom_url.startswith(('/', '\\')) else custom_url
-        res = self.env['ir.asset'].search([('path', 'like', url)])
+        website = self.env["website"].get_current_website()
+        url = custom_url[1:] if custom_url.startswith(("/", "\\")) else custom_url
+        res = self.env["ir.asset"].search([("path", "like", url)])
         return res.with_context(website_id=website.id).filter_duplicate()
 
     @api.model
     def _add_website_id(self, values):
-        website = self.env['website'].get_current_website()
-        values['website_id'] = website.id
+        website = self.env["website"].get_current_website()
+        values["website_id"] = website.id
         return values

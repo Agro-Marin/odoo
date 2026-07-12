@@ -1,35 +1,48 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from ast import literal_eval
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class WebsiteControllerPage(models.Model):
-    _name = 'website.controller.page'
-    _inherits = {'ir.ui.view': 'view_id'}
+    _name = "website.controller.page"
+    _inherits = {"ir.ui.view": "view_id"}
     _inherit = [
-        'website.published.multi.mixin',
-        'website.searchable.mixin',
+        "website.published.multi.mixin",
+        "website.searchable.mixin",
     ]
-    _description = 'Model Page'
-    _order = 'website_id, id DESC'
+    _description = "Model Page"
+    _order = "website_id, id DESC"
     _unique_name_slugified = models.Constraint(
-        'UNIQUE(name_slugified)',
-        'url should be unique',
+        "UNIQUE(name_slugified)",
+        "url should be unique",
     )
 
-    view_id = fields.Many2one('ir.ui.view', string='Listing view', required=True, index=True, ondelete="cascade")
-    record_view_id = fields.Many2one('ir.ui.view', string='Record view', ondelete="cascade")
-    menu_ids = fields.One2many('website.menu', 'controller_page_id', 'Related Menus')
+    view_id = fields.Many2one(
+        "ir.ui.view",
+        string="Listing view",
+        required=True,
+        index=True,
+        ondelete="cascade",
+    )
+    record_view_id = fields.Many2one(
+        "ir.ui.view", string="Record view", ondelete="cascade"
+    )
+    menu_ids = fields.One2many("website.menu", "controller_page_id", "Related Menus")
 
-    website_id = fields.Many2one(related='view_id.website_id', store=True, readonly=False, ondelete='cascade')
+    website_id = fields.Many2one(
+        related="view_id.website_id", store=True, readonly=False, ondelete="cascade"
+    )
 
-    name = fields.Char(string="The name is used to generate the URL and is shown in the browser title bar",
+    name = fields.Char(
+        string="The name is used to generate the URL and is shown in the browser title bar",
         compute="_compute_name",
         inverse="_inverse_name",
         precompute=True,
         required=True,
-        store=True)
+        store=True,
+    )
     # Bindings to model/records, to expose the page on the website.
     # Route: /model/<string:page_name_slugified>
     name_slugified = fields.Char(
@@ -42,11 +55,13 @@ class WebsiteControllerPage(models.Model):
     )
     url_demo = fields.Char(string="Demo URL", compute="_compute_url_demo")
 
-    record_domain = fields.Char(string="Domain", help="Domain to restrict records that can be viewed publicly")
+    record_domain = fields.Char(
+        string="Domain", help="Domain to restrict records that can be viewed publicly"
+    )
     default_layout = fields.Selection(
         selection=[
-            ('grid', "Grid"),
-            ('list', "List"),
+            ("grid", "Grid"),
+            ("list", "List"),
         ],
         default="grid",
     )
@@ -55,8 +70,10 @@ class WebsiteControllerPage(models.Model):
         for model_id in self.mapped("model_id"):
             Model = self.env[model_id.model]
             if Model._transient or Model._abstract or not Model._auto:
-                raise ValidationError(self.env._("A page must be set to display a concrete model."))
-            Model.check_access('read')
+                raise ValidationError(
+                    self.env._("A page must be set to display a concrete model.")
+                )
+            Model.check_access("read")
 
     @api.depends("view_id")
     def _compute_name(self):
@@ -74,11 +91,11 @@ class WebsiteControllerPage(models.Model):
             if not rec.model_id:
                 rec.name_slugified = False
                 continue
-            rec.name_slugified = self.env['ir.http']._slugify(rec.name or '')
+            rec.name_slugified = self.env["ir.http"]._slugify(rec.name or "")
 
     def _inverse_name_slugified(self):
         for rec in self:
-            rec.name_slugified = self.env['ir.http']._slugify(rec.name_slugified)
+            rec.name_slugified = self.env["ir.http"]._slugify(rec.name_slugified)
 
     @api.depends("name_slugified")
     def _compute_url_demo(self):
@@ -101,10 +118,12 @@ class WebsiteControllerPage(models.Model):
     def write(self, vals):
         res = super().write(vals)
         for rec in self:
-            rec.menu_ids.write({
-                "url": f"/model/{rec.name_slugified}",
-                "name": rec.name,
-            })
+            rec.menu_ids.write(
+                {
+                    "url": f"/model/{rec.name_slugified}",
+                    "name": rec.name,
+                }
+            )
         if "model_id" in vals:
             self._check_user_has_model_access()
         return res
@@ -122,12 +141,9 @@ class WebsiteControllerPage(models.Model):
 
         # Make sure website.is_menu_cache_disabled() will be recomputed
         if self:
-            self.env.registry.clear_cache('templates')
+            self.env.registry.clear_cache("templates")
         return super().unlink()
 
     def open_website_url(self):
         url = f"/model/{self.name_slugified}"
-        return {
-            "type": "ir.actions.act_url",
-            "url": url
-        }
+        return {"type": "ir.actions.act_url", "url": url}

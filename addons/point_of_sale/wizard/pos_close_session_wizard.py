@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
 
 
 class PosCloseSessionWizard(models.TransientModel):
-    _name = 'pos.close.session.wizard'
+    _name = "pos.close.session.wizard"
     _description = "Close Session Wizard"
 
     amount_to_balance = fields.Float("Amount to balance")
