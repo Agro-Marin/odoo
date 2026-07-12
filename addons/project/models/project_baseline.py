@@ -91,7 +91,10 @@ class ProjectBaseline(models.Model):
                 "baseline_id": self.id,
                 "task_id": task.id,
                 "task_name": task.name,
-                "planned_start": task.date_assign,
+                # The scheduled start (planned_date_begin), not date_assign —
+                # date_assign is the *actual* assignment timestamp, which would
+                # make every planned-vs-actual variance meaningless.
+                "planned_start": task.planned_date_begin,
                 "planned_end": task.date_end,
                 "planned_hours": task.planned_hours,
                 "milestone_id": task.milestone_id.id,

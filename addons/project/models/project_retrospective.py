@@ -94,8 +94,11 @@ class ProjectRetrospective(models.Model):
         self.ensure_one()
         if not self.previous_id:
             return
+        # Idempotent: skip actions already carried over, so running the button
+        # twice does not duplicate every open item.
+        already_carried = set(self.action_ids.mapped("carried_from_id").ids)
         open_actions = self.previous_id.action_ids.filtered(
-            lambda a: a.state in ("open", "in_progress")
+            lambda a: a.state in ("open", "in_progress") and a.id not in already_carried
         )
         for action in open_actions:
             action.copy(

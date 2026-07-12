@@ -220,6 +220,12 @@ class ProjectWorkflowStep(models.Model):
             ]
         )
         for step in steps:
-            step.project_ids.task_ids._send_task_rating_mail()
+            # Only the tasks currently IN this step, not every task of the
+            # project: _send_task_rating_mail keys off each task's own step, so
+            # blasting the whole project fires premature requests for tasks that
+            # sit in other (not-yet-due) periodic steps.
+            step.project_ids.task_ids.filtered(
+                lambda t, step=step: t.step_id == step
+            )._send_task_rating_mail()
             step._compute_rating_request_deadline()
             self.env.cr.commit()

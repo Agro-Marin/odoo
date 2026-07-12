@@ -8,7 +8,9 @@ export class RottingKanbanController extends KanbanController {
     setup() {
         super.setup();
         if (this.progressBarState) {
-            patch(this.progressBarState, rottingProgressBarPatch);
+            // A fresh extension per instance: patch() mutates its argument, so a
+            // shared object would throw "already used" on the second render.
+            patch(this.progressBarState, rottingProgressBarPatch());
         }
     }
 
