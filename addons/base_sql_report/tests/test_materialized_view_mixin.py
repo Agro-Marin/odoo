@@ -1,7 +1,11 @@
 from unittest.mock import patch
 
+import psycopg
+
 from odoo.tests.common import TransactionCase
 from odoo.tools.sql import SQL
+
+from odoo.addons.base_sql_report.models import sql_materialized_mixin
 
 
 class TestIntrospection(TransactionCase):
@@ -71,6 +75,35 @@ class TestRefreshGuards(TransactionCase):
             with self.assertRaises(KeyError):
                 self.mixin.refresh()
 
+    def test_refresh_recovers_transaction_on_transient_error(self):
+        """A swallowed transient error must not leave the transaction aborted.
+
+        Regression fence: a populated MV without a UNIQUE index makes REFRESH
+        CONCURRENTLY raise (and abort the PG transaction).  When that error is
+        classified transient, refresh() must return False AND leave the cursor
+        usable — otherwise a loop-over-many-MVs cron dies after the first hiccup
+        with InFailedSqlTransaction.
+        """
+        cls = type(self.mixin)
+        self.env.cr.execute("DROP MATERIALIZED VIEW IF EXISTS test_bsr_noidx CASCADE")
+        self.env.cr.execute("CREATE MATERIALIZED VIEW test_bsr_noidx AS SELECT 1 AS id")
+        self.addCleanup(
+            lambda: self.env.cr.execute(
+                "DROP MATERIALIZED VIEW IF EXISTS test_bsr_noidx CASCADE"
+            ),
+        )
+        transient = (psycopg.errors.ObjectNotInPrerequisiteState,)
+        with (
+            patch.object(cls, "_table", "test_bsr_noidx", create=True),
+            patch.object(
+                sql_materialized_mixin, "_TRANSIENT_REFRESH_ERRORS", transient
+            ),
+        ):
+            self.assertFalse(self.mixin.refresh())
+        # Transaction must still be healthy after the swallowed failure.
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(self.env.cr.fetchone()[0], 1)
+
 
 class TestDependentHandling(TransactionCase):
     """Creation-time dependency handling (H2 + H5 regression fence)."""
@@ -110,6 +143,90 @@ class TestDependentHandling(TransactionCase):
             self.env.cr.execute(
                 "DROP MATERIALIZED VIEW IF EXISTS test_bsr_dep_target CASCADE"
             )
+
+
+class TestCreation(TransactionCase):
+    """_create_materialized_view: index shapes and the default init() hook."""
+
+    def setUp(self):
+        super().setUp()
+        self.mixin = self.env["materialized.view.mixin"]
+        self.env.cr.execute("DROP MATERIALIZED VIEW IF EXISTS test_bsr_create CASCADE")
+        self.addCleanup(
+            lambda: self.env.cr.execute(
+                "DROP MATERIALIZED VIEW IF EXISTS test_bsr_create CASCADE"
+            ),
+        )
+
+    def _index_columns(self):
+        """Return the ordered column names of id_test_bsr_create, if any."""
+        self.env.cr.execute(
+            """
+            SELECT a.attname
+            FROM pg_index i
+            JOIN pg_class ic ON ic.oid = i.indexrelid
+            JOIN pg_attribute a ON a.attrelid = i.indrelid
+                AND a.attnum = ANY(i.indkey)
+            WHERE ic.relname = 'id_test_bsr_create'
+            ORDER BY array_position(i.indkey, a.attnum)
+            """
+        )
+        return [row[0] for row in self.env.cr.fetchall()]
+
+    def test_composite_index_field(self):
+        cls = type(self.mixin)
+        with (
+            patch.object(cls, "_table", "test_bsr_create", create=True),
+            patch.object(
+                cls,
+                "_build_table_query",
+                lambda self: SQL("SELECT 1 AS a, 2 AS b"),
+                create=True,
+            ),
+        ):
+            self.mixin._create_materialized_view(index_field=["a", "b"])
+            # The composite unique index must exist, and CONCURRENTLY refresh
+            # (which requires such an index) must succeed against it.
+            self.assertEqual(self._index_columns(), ["a", "b"])
+            self.assertTrue(self.mixin.refresh())
+
+    def test_empty_index_field_raises(self):
+        cls = type(self.mixin)
+        with (
+            patch.object(cls, "_table", "test_bsr_create", create=True),
+            patch.object(
+                cls,
+                "_build_table_query",
+                lambda self: SQL("SELECT 1 AS a"),
+                create=True,
+            ),
+        ):
+            with self.assertRaises(ValueError):
+                self.mixin._create_materialized_view(index_field=[])
+
+    def test_default_init_uses_mv_index_field(self):
+        cls = type(self.mixin)
+        with (
+            patch.object(cls, "_table", "test_bsr_create", create=True),
+            patch.object(cls, "_mv_index_field", "a", create=True),
+            # init() no-ops on abstract models; emulate a concrete subclass.
+            patch.object(cls, "_abstract", False, create=True),
+            patch.object(
+                cls,
+                "_build_table_query",
+                lambda self: SQL("SELECT 1 AS a"),
+                create=True,
+            ),
+        ):
+            self.mixin.init()
+            self.assertEqual(self._index_columns(), ["a"])
+
+    def test_init_noop_on_abstract_model(self):
+        # The mixin itself is abstract and has no table: init() must not try
+        # to build an MV (which would fail resolving _query()).
+        self.assertTrue(self.mixin._abstract)
+        self.mixin.init()  # must not raise
+        self.assertEqual(self._index_columns(), [])
 
 
 class TestQueryBridge(TransactionCase):

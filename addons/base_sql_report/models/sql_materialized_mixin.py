@@ -52,6 +52,12 @@ class MaterializedViewMixin(models.AbstractModel):
     # from the physical relation rather than re-inlining the analytical query.
     _materialized = True
 
+    # Column (or list of columns) for the UNIQUE index that REFRESH ...
+    # CONCURRENTLY requires.  Consumed by the default ``init()`` below; a
+    # concrete model may override this attribute instead of writing its own
+    # ``init()``.
+    _mv_index_field = "id"
+
     # ------------------------------------------------------------------
     # QUERY ACCESSOR
     # ------------------------------------------------------------------
@@ -161,6 +167,17 @@ class MaterializedViewMixin(models.AbstractModel):
         Returns True on success, False if the view doesn't exist or a
         transient error occurred.  Non-transient errors propagate so the
         cron's error log actually shows them.
+
+        The REFRESH runs inside a SAVEPOINT.  A failed statement aborts the
+        whole PostgreSQL transaction, so without the savepoint a swallowed
+        transient error would leave the cursor in ``InFailedSqlTransaction``
+        state — every later statement (e.g. the next MV in a loop-over-many
+        cron) would then fail even though this method returned ``False``.
+        ``ROLLBACK TO SAVEPOINT`` localises the failure to this one refresh.
+
+        Pending ORM writes are not flushed before the refresh (``flush=False``):
+        the MV is defined over committed data, and callers that need in-flight
+        writes reflected must flush explicitly beforehand.
         """
         if not self._view_exists(self._table):
             _logger.warning(
@@ -171,17 +188,19 @@ class MaterializedViewMixin(models.AbstractModel):
             return False
 
         table_name = SQL.identifier(self._table)
+        concurrently = self._is_populated(self._table)
         try:
-            if self._is_populated(self._table):
-                _logger.info("Refreshing %s (CONCURRENTLY)", self._table)
-                self.env.cr.execute(
-                    SQL("REFRESH MATERIALIZED VIEW CONCURRENTLY %s", table_name),
-                )
-            else:
-                _logger.info("Refreshing %s (blocking, first refresh)", self._table)
-                self.env.cr.execute(
-                    SQL("REFRESH MATERIALIZED VIEW %s", table_name),
-                )
+            with self.env.cr.savepoint(flush=False):
+                if concurrently:
+                    _logger.info("Refreshing %s (CONCURRENTLY)", self._table)
+                    self.env.cr.execute(
+                        SQL("REFRESH MATERIALIZED VIEW CONCURRENTLY %s", table_name),
+                    )
+                else:
+                    _logger.info("Refreshing %s (blocking, first refresh)", self._table)
+                    self.env.cr.execute(
+                        SQL("REFRESH MATERIALIZED VIEW %s", table_name),
+                    )
         except _TRANSIENT_REFRESH_ERRORS as exc:
             _logger.warning(
                 "Transient refresh failure on %s: %s. Cron will retry.",
@@ -199,6 +218,24 @@ class MaterializedViewMixin(models.AbstractModel):
     # CREATION
     # ------------------------------------------------------------------
 
+    def init(self):
+        """Default schema hook: (re)create the MV on install / upgrade.
+
+        Reads ``with_data`` from context (default True — the safe choice; see
+        ``_create_materialized_view``) and uses ``_mv_index_field`` for the
+        unique index.  A concrete model only needs to set ``_mv_index_field``;
+        override this method directly only for non-default ``with_data`` logic.
+
+        No-op for abstract models: ``registry.init_models`` calls ``init()`` on
+        every model, including this mixin itself, which has no table.
+        """
+        if self._abstract:
+            return
+        with_data = self.env.context.get("with_data", True)
+        self._create_materialized_view(
+            with_data=with_data, index_field=self._mv_index_field
+        )
+
     def _create_materialized_view(self, with_data=True, index_field="id"):
         """(Re)create the materialized view and its unique index.
 
@@ -210,8 +247,10 @@ class MaterializedViewMixin(models.AbstractModel):
                 refresh.  Pass ``with_data=False`` only for MVs so large that
                 install latency outweighs availability, and queue a refresh
                 immediately after module install.
-            index_field: Column for the UNIQUE index required by REFRESH
-                MATERIALIZED VIEW CONCURRENTLY.  Defaults to ``"id"``.
+            index_field: Column (``str``) or columns (list/tuple of ``str``)
+                for the UNIQUE index required by REFRESH MATERIALIZED VIEW
+                CONCURRENTLY.  Defaults to ``"id"``.  A composite key must be
+                unique across the MV rows.
 
         Raises:
             UserError: if ``self._table`` is already used by a regular table
@@ -246,20 +285,28 @@ class MaterializedViewMixin(models.AbstractModel):
                 ),
             )
 
+        index_cols = (
+            [index_field] if isinstance(index_field, str) else list(index_field)
+        )
+        if not index_cols:
+            raise ValueError(
+                f"{self._name}: index_field must name at least one column "
+                "for the unique index REFRESH ... CONCURRENTLY requires."
+            )
         index_name = SQL.identifier(f"id_{self._table}")
-        index_field_sql = SQL.identifier(index_field)
+        index_cols_sql = SQL(", ").join(SQL.identifier(col) for col in index_cols)
         _logger.info(
             "Creating unique index id_%s on %s(%s)",
             self._table,
             self._table,
-            index_field,
+            ", ".join(index_cols),
         )
         self.env.cr.execute(
             SQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (%s)",
                 index_name,
                 table_name,
-                index_field_sql,
+                index_cols_sql,
             ),
         )
 
@@ -273,18 +320,24 @@ class MaterializedViewMixin(models.AbstractModel):
         if kind is None:
             return
         if kind in ("r", "p"):
-            raise UserError(_(
-                "Cannot create materialized view %(table)r: a regular "
-                "table with that name already exists (relkind=%(kind)r). "
-                "Drop or rename it manually before upgrading the module.",
-                table=self._table, kind=kind,
-            ))
+            raise UserError(
+                _(
+                    "Cannot create materialized view %(table)r: a regular "
+                    "table with that name already exists (relkind=%(kind)r). "
+                    "Drop or rename it manually before upgrading the module.",
+                    table=self._table,
+                    kind=kind,
+                )
+            )
         if kind not in ("v", "m"):
-            raise UserError(_(
-                "Cannot (re)create materialized view %(table)r: "
-                "unexpected pg_class relkind %(kind)r.  Investigate manually.",
-                table=self._table, kind=kind,
-            ))
+            raise UserError(
+                _(
+                    "Cannot (re)create materialized view %(table)r: "
+                    "unexpected pg_class relkind %(kind)r.  Investigate manually.",
+                    table=self._table,
+                    kind=kind,
+                )
+            )
 
         dependents = self._dependent_relations(self._table)
         if dependents:
