@@ -9,8 +9,6 @@ from odoo.fields import Command, Domain
 from odoo.tools import float_compare, float_is_zero, format_date, groupby
 from odoo.tools.translate import _
 
-from odoo.addons.sale import const
-
 
 class SaleOrderLine(models.Model):
     _name = "sale.order.line"
@@ -196,15 +194,13 @@ class SaleOrderLine(models.Model):
         ondelete="restrict",
     )
     tax_ids = fields.Many2many(
-        comodel_name="account.tax",
-        string="Taxes",
+        # Only the compute/store and sale-specific domain differ from
+        # order.line.amount.mixin.tax_ids.
         compute="_compute_tax_ids",
         store=True,
         precompute=True,
         readonly=False,
-        check_company=True,
         domain="[('type_tax_use', '=', 'sale')]",
-        context={"active_test": False, "hide_original_tax_ids": True},
     )
     pricelist_item_id = fields.Many2one(
         comodel_name="product.pricelist.item",
@@ -272,21 +268,11 @@ class SaleOrderLine(models.Model):
 
     # Invoice block
     invoice_line_ids = fields.Many2many(
-        comodel_name="account.move.line",
+        # Only the relation table/columns differ from order.line.invoice.mixin.
         relation="account_move_line_sale_order_line_rel",
         column1="order_line_id",
         column2="move_line_id",
-        string="Invoice Lines",
-        copy=False,
     )
-    invoice_state = fields.Selection(
-        selection=const.INVOICE_STATE,
-        string="Invoice Status",
-        default="no",
-        compute="_compute_invoice_state",
-        store=True,
-    )
-
     # Technical field holding custom data for the taxes computation engine.
     extra_tax_data = fields.Json()
 
@@ -482,25 +468,7 @@ class SaleOrderLine(models.Model):
         "order_id.line_ids.display_type",
     )
     def _compute_parent_id(self):
-        sale_order_lines = set(self)
-        for order, lines in self.grouped("order_id").items():
-            if not order:
-                lines.parent_id = False
-                continue
-            last_section = False
-            last_sub = False
-            for line in order.line_ids.sorted("sequence"):
-                if line.display_type == "line_section":
-                    last_section = line
-                    if line in sale_order_lines:
-                        line.parent_id = False
-                    last_sub = False
-                elif line.display_type == "line_subsection":
-                    if line in sale_order_lines:
-                        line.parent_id = last_section
-                    last_sub = line
-                elif line in sale_order_lines:
-                    line.parent_id = last_sub or last_section
+        super()._compute_parent_id()
 
     @api.depends("order_id", "partner_id", "product_id")
     def _compute_display_name(self):
@@ -538,34 +506,10 @@ class SaleOrderLine(models.Model):
                 line.product_id.sale_line_warn_msg if has_warning_group else ""
             )
 
-    @api.depends("company_id", "product_id")
-    def _compute_tax_ids(self):
-        lines_by_company = defaultdict(lambda: self.env["sale.order.line"])
-        cached_taxes = {}
-        for line in self.filtered(lambda l: not l.display_type):
-            if not line.product_id or line.product_type == "combo":
-                line.tax_ids = False
-                continue
-            lines_by_company[line.company_id] += line
-
-        for company, lines in lines_by_company.items():
-            for line in lines.with_company(company):
-                taxes = line.product_id.taxes_id._filter_taxes_by_company(
-                    company,
-                )
-                if not taxes:
-                    line.tax_ids = False
-                    continue
-                fiscal_position = line.order_id.fiscal_position_id
-                cache_key = (fiscal_position.id, company.id, tuple(taxes.ids))
-                cache_key += line._get_custom_compute_tax_cache_key()
-                if cache_key in cached_taxes:
-                    result = cached_taxes[cache_key]
-                else:
-                    result = fiscal_position.map_tax(taxes)
-                    cached_taxes[cache_key] = result
-                # If company_id is set, always filter taxes by the company
-                line.tax_ids = result
+    def _tax_ids_include_product(self, line):
+        # Combo products carry no taxes of their own; the shared computation
+        # lives in order.line.amount.mixin._compute_tax_ids.
+        return line.product_type != "combo"
 
     @api.depends(
         "partner_id",
@@ -575,38 +519,9 @@ class SaleOrderLine(models.Model):
         "order_id.partner_id.category_id",
     )
     def _compute_analytic_distribution(self):
-        """Compute analytic distribution for each line.
-
-        Uses caching to avoid repeated _get_distribution calls for lines
-        with the same product/partner/company combination.
-        """
-        cache = {}
-        AnalyticModel = self.env["account.analytic.distribution.model"]
-
-        for line in self.filtered(lambda x: not x.display_type):
-            # Create cache key from all distribution parameters
-            partner_category_ids = tuple(line.order_id.partner_id.category_id.ids)
-            cache_key = (
-                line.product_id.id,
-                line.product_categ_id.id,
-                line.order_id.partner_id.id,
-                partner_category_ids,
-                line.company_id.id,
-            )
-
-            if cache_key not in cache:
-                cache[cache_key] = AnalyticModel._get_distribution(
-                    {
-                        "product_id": line.product_id.id,
-                        "product_categ_id": line.product_categ_id.id,
-                        "partner_id": line.order_id.partner_id.id,
-                        "partner_category_id": list(partner_category_ids),
-                        "company_id": line.company_id.id,
-                    }
-                )
-
-            distribution = cache[cache_key]
-            line.analytic_distribution = distribution or line.analytic_distribution
+        # The cached body lives in order.line.amount.mixin; sale only extends
+        # the dependency set above (product_categ_id + partner categories).
+        super()._compute_analytic_distribution()
 
     @api.depends("product_id")
     def _compute_custom_attribute_values(self):
@@ -674,15 +589,6 @@ class SaleOrderLine(models.Model):
         for line in self:
             line.product_template_id = line.product_id.product_tmpl_id
 
-    @api.depends(
-        "product_id",
-        "product_id.uom_id",
-        "product_id.uom_ids",
-    )
-    def _compute_allowed_uom_ids(self):
-        for line in self:
-            line.allowed_uom_ids = line.product_id.uom_id | line.product_id.uom_ids
-
     @api.depends("product_id")
     def _compute_product_uom_id(self):
         for line in self:
@@ -690,29 +596,6 @@ class SaleOrderLine(models.Model):
                 line.product_id.uom_id.id != line.product_uom_id.id
             ):
                 line.product_uom_id = line.product_id.uom_id
-
-    @api.depends("product_id", "display_type")
-    def _compute_product_qty(self):
-        """Set default quantity when product is added or changed.
-
-        - New lines: Initialize with 1.0
-        - Product change: Reset to 1.0
-        - Manual override: User can change after initial set (readonly=False)
-        """
-        for line in self:
-            # Display type lines (notes, sections) must have NULL quantity
-            if line.display_type:
-                line.product_qty = False
-                continue
-            if not line.product_id:
-                line.product_qty = False
-                continue
-            product_qty = 1.0
-            # Set quantity if not set yet OR product changed
-            if not line.product_qty or (
-                line._origin.product_id and line._origin.product_id != line.product_id
-            ):
-                line.product_qty = product_qty
 
     @api.depends("product_id", "linked_line_id", "linked_line_ids")
     def _compute_name(self):
@@ -1242,24 +1125,6 @@ class SaleOrderLine(models.Model):
         return [("product_id.product_tmpl_id", operator, value)]
 
     # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
-    @api.readonly
-    def action_add_from_catalog(self):
-        order = self.env["sale.order"].browse(self.env.context.get("order_id"))
-        return order.with_context(child_field="line_ids").action_add_from_catalog()
-
-    def action_view_order(self):
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": "sale.order",
-            "res_id": self.order_id.id,
-            "view_mode": "form",
-        }
-
-    # ------------------------------------------------------------
     # CATALOGUE MIXIN METHODS
     # ------------------------------------------------------------
 
@@ -1322,9 +1187,6 @@ class SaleOrderLine(models.Model):
                 round=False,
             )
         return amount
-
-    def _domain_product_id(self):
-        return [("sale_ok", "=", True)]
 
     def _get_combo_totals(self, totals_field):
         """Return the total/subtotal amount sale order lines linked to combo."""
@@ -1446,19 +1308,6 @@ class SaleOrderLine(models.Model):
         """
         return new or old
 
-    def _get_invoice_lines(self):
-        self.ensure_one()
-        if self.env.context.get("accrual_entry_date"):
-            accrual_date = fields.Date.from_string(
-                self.env.context["accrual_entry_date"],
-            )
-            return self.invoice_line_ids.filtered(
-                lambda l: (
-                    l.move_id.invoice_date and l.move_id.invoice_date <= accrual_date
-                ),
-            )
-        return self.invoice_line_ids
-
     def _get_line_linked(self):
         """Return the linked line of this line, if any.
 
@@ -1549,12 +1398,6 @@ class SaleOrderLine(models.Model):
             name += "\n" + pacv.display_name
 
         return name
-
-    def get_line_parent_section(self):
-        if not self.display_type and self.parent_id.display_type == "line_subsection":
-            return self.parent_id.parent_id
-
-        return self.parent_id
 
     def _get_lines_linked(self):
         """Return the linked lines of this line, if any.
@@ -1906,31 +1749,13 @@ class SaleOrderLine(models.Model):
             res["account_id"] = False
         return res
 
-    def _prepare_base_line_for_taxes_computation(self, **kwargs):
-        """Convert the current record to a dictionary in order to use the generic taxes computation method
-        defined on account.tax.
-
-        :return: A python dictionary.
-        """
+    def _get_base_line_special_type(self):
         self.ensure_one()
-        company = self.order_id.company_id or self.env.company
-        base_values = {
-            "tax_ids": self.tax_ids,
-            "quantity": self.product_qty,
-            "partner_id": self.order_id.partner_id,
-            "currency_id": self.order_id.currency_id or company.currency_id,
-            "rate": self.order_id.currency_rate,
-            "name": self.name,
-        }
+        # Global-discount lines carry a dedicated tax-engine special type; other
+        # special lines (down payments) defer to order.line.amount.mixin.
         if self._is_global_discount():
-            base_values["special_type"] = "global_discount"
-        elif self.is_downpayment:
-            base_values["special_type"] = "down_payment"
-        base_values.update(kwargs)
-        return self.env["account.tax"]._prepare_base_line_for_taxes_computation(
-            self,
-            **base_values,
-        )
+            return "global_discount"
+        return super()._get_base_line_special_type()
 
     def _prepare_procurement_vals(self):
         """Prepare specific key for moves or other components that will be created from a stock rule
@@ -2167,15 +1992,12 @@ class SaleOrderLine(models.Model):
             return True
         return super()._price_update_blocked()
 
-    def _validate_analytic_distribution(self):
-        for line in self.filtered(
-            lambda l: not l.display_type and l.state == "draft",
-        ):
-            line._validate_distribution(
-                product=line.product_id.id,
-                business_domain="sale_order",
-                company_id=line.company_id.id,
-            )
+    def _lines_to_validate_analytic_distribution(self):
+        # Sale only validates draft lines. The shared iteration (with
+        # business_domain = "sale_order") lives in order.line.fields.mixin.
+        return self.filtered(
+            lambda line: not line.display_type and line.state == "draft",
+        )
 
     def _validate_write_vals(self, write_vals):
         for method_name in self._get_validate_write_vals_methods():
@@ -2183,54 +2005,14 @@ class SaleOrderLine(models.Model):
                 getattr(self, method_name)(write_vals)
 
     def _get_validate_write_vals_methods(self):
-        return [
-            "_validate_write_display_type",
-            "_validate_write_locked_order",
+        return super()._get_validate_write_vals_methods() + [
             "_validate_write_product_and_uom",
         ]
 
-    def _validate_write_display_type(self, write_vals):
-        """Validate that display_type is not being changed on existing lines."""
-        if "display_type" not in write_vals:
-            return
-
-        new_type = write_vals.get("display_type")
-        lines = self.filtered(
-            lambda l: (
-                l.display_type != new_type
-                and not (
-                    l.display_type == "line_subsection" and new_type == "line_section"
-                )
-            ),
-        )
-        if not lines:
-            return
-
-        # Build error message with line identification
-        if len(lines) == 1:
-            line = lines[0]
-            line_id = self._get_line_identifier(line)
-            raise UserError(
-                _(
-                    "You cannot change the type of sales order line '%s'. "
-                    "Instead, delete the current line and create a new line of the proper type.",
-                    line_id,
-                ),
-            )
-        # Multiple lines - show first 5 and count
-        line_ids = [self._get_line_identifier(l) for l in lines[:5]]
-        error_msg = ", ".join(line_ids)
-        if len(lines) > 5:
-            error_msg += _(" and %s more", len(lines) - 5)
-
-        raise UserError(
-            _(
-                "You cannot change the type of %(count)s sales order lines (%(lines)s). "
-                "Instead, delete these lines and create new lines of the proper type.",
-                count=len(lines),
-                lines=error_msg,
-            ),
-        )
+    def _is_display_type_change_allowed(self, line, new_type):
+        # Sale allows promoting a subsection to a section; the shared
+        # validation + error rendering live in order.line.fields.mixin.
+        return line.display_type == "line_subsection" and new_type == "line_section"
 
     def _validate_write_product_and_uom(self, write_vals):
         """Validate product_id and product_uom_id changes on order lines.

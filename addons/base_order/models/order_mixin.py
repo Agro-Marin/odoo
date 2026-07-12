@@ -325,6 +325,80 @@ class OrderMixin(models.AbstractModel):
         return f"{self._name}.line"
 
     # ------------------------------------------------------------------
+    # CRUD
+    # ------------------------------------------------------------------
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Generate the sequence number using the order type as routing key."""
+        seq_code = f"{self._get_order_type()}.order"
+        for vals in vals_list:
+            company_id = vals.get(
+                "company_id",
+                self.default_get(["company_id"])["company_id"],
+            )
+            # Ensures defaults are taken from the right company.
+            self_comp = self.with_company(company_id)
+            if vals.get("name", _("New")) == _("New"):
+                date_order = vals.get(
+                    "date_order",
+                    self_comp.default_get(["date_order"])["date_order"],
+                )
+                seq_date = fields.Datetime.context_timestamp(
+                    self_comp,
+                    fields.Datetime.to_datetime(date_order),
+                )
+                vals["name"] = self_comp.env["ir.sequence"].next_by_code(
+                    seq_code,
+                    sequence_date=seq_date,
+                )
+        return super().create(vals_list)
+
+    def write(self, vals):
+        self._validate_write_vals(vals)
+        return super().write(vals)
+
+    def copy_data(self, default=None):
+        """Duplicate an order, copying only its copiable lines.
+
+        When the caller doesn't pass ``line_ids`` explicitly, rebuild them from
+        ``_get_order_lines_copiable()`` so that non-copiable lines (e.g. down
+        payments) are dropped from the copy.  Identical in sale and purchase.
+        """
+        default = dict(default or {})
+        default_has_no_order_line = "line_ids" not in default
+        default.setdefault("line_ids", [])
+        vals_list = super().copy_data(default=default)
+        if default_has_no_order_line:
+            for order, vals in zip(self, vals_list, strict=False):
+                vals["line_ids"] = [
+                    Command.create(line_vals)
+                    for line_vals in order._get_order_lines_copiable().copy_data()
+                ]
+        return vals_list
+
+    def _get_order_lines_copiable(self):
+        """Return the order lines to duplicate when copying the order.
+
+        Excludes down-payment lines (they belong to the original order's
+        invoicing, not a fresh copy).  Override to refine the selection.
+        """
+        return self.line_ids.filtered(lambda line: not line.is_downpayment)
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_draft_or_cancel(self):
+        """Prevent deletion of confirmed orders."""
+        confirmed = self.filtered(lambda o: o.state not in ("draft", "cancel"))
+        if confirmed:
+            raise UserError(
+                _(
+                    "Cannot delete confirmed %(desc)s. Cancel them first:\n%(orders)s",
+                    desc=self._description,
+                    orders=", ".join(confirmed.mapped("name")),
+                ),
+            )
+
+    # ------------------------------------------------------------------
     # COMPUTE — identical in sale and purchase
     # ------------------------------------------------------------------
 
@@ -380,9 +454,12 @@ class OrderMixin(models.AbstractModel):
                 order.date_validity = False
 
     def _compute_journal_id(self):
-        """Stub — child models override to select the sale/purchase journal."""
+        """Default to no journal (invoice creation then falls back to the
+        lowest-sequence journal of the right type).  Available as an override
+        point for models that want to force a specific journal."""
         self.journal_id = False
 
+    @api.depends_context("lang")
     @api.depends("state")
     def _compute_type_name(self):
         for order in self:
@@ -835,85 +912,6 @@ class OrderMixin(models.AbstractModel):
         raise NotImplementedError(
             f"{self._name} must implement _get_import_template_path()"
         )
-
-    # ------------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------------
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        """Generate the sequence number using the order type as routing key."""
-        seq_code = f"{self._get_order_type()}.order"
-        for vals in vals_list:
-            company_id = vals.get(
-                "company_id",
-                self.default_get(["company_id"])["company_id"],
-            )
-            # Ensures defaults are taken from the right company.
-            self_comp = self.with_company(company_id)
-            if vals.get("name", _("New")) == _("New"):
-                date_order = vals.get(
-                    "date_order",
-                    self_comp.default_get(["date_order"])["date_order"],
-                )
-                seq_date = fields.Datetime.context_timestamp(
-                    self_comp,
-                    fields.Datetime.to_datetime(date_order),
-                )
-                vals["name"] = self_comp.env["ir.sequence"].next_by_code(
-                    seq_code,
-                    sequence_date=seq_date,
-                )
-        return super().create(vals_list)
-
-    def write(self, vals):
-        self._validate_write_vals(vals)
-        return super().write(vals)
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_draft_or_cancel(self):
-        """Prevent deletion of confirmed orders."""
-        confirmed = self.filtered(lambda o: o.state not in ("draft", "cancel"))
-        if confirmed:
-            raise UserError(
-                _(
-                    "Cannot delete confirmed %(desc)s. Cancel them first:\n%(orders)s",
-                    desc=self._description,
-                    orders=", ".join(confirmed.mapped("name")),
-                ),
-            )
-
-    # ------------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------------
-
-    @api.constrains("company_id", "line_ids")
-    def _check_line_ids_company_id(self):
-        """Ensure all product lines belong to the same company as the order."""
-        for order in self:
-            invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c, order=order: order.company_id not in c._accessible_branches(),
-            )
-            if invalid_companies:
-                bad_products = order.line_ids.product_id.filtered(
-                    lambda p, invalid=invalid_companies: (
-                        p.company_id and p.company_id in invalid
-                    ),
-                )
-                raise ValidationError(
-                    _(
-                        "Your %(desc)s contains products from company %(product_company)s "
-                        "whereas your %(desc)s belongs to company %(quote_company)s.\n\n"
-                        "Please change the company of your %(desc)s or remove the products "
-                        "from other companies (%(bad_products)s).",
-                        desc=self._description.lower(),
-                        product_company=", ".join(
-                            invalid_companies.sudo().mapped("display_name"),
-                        ),
-                        quote_company=order.company_id.display_name,
-                        bad_products=", ".join(bad_products.mapped("display_name")),
-                    ),
-                )
 
     # ------------------------------------------------------------------
     # WRITE VALIDATIONS

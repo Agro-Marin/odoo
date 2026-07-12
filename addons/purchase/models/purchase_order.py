@@ -1,4 +1,3 @@
-from datetime import timedelta
 from urllib.parse import urlencode
 
 from dateutil.relativedelta import relativedelta
@@ -34,10 +33,7 @@ class PurchaseOrder(models.Model):
     _check_company_auto = True
     _order = "priority desc, id desc"
 
-    @property
-    def _rec_names_search(self):
-        if self.env.context.get("purchase_show_partner_name"):
-            return ["name", "partner_ref", "partner_id.name"]
+    def _get_rec_search_base_fields(self):
         return ["name", "partner_ref"]
 
     # ------------------------------------------------------------
@@ -70,25 +66,10 @@ class PurchaseOrder(models.Model):
         help="Put an address if you want to deliver directly from the vendor to the customer. "
         "Otherwise, keep empty to deliver to your own company.",
     )
-    fiscal_position_id = fields.Many2one(
-        comodel_name="account.fiscal.position",
-        string="Fiscal Position",
-        compute="_compute_fiscal_position_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        check_company=True,
-        domain='[("company_id", "in", (False, company_id))]',
-        help="Fiscal positions are used to adapt taxes and accounts for particular customers "
-        "or sales orders/invoices. The default value comes from the customer.",
-    )
+    # Only ``string`` and ``domain`` differ from ``order.mixin.user_id``; the
+    # rest (compute, store, precompute, readonly, index, tracking) is inherited.
     user_id = fields.Many2one(
-        comodel_name="res.users",
         string="Buyer",
-        compute="_compute_user_id",
-        store=True,
-        precompute=True,
-        readonly=False,
         domain=lambda self: """
             [
                 ('all_group_ids', 'in', {}),
@@ -98,29 +79,18 @@ class PurchaseOrder(models.Model):
         """.format(
             self.env.ref("purchase.group_purchase_user").ids,
         ),
-        index=True,
-        tracking=True,
     )
+    # Only ``string``, ``domain`` and ``help`` differ from
+    # ``order.mixin.journal_id``; the rest is inherited.
     journal_id = fields.Many2one(
-        comodel_name="account.journal",
-        string="Billing Journal",
-        compute="_compute_journal_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        check_company=True,
         domain=[("type", "=", "purchase")],
         help="If set, the PO will invoice in this journal; "
         "otherwise the purchase journal with the lowest sequence is used.",
     )
+    # Same keys as ``order.mixin.state`` (draft/done/cancel), only relabelled.
+    # The rest is inherited.
     state = fields.Selection(
         selection=const.ORDER_STATE,
-        string="Status",
-        default="draft",
-        readonly=True,
-        copy=False,
-        index=True,
-        tracking=True,
     )
     tag_ids = fields.Many2many(
         comodel_name="srm.tag",
@@ -163,38 +133,9 @@ class PurchaseOrder(models.Model):
         help="Delivery date promised by vendor. "
         "This date is used to determine expected arrival of products.",
     )
-    amount_untaxed = fields.Monetary(
-        string="Untaxed Amount",
-        compute="_compute_amounts",
-        store=True,
-        readonly=True,
-        tracking=True,
-    )
-    amount_tax = fields.Monetary(
-        string="Taxes",
-        compute="_compute_amounts",
-        store=True,
-        readonly=True,
-        tracking=True,
-    )
-    amount_total = fields.Monetary(
-        string="Total",
-        compute="_compute_amounts",
-        store=True,
-        readonly=True,
-        tracking=True,
-    )
     # Invoice block
     invoice_ids = fields.Many2many(string="Bills")
     invoice_count = fields.Integer(string="Bill Count")
-    invoice_state = fields.Selection(
-        selection=const.INVOICE_STATE,
-        string="Invoice Status",
-        default="no",
-        compute="_compute_invoice_state",
-        store=True,
-        copy=False,
-    )
 
     origin = fields.Char(
         string="Source",
@@ -212,10 +153,10 @@ class PurchaseOrder(models.Model):
         help="It indicates that the vendor has acknowledged the receipt of the purchase order.",
     )
     sent = fields.Boolean(
-        help="THE Quotation has been sent to the customer.",
+        help="The RFQ has been sent to the vendor.",
     )
     printed_before = fields.Boolean(
-        help="THE RFQ has already been printed.",
+        help="The RFQ has already been printed.",
     )
     show_comparison = fields.Boolean(
         string="Show Comparison",
@@ -244,12 +185,6 @@ class PurchaseOrder(models.Model):
     )
 
     # ------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------
-
-    # _check_line_ids_company_id is inherited from order.mixin (base_order).
-
-    # ------------------------------------------------------------
     # CRUD METHODS
     # ------------------------------------------------------------
 
@@ -269,14 +204,8 @@ class PurchaseOrder(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    @api.depends_context("lang")
-    @api.depends("state")
-    def _compute_type_name(self):
-        for order in self:
-            if order.state in ("draft", "cancel"):
-                order.type_name = _("Quotation")
-            else:
-                order.type_name = _("Purchase Order")
+    def _get_confirmed_type_name(self):
+        return _("Purchase Order")
 
     @api.depends("state", "date_order", "date_confirmed")
     def _compute_date_calendar_start(self):
@@ -293,47 +222,26 @@ class PurchaseOrder(models.Model):
                 order.date_confirmed if order.state == "done" else order.date_order
             )
 
-    @api.depends("company_id")
-    def _compute_date_validity(self):
-        today = fields.Date.context_today(self)
-        for order in self:
-            days = order.company_id.po_quotation_validity_days
-            if days > 0:
-                order.date_validity = today + timedelta(days=days)
-            else:
-                order.date_validity = False
+    def _get_validity_days(self):
+        self.ensure_one()
+        return self.company_id.po_quotation_validity_days
 
-    @api.depends("company_id", "partner_id")
-    def _compute_payment_term_id(self):
-        for order in self:
-            order = order.with_company(order.company_id)
-            order.payment_term_id = order.partner_id.property_supplier_payment_term_id
-
-    @api.depends("partner_id")
-    def _compute_user_id(self):
-        for order in self:
-            if order.partner_id and not (order._origin.id and order.user_id):
-                # Recompute the buyer on partner change
-                #   * if partner is set (is required anyway, so it will be set sooner or later)
-                #   * if the order is not saved or has no buyer already
-                order.user_id = (
-                    order.partner_id.user_purchase_id
-                    or order.commercial_partner_id.user_purchase_id
-                    or (
-                        self.env.user.has_group("purchase.group_purchase_user")
-                        and self.env.user
-                    )
-                )
+    def _get_default_user_from_partner(self):
+        """Buyer from the partner, falling back to the current user."""
+        self.ensure_one()
+        return (
+            self.partner_id.user_purchase_id
+            or self.commercial_partner_id.user_purchase_id
+            or (
+                self.env.user.has_group("purchase.group_purchase_user")
+                and self.env.user
+            )
+            or self.env["res.users"]
+        )
 
     @api.depends("state", "partner_id", "partner_ref", "origin")
     def _compute_duplicated_order_ids(self):
-        """Compute duplicated purchase orders based on key fields."""
-        draft_orders = self.filtered(lambda o: o.state == "draft")
-        order_to_duplicate_orders = draft_orders._get_duplicate_orders()
-        for order in draft_orders:
-            duplicate_ids = order_to_duplicate_orders.get(order.id, [])
-            order.duplicated_order_ids = [Command.set(duplicate_ids)]
-        (self - draft_orders).duplicated_order_ids = False
+        super()._compute_duplicated_order_ids()
 
     @api.depends("company_id", "partner_id")
     def _compute_currency_id(self):
@@ -393,54 +301,22 @@ class PurchaseOrder(models.Model):
                 if p in order_by_product
             )
 
-    def _get_order_tax_totals_summary(self):
-        """Compute tax totals summary for the order.
-
-        Returns a dict with tax breakdown including base_amount_currency,
-        tax_amount_currency, and total_amount_currency.
-        """
-        self.ensure_one()
-        AccountTax = self.env["account.tax"]
-        order_lines = self.line_ids.filtered(lambda line: not line.display_type)
-        base_lines = [
-            line._prepare_base_line_for_taxes_computation() for line in order_lines
-        ]
-        AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)
-        AccountTax._round_base_lines_tax_details(base_lines, self.company_id)
-        return AccountTax._get_tax_totals_summary(
-            base_lines=base_lines,
-            currency=self.currency_id or self.company_id.currency_id,
-            company=self.company_id,
-        )
-
-    @api.depends("company_id", "currency_id", "line_ids.price_subtotal")
-    def _compute_amounts(self):
-        for order in self:
-            tax_totals = order._get_order_tax_totals_summary()
-            order.amount_untaxed = tax_totals["base_amount_currency"]
-            order.amount_tax = tax_totals["tax_amount_currency"]
-            order.amount_total = tax_totals["total_amount_currency"]
-
-    @api.depends_context("lang")
-    @api.depends("company_id", "currency_id", "line_ids.price_subtotal")
-    def _compute_tax_totals(self):
-        for order in self:
-            order.tax_totals = order._get_order_tax_totals_summary()
-
     @api.depends_context("show_total_amount")
     @api.depends("currency_id", "name", "partner_ref", "amount_total")
     def _compute_display_name(self):
-        for order in self:
-            name = order.name
-            if order.partner_ref:
-                name += " (" + order.partner_ref + ")"
-            if self.env.context.get("show_total_amount") and order.amount_total:
-                name += ": " + formatLang(
-                    self.env,
-                    order.amount_total,
-                    currency_obj=order.currency_id,
-                )
-            order.display_name = name
+        super()._compute_display_name()
+
+    def _get_display_name_suffix(self):
+        suffix = ""
+        if self.partner_ref:
+            suffix += " (" + self.partner_ref + ")"
+        if self.env.context.get("show_total_amount") and self.amount_total:
+            suffix += ": " + formatLang(
+                self.env,
+                self.amount_total,
+                currency_obj=self.currency_id,
+            )
+        return suffix
 
     @api.depends(
         "partner_id.name",
@@ -471,58 +347,6 @@ class PurchaseOrder(models.Model):
                 if product_msg := line.purchase_line_warn_msg:
                     warnings.add(line.product_id.display_name + " - " + product_msg)
             order.purchase_warning_text = "\n".join(warnings)
-
-    @api.depends("state", "line_ids.invoice_state")
-    def _compute_invoice_state(self):
-        """Compute the invoice status of a PO. Possible statuses:
-        - no: If the PO is not in status 'done', or all lines are in 'no' state.
-        - to do: If any PO line is 'to invoice', the whole PO is 'to invoice'.
-        - partial: If some PO lines are invoiced and others are pending.
-        - done: If all PO lines are fully invoiced.
-        - over done: If at least one PO line is over-invoiced.
-
-        Performance: Uses _read_group() for batched computation across all orders.
-        """
-        confirmed_orders = self.filtered(lambda order: order.state == "done")
-        (self - confirmed_orders).invoice_state = "no"
-
-        if not confirmed_orders:
-            return
-
-        # Batched: single query to get all line invoice states grouped by order
-        lines_domain = [
-            ("is_downpayment", "=", False),
-            ("display_type", "=", False),
-        ]
-        line_invoice_state_all = {}
-        for order, invoice_state in self.env["purchase.order.line"]._read_group(
-            lines_domain + [("order_id", "in", confirmed_orders.ids)],
-            ["order_id", "invoice_state"],
-        ):
-            line_invoice_state_all.setdefault(order.id, set()).add(invoice_state)
-
-        for order in confirmed_orders:
-            states = line_invoice_state_all.get(order._origin.id, set())
-
-            # No relevant lines → nothing to invoice
-            if not states:
-                order.invoice_state = "no"
-                continue
-
-            # Single state → direct assignment (common case optimization)
-            if len(states) == 1:
-                order.invoice_state = next(iter(states))
-                continue
-
-            # Multiple states → resolve by priority
-            if "over done" in states:
-                order.invoice_state = "over done"
-            elif "to do" in states:
-                order.invoice_state = "to do"
-            elif "partial" in states or states == {"done", "no"}:
-                order.invoice_state = "partial"
-            else:
-                order.invoice_state = "no"
 
     # ------------------------------------------------------------
     # SEARCH METHODS
@@ -591,8 +415,7 @@ class PurchaseOrder(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
-    def action_acknowledge(self):
-        self.write({"acknowledged": True})
+    # action_acknowledge is inherited from order.mixin (base_order).
 
     def action_bill_matching(self):
         self.ensure_one()
@@ -805,24 +628,9 @@ class PurchaseOrder(models.Model):
         activity.note = note
         return activity
 
-    def message_post(self, **kwargs):
-        if self.env.context.get("mark_rfq_as_sent"):
-            self.filtered(lambda order: order.state == "draft").write({"sent": True})
-            kwargs["notify_author_mention"] = kwargs.get("notify_author_mention", True)
-        return super().message_post(**kwargs)
-
-    def _notify_get_recipients_groups(self, message, model_description, msg_vals=False):
+    def _tweak_notify_recipient_groups(self, groups):
         # Tweak "view document" button for portal customers,
         # calling directly routes for confirm specific to PO model.
-        groups = super()._notify_get_recipients_groups(
-            message,
-            model_description,
-            msg_vals=msg_vals,
-        )
-        if not self:
-            return groups
-
-        self.ensure_one()
         try:
             customer_portal_group = next(
                 group for group in groups if group[0] == "portal_customer"
@@ -839,25 +647,8 @@ class PurchaseOrder(models.Model):
                     title=_("View %s", self.type_name),
                     url=self.get_base_url() + self.get_confirm_url(),
                 )
-        return groups
 
-    def _notify_by_email_prepare_rendering_context(
-        self,
-        message,
-        msg_vals=False,
-        model_description=False,
-        force_email_company=False,
-        force_email_lang=False,
-        force_record_name=False,
-    ):
-        render_context = super()._notify_by_email_prepare_rendering_context(
-            message,
-            msg_vals=msg_vals,
-            model_description=model_description,
-            force_email_company=force_email_company,
-            force_email_lang=force_email_lang,
-            force_record_name=force_record_name,
-        )
+    def _get_mail_subtitles(self, render_context):
         subtitles = [render_context["record"].name]
         # don't show price on RFQ mail
         if self.state == "draft":
@@ -880,21 +671,19 @@ class PurchaseOrder(models.Model):
                     lang_code=render_context.get("lang"),
                 ),
             )
-        render_context["subtitles"] = subtitles
-        return render_context
+        return subtitles
 
-    def _track_subtype(self, init_values):
-        self.ensure_one()
+    def _get_state_track_subtype_xmlid(self, init_values):
         if "state" in init_values and self.state == "done":
-            return self.env.ref("purchase.mt_rfq_confirmed")
+            return "purchase.mt_rfq_confirmed"
 
         elif "locked" in init_values and self.locked:
-            return self.env.ref("purchase.mt_rfq_done")
+            return "purchase.mt_rfq_done"
 
         elif "sent" in init_values and self.sent:
-            return self.env.ref("purchase.mt_rfq_sent")
+            return "purchase.mt_rfq_sent"
 
-        return super()._track_subtype(init_values)
+        return None
 
     def _update_update_date_activity(self, updated_dates, activity):
         for line, date in updated_dates:
@@ -965,14 +754,11 @@ class PurchaseOrder(models.Model):
     # PRODUCT DOCUMENTS METHODS
     # ------------------------------------------------------------
 
-    @api.model
-    def get_import_templates(self):
-        return [
-            {
-                "label": _("Import Template for Requests for Quotation"),
-                "template": "/purchase/static/xls/requests_for_quotation_import_template.xlsx",
-            },
-        ]
+    def _get_import_template_label(self):
+        return _("Import Template for Requests for Quotation")
+
+    def _get_import_template_path(self):
+        return "/purchase/static/xls/requests_for_quotation_import_template.xlsx"
 
     # ------------------------------------------------------------
     # EDI METHODS
@@ -1161,45 +947,6 @@ class PurchaseOrder(models.Model):
         """
         return {"product_qty": 0}
 
-    def _get_duplicate_orders(self):
-        """Fetch duplicated orders.
-
-        :return: Dictionary mapping order to its related duplicated orders.
-        :rtype: dict
-        """
-        orders = self.filtered(lambda order: order.id and order.partner_ref)
-        if not orders:
-            return {}
-
-        self.env["purchase.order"].flush_model(
-            ["company_id", "partner_id", "partner_ref", "origin", "state"],
-        )
-
-        result = self.env.execute_query(
-            SQL(
-                """
-                SELECT
-                    po.id AS order_id,
-                    array_agg(duplicate_po.id) AS duplicate_ids
-                FROM purchase_order po
-                JOIN purchase_order AS duplicate_po
-                    ON po.company_id = duplicate_po.company_id
-                    AND po.id != duplicate_po.id
-                    AND duplicate_po.state != 'cancel'
-                    AND po.partner_id = duplicate_po.partner_id
-                    AND (
-                        po.origin = duplicate_po.name
-                        OR po.partner_ref = duplicate_po.partner_ref
-                    )
-                WHERE po.id IN %(orders)s
-                GROUP BY po.id
-                """,
-                orders=tuple(orders.ids),
-            ),
-        )
-
-        return {order_id: set(duplicate_ids) for order_id, duplicate_ids in result}
-
     def get_localized_date_planned(self, date_planned=False):
         """Returns the localized date planned in the timezone of the order's user or the
         company's partner or UTC if none of them are set."""
@@ -1212,16 +959,6 @@ class PurchaseOrder(models.Model):
             date_planned = fields.Datetime.from_string(date_planned)
         tz = self.get_timezone()
         return date_planned.astimezone(tz)
-
-    def _get_mail_compose_form(self):
-        ir_model_data = self.env["ir.model.data"]
-        try:
-            compose_form_id = ir_model_data._xmlid_lookup(
-                "mail.email_compose_message_wizard_form",
-            )[1]
-        except ValueError:
-            compose_form_id = False
-        return compose_form_id
 
     def _get_mail_template(self):
         ir_model_data = self.env["ir.model.data"]
