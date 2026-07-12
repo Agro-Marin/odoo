@@ -55,13 +55,7 @@ class PurchaseOrder(models.Model):
     # ------------------------------------------------------------
 
     partner_id = fields.Many2one(
-        comodel_name="res.partner",
         string="Vendor",
-        required=True,
-        change_default=True,
-        check_company=True,
-        index=True,
-        tracking=True,
         help="You can find a vendor by its Name, TIN, Email or Internal Reference.",
     )
     partner_bill_count = fields.Integer(
@@ -136,19 +130,9 @@ class PurchaseOrder(models.Model):
         string="Tags",
     )
     date_validity = fields.Date(
-        string="Expiration",
-        compute="_compute_date_validity",
-        store=True,
-        precompute=True,
-        readonly=False,
-        copy=False,
         help="Validity of the RFQ, after which it expires.",
     )
     date_confirmed = fields.Datetime(
-        string="Confirmation Date",
-        readonly=True,
-        copy=False,
-        index=True,
         help="Date when the purchase order was confirmed.",
     )
     date_calendar_start = fields.Datetime(
@@ -201,16 +185,8 @@ class PurchaseOrder(models.Model):
         tracking=True,
     )
     # Invoice block
-    invoice_ids = fields.Many2many(
-        comodel_name="account.move",
-        string="Bills",
-        compute="_compute_invoice_ids",
-        search="_search_invoice_ids",
-    )
-    invoice_count = fields.Integer(
-        string="Bill Count",
-        compute="_compute_invoice_ids",
-    )
+    invoice_ids = fields.Many2many(string="Bills")
+    invoice_count = fields.Integer(string="Bill Count")
     invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
         string="Invoice Status",
@@ -222,40 +198,24 @@ class PurchaseOrder(models.Model):
 
     origin = fields.Char(
         string="Source",
-        copy=False,
         help="Reference of the document that generated this purchase order "
         "request (e.g. a sales order)",
     )
     partner_ref = fields.Char(
         string="Vendor Reference",
-        copy=False,
         help="Reference of the sales order or bid sent by the vendor. "
         "It's used to do the matching when you receive the "
         "products as this reference is usually written on the "
         "delivery order sent by your vendor.",
     )
     acknowledged = fields.Boolean(
-        string="Acknowledged",
-        copy=False,
-        tracking=True,
         help="It indicates that the vendor has acknowledged the receipt of the purchase order.",
     )
     sent = fields.Boolean(
-        default=False,
-        copy=False,
-        tracking=True,
         help="THE Quotation has been sent to the customer.",
     )
     printed_before = fields.Boolean(
-        default=False,
-        copy=False,
-        tracking=True,
         help="THE RFQ has already been printed.",
-    )
-    is_late = fields.Boolean(
-        string="Is Late",
-        store=False,
-        search="_search_is_late",
     )
     show_comparison = fields.Boolean(
         string="Show Comparison",

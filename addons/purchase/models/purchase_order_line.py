@@ -104,7 +104,6 @@ class PurchaseOrderLine(models.Model):
         related="order_id.locked",
     )
     is_expense = fields.Boolean(
-        string="Is expense",
         help="Is true if the sales order line comes from an expense or a vendor bills",
     )
 
@@ -151,14 +150,6 @@ class PurchaseOrderLine(models.Model):
         domain="[('id', 'in', allowed_uom_ids)]",
         ondelete="restrict",
     )
-    product_qty = fields.Float(
-        string="Quantity",
-        digits="Product Unit",
-        compute="_compute_product_qty",
-        store=True,
-        precompute=True,
-        readonly=False,
-    )
     selected_seller_id = fields.Many2one(
         comodel_name="product.supplierinfo",
         compute="_compute_selected_seller_id",
@@ -168,12 +159,6 @@ class PurchaseOrderLine(models.Model):
         "partner, product, quantity, UoM, and date.",
     )
     price_unit_auto = fields.Float(
-        string="Automatic Price",
-        min_display_digits="Product Price",
-        compute="_compute_price_and_discount",
-        store=True,
-        precompute=True,
-        copy=True,
         help="Price from vendor/product. Compared with price_unit to detect manual overrides. "
         "When price_unit != price_unit_auto, the price is considered manually set.",
     )
@@ -209,33 +194,14 @@ class PurchaseOrderLine(models.Model):
     )
     # Transfer block
     qty_transferred_method = fields.Selection(
-        selection=[
-            ("manual", "Manual"),
-            ("analytic", "Analytic From Expenses"),
-            ("stock_move", "Stock Moves"),
-        ],
         string="Received Qty Method",
-        compute="_compute_qty_transferred_method",
-        store=True,
-        precompute=True,
         help="According to product configuration, the received quantity can be automatically computed by mechanism:\n"
         "  - Manual: the quantity is set manually on the line\n"
         "  - Stock Moves: the quantity comes from confirmed pickings\n",
     )
-    qty_transferred = fields.Float(
-        string="Received Qty",
-        digits="Product Unit",
-        compute="_compute_qty_transferred",
-        store=True,
-        readonly=False,
-        copy=False,
-    )
+    qty_transferred = fields.Float(string="Received Qty")
     # Same than `qty_transferred` but non-stored and depending of the context.
-    qty_transferred_at_date = fields.Float(
-        string="Received",
-        digits="Product Unit",
-        compute="_compute_qty_transferred_at_date",
-    )
+    qty_transferred_at_date = fields.Float(string="Received")
 
     # Invoice block
     invoice_line_ids = fields.Many2many(
@@ -247,11 +213,7 @@ class PurchaseOrderLine(models.Model):
         copy=False,
     )
     # Same than `qty_to_invoice` but non-stored and depending of the context.
-    qty_invoiced_at_date = fields.Float(
-        string="Billed",
-        digits="Product Unit",
-        compute="_compute_qty_invoiced_at_date",
-    )
+    qty_invoiced_at_date = fields.Float(string="Billed")
     invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
         string="Invoice Status",

@@ -64,15 +64,7 @@ class SaleOrder(models.Model):
         related="company_id.account_fiscal_country_id.code",
         string="Country code",
     )
-    partner_id = fields.Many2one(
-        comodel_name="res.partner",
-        string="Customer",
-        required=True,
-        change_default=True,
-        check_company=True,
-        index=True,
-        tracking=True,
-    )
+    partner_id = fields.Many2one(string="Customer")
     partner_invoice_id = fields.Many2one(
         comodel_name="res.partner",
         string="Invoice Address",
@@ -180,14 +172,6 @@ class SaleOrder(models.Model):
         help="If set, the SO will invoice in this journal; "
         "otherwise the sales journal with the lowest sequence is used.",
     )
-    name = fields.Char(
-        string="Order Reference",
-        required=True,
-        default=lambda self: _("New"),
-        readonly=False,
-        copy=False,
-        index="trigram",
-    )
     state = fields.Selection(
         selection=const.ORDER_STATE,
         string="Status",
@@ -204,19 +188,9 @@ class SaleOrder(models.Model):
         index=True,
     )
     date_validity = fields.Date(
-        string="Expiration",
-        compute="_compute_date_validity",
-        store=True,
-        precompute=True,
-        readonly=False,
-        copy=False,
         help="Validity of the order, after that you will not able to sign & pay the quotation.",
     )
     date_confirmed = fields.Datetime(
-        string="Confirmation Date",
-        readonly=True,
-        copy=False,
-        index=True,
         help="Date when the sales order was confirmed.",
     )
     date_commitment = fields.Datetime(
@@ -366,8 +340,6 @@ class SaleOrder(models.Model):
     source_id = fields.Many2one(ondelete="set null")
 
     origin = fields.Char(
-        string="Source Document",
-        copy=False,
         help="Reference of the document that generated this sales order request",
     )
     client_order_ref = fields.Char(
@@ -376,7 +348,6 @@ class SaleOrder(models.Model):
     )
     partner_ref = fields.Char(
         string="Vendor Reference",
-        copy=False,
         help="Reference of the sales order or bid sent by the vendor. "
         "It's used to do the matching when you receive the "
         "products as this reference is usually written on the "
@@ -395,15 +366,9 @@ class SaleOrder(models.Model):
         readonly=False,
     )
     sent = fields.Boolean(
-        default=False,
-        copy=False,
-        tracking=True,
         help="THE Quotation has been sent to the customer.",
     )
     printed_before = fields.Boolean(
-        default=False,
-        copy=False,
-        tracking=True,
         help="THE RFQ has already been printed.",
     )
     # The template of the pending email that must be sent asynchronously.
@@ -430,9 +395,6 @@ class SaleOrder(models.Model):
         help="Internal warning for the partner or the products as set by the user.",
     )
     acknowledged = fields.Boolean(
-        string="Acknowledged",
-        copy=False,
-        tracking=True,
         help="It indicates that the customer has acknowledged the receipt of the sales order.",
     )
     has_active_pricelist = fields.Boolean(

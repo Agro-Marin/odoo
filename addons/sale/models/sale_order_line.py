@@ -102,12 +102,10 @@ class SaleOrderLine(models.Model):
         related="order_id.locked",
     )
     is_downpayment = fields.Boolean(
-        string="Is a down payment",
         help="Down payments are made when creating invoices from a sales order."
         " They are not copied when duplicating a sales order.",
     )
     is_expense = fields.Boolean(
-        string="Is expense",
         help="Is true if the sales order line comes from an expense or a vendor bills",
     )
 
@@ -260,15 +258,7 @@ class SaleOrderLine(models.Model):
 
     # Transfer block
     qty_transferred_method = fields.Selection(
-        selection=[
-            ("manual", "Manual"),
-            ("analytic", "Analytic From Expenses"),
-            ("stock_move", "Stock Moves"),
-        ],
         string="Delivered Qty Method",
-        compute="_compute_qty_transferred_method",
-        store=True,
-        precompute=True,
         help="""According to product configuration, the delivered quantity can
         be automatically computed by mechanism:\n
         -Manual: the quantity is set manually on the line\n
@@ -276,20 +266,9 @@ class SaleOrderLine(models.Model):
         -Timesheet: the quantity is the sum of hours recorded on tasks linked to this sale line\n
         -Stock Moves: the quantity comes from confirmed pickings\n""",
     )
-    qty_transferred = fields.Float(
-        string="Delivered Qty",
-        digits="Product Unit",
-        compute="_compute_qty_transferred",
-        store=True,
-        readonly=False,
-        copy=False,
-    )
+    qty_transferred = fields.Float(string="Delivered Qty")
     # Same than `qty_transferred` but non-stored and depending of the context.
-    qty_transferred_at_date = fields.Float(
-        string="Delivered",
-        digits="Product Unit",
-        compute="_compute_qty_transferred_at_date",
-    )
+    qty_transferred_at_date = fields.Float(string="Delivered")
 
     # Invoice block
     invoice_line_ids = fields.Many2many(
