@@ -1304,12 +1304,12 @@ class MailThread(models.AbstractModel):
         if email_from_localpart == "mailer-daemon":
             return True
 
-        # detection based on content type
+        # detection based on content type. get_content_type() strips parameters
+        # and lowercases, so the report-type must be read from the header param
+        # (RFC 3462), not substring-matched against content_type.
         content_type = message.get_content_type()
-        return bool(
-            content_type == "multipart/report"
-            or "report-type=delivery-status" in content_type
-        )
+        report_type = (message.get_param("report-type") or "").lower()
+        return content_type == "multipart/report" or report_type == "delivery-status"
 
     @api.model
     def _detect_loop_sender_domain(self, email_from_normalized):
@@ -5049,7 +5049,7 @@ class MailThread(models.AbstractModel):
                         payload=json.dumps(
                             (
                                 payload_by_lang
-                                and payload_by_lang[device.partner_id.lang]
+                                and payload_by_lang.get(device.partner_id.lang)
                             )
                             or payload
                         ),
@@ -5078,7 +5078,7 @@ class MailThread(models.AbstractModel):
                         "payload": json.dumps(
                             (
                                 payload_by_lang
-                                and payload_by_lang[device.partner_id.lang]
+                                and payload_by_lang.get(device.partner_id.lang)
                             )
                             or payload
                         ),

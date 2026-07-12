@@ -296,7 +296,7 @@ class IrActionsServer(models.Model):
         ):
             warnings.append(
                 _(
-                    "Mail template model of $(action_name)s does not match action model.",
+                    "Mail template model of %(action_name)s does not match action model.",
                     action_name=self.name,
                 )
             )

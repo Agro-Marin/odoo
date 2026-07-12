@@ -124,9 +124,14 @@ def _encrypt_payload(content, device, record_size=MAX_PAYLOAD_SIZE):
     body = b""
     end = len(content)
     aesgcm = AESGCM(key)
-    for i in range(0, end, chunk_size):
+    for seq, i in enumerate(range(0, end, chunk_size)):
         padding = b"\x02" if (i + chunk_size) >= end else b"\x01"
-        body += aesgcm.encrypt(nonce, content[i : i + chunk_size] + padding, None)
+        # RFC 8188: each record must use a distinct nonce (base XOR record seq).
+        # Reusing one nonce across records is catastrophic AES-GCM key misuse and
+        # makes multi-record payloads non-decodable by the client.
+        body += aesgcm.encrypt(
+            _iv(nonce, seq), content[i : i + chunk_size] + padding, None
+        )
 
     sender_public_key = private_key.public_key().public_bytes(
         Encoding.X962, PublicFormat.UncompressedPoint

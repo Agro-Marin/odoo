@@ -227,7 +227,9 @@ class DiscussChannelMember(models.Model):
                 res["id"]: res["count"] for res in self.env.cr.dictfetchall()
             }
             for member in self:
-                member.message_unread_counter = unread_counter_by_member.get(member.id)
+                # members absent from the GROUP BY have zero unread, not None:
+                # the counter is broadcast to the client, which expects an integer.
+                member.message_unread_counter = unread_counter_by_member.get(member.id, 0)
         else:
             self.message_unread_counter = 0
 

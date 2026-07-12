@@ -108,6 +108,10 @@ def sign(claims: dict, key: str, ttl: int, algorithm: Algorithm) -> str:
     :return: JSON Web Token
     """
     non_padded_key = key.strip("=")
-    assert ttl
-    claims["exp"] = int(time.time()) + ttl
+    if not ttl:
+        # guard the 'exp' claim without an assert (stripped under `python -O`),
+        # which would otherwise let ttl=0 mint an already-expired token.
+        raise ValueError("A JWT requires a non-zero ttl for its 'exp' claim.")
+    # do not mutate the caller-owned claims dict as a side effect of signing.
+    claims = {**claims, "exp": int(time.time()) + ttl}
     return _generate_jwt(claims, non_padded_key, algorithm=algorithm)
