@@ -5,6 +5,10 @@
 
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { user } from "@web/services/user";
+
+import { ReportAction } from "./report_action.js";
+import { downloadReport, getReportUrl } from "./utils.js";
 
 // Pre-execution hooks for ir.actions.report. Each handler is called with
 // `(action, options, env)`; returning a truthy value short-circuits the
@@ -12,10 +16,6 @@ import { registry } from "@web/core/registry";
 registry
     .category("ir.actions.report handlers")
     .addValidation((entry) => typeof entry === "function");
-import { user } from "@web/services/user";
-
-import { ReportAction } from "./report_action.js";
-import { downloadReport, getReportUrl } from "./utils.js";
 
 /** @import { ActionManager } from "../action_service.js" */
 /** @import { ReportAction as ReportActionType } from "@web/webclient/actions/action_service" */

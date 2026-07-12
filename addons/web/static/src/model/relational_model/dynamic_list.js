@@ -157,8 +157,20 @@ export class DynamicList extends DataPoint {
         }
         const canProceed = await this.leaveEditMode();
         if (canProceed) {
-            record._checkValidity();
-            this.model._patchConfig(record.config, { mode: "edit" });
+            // Serialize the mutating tail (validity scan + mode switch) on the
+            // model mutex like every other verb: run outside it, the scan could
+            // interleave with a queued ``_update`` applying an onchange and flag
+            // half-applied data. ``leaveEditMode`` already handles the urgent
+            // path, so guard against a mutex the tab-close save may hold.
+            const tail = () => {
+                record._checkValidity();
+                this.model._patchConfig(record.config, { mode: "edit" });
+            };
+            if (this.model.urgentSave.isActive) {
+                tail();
+            } else {
+                await this.model.mutex.exec(tail);
+            }
         }
         return canProceed;
     }

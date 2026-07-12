@@ -500,11 +500,26 @@ const EMOJI_STUB_EMOJIS = [
 
 // Self-contained ESM module source re-exporting the stub data in the exact
 // surface ``loadEmoji()`` imports from ``@web/components/emoji_picker/emoji_data``.
+//
+// The module is a DELEGATING shim: import-map entries are first-injection-wins
+// for the whole browser session, so once this stub claims the specifier, a
+// suite that ``preloadBundle``s the REAL ``web.assets_emoji`` could never see
+// the real data. ``loadESMBundle`` (@web/core/assets) calls ``__setImplUrl``
+// with the real module's URL when it detects the specifier is already mapped
+// elsewhere, and the shim then transparently delegates to the real module.
 const EMOJI_STUB_MODULE_SOURCE = `
 const categories = ${JSON.stringify(EMOJI_STUB_CATEGORIES)};
 const emojis = ${JSON.stringify(EMOJI_STUB_EMOJIS)};
-export function getCategories() { return categories; }
-export function getEmojis() { return emojis; }
+let impl = null;
+export function getCategories() { return impl ? impl.getCategories() : categories; }
+export function getEmojis() { return impl ? impl.getEmojis() : emojis; }
+export function resetEmojiData() { impl?.resetEmojiData?.(); }
+export async function __setImplUrl(url) {
+    if (url === import.meta.url) {
+        return;
+    }
+    impl = await import(url);
+}
 `;
 
 const EMOJI_STUB_MODULE_URL = `data:text/javascript;charset=utf-8,${encodeURIComponent(

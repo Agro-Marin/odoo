@@ -339,6 +339,19 @@ export function reposition(popper, target, options) {
     popper.style.top = "0px";
     popper.style.left = "0px";
 
+    // Undo the maxHeight WE applied on a previous reposition so heights don't
+    // ratchet down monotonically (each pass min()-ing against the last pass's
+    // result kept a long-lived popover permanently squashed on scroll/resize).
+    // Only restore when the current inline value is EXACTLY what we last wrote,
+    // so a maxHeight the consumer authored (inline or via CSS) is preserved.
+    const mhState = popperMaxHeightState.get(popper);
+    if (mhState && popper.style.maxHeight === mhState.applied) {
+        popper.style.maxHeight = mhState.authored;
+    }
+    // The consumer's own maxHeight (possibly "") to re-min the new solution
+    // against — never our previous result.
+    const authoredMaxHeight = popper.style.maxHeight;
+
     // Compute positioning solution
     const solution = computePosition(popper, target, {
         ...DEFAULTS,
@@ -350,12 +363,27 @@ export function reposition(popper, target, options) {
     popper.style.top = `${top}px`;
     popper.style.left = `${left}px`;
     if (maxHeight !== undefined) {
+        // getComputedStyle now reflects only the consumer's authored maxHeight
+        // (its inline value was restored above), so min() bounds the new
+        // solution by the CSS-authored constraint, not by our last result.
         const existingMaxHeight = getComputedStyle(popper).maxHeight;
-        popper.style.maxHeight =
+        const applied =
             existingMaxHeight !== "none"
                 ? `min(${existingMaxHeight}, ${maxHeight}px)`
                 : `${maxHeight}px`;
+        popper.style.maxHeight = applied;
+        popperMaxHeightState.set(popper, { authored: authoredMaxHeight, applied });
+    } else {
+        // No shrink this pass — nothing of ours left to track.
+        popperMaxHeightState.delete(popper);
     }
 
     return solution;
 }
+
+/**
+ * Per-popper record of the maxHeight reposition last applied, so the next
+ * reposition can undo exactly its own contribution (see reposition).
+ * @type {WeakMap<HTMLElement, { authored: string, applied: string }>}
+ */
+const popperMaxHeightState = new WeakMap();

@@ -208,6 +208,15 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 }
             }
             record._clearChanges();
+            // Mirror the reload:false branch below: rebuild ``data`` from the
+            // just-persisted ``_values`` and re-run the eval context / text-value
+            // baselines. Without this, a page that SURVIVES the beacon (bfcache
+            // Back after the tab-close beacon) keeps ``data`` merged from the now
+            // discarded ``_changes`` and modifier expressions / a later Discard
+            // evaluate against stale pre-save values.
+            record.data = { ...record._values };
+            record._setEvalContext();
+            record._initialTextValues = { ...record._textValues };
         } else {
             record.model._closeUrgentSaveNotification =
                 record.model.hooks.ui.onDisplayUrgentSave(

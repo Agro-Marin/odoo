@@ -12,9 +12,9 @@ from typing import Any
 from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.libs.json import dumps as json_dumps
+from odoo.tools.cache_version import versioned
 from odoo.tools.translate import LazyTranslate
 
-from odoo.tools.cache_version import versioned
 from .web_read_group_helpers import AND
 
 _lt = LazyTranslate(__name__)
@@ -23,6 +23,24 @@ SEARCH_PANEL_ERROR_MESSAGE = _lt("Too many items to display.")
 
 class Base(models.AbstractModel):
     _inherit = "base"
+
+    def _search_panel_field(self, field_name: str) -> Any:
+        """Return the field named *field_name*, or raise a clean ``UserError``.
+
+        The search-panel RPCs take ``field_name`` straight from the caller, so
+        an unknown name must surface as a user-facing error, not a raw
+        ``KeyError`` bubbling up to a 500.
+        """
+        field = self._fields.get(field_name)
+        if field is None:
+            raise UserError(
+                self.env._(
+                    "Unknown field %(field)s on model %(model)s",
+                    field=field_name,
+                    model=self._name,
+                )
+            )
+        return field
 
     @api.model
     @api.readonly
@@ -71,7 +89,7 @@ class Base(models.AbstractModel):
 
             or an object with an error message when limit is defined and is reached.
         """
-        field = self._fields[field_name]
+        field = self._search_panel_field(field_name)
         supported_types = ["many2one", "selection"]
         if field.type not in supported_types:
             types = dict(
@@ -237,7 +255,7 @@ class Base(models.AbstractModel):
 
             or an object with an error message when limit is defined and reached.
         """
-        field = self._fields[field_name]
+        field = self._search_panel_field(field_name)
         supported_types = ["many2one", "many2many", "selection"]
         if field.type not in supported_types:
             raise UserError(

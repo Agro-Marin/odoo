@@ -625,19 +625,36 @@ export class CalendarCommonRenderer extends Component {
     }
     onEventDrop(info) {
         this.fc.api.unselect();
-        this.props.model.updateRecord(this.fcEventToRecord(info.event), {
+        const record = this.fcEventToRecord(info.event);
+        if (!record) {
+            // The dragged record was dropped from the model by a reload that
+            // landed mid-drag (filter toggle, another session's change). Revert
+            // FC's visual move rather than writing to a vanished record.
+            info.revert?.();
+            return;
+        }
+        this.props.model.updateRecord(record, {
             moved: true,
         });
     }
     onEventResize(info) {
         this.fc.api.unselect();
-        this.props.model.updateRecord(this.fcEventToRecord(info.event));
+        const record = this.fcEventToRecord(info.event);
+        if (!record) {
+            // Same race as onEventDrop: the record was removed mid-resize.
+            info.revert?.();
+            return;
+        }
+        this.props.model.updateRecord(record);
     }
     /**
      * Convert a FullCalendar event object back into a calendar record.
      *
      * @param {Object} event - FullCalendar event with id, allDay, date/start/end
-     * @returns {Object} record with luxon DateTime start/end and optional id
+     * @returns {Object|null} record with luxon DateTime start/end and optional
+     *   id; null when the event carries an id whose model record was removed
+     *   mid-interaction (drag/resize during a reload) — the click paths already
+     *   guard this, and dereferencing the missing record here would throw.
      */
     fcEventToRecord(event) {
         const { id, allDay, date, start, end } = event;
@@ -659,6 +676,12 @@ export class CalendarCommonRenderer extends Component {
         }
         if (id) {
             const existingRecord = this.props.model.records[id];
+            if (!existingRecord) {
+                // A reload dropped this record while the drag/resize was in
+                // flight; signal the caller to no-op instead of throwing on
+                // existingRecord.start / existingRecord.id.
+                return null;
+            }
             if (this.props.model.scale === "month") {
                 res.start = res.start?.set({
                     hour: existingRecord.start.hour,

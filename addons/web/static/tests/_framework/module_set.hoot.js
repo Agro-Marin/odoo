@@ -2,7 +2,7 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-import { afterEach, beforeEach, globals, onError } from "@odoo/hoot";
+import { afterEach, beforeEach, globals, mockLocation, onError } from "@odoo/hoot";
 
 import { setupMockCurrencies } from "./mock_currency.hoot.js";
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
@@ -244,6 +244,11 @@ export function setupTestEnvironment() {
     if (browserModule?.browser) {
         trackTestListeners(browserModule.browser);
     }
+    // ``browser.location`` is wired to HOOT's ``mockLocation`` singleton
+    // (see ``mock_browser.hoot.js::patchBrowserLocation``), whose listeners
+    // (e.g. ``addEventListener("reload", ...)`` in bus tests) survive across
+    // tests: HOOT resets its href between tests but not its listeners.
+    trackTestListeners(mockLocation);
     const rpcModule = loader.modules.get("@web/core/network/rpc");
     if (rpcModule?.rpcBus) {
         trackTestListeners(rpcModule.rpcBus);

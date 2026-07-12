@@ -385,6 +385,58 @@ test(`select record range with shift+space`, async () => {
 });
 
 test.tags("desktop");
+test(`shift+space on a group header row does not throw`, async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list><field name="foo"/><field name="bar"/></list>`,
+        groupBy: ["bar"],
+    });
+    expect(`tr.o_group_header`).toHaveCount(2);
+    // Focus a group-header cell (record === null there) and shift+space: this
+    // used to reach onToggleRecordSelection(null) -> toggleRangeSelection(null)
+    // and throw a TypeError. It must be a no-op instead.
+    queryFirst(`tr.o_group_header:eq(0) th.o_group_name`).focus();
+    await press(["shift", "space"]);
+    await animationFrame();
+    expect(`tr.o_group_header`).toHaveCount(2);
+});
+
+test.tags("desktop");
+test(`arrow-key nav dispatches through a subclass findFocusFutureCell override`, async () => {
+    const directions = [];
+    const listView = registry.category("views").get("list");
+    class CustomListRenderer extends listView.Renderer {
+        findFocusFutureCell(cell, cellIsInGroupRow, direction) {
+            directions.push(direction);
+            return super.findFocusFutureCell(cell, cellIsInGroupRow, direction);
+        }
+    }
+    registry
+        .category("views")
+        .add(
+            "ffc_list",
+            { ...listView, Renderer: CustomListRenderer },
+            { force: true },
+        );
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list js_class="ffc_list"><field name="foo"/><field name="int_field"/></list>`,
+    });
+
+    await press("ArrowDown");
+    await press("ArrowDown");
+    await animationFrame();
+
+    // The subclass override participated in arrow navigation again — before the
+    // renderer wired options.findFocusFutureCell, the hook called its own
+    // internal helper and the renderer's overridable method was a dead facade.
+    expect(directions.includes("down")).toBe(true);
+});
+
+test.tags("desktop");
 test(`expand range of checkbox with shift+arrow`, async () => {
     await mountView({
         resModel: "foo",

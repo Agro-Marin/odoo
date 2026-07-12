@@ -122,6 +122,21 @@ export class FormSaveCoordinator extends SignalStore {
     }
 
     /**
+     * Real user-edit dirtiness, read straight from the model record. The
+     * ``status`` state machine only observes COMMITTED save/discard outcomes
+     * (by design — see the module docstring and STATE_MANAGEMENT.md), so a
+     * record the user has typed into sits at ``status === "clean"`` while
+     * ``record.dirty`` is already true. This getter gives future readers
+     * (route guards, dialog blockers) a single truthful dirty surface without
+     * folding uncommitted edits into the save-lifecycle status.
+     *
+     * @returns {boolean}
+     */
+    get dirty() {
+        return Boolean(this.model.root?.dirty);
+    }
+
+    /**
      * Apply a status transition with a guard, throwing
      * ``InvalidFormSaveTransitionError`` if ``event`` is not valid from the
      * current state. Every status write inside this class must go through
@@ -226,7 +241,14 @@ export class FormSaveCoordinator extends SignalStore {
             if (ownerEpoch === this._saveEpoch) {
                 this.lastError = e;
             }
-            if (errorMode === "rethrow") {
+            // Rethrow when the caller asked for it, OR when an embedder-supplied
+            // ``saveOverride`` (``props.saveRecord``) threw. The override owns
+            // its own error handling and gets NO coordinator ``onError``, so a
+            // throw that escapes it must NOT be silently folded into
+            // ``return false`` — in dialog mode (the beforeLeave default) that
+            // blocks navigation with zero user feedback. Let it propagate to the
+            // global error handler so the failure surfaces.
+            if (errorMode === "rethrow" || saveOverride) {
                 throw e;
             }
             // silent: swallow, controller decides whether to surface.

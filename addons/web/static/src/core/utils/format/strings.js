@@ -57,10 +57,14 @@ export function capitalize(str) {
  * @returns {string}
  */
 export function escape(value) {
-    if (typeof value !== "string") {
-        return String(value ?? "");
-    }
-    return value.replace(_HTML_ESCAPE_RE, (ch) => _HTML_ESCAPE_MAP[ch]);
+    // Coerce first, THEN escape. A String subclass (e.g. a lazy translated
+    // string from ``_t`` hoisted to module scope, or an OWL Markup object) is
+    // ``typeof === "object"``, so a bare ``typeof value !== "string"`` guard
+    // returned it stringified but UNESCAPED — a silent XSS footgun for a
+    // primitive literally named ``escape``. Coercing to a plain string and
+    // always running the replace closes that hole.
+    const str = typeof value === "string" ? value : String(value ?? "");
+    return str.replace(_HTML_ESCAPE_RE, (ch) => _HTML_ESCAPE_MAP[ch]);
 }
 const _HTML_ESCAPE_MAP = Object.fromEntries(HTML_ESCAPED_CHARACTERS);
 const _HTML_ESCAPE_RE = /[&<>'"`]/g;

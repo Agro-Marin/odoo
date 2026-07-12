@@ -720,7 +720,7 @@ test("sidebar: public channel rendering", async () => {
     });
     await start();
     await openDiscuss();
-    await contains("button", { text: "channel1", contains: [".fa-globe"] });
+    await contains("button", { text: "channel1", contains: [".fa-earth-americas"] });
 });
 
 test("channel - avatar: should have correct avatar", async () => {
@@ -1229,14 +1229,14 @@ test("sidebar: show loading on initial opening", async () => {
     await start();
     await openDiscuss();
     await contains(
-        ".o-mail-DiscussSidebarCategory:contains('Channels') .fa.fa-circle-o-notch.fa-spin"
+        ".o-mail-DiscussSidebarCategory:contains('Channels') .fa-solid.fa-circle-notch.fa-spin"
     );
     await contains(".o-mail-DiscussSidebarChannel", { text: "General", count: 0 });
     await waitForSteps(["before channels_as_member"]);
     def.resolve();
     await waitStoreFetch("channels_as_member");
     await contains(
-        ".o-mail-DiscussSidebarCategory:contains('Channels') .fa.fa-circle-o-notch.fa-spin",
+        ".o-mail-DiscussSidebarCategory:contains('Channels') .fa-solid.fa-circle-notch.fa-spin",
         { count: 0 }
     );
     await contains(".o-mail-DiscussSidebarChannel", { text: "General" });

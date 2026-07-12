@@ -116,13 +116,29 @@ export class Group extends DataPoint {
     // -------------------------------------------------------------------------
 
     _addRecord(record, index) {
+        // Dedupe by resId: a stale source-list reload racing this add (two rapid
+        // cross-group kanban drags, or a revert after an un-mutexed reload)
+        // rebuilds the list with FRESH datapoints, so a datapoint-id check would
+        // miss the duplicate and the same card would render in two columns. Skip
+        // when a record with this resId is already present. New records carry no
+        // resId (only a virtualId), so they are never deduped.
+        if (record.resId && this.list.records.some((r) => r.resId === record.resId)) {
+            return;
+        }
         this.list._addRecord(record, index);
         this.count++;
     }
 
     async _deleteRecords(records) {
-        await this.list._deleteRecords(records);
-        this.count -= records.length;
+        // Only decrement when the delegate actually unlinked: a vetoed unlink
+        // (``DynamicList._deleteRecords`` returns ``false`` before reloading)
+        // must not shrink the group count, which would then never self-correct
+        // (no reload follows a veto).
+        const unlinked = await this.list._deleteRecords(records);
+        if (unlinked) {
+            this.count -= records.length;
+        }
+        return unlinked;
     }
 
     /**

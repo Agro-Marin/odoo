@@ -7,6 +7,7 @@ import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
+import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class BooleanFavoriteField extends Component {
@@ -18,6 +19,7 @@ export class BooleanFavoriteField extends Component {
     };
     static defaultProps = {
         noLabel: false,
+        autosave: true,
     };
 
     /** @returns {string} */
@@ -65,7 +67,7 @@ export const booleanFavoriteField = {
     ],
     extractProps: ({ attrs, options }, dynamicInfo) => ({
         noLabel: exprToBoolean(attrs.nolabel),
-        autosave: "autosave" in options ? Boolean(options.autosave) : true,
+        autosave: extractAutosave(options),
         readonly: dynamicInfo.readonly,
     }),
 };

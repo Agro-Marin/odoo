@@ -82,8 +82,23 @@ class InteractionService {
                     this.proms.splice(index, 1);
                 }
             },
-            () => {},
+            (error) => this._reportInteractionError(error),
         );
+    }
+
+    /**
+     * Single channel for surfacing interaction failures. Without it, a crash
+     * after the first scan (from insert(), a t-out re-scan, or an edit-mode
+     * restart) was fully silent: the rejection was swallowed here to keep the
+     * derived promise from reporting an unhandled rejection of its own, so it
+     * never reached the global error reporter either. Log it so the failure is
+     * at least visible in the console.
+     *
+     * @param {unknown} error
+     * @returns {void}
+     */
+    _reportInteractionError(error) {
+        console.error("[public.interactions] interaction failed:", error);
     }
 
     /**
@@ -159,15 +174,30 @@ class InteractionService {
         }
         const proms = /** @type {Array<Promise<void>>} */ ([]);
         for (const I of this.Interactions) {
+            // A single misdeclared interaction must not abort the whole scan.
+            // These two used to throw synchronously, killing every interaction
+            // AFTER the offending one page-wide; the invalid-selector branch
+            // below already isolates its failure with Promise.reject + continue,
+            // so mirror that here.
             if (I.selector === "") {
-                throw new Error(
-                    `The selector should be defined as a static property on the class ${I.name}, not on the instance`,
+                proms.push(
+                    Promise.reject(
+                        new Error(
+                            `The selector should be defined as a static property on the class ${I.name}, not on the instance`,
+                        ),
+                    ),
                 );
+                continue;
             }
             if (I.dynamicContent) {
-                throw new Error(
-                    `The dynamic content object should be defined on the instance, not on the class (${I.name})`,
+                proms.push(
+                    Promise.reject(
+                        new Error(
+                            `The dynamic content object should be defined on the instance, not on the class (${I.name})`,
+                        ),
+                    ),
                 );
+                continue;
             }
             let targets;
             try {

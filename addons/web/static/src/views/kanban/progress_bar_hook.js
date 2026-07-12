@@ -797,9 +797,11 @@ class ProgressBarState {
 
     /**
      * Match groups from read_progress_bar with those from formatted_read_group.
-     * Grouped on date(time) fields: displayName of the period (e.g. "W8 2024").
      * Boolean fields: "True"/"False". Falsy (e.g. unset many2one): "False".
-     * Otherwise: the group's value (e.g. id for a many2one).
+     * Otherwise (including date/datetime periods): the group's ``serverValue``
+     * — this is what ``read_progress_bar`` keys its result by, NOT the period's
+     * displayName. Do not "fix" this to return displayName: date bars would
+     * then fail to match and render as zero.
      *
      * @param {Group} group
      * @return string

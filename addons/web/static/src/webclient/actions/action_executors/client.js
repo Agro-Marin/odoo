@@ -40,11 +40,17 @@ export async function executeClientAction(action, options, am) {
     action.path ||= clientAction.path;
     if (clientAction.prototype instanceof Component) {
         if (action.target !== "new" && !options.newWindow) {
+            const navGeneration = am._navGeneration();
             const canProceed = await clearUncommittedChanges(
                 am.env,
                 pick(options, "forceLeave"),
             );
             if (!canProceed) {
+                return;
+            }
+            if (am._isSupersededNav(navGeneration)) {
+                // A newer navigation started while the save dialog blocked this
+                // one; abort so the earlier click can't mount over the later one.
                 return;
             }
             if (clientAction.target) {

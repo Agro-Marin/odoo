@@ -37,9 +37,13 @@ export const overlayService = {
         // runs exactly once and consumers don't each need their own guard.
         const removing = new Set();
 
+        // No props: OverlayContainer reads the overlays from ITS env's overlay
+        // service. Passing `overlays` through the registry entry would bind
+        // every rendered container (one per WebClient) to the overlays of the
+        // service instance that registered last — with several mock envs in
+        // tests, overlays opened from the other envs would render nowhere.
         mainComponents.add("OverlayContainer", {
             Component: /** @type {any} */ (OverlayContainer),
-            props: { overlays },
         });
 
         const remove = async (

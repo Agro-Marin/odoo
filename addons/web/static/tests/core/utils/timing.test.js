@@ -438,6 +438,32 @@ describe("throttleForAnimation", () => {
         expect.verifySteps([]);
     });
 
+    test("a rejected leading call rejects the returned promise (not swallowed)", async () => {
+        const throttledFn = throttleForAnimation(() =>
+            Promise.reject(new Error("boom")),
+        );
+        let caught;
+        await throttledFn(1).catch((error) => (caught = error));
+        expect(caught).toBeInstanceOf(Error);
+        expect(caught.message).toBe("boom");
+    });
+
+    test("a rejected trailing call rejects its awaiter", async () => {
+        let calls = 0;
+        const throttledFn = throttleForAnimation(() => {
+            calls++;
+            return calls === 1 ? "ok" : Promise.reject(new Error("boom2"));
+        });
+        throttledFn(1); // leading — resolves "ok"
+        const trailing = throttledFn(2); // queued
+        let caught;
+        const settled = trailing.catch((error) => (caught = error));
+        await runAllTimers();
+        await settled;
+        expect(caught).toBeInstanceOf(Error);
+        expect(caught.message).toBe("boom2");
+    });
+
     test("cancel() releases the pending trailing call's awaiter", async () => {
         const throttledFn = throttleForAnimation((value) => {
             expect.step(`${value}`);

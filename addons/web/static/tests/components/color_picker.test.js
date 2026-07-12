@@ -236,7 +236,7 @@ test("custom color picker sets default color as selected", async () => {
     expect("input.o_hex_input").toHaveValue("#FF0000");
 });
 
-test("AGROMARINVERIFY custom color picker does not mutate its props", async () => {
+test("custom color picker does not mutate its props", async () => {
     const picker = await mountWithCleanup(CustomColorPicker, {
         props: { defaultColor: "#FF0000", defaultOpacity: 0.5 },
     });

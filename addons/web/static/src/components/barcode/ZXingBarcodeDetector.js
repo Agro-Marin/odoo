@@ -125,9 +125,14 @@ export function buildZXingBarcodeDetector(ZXing) {
                     width: Math.max(1, Math.abs(resultPoints[1].x - resultPoints[0].x)),
                 });
                 const cornerPoints = resultPoints;
-                const format = Array.from(ZXingFormats).find(
-                    ([k, val]) => val === result.getBarcodeFormat(),
-                );
+                // The BarcodeDetector spec exposes `format` as a string. The
+                // Map lookup yields a `[key, enumValue]` entry (or undefined);
+                // take the key, defaulting to "" so a consumer never receives
+                // a two-element array where a format string is expected.
+                const format =
+                    Array.from(ZXingFormats).find(
+                        ([k, val]) => val === result.getBarcodeFormat(),
+                    )?.[0] ?? "";
                 const rawValue = result.getText();
                 return [
                     {

@@ -18,10 +18,18 @@ export class DropdownState extends SignalStore {
         this._onClose = onClose;
     }
     open() {
+        // Idempotent: a repeat open() while already open must not fire _onOpen
+        // twice (double popover-open / double onStateChanged).
+        if (this.isOpen) {
+            return;
+        }
         this.isOpen = true;
         this._onOpen?.();
     }
     close() {
+        if (!this.isOpen) {
+            return;
+        }
         this.isOpen = false;
         this._onClose?.();
     }

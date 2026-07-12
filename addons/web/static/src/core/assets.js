@@ -474,6 +474,19 @@ export const assets = {
             const results = await Promise.all(
                 specifiers.map(async (specifier) => {
                     const mod = await import(specifier);
+                    // The specifier may already be import-mapped to another
+                    // module (first injection wins for the whole session, e.g.
+                    // a test stub claimed it first). Delegating shims expose
+                    // ``__setImplUrl`` so a later load of the same bundle can
+                    // still route them to this bundle's actual module.
+                    const mappedUrl = importMap?.[specifier];
+                    if (mappedUrl && typeof mod.__setImplUrl === "function") {
+                        // Absolutize: the shim may live in a data: module,
+                        // where path-relative imports cannot be resolved.
+                        await mod.__setImplUrl(
+                            new URL(mappedUrl, document.baseURI).href,
+                        );
+                    }
                     return [specifier, mod];
                 }),
             );

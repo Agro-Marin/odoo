@@ -27,9 +27,12 @@ import {
     hasData,
     pruneTree,
     sortTree,
+    stripSortedKeys,
 } from "@web/views/pivot/pivot_group_tree";
 import { getMeasureSpecs } from "@web/views/pivot/pivot_measurements";
 import { PivotModel } from "@web/views/pivot/pivot_model";
+import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
+import { getTableRows } from "@web/views/pivot/pivot_table";
 import {
     getGroupBySpecs,
     getGroupDomain,
@@ -670,5 +673,84 @@ describe("PivotModel.getTableWidth — export guard width", () => {
         // The renderer refuses to call /web/pivot/export_xlsx when
         // getTableWidth() > 16384 (see PivotRenderer.onDownloadButtonClicked).
         expect(width > 16384).toBe(true);
+    });
+});
+
+// stripSortedKeys — flip-order invariant
+
+describe("stripSortedKeys — clears cached sort order", () => {
+    test("removes sortedKeys recursively from a tree and its subtrees", () => {
+        const tree = makeTree();
+        addGroup(tree, ["A"], [1]);
+        addGroup(tree, ["A", "B"], [1, 2]);
+        tree.sortedKeys = [1];
+        tree.directSubTrees.get(1).sortedKeys = [2];
+
+        stripSortedKeys(tree);
+
+        expect("sortedKeys" in tree).toBe(false);
+        expect("sortedKeys" in tree.directSubTrees.get(1)).toBe(false);
+    });
+});
+
+// getTableRows — stale sortedKeys must not hide children
+
+describe("getTableRows — stale sortedKeys fallback", () => {
+    /** Minimal metaData/columns/data for a single-measure Total column. */
+    function makeRowConfig() {
+        const metaData = {
+            fields: { fld: { string: "Fld" } },
+            activeMeasures: ["__count"],
+            get fullRowGroupBys() {
+                return ["fld"];
+            },
+            get fullColGroupBys() {
+                return [];
+            },
+        };
+        const columns = [{ groupId: [[], []], measure: "__count" }];
+        const data = { measurements: {}, currencyIds: {}, counts: {} };
+        return { metaData, columns, data };
+    }
+
+    test("renders every child even when sortedKeys is stale (mismatched size)", () => {
+        const tree = makeTree([], []);
+        addGroup(tree, ["A"], [1]);
+        addGroup(tree, ["B"], [2]);
+        // Stale sort order: only one key though the tree now has two children
+        // (e.g. a group expanded after a sort, or a transposed tree). The old
+        // `tree.sortedKeys || [...keys]` would iterate [2] and drop child A.
+        tree.sortedKeys = [2];
+
+        const { metaData, columns, data } = makeRowConfig();
+        const rows = getTableRows(tree, columns, data, metaData);
+
+        expect(rows.map((r) => r.title)).toEqual(["Total", "A", "B"]);
+    });
+
+    test("honours sortedKeys when it matches the child set", () => {
+        const tree = makeTree([], []);
+        addGroup(tree, ["A"], [1]);
+        addGroup(tree, ["B"], [2]);
+        tree.sortedKeys = [2, 1]; // valid: covers both children
+
+        const { metaData, columns, data } = makeRowConfig();
+        const rows = getTableRows(tree, columns, data, metaData);
+
+        expect(rows.map((r) => r.title)).toEqual(["Total", "B", "A"]);
+    });
+});
+
+// PivotRenderer.getPadding — reinstated enterprise seam
+
+describe("PivotRenderer.getPadding — row indentation seam", () => {
+    test("indents 5px + 30px per level", () => {
+        // env is only read by the web_enterprise override (mobile shrinks the
+        // step); the base method ignores `this`. Providing it keeps the test
+        // valid whether or not the enterprise patch is loaded.
+        const self = { env: { isSmall: false } };
+        expect(PivotRenderer.prototype.getPadding.call(self, { indent: 0 })).toBe(5);
+        expect(PivotRenderer.prototype.getPadding.call(self, { indent: 1 })).toBe(35);
+        expect(PivotRenderer.prototype.getPadding.call(self, { indent: 3 })).toBe(95);
     });
 });

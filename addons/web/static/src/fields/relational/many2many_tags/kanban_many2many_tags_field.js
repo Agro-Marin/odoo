@@ -13,7 +13,6 @@ export class KanbanMany2ManyTagsField extends Many2ManyTagsField {
     get tags() {
         return super.tags.reduce((kanbanTags, tag) => {
             if (tag.colorIndex !== 0) {
-                delete tag.onClick;
                 kanbanTags.push(tag);
             }
             return kanbanTags;

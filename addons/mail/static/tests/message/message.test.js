@@ -194,7 +194,7 @@ test("Edit message (mobile)", async () => {
     await click(".o-mail-Message [title='Expand']");
     await click(".o-dropdown-item:contains('Edit')");
     await insertText(".o-mail-Message .o-mail-Composer-input", "edited message", { replace: true });
-    await click(".o-mail-Message .fa-paper-plane-o");
+    await click(".o-mail-Message .fa-regular.fa-paper-plane");
     await contains(".o-mail-Message-content", { text: "edited message (edited)" });
 });
 
@@ -1205,18 +1205,18 @@ test("toggle_star message", async () => {
     await openDiscuss(channelId);
     await contains(".o-mail-Message");
     await contains(".o-mail-Message [title='Add Star']");
-    await contains(".o-mail-Message [title='Add Star']" + " i.fa-star-o");
+    await contains(".o-mail-Message [title='Add Star']" + " i.fa-regular.fa-star");
     await contains("button", { text: "Starred messages", contains: [".badge", { count: 0 }] });
     await click(".o-mail-Message [title='Add Star']");
     await contains("button", { text: "Starred messages", contains: [".badge", { text: "1" }] });
     await waitForSteps(["rpc:toggle_message_starred"]);
     await contains(".o-mail-Message");
-    await contains(".o-mail-Message [title='Remove Star']" + " i.fa-star");
+    await contains(".o-mail-Message [title='Remove Star']" + " i.fa-solid.fa-star");
     await click(".o-mail-Message [title='Remove Star']");
     await contains("button", { text: "Starred messages", contains: [".badge", { count: 0 }] });
     await waitForSteps(["rpc:toggle_message_starred"]);
     await contains(".o-mail-Message");
-    await contains(".o-mail-Message [title='Add Star']" + " i.fa-star-o");
+    await contains(".o-mail-Message [title='Add Star']" + " i.fa-regular.fa-star");
 });
 
 test("can star a persistent message without thread", async () => {
@@ -1323,7 +1323,10 @@ test("Notification Sent", async () => {
     await contains(".o-mail-Message");
     await contains(".o-mail-Message-notification");
     await contains(".o-mail-Message-notification i");
-    expect(".o-mail-Message-notification i:first").toHaveClass("fa-envelope-o");
+    expect(".o-mail-Message-notification i:first").toHaveClass([
+        "fa-regular",
+        "fa-envelope",
+    ]);
     await click(".o-mail-Message-notification");
     await contains(".o-mail-MessageNotificationPopover");
     await contains(".o-mail-MessageNotificationPopover i");
@@ -2348,7 +2351,7 @@ test("Prettify message links", async () => {
     );
     await press("Enter");
     await contains(".o-mail-Message", { text: "TestPartner" });
-    await contains(".o-mail-Message .fa.fa-comment");
+    await contains(".o-mail-Message .fa-solid.fa-comment");
     await contains(".o-mail-Message", { text: url(`/mail/message/100`) });
 });
 

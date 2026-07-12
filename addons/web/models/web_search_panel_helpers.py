@@ -9,8 +9,8 @@ in ``web_search_panel.py``.
 from typing import Any
 
 from odoo import api, models
-from odoo.fields import Domain
 from odoo.api import DomainType
+from odoo.fields import Domain
 
 from .web_read import lazymapping
 from .web_read_group_helpers import AND
@@ -157,8 +157,7 @@ class Base(models.AbstractModel):
         """
         local_counters = lazymapping(lambda id: values_range[id]["__count"])
 
-        for id in values_range:
-            values = values_range[id]
+        for id, values in values_range.items():
             count = local_counters[id]
             if count:
                 parent_id = values[parent_name]

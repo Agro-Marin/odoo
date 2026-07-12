@@ -35980,3 +35980,13 @@ export function getCategories() {
     }
     return parsedCategories;
 }
+
+/**
+ * Drop the parsed emoji/category caches. The emoji names/keywords are
+ * translated (``_t``) when first parsed, so tests that install different
+ * translations must reset the cache to see them applied.
+ */
+export function resetEmojiData() {
+    parsedEmojis = undefined;
+    parsedCategories = undefined;
+}

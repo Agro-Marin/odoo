@@ -22,6 +22,21 @@ const BREADCRUMB_CACHE_LIMIT = 200;
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
+ * The home-menu pseudo-controller (web_enterprise's "menu" client action) must
+ * never appear in breadcrumbs nor be fetched from the server. It is spelled two
+ * ways depending on provenance: ``action.tag === "menu"`` for a live client
+ * action loaded by registry key, ``action.id === "menu"`` for a URL-derived
+ * virtual controller reconstructed from state. Match both so every breadcrumb
+ * discriminator uses one predicate instead of picking one spelling.
+ *
+ * @param {{ tag?: any, id?: any }} [action]
+ * @returns {boolean}
+ */
+export function isMenuController(action) {
+    return action?.tag === "menu" || action?.id === "menu";
+}
+
+/**
  * Write an entry into the breadcrumb cache, evicting the least recently used
  * one when the cache is full. Plain objects preserve string-key insertion
  * order and hits are re-inserted (see the lookup sites), so the first key is
@@ -105,7 +120,7 @@ function settleBreadcrumbs(controllerKeys, breadcrumbCache) {
  */
 export function buildBreadcrumbs(stack, am) {
     return stack
-        .filter((controller) => controller.action.tag !== "menu")
+        .filter((controller) => !isMenuController(controller.action))
         .map((controller) => ({
             jsId: controller.jsId,
             // Plain slot (not a getter): the items live in a reactive array,
@@ -139,7 +154,7 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
     for (const controller of controllers) {
         const { action, state, displayName } = controller;
         if (
-            action.id === "menu" ||
+            isMenuController(action) ||
             (action.type === "ir.actions.client" && !displayName)
         ) {
             continue;
@@ -204,7 +219,7 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
     const seen = new Set();
     for (const controller of controllers) {
         const { action, state } = controller;
-        if (!state || action.id === "menu" || action.type === "ir.actions.client") {
+        if (!state || isMenuController(action) || action.type === "ir.actions.client") {
             // Client action names come from the registry, not the server.
             continue;
         }

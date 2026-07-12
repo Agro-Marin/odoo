@@ -3,9 +3,42 @@
 
 /** @module @web/core/py_js/py_builtin - Python built-in functions (bool, len, set, sorted, etc.) for the JS evaluator */
 
+// Runtime-only use inside max()/min(); the import cycle with py_compare.js
+// (which needs pyTypeName/EvaluationError from here) is safe because neither
+// side touches the other's bindings at module-evaluation time.
+import { isLess } from "./py_compare.js";
 import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
 
 export class EvaluationError extends Error {}
+
+/**
+ * Python ``repr()`` of a string: pick single quotes unless the string contains
+ * a ``'`` and no ``"`` (then use double quotes), and escape the backslash, the
+ * chosen quote and the common control characters. The old ``'${value}'`` gave
+ * unparseable output for strings containing a quote or backslash
+ * (``repr("it's")`` → ``'it's'``).
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+function pyReprString(s) {
+    const quote = s.includes("'") && !s.includes('"') ? '"' : "'";
+    let out = quote;
+    for (const ch of s) {
+        if (ch === "\\" || ch === quote) {
+            out += "\\" + ch;
+        } else if (ch === "\n") {
+            out += "\\n";
+        } else if (ch === "\r") {
+            out += "\\r";
+        } else if (ch === "\t") {
+            out += "\\t";
+        } else {
+            out += ch;
+        }
+    }
+    return out + quote;
+}
 
 /**
  * Python ``repr()``: the unambiguous representation. Strings get quotes, lists
@@ -23,7 +56,7 @@ export function pyRepr(value) {
         return value ? "True" : "False";
     }
     if (typeof value === "string") {
-        return `'${value}'`;
+        return pyReprString(value);
     }
     if (Array.isArray(value)) {
         return `[${value.map(pyRepr).join(", ")}]`;
@@ -303,17 +336,17 @@ export const BUILTINS = {
 
     max(/** @type {any[]} */ ...args) {
         const items = maxMinItems(args, "max");
-        // Reduce with the relational operator rather than Math.max: Math.max
-        // coerces every item with Number(), so max("b","a")/max(dateA,dateB)
-        // returned NaN. Relational `>` orders numbers, strings, booleans and
-        // Date-likes correctly, and keeping `acc` on ties matches Python's
-        // "first maximal element wins".
-        return items.reduce((acc, item) => (item > acc ? item : acc));
+        // Share the interpreter's `isLess` kernel rather than the JS `>`:
+        // `>` coerces with Number() (so max("b","a")/max(dateA,dateB) gave NaN)
+        // AND stringifies lists (so max([[2],[10]]) wrongly returned [2] where
+        // Python returns [10]). Keeping `acc` on ties matches Python's "first
+        // maximal element wins".
+        return items.reduce((acc, item) => (isLess(acc, item) ? item : acc));
     },
 
     min(/** @type {any[]} */ ...args) {
         const items = maxMinItems(args, "min");
-        return items.reduce((acc, item) => (item < acc ? item : acc));
+        return items.reduce((acc, item) => (isLess(item, acc) ? item : acc));
     },
 
     time: {

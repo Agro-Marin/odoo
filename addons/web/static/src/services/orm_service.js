@@ -71,8 +71,29 @@ export const UPDATE_METHODS = [
  * and serve a later identical write from cache without hitting the server.
  * Superset of {@link UPDATE_METHODS} (which is scoped to cache-invalidation
  * consumers and intentionally left untouched).
+ *
+ * ``copy`` is included explicitly: it duplicates records (a mutation) but is
+ * NOT in ``UPDATE_METHODS`` (which drives cache invalidation, where copy is
+ * handled by the returned record's own read). Without it,
+ * ``orm.retry(1).call(model, "copy", [ids])`` would slip through the guard and
+ * a retry after a lost response could create duplicate records.
+ *
+ * NOTE — a full inversion to an idempotent-read WHITELIST (rejecting every
+ * method not known to be a safe read) is deliberately DEFERRED: the ``call``
+ * escape hatch is used with legitimately-cacheable CUSTOM read methods
+ * (e.g. enterprise ``ai.agent.get_ask_ai_agent`` via ``orm.cache().call``),
+ * which a hard-throw whitelist in this base module cannot enumerate and would
+ * break at runtime. A safe inversion needs a caller-side idempotence opt-in
+ * (e.g. ``orm.idempotent.call(...)``) plus migrating those custom callers —
+ * out of scope here. Until then the blacklist stays authoritative; add any
+ * newly-discovered mutating method here.
  */
-const NON_IDEMPOTENT_METHODS = [...UPDATE_METHODS, "web_resequence", "name_create"];
+const NON_IDEMPOTENT_METHODS = [
+    ...UPDATE_METHODS,
+    "web_resequence",
+    "name_create",
+    "copy",
+];
 
 export class ORM {
     constructor() {
@@ -238,10 +259,15 @@ export class ORM {
             aggregates,
             ...kwargs,
         });
-        for (const group of res) {
-            group["__domain"] = Domain.and([domain, group["__extra_domain"]]).toList();
-        }
-        return res;
+        // Build ``__domain`` on a SHALLOW COPY of each group instead of mutating
+        // the RPC result in place: under ``orm.cache({immutable:true})`` the
+        // payload is deep-frozen and shared across warm hits, so an in-place
+        // ``group.__domain = ...`` throws a TypeError in strict mode (and would
+        // otherwise cross-contaminate every future cache reader).
+        return res.map((group) => ({
+            ...group,
+            __domain: Domain.and([domain, group["__extra_domain"]]).toList(),
+        }));
     }
 
     /**
@@ -268,15 +294,14 @@ export class ORM {
             aggregates,
             ...kwargs,
         });
-        for (const groups of res) {
-            for (const group of groups) {
-                group["__domain"] = Domain.and([
-                    domain,
-                    group["__extra_domain"],
-                ]).toList();
-            }
-        }
-        return res;
+        // Shallow-copy each group rather than mutate the (possibly deep-frozen,
+        // shared) RPC result in place — see ``formattedReadGroup`` above.
+        return res.map((groups) =>
+            groups.map((group) => ({
+                ...group,
+                __domain: Domain.and([domain, group["__extra_domain"]]).toList(),
+            })),
+        );
     }
 
     /**

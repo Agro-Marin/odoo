@@ -230,6 +230,13 @@ export class ListRenderer extends Component {
             onOpenRecord: (record) => this.props.openRecord(record),
             onDeleteRecord: (record) => this.onDeleteRecord(record),
             onEditNextRecord: (record, group) => this.editNextRecord(record, group),
+            // Route arrow-key cell resolution back through the renderer's
+            // (overridable) findFocusFutureCell so subclass overrides
+            // (documents, account_accountant attachment preview, …) participate
+            // in every arrow move again — the hook's internal helpers alone are
+            // a closed call the renderer twin can't intercept.
+            findFocusFutureCell: (cell, cellIsInGroupRow, direction) =>
+                this.findFocusFutureCell(cell, cellIsInGroupRow, direction),
             isInlineEditable: (record) => this.isInlineEditable(record),
             isCellReadonly: (column, record) => this.isCellReadonly(column, record),
             expandCheckboxes: (record, direction) =>
@@ -543,7 +550,18 @@ export class ListRenderer extends Component {
             recordRowTemplate: /** @type {any} */ (this.constructor).recordRowTemplate,
             columns: this.columns,
             activeActions: this.activeActions,
-            editedRecord: this.editedRecord,
+            // Narrow invalidation channel: pass only the two booleans a row's
+            // render actually depends on instead of the whole ``editedRecord``
+            // object. Passing the object made EVERY visible row see a changed
+            // prop whenever the edited row switched (A -> B), re-rendering all
+            // of them (~O(rows × cols) cell evals per keypress cycle). With
+            // ``isEdited`` only rows A and B flip; ``hasEditedRecord`` flips for
+            // all rows only on the null <-> some transition, which is exactly
+            // when every row's button ``tabindex`` must actually update. The
+            // row template still reads ``editedRecord`` (delegated to the
+            // renderer) for its concrete value on the renders that do happen.
+            isEdited: this.editedRecord === record,
+            hasEditedRecord: Boolean(this.editedRecord),
             canResequence: this.canResequenceRows,
             canSelectRecord: this.canSelectRecord,
             hasSelectors: this.hasSelectors,

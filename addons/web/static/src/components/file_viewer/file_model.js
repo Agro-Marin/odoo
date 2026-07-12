@@ -73,7 +73,11 @@ export const FileModelMixin = (T) =>
         }
 
         get isPdf() {
-            return this.mimetype?.startsWith("application/pdf");
+            // ``mimetype`` may be ``false`` (unset on the server), not only a
+            // string or undefined: optional chaining alone is not enough.
+            return Boolean(
+                this.mimetype && this.mimetype.startsWith?.("application/pdf"),
+            );
         }
 
         get isText() {

@@ -163,7 +163,11 @@ export function useExportRecords(env, context, getDefaultExportList) {
     const _getExportedFields = async (isCompatible, parentParams) => {
         const root = model.root;
         let domain = parentParams ? [] : root.domain;
-        if (!root.isDomainSelected && root.selection.length) {
+        // Only scope by the current selection for the ROOT model's own fields.
+        // A subfield expansion (parentParams set) queries a *child* model, so
+        // the parent recordset ids must not leak in as its domain — that would
+        // filter the child's fields by a bogus, foreign id set.
+        if (!parentParams && !root.isDomainSelected && root.selection.length) {
             const ids = root.selection.map((e) => e.resId);
             domain = [["id", "in", ids]];
         }

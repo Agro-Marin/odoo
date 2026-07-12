@@ -46,6 +46,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 STATE_FILE = SCRIPT_DIR / ".hoot_state.json"
 LOG_DIR = SCRIPT_DIR / ".hoot_logs"
 
+# Suites are named ``@<addon>/...``; running an addon's suites requires that
+# addon installed in the warm DB. ``web`` is always installed (it owns the
+# /web/tests runner). Any ``@addon`` prefix maps to the module of the same
+# name — Odoo resolves dependencies (e.g. ``mail`` pulls ``bus`` and
+# ``html_editor``) at install time.
+ALWAYS_MODULES = ("web",)
+
 # HOOT log signals (see web/static/lib/hoot/core/runner.js).
 SUCCESS_SIGNAL = "[HOOT] Test suite succeeded"
 RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
@@ -120,19 +127,67 @@ def _http_alive(port: int) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# Warm-server lifecycle
+# Suite -> modules -> db derivation
 # --------------------------------------------------------------------------- #
-def read_state() -> dict | None:
-    if STATE_FILE.exists():
+def addons_for_suites(suites: list[str]) -> set[str]:
+    """Return the addon names referenced by ``@addon/...`` suite/test paths."""
+    addons: set[str] = set()
+    for suite in suites:
+        m = re.match(r"^@([A-Za-z0-9_]+)(?:/|$)", suite.strip())
+        if m:
+            addons.add(m[1])
+    return addons
+
+
+def modules_for_suites(suites: list[str]) -> tuple[str, ...]:
+    """Modules the warm DB must have installed to run ``suites``."""
+    return tuple(sorted(set(ALWAYS_MODULES) | addons_for_suites(suites)))
+
+
+def db_for_modules(modules: tuple[str, ...]) -> str:
+    """Deterministic warm-DB name for a module set.
+
+    ``{web}`` keeps the historical ``hoot_web``; anything more becomes
+    ``hoot_<extra>_<extra>...`` so each combination gets its own disposable
+    DB (concurrent warm servers never fight over one database).
+    """
+    extras = [m for m in modules if m not in ALWAYS_MODULES]
+    return DEFAULT_DB if not extras else "hoot_" + "_".join(sorted(extras))
+
+
+# --------------------------------------------------------------------------- #
+# Warm-server lifecycle (one state file per DB => concurrent warm servers)
+# --------------------------------------------------------------------------- #
+def state_file(db: str) -> Path:
+    # ``hoot_web`` keeps the legacy filename so a warm server booted by an
+    # older version of these scripts is still found.
+    if db == DEFAULT_DB:
+        return STATE_FILE
+    return SCRIPT_DIR / f".hoot_state_{db}.json"
+
+
+def read_state(db: str = DEFAULT_DB) -> dict | None:
+    path = state_file(db)
+    if path.exists():
         try:
-            return json.loads(STATE_FILE.read_text())
+            return json.loads(path.read_text())
         except json.JSONDecodeError:
             return None
     return None
 
 
+def read_all_states() -> list[dict]:
+    states = []
+    for path in sorted(SCRIPT_DIR.glob(".hoot_state*.json")):
+        try:
+            states.append(json.loads(path.read_text()))
+        except json.JSONDecodeError:
+            continue
+    return states
+
+
 def write_state(state: dict) -> None:
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+    state_file(state["db"]).write_text(json.dumps(state, indent=2))
 
 
 def _pid_alive(pid: int) -> bool:
@@ -149,16 +204,21 @@ def server_is_warm(state: dict | None) -> bool:
     return _pid_alive(state.get("pid", -1)) and _http_alive(state["port"])
 
 
-def ensure_db(db: str, verbose: bool = False) -> None:
-    """Create + install web into ``db`` once, if it does not already exist."""
-    if db_exists(db):
-        return
-    _log.info("Creating database %s and installing base,web (one-time)...", db)
-    LOG_DIR.mkdir(exist_ok=True)
-    log_path = LOG_DIR / f"init_{db}.log"
+def installed_modules(db: str) -> set[str]:
+    if not db_exists(db):
+        return set()
+    out = subprocess.run(
+        ["psql", "-U", "marin", "-d", db, "-tAc",
+         "SELECT name FROM ir_module_module WHERE state='installed'"],
+        capture_output=True, text=True, check=False,
+    )
+    return set(out.stdout.split())
+
+
+def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
     cmd = [
         str(VENV_PY), str(ODOO_BIN), "-c", str(CONF), "-d", db,
-        "-i", "base,web", "--stop-after-init", "--no-http",
+        "-i", ",".join(("base", *modules)), "--stop-after-init", "--no-http",
         "--max-cron-threads=0",
     ]
     with log_path.open("wb") as fh:
@@ -172,9 +232,29 @@ def ensure_db(db: str, verbose: bool = False) -> None:
         )
 
 
-def boot_server(db: str, verbose: bool = False) -> dict:
+def ensure_db(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
+              verbose: bool = False) -> None:
+    """Create ``db`` with ``modules`` installed; top up a DB that exists but
+    is missing some of them (that path requires the DB's warm server, if any,
+    to be stopped first — ``ensure_server`` handles that ordering)."""
+    LOG_DIR.mkdir(exist_ok=True)
+    log_path = LOG_DIR / f"init_{db}.log"
+    if not db_exists(db):
+        _log.info("Creating database %s and installing %s (one-time)...",
+                  db, ",".join(modules))
+        _odoo_install(db, modules, log_path)
+        return
+    missing = set(modules) - installed_modules(db)
+    if missing:
+        _log.info("Installing missing modules into %s: %s",
+                  db, ",".join(sorted(missing)))
+        _odoo_install(db, tuple(sorted(missing)), log_path)
+
+
+def boot_server(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
+                verbose: bool = False) -> dict:
     """Boot ONE persistent threaded dev server on a free 8085-8089 port."""
-    ensure_db(db, verbose=verbose)
+    ensure_db(db, modules, verbose=verbose)
     port = next((p for p in PORT_RANGE if port_is_free(p)), None)
     if port is None:
         raise RuntimeError(f"No free port in {PORT_RANGE.start}-{PORT_RANGE.stop - 1}")
@@ -217,41 +297,57 @@ def boot_server(db: str, verbose: bool = False) -> dict:
     return state
 
 
-def ensure_server(db: str, verbose: bool = False) -> tuple[dict, bool]:
-    """Return (state, booted). Reuse a warm server if one is alive."""
-    state = read_state()
-    if server_is_warm(state) and (db is None or state["db"] == db):
-        return state, False
-    state = boot_server(db or DEFAULT_DB, verbose=verbose)
+def ensure_server(db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES,
+                  verbose: bool = False) -> tuple[dict, bool]:
+    """Return (state, booted). Reuse this DB's warm server if it is alive
+    and already has every required module installed."""
+    db = db or db_for_modules(modules)
+    state = read_state(db)
+    if server_is_warm(state) and state["db"] == db:
+        missing = set(modules) - installed_modules(db)
+        if not missing:
+            return state, False
+        # Installing into a live DB from a second process is unsafe; recycle.
+        _log.info("Warm server on %s lacks modules %s - recycling",
+                  db, ",".join(sorted(missing)))
+        stop_server(db)
+    state = boot_server(db, modules, verbose=verbose)
     return state, True
 
 
-def stop_server(clean: bool = False) -> str:
-    state = read_state()
-    if not state:
-        return "No warm server recorded."
-    pid, port, db = state.get("pid"), state.get("port"), state.get("db")
-    msg = []
-    if pid and _pid_alive(pid):
-        try:
-            import psutil
+def _terminate_pid(pid: int) -> None:
+    try:
+        import psutil
 
-            main = psutil.Process(pid)
-            procs = [main, *main.children(recursive=True)]
-            main.terminate()
-            _, alive = psutil.wait_procs(procs, 5)
-            for p in alive:
-                p.kill()
-        except Exception:
-            with contextlib.suppress(OSError):
-                os.killpg(os.getpgid(pid), 15)
-        msg.append(f"Stopped server pid={pid} port={port}.")
-    else:
-        msg.append("Server was not running.")
-    STATE_FILE.unlink(missing_ok=True)
-    if clean and db:
-        drop_db(db)
-        msg.append(f"Dropped database {db}.")
+        main = psutil.Process(pid)
+        procs = [main, *main.children(recursive=True)]
+        main.terminate()
+        _, alive = psutil.wait_procs(procs, 5)
+        for p in alive:
+            p.kill()
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.killpg(os.getpgid(pid), 15)
+
+
+def stop_server(db: str | None = None, clean: bool = False) -> str:
+    """Stop one DB's warm server (or every recorded one when db is None)."""
+    states = [s for s in read_all_states() if db is None or s.get("db") == db]
+    if not states:
+        return "No warm server recorded."
+    msg = []
+    for state in states:
+        pid, port, sdb = state.get("pid"), state.get("port"), state.get("db")
+        if pid and _pid_alive(pid):
+            _terminate_pid(pid)
+            msg.append(f"Stopped server pid={pid} port={port} db={sdb}.")
+        else:
+            msg.append(f"Server for {sdb} was not running.")
+        if sdb:
+            state_file(sdb).unlink(missing_ok=True)
+        if clean and sdb:
+            drop_db(sdb)
+            msg.append(f"Dropped database {sdb}.")
     return " ".join(msg)
 
 

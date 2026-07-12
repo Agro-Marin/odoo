@@ -13,11 +13,51 @@ Phase 1 (this controller) + Phase 2 (queryable model + dashboard).
 
 import logging
 import math
+import threading
+import time
 
 from odoo.http import Controller, Response, request, route
 from odoo.libs.json import loads as json_loads
 
 _logger = logging.getLogger(__name__)
+
+# Per-client rate limit for the public CWV beacon.  The endpoint is
+# ``auth="public"`` + ``csrf=False`` and persists a row per (novel)
+# ``pageview_id``, so an anonymous caller forging fresh ids could amplify
+# ``INSERT``s without bound.  A cheap in-process fixed-window counter caps how
+# many beacons one client (keyed by remote address) may turn into DB writes per
+# window.  The window is generous relative to real traffic — ``web_vitals``
+# sends only a small burst per pageview via ``navigator.sendBeacon`` on
+# ``pagehide`` — so legitimate beacons are never dropped; only abusive volume is.
+# The state is per worker process (best-effort DoS mitigation, not a hard global
+# quota) and self-prunes to stay bounded.
+_RATE_LIMIT_WINDOW_S = 60
+_RATE_LIMIT_MAX = 120
+_RATE_LIMIT_MAX_KEYS = 10_000
+_rate_lock = threading.Lock()
+# key -> [window_start_monotonic, count_in_window]
+_rate_state: dict[str, list[float]] = {}
+
+
+def _rate_limited(key: str) -> bool:
+    """Return ``True`` when *key* has exceeded its beacon budget this window."""
+    now = time.monotonic()
+    with _rate_lock:
+        # Opportunistic prune so a churn of distinct client keys (e.g. spoofed
+        # sources) can't grow the map without bound.
+        if len(_rate_state) > _RATE_LIMIT_MAX_KEYS:
+            cutoff = now - _RATE_LIMIT_WINDOW_S
+            for stale in [k for k, v in _rate_state.items() if v[0] < cutoff]:
+                del _rate_state[stale]
+        state = _rate_state.get(key)
+        if state is None or now - state[0] >= _RATE_LIMIT_WINDOW_S:
+            _rate_state[key] = [now, 1]
+            return False
+        if state[1] >= _RATE_LIMIT_MAX:
+            return True
+        state[1] += 1
+        return False
+
 
 # Sanity bounds — values outside these are dropped as garbage (typically from
 # bots, devtools-paused tabs, or buggy browsers).  The thresholds are well
@@ -80,7 +120,15 @@ class Observability(Controller):
         token (no header control on the Blob path).  The endpoint is purely
         write-only and the validation drops malformed input, so the lack of
         CSRF here does not expand the attack surface meaningfully.
+
+        Beacons are rate-limited per client (remote address) so an anonymous
+        caller cannot amplify DB inserts; ``navigator.sendBeacon`` ignores the
+        response, so a 429 is invisible to legitimate senders.
         """
+        client_key = request.httprequest.remote_addr or "anon"
+        if _rate_limited(client_key):
+            return Response("", status=429, mimetype="text/plain")
+
         try:
             payload = json_loads(request.httprequest.data or b"{}")
         except ValueError, TypeError:

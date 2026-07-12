@@ -297,12 +297,12 @@ class Base(models.AbstractModel):
             ex: ``{ "field_name": "new_value" }``
         """
         self.ensure_one()
-        for field_name in values:
+        for field_name, value in values.items():
             field = self._fields.get(field_name)
             if field and field.translate is True:
                 translations = {
                     lang: False for lang, _ in self.env["res.lang"].get_installed()
                 }
-                translations["en_US"] = values[field_name]
-                translations[self.env.lang or "en_US"] = values[field_name]
+                translations["en_US"] = value
+                translations[self.env.lang or "en_US"] = value
                 self.update_field_translations(field_name, translations)

@@ -13,6 +13,12 @@ This module provides the core of the Odoo Web Client.
     "depends": [
         "base",
     ],
+    "external_dependencies": {
+        # Optional: only the vCard export controller (controllers/vcard.py) uses
+        # it, and it guards on importlib.find_spec. The web addon imports fine
+        # without it (models/res_partner.py imports vobject lazily).
+        "python": ["vobject"],
+    },
     "data": [
         "security/ir.model.access.csv",
         "security/web_security.xml",

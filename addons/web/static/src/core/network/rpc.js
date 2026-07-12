@@ -306,7 +306,7 @@ if (!_rpcState.busListenersAttached) {
             // ("if model is set, tables is set" — see ``RESULT_SET_TABLES`` in
             // ``services/result_set_cache_invalidator_service.js``);
             // ``invalidateByModel`` would throw on ``undefined`` regardless.
-            const objDetail = /** @type {{ tables: string[]; model?: string }} */ (
+            const objDetail = /** @type {{ tables?: string[]; model?: string }} */ (
                 detail
             );
             if (objDetail.model) {
@@ -314,8 +314,14 @@ if (!_rpcState.busListenersAttached) {
                     objDetail.tables,
                     objDetail.model,
                 );
-                return;
+            } else {
+                // Object detail WITHOUT a model: invalidate the named tables.
+                // Passing the object itself to invalidate() (the old
+                // fallthrough) fed a non-iterable into bumpDiskGeneration and
+                // crashed with a TypeError, silently skipping the invalidation.
+                _rpcState.rpcCache?.invalidate(objDetail.tables ?? null);
             }
+            return;
         }
         // ``detail`` is a single table name (most emit sites), a ``string[]``
         // (rare, batch clearing), or ``undefined`` (full-cache nuke from

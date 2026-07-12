@@ -170,8 +170,20 @@ export class Many2One extends Component {
                 },
                 onRecordSaved: async () => {
                     const resId = this.props.value?.id;
+                    if (resId == null) {
+                        // An onchange inside the dialog may have cleared the
+                        // value: there is nothing to refetch and
+                        // orm.read([undefined]) is a malformed request.
+                        return;
+                    }
                     const fieldNames = ["display_name"];
-                    // use unity read + relatedFields from Field Component
+                    // CROSS-GROUP(name_service): this bespoke orm.read bypasses
+                    // the shared name_service cache, so N identical partners in
+                    // a list each pay a read and the name-service cache is left
+                    // stale. Routing display-name freshness through
+                    // @web/model/relational_model name_service is owned by the
+                    // model/core group; guarding the malformed request is the
+                    // widget-side part.
                     const records = await this.orm.read(
                         this.props.relation,
                         [resId],

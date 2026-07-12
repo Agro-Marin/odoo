@@ -90,8 +90,16 @@ export function execute(op, source, target) {
     // immediately, but any consumer that reads the snapshot lazily (or mutates
     // the model afterwards) would otherwise observe the live, still-mutating
     // state.
-    target.query = structuredClone(query);
-    target.searchItems = structuredClone(searchItems);
+    //
+    // JSON round-trip, NOT structuredClone: search items/query carry favorite
+    // contexts whose values may be py_js instances (PyDate/PyDateTime from
+    // context_today() et al.). structuredClone severs their prototype, turning
+    // a PyDate into a bare {year,month,day} that corrupts every downstream RPC
+    // context; JSON.stringify instead invokes their toJSON() (-> "2026-07-12").
+    // It also can't throw on non-cloneable values (e.g. a dynamic filter's
+    // domain function), which structuredClone would.
+    target.query = JSON.parse(JSON.stringify(query));
+    target.searchItems = JSON.parse(JSON.stringify(searchItems));
     // primitive ("Asc" | "Desc" | false) — drives the groupBy facet sort icon
     // and the injected {name:"__count"} orderBy; must survive export/import so a
     // "sort by count" choice persists across breadcrumb restore / back-forward.

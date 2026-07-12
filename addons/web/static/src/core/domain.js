@@ -50,7 +50,10 @@ export class Domain {
             return new Domain([]);
         }
         if (nonEmpty.length === 1) {
-            return nonEmpty[0];
+            // Return a fresh Domain, never the caller's instance: the in-place
+            // AST mutators (Domain.not's unshift, removeDomainLeaves's push)
+            // would otherwise mutate a domain the caller still holds.
+            return new Domain(nonEmpty[0]);
         }
         // Build the right-associated prefix form in a single pass — an operator
         // before each operand except the last (e.g. OR(d1,d2,d3) yields
@@ -126,7 +129,7 @@ export class Domain {
             const sizes = new Array(elements.length).fill(0);
             for (let idx = elements.length - 1; idx >= 0; idx--) {
                 const node = elements[idx];
-                if (node.type === ASTType.Tuple) {
+                if (isDomainLeaf(node)) {
                     sizes[idx] = 1;
                 } else if (node.type === ASTType.String) {
                     if (node.value === "!") {
@@ -161,7 +164,7 @@ export class Domain {
          */
         function isFullyRemoved(elements, idx) {
             const node = elements[idx];
-            if (node.type === ASTType.Tuple) {
+            if (isDomainLeaf(node)) {
                 return keysToRemove.includes(/** @type {any} */ (node.value[0]).value);
             }
             if (node.type === ASTType.String) {
@@ -201,7 +204,7 @@ export class Domain {
          */
         function processLeaf(elements, idx, operatorCtx, newDomain) {
             const leaf = elements[idx];
-            if (leaf.type === ASTType.Tuple) {
+            if (isDomainLeaf(leaf)) {
                 if (keysToRemove.includes(/** @type {any} */ (leaf.value[0]).value)) {
                     pushNeutral(operatorCtx, newDomain);
                 } else {
@@ -361,6 +364,19 @@ Domain.FALSE = FALSE_DOMAIN;
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+/**
+ * A domain leaf (condition) AST node. List-input domains build Tuple leaves
+ * (see toAST) while string-built domains parse to List leaves; both are valid
+ * length-3 leaves after normalizeDomainAST, so leaf-shape must be erased when
+ * walking the prefix tree (e.g. removeDomainLeaves). Treating only Tuple as a
+ * leaf silently corrupted string-built domains (dropped leaves, dangling ops).
+ * @param {AST} node
+ * @returns {boolean}
+ */
+function isDomainLeaf(node) {
+    return node.type === ASTType.Tuple || node.type === ASTType.List;
+}
 
 /**
  * @param {DomainListRepr} domain

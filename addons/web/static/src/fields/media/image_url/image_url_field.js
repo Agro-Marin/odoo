@@ -7,6 +7,7 @@ import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -61,8 +62,8 @@ export const imageUrlField = {
     ],
     supportedTypes: ["char"],
     extractProps: ({ attrs, options }) => ({
-        width: options.size ? options.size[0] : attrs.width,
-        height: options.size ? options.size[1] : attrs.height,
+        width: options.size ? options.size[0] : parseDimensionAttr(attrs.width),
+        height: options.size ? options.size[1] : parseDimensionAttr(attrs.height),
     }),
 };
 

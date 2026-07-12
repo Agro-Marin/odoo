@@ -295,6 +295,11 @@ export function useFullCalendar(refName, paramsOrGetter) {
             typeof params.initialView === "string" ? params.initialView : null;
         const targetDate =
             typeof params.initialDate !== "undefined" ? params.initialDate : null;
+        // Whether the view type or displayed date window moved this patch; the
+        // refetch below is gated on it (plus a records-identity change) so
+        // render-only patches (sidebar toggle, popover open/close,
+        // multi-select) don't rebuild FullCalendar's entire event store.
+        let viewOrDateChanged = false;
         if (targetView && currentViewType && currentViewType !== targetView) {
             try {
                 instance.changeView(targetView, targetDate);
@@ -311,6 +316,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
                 }
             }
             instance.__lastInitialDate = targetDate;
+            viewOrDateChanged = true;
         } else if (targetDate && targetDate !== instance.__lastInitialDate) {
             // v7's ``gotoDate`` resets the timegrid scroll to ``scrollTime``
             // even when called with the SAME date (FC's ``scrollTimeReset``
@@ -322,27 +328,38 @@ export function useFullCalendar(refName, paramsOrGetter) {
             try {
                 instance.gotoDate(targetDate);
                 instance.__lastInitialDate = targetDate;
+                viewOrDateChanged = true;
             } catch {
                 // Bad date string — keep current position.
             }
         }
-        const eventsBefore =
-            component.props.model.scale === "year" ? eventSetFingerprint(instance) : "";
-        instance.refetchEvents();
-        // Year view renders events as background events; v7 schedules their
-        // re-render asynchronously, so after a filter toggle stale
-        // ``.fc-bg-event`` nodes linger until the next frame unless we force
-        // a synchronous destroy+render here.
-        //
-        // Gated on an actual event-set change: the year renderer holds 12
-        // hook instances, and an unconditional destroy+render on every OWL
-        // patch meant 12 full FC rebuild cycles per patch.
-        if (
-            component.props.model.scale === "year" &&
-            eventsBefore !== eventSetFingerprint(instance)
-        ) {
-            instance.destroy();
-            instance.render();
+        // The model rebuilds its records object on every (re)load (filter
+        // toggle, date move, another session's change), so an identity change
+        // is the reliable "events may differ" signal. Render-only patches keep
+        // the same reference and can skip the whole refetch/fingerprint pass.
+        const recordsChanged = instance.__lastRecords !== component.props.model.records;
+        instance.__lastRecords = component.props.model.records;
+        if (viewOrDateChanged || recordsChanged) {
+            const eventsBefore =
+                component.props.model.scale === "year"
+                    ? eventSetFingerprint(instance)
+                    : "";
+            instance.refetchEvents();
+            // Year view renders events as background events; v7 schedules their
+            // re-render asynchronously, so after a filter toggle stale
+            // ``.fc-bg-event`` nodes linger until the next frame unless we force
+            // a synchronous destroy+render here.
+            //
+            // Gated on an actual event-set change: the year renderer holds 12
+            // hook instances, and an unconditional destroy+render on every OWL
+            // patch meant 12 full FC rebuild cycles per patch.
+            if (
+                component.props.model.scale === "year" &&
+                eventsBefore !== eventSetFingerprint(instance)
+            ) {
+                instance.destroy();
+                instance.render();
+            }
         }
     });
     onWillUnmount(() => {

@@ -244,6 +244,13 @@ export const menuService = {
             },
             getMenuAsTree(menuID) {
                 const menu = this.getMenu(menuID);
+                if (!menu) {
+                    // menusData can be swapped by a reload/revalidation between
+                    // the caller capturing an id and this lookup (e.g. the
+                    // command palette holding a stale menu id); return nothing
+                    // instead of throwing a raw TypeError dialog.
+                    return;
+                }
                 if (!menu.childrenTree) {
                     menu.childrenTree = menu.children.map((mid) =>
                         this.getMenuAsTree(mid),
@@ -253,7 +260,10 @@ export const menuService = {
             },
             async selectMenu(menu) {
                 menu = typeof menu === "number" ? this.getMenu(menu) : menu;
-                if (!menu.actionID) {
+                if (!menu || !menu.actionID) {
+                    // The id may no longer resolve (menusData swapped by a
+                    // reload/revalidation while a stale id was held); bail out
+                    // instead of throwing a raw TypeError.
                     return;
                 }
                 await env.services.action.doAction(menu.actionID, {

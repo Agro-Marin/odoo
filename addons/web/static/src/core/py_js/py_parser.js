@@ -26,6 +26,15 @@ class ParserError extends Error {}
 
 // Constants and helpers
 
+/**
+ * Guard against unbounded parser recursion (deeply nested parentheses /
+ * brackets / unary operators): a crafted input like ``"(".repeat(20000)``
+ * would otherwise blow the JS call stack with a raw ``RangeError`` outside the
+ * error taxonomy. Real expressions never nest this deep.
+ */
+const MAX_PARSE_DEPTH = 200;
+let parseDepth = 0;
+
 const chainedOperators = new Set(comparators);
 const infixOperators = new Set([...binaryOperators, ...comparators]);
 
@@ -335,8 +344,20 @@ function parseInfix(left, current, cur) {
                     while (cur.peek() && !isSymbol(cur.peek(), ")")) {
                         const arg = _parse(cur, 0);
                         if (arg.type === ASTType.Assignment) {
-                            kwargs[/** @type {any} */ (arg).name.value] =
-                                /** @type {any} */ (arg).value;
+                            // defineProperty (as with dict literals) so a
+                            // literal ``__proto__=`` kwarg becomes a plain OWN
+                            // entry instead of a silently-dropped [[Prototype]]
+                            // write on the kwargs object.
+                            Object.defineProperty(
+                                kwargs,
+                                /** @type {any} */ (arg).name.value,
+                                {
+                                    value: /** @type {any} */ (arg).value,
+                                    writable: true,
+                                    enumerable: true,
+                                    configurable: true,
+                                },
+                            );
                         } else {
                             args.push(arg);
                         }
@@ -402,12 +423,20 @@ function parseInfix(left, current, cur) {
  * @returns {AST}
  */
 function _parse(cur, bpVal = 0) {
-    const token = cur.next();
-    let expr = parsePrefix(token, cur);
-    while (cur.peek() && bindingPower(cur.peek()) > bpVal) {
-        expr = parseInfix(expr, cur.next(), cur);
+    if (parseDepth >= MAX_PARSE_DEPTH) {
+        throw new ParserError("Maximum expression depth exceeded");
     }
-    return expr;
+    parseDepth++;
+    try {
+        const token = cur.next();
+        let expr = parsePrefix(token, cur);
+        while (cur.peek() && bindingPower(cur.peek()) > bpVal) {
+            expr = parseInfix(expr, cur.next(), cur);
+        }
+        return expr;
+    } finally {
+        parseDepth--;
+    }
 }
 
 // Parse function
@@ -419,6 +448,7 @@ function _parse(cur, bpVal = 0) {
  * @returns {AST}
  */
 export function parse(tokens) {
+    parseDepth = 0;
     if (tokens.length) {
         const cur = new TokenCursor(tokens);
         const ast = _parse(cur, 0);

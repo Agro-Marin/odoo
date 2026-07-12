@@ -1168,3 +1168,54 @@ describe("dict .get fallback", () => {
         expect(() => evaluateExpr("[1, 2].get(0)")).toThrow();
     });
 });
+
+describe("bitwise/shift arbitrary precision", () => {
+    test("shifts and masks beyond 32 bits match Python, not JS 32-bit ops", () => {
+        // JS `1 << 40` wraps to 256; Python gives 1099511627776.
+        expect(evaluateExpr("1 << 40")).toBe(1099511627776);
+        // JS `4294967296 | 1` truncates to 1; Python gives 4294967297.
+        expect(evaluateExpr("4294967296 | 1")).toBe(4294967297);
+        expect(evaluateExpr("4294967296 & 4294967296")).toBe(4294967296);
+        expect(evaluateExpr("(1 << 20) >> 10")).toBe(1024);
+    });
+
+    test("a result beyond the safe integer range raises", () => {
+        expect(() => evaluateExpr("1 << 60")).toThrow(/safe integer range/);
+    });
+
+    test("a negative shift count raises", () => {
+        expect(() => evaluateExpr("1 << -1")).toThrow(/negative shift count/);
+    });
+});
+
+describe("timedelta multiplication guards", () => {
+    test("timedelta * timedelta raises instead of producing garbage", () => {
+        expect(() =>
+            evaluateExpr("datetime.timedelta(days=1) * datetime.timedelta(days=1)"),
+        ).toThrow(/unsupported operand type/);
+    });
+
+    test("timedelta * non-number raises", () => {
+        expect(() => evaluateExpr('datetime.timedelta(days=1) * "x"')).toThrow(
+            /unsupported operand type/,
+        );
+    });
+});
+
+describe("max/min share the comparison kernel", () => {
+    test("max/min over lists compare lexicographically like Python", () => {
+        // JS `>` stringifies: "10" < "2" so plain reduce wrongly returned [2].
+        expect(evaluateExpr("max([[2], [10]])")).toEqual([10]);
+        expect(evaluateExpr("min([[2], [10]])")).toEqual([2]);
+        expect(evaluateExpr("max([[1, 2], [1, 10]])")).toEqual([1, 10]);
+    });
+});
+
+describe("repr string escaping", () => {
+    test("str() of a list escapes quotes into parseable repr", () => {
+        // Old `'${value}'` gave the unparseable ['it's'].
+        expect(evaluateExpr(`str(["it's"])`)).toBe(`["it's"]`);
+        expect(evaluateExpr(`'%r' % "a'b"`)).toBe(`"a'b"`);
+        expect(evaluateExpr(`'%r' % 'plain'`)).toBe(`'plain'`);
+    });
+});

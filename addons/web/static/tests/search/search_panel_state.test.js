@@ -18,6 +18,7 @@ import {
     createCategoryTree,
     createFilterTree,
     ensureCategoryValue,
+    fetchCategories,
     getSections,
     shouldWaitForData,
     toggleCategoryValue,
@@ -539,6 +540,88 @@ describe("createFilterTree", () => {
         expect("errorMsg" in filter).toBe(false);
         expect(filter.values.has(10)).toBe(true);
         expect(hasValues(filter)).toBe(true); // now from actual values
+    });
+});
+
+// fetchCategories — per-section load id
+
+describe("fetchCategories per-section stale guard", () => {
+    /** A resolvable promise. */
+    function makeDeferred() {
+        let resolve;
+        const promise = new Promise((r) => {
+            resolve = r;
+        });
+        return { promise, resolve };
+    }
+
+    /**
+     * Build a mock orm whose `.cache(opts).call(...)` returns a deferred keyed
+     * by the requested field name; the test resolves each call by hand.
+     */
+    function makeMockOrm() {
+        const deferredsByField = new Map();
+        const orm = {
+            cache() {
+                return this;
+            },
+            call(_resModel, _method, args) {
+                const fieldName = args[0];
+                const list = deferredsByField.get(fieldName) || [];
+                const deferred = makeDeferred();
+                list.push(deferred);
+                deferredsByField.set(fieldName, list);
+                return deferred.promise;
+            },
+        };
+        return { orm, deferredsByField };
+    }
+
+    test("a later fetch of one section does not drop another section's in-flight response", async () => {
+        const catA = makeCategory(1, { fieldName: "a" });
+        const catB = makeCategory(2, { fieldName: "b" });
+        const sections = new Map([
+            [1, catA],
+            [2, catB],
+        ]);
+        const created = [];
+        const { orm, deferredsByField } = makeMockOrm();
+        const model = makeSearchModel(sections, {
+            _sectionLoadIds: new Map(),
+            orm,
+            globalContext: {},
+            resModel: "res.partner",
+            searchDomain: [],
+            categories: [catA, catB],
+            _getFilterDomain: () => [],
+            _getCategoryDomain: () => [],
+            _createCategoryTree: (id, result) => created.push([id, result]),
+            _reset() {},
+            trigger() {},
+        });
+
+        // First fetch of BOTH sections (their in-flight responses are pending).
+        const p1 = fetchCategories(model, [catA, catB]);
+        // A later fetch of ONLY section B (e.g. a counter-only reload) bumps
+        // just B's load id — A's in-flight fetch must survive.
+        const p2 = fetchCategories(model, [catB]);
+
+        const resultA = { values: [{ id: 10 }], _tag: "A" };
+        const resultB1 = { values: [{ id: 20 }], _tag: "B1" };
+        const resultB2 = { values: [{ id: 30 }], _tag: "B2" };
+        deferredsByField.get("a")[0].resolve(resultA);
+        deferredsByField.get("b")[0].resolve(resultB1); // stale (load id 1)
+        deferredsByField.get("b")[1].resolve(resultB2); // current (load id 2)
+        await Promise.all([p1, p2]);
+
+        // Exactly two applications: section A's only fetch, and section B's
+        // newest fetch. The superseded B response (resultB1) was discarded, and
+        // — the actual regression — section A's response was NOT dropped by B's
+        // later fetch (a model-wide load id used to discard it).
+        expect(created.length).toBe(2);
+        const applied = new Map(created);
+        expect(applied.get(1)).toBe(resultA);
+        expect(applied.get(2)).toBe(resultB2);
     });
 });
 

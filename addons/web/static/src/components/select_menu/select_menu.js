@@ -242,8 +242,13 @@ export class SelectMenu extends Component {
             text: c.label,
             onDelete: () => {
                 const values = [...this.props.value];
-                values.splice(values.indexOf(c.value), 1);
-                this.props.onSelect(values);
+                // Guard against indexOf === -1: splice(-1, 1) would remove the
+                // LAST (wrong) tag if the value were somehow already absent.
+                const index = values.indexOf(c.value);
+                if (index !== -1) {
+                    values.splice(index, 1);
+                    this.props.onSelect(values);
+                }
             },
         }));
     }
@@ -282,6 +287,19 @@ export class SelectMenu extends Component {
 
     onInputBlur(ev) {
         this.state.isFocused = false;
+        // A blur caused by an interaction inside the open menu (e.g. a
+        // mousedown on an option that takes focus) must NOT auto-clear the
+        // selection: the click about to land is (re)selecting an option.
+        // Clearing here commits a spurious null — and when the SAME option is
+        // re-picked, onItemSelected would then see the value unchanged and
+        // swallow the re-select, leaving the committed null as data loss.
+        // AutoComplete latches this with ignoreBlur; here we detect the
+        // in-menu relatedTarget directly.
+        const menuEl = /** @type {any} */ (this.menuRef).el;
+        const related = /** @type {Node | null} */ (ev.relatedTarget);
+        if (this.dropdownState.isOpen && related && menuEl?.contains(related)) {
+            return;
+        }
         if (ev.target.value === "" && !this.props.multiSelect) {
             if (this.canDeselect) {
                 this.onInputClear();
@@ -395,7 +413,13 @@ export class SelectMenu extends Component {
             } else {
                 this.props.onSelect([...this.props.value, value]);
             }
-        } else if (!this.selectedChoice || this.selectedChoice.value !== value) {
+        } else if (this.props.value !== value) {
+            // Compare against the committed prop value, not the (possibly
+            // stale) selectedChoice: after a spurious blur-clear committed a
+            // null, selectedChoice may still hold the old choice and would
+            // swallow a re-select of the same option. props.value is the source
+            // of truth and also skips a redundant onSelect + RPC on a no-op
+            // re-pick.
             this.props.onSelect(value);
         }
         this.state.searchValue = null;

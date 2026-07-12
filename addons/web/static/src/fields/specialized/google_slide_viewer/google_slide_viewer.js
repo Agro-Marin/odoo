@@ -40,7 +40,7 @@ export class GoogleSlideViewer extends CharField {
     }
 
     onLoadFailed() {
-        this.notification.add(_t("Could not display the selected spreadsheet"), {
+        this.notification.add(_t("Could not display the selected slide"), {
             type: "danger",
         });
     }

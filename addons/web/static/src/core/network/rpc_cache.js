@@ -364,6 +364,14 @@ export class RPCCache {
             this.globalDiskGeneration++;
             return;
         }
+        if (typeof tables !== "string" && !Array.isArray(tables)) {
+            // Fail loudly rather than let a bad shape (e.g. a raw CLEAR-CACHES
+            // detail object) reach the for-of below as a non-iterable and throw
+            // an opaque "is not iterable" TypeError.
+            throw new TypeError(
+                "bumpDiskGeneration expects a table name, an array of names, or nullish",
+            );
+        }
         for (const table of typeof tables === "string" ? [tables] : tables) {
             this.diskGenerations[table] = (this.diskGenerations[table] || 0) + 1;
         }

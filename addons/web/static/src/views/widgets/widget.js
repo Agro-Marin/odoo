@@ -8,21 +8,20 @@ import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 const viewWidgetRegistry = registry.category("view_widgets");
 
+// The per-element shape must live under `element`, not as a sibling `shape`:
+// OWL's array validator reads `element` and ignores a sibling `shape`, so the
+// previous placement left the element shape completely unenforced. Enforce the
+// two load-bearing fields (name, type) and forward the rest via `"*": true`
+// (label / availableTypes / default / help / choices) so a well-formed
+// registration with extra descriptive fields still validates.
 const supportedInfoValidation = {
     type: Array,
-    element: Object,
-    shape: {
-        label: String,
-        name: String,
-        type: String,
-        availableTypes: { type: Array, element: String, optional: true },
-        default: { type: String, optional: true },
-        help: { type: String, optional: true },
-        choices: /* choices if type == selection */ {
-            type: Array,
-            element: Object,
-            shape: { label: String, value: String },
-            optional: true,
+    element: {
+        type: Object,
+        shape: {
+            name: String,
+            type: String,
+            "*": true,
         },
     },
     optional: true,

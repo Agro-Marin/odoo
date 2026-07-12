@@ -155,9 +155,13 @@ export function ensureCategoryValue(category, valueIds) {
 export async function fetchCategories(searchModel, categories) {
     const filterDomain = searchModel._getFilterDomain();
     const searchDomain = searchModel.searchDomain;
-    const categoriesLoadId = ++searchModel.categoriesLoadId;
     await Promise.all(
         categories.map(async (category) => {
+            // Per-section load id: only a newer fetch OF THIS category
+            // supersedes this one, so fetching a different subset of sections
+            // never discards this section's in-flight response.
+            const loadId = (searchModel._sectionLoadIds.get(category.id) || 0) + 1;
+            searchModel._sectionLoadIds.set(category.id, loadId);
             let result;
             try {
                 result = await searchModel.orm
@@ -167,7 +171,7 @@ export async function fetchCategories(searchModel, categories) {
                         callback: (result, hasChanged) => {
                             if (
                                 !hasChanged ||
-                                categoriesLoadId !== searchModel.categoriesLoadId
+                                loadId !== searchModel._sectionLoadIds.get(category.id)
                             ) {
                                 return;
                             }
@@ -196,15 +200,16 @@ export async function fetchCategories(searchModel, categories) {
             } catch (error) {
                 // A failed fetch only degrades its own section: stamp the same
                 // errorMsg field used for server-side section errors.
-                if (categoriesLoadId === searchModel.categoriesLoadId) {
+                if (loadId === searchModel._sectionLoadIds.get(category.id)) {
                     category.errorMsg =
                         error.data?.message || error.message || String(error);
                     searchModel._sections = null;
                 }
                 return;
             }
-            if (categoriesLoadId !== searchModel.categoriesLoadId) {
-                // A newer fetch started meanwhile: drop this stale response.
+            if (loadId !== searchModel._sectionLoadIds.get(category.id)) {
+                // A newer fetch of this section started meanwhile: drop the
+                // stale response.
                 return;
             }
             searchModel._createCategoryTree(category.id, result);
@@ -225,9 +230,12 @@ export async function fetchFilters(searchModel, filters) {
     }
     const categoryDomain = searchModel._getCategoryDomain();
     const searchDomain = searchModel.searchDomain;
-    const filtersLoadId = ++searchModel.filtersLoadId;
     await Promise.all(
         filters.map(async (filter) => {
+            // Per-section load id (see fetchCategories): only a newer fetch of
+            // THIS filter supersedes this one.
+            const loadId = (searchModel._sectionLoadIds.get(filter.id) || 0) + 1;
+            searchModel._sectionLoadIds.set(filter.id, loadId);
             let result;
             try {
                 result = await searchModel.orm
@@ -237,7 +245,7 @@ export async function fetchFilters(searchModel, filters) {
                         callback: (result, hasChanged) => {
                             if (
                                 !hasChanged ||
-                                filtersLoadId !== searchModel.filtersLoadId
+                                loadId !== searchModel._sectionLoadIds.get(filter.id)
                             ) {
                                 return;
                             }
@@ -268,15 +276,16 @@ export async function fetchFilters(searchModel, filters) {
             } catch (error) {
                 // A failed fetch only degrades its own section: stamp the same
                 // errorMsg field used for server-side section errors.
-                if (filtersLoadId === searchModel.filtersLoadId) {
+                if (loadId === searchModel._sectionLoadIds.get(filter.id)) {
                     filter.errorMsg =
                         error.data?.message || error.message || String(error);
                     searchModel._sections = null;
                 }
                 return;
             }
-            if (filtersLoadId !== searchModel.filtersLoadId) {
-                // A newer fetch started meanwhile: drop this stale response.
+            if (loadId !== searchModel._sectionLoadIds.get(filter.id)) {
+                // A newer fetch of this section started meanwhile: drop the
+                // stale response.
                 return;
             }
             searchModel._createFilterTree(filter.id, result);

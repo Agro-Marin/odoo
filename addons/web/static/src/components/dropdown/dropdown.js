@@ -409,15 +409,28 @@ export class Dropdown extends Component {
         };
         // Restore-focus anchor: prefer the element captured at the opening gesture
         // (before the nesting cascade), falling back to activeElement for
-        // programmatic opens. Keep it only if it belongs to this toggler — a
-        // sibling closing concurrently may have already claimed focus otherwise.
+        // programmatic opens. Keep the captured element so closing gives focus
+        // back to where the user was (e.g. a composer input for a message
+        // action dropdown) — UNLESS it belongs to another dropdown (a sibling
+        // closing concurrently may have claimed focus on its own toggler/menu),
+        // in which case anchor on this dropdown's own toggler.
         const captured =
             this._pendingFocusEl !== undefined
                 ? this._pendingFocusEl
                 : /** @type {HTMLElement | null} */ (document.activeElement);
         this._pendingFocusEl = undefined;
-        this._focusedElBeforeOpen =
-            captured && this.target.contains(captured) ? captured : this.target;
+        const capturedInOtherDropdown =
+            captured &&
+            !this.target.contains(captured) &&
+            Boolean(
+                captured.closest?.(".o-dropdown, .o-dropdown--menu, .dropdown-menu"),
+            );
+        // Also never restore into a rich-text editable: re-focusing it resets
+        // its DOM selection, corrupting the edition flow the dropdown acted on
+        // (e.g. the html_editor toolbar's format dropdowns).
+        const capturedUsable =
+            captured && !capturedInOtherDropdown && !captured.isContentEditable;
+        this._focusedElBeforeOpen = capturedUsable ? captured : this.target;
         this.popover.open(this.target, props);
     }
 

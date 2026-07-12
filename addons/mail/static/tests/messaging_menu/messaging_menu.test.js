@@ -184,8 +184,13 @@ test("rendering with PWA installation request", async () => {
     });
     // This event must be triggered to initialize the pwa service properly
     // as if it was run by a browser supporting PWA (never triggered in a test otherwise).
+    // The state is read once at service start and re-read on the
+    // beforeinstallprompt event (a boot-time snapshot could be stale).
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
-    await waitForSteps(["getItem pwaService.installationState"]);
+    await waitForSteps([
+        "getItem pwaService.installationState",
+        "getItem pwaService.installationState",
+    ]);
     await contains(".o-mail-MessagingMenu-counter");
     await contains(".o-mail-MessagingMenu-counter", { text: "1" });
     await click(".o_menu_systray i[aria-label='Messages']");
@@ -231,8 +236,13 @@ test("installation of the PWA request can be dismissed", async () => {
     });
     // This event must be triggered to initialize the pwa service properly
     // as if it was run by a browser supporting PWA (never triggered in a test otherwise).
+    // The state is read once at service start and re-read on the
+    // beforeinstallprompt event (a boot-time snapshot could be stale).
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
-    await waitForSteps(["getItem pwaService.installationState"]);
+    await waitForSteps([
+        "getItem pwaService.installationState",
+        "getItem pwaService.installationState",
+    ]);
     await click(".o_menu_systray i[aria-label='Messages']");
     await click(".o-mail-NotificationItem .oi-close");
     await waitForSteps([
@@ -260,8 +270,13 @@ test("rendering with PWA installation request (dismissed)", async () => {
     await start();
     // This event must be triggered to initialize the pwa service properly
     // as if it was run by a browser supporting PWA (never triggered in a test otherwise).
+    // The state is read once at service start and re-read on the
+    // beforeinstallprompt event (a boot-time snapshot could be stale).
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
-    await waitForSteps(["getItem pwaService.installationState"]);
+    await waitForSteps([
+        "getItem pwaService.installationState",
+        "getItem pwaService.installationState",
+    ]);
     await contains(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
     await click(".o_menu_systray i[aria-label='Messages']");
@@ -913,9 +928,9 @@ test("Attachment-only message preview shows file type icon", async () => {
             text: "Voice Message",
             voice_ids: [Command.create({ display_name: "voicemessage" })],
         },
-        { mimetype: "video/mp4", name: "Video.mp4", icon: "fa-video-camera", text: "Video.mp4" },
+        { mimetype: "video/mp4", name: "Video.mp4", icon: "fa-video", text: "Video.mp4" },
         { mimetype: "application/pdf", name: "File.pdf", icon: "fa-file", text: "File.pdf" },
-        { mimetype: "image/jpeg", name: "Image.jpeg", icon: "fa-picture-o", text: "Image.jpeg" },
+        { mimetype: "image/jpeg", name: "Image.jpeg", icon: "fa-image", text: "Image.jpeg" },
         { mimetype: "audio/mpeg", name: "Audio.mp3", icon: "fa-headphones", text: "Audio.mp3" },
     ];
 
@@ -940,11 +955,11 @@ test("Attachment-only message preview shows file type icon", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem:eq(0) i.fa-microphone");
     await contains(".o-mail-NotificationItem:eq(0)", { text: "Partner1: Voice Message" });
-    await contains(".o-mail-NotificationItem:eq(1) i.fa-video-camera");
+    await contains(".o-mail-NotificationItem:eq(1) i.fa-video");
     await contains(".o-mail-NotificationItem:eq(1)", { text: "Partner2: Video.mp4" });
     await contains(".o-mail-NotificationItem:eq(2) i.fa-file");
     await contains(".o-mail-NotificationItem:eq(2)", { text: "Partner3: File.pdf" });
-    await contains(".o-mail-NotificationItem:eq(3) i.fa-picture-o");
+    await contains(".o-mail-NotificationItem:eq(3) i.fa-image");
     await contains(".o-mail-NotificationItem:eq(3)", { text: "Partner4: Image.jpeg" });
     await contains(".o-mail-NotificationItem:eq(4) i.fa-headphones");
     await contains(".o-mail-NotificationItem:eq(4)", { text: "Partner5: Audio.mp3" });

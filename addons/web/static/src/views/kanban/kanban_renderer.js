@@ -368,7 +368,10 @@ export class KanbanRenderer extends Component {
 
     getGroupUnloadedCount(group) {
         const records = group.list.records.filter((r) => !r.isInQuickCreation);
-        const count = this.props.progressBarState?.getGroupCount(group) || group.count;
+        // ?? not ||: a filtered active bar with 0 matching records is a legit
+        // count of 0; `|| group.count` would fall through to the unfiltered
+        // total and show a phantom "Load more".
+        const count = this.props.progressBarState?.getGroupCount(group) ?? group.count;
         return count - records.length;
     }
 

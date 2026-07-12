@@ -950,6 +950,29 @@ describe("Remove domain leaf", () => {
         expect(newDomain.contains({ a: 9, b: 3 })).toBe(true);
         expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
     });
+
+    test("Remove leaf from a string-built domain (List leaves).", () => {
+        // String-built domains parse to List leaves (not Tuple). The removal
+        // must still neutralize 'a' to TRUE and KEEP 'b'; the old Tuple-only
+        // helpers dropped BOTH leaves and produced the malformed ["&"].
+        const domain = new Domain("[['a', '=', 1], ['b', '=', 2]]");
+        const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
+        expect(newDomain.contains({ a: 99, b: 2 })).toBe(true);
+        expect(newDomain.contains({ a: 99, b: 5 })).toBe(false);
+        expect(newDomain.toList({})).toEqual(["&", [1, "=", 1], ["b", "=", 2]]);
+    });
+});
+
+describe("combine does not alias its input", () => {
+    test("a single non-empty domain is copied, not returned by reference", () => {
+        const d = new Domain([["a", "=", 1]]);
+        const combined = Domain.and([d]);
+        // Was: returned `d` itself, so an in-place AST mutation on the result
+        // corrupted the caller's domain. Now it is a fresh copy.
+        expect(combined).not.toBe(d);
+        combined.ast.value.length = 0;
+        expect(d.toString()).toBe(`[("a", "=", 1)]`);
+    });
 });
 
 describe("x2many emptiness", () => {

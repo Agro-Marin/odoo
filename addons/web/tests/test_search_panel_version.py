@@ -22,6 +22,7 @@ These tests pin:
 
 import json
 
+from odoo.exceptions import UserError
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 
 
@@ -125,6 +126,26 @@ class TestWebSearchReadVersion(TransactionCase):
         self.partners[0].name = "Plan-C WSR A (renamed)"
         v2 = self._call()["__version"]
         self.assertNotEqual(v1, v2)
+
+
+@tagged("web_unit", "web_search_panel")
+class TestSearchPanelUnknownField(TransactionCase):
+    """An unknown ``field_name`` must raise a clean ``UserError``, not a raw
+    ``KeyError`` bubbling up as a 500 (``self._fields[field_name]``).
+    """
+
+    def test_select_range_unknown_field_raises_usererror(self):
+        with self.assertRaises(UserError):
+            self.env["res.partner"].search_panel_select_range("no_such_field_xyz")
+
+    def test_select_multi_range_unknown_field_raises_usererror(self):
+        with self.assertRaises(UserError):
+            self.env["res.partner"].search_panel_select_multi_range("no_such_field_xyz")
+
+    def test_known_field_still_works(self):
+        # A valid field must not be affected by the guard.
+        result = self.env["res.partner"].search_panel_select_range("parent_id")
+        self.assertIn("values", result)
 
 
 @tagged("post_install", "-at_install", "web_http", "web_search_panel")

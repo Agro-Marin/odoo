@@ -29,8 +29,17 @@ async function waitForLazyAndRetrigger(ev) {
     const targetEl = /** @type {HTMLElement} */ (ev.target);
     await _allScriptsLoaded;
     // Loaded scripts were able to add a delay to wait for before re-triggering
-    // events: we wait for it here.
-    await Promise.all(retriggeringWaitingProms);
+    // events: we wait for it here. Use allSettled, not all: if ANY readiness
+    // delay rejects (e.g. a frontend service failed to start), Promise.all
+    // would reject and the retrigger below would never run — the user's first
+    // (blocked, preventDefault'd) click would be swallowed forever. Log the
+    // rejection instead and still replay the event.
+    const readinessResults = await Promise.allSettled(retriggeringWaitingProms);
+    for (const result of readinessResults) {
+        if (result.status === "rejected") {
+            console.error("Page readiness delay rejected:", result.reason);
+        }
+    }
 
     // At the end of the current execution queue, retrigger the event. The
     // event is reconstructed — necessary in some cases (e.g. submit

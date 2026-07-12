@@ -72,7 +72,10 @@ class Partner extends models.Model {
         relation_field: "turtle_trululu",
     });
     trululu = fields.Many2one({ string: "Trululu", relation: "partner" });
-    res_trululu = fields.Many2one({ string: "Res Trululu", relation: "res.partner" });
+    res_trululu = fields.Many2one({
+        string: "Res Trululu",
+        relation: "res.partner",
+    });
     timmy = fields.Many2many({ string: "pokemon", relation: "partner.type" });
     product_id = fields.Many2one({ string: "Product", relation: "product" });
     date = fields.Date({ string: "Some Date" });
@@ -183,7 +186,10 @@ class Turtle extends models.Model {
 class Users extends models.Model {
     _name = "res.users";
     name = fields.Char();
-    partner_ids = fields.One2many({ relation: "partner", relation_field: "user_id" });
+    partner_ids = fields.One2many({
+        relation: "partner",
+        relation_field: "user_id",
+    });
 
     has_group() {
         return true;
@@ -466,7 +472,9 @@ test("many2one show_address in edit", async () => {
         { type: "html" },
     );
 
-    await contains(".o_field_widget input").edit("first record", { confirm: false });
+    await contains(".o_field_widget input").edit("first record", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".dropdown-menu li").click();
 
@@ -476,7 +484,9 @@ test("many2one show_address in edit", async () => {
         { type: "html" },
     );
 
-    await contains(".o_field_widget input").edit("second record", { confirm: false });
+    await contains(".o_field_widget input").edit("second record", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".dropdown-menu li").click();
 
@@ -808,7 +818,9 @@ test("many2one doesn't trigger field_change when being emptied", async () => {
     await contains(".o_data_row:eq(0) .o_list_record_selector input").click();
     await contains(".o_data_row:eq(1) .o_list_record_selector input").click();
     await contains(".o_data_row .o_data_cell").click();
-    await contains(".o_field_widget[name=trululu] input").clear({ confirm: false });
+    await contains(".o_field_widget[name=trululu] input").clear({
+        confirm: false,
+    });
     await runAllTimers();
     expect(".modal").toHaveCount(0);
 
@@ -1267,7 +1279,9 @@ test("many2one with co-model whose name field is a many2one", async () => {
     expect(".modal .o_form_view").toHaveCount(1);
 
     // quick create 'new value'
-    await contains(".modal div[name=name] input").edit("new value", { confirm: false });
+    await contains(".modal div[name=name] input").edit("new value", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".modal div[name=name] .o_m2o_dropdown_option").click();
     expect(".modal div[name=name] input").toHaveValue("new value");
@@ -1314,7 +1328,11 @@ test("many2one searches with correct value", async () => {
     expect.verifySteps(["search: f"]);
 });
 
-test("no additional searches after no result is found", async () => {
+test("narrowing a previously empty search still re-runs web_name_search", async () => {
+    // name_search is NOT substring-monotonic: an exact default_code/barcode
+    // match can appear only at full length (e.g. product.product), so a query
+    // that narrows a previously-empty one must still hit the server instead of
+    // being suppressed by the empty-search memo.
     onRpc("web_name_search", ({ kwargs }) => {
         expect.step(`search: ${kwargs.name}`);
     });
@@ -1343,11 +1361,10 @@ test("no additional searches after no result is found", async () => {
     });
     await contains(".o_field_many2one input").edit("pe", { confirm: false });
     await runAllTimers();
-    // no web_name_search because there was no result for "p"
-    expect.verifySteps([]);
+    // "pe" narrows the empty "p" search but must still re-search.
+    expect.verifySteps(["search: pe"]);
     await contains(".o_field_many2one input").edit("m", { confirm: false });
     await runAllTimers();
-    // request is no longer an extension of "p" (no result), need a web_name_search
     expect.verifySteps(["search: m"]);
 });
 
@@ -1355,7 +1372,9 @@ test("do not prevent previously empty searches once domain is changed", async ()
     let count = 0;
     onRpc("web_name_search", ({ kwargs }) => {
         count++;
-        if (count < 3) {
+        // Searches 1-3 ("", "p", "pe") run under the original domain; only the
+        // 4th ("pe" after foo changed) uses the new domain.
+        if (count < 4) {
             expect(kwargs.domain).toEqual([["foo", "=", "yop"]]);
         } else {
             expect(kwargs.domain).toEqual([["foo", "=", "not yop"]]);
@@ -1385,13 +1404,14 @@ test("do not prevent previously empty searches once domain is changed", async ()
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // no web_name_search because there was no result for "p"
+    // narrowing the empty "p" search still re-searches (same domain)
+    expect.verifySteps(["search: pe"]);
     await contains(".o_field_widget[name='foo'] input").edit("not yop", {
         confirm: false,
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // domain changed so the previously empty search is launched again
+    // domain changed so the search runs again under the new domain
     expect.verifySteps(["search: pe"]);
 });
 
@@ -1399,7 +1419,9 @@ test("do not prevent previously empty searches once context is changed", async (
     let count = 0;
     onRpc("web_name_search", ({ kwargs }) => {
         count++;
-        if (count < 3) {
+        // Searches 1-3 ("", "p", "pe") run under the original context; only the
+        // 4th ("pe" after foo changed) uses the new context.
+        if (count < 4) {
             expect(kwargs.context.foo).toBe("yop");
         } else {
             expect(kwargs.context.foo).toBe("not yop");
@@ -1429,13 +1451,14 @@ test("do not prevent previously empty searches once context is changed", async (
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // no web_name_search because there was no result for "p"
+    // narrowing the empty "p" search still re-searches (same context)
+    expect.verifySteps(["search: pe"]);
     await contains(".o_field_widget[name='foo'] input").edit("not yop", {
         confirm: false,
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // context changed so the previously empty search is launched again
+    // context changed so the search runs again under the new context
     expect.verifySteps(["search: pe"]);
 });
 
@@ -1589,7 +1612,9 @@ test("form: quick create then save directly", async () => {
         arch: '<form><field name="trululu" /></form>',
     });
 
-    await contains(".o_field_widget[name=trululu] input").edit("b", { confirm: false });
+    await contains(".o_field_widget[name=trululu] input").edit("b", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".o_m2o_dropdown_option_create").click();
     await contains(".o_form_button_save").click();
@@ -1655,7 +1680,9 @@ test("list: quick create then save directly", async () => {
 
     expect(".o_data_row").toHaveCount(4);
 
-    await contains(".o_field_widget[name=trululu] input").edit("b", { confirm: false });
+    await contains(".o_field_widget[name=trululu] input").edit("b", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".o_m2o_dropdown_option_create").click();
 
@@ -1704,7 +1731,9 @@ test("list in form: quick create then save directly", async () => {
 
     await contains(".o_field_x2many_list_row_add a").click();
 
-    await contains(".o_field_widget[name=trululu] input").edit("b", { confirm: false });
+    await contains(".o_field_widget[name=trululu] input").edit("b", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".o_m2o_dropdown_option_create").click();
 
@@ -1842,7 +1871,9 @@ test("list in form: quick create then add a new line directly", async () => {
 
     await contains(".o_field_x2many_list_row_add a").click();
 
-    await contains(".o_field_widget[name=trululu] input").edit("b", { confirm: false });
+    await contains(".o_field_widget[name=trululu] input").edit("b", {
+        confirm: false,
+    });
     await runAllTimers();
     await contains(".o_m2o_dropdown_option_create").click();
 
@@ -2624,7 +2655,9 @@ test("quick create on a many2one", async () => {
             </form>`,
     });
 
-    await contains(".o_field_many2one input").edit("new partner", { confirm: false });
+    await contains(".o_field_many2one input").edit("new partner", {
+        confirm: false,
+    });
     await runAllTimers();
     await press("tab");
 });
@@ -2753,7 +2786,9 @@ test("slow create on a many2one", async () => {
                 </sheet>
             </form>`,
     });
-    await contains(".o_field_many2one input").edit("new product", { confirm: false });
+    await contains(".o_field_many2one input").edit("new product", {
+        confirm: false,
+    });
     await runAllTimers();
     await press("tab");
     await animationFrame();
@@ -2765,7 +2800,9 @@ test("slow create on a many2one", async () => {
     expect(".o_field_many2one input").toHaveValue("");
 
     // cancel the many2one creation with Close button
-    await contains(".o_field_many2one input").edit("new product", { confirm: false });
+    await contains(".o_field_many2one input").edit("new product", {
+        confirm: false,
+    });
     await runAllTimers();
     await press("tab");
     await animationFrame();
@@ -2780,7 +2817,9 @@ test("slow create on a many2one", async () => {
     await contains(".ui-menu-item").click();
     expect(".o_field_many2one input").toHaveValue("xphone");
 
-    await contains(".o_field_many2one input").edit("new product", { confirm: false });
+    await contains(".o_field_many2one input").edit("new product", {
+        confirm: false,
+    });
     await runAllTimers();
     await press("tab");
     await animationFrame();
@@ -2790,7 +2829,9 @@ test("slow create on a many2one", async () => {
     expect(".o_field_many2one input").toHaveValue("");
 
     // confirm the many2one creation
-    await contains(".o_field_many2one input").edit("new product", { confirm: false });
+    await contains(".o_field_many2one input").edit("new product", {
+        confirm: false,
+    });
     await runAllTimers();
     await press("tab");
     await animationFrame();
@@ -2829,7 +2870,9 @@ test("no_create option on a many2one", async () => {
             </form>`,
     });
 
-    await contains(".o_field_many2one input").edit("new partner", { confirm: false });
+    await contains(".o_field_many2one input").edit("new partner", {
+        confirm: false,
+    });
     await runAllTimers();
     expect(".o_m2o_dropdown_option_create").toHaveCount(0);
     expect(".o_m2o_dropdown_option_create_edit").toHaveCount(0);
@@ -2848,7 +2891,9 @@ test("no_create option on a many2one when can_create is absent", async () => {
                 </sheet>
             </form>`,
     });
-    await contains(".o_field_many2one input").edit("new partner", { confirm: false });
+    await contains(".o_field_many2one input").edit("new partner", {
+        confirm: false,
+    });
     await runAllTimers();
     expect(".o_m2o_dropdown_option_create").toHaveCount(0);
     expect(".o_m2o_dropdown_option_create_edit").toHaveCount(0);
@@ -2867,7 +2912,9 @@ test("no_quick_create option on a many2one when can_create is absent", async () 
                 </sheet>
             </form>`,
     });
-    await contains(".o_field_many2one input").edit("new partner", { confirm: false });
+    await contains(".o_field_many2one input").edit("new partner", {
+        confirm: false,
+    });
     await runAllTimers();
     expect(queryAllTexts(".ui-autocomplete .o_m2o_dropdown_option")).toEqual([
         "Create and edit...",
@@ -2908,7 +2955,9 @@ test("can_create and can_write option on a many2one", async () => {
     expect(".o_field_many2one input").toHaveValue("xpad");
     expect(".o_field_many2one .o_external_button").toHaveCount(1);
 
-    await contains(".o_field_many2one .o_external_button", { visible: false }).click();
+    await contains(".o_field_many2one .o_external_button", {
+        visible: false,
+    }).click();
     expect(".modal").toHaveCount(2);
     expect(".modal .o_form_view .o_form_readonly").toHaveCount(1);
 
@@ -3756,7 +3805,9 @@ test("focus when closing many2one modal in many2one modal", async () => {
     expect(document.body).toHaveClass("modal-open");
 
     // Open many2one modal of field in many2one modal
-    await contains(".o_dialog:eq(1) .o_external_button", { visible: false }).click();
+    await contains(".o_dialog:eq(1) .o_external_button", {
+        visible: false,
+    }).click();
 
     expect(".o_dialog").toHaveCount(3);
     expect(".o_dialog:eq(2)").not.toHaveClass("o_inactive_modal");
@@ -3927,7 +3978,9 @@ test("external_button performs a doAction by default", async () => {
 
     await selectFieldDropdownItem("trululu", "first record");
     expect(".o_field_widget .o_external_button .oi-arrow-right").toHaveCount(1);
-    await contains(".o_field_widget .o_external_button", { visible: false }).click();
+    await contains(".o_field_widget .o_external_button", {
+        visible: false,
+    }).click();
 
     expect.verifySteps(["get_formview_action"]);
     expect(".breadcrumb").toHaveText("first record");
@@ -3947,7 +4000,9 @@ test("external_button opens a FormViewDialog in dialogs", async () => {
 
     await selectFieldDropdownItem("trululu", "first record");
     expect(".o_field_widget .o_external_button .oi-launch").toHaveCount(1);
-    await contains(".o_field_widget .o_external_button", { visible: false }).click();
+    await contains(".o_field_widget .o_external_button", {
+        visible: false,
+    }).click();
 
     expect.verifySteps(["get_formview_id"]);
     expect(".modal").toHaveCount(2);
@@ -3986,7 +4041,9 @@ test("external_button opens a new tab when middle clicked or ctrl+click", async 
     });
 
     await selectFieldDropdownItem("trululu", "first record");
-    await contains(".o_external_button", { visible: false }).click({ ctrlKey: true });
+    await contains(".o_external_button", { visible: false }).click({
+        ctrlKey: true,
+    });
     expect.verifySteps(["opened in a new window"]);
     await middleClick(".o_external_button");
     await animationFrame();
@@ -4014,7 +4071,9 @@ test("keep changes when editing related record in a dialog", async () => {
     await runAllTimers();
     await selectFieldDropdownItem("trululu", "first record");
     expect(".o_field_widget .o_external_button .oi-launch").toHaveCount(1);
-    await contains(".o_field_widget .o_external_button", { visible: false }).click();
+    await contains(".o_field_widget .o_external_button", {
+        visible: false,
+    }).click();
     expect(".modal").toHaveCount(2);
 
     await contains(
@@ -4164,7 +4223,9 @@ test("search typeahead", async () => {
         "Search more...",
     ]);
 
-    await contains(".o_field_widget[name=trululu] input").edit("r", { confirm: false });
+    await contains(".o_field_widget[name=trululu] input").edit("r", {
+        confirm: false,
+    });
     await runAllTimers();
     expect.verifySteps([]);
     expect(queryAllTexts(`.o-autocomplete.dropdown li`)).toEqual([

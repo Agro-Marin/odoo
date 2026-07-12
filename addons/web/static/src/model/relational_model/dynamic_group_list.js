@@ -184,7 +184,19 @@ export class DynamicGroupList extends DynamicList {
         const proms = [];
         if (mustReloadSourceList) {
             const { offset, limit, orderBy, domain } = sourceGroup.list;
-            proms.push(sourceGroup.list._load(offset, limit, orderBy, domain));
+            // Serialize the source reload on the model mutex. Run un-mutexed, its
+            // web_search_read can be served BEFORE a rapidly-following second
+            // drag's web_save commits, so it rebuilds the source list with the
+            // still-un-moved record — leaving that record in BOTH the target
+            // (optimistic splice) and the source (stale reload). Queued on the
+            // mutex, the reload starts only after the pending save has landed, so
+            // the server no longer returns the moved record. (Group._addRecord's
+            // resId dedupe is the belt-and-suspenders for any residual race.)
+            proms.push(
+                this.model.mutex.exec(() =>
+                    sourceGroup.list._load(offset, limit, orderBy, domain),
+                ),
+            );
         }
         if (!targetGroup.isFolded) {
             const targetList = targetGroup.list;

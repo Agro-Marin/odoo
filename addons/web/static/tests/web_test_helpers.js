@@ -1,7 +1,7 @@
 // @ts-check
 
-import { before, withFetch } from "@odoo/hoot";
-import { loadBundle } from "@web/core/assets";
+import { after, before, withFetch } from "@odoo/hoot";
+import { globalBundleCache, loadBundle } from "@web/core/assets";
 import { loadChartJS } from "@web/core/lib/chartjs";
 import { loadFullCalendar } from "@web/core/lib/fullcalendar";
 
@@ -189,7 +189,17 @@ export function defineWebModels() {
  */
 export function preloadBundle(bundleName) {
     before(async function preloadBundle() {
+        // An earlier test may have loaded this bundle through the mock server,
+        // caching a lightweight STUB descriptor (see HEAVY_STATIC_BUNDLE_STUBS)
+        // under the same name. Preloading means the suite wants the REAL
+        // bundle: evict the cached entry so it isn't shadowed by the stub.
+        globalBundleCache.delete(bundleName);
         await withFetch(globalCachedFetch, () => loadBundle(bundleName));
+    });
+    after(() => {
+        // Don't leak the real (heavy) bundle to later suites: evict it again
+        // so they go back to the stub the mock server serves.
+        globalBundleCache.delete(bundleName);
     });
 }
 

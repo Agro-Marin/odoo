@@ -373,7 +373,11 @@ export function formatDuration(seconds, showFullDuration) {
     const duration = Duration.fromObject({ seconds: magnitude }).shiftTo(
         ...durationKeys,
     );
-    const locale = /** @type {any} */ (duration).loc.locale;
+    // Use luxon's public default-locale setting instead of reaching into the
+    // private `duration.loc.locale`. `Duration.fromObject` above carried no
+    // explicit locale, so it resolves to exactly this value (or, when unset,
+    // the runtime default — which `undefined` also selects for Intl).
+    const locale = Settings.defaultLocale || undefined;
 
     /**
      * Formats a single unit value using the locale, avoiding `toHuman` (whose

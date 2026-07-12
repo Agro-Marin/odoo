@@ -172,7 +172,9 @@ test("Many2ManyCheckBoxesField: many2many read, field context is properly sent",
     onRpc((args) => {
         expect.step(args.method);
         if (args.method === "web_read") {
-            expect(args.kwargs.specification.timmy.context).toEqual({ hello: "world" });
+            expect(args.kwargs.specification.timmy.context).toEqual({
+                hello: "world",
+            });
         } else if (args.method === "name_search") {
             expect(args.kwargs.context.hello).toEqual("world");
         }
@@ -253,10 +255,9 @@ test("Many2ManyCheckBoxesField with 40+ values", async () => {
 });
 
 test("Many2ManyCheckBoxesField with 100+ values", async () => {
-    // Widget caps displayed values at 100 (name_search limit). With >100 records in the
-    // relation, (un)selecting a checkbox must not drop the values that aren't displayed.
-    expect.assertions(5);
-
+    // The name_search pool is capped at RECORD_LIMIT (100), but currently
+    // selected records beyond the cutoff must STILL render a checkbox (fetched
+    // via a union query) so they stay manageable — none are silently hidden.
     const records = [];
     for (let id = 1; id < 150; id++) {
         records.push({
@@ -270,9 +271,6 @@ test("Many2ManyCheckBoxesField with 100+ values", async () => {
         expect(args[1].timmy).toEqual([[3, records[0].id, false]]);
         expect.step("web_save");
     });
-    onRpc("name_search", () => {
-        expect.step("name_search");
-    });
 
     await mountView({
         type: "form",
@@ -284,17 +282,23 @@ test("Many2ManyCheckBoxesField with 100+ values", async () => {
             </form>`,
     });
 
-    expect(".o_field_widget[name='timmy'] input[type='checkbox']").toHaveCount(100);
-    expect(".o_field_widget[name='timmy'] input[type='checkbox']").toBeChecked();
+    // All 149 selected records render, not just the first 100 name_search page:
+    // the 49 past the cap come back through the union query.
+    expect(".o_field_widget[name='timmy'] input[type='checkbox']").toHaveCount(149);
+    expect(".o_field_widget[name='timmy'] input[type='checkbox']:checked").toHaveCount(
+        149,
+    );
 
-    await contains(".o_field_widget[name='timmy'] input[type='checkbox']").click();
+    await contains(
+        ".o_field_widget[name='timmy'] input[type='checkbox']:first",
+    ).click();
     await runAllTimers();
 
     await clickSave();
     expect(
         ".o_field_widget[name='timmy'] input[type='checkbox']:first",
     ).not.toBeChecked();
-    expect.verifySteps(["name_search", "web_save"]);
+    expect.verifySteps(["web_save"]);
 });
 
 test("Many2ManyCheckBoxesField in a one2many", async () => {

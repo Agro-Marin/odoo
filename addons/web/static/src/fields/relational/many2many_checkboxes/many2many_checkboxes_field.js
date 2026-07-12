@@ -17,6 +17,10 @@ import { useSpecialData } from "../special_data.js";
 
 export class Many2ManyCheckboxesField extends Component {
     static template = "web.Many2ManyCheckboxesField";
+    // Upper bound on the pool of checkboxes offered by name_search. Currently
+    // selected records beyond this cap are still fetched and rendered (see
+    // setup) so they never become impossible to unselect.
+    static RECORD_LIMIT = 100;
     static components = { CheckBox };
     static props = {
         ...standardFieldProps,
@@ -25,12 +29,33 @@ export class Many2ManyCheckboxesField extends Component {
     };
 
     setup() {
-        this.specialData = useSpecialData((orm, props) => {
+        this.specialData = useSpecialData(async (orm, props) => {
             const { relation } = props.record.fields[props.name];
             const domain = getFieldDomain(props.record, props.name, props.domain);
-            return orm.call(relation, "name_search", ["", domain], {
-                context: this.props.context || {},
+            const context = this.props.context || {};
+            const items = await orm.call(relation, "name_search", ["", domain], {
+                context,
+                limit: Many2ManyCheckboxesField.RECORD_LIMIT,
             });
+            // name_search truncates at RECORD_LIMIT; a currently-selected record
+            // past the cutoff would otherwise render no checkbox and become
+            // impossible to unselect. Fetch any such records explicitly and
+            // append them so every selected value stays manageable. The common
+            // case (no overflow) issues no extra RPC.
+            const shownIds = new Set(items.map((item) => item[0]));
+            const missingSelectedIds = props.record.data[props.name].currentIds.filter(
+                (id) => !shownIds.has(id),
+            );
+            if (missingSelectedIds.length) {
+                const missing = await orm.call(
+                    relation,
+                    "name_search",
+                    ["", [["id", "in", missingSelectedIds]]],
+                    { context },
+                );
+                return [...items, ...missing];
+            }
+            return items;
         });
         // these two sets track pending changes in the relation, and allow us to
         // batch consecutive changes into a single replaceWith, thus saving

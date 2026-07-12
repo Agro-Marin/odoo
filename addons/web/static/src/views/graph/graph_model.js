@@ -210,6 +210,17 @@ export class GraphModel extends Model {
             metaData.fieldAttrs,
             [...(metaData.viewMeasures || []), metaData.measure],
         );
+        // A stale favorite/action context can carry a measure whose field was
+        // since removed or renamed (this fork renames fields). It has no entry
+        // in `measures`, and both `fields[measure]` (fetch) and
+        // `measures[measure].string` (labels) would then hard-crash the view,
+        // leaving no way to open it and fix the favorite. Fall back to Count.
+        if (metaData.measure !== "__count" && !metaData.measures[metaData.measure]) {
+            console.warn(
+                `Measure "${metaData.measure}" has no field definition (removed or renamed field?); falling back to Count.`,
+            );
+            metaData.measure = "__count";
+        }
 
         return Object.assign(metaData, params);
     }
@@ -613,7 +624,10 @@ export class GraphModel extends Model {
                 convertedCumulatedStart: cumulatedStartConverted[groupId] || 0,
             };
             if (monetaryAggregates) {
-                const currencies = group[monetaryAggregates[0]];
+                // Mirror the start-groups loop's `|| []` guard: a group with no
+                // rows for the currency aggregate yields null, and currencies[0]
+                // / currencies.length would then throw.
+                const currencies = group[monetaryAggregates[0]] || [];
                 dataPoint.currencyId = currencies[0];
                 dataPoint.convertedValue = group[monetaryAggregates[1]];
                 if (currencies.length > 1) {

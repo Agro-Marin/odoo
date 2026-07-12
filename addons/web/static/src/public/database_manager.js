@@ -47,7 +47,14 @@ document.addEventListener("DOMContentLoaded", function () {
             ev.preventDefault();
             const db = action.getAttribute("data-db");
             const bsTarget = action.getAttribute("data-bs-target");
-            const modal = Modal.getOrCreateInstance(document.querySelector(bsTarget));
+            // Guard: a missing/typo'd data-bs-target makes querySelector return
+            // null, and Modal.getOrCreateInstance(null) throws — killing this
+            // click handler for every database action on the page.
+            const modalEl = bsTarget && document.querySelector(bsTarget);
+            if (!modalEl) {
+                return;
+            }
+            const modal = Modal.getOrCreateInstance(modalEl);
             const inputName = modal._element.querySelector("input[name=name]");
             if (inputName) {
                 inputName.value = db;

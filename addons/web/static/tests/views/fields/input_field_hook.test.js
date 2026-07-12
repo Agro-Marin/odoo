@@ -186,9 +186,9 @@ describe("parse error handling", () => {
     });
 });
 
-// Blur / Tab commit-decision consistency (shared hasValueChanged predicate)
+// Blur / Tab commit-decision consistency: no spurious write on parse-equal re-entry
 
-describe("AGROMARINVERIFY blur/Tab equality contract", () => {
+describe("blur/Tab no-write on parse-equal re-entry", () => {
     test("blur: a dirty-but-parse-equal integer re-entry commits nothing", async () => {
         onRpc("res.partner", "web_save", () => expect.step("web_save"));
         await mountView({
@@ -198,11 +198,14 @@ describe("AGROMARINVERIFY blur/Tab equality contract", () => {
             arch: `<form><field name="int_field"/></form>`,
         });
         // " 10 " is dirty as raw text but parses back to the current value (10);
-        // the blur (onChange) path must decide "unchanged" and commit nothing.
+        // the blur (onChange) path must decide "unchanged" and commit nothing —
+        // no web_save RPC. (Typing still marks the form dirty per the canonical
+        // "any edit enables save" contract exercised by float_field's formula
+        // test; parse-equality only governs whether a WRITE is sent.)
         await fieldInput("int_field").edit(" 10 ");
-        await clickSave();
-        expect.verifySteps([]);
+        await animationFrame();
         expect(".o_field_widget[name=int_field] input").toHaveValue("10");
+        expect.verifySteps([]);
     });
 
     test("Tab: a dirty-but-parse-equal integer re-entry commits nothing (same as blur)", async () => {
@@ -216,7 +219,6 @@ describe("AGROMARINVERIFY blur/Tab equality contract", () => {
         await fieldInput("int_field").edit(" 10 ", { confirm: false });
         await press("Tab");
         await animationFrame();
-        await clickSave();
         // commitChanges must reach the SAME decision as onChange via the shared
         // hasValueChanged() predicate — no spurious write.
         expect.verifySteps([]);

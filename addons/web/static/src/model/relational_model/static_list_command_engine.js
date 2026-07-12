@@ -161,6 +161,13 @@ export function applyCommands(
                     }
                 }
                 removedIds[command[1]] = true;
+                // Prune any stashed deferred commands for this id: a record on
+                // an unloaded page can accumulate UPDATE slices in
+                // ``_unknownRecordCommands`` (see the UPDATE case). If it is
+                // then removed, those stashes must go too — otherwise a later
+                // page-fill that re-loads the same resId would replay stale
+                // updates and resurrect values for a record the user deleted.
+                delete list._unknownRecordCommands[command[1]];
                 break;
             }
             case LINK: {

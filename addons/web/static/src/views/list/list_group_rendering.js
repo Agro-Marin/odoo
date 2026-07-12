@@ -185,8 +185,16 @@ export const listGroupRenderingMixin = {
             limit: list.limit,
             total,
             onUpdate: async ({ offset, limit }) => {
-                await list.load({ limit, offset });
-                this.render(true);
+                // Commit any in-progress inline edit BEFORE paginating the
+                // group: loading a new page directly (as this did) discards the
+                // edited row's unsaved changes when it scrolls out of the
+                // datapoint window. The root pager already leaves edit mode
+                // first (list_controller.onPagerUpdate); mirror it here. If the
+                // edit can't be left (invalid/blocked), don't navigate away.
+                if (await this.props.list.leaveEditMode()) {
+                    await list.load({ limit, offset });
+                    this.render(true);
+                }
             },
             withAccessKey: false,
         };

@@ -93,11 +93,13 @@ export async function loadEmoji() {
             await import("@web/components/emoji_picker/emoji_data");
         res.categories = getCategories();
         res.emojis = getEmojis();
-        return res;
-    } catch {
-        // Could be intentional (tour ended successfully while emoji still loading)
-        return res;
-    } finally {
+        // Build the shortcode/regex cache ONLY on the success path. Building it
+        // in a `finally` also ran it after a transient bundle-load failure,
+        // freezing an empty map + dead regex (`/(?!)/`) into `loader.loaded`.
+        // The `if (!loader.loaded)` guard then skipped every later rebuild, so
+        // mail's emoji shortcode rendering stayed broken until a full reload —
+        // even though loadBundle's cache eviction let the picker itself
+        // recover. Only a genuine load carries the emoji data worth caching.
         if (!loader.loaded) {
             /** @type {{[key: string]: string[]}} */
             const emojiValueToShortcodes = {};
@@ -119,6 +121,27 @@ export async function loadEmoji() {
                 ),
             };
         }
+        return res;
+    } catch {
+        // Could be intentional (tour ended successfully while emoji still
+        // loading). Leave loader.loaded untouched so a later successful call
+        // still gets a chance to build the cache.
+        return res;
+    }
+}
+
+/**
+ * Drop the parsed emoji caches of the emoji data module THIS module resolves
+ * to. Mainly for tests: bundling may duplicate `emoji_data` (bundle chunk vs
+ * import-mapped URL), and only the instance reachable from here is the one
+ * the picker actually renders.
+ */
+export async function resetLoadedEmojiData() {
+    try {
+        const emojiData = await import("@web/components/emoji_picker/emoji_data");
+        emojiData.resetEmojiData?.();
+    } catch {
+        // Emoji data not loadable in this context: nothing to reset.
     }
 }
 

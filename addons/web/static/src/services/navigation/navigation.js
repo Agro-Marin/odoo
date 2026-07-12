@@ -263,6 +263,18 @@ export class Navigator {
     update() {
         const oldItems = new Map(this.items.map((item) => [item.el, item]));
         const oldActiveItem = this.activeItem;
+        // Whether the reconcile below may follow the active item with real DOM
+        // focus. Reconciling after a DOM mutation (e.g. a hover-activated item
+        // was removed) must NOT pull focus into the menu when the user's focus
+        // is legitimately elsewhere (a search input, a form field). It is
+        // allowed both when focus is already inside the menu AND when focus has
+        // been lost entirely (activeElement is <body>/null — typically because
+        // the previously focused item was just removed from the DOM, e.g. the
+        // Confirm/Reset buttons collapsing): there is no external element to
+        // preserve, so the active item should regain focus.
+        const activeElement = document.activeElement;
+        const focusWasInMenu =
+            this.isFocused || !activeElement || activeElement === document.body;
         const elements = this._options.getItems();
         this.items = [];
 
@@ -301,14 +313,15 @@ export class Navigator {
                 (item) => item.el === document.activeElement,
             );
             if (activeItemIndex > -1) {
-                this._updateActiveItemIndex(activeItemIndex);
+                this._updateActiveItemIndex(activeItemIndex, focusWasInMenu);
             } else if (this.activeItemIndex >= 0) {
                 const closest = Math.min(this.activeItemIndex, elements.length - 1);
-                this._updateActiveItemIndex(closest);
+                this._updateActiveItemIndex(closest, focusWasInMenu);
             } else if (focusedElementIndex >= 0) {
-                this._updateActiveItemIndex(focusedElementIndex);
+                // Focus is already on this item — focusing is a no-op, so allow.
+                this._updateActiveItemIndex(focusedElementIndex, true);
             } else {
-                this._updateActiveItemIndex(-1);
+                this._updateActiveItemIndex(-1, focusWasInMenu);
             }
 
             this._options.onUpdated?.(this);
@@ -414,12 +427,16 @@ export class Navigator {
     /**
      * @private
      * @param {number} index
+     * @param {boolean} [mayFocus=true] When false, the item is activated
+     *   visually only — DOM focus stays where it is. Used by ``update()`` to
+     *   avoid stealing focus into the menu on a reconcile when the user's focus
+     *   is legitimately outside it.
      */
-    _updateActiveItemIndex(index) {
+    _updateActiveItemIndex(index, mayFocus = true) {
         if (this.items[index]) {
-            const shouldFocus = !this.items.some(
-                (item) => item.target === document.activeElement,
-            );
+            const shouldFocus =
+                mayFocus &&
+                !this.items.some((item) => item.target === document.activeElement);
             this.items[index].setActive(shouldFocus);
         } else {
             // Route through _setActiveItem for a consistent transition

@@ -7,6 +7,7 @@ that hold regardless of the write path.
 """
 
 import json
+from unittest.mock import patch
 
 from psycopg.errors import CheckViolation
 
@@ -113,3 +114,36 @@ class TestWebCwvBeacon(HttpCase):
         self._beacon({"url": "/odoo", "lcp": 1100.0})
         self._beacon({"url": "/odoo", "lcp": 1200.0})
         self.assertEqual(Metric.search_count([]) - before, 2)
+
+    def test_rate_limited_beacons_are_capped(self):
+        # An anonymous caller must not amplify DB inserts without bound: once a
+        # client exceeds its per-window budget, further beacons are rejected
+        # (429) before touching the DB. The legit beacon (a small burst per
+        # pageview) stays well under the cap and is unaffected.
+        from odoo.addons.web.controllers import observability
+
+        Metric = self.env["web.cwv.metric"].sudo()
+        # Isolate this test from any accumulated per-IP count, and leave a clean
+        # slate for the sibling beacon tests.
+        observability._rate_state.clear()
+        self.addCleanup(observability._rate_state.clear)
+        before = Metric.search_count([])
+
+        with patch.object(observability, "_RATE_LIMIT_MAX", 3):
+            statuses = [
+                self._beacon(
+                    {"url": "/odoo", "pageview_id": f"rate-{i}", "lcp": 1000.0}
+                ).status_code
+                for i in range(6)
+            ]
+
+        self.assertEqual(
+            statuses[:3], [204, 204, 204], "beacons within the cap must be accepted"
+        )
+        self.assertTrue(
+            all(s == 429 for s in statuses[3:]),
+            f"beacons over the cap must be rejected with 429, got {statuses}",
+        )
+        # Only the accepted beacons produced rows; the rejected ones never hit
+        # the DB.
+        self.assertEqual(Metric.search_count([]) - before, 3)

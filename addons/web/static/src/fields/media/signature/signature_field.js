@@ -10,6 +10,7 @@ import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
+import { parseDimensionAttr } from "@web/fields/field_utils";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -181,10 +182,14 @@ export const signatureField = {
     extractProps: ({ attrs, options }) => ({
         defaultFont: options.default_font || "",
         fullName: options.full_name,
-        height: options.size ? options.size[1] || undefined : attrs.height,
+        height: options.size
+            ? options.size[1] || undefined
+            : parseDimensionAttr(attrs.height),
         previewImage: options.preview_image,
         type: options.type,
-        width: options.size ? options.size[0] || undefined : attrs.width,
+        width: options.size
+            ? options.size[0] || undefined
+            : parseDimensionAttr(attrs.width),
     }),
 };
 

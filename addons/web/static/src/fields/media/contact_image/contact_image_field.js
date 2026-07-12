@@ -20,17 +20,22 @@ export class ContactImageField extends ImageField {
             this.props.previewImage &&
             (!this.props.record.data[this.props.name] || !this.state.isValid)
         ) {
-            if (isBinarySize(this.props.record.data[imageFieldName])) {
+            const previewData = this.props.record.data[imageFieldName];
+            if (isBinarySize(previewData)) {
                 this.lastURL = imageUrl(
                     this.props.record.resModel,
                     this.props.record.resId,
                     imageFieldName,
                     { unique: this.rawCacheKey },
                 );
-            } else {
-                this.lastURL = `data:image/png;base64,${this.props.record.data[imageFieldName]}`;
+                return this.lastURL;
+            } else if (previewData) {
+                this.lastURL = `data:image/png;base64,${previewData}`;
+                return this.lastURL;
             }
-            return this.lastURL;
+            // Neither the primary field nor the preview field holds data: fall
+            // through to the base placeholder instead of emitting a broken
+            // "data:image/png;base64,false" src.
         }
         return super.getUrl(imageFieldName);
     }

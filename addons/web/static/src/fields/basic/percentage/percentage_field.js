@@ -9,6 +9,7 @@ import { extractDigits, isFalseEmpty } from "@web/fields/field_utils";
 import { formatPercentage } from "@web/fields/formatters";
 import { parsePercentage } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { Operation } from "@web/model/relational_model/operation";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
 
@@ -19,9 +20,20 @@ export class PercentageField extends NumericInputFieldBase {
         digits: { type: Array, optional: true },
     };
 
-    /** @param {string} v @returns {number} */
+    /** @param {string} v @returns {number | Operation} */
     parse(v) {
-        return parsePercentage(v);
+        const parsed = parsePercentage(v, { allowOperation: true });
+        if (parsed instanceof Operation) {
+            // The operation is entered in DISPLAYED units (value × 100), so an
+            // additive operand ("+= 5" meaning +5 percentage points) must be
+            // scaled back to storage units (0.05). Multiplicative operations
+            // (*= / /=) are scale-invariant. Mirrors FloatFactorField.parse.
+            if (parsed.operator === "+" || parsed.operator === "-") {
+                return new Operation(parsed.operator, parsed.operand / 100);
+            }
+            return parsed;
+        }
+        return parsed;
     }
 
     /**

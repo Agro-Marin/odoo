@@ -124,6 +124,39 @@ class IrModelAccessTest(TransactionCase):
         self.assertIn("res.company", result)
         self.assertNotIn("base.language.export", result)
 
+    def test_get_definitions_access_gated(self):
+        """``_get_definitions`` (behind /web/model/get_definitions) must not leak
+        schema of models the caller cannot read — same gate as its siblings.
+        """
+        IrModel = self.env["ir.model"]
+
+        # Internal user with read access: gets the definition.
+        result = (
+            IrModel.with_user(self.spreadsheet_user)._get_definitions(["res.company"])
+        )
+        self.assertIn("res.company", result)
+        self.assertIn("fields", result["res.company"])
+
+        # Portal user (has perm_read on res.company but is not internal): the
+        # schema is withheld entirely — previously it leaked to any user.
+        result = (
+            IrModel.with_user(self.portal_user)._get_definitions(["res.company"])
+        )
+        self.assertEqual(result, {})
+
+        # Public user: same withholding.
+        result = IrModel.with_user(self.public_user)._get_definitions(["res.company"])
+        self.assertEqual(result, {})
+
+        # Transient models are excluded (mirrors _is_valid_for_model_selector).
+        result = IrModel._get_definitions(["res.company", "base.language.export"])
+        self.assertIn("res.company", result)
+        self.assertNotIn("base.language.export", result)
+
+        # A relational cross-reference to an inaccessible model is not resolved:
+        # only models in the (access-filtered) request set appear.
+        self.assertEqual(set(result) - {"res.company"}, set())
+
 
 @tagged("web_unit", "web_model")
 class TestIrModel(TransactionCase):

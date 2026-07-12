@@ -29,7 +29,9 @@ export function parseXML(str) {
     const xml = parser.parseFromString(str, "text/xml");
     if (hasParsingError(xml)) {
         throw new Error(
-            `An error occured while parsing ${str}: ${xml.getElementsByTagName("parsererror")}`,
+            `An error occured while parsing ${str}: ${
+                xml.getElementsByTagName("parsererror")[0]?.textContent ?? ""
+            }`,
         );
     }
     return xml.documentElement;
@@ -226,10 +228,14 @@ export function formatXML(xml, indent = 4) {
                 // Append to previous line instead of adding a new one.
                 lines[lines.length - 1] += token;
                 if (!inComment) {
-                    depth--;
+                    depth = Math.max(0, depth - 1);
                 }
             } else {
-                lines.push(pad.repeat(--depth) + token);
+                // Clamp at 0: an unbalanced document (a stray closing tag)
+                // would otherwise drive depth negative and crash
+                // `" ".repeat(-1)` with a RangeError.
+                depth = Math.max(0, depth - 1);
+                lines.push(pad.repeat(depth) + token);
             }
         }
         // Self-closing tag (check anywhere in token, not just end —

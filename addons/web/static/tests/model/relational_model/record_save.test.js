@@ -23,6 +23,7 @@ import { FetchRecordError } from "@web/model/relational_model/errors";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { save } from "@web/model/relational_model/record_save";
+import { computeChangeset } from "@web/model/relational_model/record_utils";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
 // Mock factory
@@ -351,6 +352,73 @@ describe("urgent save (sendBeacon path)", () => {
         expect(payload.params.kwargs.known_values).toEqual({ name: "orig" });
     });
 
+    // HIGH regression: on tab close the 6 async preprocessors do NOT run, so
+    // `_changes` can still hold RAW values — a many2one still awaiting its
+    // name_create (`{display_name}`, no id) and a raw x2many command array
+    // (not a StaticList). Before the defensive normalization in
+    // computeChangeset, the m2o serialized to `undefined` (silently dropped by
+    // JSON.stringify → field lost) and the raw x2many array threw a TypeError
+    // inside `_getChanges` → the beacon NEVER fired and ALL pending fields were
+    // lost. The save must now still fire the beacon, dropping only the two
+    // un-preprocessed fields while every serializable field reaches the server.
+    test("urgent beacon drops un-preprocessed m2o/x2many, keeps serializable fields", async () => {
+        let capturedBlob = null;
+        mockSendBeacon((_url, blob) => {
+            capturedBlob = blob;
+            return true;
+        });
+
+        const fields = {
+            name: { type: "char" },
+            partner_id: { type: "many2one" },
+            line_ids: { type: "one2many" },
+        };
+        const activeFields = {
+            name: { readonly: false },
+            partner_id: { readonly: false },
+            line_ids: { readonly: false },
+        };
+        const rawChanges = {
+            name: "kept",
+            partner_id: { display_name: "New Co" }, // no id → name_create pending
+            line_ids: [[0, 0, { name: "child" }]], // raw command array, not a StaticList
+        };
+
+        const rec = makeRecord({ resId: 7, changes: {} });
+        rec.fields = fields;
+        rec.activeFields = activeFields;
+        rec._values = markRaw({ name: "orig", partner_id: false, line_ids: [] });
+        // The pre-save _abandonRecords loop touches x2many datapoints in data.
+        rec.data = { line_ids: { _abandonRecords() {} } };
+        // Delegate to the REAL changeset builder over the raw (un-preprocessed)
+        // changes, exactly as record._getChanges does in production.
+        rec._getChanges = () =>
+            computeChangeset({
+                changes: rawChanges,
+                values: rec._values,
+                isNew: false,
+                fields,
+                activeFields,
+                evalContext: {},
+                getCommands: (f, value, wr) => value._getCommands({ withReadonly: wr }),
+            });
+        rec.model.urgentSave.isActive = true;
+        rec.model.useSendBeaconToSaveUrgently = true;
+
+        const result = await save(rec, { reload: false });
+
+        // The beacon fired instead of throwing on the raw x2many array.
+        expect(result).toBe(true);
+        expect(capturedBlob).not.toBe(null);
+        const payload = JSON.parse(await capturedBlob.text());
+        const sentChanges = payload.params.args[1];
+        expect(sentChanges.name).toBe("kept");
+        // The un-preprocessed m2o (no id) and x2many (raw array) are dropped —
+        // NOT emitted as `undefined`, NOT the cause of a thrown beacon.
+        expect("partner_id" in sentChanges).toBe(false);
+        expect("line_ids" in sentChanges).toBe(false);
+    });
+
     // The beacon-success branch merges _changes into _values and clears the
     // change bag, but — like the reload:false branch — must ALSO clear each
     // x2many list's staged commands. Otherwise, if the page survives the beacon
@@ -383,6 +451,8 @@ describe("urgent save (sendBeacon path)", () => {
             isInEdition: true,
             _changes: markRaw({ lines: list }),
             _values: markRaw({}),
+            _textValues: markRaw({}),
+            _initialTextValues: markRaw({}),
             _checkValidity: () => true,
             _getChanges: () => ({ lines: list._getCommands() }),
             clearChangesCalls: 0,
@@ -393,6 +463,7 @@ describe("urgent save (sendBeacon path)", () => {
             _discard: () => {},
             _load: async () => {},
             _setData: () => {},
+            _setEvalContext: () => {},
             model: {
                 _closeUrgentSaveNotification: null,
                 urgentSave: { isActive: true },

@@ -66,7 +66,7 @@ class Base(models.AbstractModel):
         Used by the webclient for some view types (e.g. empty columns for
         kanban view).  See ``Field.group_expand`` attribute.
         """
-        field_name = groupby_spec.split(".")[0].split(":")[0]
+        field_name = groupby_spec.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
 
         # Existing non-empty group values; passed to group_expand so it can
@@ -297,7 +297,7 @@ class Base(models.AbstractModel):
         The returned callable is used by ``_web_read_group_format`` to convert
         raw ``_read_group`` values into webclient-friendly dicts.
         """
-        field_path = groupby_spec.split(":")[0]
+        field_path = groupby_spec.split(":", maxsplit=1)[0]
         field_name, _dot, remaining_path = field_path.partition(".")
         field = self._fields[field_name]
 

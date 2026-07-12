@@ -1,8 +1,8 @@
+import functools
 import logging
 from base64 import b64decode
 from typing import Any
 
-import vobject.vcard
 from odoo import models
 from odoo.libs.facade import Proxy, ProxyAttr, ProxyFunc
 
@@ -26,28 +26,45 @@ def _guess_image_vcard_type(data: bytes) -> str:
     return "JPEG"  # fallback when no known signature matches
 
 
-class VBaseProxy(Proxy):
-    _wrapped__ = vobject.base.VBase
+@functools.cache
+def _vobject() -> tuple[Any, type]:
+    """Import ``vobject`` and build the vCard proxy classes lazily.
 
-    encoding_param = ProxyAttr()
-    type_param = ProxyAttr()
-    value = ProxyAttr(None)
+    ``vobject`` is an *optional* dependency (declared in the manifest's
+    ``external_dependencies``). Importing it at module top would make the whole
+    ``web`` addon fail to import when it is absent — and, worse, render the
+    ``download_vcard`` controller's ``find_spec`` guard dead code. The proxy
+    class bodies reference ``vobject.base`` at definition time, so they too must
+    be deferred. Building them once here (``functools.cache``) keeps ``web``
+    importable without ``vobject`` while letting the controller raise a clean
+    ``UserError`` when the library is missing.
 
+    :return: the imported ``vobject`` module and the ``VComponentProxy`` class.
+    """
+    import vobject.vcard
 
-class VCardContentsProxy(Proxy):
-    _wrapped__ = dict
+    class VBaseProxy(Proxy):
+        _wrapped__ = vobject.base.VBase
 
-    __delitem__ = ProxyFunc()
-    __contains__ = ProxyFunc()
-    get = ProxyFunc(lambda lines: [VBaseProxy(line) for line in lines])
+        encoding_param = ProxyAttr()
+        type_param = ProxyAttr()
+        value = ProxyAttr(None)
 
+    class VCardContentsProxy(Proxy):
+        _wrapped__ = dict
 
-class VComponentProxy(Proxy):
-    _wrapped__ = vobject.base.Component
+        __delitem__ = ProxyFunc()
+        __contains__ = ProxyFunc()
+        get = ProxyFunc(lambda lines: [VBaseProxy(line) for line in lines])
 
-    add = ProxyFunc(VBaseProxy)
-    contents = ProxyAttr(VCardContentsProxy)
-    serialize = ProxyFunc()
+    class VComponentProxy(Proxy):
+        _wrapped__ = vobject.base.Component
+
+        add = ProxyFunc(VBaseProxy)
+        contents = ProxyAttr(VCardContentsProxy)
+        serialize = ProxyFunc()
+
+    return vobject, VComponentProxy
 
 
 class ResPartner(models.Model):
@@ -59,6 +76,7 @@ class ResPartner(models.Model):
         :return: a vobject.vCard object
         """
         self.ensure_one()
+        vobject, VComponentProxy = _vobject()
         vcard = vobject.vCard()
         # Name
         n = vcard.add("n")

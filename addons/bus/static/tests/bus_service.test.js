@@ -23,6 +23,7 @@ import {
     MockServer,
     mockService,
     mountWithCleanup,
+    onRpc,
     patchWithCleanup,
     restoreRegistry,
     waitForSteps,
@@ -246,6 +247,11 @@ test("websocket reconnects upon user log in", async () => {
 test("websocket connects with URL corresponding to given serverURL", async () => {
     const serverURL = "http://random-website.com";
     mockService("bus.parameters", { serverURL });
+    // A custom serverURL is cross-origin: the worker service pre-fetches the
+    // worker bundle to build a same-origin Blob URL (see worker_service.js).
+    // Serve that route so the worker can start; the bundle content is
+    // irrelevant since HOOT mocks (Shared)Worker anyway.
+    onRpc("/bus/websocket_worker_bundle", () => "", { pure: true });
     await makeMockEnv();
     mockWebSocket((ws) => asyncStep(ws.url));
     startBusService();

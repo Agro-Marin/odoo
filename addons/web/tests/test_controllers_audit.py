@@ -11,18 +11,19 @@ Covered:
 - utils.py   : _is_local_url correctly accepts /local paths, rejects //, /\\, absolute URLs
 """
 
+import inspect
 import io
 from http import HTTPStatus
 from unittest.mock import patch
-import inspect
 
 from lxml import etree
 
 from odoo import http
-from odoo.addons.web.controllers.binary import Binary
 from odoo.libs.json import dumps as json_dumps
 from odoo.tests.common import BaseCase, HttpCase, TransactionCase, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.web.controllers.binary import Binary
 
 
 @tagged("web_http", "web_controllers_audit")
@@ -36,6 +37,100 @@ class TestBarcodeInvalidType(HttpCase):
         """
         response = self.url_open("/report/barcode/TOTALLY_INVALID_TYPE/testvalue")
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+
+@tagged("web_controllers_audit")
+class TestBarcodeDimensionClamp(BaseCase):
+    """report.py clamps caller-supplied barcode width/height before reportlab.
+
+    ``/report/barcode`` is public and forwards ``width``/``height`` straight to
+    reportlab's image allocator; an unbounded value is a cheap memory-DoS.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from odoo.addons.web.controllers.report import (
+            _MAX_BARCODE_DIM,
+            _clamp_barcode_dimension,
+        )
+
+        cls._clamp = staticmethod(_clamp_barcode_dimension)
+        cls._max = _MAX_BARCODE_DIM
+
+    def test_oversized_is_clamped_to_max(self):
+        self.assertEqual(self._clamp(100_000, 600), self._max)
+        self.assertEqual(self._clamp(self._max + 1, 100), self._max)
+
+    def test_reasonable_value_passes_through(self):
+        self.assertEqual(self._clamp(200, 600), 200)
+        self.assertEqual(self._clamp("300", 600), 300)  # query strings arrive as str
+
+    def test_invalid_or_nonpositive_falls_back_to_default(self):
+        self.assertEqual(self._clamp("not-a-number", 600), 600)
+        self.assertEqual(self._clamp(None, 100), 100)
+        self.assertEqual(self._clamp(0, 600), 600)
+        self.assertEqual(self._clamp(-5, 100), 100)
+
+
+@tagged("web_http", "web_controllers_audit")
+class TestBarcodeDimensionClampHttp(HttpCase):
+    """End-to-end: an oversized barcode request must never allocate an
+    unbounded image nor 500 — the dimension is clamped before rendering."""
+
+    def test_huge_dimensions_do_not_500(self):
+        # Both dims huge: clamped to the per-dim cap, then the model's own
+        # total-pixel guard rejects it as a clean 400 — never a 500 and never a
+        # multi-GB allocation.
+        response = self.url_open(
+            "/report/barcode/Code128/hello?width=100000&height=100000"
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+    def test_clamped_single_dimension_renders(self):
+        # Only the width is absurd: after clamping (100000 -> 10000) the total
+        # pixel budget is within the model's limit, so a valid PNG is returned.
+        # Without the clamp, 100000*100 would exceed the model guard and 400.
+        response = self.url_open(
+            "/report/barcode/Code128/hello?width=100000&height=100"
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.headers.get("Content-Type"), "image/png")
+
+
+@tagged("web_controllers_audit")
+class TestCsvFormulaNeutralization(BaseCase):
+    """CSV export must neutralize spreadsheet-formula injection, mirroring the
+    XLSX ``strings_to_formulas=False`` defense (export_writers.py).
+
+    A string cell beginning with ``=``, ``+``, ``-`` or ``@`` is a
+    CSV-injection vector (e.g. ``=WEBSERVICE(...)`` executed on open). The
+    neutralization is performed by the fork's Rust ``csv_export`` writer, which
+    prefixes an apostrophe; this test locks that behavior in at the controller
+    boundary (``CSVExport.from_data``).
+    """
+
+    def test_dangerous_leading_chars_are_prefixed(self):
+        from odoo.addons.web.controllers.export import CSVExport
+
+        rows = [["=cmd"], ["+cmd"], ["-cmd"], ["@cmd"], ["\t=x"]]
+        out = CSVExport().from_data([], ["header"], rows).decode()
+        for payload in ("=cmd", "+cmd", "-cmd", "@cmd"):
+            self.assertIn(
+                f"'{payload}",
+                out,
+                f"{payload!r} must be apostrophe-prefixed to defuse the formula",
+            )
+
+    def test_benign_values_are_not_mangled(self):
+        from odoo.addons.web.controllers.export import CSVExport
+
+        # A value that merely contains (not starts with) an operator, and a
+        # numeric-looking safe string, must be exported verbatim.
+        out = CSVExport().from_data([], ["header"], [["a=b"], ["safe"]]).decode()
+        self.assertIn("a=b", out)
+        self.assertNotIn("'a=b", out)
+        self.assertNotIn("'safe", out)
 
 
 @tagged("web_http", "web_controllers_audit")

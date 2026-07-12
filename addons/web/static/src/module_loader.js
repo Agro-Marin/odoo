@@ -154,6 +154,28 @@
             }
             if (rebound) {
                 _loaderDebug("registerNativeModules rebind", rebound);
+                // Production telemetry for singleton splits. A rebind under a
+                // debug/hot-reload session is expected (and noisy), so only
+                // beacon when NOT in debug mode: outside debug, a rebind means a
+                // module was duplicated in the bundle graph and the
+                // @web/core/registry singleton silently split — a real bug that
+                // otherwise leaves no trace. reportError is hoisted (function
+                // declaration) so it is reachable from here.
+                const dbg = typeof o.debug === "string" ? o.debug : "";
+                if (!dbg && typeof reportError === "function") {
+                    reportError({
+                        phase: o.isReady ? "post_boot" : "pre_boot",
+                        kind: "module_rebind",
+                        message:
+                            "singleton split (module rebound): " + rebound.join(","),
+                        filename: "",
+                        line: 0,
+                        col: 0,
+                        stack: "",
+                        url: globalThis.location?.href || "",
+                        user_agent: globalThis.navigator?.userAgent || "",
+                    });
+                }
                 try {
                     this.bus.dispatchEvent(
                         new CustomEvent("rebind", { detail: { specifiers: rebound } }),
@@ -277,27 +299,40 @@
         "error",
         (ev) => {
             const target = ev.target;
-            if (
-                target &&
-                target !== globalThis &&
-                o.loader.handleAssetLoadError(target)
-            ) {
-                reportError({
-                    phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
-                    kind: "asset_load_error",
-                    message: "bundle asset failed to load; reloading once",
-                    filename: String(
-                        /** @type {any} */ (target).src ||
-                            /** @type {any} */ (target).href ||
-                            "",
-                    ),
-                    line: 0,
-                    col: 0,
-                    stack: "",
-                    url: globalThis.location?.href || "",
-                    user_agent: globalThis.navigator?.userAgent || "",
-                });
+            if (!target || target === globalThis) {
+                return;
             }
+            const el = /** @type {any} */ (target);
+            const src =
+                (el.tagName === "SCRIPT" && (el.src || el.dataset?.src)) ||
+                (el.tagName === "LINK" && el.href) ||
+                "";
+            // Only /web/assets/ targets are ours to report; a failing user
+            // <img>/<iframe> is not a bundle problem.
+            if (!src || !src.includes("/web/assets/")) {
+                return;
+            }
+            // Attempt the one-shot self-heal reload, but beacon UNCONDITIONALLY:
+            // the reload is rate-limited (once/min/tab), so a reload-suppressed
+            // failure previously produced NO telemetry — yet those repeated,
+            // reload-suppressed failures are the most diagnostic signal. Record
+            // whether a reload was actually triggered so the two cases are
+            // distinguishable server-side.
+            const reloaded = o.loader.handleAssetLoadError(target);
+            reportError({
+                phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
+                kind: "asset_load_error",
+                message: reloaded
+                    ? "bundle asset failed to load; reloading once"
+                    : "bundle asset failed to load; reload suppressed",
+                reloaded,
+                filename: String(src),
+                line: 0,
+                col: 0,
+                stack: "",
+                url: globalThis.location?.href || "",
+                user_agent: globalThis.navigator?.userAgent || "",
+            });
         },
         true,
     );

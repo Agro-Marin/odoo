@@ -472,6 +472,26 @@ describe("applyCommands — command log integrity", () => {
         const deletedIds = list._commands.map((c) => c[1]);
         expect(deletedIds).toEqual([2, 3, 4]);
     });
+
+    test("DELETE/UNLINK prunes stashed _unknownRecordCommands for that id", () => {
+        // Record 99 is on an unloaded page (not in _cache): its UPDATE is
+        // stashed in _unknownRecordCommands to replay if it ever loads.
+        const list = makeList();
+        applyCommands(list, [[UPDATE, 99, { name: "stashed" }]]);
+        expect(99 in list._unknownRecordCommands).toBe(true);
+
+        // Removing it must drop the stash — otherwise a later page-fill that
+        // re-loads resId 99 would replay the stale UPDATE and resurrect values
+        // for a record the user deleted.
+        applyCommands(list, [[DELETE, 99]]);
+        expect(99 in list._unknownRecordCommands).toBe(false);
+
+        // Same for UNLINK.
+        applyCommands(list, [[UPDATE, 77, { name: "stashed" }]]);
+        expect(77 in list._unknownRecordCommands).toBe(true);
+        applyCommands(list, [[UNLINK, 77]]);
+        expect(77 in list._unknownRecordCommands).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------

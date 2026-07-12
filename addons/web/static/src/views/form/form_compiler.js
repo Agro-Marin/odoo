@@ -406,9 +406,15 @@ export class FormCompiler extends ViewCompiler {
                     const fieldName = /** @type {Element} */ (child).getAttribute(
                         "name",
                     );
+                    // ``getAttribute("id")`` returns an already-quoted string
+                    // literal (``'field_id'``, set by compileField). The fallback
+                    // must stay a quoted literal too — a bare ``fieldName`` would
+                    // compile to ``id: name`` / ``fieldNodes[name]`` (an
+                    // undefined identifier reference), not the intended string
+                    // key. Latent today because base always sets ``field_id``.
                     const fieldId =
                         /** @type {Element} */ (slotContent).getAttribute("id") ||
-                        fieldName;
+                        `'${fieldName}'`;
                     const props = {
                         id: `${fieldId}`,
                         fieldName: `'${fieldName}'`,

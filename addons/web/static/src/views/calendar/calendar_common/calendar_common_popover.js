@@ -13,6 +13,19 @@ import { Record } from "@web/model/record";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { getFormattedDateSpan } from "@web/views/calendar/calendar_utils";
 
+/**
+ * Escape a (possibly translated) string for inclusion inside a Luxon
+ * single-quoted format literal. Luxon represents a literal apostrophe as a
+ * doubled single quote; a raw apostrophe in a translation (fr/it/ca …) would
+ * otherwise close the literal early and corrupt the duration string.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+function luxonLiteral(str) {
+    return String(str).replaceAll("'", "''");
+}
+
 /** Popover displayed when clicking a calendar event in day/week/month scales. */
 export class CalendarCommonPopover extends Component {
     static template = "web.CalendarCommonPopover";
@@ -126,11 +139,11 @@ export class CalendarCommonPopover extends Component {
             const formatParts = [];
             if (duration.hours > 0) {
                 const hourString = duration.hours === 1 ? _t("hour") : _t("hours");
-                formatParts.push(`h '${hourString}'`);
+                formatParts.push(`h '${luxonLiteral(hourString)}'`);
             }
             if (duration.minutes > 0) {
                 const minuteStr = duration.minutes === 1 ? _t("minute") : _t("minutes");
-                formatParts.push(`m '${minuteStr}'`);
+                formatParts.push(`m '${luxonLiteral(minuteStr)}'`);
             }
             // Zero-length timed events (start == end) would otherwise render
             // an empty duration line (toFormat("") is "").
@@ -147,7 +160,9 @@ export class CalendarCommonPopover extends Component {
                     this.dateDuration = _t("All day");
                 } else {
                     const duration = end.plus({ day: 1 }).diff(start, "days");
-                    this.dateDuration = duration.toFormat(`d '${_t("days")}'`);
+                    this.dateDuration = duration.toFormat(
+                        `d '${luxonLiteral(_t("days"))}'`,
+                    );
                 }
             }
         }

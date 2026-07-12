@@ -63,6 +63,17 @@ class IrModel(models.Model):
         return self._display_name_for(accessible_models)
 
     def _get_definitions(self, model_names: list[str]) -> dict[str, dict[str, Any]]:
+        # Only expose schema for models the current user may actually read.
+        # This backs the public-facing ``/web/model/get_definitions`` route, a
+        # model-introspection surface; without this gate a non-internal or
+        # unauthorized user could read field/relation metadata of any model.
+        # Mirrors the access checks in ``display_name_for``/
+        # ``get_available_models`` (via ``_is_valid_for_model_selector``), and
+        # the relational/inverse cross-references below stay confined to this
+        # filtered set, so no inaccessible model leaks through a relation.
+        model_names = [
+            name for name in model_names if self._is_valid_for_model_selector(name)
+        ]
         model_definitions = {}
         for model_name in model_names:
             model = self.env.get(model_name)

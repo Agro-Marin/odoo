@@ -110,6 +110,9 @@ export class PdfViewerField extends Component {
 
     onFileRemove() {
         this.state.isValid = true;
+        // Revoke the previously uploaded blob URL instead of leaking it: without
+        // this the object URL stays alive until the component is destroyed.
+        this.setObjectUrl("");
         this.update(/** @type {any} */ ({}));
     }
 

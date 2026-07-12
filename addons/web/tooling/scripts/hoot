@@ -11,11 +11,13 @@ Examples
 --------
   hoot '@web/core/domain'              # run one suite
   hoot '@web/services' '@web/model'    # several suites
+  hoot '@mail/discuss' '@bus'          # other addons: DB hoot_bus_mail is
+                                       #   created with those modules installed
   hoot --affected                      # suites touched by your git diff
   hoot --watch '@web/core/domain'      # re-run on file change
-  hoot --status                        # show warm-server state
-  hoot --stop                          # stop warm server (keep DB)
-  hoot --clean                         # stop warm server AND drop its DB
+  hoot --status                        # show all warm servers
+  hoot --stop [--db hoot_mail]         # stop warm server(s) (keep DBs)
+  hoot --clean [--db hoot_mail]        # stop warm server(s) AND drop DB(s)
 
 Full test path form works too (HOOT resolves an id against a suite OR a single
 test), e.g.  hoot '@web/core/domain/Basic Properties/empty'.
@@ -189,8 +191,10 @@ def main() -> int:
     ap.add_argument("--preset", default="desktop",
                     choices=["desktop", "mobile"],
                     help="HOOT preset (default: desktop).")
-    ap.add_argument("--db", default=H.DEFAULT_DB,
-                    help=f"Warm-server database (default: {H.DEFAULT_DB}).")
+    ap.add_argument("--db", default=None,
+                    help="Warm-server database (default: derived from the "
+                         "requested suites' addons, e.g. @mail/... -> "
+                         "hoot_mail; plain @web -> hoot_web).")
     ap.add_argument("--timeout", type=int, default=300,
                     help="Wall-clock timeout per run, seconds (default: 300).")
     ap.add_argument("--hoot-timeout", type=int, default=15000,
@@ -217,29 +221,33 @@ def main() -> int:
     _setup_logging(args.verbose)
 
     if args.status:
-        st = H.read_state()
-        if H.server_is_warm(st):
+        states = H.read_all_states()
+        warm = [st for st in states if H.server_is_warm(st)]
+        if not warm:
+            print(_color("COLD  no warm server", C_YEL))
+        for st in warm:
             print(_color(
                 f"WARM  pid={st['pid']} port={st['port']} db={st['db']}",
                 C_GREEN))
-        else:
-            print(_color("COLD  no warm server", C_YEL))
         return 0
     if args.stop:
-        print(H.stop_server(clean=False))
+        print(H.stop_server(db=args.db, clean=False))
         return 0
     if args.clean:
-        print(H.stop_server(clean=True))
+        print(H.stop_server(db=args.db, clean=True))
         return 0
-    if args.restart:
-        H.stop_server(clean=False)
 
     suites = _resolve_suites(args)
     if not suites:
         return 0
 
+    modules = H.modules_for_suites(suites)
+    db = args.db or H.db_for_modules(modules)
+    if args.restart:
+        H.stop_server(db=db, clean=False)
+
     t0 = time.time()
-    state, booted = H.ensure_server(args.db, verbose=args.verbose)
+    state, booted = H.ensure_server(db, modules, verbose=args.verbose)
     if booted:
         print(_color(
             f"Warm server booted (port={state['port']} db={state['db']}) "

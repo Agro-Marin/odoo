@@ -81,6 +81,24 @@ export function sortTree(sortFunction, tree) {
 }
 
 /**
+ * Recursively drop the cached ``sortedKeys`` from a tree and its subtrees.
+ *
+ * A node's ``sortedKeys`` is only valid for the exact key set it was computed
+ * against. After a ``flip()`` transposes rows and columns the sorted order is
+ * meaningless (and ``sortedColumn`` is reset), so leaving stale ``sortedKeys``
+ * behind makes ``_collectTableRows`` iterate a key list that no longer matches
+ * ``directSubTrees`` — a subsequently expanded group then renders no children.
+ *
+ * @param {Object} tree
+ */
+export function stripSortedKeys(tree) {
+    delete tree.sortedKeys;
+    for (const subTree of tree.directSubTrees.values()) {
+        stripSortedKeys(subTree);
+    }
+}
+
+/**
  * Returns the height of a given groupTree.
  *
  * @param {Object} tree

@@ -13,6 +13,7 @@ import {
     resetViewCompilerCache,
     useViewCompiler,
 } from "@web/views/view_compiler";
+import { toStringExpression } from "@web/views/view_utils";
 
 // Helpers
 
@@ -54,6 +55,36 @@ function makeTemplates(specs) {
     }
     return templates;
 }
+
+// toStringExpression — quote-safe string -> template-literal codegen seam
+
+describe("toStringExpression", () => {
+    test("wraps a plain string in backticks", () => {
+        expect(toStringExpression("abc")).toBe("`abc`");
+
+        expect(eval(toStringExpression("abc"))).toBe("abc");
+    });
+
+    test("escapes backticks so the delimiter can't be closed early", () => {
+        expect(toStringExpression("a`b")).toBe("`a\\`b`");
+
+        expect(eval(toStringExpression("a`b"))).toBe("a`b");
+    });
+
+    test("neutralizes ${ interpolation so it stays a literal, not evaluated", () => {
+        const expr = toStringExpression("a${1 + 1}b");
+        // The produced code must NOT contain a raw, evaluable ${ ... }
+        expect(expr.includes("`a\\${1 + 1}b`")).toBe(true);
+
+        expect(eval(expr)).toBe("a${1 + 1}b");
+    });
+
+    test("nullish input yields an empty-string literal", () => {
+        expect(eval(toStringExpression(undefined))).toBe("");
+
+        expect(eval(toStringExpression(null))).toBe("");
+    });
+});
 
 // makeIsVisibleExpr — shared invisible->isVisible helper
 

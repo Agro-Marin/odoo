@@ -545,13 +545,13 @@ test("[text composer] mention a channel thread", async () => {
     await insertText(".o-mail-Composer-input", "#");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
     await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", { text: "General" });
-    await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-comments-o)", {
+    await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-regular.fa-comments)", {
         text: "GeneralThreadOne",
     });
     await click(".o-mail-Composer-suggestion:eq(1)");
     await contains(".o-mail-Composer-input", { value: "#General > ThreadOne " });
     await press("Enter");
-    await contains(".o-mail-Message a.o_channel_redirect:has(i.fa-comments-o)", {
+    await contains(".o-mail-Message a.o_channel_redirect:has(i.fa-regular.fa-comments)", {
         text: "General > ThreadOne",
     });
     await click("a.o_channel_redirect", { text: "General > ThreadOne" });
@@ -586,7 +586,7 @@ test("mention a channel thread", async () => {
     await htmlInsertText(editor, "#");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
     await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", { text: "General" });
-    await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-comments-o)", {
+    await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-regular.fa-comments)", {
         text: "GeneralThreadOne",
     });
     await click(".o-mail-Composer-suggestion:eq(0)");
@@ -603,16 +603,16 @@ test("mention a channel thread", async () => {
     await htmlInsertText(editor, "#");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
     await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", { text: "General" });
-    await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-comments-o)", {
+    await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-regular.fa-comments)", {
         text: "GeneralThreadOne",
     });
     await click(".o-mail-Composer-suggestion:eq(1)");
     await contains(
-        ".o-mail-Composer-html.odoo-editor-editable a.o_channel_redirect:has(i.fa-comments-o)",
+        ".o-mail-Composer-html.odoo-editor-editable a.o_channel_redirect:has(i.fa-regular.fa-comments)",
         { text: "General > ThreadOne" }
     );
     await press("Enter");
-    await contains(".o-mail-Message a.o_channel_redirect:has(i.fa-comments-o)", {
+    await contains(".o-mail-Message a.o_channel_redirect:has(i.fa-regular.fa-comments)", {
         text: "General > ThreadOne",
     });
     await click("a.o_channel_redirect", { text: "General > ThreadOne" });

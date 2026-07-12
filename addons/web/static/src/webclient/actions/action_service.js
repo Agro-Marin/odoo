@@ -148,12 +148,17 @@ export class ActionManager {
 
         router.hideKeyFromUrl("globalState");
 
-        // Refresh the action stack when an act_window write invalidates the
-        // server-side action caches. Extracted to its own module to keep this
-        // cross-cutting concern out of the constructor. The returned disposer
-        // removes the permanent rpcBus listener — short-lived managers (e.g.
-        // enterprise/web_studio's editor) must call it on teardown.
-        this.uninstallActionCacheInvalidation = installActionCacheInvalidation(this);
+        // The RPC cache-invalidation listener (a permanent rpcBus RPC:RESPONSE
+        // subscription) is NOT installed here: installing it in the ctor made
+        // every ``makeActionManager`` caller leak a listener that pins the whole
+        // manager for the page's lifetime. Short-lived managers (e.g.
+        // enterprise/web_studio's editor) were the only such callers and never
+        // disposed it. Install is now the consumer's responsibility:
+        // ``actionService.start`` installs it for the session-lived webclient
+        // manager (never disposed — fine), and web_studio's editor installs it
+        // and disposes on teardown (``onWillDestroy``). Default to a no-op so
+        // ``uninstallActionCacheInvalidation()`` is always safe to call.
+        this.uninstallActionCacheInvalidation = () => {};
 
         // -------------------------------------------------------------------
         // Action-type dispatcher
@@ -279,6 +284,30 @@ export class ActionManager {
      */
     _nextId() {
         return ++this._id;
+    }
+
+    /**
+     * Snapshot the current navigation generation. Every ``doAction`` /
+     * ``switchView`` / ``restore`` bumps ``keepLast._id`` when it enters the
+     * KeepLast, so a later increment means a newer navigation started. Callers
+     * that ``await`` something long OUTSIDE the KeepLast (notably
+     * ``clearUncommittedChanges``, which can block on a save dialog) snapshot
+     * this before the await and compare after via {@link _isSupersededNav} to
+     * avoid mounting a stale controller on top of a newer one.
+     *
+     * @returns {number}
+     */
+    _navGeneration() {
+        return this.keepLast._id;
+    }
+
+    /**
+     * @param {number} generation a value previously returned by
+     *   {@link _navGeneration}
+     * @returns {boolean} true if a newer navigation has started since
+     */
+    _isSupersededNav(generation) {
+        return this.keepLast._id !== generation;
     }
 
     async _loadAction(actionRequest, context = {}) {
@@ -803,8 +832,14 @@ export class ActionManager {
             });
 
         if (!newWindow) {
+            const navGeneration = this._navGeneration();
             const canProceed = await clearUncommittedChanges(this.env);
             if (!canProceed) {
+                return;
+            }
+            if (this._isSupersededNav(navGeneration)) {
+                // A newer doAction/switchView/restore started while the save
+                // dialog was up; abort so this stale switch can't mount over it.
                 return;
             }
         }
@@ -857,8 +892,14 @@ export class ActionManager {
                 : "No controller to restore";
             throw new ControllerNotFoundError(msg);
         }
+        const navGeneration = this._navGeneration();
         const canProceed = await clearUncommittedChanges(this.env);
         if (!canProceed) {
+            return;
+        }
+        if (this._isSupersededNav(navGeneration)) {
+            // A newer navigation started while the save dialog was up; abort so
+            // this stale restore can't mount over it.
             return;
         }
         const controller = this.controllerStack[index];
@@ -952,7 +993,15 @@ export function makeActionManager(env, router = _router) {
 export const actionService = {
     dependencies: ["dialog", "effect", "localization", "notification", "title", "ui"],
     start(env) {
-        return makeActionManager(env);
+        const am = makeActionManager(env);
+        // Install the RPC cache-invalidation listener here (not in the
+        // ActionManager ctor) so ONLY the session-lived webclient manager
+        // installs the permanent rpcBus RPC:RESPONSE listener. It lives for the
+        // whole page, so it is never disposed — no leak. Short-lived managers
+        // built directly via ``makeActionManager`` (web_studio's editor) opt in
+        // explicitly and dispose on teardown. See the ctor note.
+        am.uninstallActionCacheInvalidation = installActionCacheInvalidation(am);
+        return am;
     },
 };
 

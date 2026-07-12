@@ -140,6 +140,21 @@ export class PivotRenderer extends Component {
         }
     }
     /**
+     * Left/right padding (px) applied to a row header cell to indent it by its
+     * depth in the row-group tree.
+     *
+     * Kept as an overridable method (rather than inlined in the template) so
+     * downstream addons can adjust the per-level indent — web_enterprise's
+     * mobile pivot patches this to shrink the step so deep trees stay on
+     * screen. Inlining orphaned that patch; template calls this instead.
+     *
+     * @param {Object} cell - row header cell with an ``indent`` depth
+     * @returns {number}
+     */
+    getPadding(cell) {
+        return 5 + cell.indent * 30;
+    }
+    /**
      * @private
      * @param {Object} cell
      * @returns {string}

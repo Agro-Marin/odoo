@@ -6,12 +6,17 @@
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";
+import { extractAutosave } from "@web/fields/field_utils";
 
 export class BooleanToggleField extends BooleanField {
     static template = "web.BooleanToggleField";
     static props = {
         ...BooleanField.props,
         autosave: { type: Boolean, optional: true },
+    };
+    static defaultProps = {
+        ...BooleanField.defaultProps,
+        autosave: true,
     };
 
     /** @param {boolean} newValue @returns {Promise<void>} */
@@ -46,7 +51,7 @@ export const booleanToggleField = {
     ],
     extractProps({ options }, dynamicInfo) {
         return {
-            autosave: "autosave" in options ? Boolean(options.autosave) : true,
+            autosave: extractAutosave(options),
             readonly: dynamicInfo.readonly,
         };
     },
