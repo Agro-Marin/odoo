@@ -47,6 +47,11 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
             run: "click",
         },
         {
+            content: "Confirm the cancellation",
+            trigger: ".modal-footer button.btn-primary",
+            run: "click",
+        },
+        {
             content: "Reset to draft",
             trigger: 'button[name="action_draft"]',
             run: "click",
