@@ -223,6 +223,10 @@ class OrderMergeMixin(models.AbstractModel):
 
         Purchase may override for stricter date handling.
         """
+        # Intentional optional-module guard (NOT removable composition-defense):
+        # purchase.order.line always has ``date_planned``, but sale.order.line
+        # only gets it when ``sale_stock`` is installed. Keep unless the fork
+        # commits to ``sale_stock`` always being present.
         if "date_planned" not in line1._fields:
             return True
         if not line1.date_planned or not line2.date_planned:

@@ -568,15 +568,14 @@ class OrderMixin(models.AbstractModel):
     def _action_cancel(self):
         """Perform cancellation: cancel draft invoices and write the state.
 
-        Requires ``invoice_ids`` (provided by ``order.invoice.mixin``); the
-        guard keeps this mixin usable standalone.
+        ``invoice_ids`` comes from ``order.invoice.mixin``, which every concrete
+        order (sale/purchase) composes, so it is always present here.
         """
-        if "invoice_ids" in self._fields:
-            draft_invoices = self.invoice_ids.filtered(
-                lambda invoice: invoice.state == "draft",
-            )
-            if draft_invoices:
-                draft_invoices.action_cancel()
+        draft_invoices = self.invoice_ids.filtered(
+            lambda invoice: invoice.state == "draft",
+        )
+        if draft_invoices:
+            draft_invoices.action_cancel()
         self.write({"state": "cancel"})
         return True
 
@@ -624,9 +623,7 @@ class OrderMixin(models.AbstractModel):
         :raises UserError: if any validation fails
         """
         for method_name in self._get_can_confirm_validation_methods():
-            if hasattr(self, method_name):
-                getattr(self, method_name)()
-            # Missing methods are skipped silently to allow gradual adoption.
+            getattr(self, method_name)()
 
     def _get_can_confirm_validation_methods(self):
         """Return validator method names called by ``_can_confirm``.
@@ -736,8 +733,7 @@ class OrderMixin(models.AbstractModel):
         :raises UserError: if any validation fails
         """
         for method_name in self._get_can_cancel_validation_methods():
-            if hasattr(self, method_name):
-                getattr(self, method_name)()
+            getattr(self, method_name)()
 
     def _get_can_cancel_validation_methods(self):
         """Return validator method names called by ``_can_cancel``.

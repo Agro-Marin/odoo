@@ -26,13 +26,13 @@ Mixins:
 Field names match actual sale/purchase conventions (product_qty, qty_invoiced,
 amount_taxexc_invoiced, etc.) for drop-in adoption.
     """,
-    "author": "Odoo Community",
-    "website": "https://www.odoo.com",
-    "license": "LGPL-3",
     "depends": [
         "mail",
         "portal",
         "account",
         "product",
     ],
+    "author": "Odoo Community",
+    "website": "https://www.odoo.com",
+    "license": "LGPL-3",
 }
