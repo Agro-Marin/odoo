@@ -1,6 +1,4 @@
 # ruff: noqa: E402
-"""Odoo initialization."""
-
 import gc
 import sys
 

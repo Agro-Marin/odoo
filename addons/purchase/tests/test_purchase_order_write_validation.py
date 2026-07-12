@@ -54,6 +54,16 @@ class TestPurchaseOrderWriteValidation(AccountTestInvoicingCommon):
         with self.assertRaises(UserError):
             po.write({"state": "draft"})
 
+    def test_action_draft_on_confirmed_is_noop(self):
+        # Strict policy, consistent with sale.order.action_draft: action_draft
+        # never resets a confirmed order (it must be cancelled first). Calling it
+        # on one is a graceful no-op, not a low-level state-transition error.
+        po = self._new_po()
+        po.action_confirm()
+        self.assertEqual(po.state, "done")
+        po.action_draft()  # must NOT raise
+        self.assertEqual(po.state, "done")
+
     def test_illegal_transition_cancel_to_done_raises(self):
         po = self._new_po()
         po.action_cancel()
