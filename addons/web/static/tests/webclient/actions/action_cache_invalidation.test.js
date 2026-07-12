@@ -15,6 +15,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
+import { installActionCacheInvalidation } from "@web/webclient/actions/action_cache_invalidation";
 import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
@@ -151,6 +152,56 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
     await animationFrame();
     rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear2);
     expect(clearedAfter.includes("/web/action/load")).toBe(false);
+});
+
+test("installActionCacheInvalidation returns a disposer that removes the listener", async () => {
+    // Pins the disposer contract relied on by short-lived managers (web_studio
+    // editor): after the returned disposer runs, the rpcBus listener is gone and
+    // an ir.actions write no longer clears the /web/action/load cache. Before the
+    // fix, the install happened in the ActionManager ctor and nothing disposed
+    // it, leaking one listener per Studio entry.
+    const am = { breadcrumbCache: {}, controllerStack: [] };
+    const uninstall = installActionCacheInvalidation(am);
+
+    const cleared = [];
+    const onClear = (ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    fireActWindowWrite();
+    await animationFrame();
+    expect(cleared.filter((d) => d === "/web/action/load").length).toBe(1);
+
+    // Dispose: the same write is now a no-op — the listener is gone.
+    uninstall();
+    fireActWindowWrite();
+    await animationFrame();
+    expect(cleared.filter((d) => d === "/web/action/load").length).toBe(1);
+
+    // Idempotent: a second dispose must not throw.
+    uninstall();
+
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+});
+
+test("action service exposes the cache-invalidation disposer", async () => {
+    // The session-lived webclient manager installs the listener in
+    // ``actionService.start`` (not the ctor) and exposes the disposer, so
+    // short-lived consumers can tear it down. Disposing here stops further
+    // cache clears.
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+    expect(typeof am.uninstallActionCacheInvalidation).toBe("function");
+
+    const cleared = [];
+    const onClear = (ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    am.uninstallActionCacheInvalidation();
+    fireActWindowWrite();
+    await animationFrame();
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    expect(cleared.includes("/web/action/load")).toBe(false);
 });
 
 test("failed breadcrumb refresh keeps the current names", async () => {

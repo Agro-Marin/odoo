@@ -215,14 +215,22 @@ export const webVitalsService = {
         // unreliable on mobile and breaks BFCache).  visibilitychange to hidden
         // also fires when a tab is backgrounded — capture metrics then in case
         // the user never returns.
-        browser.addEventListener("pagehide", () => {
-            flush();
-            // Terminal signal: stop observing so the callbacks don't fire
-            // against a page that is going away (bfcache/unload).
-            for (const observer of observers) {
-                observer.disconnect();
-            }
-        });
+        browser.addEventListener(
+            "pagehide",
+            (/** @type {PageTransitionEvent} */ ev) => {
+                flush();
+                // Only tear observers down when the page is truly being discarded
+                // (``!event.persisted``). On a BFCache freeze (``persisted === true``)
+                // the browser pauses the observers and resumes them on restore, so
+                // disconnecting here would permanently stop measuring while the
+                // restored page keeps beaconing stale metrics on its next hide.
+                if (!ev.persisted) {
+                    for (const observer of observers) {
+                        observer.disconnect();
+                    }
+                }
+            },
+        );
         browser.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "hidden") {
                 flush();

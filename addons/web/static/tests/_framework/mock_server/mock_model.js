@@ -3459,6 +3459,20 @@ export class Model extends Array {
      * @param {Record<string, ModelRecord>} [originalRecords={}]
      */
     _applyComputesAndValidate(originalRecords = {}) {
+        // Fill comodel inverse fields FIRST: related/computed fields on this
+        // model may traverse them (e.g. ``res.users.user_ids`` related to
+        // ``partner_id.user_ids``, where ``res.partner.user_ids`` is the
+        // inverse of ``res.users.partner_id``). Computing related fields
+        // before propagating the inverses would freeze stale (empty) values
+        // on freshly created records.
+        for (const record of this) {
+            updateComodelRelationalFields(
+                this,
+                record,
+                originalRecords[/** @type {number} */ (record.id)],
+            );
+        }
+
         // Compute related fields
         for (const fieldName of this._related) {
             this._compute_related_field(fieldName);
@@ -3483,12 +3497,6 @@ export class Model extends Array {
                     );
                 }
             }
-
-            updateComodelRelationalFields(
-                this,
-                record,
-                originalRecords[/** @type {number} */ (record.id)],
-            );
         }
     }
 

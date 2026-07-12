@@ -6,6 +6,7 @@
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
+import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useCommand } from "@web/services/commands/command_hook";
 
@@ -15,6 +16,9 @@ export class PriorityField extends Component {
         ...standardFieldProps,
         withCommand: { type: Boolean, optional: true },
         autosave: { type: Boolean, optional: true },
+    };
+    static defaultProps = {
+        autosave: true,
     };
 
     /** @type {{ index: number }} */
@@ -119,7 +123,7 @@ export const priorityField = {
         return {
             withCommand: viewType === "form",
             readonly: dynamicInfo.readonly,
-            autosave: "autosave" in options ? !!options.autosave : true,
+            autosave: extractAutosave(options),
         };
     },
 };

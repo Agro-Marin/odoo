@@ -105,6 +105,13 @@ export const timezoneMismatchField = {
         props.mismatchTitle = options.mismatch_title;
         return props;
     },
+    // The mismatch computation reads the tz-offset field; declare it as a
+    // dependency so the model fetches it even when the arch omits it (otherwise
+    // `record.data[tzOffsetField]` is undefined and the warning degrades
+    // silently).
+    fieldDependencies: ({ options }) => [
+        { name: options.tz_offset_field || "tz_offset", type: "char" },
+    ],
 };
 
 registerField("timezone_mismatch", timezoneMismatchField);

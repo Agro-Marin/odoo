@@ -88,10 +88,14 @@ export class PropertyValue extends Component {
                 },
                 isToMany: false,
                 onRecordSaved: async (record) => {
-                    if (!record) {
+                    if (!record || record.resId == null) {
+                        // A dialog onchange may have cleared the record: nothing
+                        // to refetch and orm.read([undefined]) is malformed.
                         return;
                     }
                     // maybe the record display name has changed
+                    // CROSS-GROUP(name_service): bespoke orm.read bypasses the
+                    // shared name_service cache (see many2one.js).
                     const records = await this.orm.read(
                         record.resModel,
                         [record.resId],
@@ -399,6 +403,9 @@ export class PropertyValue extends Component {
      * @returns {Promise<any>}
      */
     async _nameGet(recordId) {
+        if (recordId == null) {
+            return { id: recordId, display_name: false };
+        }
         const result = await this.orm.read(
             this.props.comodel,
             [recordId],

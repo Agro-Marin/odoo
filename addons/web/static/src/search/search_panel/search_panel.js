@@ -346,6 +346,9 @@ export class SearchPanel extends Component {
 
     /** Toggle sidebar expanded/collapsed and persist preference to localStorage. */
     toggleSidebar() {
+        // An explicit toggle is a real preference; drop any pending
+        // auto-collapse restore so it can't override this choice later.
+        this._sidebarAutoCollapsed = false;
         this.state.sidebarExpanded = !this.state.sidebarExpanded;
         browser.localStorage.setItem(
             this.keyExpandSidebar,
@@ -384,7 +387,18 @@ export class SearchPanel extends Component {
     updateActiveValues() {
         const sections = this.sections;
         if (!sections.length) {
-            this.state.sidebarExpanded = false;
+            // Sections can transiently empty (mid-reload, filtered to nothing).
+            // Auto-collapse the sidebar but remember we did so, so it re-expands
+            // when sections return instead of permanently overriding the stored
+            // preference. Only collapse from an expanded state — never touch a
+            // sidebar the user already collapsed.
+            if (this.state.sidebarExpanded) {
+                this._sidebarAutoCollapsed = true;
+                this.state.sidebarExpanded = false;
+            }
+        } else if (this._sidebarAutoCollapsed) {
+            this._sidebarAutoCollapsed = false;
+            this.state.sidebarExpanded = true;
         }
         for (const section of sections) {
             if (section.type === "category") {

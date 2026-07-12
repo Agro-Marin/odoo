@@ -604,6 +604,14 @@ export class Colibri {
      * @returns {void}
      */
     destroy() {
+        // Idempotency guard: applyTOut's content restore can trigger a nested
+        // stopInteractions() that re-enters destroy() on this same Colibri
+        // before the outer call finished. Without this guard the user
+        // destroyInteraction() ran twice and the second pass dereferenced the
+        // already-nulled `this.core` (NPE on this.core.env).
+        if (this.isDestroyed) {
+            return;
+        }
         const errors = [];
         try {
             // restore t-att to their initial values

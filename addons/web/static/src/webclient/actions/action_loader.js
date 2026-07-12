@@ -24,6 +24,18 @@ const actionRegistry = registry.category("actions");
  * read-only (cache invalidated explicitly on write/unlink) and cold-cache
  * failures break navigation page-wide, so retry is safe.
  *
+ * DEFERRED — stale-while-revalidate (``update: "always"`` + an ``onRevalidate``
+ * callback refreshing the on-screen controller) would close the cross-session
+ * staleness gap (an admin editing an action's domain/context currently leaves
+ * every OTHER user on the IndexedDB-cached descriptor across reloads until they
+ * themselves write ``ir.actions``). It was implemented and reverted here: with
+ * ``update: "always"`` every warm read fires a background ``/web/action/load``,
+ * which the action test-suite's ~50 exact-RPC-sequence and Deferred-mocked
+ * ``/web/action/load`` tests pin against — the change cascaded into a suite-wide
+ * hang. A viable version needs a server-side freshness signal (action etag /
+ * ``registry_hash``-style version) so revalidation is conditional rather than
+ * unconditional-per-navigation; tracked as a separate task.
+ *
  * @param {number | string | object} actionRequest
  * @param {object} [context]
  * @returns {Promise<Action>}

@@ -281,7 +281,19 @@ export class RelationalRecord extends DataPoint {
     /** @param {{ displayNotification?: boolean }} [options] */
     async checkValidity({ displayNotification } = {}) {
         await this.model.urgentSave.awaitUnlessUrgent(this.model._askChanges());
-        return this._checkValidity({ displayNotification });
+        if (this.model.urgentSave.isActive) {
+            // Tab-close path must not queue behind ``model.mutex`` — it may be
+            // held by the very save urgent mode is bypassing (mirrors
+            // ``dynamic_list.leaveEditMode``).
+            return this._checkValidity({ displayNotification });
+        }
+        // Serialize the mutating validity scan on the model mutex like every
+        // other public verb: a queued ``_update`` applying an onchange must not
+        // interleave with the scan and leave invalid flags on half-applied
+        // data (which spuriously aborts a concurrent pager load).
+        return this.model.mutex.exec(() =>
+            this._checkValidity({ displayNotification }),
+        );
     }
 
     delete() {

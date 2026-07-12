@@ -53,8 +53,18 @@ export function getResModel(fieldDef) {
     return null;
 }
 
+// ``step_id`` is preferred ahead of ``stage_id`` because this fork renames
+// ``project.task.stage_id`` -> ``step_id``; ``stage_id`` is kept because many
+// other models (crm.lead, ...) still use it, so it remains a sensible default.
 /** @type {string[]} */
-const SPECIAL_FIELDS = ["country_id", "user_id", "partner_id", "stage_id", "id"];
+const SPECIAL_FIELDS = [
+    "country_id",
+    "user_id",
+    "partner_id",
+    "step_id",
+    "stage_id",
+    "id",
+];
 
 /**
  * Pick a sensible default field path from a set of field definitions.

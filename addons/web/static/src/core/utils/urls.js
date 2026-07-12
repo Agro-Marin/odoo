@@ -131,7 +131,7 @@ export function imageUrl(
  */
 export function getDataURLFromFile(file) {
     if (!file) {
-        return Promise.reject();
+        return Promise.reject(new Error("No file provided"));
     }
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -143,8 +143,14 @@ export function getDataURLFromFile(file) {
                 resolve(/** @type {string} */ (reader.result));
             }
         });
-        reader.addEventListener("abort", reject);
-        reader.addEventListener("error", reject);
+        // Reject with a real Error, not the raw ProgressEvent (which stringifies
+        // to "[object ProgressEvent]" and carries no message).
+        reader.addEventListener("abort", () =>
+            reject(new Error("File reading was aborted")),
+        );
+        reader.addEventListener("error", () =>
+            reject(new Error(reader.error?.message ?? "File reading failed")),
+        );
         reader.readAsDataURL(file);
     });
 }

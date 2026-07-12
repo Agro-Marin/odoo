@@ -42,8 +42,15 @@ export const computeReportMeasures = (
     // Include active measures not already listed: rarely needed, but supports
     // a non-stored functional field with an overridden read_group. Such
     // fields' aggregate will otherwise always be 0.
+    //
+    // Guard `fields[measure]`: a favorite/action context can carry a measure
+    // whose field was since removed or renamed (this fork renames fields, e.g.
+    // free_qty -> qty_free). Assigning `undefined` here would leak into the
+    // sort comparator below (`f.string.toLowerCase()`) and hard-crash the view
+    // on favorite activation. Skip the unknown measure instead — callers drop
+    // it from activeMeasures (see dropUnknownMeasures).
     for (const measure of activeMeasures) {
-        if (!measures[measure]) {
+        if (!measures[measure] && fields[measure]) {
             measures[measure] = fields[measure];
         }
     }
@@ -68,6 +75,35 @@ export const computeReportMeasures = (
 
     return Object.fromEntries(sortedMeasures);
 };
+
+/**
+ * Drop active measures that have no field definition (and are not the
+ * synthetic ``__count``): a favorite/action context can carry a measure whose
+ * field was removed or renamed since it was saved (this fork renames fields),
+ * and such a measure would crash the graph/pivot view on activation. Warns for
+ * each dropped measure and falls back to ``["__count"]`` when none remain.
+ *
+ * @param {string[]} activeMeasures
+ * @param {Object} measures - computed measures dict (from computeReportMeasures)
+ * @returns {string[]}
+ */
+export function dropUnknownMeasures(activeMeasures, measures) {
+    const isKnown = (m) => m === "__count" || Boolean(measures[m]);
+    if (activeMeasures.every(isKnown)) {
+        return activeMeasures;
+    }
+    const kept = [];
+    for (const measure of activeMeasures) {
+        if (isKnown(measure)) {
+            kept.push(measure);
+        } else {
+            console.warn(
+                `Measure "${measure}" has no field definition (removed or renamed field?) and was dropped.`,
+            );
+        }
+    }
+    return kept.length ? kept : ["__count"];
+}
 
 /**
  * Given an array of values and an aggregator function, returns the aggregated

@@ -11,6 +11,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import {
     ConnectionLostError,
+    InvalidResponseError,
     RequestEntityTooLargeError,
     rpc,
     RPCError,
@@ -29,6 +30,7 @@ import {
     NetworkErrorDialog,
     RequestEntityTooLargeErrorDialog,
     RPCErrorDialog,
+    SessionExpiredDialog,
 } from "./error_dialogs.js";
 
 const errorHandlerRegistry = registry.category("error_handlers");
@@ -170,6 +172,19 @@ export function lostConnectionHandler(env, error, originalError) {
         // (see test_main_flows.TestUi.test_01_main_flow_tour racing the
         // first /mail/data init_messaging RPC on cold boot).
         error.unhandledRejectionEvent.preventDefault();
+        if (originalError instanceof InvalidResponseError) {
+            // InvalidResponseError is a *deterministic* subclass of
+            // ConnectionLostError (a non-JSON body: session expired -> POST
+            // redirected to the HTML login page with a 200, a captive portal,
+            // an HTML 404, ...). It is never retryable (rpc.js isRetryable
+            // excludes it), so the reconnect-poll below is wrong here: the
+            // /web/webclient/version_info probe (auth=none) would succeed and
+            // announce "Connection restored" while every real RPC keeps
+            // failing. Surface the actual cause -- almost always an expired
+            // session -- so the user re-authenticates instead of looping.
+            env.services.dialog.add(SessionExpiredDialog);
+            return true;
+        }
         if (connectionLostNotifRemove) {
             // notification already displayed (can occur if there were several
             // concurrent rpcs when the connection was lost)

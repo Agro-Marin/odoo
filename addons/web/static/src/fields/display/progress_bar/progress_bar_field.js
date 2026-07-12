@@ -58,7 +58,13 @@ export class ProgressBarField extends Component {
             fieldName: this.currentValueField,
             shouldSave: () => this.props.readonly,
         });
-        const maxValueField = /** @type {string} */ (this.maxValueField);
+        // Only a string maxValueField names a real record field; in percentage
+        // mode (numeric literal) or when absent, the max-value input is never
+        // rendered (template t-else), so the hook stays inert (ref.el null).
+        // Guarding to `undefined` here avoids silently binding this input to the
+        // MAIN field name via useInputField's `fieldName || props.name` fallback.
+        const maxValueField =
+            typeof this.maxValueField === "string" ? this.maxValueField : undefined;
         this.maxValueRef = useInputField({
             getValue: () => this.formatValue(maxValueField, this.maxValue),
             parse: (v) => this.parseValue(maxValueField, v),
@@ -112,6 +118,10 @@ export class ProgressBarField extends Component {
      */
     formatValue(fieldName, value, humanReadable = !this.state.isEditing) {
         const type = this.props.record.fields[fieldName]?.type ?? "integer";
+        // NOTE: `field`/`digits` are intentionally NOT forwarded here — doing so
+        // is pinned against by the max-value formatting tests (they expect the
+        // default 2-decimal float rendering). Honoring the column's digits
+        // precision is deferred until those expectations are revisited.
         return getFieldCodec(type).format(value, { humanReadable });
     }
 

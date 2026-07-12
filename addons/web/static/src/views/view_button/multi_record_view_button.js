@@ -44,6 +44,10 @@ export class MultiRecordViewButton extends ViewButton {
                 resModel: list.resModel,
                 resIds,
             }),
+            // Mirror ViewButton.onClick: close the enclosing dropdown before the
+            // action runs, so a header button placed in a dropdown doesn't
+            // execute with the menu left open.
+            beforeExecute: () => this.dropdownControl.close(),
             newWindow,
         });
     }

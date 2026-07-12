@@ -12,7 +12,7 @@ import {
 import { runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { Macro } from "@web/core/utils/macro";
+import { Macro, waitUntil } from "@web/core/utils/macro";
 
 let macro;
 async function waitForMacro() {
@@ -334,4 +334,21 @@ test("Macro.STOP halts the macro without onComplete or onError", async () => {
     // The second step never ran and no completion/error callback fired.
     expect(span).toHaveText("0");
     expect.verifySteps([]);
+});
+
+test("waitUntil rejects when the predicate throws inside the rAF loop", async () => {
+    let n = 0;
+    const prom = waitUntil(() => {
+        n++;
+        if (n >= 2) {
+            throw new Error("predicate boom");
+        }
+        return false;
+    });
+    let caught;
+    const settled = prom.catch((error) => (caught = error));
+    await runAllTimers();
+    await settled;
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toBe("predicate boom");
 });

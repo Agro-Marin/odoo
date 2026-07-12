@@ -296,8 +296,8 @@ export class X2ManyField extends Component {
         let resId;
         if (record.isNew) {
             // New records have no resId until saved: locate the record's index
-            // among pending CREATE commands, save, then find the ids newly
-            // added to the list to identify the one assigned at that index.
+            // among pending CREATE commands (captured BEFORE the save clears
+            // them), save, then map the virtualId back to the assigned resId.
             const createCommands = this.list._commands.filter(
                 ([command]) => command === x2ManyCommands.CREATE,
             );
@@ -309,21 +309,37 @@ export class X2ManyField extends Component {
             if (!saved) {
                 return;
             }
-            // Only ids added by the save: rows removed in the same save must
-            // not inflate the diff (they would spuriously fail the count check
-            // below). TODO(model): replace this heuristic with an explicit
-            // virtualId -> resId resolution exposed by the model layer.
-            const newResIds = this.list.resIds.filter((id) => !previousResIds.has(id));
-            if (newResIds.length !== createCommands.length) {
-                return this.notificationService.add(
-                    _t("Please save your changes first"),
-                    {
-                        type: "danger",
-                    },
+            // Fast path: if the save reconciled this record object in place
+            // (its resId is now populated), trust it directly instead of the
+            // fragile id-diff heuristic below.
+            if (record.resId) {
+                resId = record.resId;
+            } else {
+                // Only ids added by the save: rows removed in the same save must
+                // not inflate the diff (they would spuriously fail the count
+                // check below).
+                // CROSS-GROUP(model): this heuristic reads the private
+                // `list._commands` and assumes assigned resIds sort in create
+                // order — it breaks when a create() override adds rows or ids
+                // interleave. The clean fix is a virtualId -> resId map exposed
+                // by StaticList at reconciliation (owned by static/src/model/);
+                // it cannot be done from the fields layer. Until then this
+                // hardened widget-side fallback stands.
+                const newResIds = this.list.resIds.filter(
+                    (id) => !previousResIds.has(id),
                 );
+                if (newResIds.length !== createCommands.length) {
+                    return this.notificationService.add(
+                        _t("Please save your changes first"),
+                        {
+                            type: "danger",
+                        },
+                    );
+                }
+                newResIds.sort((x, y) => x - y);
+                resId =
+                    newRecordIndex >= 0 ? newResIds[newRecordIndex] : newResIds.at(-1);
             }
-            newResIds.sort((x, y) => x - y);
-            resId = newRecordIndex >= 0 ? newResIds[newRecordIndex] : newResIds.at(-1);
         } else {
             const saved = await this.props.record.save();
             if (!saved) {

@@ -188,7 +188,7 @@ describe("empty-search memoization", () => {
         ".o_field_widget[name=product_id] " +
         ".o-autocomplete--dropdown-item:not(.o_m2o_dropdown_option)";
 
-    test("narrowing an empty search does not re-trigger web_name_search", async () => {
+    test("narrowing an empty search re-triggers web_name_search", async () => {
         onRpc("product", "web_name_search", ({ kwargs }) => {
             expect.step(`web_name_search: ${kwargs.name}`);
         });
@@ -205,8 +205,45 @@ describe("empty-search memoization", () => {
         await contains(INPUT_SELECTOR).edit("zzz", { confirm: false });
         await runAllTimers();
 
-        // "zzz" starts with the memoized empty search "zz": no second RPC
-        expect.verifySteps(["web_name_search: zz"]);
+        // name_search is NOT substring-monotonic (exact barcode/default_code
+        // matches can appear only at full length): narrowing a previously-empty
+        // search must still hit the server.
+        expect.verifySteps(["web_name_search: zz", "web_name_search: zzz"]);
+    });
+
+    test("an exact barcode match after a shorter empty prefix is not suppressed", async () => {
+        // Regression: product.product.name_search does an EXACT barcode match,
+        // so "0370006152" can match a record where its prefix "037000" did not.
+        // The old prefix-skip memo suppressed the longer RPC and reported
+        // "No records" for a product that exists.
+        onRpc("product", "web_name_search", ({ kwargs }) => {
+            expect.step(`web_name_search: ${kwargs.name}`);
+            if (kwargs.name === "0370006152") {
+                return [{ id: 42, display_name: "Scanned Product" }];
+            }
+            return [];
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("037000", { confirm: false });
+        await runAllTimers();
+        expect(RECORD_ITEM_SELECTOR).toHaveCount(0, {
+            message: "no product matches the partial barcode",
+        });
+
+        await contains(INPUT_SELECTOR).edit("0370006152", { confirm: false });
+        await runAllTimers();
+
+        expect.verifySteps(["web_name_search: 037000", "web_name_search: 0370006152"]);
+        expect(`${RECORD_ITEM_SELECTOR}:contains(Scanned Product)`).toHaveCount(1, {
+            message: "the exact barcode match is surfaced, not suppressed",
+        });
     });
 
     test("quick-creating a record invalidates the memoized empty search", async () => {

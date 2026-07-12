@@ -203,6 +203,41 @@ test("cancel result on escape keydown", async () => {
     expect(".o-autocomplete input").toHaveValue("Hello");
 });
 
+test("pending debounced input is cancelled on close (no reopen after escape)", async () => {
+    // Regression: typing schedules a debounced open; pressing Escape closes the
+    // dropdown, but the still-pending debounce used to fire afterwards and
+    // reopen a stale, unfocused dropdown (plus issue a spurious source load).
+    // close() now cancels debouncedProcessInput.
+    let loadCount = 0;
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="'Hello'" sources="sources"/>`;
+        static props = [];
+        sources = buildSources(() => {
+            loadCount++;
+            return [item("World"), item("Hello")];
+        });
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+    const loadsAfterOpen = loadCount;
+
+    // Type without confirming: schedules debouncedProcessInput.
+    await contains(".o-autocomplete input").edit("Wor", { confirm: false });
+    // Close before the debounce delay elapses.
+    await contains(".o-autocomplete input").press("Escape");
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
+
+    // Flush timers: the cancelled debounce must NOT reopen the dropdown nor
+    // trigger another source load.
+    await runAllTimers();
+    await animationFrame();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
+    expect(loadCount).toBe(loadsAfterOpen);
+});
+
 test("select input text on first focus", async () => {
     class Parent extends Component {
         static components = { AutoComplete };

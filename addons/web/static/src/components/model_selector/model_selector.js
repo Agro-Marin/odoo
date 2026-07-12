@@ -20,6 +20,9 @@ export class ModelSelector extends Component {
         models: { type: Array, optional: true },
         nbVisibleModels: { type: Number, optional: true },
         autofocus: { type: Boolean, optional: true },
+        // Forwarded to the inner AutoComplete (template reads props.autoSelect);
+        // it was previously used in the template without being declared here.
+        autoSelect: { type: Boolean, optional: true },
     };
 
     setup() {

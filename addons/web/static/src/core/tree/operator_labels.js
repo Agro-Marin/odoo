@@ -113,7 +113,11 @@ export const OPERATOR_DESCRIPTIONS = {
  * @returns {string} serialized key for operator+negate combination
  */
 export function toKey(operator, negate = false) {
-    if (!negate && typeof operator === "string" && operator in OPERATOR_DESCRIPTIONS) {
+    if (
+        !negate &&
+        typeof operator === "string" &&
+        Object.hasOwn(OPERATOR_DESCRIPTIONS, operator)
+    ) {
         // this case is the main one. We keep it simple
         return operator;
     }
@@ -162,7 +166,10 @@ export function getOperatorLabel(
     getDescr = (operator, fieldDefType) => null,
 ) {
     let label;
-    if (typeof operator === "string" && operator in OPERATOR_DESCRIPTIONS) {
+    if (
+        typeof operator === "string" &&
+        Object.hasOwn(OPERATOR_DESCRIPTIONS, operator)
+    ) {
         label =
             getDescr(operator, fieldDefType) ||
             getOperatorDescription(operator, fieldDefType) ||

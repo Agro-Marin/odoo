@@ -444,7 +444,7 @@ test("Show send button in mobile", async () => {
     await click("button", { text: "Channels" });
     await click(".o-mail-NotificationItem", { text: "minecraft-wii-u" });
     await contains(".o-mail-Composer button[title='Send']");
-    await contains(".o-mail-Composer button[title='Send'] i.fa-paper-plane-o");
+    await contains(".o-mail-Composer button[title='Send'] i.fa-regular.fa-paper-plane");
 });
 
 test("composer textarea content is retained when changing channel then going back", async () => {
@@ -1554,7 +1554,7 @@ test("composer reply-to message is restored on thread change", async () => {
             store.Thread.get({ model: "discuss.channel", id: channelId }).composer.localId
         )
     ).toBe(
-        '{"emailAddSignature":true,"replyToMessageId":1,"composerHtml":["markup","Hello World!"]}'
+        '{"emailAddSignature":true,"replyToMessageId":1,"composerHtml":["markup","Hello World!"],"fromFullComposer":false}'
     );
     // check local storage emptied on message post
     await click(".o-mail-Composer button:enabled[aria-label='Send']");
@@ -1786,7 +1786,7 @@ test("mentions can be correctly selected with ctrl+A and deleted", async () => {
     await click(".o-mail-NavigableList-item", { text: "Mitchell Admin" });
     await contains(editor.editable, { text: "@Mitchell Admin" });
     await htmlInsertText(editor, "Hello");
-    await contains(editor.editable, { textContent: "@Mitchell Admin\u00A0Hello" });
+    await contains(".o-mail-Composer-html.odoo-editor-editable:text('@Mitchell Admin Hello')");
     await focus(editor.editable);
     await press("Control+a");
     await press("Backspace");
@@ -1798,7 +1798,7 @@ test("mentions can be correctly selected with ctrl+A and deleted", async () => {
     await contains(editor.editable, { text: "General" });
     await contains(editor.editable.querySelector("i.fa-hashtag"));
     await htmlInsertText(editor, "Hello");
-    await contains(editor.editable, { textContent: "General\u00A0Hello" });
+    await contains(".o-mail-Composer-html.odoo-editor-editable:text('General Hello')");
     await focus(editor.editable);
     await press("Control+a");
     await press("Backspace");
@@ -1810,9 +1810,9 @@ test("mentions can be correctly selected with ctrl+A and deleted", async () => {
     await click(".o-mail-NavigableList-item", { text: "Mitchell Admin" });
     await contains(editor.editable, { text: "@Mitchell Admin" });
     await htmlInsertText(editor, "nice to meet you!");
-    await contains(editor.editable, {
-        textContent: "Hello\u00A0@Mitchell Admin\u00A0nice to meet you!",
-    });
+    await contains(
+        ".o-mail-Composer-html.odoo-editor-editable:text('Hello @Mitchell Admin nice to meet you!')"
+    );
     await focus(editor.editable);
     await press("Control+a");
     await press("Backspace");
@@ -1824,7 +1824,7 @@ test("mentions can be correctly selected with ctrl+A and deleted", async () => {
     await contains(editor.editable, { text: "General" });
     await contains(editor.editable.querySelector("i.fa-hashtag"));
     await htmlInsertText(editor, "nice to meet you!");
-    await contains(editor.editable, { textContent: "Hello\u00A0 General\u00A0nice to meet you!" });
+    await contains(".o-mail-Composer-html.odoo-editor-editable:text('Hello General nice to meet you!')");
     await focus(editor.editable);
     await press("Control+a");
     await press("Backspace");

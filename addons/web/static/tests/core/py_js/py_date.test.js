@@ -702,3 +702,30 @@ describe("relativedelta leapdays", () => {
         ).toBe("2020-05-02");
     });
 });
+
+describe("construction validation", () => {
+    test("date() rejects out-of-range and missing components", () => {
+        expect(() => evaluateExpr("datetime.date(2020, 13, 45)")).toThrow(
+            /month must be in 1\.\.12/,
+        );
+        expect(() => evaluateExpr("datetime.date(2020, 2, 30)")).toThrow(
+            /day is out of range/,
+        );
+        expect(() => evaluateExpr("datetime.date(2020, 1)")).toThrow(
+            /day must be an integer/,
+        );
+        // valid dates still work
+        expect(evaluateExpr("datetime.date(2020, 2, 29).strftime('%Y-%m-%d')")).toBe(
+            "2020-02-29",
+        );
+    });
+
+    test("datetime()/time() range-validate the time components", () => {
+        expect(() => evaluateExpr("datetime.datetime(2020, 1, 1, 25, 0, 0)")).toThrow(
+            /hour must be in 0\.\.23/,
+        );
+        expect(() => evaluateExpr("datetime.time(10, 61)")).toThrow(
+            /minute must be in 0\.\.59/,
+        );
+    });
+});

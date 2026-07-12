@@ -221,7 +221,14 @@ export class Popover extends Component {
             resizeObserver.observe(this.popoverRef.el);
         });
         onWillDestroy(() => {
-            POPOVERS.delete(this.props.target);
+            // Only clear the mapping if it still points at OUR element: when two
+            // popovers share a target, the second's onMounted overwrote the
+            // entry, so an unconditional delete on the first's teardown would
+            // wipe the second's live mapping (getPopoverForTarget would then
+            // return undefined while the popover is still open).
+            if (POPOVERS.get(this.props.target) === this.popoverRef.el) {
+                POPOVERS.delete(this.props.target);
+            }
             resizeObserver.disconnect();
         });
 

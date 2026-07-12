@@ -376,3 +376,17 @@ describe("AST cache", () => {
         expect(ast1).toEqual(ast2);
     });
 });
+
+describe("hardening", () => {
+    test("deeply nested input raises a ParserError instead of a RangeError", () => {
+        const expr = "(".repeat(5000) + "1" + ")".repeat(5000);
+        expect(() => parseExpr(expr)).toThrow(/Maximum expression depth exceeded/);
+    });
+
+    test("a literal __proto__ kwarg becomes a plain own entry, not a prototype write", () => {
+        const ast = /** @type {any} */ (parseExpr("f(__proto__=1)"));
+        // A plain `kwargs["__proto__"] = ...` would set the [[Prototype]] and
+        // be silently dropped as a key; defineProperty keeps it as an own entry.
+        expect(Object.hasOwn(ast.kwargs, "__proto__")).toBe(true);
+    });
+});

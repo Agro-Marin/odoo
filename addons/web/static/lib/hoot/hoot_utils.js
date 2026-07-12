@@ -689,12 +689,35 @@ export function createJobScopedGetter(instanceGetter, afterCallback) {
 
         const currentJob = runner.state.currentTest || runner.suiteStack.at(-1) || runner;
         if (!instances.has(currentJob)) {
+            // Async continuations (e.g. in-flight mock RPCs) may resume during
+            // the after-test phase, *after* this job's instance was cleaned
+            // up. Rebuilding a fresh instance at that point loses everything
+            // applied to the cleaned one (e.g. server model definitions merged
+            // by the mock server), producing broken half-built state. Serve
+            // the just-cleaned instance instead, strictly confined to the same
+            // run of the same *test* (``runCount`` is bumped after the
+            // "after-test" callbacks, so a re-run rebuilds normally).
+            if (
+                cleanedInstance &&
+                cleanedInstance.job === currentJob &&
+                currentJob === runner.state.currentTest &&
+                cleanedInstance.runCount === (currentJob.runCount ?? 0)
+            ) {
+                return cleanedInstance.instance;
+            }
             const parentInstance = [...instances.values()].at(-1);
             instances.set(currentJob, instanceGetter(parentInstance, ...args));
 
             if (canCallAfter) {
                 runner.after(function instanceGetterCleanup() {
-                    instances.delete(currentJob);
+                    if (instances.has(currentJob)) {
+                        cleanedInstance = {
+                            job: currentJob,
+                            runCount: currentJob.runCount ?? 0,
+                            instance: instances.get(currentJob),
+                        };
+                        instances.delete(currentJob);
+                    }
                     canCallAfter = false;
                     afterCallback?.();
                     canCallAfter = true;
@@ -718,6 +741,8 @@ export function createJobScopedGetter(instanceGetter, afterCallback) {
     const instances = new Map();
     const runner = getRunner();
     let canCallAfter = true;
+    /** @type {{ job: Job, runCount: number, instance: Parameters<T>[0] } | null} */
+    let cleanedInstance = null;
     let memoizedCalled = false;
     let memoizedValue;
 

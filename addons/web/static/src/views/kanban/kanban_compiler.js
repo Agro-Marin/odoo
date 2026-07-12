@@ -21,6 +21,21 @@ import { toStringExpression } from "@web/views/view_utils";
  * @property {("dropdown" | "toggler" | "menu")[]} parts
  */
 
+/**
+ * Neutralise ``${...}`` in a raw arch string before it is wrapped as a
+ * template-literal props expression by ``toStringExpression``. That helper only
+ * escapes backticks, so a ``${`` sequence would survive and be evaluated as JS
+ * interpolation in the component scope. Arch authors are privileged (this is
+ * defense-in-depth, not an escalation fix), but literal ``${...}`` text in an
+ * arch attribute must render verbatim rather than execute.
+ *
+ * @param {string} [value]
+ * @returns {string}
+ */
+function escapeStringInterpolation(value) {
+    return (value ?? "").replaceAll("${", "\\${");
+}
+
 const ACTION_TYPES = ["action", "object"];
 const SPECIAL_TYPES = [
     ...ACTION_TYPES,
@@ -74,7 +89,9 @@ export class KanbanCompiler extends ViewCompiler {
             Object.assign(nodeParams, { fieldName });
         }
         const strParams = Object.entries(nodeParams)
-            .map(([k, v]) => [k, toStringExpression(v)].join(":"))
+            .map(([k, v]) =>
+                [k, toStringExpression(escapeStringInterpolation(v))].join(":"),
+            )
             .join(",");
         el.setAttribute("t-on-click", `()=>__comp__.triggerAction({${strParams}})`);
 
@@ -149,7 +166,7 @@ export class KanbanCompiler extends ViewCompiler {
                 } else if (key.startsWith("t-att")) {
                     throw new Error("t-att on <field> nodes is not supported");
                 } else if (!key.startsWith("t-")) {
-                    value = toStringExpression(value);
+                    value = toStringExpression(escapeStringInterpolation(value));
                 }
                 return `'${key}':${value}`;
             });

@@ -25,7 +25,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {import("models").ResPartner} [partner]
  * @property {import("models").Thread} [thread]
  * @property {import("models").CannedResponse} [cannedResponse]
- * @property {import("@web/core/emoji_picker/emoji_picker").Emoji} [emoji]
+ * @property {import("@web/components/emoji_picker/emoji_picker").Emoji} [emoji]
  * @property {string} [help]
  * @property {string} [source]
  */
@@ -35,7 +35,7 @@ import { useDebounced } from "@web/core/utils/timing";
  *   | import("models").ResRole
  *   | import("models").Thread
  *   | import("models").CannedResponse
- *   | import("@web/core/emoji_picker/emoji_picker").Emoji
+ *   | import("@web/components/emoji_picker/emoji_picker").Emoji
  *   | import("@mail/core/common/store_service").SpecialMention} Suggestion
  */
 export const DELAY_FETCH = 250;

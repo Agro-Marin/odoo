@@ -132,21 +132,27 @@ export class ListRecordRow extends Component {
         installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
         onWillRender(() => {
             this._isRendering = true;
-            // Re-run the (idempotent, Set-guarded) install every render, not
-            // just at setup: a renderer field first assigned AFTER the initial
-            // setup (a subclass setting `this.flag = …` in an event handler)
-            // otherwise had no delegation accessor, so row templates reading it
-            // silently resolved to undefined until some new row mounted. The
-            // re-scan installs only genuinely-new names, so the steady-state
-            // cost is a couple of Set lookups. The debug warning still fires
-            // for names assigned mid-render (after this scan).
-            installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
+            // Warn BEFORE the re-scan install: a renderer field first assigned
+            // AFTER the accessors were installed (a subclass setting `this.flag
+            // = …` in an event handler) is a delegation blind spot the debug
+            // build should surface exactly once. Running the install first would
+            // add the field to the delegated set before the warn scan looked,
+            // so the warning could never fire (it became dead code). Both calls
+            // still run in onWillRender, i.e. before this render paints, so the
+            // freshly-installed accessor is available to the template this same
+            // cycle — only the (debug-only) warn observes the pre-install state.
             if (odoo.debug) {
                 warnUndelegatedRendererFields(
                     /** @type {any} */ (this.constructor),
                     renderer,
                 );
             }
+            // Re-run the (idempotent, Set-guarded) install every render, not
+            // just at setup, so a renderer field first assigned after setup gets
+            // a delegation accessor instead of silently resolving to undefined
+            // in row templates. The re-scan installs only genuinely-new names,
+            // so the steady-state cost is a couple of Set lookups.
+            installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
             // Per-record cache invalidation: when this row re-renders without a
             // full renderer render, renderer-side per-render caches keyed by
             // (column, record) may hold stale entries for this record.
@@ -173,19 +179,25 @@ export class ListRecordRow extends Component {
     }
 
     /**
-     * Matches the historical template scope: the enclosing group in the
-     * grouped non-virtualized branch, ``undefined`` in the virtualized branch
-     * (which only ever set ``groupId``) and for ungrouped lists.
+     * The enclosing group of this row (``undefined`` for ungrouped lists).
+     *
+     * Resolved unconditionally from the flat grid's ``parentGroup`` — the SAME
+     * source in both the virtualized and non-virtualized branches. Previously
+     * the virtualized branch short-circuited to ``undefined``, so a grouped
+     * list that crossed the virtualization threshold lost its group context:
+     * ``applyCellKeydownEditModeGroup`` never ran, Enter on a group's last
+     * dirty row created the new row in the wrong place, and
+     * ``onEditNextRecord(group=undefined)`` opened the form view instead of the
+     * next inline row — an invisible, row-count-dependent behavior flip. The
+     * flat rows carry ``parentGroup`` regardless of virtualization, and the
+     * renderer now also passes it as the ``group`` prop, so this is stable.
      */
     get group() {
         const renderer = this.props.renderer;
-        if (renderer.virt?.isActive) {
-            return undefined;
-        }
         const flat = renderer.gridState?.findRowByRecordId(
             String(this.props.record.id),
         );
-        return flat?.parentGroup ?? undefined;
+        return flat?.parentGroup ?? this.props.group ?? undefined;
     }
 
     /** Historical ``t-set`` scope var from the grouped rows recursion. */

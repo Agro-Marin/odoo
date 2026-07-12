@@ -15,6 +15,7 @@ export class BadgeSelectionField extends SelectionLikeField {
         ...standardFieldProps,
         domain: { type: [Array, Function], optional: true },
         context: { type: Object, optional: true },
+        required: { type: Boolean, optional: true },
         size: {
             type: String,
             optional: true,
@@ -70,8 +71,12 @@ export class BadgeSelectionField extends SelectionLikeField {
                 break;
             case "selection":
                 if (value === this.value) {
+                    // Deselect-on-reclick must respect BOTH model-level required
+                    // and the arch/dynamic `required="..."` modifier — otherwise
+                    // clicking the active badge clears a field the view marks
+                    // required, surfacing the violation late.
                     const { required } = this.props.record.fields[this.props.name];
-                    if (!required) {
+                    if (!required && !this.props.required) {
                         this.props.record.update({ [this.props.name]: false });
                     }
                 } else {
@@ -103,6 +108,7 @@ export const badgeSelectionField = {
     extractProps: (fieldInfo, dynamicInfo) => ({
         domain: dynamicInfo.domain,
         context: dynamicInfo.context,
+        required: dynamicInfo.required,
         size: fieldInfo.options.size,
     }),
 };

@@ -3,7 +3,14 @@
 
 /** @module @web/ui/bottom_sheet/bottom_sheet - Mobile-friendly slide-up panel with drag-to-dismiss and snap points */
 
-import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onMounted,
+    onWillUnmount,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getViewportDimensions, useViewportChange } from "@web/core/utils/dom/dvu";
 import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
@@ -84,20 +91,42 @@ export class BottomSheet extends Component {
 
         useHotkey("escape", () => this.slideOut());
 
-        // Intercept the mobile "back" gesture/button: push a history state on open,
-        // then on popstate push another state and close (traps back-navigation).
-        // TODO: this history entry leaks when the sheet is closed by other means
-        // than "back" (it is never popped), leaving a stale entry on the stack.
-        browser.history.pushState({ bottomSheet: true }, "");
+        // Intercept the mobile "back" gesture/button: push exactly ONE synthetic
+        // history entry when the sheet opens so pressing Back closes the sheet
+        // instead of navigating the page away.
+        //
+        // Tracks whether OUR entry is still on the stack. Two lifetimes consume
+        // it, each exactly once:
+        //  - Back pressed → popstate fires, the browser has already popped our
+        //    entry, so we just mark it consumed and dismiss (the old code
+        //    pushed ANOTHER entry here — that was the leak, re-trapping the user
+        //    behind a fresh entry every Back press).
+        //  - Closed by any other means (escape, scroll, close()) → onWillUnmount
+        //    pops our still-present entry via history.back(), so a later Back is
+        //    not wasted on a no-op.
+        this._historyStatePushed = false;
         this.handlePopState = () => {
             if (this.state.isPositionedReady && !this.state.isDismissing) {
-                browser.history.pushState({ bottomSheet: true }, "");
+                // Browser already popped our entry; do not re-push.
+                this._historyStatePushed = false;
                 this.slideOut();
             }
         };
         useExternalListener(window, "popstate", this.handlePopState);
+        onWillUnmount(() => {
+            if (this._historyStatePushed) {
+                this._historyStatePushed = false;
+                // Remove the synthetic entry we added on open. Triggers a
+                // popstate, but handlePopState no-ops (isDismissing is set by
+                // slideOut before unmount, and the flag is already cleared).
+                browser.history.back();
+            }
+        });
 
         onMounted(() => {
+            browser.history.pushState({ bottomSheet: true }, "");
+            this._historyStatePushed = true;
+
             const isReduced =
                 browser.matchMedia(`(prefers-reduced-motion: reduce)`).matches === true;
 

@@ -47,6 +47,68 @@ function strftime(format, converters) {
     });
 }
 
+// ─── construction validation ─────────────────────────────────────────────────
+
+/**
+ * Reject a non-integer component (also catching the missing-argument case,
+ * where the value is ``undefined``). Mirrors Python's TypeError for
+ * ``date(2020, 1)`` and ``date(2020, "x", 1)``.
+ *
+ * @param {string} name
+ * @param {any} value
+ */
+function assertIntComponent(name, value) {
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new ValueError(`${name} must be an integer`);
+    }
+}
+
+/**
+ * Range-validate the date components, mirroring Python's ``date()`` (which
+ * raises ``ValueError`` on ``date(2020, 13, 45)``). Without this the raw
+ * values flowed straight into strftime, yielding garbage like "2020-13-45"
+ * or "2020-01-undefined".
+ *
+ * @param {any} year
+ * @param {any} month
+ * @param {any} day
+ */
+function assertDateComponents(year, month, day) {
+    assertIntComponent("year", year);
+    assertIntComponent("month", month);
+    assertIntComponent("day", day);
+    if (month < 1 || month > 12) {
+        throw new ValueError("month must be in 1..12");
+    }
+    if (day < 1 || day > daysInMonth(year, month)) {
+        throw new ValueError("day is out of range for month");
+    }
+}
+
+/**
+ * Range-validate the time components, mirroring Python's ``time()`` /
+ * ``datetime()``.
+ *
+ * @param {any} hour
+ * @param {any} minute
+ * @param {any} second
+ * @param {any} [microsecond=0]
+ */
+function assertTimeComponents(hour, minute, second, microsecond = 0) {
+    if (hour < 0 || hour > 23) {
+        throw new ValueError("hour must be in 0..23");
+    }
+    if (minute < 0 || minute > 59) {
+        throw new ValueError("minute must be in 0..59");
+    }
+    if (second < 0 || second > 59) {
+        throw new ValueError("second must be in 0..59");
+    }
+    if (microsecond < 0 || microsecond > 999999) {
+        throw new ValueError("microsecond must be in 0..999999");
+    }
+}
+
 // ─── PyDate ──────────────────────────────────────────────────────────────────
 
 export class PyDate {
@@ -91,6 +153,7 @@ export class PyDate {
      */
     static create(...args) {
         const { year, month, day } = bindArgs(args, ["year", "month", "day"]);
+        assertDateComponents(year, month, day);
         return new PyDate(year, month, day);
     }
 
@@ -242,6 +305,8 @@ export class PyDateTime {
         const minute = namedArgs.minute ?? 0;
         const second = namedArgs.second ?? 0;
         const microsecond = namedArgs.microsecond ?? 0;
+        assertDateComponents(year, month, day);
+        assertTimeComponents(hour, minute, second, microsecond);
         return new PyDateTime(year, month, day, hour, minute, second, microsecond);
     }
 
@@ -425,6 +490,7 @@ export class PyTime extends PyDate {
         const hour = namedArgs.hour || 0;
         const minute = namedArgs.minute || 0;
         const second = namedArgs.second || 0;
+        assertTimeComponents(hour, minute, second);
         return new PyTime(hour, minute, second);
     }
 

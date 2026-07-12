@@ -3,7 +3,7 @@
 
 /** @module @web/webclient/loading_indicator/loading_indicator - Loading indicator showing the count of active RPCs after a short display delay */
 
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
@@ -28,6 +28,9 @@ export class LoadingIndicator extends Component {
         this.startShowTimer = null;
         useBus(rpcBus, RpcEvent.REQUEST, /** @type {any} */ (this.requestCall));
         useBus(rpcBus, RpcEvent.RESPONSE, /** @type {any} */ (this.responseCall));
+        // Clear the pending 250ms show-timer if the component is destroyed
+        // before it fires, so its callback can't run against a torn-down state.
+        onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */

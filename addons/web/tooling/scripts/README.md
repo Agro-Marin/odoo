@@ -31,18 +31,37 @@ cd addons/web/tooling/scripts
 ./hoot '@web/core/domain'            # run one file's suite
 ./hoot '@web/services' '@web/model'  # several suites
 ./hoot '@web/core'                   # a whole category (coarse id)
+./hoot '@mail/discuss' '@bus'        # ANY addon's suites (see below)
 ./hoot --affected                    # only suites touched by your git diff
 ./hoot --affected path/to/file.js    # ...or by explicit changed files
 ./hoot --watch '@web/core/domain'    # re-run on any web JS change
 ./hoot --watch --affected            # watch + re-select affected each change
 
-./hoot --status                      # warm server status
-./hoot --stop                        # stop the warm server (keep its DB)
-./hoot --clean                       # stop the warm server AND drop its DB
+./hoot --status                      # status of ALL warm servers
+./hoot --stop [--db hoot_mail]       # stop warm server(s) (keep DB); one DB if --db
+./hoot --clean [--db hoot_mail]      # stop warm server(s) AND drop DB(s)
 ./hoot --restart '@web/core/domain'  # force a fresh server, then run
 ./hoot -v '@web/core/domain'         # verbose (server + browser logs)
 ./hoot --help
 ```
+
+### Any addon, not just web
+
+The suite prefix (`@<addon>/…`) selects the addon, and the runner installs the
+matching module into a **per-module-set warm database** so several addons' suites
+can run without colliding:
+
+| Suites requested | Modules installed | Warm DB |
+|---|---|---|
+| `@web/...` (default) | `web` | `hoot_web` |
+| `@bus/...` | `bus` | `hoot_bus` |
+| `@mail/...` | `mail` (→ pulls `bus`, `html_editor`) | `hoot_mail` |
+| `@bus` `@mail` together | `bus` + `mail` | `hoot_bus_mail` |
+
+Each DB gets its own warm server on its own port and its own `.hoot_state_*.json`,
+so runs for different addons coexist. `--db <name>` overrides the derived DB (e.g.
+reuse `hoot_bus_mail` for `@mail` suites so you skip the ~5-min `mail` install).
+A DB that exists but is missing a needed module is topped up automatically.
 
 A suite path is hashed with the **exact** algorithm from
 `web/tests/test_js.py::_generate_hash` and passed as an `&id=` filter to
@@ -119,3 +138,26 @@ roughly an 8x loop speedup here, and much more where booting the ERP costs the
    output is captured to report pass/fail counts and failed test names.
 
 Nothing in Odoo core is modified; `ChromeBrowser` is imported and driven as-is.
+
+## CI entry points (gated runs through `odoo-bin`)
+
+The warm runner is for the local edit/run loop. CI runs the same suites through
+`odoo-bin --test-tags`, driven by a `test_js.py` per addon that reuses
+`web/tests/test_js.py::HOOTCommon` and selects that addon's `@…` suites:
+
+| Addon | File | Tag | Selects |
+|---|---|---|---|
+| web | `web/tests/test_js.py` | `web_js` | `@web/*` (+ `@html_editor`), granular methods + coverage walk |
+| bus | `bus/tests/test_js.py` | `bus_js` | `@bus` (one selector covers the whole tree) |
+| mail | `mail/tests/test_js.py` | `mail_js` | `@mail/*`, fanned out + coverage walk |
+
+```bash
+# CI-style (boots the ERP; slow — use the warm runner above for the dev loop):
+odoo-bin -c <conf> -d <db> -i bus  --test-enable --test-tags '/bus:BusSuite.test_bus_desktop'   --stop-after-init
+odoo-bin -c <conf> -d <db> -i mail --test-enable --test-tags 'mail_js'                           --stop-after-init
+```
+
+Each `test_suite_filters_cover_every_test_file` walk fails the build if a new
+`static/tests` directory is added without being wired into a run method, so
+suites can never silently stop running (the failure mode that once lost 13 web
+test files).

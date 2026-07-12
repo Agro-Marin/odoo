@@ -8,6 +8,7 @@ import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
+import { extractAutosave } from "@web/fields/field_utils";
 import { formatSelection } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useCommand } from "@web/services/commands/command_hook";
@@ -26,6 +27,7 @@ export class StateSelectionField extends Component {
     };
     static defaultProps = {
         showLabel: true,
+        autosave: true,
     };
 
     /** @type {Record<string, string>} */
@@ -124,7 +126,7 @@ export const stateSelectionField = {
                 "hide_label" in options ? !options.hide_label : viewType !== "kanban",
             withCommand: viewType === "form",
             readonly: dynamicInfo.readonly,
-            autosave: "autosave" in options ? !!options.autosave : true,
+            autosave: extractAutosave(options),
         };
     },
 };

@@ -138,13 +138,28 @@
             </t>
         </div>
         <t t-if="isTree(node.value)">
-            <TreeEditor t-props="props"
+            <t t-set="subResModel" t-value="getResModel(node)"/>
+            <!-- A dangling field path (unknown/renamed field, e.g. a saved
+                 ir.filter referencing a field this fork renamed) makes
+                 getResModel return null. Mounting the nested TreeEditor with a
+                 null resModel calls loadFields(null), which throws in
+                 onWillStart and rejects the whole editor unrecoverably — the
+                 user can no longer even see, let alone fix, the broken rule.
+                 Gate the sub-tree on a resolvable model and fall back to a
+                 read-only unsupported-value row so the editor still mounts. -->
+            <TreeEditor t-if="subResModel" t-props="props"
                 update="(value) => this.updateLeafValue(node, value)"
                 slots="{}"
                 isSubTree="true"
                 tree="node.value"
-                resModel="getResModel(node)"
+                resModel="subResModel"
             />
+            <div t-else="" class="o_tree_editor_row o_tree_editor_editor ps-4">
+                <div class="o_input d-flex align-items-center">
+                    <span class="flex-grow-1 text-truncate">Unsupported sub-domain (unknown field)</span>
+                    <i role="alert" class="fa-solid fa-exclamation-triangle text-warning mx-2" data-tooltip="This nested condition targets a field that does not exist on this model and cannot be edited here."/>
+                </div>
+            </div>
         </t>
     </t>
 

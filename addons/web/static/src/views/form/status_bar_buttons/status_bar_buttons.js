@@ -22,7 +22,15 @@ export class StatusBarButtons extends Component {
             return [];
         }
         return Object.entries(this.props.slots)
-            .filter((entry) => entry[1].isVisible)
+            .filter(
+                // A slot with no ``isVisible`` key is visible by default: absence
+                // of the modifier means "always show". Treating a missing key as
+                // false silently dropped such slots (the header compiler defaults
+                // ``isVisible`` to "true", but out-of-tree callers may omit it).
+                // Mirrors the exact predicate already fixed in InnerGroup.getRows
+                // and ButtonBox.
+                ([, slot]) => !("isVisible" in slot) || slot.isVisible,
+            )
             .map((entry) => entry[0]);
     }
 }

@@ -41,7 +41,12 @@ export class UrlField extends Component {
             return "";
         }
         if (!this.props.websitePath) {
-            const regex = /^((ftp|http)s?:\/)?\//i; // http(s)://... ftp(s)://... /...
+            // Prefix "http://" unless the value already carries a full scheme
+            // (http(s)://, ftp(s)://) or is a site-relative path (/...). The
+            // scheme branch requires BOTH slashes so a single-slash typo like
+            // "http:/x" is treated as scheme-less and prefixed, not left as a
+            // dead link.
+            const regex = /^((ftp|http)s?:\/\/|\/)/i;
             value = !regex.test(value) ? `http://${value}` : value;
         }
         return isSafeUrlScheme(value) ? value : "";

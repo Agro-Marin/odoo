@@ -217,6 +217,26 @@ test("BadgeSelectionField widget on a selection unchecking selected value (requi
     });
 });
 
+test("BadgeSelectionField respects arch/dynamic required when unchecking", async () => {
+    // The field is NOT model-level required, only required via the arch
+    // modifier. Clicking the active badge must not clear the value.
+    await mountView({
+        type: "form",
+        resModel: "res.partner",
+        arch: '<form><field name="color" widget="selection_badge" required="1"/></form>',
+    });
+
+    expect("span.o_selection_badge.active").toHaveText("Red");
+
+    // Re-click the active badge: with a dynamic-required field this must be a
+    // no-op (the value stays selected) rather than deselecting to false.
+    await contains("span.o_selection_badge.active").click();
+    expect("span.o_selection_badge.active").toHaveCount(1);
+    expect("span.o_selection_badge.active").toHaveText("Red", {
+        message: "arch-required badge must not deselect on re-click",
+    });
+});
+
 test("BadgeSelectionField widget in list with the color_field option", async () => {
     await mountView({
         resModel: "res.partner",

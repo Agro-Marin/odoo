@@ -119,9 +119,19 @@ export async function waitUntil(predicate, { signal } = {}) {
             { once: true },
         );
         const runCheck = () => {
-            const result = predicate();
+            let result;
+            try {
+                result = predicate();
+            } catch (error) {
+                // A throwing predicate must reject the promise; otherwise the
+                // exception escaped the rAF callback and the promise hung until
+                // the caller's (up to 10s) timeout.
+                reject(error);
+                return;
+            }
             if (result) {
                 resolve(result);
+                return;
             }
             handle = browser.requestAnimationFrame(runCheck);
         };

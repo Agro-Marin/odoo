@@ -8,7 +8,9 @@
  *
  * @static
  * @param {string} gradient - css gradient string
- * @param {number} opacity - [0, 1] {number}
+ * @param {number} opacity - percentage in [0, 100] (NOT a [0, 1] fraction); the
+ *  default of 100 is a no-op. Note: only ``rgb(...)`` stops are rewritten;
+ *  existing ``rgba(...)`` stops are left untouched.
  * @returns {string} - gradient string with opacity
  */
 export function applyOpacityToGradient(gradient, opacity = 100) {

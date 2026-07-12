@@ -557,6 +557,14 @@ test("retry, dedup and cache are rejected on mutating methods", async () => {
     expect(() => orm.retry(1).call("res.partner", "web_resequence", [[3]])).toThrow(
         /mutating method "web_resequence"/,
     );
+    // ``copy`` duplicates records: a retry after a lost response would create
+    // duplicates, so it must be rejected despite not being in UPDATE_METHODS.
+    expect(() => orm.retry(1).call("res.partner", "copy", [[3]])).toThrow(
+        /mutating method "copy"/,
+    );
+    expect(() => orm.cache().call("res.partner", "copy", [[3]])).toThrow(
+        /mutating method "copy"/,
+    );
     // Caching a write would serve a stale result for a later identical write.
     expect(() =>
         orm.cache({ type: "ram" }).write("res.partner", [3], { name: "x" }),

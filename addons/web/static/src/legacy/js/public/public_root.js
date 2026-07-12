@@ -370,9 +370,25 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         this._stopWidgets(target);
         // also stops interactions; fromPublicRoot: the widgets were just
         // stopped above, the interaction-service patch must not redo it.
-        const targetEl = Array.isArray(target) ? target[0] : target;
         const publicInteractions = this.bindService("public.interactions");
-        publicInteractions.stopInteractions(targetEl, { fromPublicRoot: true });
+        // target may be a single Element, an Array, or a NodeList/jQuery-like
+        // collection. Normalize to an array of elements and stop interactions
+        // on EACH: taking only target[0] silently dropped the rest for arrays,
+        // and passing a NodeList straight through made shouldStop's
+        // el.contains(...) throw (a NodeList has no .contains).
+        let targetEls;
+        if (target == null) {
+            targetEls = [];
+        } else if (target instanceof Element) {
+            targetEls = [target];
+        } else if (typeof target[Symbol.iterator] === "function") {
+            targetEls = [...target];
+        } else {
+            targetEls = [target];
+        }
+        for (const targetEl of targetEls) {
+            publicInteractions.stopInteractions(targetEl, { fromPublicRoot: true });
+        }
     },
     /**
      * @private

@@ -111,7 +111,7 @@
     </t>
 
     <t t-name="web.PivotHeader.title">
-        <t t-set="padding" t-value="5 + cell.indent * 30"/>
+        <t t-set="padding" t-value="getPadding(cell)"/>
         <th
             class="bg-view text-nowrap cursor-pointer fw-normal user-select-none"
             t-att-colspan="isXAxis ? cell.width : undefined"

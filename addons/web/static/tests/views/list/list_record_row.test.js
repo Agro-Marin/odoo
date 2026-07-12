@@ -38,7 +38,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { registerTemplate } from "@web/core/templates";
-import { getRowComponentClass } from "@web/views/list/list_record_row";
+import { getRowComponentClass, ListRecordRow } from "@web/views/list/list_record_row";
 import { ListRenderer } from "@web/views/list/list_renderer";
 
 class Foo extends models.Model {
@@ -173,4 +173,35 @@ test("late renderer field assignment warns in debug mode (C6)", async () => {
 
     expect(warnings.filter((msg) => msg.includes("lateAssignedFlag"))).toHaveLength(1);
     expect(queryFirst(".o_data_row").dataset.highlight).toBe("on");
+});
+
+test("row.group resolves the flat parentGroup even when virtualization is active", () => {
+    // Regression: the virtualized branch used to short-circuit ``get group()``
+    // to undefined, dropping group context for grouped lists past the
+    // virtualization threshold (Enter mis-targets the new row,
+    // onEditNextRecord opens the form view instead of the next inline row).
+    // The flat grid carries ``parentGroup`` regardless of virtualization, so
+    // the getter must return it unconditionally.
+    const groupGetter = Object.getOwnPropertyDescriptor(
+        ListRecordRow.prototype,
+        "group",
+    ).get;
+    const parentGroup = { id: "group-7" };
+    const makeThis = (virtIsActive) => ({
+        props: {
+            record: { id: 5 },
+            group: undefined,
+            renderer: {
+                virt: { isActive: virtIsActive },
+                gridState: {
+                    findRowByRecordId: (id) =>
+                        id === "5" ? { parentGroup } : undefined,
+                },
+            },
+        },
+    });
+    // Non-virtualized (unchanged behavior) AND virtualized (the fix) both
+    // resolve the enclosing group.
+    expect(groupGetter.call(makeThis(false))).toBe(parentGroup);
+    expect(groupGetter.call(makeThis(true))).toBe(parentGroup);
 });

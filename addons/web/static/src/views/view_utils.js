@@ -147,11 +147,20 @@ export function isNull(value) {
  *     which should be interpreted by owl as a JS expression being a string:
  *      `Some weird language quote (") `
  *
+ * The result is a JS template literal, so BOTH the backtick delimiter and the
+ * ``${...}`` interpolation syntax must be neutralized: a raw ``${expr}`` in the
+ * source string would otherwise be evaluated as an expression in the generated
+ * code (arch is admin-trusted, but this is the single codegen-escaping seam
+ * shared by every view compiler, so it fails closed by construction). Backtick
+ * is escaped first, then ``$`` before any ``{`` — escaping the ``$`` alone is
+ * enough to defuse the interpolation while leaving a literal ``${`` visually
+ * intact in the produced string.
+ *
  * @param  {string} str The initial value: a pure string to be interpreted as such
  * @return {string}     the valid string to be injected into a component's node props.
  */
 export function toStringExpression(str) {
-    return `\`${(str ?? "").replaceAll("`", "\\`")}\``;
+    return `\`${(str ?? "").replaceAll("`", "\\`").replaceAll("${", "\\${")}\``;
 }
 
 // Controller utilities — shared logic extracted from form/list/kanban

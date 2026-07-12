@@ -280,3 +280,53 @@ test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowe
         }),
     ).toBe(false);
 });
+
+test(`fcEventToRecord returns null when the dragged record was removed mid-interaction`, async () => {
+    const renderer = await start({ model: { ...FAKE_MODEL, scale: "week" } });
+    // id 9999 is not among the model's records: a reload landing mid-drag can
+    // drop the record, and dereferencing existingRecord.start/.id used to throw.
+    expect(
+        renderer.fcEventToRecord({
+            id: 9999,
+            allDay: false,
+            start: new Date(2021, 6, 16, 10, 0),
+            end: new Date(2021, 6, 16, 11, 0),
+        }),
+    ).toBe(null);
+    // A live record (id 1) still converts normally, carrying its id back.
+    expect(
+        renderer.fcEventToRecord({
+            id: 1,
+            allDay: false,
+            start: new Date(2021, 6, 16, 10, 0),
+            end: new Date(2021, 6, 16, 11, 0),
+        }).id,
+    ).toBe(1);
+});
+
+test(`onEventDrop no-ops (and reverts) when the record vanished mid-drag`, async () => {
+    let updated = false;
+    let reverted = false;
+    const renderer = await start({
+        model: {
+            ...FAKE_MODEL,
+            scale: "week",
+            updateRecord: () => {
+                updated = true;
+            },
+        },
+    });
+    renderer.onEventDrop({
+        event: {
+            id: 9999,
+            allDay: false,
+            start: new Date(2021, 6, 16, 10, 0),
+            end: new Date(2021, 6, 16, 11, 0),
+        },
+        revert: () => {
+            reverted = true;
+        },
+    });
+    expect(updated).toBe(false);
+    expect(reverted).toBe(true);
+});

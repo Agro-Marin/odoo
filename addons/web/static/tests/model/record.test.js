@@ -846,7 +846,7 @@ test(`don't duplicate a useRecordObserver effect when switching back and forth b
     expect.verifySteps(["foo: ghi"]);
 });
 
-test(`AGROMARINVERIFY re-setting a many2one to its current value records no change and does not mutate the caller's changes`, async () => {
+test(`re-setting a many2one to its current value records no change and does not mutate the caller's changes`, async () => {
     class Bar extends models.Model {
         name = fields.Char();
         _records = [{ id: 1, name: "bar1" }];

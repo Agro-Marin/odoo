@@ -2,10 +2,10 @@ import logging
 from typing import Any
 
 from odoo import api, models, tools
+from odoo.api import DomainType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.api import DomainType
 
 _logger = logging.getLogger(__name__)
 
@@ -103,7 +103,9 @@ class ResUsers(models.Model):
             all_matching.mapped("login")
         )
 
-        new_emails = [e for e, n in zip(emails, emails_normalized) if n not in done]
+        new_emails = [
+            e for e, n in zip(emails, emails_normalized, strict=True) if n not in done
+        ]
         for email in new_emails:
             name, email_normalized = tools.mail.parse_contact_from_email(email)
             self.with_context(signup_valid=True).create(

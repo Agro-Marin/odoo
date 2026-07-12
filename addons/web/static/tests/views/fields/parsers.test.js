@@ -4,6 +4,7 @@ import { beforeEach, expect, test } from "@odoo/hoot";
 import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { localization } from "@web/core/l10n/localization";
 import { nbsp } from "@web/core/utils/format/strings";
+import { formatFloatTime } from "@web/fields/formatters";
 import {
     parseFloat,
     parseFloatTime,
@@ -52,14 +53,34 @@ test("parseFloatTime", () => {
     expect(parseFloatTime("1:")).toBe(1);
     expect(parseFloatTime(":12")).toBe(0.2);
 
+    // hours:minutes:seconds — round-trips the formatFloatTime displaySeconds
+    // output (e.g. "01:30:00", "01:30:30").
+    expect(parseFloatTime("1:30:00")).toBe(1.5);
+    expect(parseFloatTime("01:30:00")).toBe(1.5);
+    expect(parseFloatTime("0:00:30")).toBe(30 / 3600);
+    expect(parseFloatTime("-1:30:30")).toBe(-(1 + 30 / 60 + 30 / 3600));
+
     expect(() => parseFloatTime("a:1")).toThrow();
     expect(() => parseFloatTime("1:a")).toThrow();
-    expect(() => parseFloatTime("1:1:")).toThrow();
-    expect(() => parseFloatTime(":1:1")).toThrow();
+    // Four components (three colons) remain invalid.
+    expect(() => parseFloatTime("1:1:1:1")).toThrow();
     // Minutes must be in [0, 59]; the sign applies to the whole value, never the minutes part.
     expect(() => parseFloatTime("1:60")).toThrow();
     expect(() => parseFloatTime("1:90")).toThrow();
     expect(() => parseFloatTime("1:-30")).toThrow();
+    // Seconds must be in [0, 59] as well.
+    expect(() => parseFloatTime("1:00:60")).toThrow();
+    expect(() => parseFloatTime("1:00:90")).toThrow();
+});
+
+test("formatFloatTime / parseFloatTime round-trips with displaySeconds", () => {
+    for (const value of [1.5, 0.25, 2.008333, 11.9836]) {
+        const formatted = formatFloatTime(value, { displaySeconds: true });
+        // Formatting rounds to whole seconds, so compare within 1s tolerance.
+        expect(Math.abs(parseFloatTime(formatted) - value)).toBeLessThan(
+            1 / 3600 + 1e-9,
+        );
+    }
 });
 
 test("parseInteger", () => {
@@ -111,6 +132,18 @@ test("parsePercentage", () => {
 
     expect(parsePercentage("1.234,56")).toBe(12.3456);
     expect(parsePercentage("6,02")).toBe(0.0602);
+});
+
+test("parsePercentage supports multi-edit operations", () => {
+    // Without allowOperation, an operation string is not a valid percentage.
+    expect(() => parsePercentage("+=5")).toThrow();
+    // With allowOperation, an operation is returned with its operand UNSCALED
+    // (PercentageField.parse rescales additive operands by 1/100).
+    const op = parsePercentage("+= 5", { allowOperation: true });
+    expect(op.operator).toBe("+");
+    expect(op.operand).toBe(5);
+    // A plain value still round-trips through the ÷100 conversion.
+    expect(parsePercentage("50", { allowOperation: true })).toBe(0.5);
 });
 
 test("parsers fallback on english localisation", () => {

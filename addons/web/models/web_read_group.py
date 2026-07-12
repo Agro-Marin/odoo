@@ -13,12 +13,12 @@ from collections.abc import Sequence
 from typing import Any
 
 from odoo import api, models
+from odoo.api import DomainType
 from odoo.fields import Domain
 from odoo.models import regex_order
-from odoo.api import DomainType
 from odoo.tools import SQL, unique
-
 from odoo.tools.cache_version import versioned
+
 from .web_read_group_helpers import AND
 
 MAX_NUMBER_OPENED_GROUPS = 10
@@ -42,9 +42,7 @@ class Base(models.AbstractModel):
         auto_unfold: bool = False,
         opening_info: list[dict] | None = None,
         unfold_read_specification: dict[str, dict] | None = None,
-        unfold_read_default_limit: (
-            int | None
-        ) = 80,
+        unfold_read_default_limit: (int | None) = 80,
         groupby_read_specification: dict[str, dict] | None = None,
     ) -> dict[str, int | list]:
         """
@@ -104,7 +102,9 @@ class Base(models.AbstractModel):
             raise ValueError(msg)
 
         aggregates = list(aggregates)
-        if "__count" not in aggregates:  # needed to detect empty/stale-offset groups when opening them
+        if (
+            "__count" not in aggregates
+        ):  # needed to detect empty/stale-offset groups when opening them
             aggregates.append("__count")
         domain = Domain(domain).optimize(self)
 
@@ -250,8 +250,7 @@ class Base(models.AbstractModel):
             # (mirrors _read_group's single-row contract).
             return 1
         groupby_terms = {
-            spec: self._read_group_groupby(self._table, spec, query)
-            for spec in groupby
+            spec: self._read_group_groupby(self._table, spec, query) for spec in groupby
         }
         query.groupby = SQL(", ").join(groupby_terms.values())
         # SELECT 1 keeps the GROUP BY (one row per group) while selecting
@@ -356,7 +355,9 @@ class Base(models.AbstractModel):
     ):
         """Recursively open (unfold) groups into sub-groups or records."""
         ctx_max = self.env.context.get("max_number_opened_groups")
-        max_number_opened_group = MAX_NUMBER_OPENED_GROUPS if ctx_max is None else ctx_max
+        max_number_opened_group = (
+            MAX_NUMBER_OPENED_GROUPS if ctx_max is None else ctx_max
+        )
 
         parent_opening_info_dict = {
             info_opening["value"]: info_opening
@@ -732,9 +733,9 @@ class Base(models.AbstractModel):
         column_iterator = zip(*groups, strict=True)
 
         expand_field = self._web_read_group_field_expand(groupby)
-        for groupby_spec, values in zip(
-            groupby, column_iterator
-        ):  # noqa: B905 - intentionally non-strict: column_iterator may yield fewer columns than groupby specs when groups are empty
+        # Intentionally non-strict: column_iterator may yield fewer columns than
+        # groupby specs when groups are empty.
+        for groupby_spec, values in zip(groupby, column_iterator, strict=False):
             # Fields other than many2one/many2many/date/datetime/properties (and
             # not "id") format as identity + equality domain; skip building a
             # formatter closure for them to save the call overhead.

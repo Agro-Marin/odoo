@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import werkzeug.exceptions
@@ -11,6 +12,27 @@ from odoo.tools.misc import html_escape
 from odoo.tools.safe_eval import safe_eval, time
 
 _logger = logging.getLogger(__name__)
+
+# Upper bound for a single barcode dimension.  ``/report/barcode`` is public and
+# forwards ``width``/``height`` from the query string straight to reportlab,
+# which allocates an image of that size — an unbounded value (e.g.
+# ``?width=100000&height=100000``) is a cheap multi-GB memory-allocation DoS.
+# We clamp each dimension to a sane maximum before rendering; the model's
+# ``ir.actions.report.barcode`` keeps its own total-pixel guard as a backstop.
+# The cap matches the model's per-dimension ceiling, so no barcode the model
+# would otherwise draw is refused by this clamp.
+_MAX_BARCODE_DIM = 10_000
+
+
+def _clamp_barcode_dimension(raw: Any, default: int) -> int:
+    """Coerce a query-string dimension to an int in ``[1, _MAX_BARCODE_DIM]``."""
+    try:
+        value = int(raw)
+    except ValueError, TypeError:
+        return default
+    if value < 1:
+        return default
+    return min(value, _MAX_BARCODE_DIM)
 
 
 class ReportController(http.Controller):
@@ -107,12 +129,22 @@ class ReportController(http.Controller):
         :param barLevel: QR code Error Correction Levels. Default is 'L'.
         ref: https://hg.reportlab.com/hg-public/reportlab/file/830157489e00/src/reportlab/graphics/barcode/qr.py#l101
         """
+        # Clamp caller-supplied dimensions before they reach reportlab's
+        # allocator (defense-in-depth against oversized-image DoS on this
+        # public route). Only override when the caller actually passed a value,
+        # so the model's own defaults (600x100) still apply otherwise.
+        if "width" in kwargs:
+            kwargs["width"] = _clamp_barcode_dimension(kwargs["width"], 600)
+        if "height" in kwargs:
+            kwargs["height"] = _clamp_barcode_dimension(kwargs["height"], 100)
         try:
             barcode = request.env["ir.actions.report"].barcode(
                 barcode_type, value, **kwargs
             )
         except ValueError, AttributeError, KeyError:
-            raise werkzeug.exceptions.BadRequest("Cannot convert into barcode.")
+            raise werkzeug.exceptions.BadRequest(
+                "Cannot convert into barcode."
+            ) from None
 
         return request.make_response(
             barcode,
@@ -168,12 +200,11 @@ class ReportController(http.Controller):
                 else:
                     # No docids: rebuild the report data/context from the
                     # URL's own query string instead.
-                    data = {
-                        k: v[0] for k, v in parse_qs(urlsplit(url).query).items()
-                    }
+                    data = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
                     if "context" in data:
-                        context, data_context = json_loads(context or "{}"), json_loads(
-                            data.pop("context")
+                        context, data_context = (
+                            json_loads(context or "{}"),
+                            json_loads(data.pop("context")),
                         )
                         context = json_dumps({**context, **data_context})
                     response = self.report_routes(
@@ -210,4 +241,3 @@ class ReportController(http.Controller):
             error = {"code": 0, "message": "Odoo Server Error", "data": se}
             res = request.make_response(html_escape(json_dumps(error)))
             raise werkzeug.exceptions.InternalServerError(response=res) from e
-

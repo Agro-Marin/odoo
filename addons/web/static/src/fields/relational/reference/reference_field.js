@@ -175,6 +175,10 @@ export class ReferenceField extends Component {
         const [resModel, _resId] = recordData.split(",");
         const resId = Number.parseInt(_resId, 10);
         if (resModel && resId) {
+            // CROSS-GROUP(name_service): this per-widget specialDataCaches
+            // name_get bypasses the shared name_service cache; unifying the two
+            // is owned by the model/core group. The resId/resModel guards above
+            // already keep the request well-formed.
             const { specialDataCaches, orm } = props.record.model;
             const key = `__reference__name_get-${recordData}`;
             if (!specialDataCaches[key]) {

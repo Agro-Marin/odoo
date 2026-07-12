@@ -1281,7 +1281,7 @@ test("disable show week numbers", async () => {
     });
 });
 
-test("AGROMARINVERIFY grid is reused on hover, rebuilt on focus change", async () => {
+test("grid is reused on hover, rebuilt on focus change", async () => {
     // Regression guard: hovering only mutates hoveredDate (range highlight) and
     // must not rebuild the grid; changing the focused month must rebuild it.
     const picker = await mountWithCleanup(DateTimePicker, {

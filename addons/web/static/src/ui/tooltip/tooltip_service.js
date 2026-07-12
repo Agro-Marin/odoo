@@ -272,8 +272,17 @@ export const tooltipService = {
                 ev.preventDefault();
                 return;
             }
-            if (el.closest("[data-tooltip], [data-tooltip-template]")) {
-                if (!el.dataset.tooltipTouchTapToShow) {
+            // Read the tap-to-show flag from the REGISTERED tooltip holder
+            // (the ancestor carrying data-tooltip), not the raw touch target:
+            // a tap landing on a child element (e.g. an inner <span> or <i>)
+            // has no ``tooltipTouchTapToShow`` in its own dataset, so reading
+            // from ``el`` silently cancelled the pending tooltip and broke
+            // tap-to-show for any tooltip holder with nested content.
+            const holder = /** @type {HTMLElement | null} */ (
+                el.closest("[data-tooltip], [data-tooltip-template]")
+            );
+            if (holder) {
+                if (!holder.dataset.tooltipTouchTapToShow) {
                     browser.clearTimeout(showTimer);
                     browser.clearTimeout(openTooltipTimeout);
                 }

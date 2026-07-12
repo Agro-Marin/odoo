@@ -42,7 +42,7 @@ class Profiling(Controller):
         try:
             profile_ids = [int(p) for p in profile.split(",")]
         except ValueError, AttributeError:
-            raise request.not_found()
+            raise request.not_found() from None
         profiles = request.env["ir.profile"].browse(profile_ids).exists()
         profile_str = profile
         if not profiles:
@@ -96,7 +96,7 @@ class Profiling(Controller):
         try:
             profile_ids = [int(p) for p in profile_str.split(",")]
         except ValueError, AttributeError:
-            raise request.not_found()
+            raise request.not_found() from None
         profiles = request.env["ir.profile"].browse(profile_ids).exists()
         if not profiles:
             raise request.not_found()

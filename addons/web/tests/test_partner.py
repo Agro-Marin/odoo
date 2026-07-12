@@ -4,6 +4,7 @@ import zipfile
 from base64 import b64decode
 
 import vobject
+
 from odoo.exceptions import AccessError
 from odoo.fields import Command
 from odoo.tests.common import HttpCase, tagged

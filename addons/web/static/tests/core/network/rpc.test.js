@@ -665,3 +665,47 @@ test("envelope version: null result is not mutated", async () => {
     const result = await rpc("/test/");
     expect(result).toBe(null);
 });
+
+describe("CLEAR-CACHES bus handling", () => {
+    function withStubCache() {
+        const calls = { invalidate: [], invalidateByModel: [] };
+        const stub = {
+            invalidate: (tables) => calls.invalidate.push(tables),
+            invalidateByModel: (tables, model) =>
+                calls.invalidateByModel.push([tables, model]),
+        };
+        rpc.setCache(stub);
+        after(() => rpc.setCache(undefined));
+        return calls;
+    }
+
+    test("object detail WITHOUT a model invalidates the named tables (not the object)", () => {
+        const calls = withStubCache();
+        rpcBus.dispatchEvent(
+            new CustomEvent("CLEAR-CACHES", {
+                detail: { tables: ["web_read", "web_search_read"] },
+            }),
+        );
+        // Passing the whole object to invalidate() used to feed a non-iterable
+        // into bumpDiskGeneration and crash with a TypeError, silently skipping.
+        expect(calls.invalidate).toEqual([["web_read", "web_search_read"]]);
+        expect(calls.invalidateByModel).toEqual([]);
+    });
+
+    test("object detail WITH a model invalidates by model", () => {
+        const calls = withStubCache();
+        rpcBus.dispatchEvent(
+            new CustomEvent("CLEAR-CACHES", {
+                detail: { model: "res.partner", tables: ["web_read"] },
+            }),
+        );
+        expect(calls.invalidateByModel).toEqual([[["web_read"], "res.partner"]]);
+        expect(calls.invalidate).toEqual([]);
+    });
+
+    test("a bare table name string still invalidates that table", () => {
+        const calls = withStubCache();
+        rpcBus.dispatchEvent(new CustomEvent("CLEAR-CACHES", { detail: "web_read" }));
+        expect(calls.invalidate).toEqual(["web_read"]);
+    });
+});

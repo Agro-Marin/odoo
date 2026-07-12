@@ -128,6 +128,11 @@ function installPWAItem(env) {
     const currentApp = env.services.menu.getCurrentApp();
     if (
         currentApp &&
+        // ``webIcon`` is required to build the scoped-app id below; an app whose
+        // icon was customized carries ``webIconData`` instead and has no
+        // ``webIcon``, so ``webIcon.split(",")`` would throw. Fall back to the
+        // generic PWA install prompt in that case.
+        currentApp.webIcon &&
         ["barcode", "field-service", "shop-floor"].includes(currentApp.actionPath)
     ) {
         // Deliberately restricted to these apps for now; grow the list by adding paths.

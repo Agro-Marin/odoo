@@ -31,6 +31,11 @@ class OverlayItem extends Component {
         component: { type: Function },
         props: { type: Object },
         env: { type: Object, optional: true },
+        // Stacking coordinates, forwarded from the overlay entry so containment
+        // can order by z-order (sequence) rather than mount order. Optional for
+        // any out-of-band renderer that constructs an OverlayItem directly.
+        sequence: { type: Number, optional: true },
+        id: { type: Number, optional: true },
     };
 
     setup() {
@@ -55,7 +60,20 @@ class OverlayItem extends Component {
 
     /** @returns {OverlayItem[]} this overlay and all overlays stacked above it */
     get subOverlays() {
-        return OVERLAY_ITEMS.slice(OVERLAY_ITEMS.indexOf(this));
+        // Order by ascending (sequence, id) — the SAME ordering
+        // OverlayContainer renders and the browser paints (z-order), NOT
+        // OVERLAY_ITEMS insertion order. Insertion order is MOUNT order: an
+        // overlay opened later but with a lower sequence mounts last yet renders
+        // BELOW an earlier higher-sequence one, so a raw ``slice(indexOf(this))``
+        // would mis-identify which overlays are "above me" and break click-away
+        // containment. ``id`` (monotonic from the service) is a stable tiebreak
+        // within one sequence.
+        const ordered = [...OVERLAY_ITEMS].sort(
+            (a, b) =>
+                (a.props.sequence ?? 50) - (b.props.sequence ?? 50) ||
+                (a.props.id ?? 0) - (b.props.id ?? 0),
+        );
+        return ordered.slice(ordered.indexOf(this));
     }
 
     /**
@@ -75,11 +93,19 @@ class OverlayItem extends Component {
 export class OverlayContainer extends Component {
     static template = "web.OverlayContainer";
     static components = { ErrorHandler, OverlayItem };
-    static props = { overlays: Object };
+    static props = { overlays: { type: Object, optional: true } };
 
     setup() {
         this.root = useRef("root");
         this.state = useState({ rootEl: null });
+        // Read the overlays from this env's overlay service (unless explicitly
+        // given as props): each rendered container must show the overlays of
+        // ITS OWN environment — see the registration in overlay_service. The
+        // raw service (not useService) is intentional: this is a plain read of
+        // the reactive `overlays` store, not a lifecycle-bound service handle.
+        // eslint-disable-next-line no-restricted-syntax
+        const overlays = this.props.overlays ?? this.env.services.overlay.overlays;
+        this.overlays = useState(overlays);
         useEffect(
             () => {
                 this.state.rootEl = this.root.el;
@@ -91,7 +117,7 @@ export class OverlayContainer extends Component {
     /** @returns {Object[]} overlays sorted by ascending sequence */
     get sortedOverlays() {
         return sortBy(
-            Object.values(/** @type {Record<string, any>} */ (this.props.overlays)),
+            Object.values(/** @type {Record<string, any>} */ (this.overlays)),
             (overlay) => overlay.sequence,
         );
     }

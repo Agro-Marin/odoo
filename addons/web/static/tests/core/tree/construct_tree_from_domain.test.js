@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { condition, connector } from "@web/core/tree/condition_tree";
+import { condition, connector, Expression } from "@web/core/tree/condition_tree";
 import { constructTreeFromDomain } from "@web/core/tree/construct_tree_from_domain";
 
 test("constructTreeFromDomain", async () => {
@@ -57,4 +57,15 @@ test("constructTreeFromDomain: large domains do not overflow the stack", () => {
     expect(tree.children.length).toBe(N);
     expect(tree.children[0]).toEqual(condition("f", "=", 0));
     expect(tree.children[N - 1]).toEqual(condition("f", "=", N - 1));
+});
+
+test("'any' with an Expression value is left untouched (not wrapped in a list)", () => {
+    // `[("partner_id", "any", uid)]` where the value is a free variable used to
+    // round-trip to `[("partner_id", "any", [uid])]` — a nested invalid domain.
+    const tree = /** @type {any} */ (
+        constructTreeFromDomain(`[("partner_id", "any", uid)]`)
+    );
+    const cond = tree.type === "condition" ? tree : tree.children[0];
+    expect(cond.value).toBeInstanceOf(Expression);
+    expect(Array.isArray(cond.value)).toBe(false);
 });

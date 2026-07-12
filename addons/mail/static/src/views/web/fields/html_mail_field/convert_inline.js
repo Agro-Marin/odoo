@@ -1089,10 +1089,20 @@ function fontToImg(element) {
     for (const font of element.querySelectorAll(".fa, .fa-solid, .fa-regular, .fa-brands")) {
         let icon, content;
         fonts.fontIcons.find((fontIcon) =>
-            fonts.getCssSelectors(fontIcon.parser).find((data) => {
+            fonts.getCssSelectors(fontIcon.parser, fontIcon.cssFilter).find((data) => {
                 if (font.matches(data.selector.replace(/::?before/g, ""))) {
                     icon = data.names[0].split("-").shift();
-                    content = data.css.match(/content:\s*['"]?(.)['"]?/)[1];
+                    // Font Awesome 6 stores the glyph in the `--fa` custom
+                    // property (kept as authored, so possibly still an escape
+                    // sequence like "\f57b"); older fonts use `content:`.
+                    const glyphMatch = data.css.match(
+                        /(?:--fa|content):\s*(['"])((?:\\[0-9a-f]+|.)?)\1/i,
+                    );
+                    if (glyphMatch) {
+                        content = glyphMatch[2].startsWith("\\")
+                            ? String.fromCodePoint(parseInt(glyphMatch[2].slice(1), 16))
+                            : glyphMatch[2];
+                    }
                     return true;
                 }
             }),

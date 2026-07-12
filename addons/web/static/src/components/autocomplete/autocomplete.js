@@ -219,6 +219,18 @@ export class AutoComplete extends Component {
     close() {
         this.state.open = false;
         this.state.activeSourceOption = null;
+        // Cancel any pending debounced input. A keystroke landing just before a
+        // deliberate close (Escape, option select, a prop-driven value change)
+        // would otherwise fire *after* the close and force the dropdown back
+        // open — unfocused and stale — while issuing a spurious name_search.
+        // SelectMenu already guards this class of race (its
+        // debouncedOnInput.cancel() in onStateChanged); AutoComplete didn't.
+        this.debouncedProcessInput.cancel();
+        // The cancelled debounce never resolves its pending deferred; settle it
+        // here so a later Enter/Tab that awaits loadingPromise can't hang.
+        this.pendingPromise?.resolve();
+        this.pendingPromise = null;
+        this.loadingPromise = null;
         this._resetMouseSelection();
         this._removeGlobalListeners();
     }

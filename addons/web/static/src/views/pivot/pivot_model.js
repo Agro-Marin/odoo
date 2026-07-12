@@ -11,7 +11,11 @@ import {
 import { KeepLast, Mutex, Race } from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
-import { computeReportMeasures, processMeasure } from "@web/views/view_measurements";
+import {
+    computeReportMeasures,
+    dropUnknownMeasures,
+    processMeasure,
+} from "@web/views/view_measurements";
 
 import { aggregateSubdivisions } from "./pivot_aggregation.js";
 import { computeExportedTableWidth, formatPivotForExport } from "./pivot_export.js";
@@ -22,6 +26,7 @@ import {
     hasData,
     pruneTree,
     sortTree,
+    stripSortedKeys,
 } from "./pivot_group_tree.js";
 import { getCellValue, getMeasureSpecs, makeCellKey } from "./pivot_measurements.js";
 import { getTableHeaders, getTableRows } from "./pivot_table.js";
@@ -618,6 +623,13 @@ export class PivotModel extends Model {
             this.data.rowGroupTree = this.data.colGroupTree;
             this.data.colGroupTree = temp;
 
+            // The transposed trees carry sortedKeys computed against their
+            // pre-flip axis; the sort no longer applies (sortedColumn is reset
+            // below), and leaving them stale would make a later expand render
+            // no children (sortedKeys iterated instead of the fresh Map keys).
+            stripSortedKeys(this.data.rowGroupTree);
+            stripSortedKeys(this.data.colGroupTree);
+
             // we need to update the record metaData: (expanded) row and col groupBys
             temp = this.metaData.rowGroupBys;
             this.metaData.rowGroupBys = this.metaData.colGroupBys;
@@ -760,6 +772,14 @@ export class PivotModel extends Model {
             metaData.fields,
             metaData.fieldAttrs,
             [...allActivesMeasures],
+        );
+        // A stale favorite/context measure (removed or renamed field) has no
+        // entry in `measures`; keep it in activeMeasures and the renderer's
+        // `measures[measure].type` dereference crashes the whole view. Drop it
+        // instead, falling back to __count so the pivot stays usable.
+        metaData.activeMeasures = dropUnknownMeasures(
+            metaData.activeMeasures,
+            metaData.measures,
         );
         const config = { metaData, data: this.data };
         await addPropertyFieldDefs(

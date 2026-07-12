@@ -76,13 +76,17 @@ export class IrUiViewCodeEditor extends CodeEditor {
                             endPos.row,
                             endPos.column,
                         );
-                        this.markers.push(
-                            this.aceEditor.session.addMarker(
-                                range,
-                                "invalid_locator",
-                                "text",
-                            ),
-                        );
+                        // Record the {session, id} pair. Marker ids are
+                        // per-session, and the parent CodeEditor swaps
+                        // aceEditor.session on sessionId change; removing by id
+                        // against whatever session is current at cleanup time
+                        // would target the wrong session and leave the stale
+                        // highlight on the old one.
+                        const session = this.aceEditor.session;
+                        this.markers.push({
+                            session,
+                            id: session.addMarker(range, "invalid_locator", "text"),
+                        });
                     }
                 }
             }
@@ -90,7 +94,7 @@ export class IrUiViewCodeEditor extends CodeEditor {
     }
 
     clearMarkers() {
-        this.markers.forEach((marker) => this.aceEditor.session.removeMarker(marker));
+        this.markers.forEach(({ session, id }) => session.removeMarker(id));
         this.markers = [];
     }
 }

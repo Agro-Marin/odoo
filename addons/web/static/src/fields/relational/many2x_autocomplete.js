@@ -283,8 +283,16 @@ export class Many2XAutocomplete extends Component {
             this.lastEmptySearch &&
             deepEqual(this.lastEmptySearch.domain, domain) &&
             deepEqual(this.lastEmptySearch.context, context) &&
-            name.startsWith(this.lastEmptySearch.name)
+            name === this.lastEmptySearch.name
         ) {
+            // Only skip the RPC for an EXACT repeat of a query already known to
+            // be empty. The former `startsWith` prefix-skip assumed name_search
+            // is substring-monotonic (a narrower query can only return fewer
+            // records) — but it isn't: product.product.name_search does an EXACT
+            // default_code/barcode match, so a longer barcode ("0370006152")
+            // can match where its prefix ("037000") did not. Prefix-skipping
+            // suppressed those valid lookups and reported "No records" for a
+            // product that exists.
             return [];
         }
         const records = await this.orm.call(
@@ -312,7 +320,8 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * Last (domain, context, name) triple of a web_name_search call that
-     * returned no records; search() then skips the RPC for narrower queries.
+     * returned no records; search() then skips the RPC for an exact repeat of
+     * that same query (not for narrower/prefixed queries — see search()).
      * Reset through invalidateEmptySearch() whenever a record may have come
      * into existence or the searchable set may have changed. Prototype
      * accessors over emptySearchMemo so that reads and writes share one

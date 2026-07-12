@@ -7,7 +7,7 @@ import { Domain } from "@web/core/domain";
 import { formatAST } from "@web/core/py_js/py";
 
 import { ASTType } from "../py_js/ast_type.js";
-import { addChild, connector, toValue } from "./condition_tree.js";
+import { addChild, connector, Expression, toValue } from "./condition_tree.js";
 /** @import { AST } from "@web/core/py_js/py_parser" */
 /** @import { DomainRepr } from "@web/core/domain" */
 /** @import { Tree } from "./condition_tree.js" */
@@ -72,7 +72,14 @@ function _constructTree(ASTs, distributeNot = false) {
                     distributeNot,
                 );
             } catch {
-                tree.value = Array.isArray(tree.value) ? tree.value : [tree.value];
+                // The ``any``/``not any`` value wasn't a sub-domain. Only wrap a
+                // bare scalar literal in a list; leave an Expression (a free
+                // variable / dynamic value) untouched — wrapping it as
+                // ``[expression]`` produces a nested invalid domain that
+                // corrupts the record on round-trip.
+                if (!(tree.value instanceof Expression) && !Array.isArray(tree.value)) {
+                    tree.value = [tree.value];
+                }
             }
         }
 

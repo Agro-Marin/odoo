@@ -164,7 +164,10 @@ export function parseFloat(value, { allowOperation = false } = {}) {
 
 /**
  * Try to extract a float time from a string. The localization is considered in the process.
- * The float time can have two formats: float or integer:integer.
+ * The float time can have three formats: float, integer:integer, or
+ * integer:integer:integer (hours:minutes:seconds). The seconds component lets
+ * this round-trip the output of ``formatFloatTime`` when ``displaySeconds`` is
+ * enabled (which emits ``HH:MM:SS``).
  *
  * @param {string} value
  * @returns {number} a float
@@ -176,7 +179,7 @@ export function parseFloatTime(value) {
         sign = -1;
     }
     const values = value.split(":");
-    if (values.length > 2) {
+    if (values.length > 3) {
         throw new InvalidNumberError(`"${value}" is not a correct number`);
     }
     if (values.length === 1) {
@@ -188,7 +191,15 @@ export function parseFloatTime(value) {
         // The minutes component must be in [0, 59]; "1:90" is not 2.5 hours.
         throw new InvalidNumberError(`"${value}" is not a correct number`);
     }
-    return sign * (hours + minutes / 60);
+    let seconds = 0;
+    if (values.length === 3) {
+        seconds = parseInteger(values[2]);
+        if (seconds < 0 || seconds >= 60) {
+            // The seconds component must be in [0, 59]; "1:00:90" is invalid.
+            throw new InvalidNumberError(`"${value}" is not a correct number`);
+        }
+    }
+    return sign * (hours + minutes / 60 + seconds / 3600);
 }
 
 /**
@@ -244,14 +255,25 @@ export function parseInteger(value, { allowOperation = false } = {}) {
  * The localization is considered in the process.
  * The percentage can have two formats: float or float%.
  *
+ * When ``allowOperation`` is set and the input is a multi-edit operation
+ * (``+= 5``, ``-= 5``, ...), the raw ``Operation`` is returned with its operand
+ * **unscaled** — the caller (PercentageField.parse) rescales ``+=``/``-=``
+ * operands by 1/100 since they apply to the displayed (×100) value.
+ *
  * @param {string} value
- * @returns {number} float
+ * @param {{ allowOperation?: boolean }} [options]
+ * @returns {number | import("@web/model/relational_model/operation").Operation} float
  */
-export function parsePercentage(value) {
+export function parsePercentage(value, { allowOperation = false } = {}) {
     if (value.at(-1) === "%") {
         value = value.slice(0, -1);
     }
-    return parseFloat(value) / 100;
+    const parsed = parseFloat(value, { allowOperation });
+    if (parsed instanceof Operation) {
+        // @ts-expect-error returns Operation when allowOperation is true
+        return parsed;
+    }
+    return parsed / 100;
 }
 
 /**

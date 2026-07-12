@@ -117,7 +117,7 @@ Services are registered in `registry.category("services")` and injected via `use
 | `orm` | `services/orm_service.js` | ORM gateway — see full API table below |
 | `http` | `services/http_service.js` | Low-level HTTP fetch wrapper (GET/POST) |
 | `field` | `services/field_service.js` | Field metadata loader (calls `fields_get` via `orm.cache({type:"disk", immutable:true})` — warm hits share one deep-frozen payload instead of deep-copying per caller) |
-| `name` | `services/name_service.js` | Display name caching with microtask batching; clears cache on `ACTION_MANAGER:UPDATE` (not CLEAR-CACHES) |
+| `name` | `services/name_service.js` | Display name caching with microtask batching; clears cache on `ACTION_MANAGER:UPDATE` AND on `ACTIVE_COMPANIES_CHANGED` (load-bearing: a company switch via `recoverFromSaveError` uses `reload:false`, firing no `ACTION_MANAGER:UPDATE`, yet can flip record visibility). Not CLEAR-CACHES. Negative lookups (inaccessible/missing) are cached, so correctness depends on exactly these two visibility-change events — see the INVARIANT block in the source. |
 
 #### `orm` full public API
 
@@ -158,10 +158,12 @@ Services are registered in `registry.category("services")` and injected via `use
 **Error class hierarchy** (`rpc.js`):
 - `NetworkError` (base) — all network/RPC failures
 - `RPCError extends NetworkError` — server-returned errors; `{name:"RPC_ERROR", type:"server", code, data, exceptionName, subType}`. **Never retryable** (server-deterministic).
-- `ConnectionLostError extends NetworkError` — HTTP 502/503/504, JSON parse failure under an ``application/json`` content-type, missing content-type, or fetch network failure (DNS, CORS, server unreachable). Frontend never sees a status code for these. **Retryable**.
+- `ConnectionLostError extends NetworkError` — HTTP 502/503/504, a JSON parse failure on a **5xx** response, or a fetch network failure (DNS, CORS, server unreachable). Frontend never sees a status code for these. **Retryable**.
 - `ServerOverloadError extends ConnectionLostError` — Server returned a non-JSON content-type (typically werkzeug HTML traceback from ``PoolError`` / ``OperationalError``). Carries ``status`` so callers can branch on the actual HTTP code; the message embeds it. Backward-compatible with existing ``instanceof ConnectionLostError`` catchers. **Retryable with a 1000ms backoff floor** so retries don't pile onto an overloaded backend (``SERVER_OVERLOAD_BACKOFF_FLOOR_MS`` in ``rpc.js``).
+- `InvalidResponseError extends ConnectionLostError` — a non-5xx response that is not valid JSON-RPC (canonically a **session-expired POST redirected to the login page as an HTTP 200 HTML body**). Carries `status`. Because it extends `ConnectionLostError`, the shared `lostConnectionHandler` currently routes it through the reconnect flow — **a known misroute** (the condition is deterministic, not transient: the reconnect probe succeeds against the login page and falsely reports "Connection restored" while every RPC keeps failing; the user is never told to re-authenticate). A dedicated handler + `SessionExpiredDialog` is the pending fix. **Not usefully retryable** (retrying a session-expired call just re-hits the login page).
 - `ConnectionAbortedError extends NetworkError` — caller invoked `promise.abort(true)` or an external `AbortController` aborted the signal. `abort(false)` silently cancels without rejection. **Never retryable** (caller intent).
 - `ConnectionTimeoutError extends NetworkError` — `AbortSignal.timeout(ms)` fired (settings.timeout exhausted). Carries `url` and `timeoutMs` so callers can decide whether to retry, alert, or escalate. **Retryable**.
+- `RequestEntityTooLargeError extends NetworkError` — HTTP 413: the request body exceeded the max size accepted by the server or a fronting proxy (e.g. nginx `client_max_body_size`). Surfaced so a save can block/warn instead of silently failing. **Never retryable** (the payload is what's rejected).
 
 ### UI Overlay Services (`ui/`)
 | Service | File | Purpose |
@@ -188,7 +190,7 @@ Services are registered in `registry.category("services")` and injected via `use
 |---------|------|---------|
 | `localization` | `services/localization_service.js` | Translation loader (IndexedDB cached, versioned by `registry_hash`) |
 | `error` | `services/error_service.js` | Global error handler (`sequence: 1` — starts first, only sequenced service in core) |
-| `scss_error_display` | `services/scss_error_display.js` | SCSS compilation error display (admin-only notification) |
+| `scss_error_display` | `services/scss_error_display.js` | SCSS compilation error display. Detects a `css_error_message` marker rule in same-origin backend stylesheets and shows a sticky danger notification. **Not group-gated** — there is no admin check in the code; the notification renders for every user whose page loaded a failed-compilation stylesheet (the message text merely *says* it is an administrator/developer error to fix). |
 | `title` | `services/title_service.js` | Document title management |
 | `pwa` | `services/pwa/pwa_service.js` | PWA install prompt |
 | `sortable` | `services/sortable_service.js` | Drag-and-drop sorting |
@@ -196,7 +198,7 @@ Services are registered in `registry.category("services")` and injected via `use
 | `web.frequent.emoji` | `services/frequent_emoji_service.js` | Emoji frequency tracking (dotted namespace key) |
 | `lazy_session` | `webclient/session_service.js` | Lazy-loaded session info (profile_session, profile_collectors, etc.). Consumed by `profiling` service — refactoring this breaks profiling startup. |
 | `multi_company_recovery` | `services/multi_company_recovery_service.js` | Recovers from `AccessError` when the server context carries `suggested_company`. `recoverFromLifecycleError` reloads after activating; `recoverFromSaveError` mutates the model context and activates with `reload:false` to preserve input. Used by FormController's onError paths. |
-| `form_dialog_stack` | `services/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances; subscribes to `AppEvent.FORM_DIALOG_ADD/REMOVE` at startup and exposes `count`/`isEmpty` getters. Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
+| `form_dialog_stack` | `services/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog` (an earlier bus-event API, `AppEvent.FORM_DIALOG_ADD/REMOVE`, was removed — no external listener ever materialized); exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
 | `slow_rpc` | `services/slow_rpc_service.js` | Patience-UX: shows a sticky `notification.add(_t("This is taking longer than usual…"))` toast when a non-silent RPC exceeds `SLOW_RPC_CONFIG.thresholdMs` (default 5 s, mutable). Listens on `rpcBus` for `RPC:REQUEST`/`RPC:RESPONSE`; success, error, abort, and timeout all clear the timer. Silent RPCs opt out, as with error dialogs. |
 
 > Additional webclient-level services: `action`, `menu`, `view`, `currency`,

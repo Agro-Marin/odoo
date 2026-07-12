@@ -51,9 +51,12 @@ let sessionInfo = null;
 self.addEventListener("install", (event) => {
     event.waitUntil(
         Promise.all([
-            // Needed because the sw is register after the initial fetch
+            // Needed because the sw is register after the initial fetch.
+            // Skip redirected responses: an invalid/expired session answers
+            // /odoo with a 303 to the login page, and caching that as the app
+            // shell would serve the login screen offline forever.
             fetch(homepageURL).then((res) =>
-                res.ok ? storeDataOnCache(homepageURL, res) : null,
+                res.ok && !res.redirected ? storeDataOnCache(homepageURL, res) : null,
             ),
             caches.open(cacheName).then((cache) => cache.add(offLineURL)),
         ]),
@@ -326,17 +329,21 @@ const staleWhileRevalidate = async (request) => {
 /**
  * Fetches the request and falls back to cached or offline page on network failure.
  *
- * @param {Request} request
+ * @param {FetchEvent} event
  * @returns {Promise<Response>}
  */
-const navigateOrDisplayOfflinePage = async (request) => {
+const navigateOrDisplayOfflinePage = async (event) => {
+    const request = event.request;
     const isDebugAssets = new URL(request.url).searchParams
         .get("debug")
         ?.includes("assets");
     try {
         const response = await fetch(request);
         if (response.ok && !isDebugAssets) {
-            storeDataOnCache(request.url, response.clone());
+            // Keep the worker alive until the shell is fully written: a
+            // fire-and-forget storeDataOnCache could be cut off by the ~30s
+            // idle termination mid-write, leaving a truncated/absent shell.
+            event.waitUntil(storeDataOnCache(request.url, response.clone()));
         }
         return response;
     } catch (requestError) {
@@ -412,7 +419,7 @@ self.addEventListener("fetch", (event) => {
         // request.mode = navigate isn't supported in all browsers => check for http header accept:text/html
         event.request.headers.get("accept")?.includes("text/html")
     ) {
-        event.respondWith(navigateOrDisplayOfflinePage(event.request));
+        event.respondWith(navigateOrDisplayOfflinePage(event));
     }
 });
 

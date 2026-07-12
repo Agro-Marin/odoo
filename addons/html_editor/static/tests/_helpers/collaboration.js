@@ -14,7 +14,7 @@ import { setupEditor } from "./editor.js";
  * @property { string } peerId
  * @property { import("@html_editor/core/history_plugin").HistoryStep[] } steps
  * @property { Editor } editor
- * @property { import("@html_editor/collaboration/collaboration_plugin").CollaborationPlugin } collaborationPlugin
+ * @property { import("@html_editor/others/collaboration/collaboration_plugin").CollaborationPlugin } collaborationPlugin
  * @property { import("@html_editor/plugin").HistoryPlugin } historyPlugin
  *
  * @typedef { Object } MultiEditorSpec

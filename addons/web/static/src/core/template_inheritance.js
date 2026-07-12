@@ -401,6 +401,23 @@ function replace(root, target, operation) {
  */
 export function applyInheritance(root, operations, url = "") {
     translationContext = url.split("/")[1] ?? ""; // use addon name as context
+    try {
+        return applyOperations(root, operations, url);
+    } finally {
+        // Always clear the module-global ambient context, even if an operation
+        // throws — a leaked stale context would silently mistranslate every
+        // subsequent template processed on this tick.
+        translationContext = null;
+    }
+}
+
+/**
+ * @param {Element} root
+ * @param {Element} operations
+ * @param {string} url
+ * @returns {Element}
+ */
+function applyOperations(root, operations, url) {
     for (const operation of operations.children) {
         const target = getElement(root, operation);
         const position = operation.getAttribute("position") || "inside";
@@ -451,6 +468,5 @@ export function applyInheritance(root, operations, url = "") {
                 throw new Error(`Invalid position attribute: '${position}'`);
         }
     }
-    translationContext = null;
     return root;
 }

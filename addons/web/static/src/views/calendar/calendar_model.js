@@ -443,7 +443,9 @@ export class CalendarModel extends Model {
             // Reload even on failure: drag/drop and resize already rendered the
             // event client-side, so only a reload re-syncs with server state.
             // The rejection still propagates for the standard error dialog.
-            await this.load();
+            // Catch the reload so a reload failure can't mask the original write
+            // error (which is what the user needs to see).
+            await this.load().catch((error) => console.error(error));
         }
     }
 
@@ -690,10 +692,16 @@ export class CalendarModel extends Model {
      * @protected
      */
     fetchUnusualDays(data) {
-        return this.orm.call(this.meta.resModel, "get_unusual_days", [
-            serializeDateTime(data.range.start),
-            serializeDateTime(data.range.end),
-        ]);
+        // Pass the context: get_unusual_days results can depend on it
+        // (e.g. hr_leave reads employee_id), and the cache key already
+        // fingerprints it — without sending it here the cache pretends the
+        // context matters while every fetch runs context-free.
+        return this.orm.call(
+            this.meta.resModel,
+            "get_unusual_days",
+            [serializeDateTime(data.range.start), serializeDateTime(data.range.end)],
+            { context: this.meta.context },
+        );
     }
     /**
      * @protected

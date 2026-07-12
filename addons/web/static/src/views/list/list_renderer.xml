@@ -121,7 +121,7 @@
       and resequences above a row must patch it in place, not recreate it. -->
  <t t-foreach="virt.visibleFlatRows" t-as="flatRow" t-key="flatRow.type === 'record' ? flatRow.record.id : (flatRow.type === 'group' ? 'group:' + flatRow.group.id : 'addline:' + (flatRow.parentGroup ? flatRow.parentGroup.id : flatRow.globalIndex))">
  <t t-if="flatRow.type === 'record'">
- <t t-component="rowComponent" t-props="getRowProps(flatRow.record, undefined, flatRow.parentGroup ? flatRow.parentGroup.id : undefined)"/>
+ <t t-component="rowComponent" t-props="getRowProps(flatRow.record, flatRow.parentGroup, flatRow.parentGroup ? flatRow.parentGroup.id : undefined)"/>
  </t>
  <t t-elif="flatRow.type === 'group'">
  <t t-set="group" t-value="flatRow.group"/>

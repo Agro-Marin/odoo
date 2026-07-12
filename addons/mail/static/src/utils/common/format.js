@@ -19,9 +19,21 @@ import { escapeRegExp } from "@web/core/utils/format/strings";
 import { getOrigin } from "@web/core/utils/urls";
 const urlRegexp =
     /\b(?:https?:\/\/\d{1,3}(?:\.\d{1,3}){3}|(?:https?:\/\/|(?:www\.))[-a-z0-9@:%._+~#=\u00C0-\u024F\u1E00-\u1EFF]{1,256}(?:\.{1})?(?:[a-z]{2,13}))\b(?:[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|[.]*[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|,(?!$| )|\.(?!$| |\.)|;(?!$| ))*/gi;
-const messageUrlRegExp = new RegExp(
-    `^${escapeRegExp(getOrigin())}/mail/message/(\\d+)$`,
-);
+// Lazy: with native ESM this module is evaluated eagerly at bundle load,
+// before test tooling can mock the browser location, so capturing
+// ``getOrigin()`` in a module-level constant would freeze the wrong origin.
+let messageUrlRegExp;
+let messageUrlRegExpOrigin;
+function getMessageUrlRegExp() {
+    const origin = getOrigin();
+    if (messageUrlRegExpOrigin !== origin) {
+        messageUrlRegExpOrigin = origin;
+        messageUrlRegExp = new RegExp(
+            `^${escapeRegExp(origin)}/mail/message/(\\d+)$`,
+        );
+    }
+    return messageUrlRegExp;
+}
 
 /**
  * @param {string|ReturnType<markup>} rawBody
@@ -144,7 +156,7 @@ function linkify(text) {
             href,
         });
         link.textContent = url;
-        const messageMatch = messageUrlRegExp.exec(fixedUrl);
+        const messageMatch = getMessageUrlRegExp().exec(fixedUrl);
         if (messageMatch !== null) {
             setAttributes(link, {
                 "data-oe-id": messageMatch[1],

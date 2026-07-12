@@ -16,6 +16,7 @@ import {
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { usePosition } from "@web/core/position/position_hook";
+import { reposition } from "@web/core/position/utils";
 
 before(
     () =>
@@ -1350,4 +1351,21 @@ test("popper with the fit variant and a large content inside is resized to match
     await mountWithCleanup(TestComp);
     expect(queryOne("#target").getBoundingClientRect().top).toBe(225);
     expect("#popper").toHaveStyle({ top: "225px", height: "50px" });
+});
+
+test("reposition preserves a consumer-authored inline maxHeight across calls", () => {
+    const fixture = getFixture();
+    const target = document.createElement("div");
+    target.style.cssText = "width: 40px; height: 20px;";
+    const popper = document.createElement("div");
+    // The consumer authored its own inline max-height constraint.
+    popper.style.cssText = "height: 50px; width: 50px; max-height: 40px;";
+    fixture.append(target, popper);
+
+    reposition(popper, target, { position: "bottom" });
+    reposition(popper, target, { position: "bottom" });
+
+    // The naive "reset maxHeight to '' at start" wiped this on the 2nd pass;
+    // the WeakMap-based undo only touches a maxHeight WE applied.
+    expect(popper.style.maxHeight).toBe("40px");
 });

@@ -3,6 +3,22 @@
 
 /** @module @web/fields/field_utils - Shared utilities for field extractProps and configuration */
 
+import { exprToBoolean } from "@web/core/utils/format/strings";
+
+/**
+ * Shared ``autosave`` option extraction for fields that persist immediately on
+ * edit (boolean_toggle, boolean_favorite, priority, state_selection, color).
+ * The option defaults to ``true`` when unset — matching each widget's
+ * ``defaultProps.autosave = true``, so a props-only instantiation (no
+ * ``extractProps``) still persists instead of silently swallowing the write.
+ *
+ * @param {Record<string, any>} options
+ * @returns {boolean}
+ */
+export function extractAutosave(options) {
+    return "autosave" in options ? exprToBoolean(options.autosave) : true;
+}
+
 /**
  * Shared ``isEmpty`` predicate for field descriptors whose widget treats the
  * ORM ``false`` sentinel as "no value" (numeric and selection-like fields).
@@ -12,6 +28,22 @@
  * @returns {boolean}
  */
 export const isFalseEmpty = (record, fieldName) => record.data[fieldName] === false;
+
+/**
+ * Parse a raw XML dimension attribute (e.g. ``width="90"``) into a number for a
+ * Number-typed prop. Returns ``undefined`` for absent or non-numeric values so
+ * OWL prop validation doesn't trip on a leftover attribute string in dev.
+ *
+ * @param {unknown} value
+ * @returns {number | undefined}
+ */
+export function parseDimensionAttr(value) {
+    if (value === undefined || value === null || value === "") {
+        return undefined;
+    }
+    const parsed = parseInt(/** @type {any} */ (value), 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+}
 
 /**
  * The digits parameter is available as both an XML attribute (JSON string)

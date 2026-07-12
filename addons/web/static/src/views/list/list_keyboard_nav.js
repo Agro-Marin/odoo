@@ -94,7 +94,26 @@ export function useListKeyboardNavigation(tableRef, options) {
         expandCheckboxes,
         getSel,
         getVirtualization,
+        findFocusFutureCell,
     } = options;
+
+    /**
+     * Resolve the target cell for an arrow move, dispatching through the
+     * renderer-supplied (overridable) ``findFocusFutureCell`` when present so
+     * downstream renderer subclasses observe/redirect the move; falls back to
+     * the hook's internal facade otherwise.
+     *
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {"up" | "down" | "left" | "right"} direction
+     * @returns {HTMLElement | null}
+     */
+    const dispatchFutureCell = (cell, cellIsInGroupRow, direction) =>
+        (findFocusFutureCell || self.findFocusFutureCell)(
+            cell,
+            cellIsInGroupRow,
+            direction,
+        );
 
     /** Index tracking for cross-row navigation between group and data rows. */
     let lastKnownIndex = 0;
@@ -437,7 +456,12 @@ export function useListKeyboardNavigation(tableRef, options) {
                         // search bar does not transiently steal focus.
                         return true;
                     }
-                    toFocus = move && move.el;
+                    // When a renderer override is wired, resolve the concrete
+                    // cell through it so subclasses observe the move; the
+                    // internal facade is idempotent for the same cell/direction.
+                    toFocus = findFocusFutureCell
+                        ? dispatchFutureCell(cell, cellIsInGroupRow, "up")
+                        : move && move.el;
                     if (!toFocus && getEnv().searchModel) {
                         getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
                         return true;
@@ -451,7 +475,11 @@ export function useListKeyboardNavigation(tableRef, options) {
                         // event to prevent the default browser scroll.
                         return true;
                     }
-                    toFocus = move && move.el;
+                    // Dispatch through the renderer override when wired (see
+                    // arrowup) so subclass findFocusFutureCell participates.
+                    toFocus = findFocusFutureCell
+                        ? dispatchFutureCell(cell, cellIsInGroupRow, "down")
+                        : move && move.el;
                     break;
                 }
                 case "arrowleft":
@@ -463,11 +491,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                         const a = document.activeElement;
                         toFocus = a.previousElementSibling;
                     } else {
-                        toFocus = self.findFocusFutureCell(
-                            cell,
-                            cellIsInGroupRow,
-                            "left",
-                        );
+                        toFocus = dispatchFutureCell(cell, cellIsInGroupRow, "left");
                     }
                     break;
                 case "arrowright":
@@ -479,11 +503,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                         const a = document.activeElement;
                         toFocus = a.nextElementSibling;
                     } else {
-                        toFocus = self.findFocusFutureCell(
-                            cell,
-                            cellIsInGroupRow,
-                            "right",
-                        );
+                        toFocus = dispatchFutureCell(cell, cellIsInGroupRow, "right");
                     }
                     break;
                 case "tab":
@@ -527,6 +547,13 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 }
                 case "shift+space":
+                    // Group-header (and any non-record) rows have no record to
+                    // toggle. Without this guard onToggleRecordSelection(null)
+                    // -> toggleRangeSelection(null) dereferences records[-1] and
+                    // throws a TypeError.
+                    if (!record) {
+                        return false;
+                    }
                     onToggleRecordSelection(record);
                     toFocus = getElementToFocus(cell);
                     break;

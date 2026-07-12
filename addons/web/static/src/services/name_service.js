@@ -60,13 +60,25 @@ export const nameService = {
             cache = Object.create(null);
         }
 
+        // INVARIANT — miss-cache correctness depends on EXACTLY these two
+        // clear-cache events. A negative lookup result
+        // (``ERROR_INACCESSIBLE_OR_MISSING``, resolved below) is cached like a
+        // real name to stop a dead id in a saved filter re-fetching on every
+        // facet recomputation. That sentinel is only safe to cache because both
+        // events that can flip a record's *visibility* clear the whole cache:
+        //   1. ACTION_MANAGER:UPDATE — any action/controller change.
+        //   2. ACTIVE_COMPANIES_CHANGED — a company switch can make a
+        //      previously-inaccessible record readable; recoverFromSaveError
+        //      activates a company with reload:false, so NO
+        //      ACTION_MANAGER:UPDATE fires — this listener is load-bearing, not
+        //      redundant.
+        // KNOWN GAP: a visibility change with NO local event — e.g. an admin
+        // granting this user a res.groups membership in ANOTHER tab — leaves the
+        // ERROR sentinel cached until the next action/company switch in THIS
+        // tab. Accepted: the alternative (never caching misses) reintroduces the
+        // per-keystroke RPC storm this trades away. If a third visibility source
+        // is ever introduced, it MUST clearCache() here too.
         env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, clearCache);
-        // A company switch can make a previously-inaccessible record readable
-        // (recoverFromSaveError activates a company with reload:false, so no
-        // ACTION_MANAGER:UPDATE fires). Clearing here lets us KEEP miss
-        // sentinels cached (below) — repeated lookups of a genuinely-dead id
-        // in one view no longer re-fetch on every facet interaction — while
-        // still re-checking visibility when it can actually change.
         userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, clearCache);
 
         /**

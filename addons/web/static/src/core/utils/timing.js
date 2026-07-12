@@ -155,7 +155,10 @@ export function debounce(func, delay, options) {
             cancel(execNow = false) {
                 browser[clearFnName](handle);
                 handle = null;
-                if (execNow && lastArgs) {
+                // Only replay on cancel when a trailing execution was actually
+                // pending. In leading-only mode the trailing edge never runs,
+                // so cancel(true) must NOT resurrect the suppressed call.
+                if (execNow && trailing && lastArgs) {
                     const awaiters = pending;
                     pending = [];
                     execute(lastSelf, lastArgs, awaiters);
@@ -216,7 +219,7 @@ export function throttleForAnimation(func) {
     let handle = null;
     // Only the last pending call matters — use a single variable instead of
     // a Set + spread-to-array which allocated on every animation frame tick.
-    /** @type {{ args: any[], resolve: Function } | null} */
+    /** @type {{ args: any[], resolve: Function, reject: Function } | null} */
     let lastCall = null;
     const funcName = func.name
         ? `${func.name} (throttleForAnimation)`
@@ -226,11 +229,17 @@ export function throttleForAnimation(func) {
     const pending = () => {
         if (lastCall) {
             handle = browser.requestAnimationFrame(pending);
-            const { args, resolve } = lastCall;
+            const { args, resolve, reject } = lastCall;
             lastCall = null;
-            Promise.resolve(func.apply(self, args)).then(
-                /** @type {(v: any) => any} */ (resolve),
-            );
+            // Propagate rejections (and synchronous throws) to the awaiter,
+            // mirroring debounce. A bare `.then(resolve)` swallowed the error:
+            // the awaiter hung forever and the rejection surfaced only as an
+            // unhandledrejection.
+            try {
+                Promise.resolve(func.apply(self, args)).then(resolve, reject);
+            } catch (error) {
+                reject(error);
+            }
         } else {
             handle = null;
         }
@@ -240,11 +249,18 @@ export function throttleForAnimation(func) {
             /** @type {any} */
             [funcName](/** @type {any[]} */ ...args) {
                 self = this;
-                return new Promise((resolve) => {
+                return new Promise((resolve, reject) => {
                     const isNew = handle === null;
                     if (isNew) {
                         handle = browser.requestAnimationFrame(pending);
-                        Promise.resolve(func.apply(this, args)).then(resolve);
+                        try {
+                            Promise.resolve(func.apply(this, args)).then(
+                                resolve,
+                                reject,
+                            );
+                        } catch (error) {
+                            reject(error);
+                        }
                     } else {
                         if (lastCall) {
                             // Settle the superseded call with `undefined` (same
@@ -252,7 +268,7 @@ export function throttleForAnimation(func) {
                             // awaiters) — else `await throttled(...)` hangs forever.
                             lastCall.resolve(undefined);
                         }
-                        lastCall = { args, resolve };
+                        lastCall = { args, resolve, reject };
                     }
                 });
             },

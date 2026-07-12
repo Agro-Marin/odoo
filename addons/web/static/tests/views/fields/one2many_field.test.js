@@ -525,6 +525,10 @@ test("O2M with parented m2o and domain on parent.m2o", async () => {
         confirm: false,
     });
     await runAllTimers();
+    // "ABC" narrows the empty search but must still hit the server: name_search
+    // is not substring-monotonic (an exact code/barcode match can appear only at
+    // full length), so the empty-search memo must NOT suppress it.
+    expect.verifySteps(["web_name_search"]);
     await clickFieldDropdownItem("parent_id", "Create and edit...");
 
     await contains(

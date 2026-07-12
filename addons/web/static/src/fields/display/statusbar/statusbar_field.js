@@ -56,6 +56,9 @@ const show = (...els) => els.forEach((el) => el.classList.remove("d-none"));
 /** @extends {Component<StatusBarFieldProps>} */
 export class StatusBarField extends Component {
     static template = "web.StatusBarField";
+    // Upper bound on stages fetched for the many2one variant: a status bar is a
+    // pipeline widget, never a full-relation picker.
+    static RELATION_LIMIT = 100;
     static components = {
         Dropdown,
         DropdownItem,
@@ -131,6 +134,11 @@ export class StatusBarField extends Component {
                 }
                 const res = await orm.searchRead(relation, domain, fieldNames, {
                     context,
+                    // A status bar renders a bounded pipeline of stages; without
+                    // a cap a cold form pulls the ENTIRE relation for the handful
+                    // of arrows it shows. The current value is already OR'd into
+                    // `domain` above, so it survives the cap even past the limit.
+                    limit: StatusBarField.RELATION_LIMIT,
                 });
                 forceRecomputeItems = true;
                 return res;

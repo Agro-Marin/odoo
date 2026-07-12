@@ -166,7 +166,15 @@ function _collectTableRows(tree, columns, columnKeys, data, metaData, rows) {
         subGroupMeasurements,
     });
 
-    const subTreeKeys = tree.sortedKeys || [...tree.directSubTrees.keys()];
+    // Fall back to Map insertion order whenever sortedKeys is missing OR stale
+    // (its length no longer matches the live subtree set — e.g. a group
+    // expanded after a sort, or a transposed tree). An out-of-date sortedKeys
+    // would otherwise skip the newly added children (rendered as an empty
+    // expanded group).
+    const subTreeKeys =
+        tree.sortedKeys && tree.sortedKeys.length === tree.directSubTrees.size
+            ? tree.sortedKeys
+            : [...tree.directSubTrees.keys()];
     for (const subTreeKey of subTreeKeys) {
         const subTree = tree.directSubTrees.get(subTreeKey);
         _collectTableRows(subTree, columns, columnKeys, data, metaData, rows);

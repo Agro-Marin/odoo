@@ -262,13 +262,42 @@ export function computeChangeset({
 
         // x2many fields: delegate to command builder
         if (field.type === "one2many" || field.type === "many2many") {
+            // Defensive (urgent/tab-close path): x2many preprocessing may not
+            // have run, so ``value`` can still be the RAW command array the
+            // field dispatched (``[[0, 0, {...}]]``) instead of the StaticList
+            // ``_applyCommands`` installs. A raw array has no ``_getCommands``,
+            // so ``getCommands`` would throw a TypeError and abort the WHOLE
+            // save — on the sendBeacon path that means the beacon never fires
+            // and every pending field is silently lost. Treat a non-StaticList
+            // as "no commands": best-effort drop of this one x2many edit so
+            // every serializable field still reaches the server. On the normal
+            // path ``value`` is always a StaticList, so this never trips.
+            if (typeof value?._getCommands !== "function") {
+                if (isNew) {
+                    result[fieldName] = [];
+                }
+                continue;
+            }
             const commands = getCommands(fieldName, value, withReadonly);
             if (!isNew && !commands.length && !withReadonly) {
                 continue;
             }
             result[fieldName] = commands;
         } else {
-            result[fieldName] = formatServerValue(field.type, value);
+            const serverValue = formatServerValue(field.type, value);
+            // Defensive (urgent/tab-close path): a many2one still awaiting its
+            // ``name_create`` is a truthy ``{display_name}`` with no numeric id,
+            // which ``formatServerValue`` maps to ``undefined``. Emitting it
+            // would place an ``undefined`` on the payload that ``JSON.stringify``
+            // silently drops — the field is lost either way, but keeping it here
+            // lets it masquerade as a real write. Drop it explicitly so the
+            // changeset never carries an ``undefined`` and every OTHER field
+            // still saves. On the normal path m2o values always carry an id, so
+            // ``serverValue`` is never ``undefined`` here.
+            if (serverValue === undefined) {
+                continue;
+            }
+            result[fieldName] = serverValue;
         }
     }
 

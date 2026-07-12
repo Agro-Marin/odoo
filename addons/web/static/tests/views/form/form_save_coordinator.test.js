@@ -345,6 +345,41 @@ describe("FormSaveCoordinator — saveOverride", () => {
         // so caller-side props.saveRecord has access to its own context.
         expect(overrideArgs.params.custom).toBe("arg");
     });
+
+    test("a throwing saveOverride surfaces the error instead of returning false", async () => {
+        // Regression: with the default dialog errorMode (beforeLeave's mode),
+        // a saveOverride throw used to be swallowed into ``return false`` —
+        // blocking navigation with zero user feedback. It must propagate so the
+        // failure is visible (global error handler / caller try/catch).
+        const boom = new Error("embedder save failed");
+        const { coordinator } = makeContext();
+        const saveOverride = async () => {
+            throw boom;
+        };
+        let caught = null;
+        try {
+            await coordinator.requestSave({ saveOverride });
+        } catch (e) {
+            caught = e;
+        }
+        expect(caught).toBe(boom);
+        // The failure is recorded as the coordinator's lastError for diagnostics.
+        expect(coordinator.lastError).toBe(boom);
+        expect(coordinator.status).toBe("error");
+    });
+});
+
+describe("FormSaveCoordinator — dirty surface", () => {
+    test("reflects record.dirty (uncommitted user edits) independent of status", async () => {
+        const { coordinator, record } = makeContext({ dirty: true });
+        // The save-lifecycle status only tracks committed outcomes, so a
+        // freshly-typed-into record is still "clean" by status while genuinely
+        // dirty — the ``dirty`` getter exposes that truth.
+        expect(coordinator.status).toBe("clean");
+        expect(coordinator.dirty).toBe(true);
+        record.dirty = false;
+        expect(coordinator.dirty).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -517,10 +552,9 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         let call = 0;
         let firstSaveEnteredAt = null;
         let secondSaveEnteredAt = null;
-        let coordinator;
         // `save` is the only post-begin observation point that doesn't race the
         // awaits in requestSave; capture (status, epoch) as soon as each call lands.
-        ({ coordinator } = makeContext({
+        const { coordinator } = makeContext({
             save: () => {
                 const which = ++call;
                 if (which === 1) {
@@ -536,7 +570,7 @@ describe("FormSaveCoordinator — concurrent saves", () => {
                 };
                 return secondPromise;
             },
-        }));
+        });
 
         const firstSave = coordinator.requestSave();
         const secondSave = coordinator.requestSave();
@@ -592,13 +626,12 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         let resolveSave;
         const savePromise = new Promise((r) => (resolveSave = r));
         let statusInsideSave = null;
-        let coordinator;
-        ({ coordinator } = makeContext({
+        const { coordinator } = makeContext({
             save: () => {
                 statusInsideSave = coordinator.status;
                 return savePromise;
             },
-        }));
+        });
 
         const savePending = coordinator.requestSave();
         // Pump microtasks so the save mock has had a chance to run.

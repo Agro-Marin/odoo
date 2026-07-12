@@ -234,7 +234,17 @@ export class PropertyDefinitionSelection extends Component {
     onOptionDelete(optionIndex) {
         const options = this.optionsVisible;
         options.splice(optionIndex, 1);
-        this.props.onOptionsChange(options);
+        // `optionsVisible` may still carry a pending empty `[uuid, ""]` option
+        // (state.newOption). Propagating it would persist an empty option and
+        // duplicate its uuid t-key on the next render. Filter empties and clear
+        // the pending option, exactly like onOptionChange does.
+        const nonEmptyOptions = options.filter(
+            (option) => option[1] && option[1].length,
+        );
+        this.props.onOptionsChange(nonEmptyOptions);
+        if (this.state.newOption) {
+            this.state.newOption = null;
+        }
     }
 
     /**

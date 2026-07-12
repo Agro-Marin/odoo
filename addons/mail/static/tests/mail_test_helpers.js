@@ -39,6 +39,7 @@ import {
     DISCUSS_ACTION_ID,
     authenticateGuest,
     mailDataHelpers,
+    registerMailMockRoutes,
 } from "./mock_server/mail_mock_server.js";
 import { Base } from "./mock_server/mock_models/base.js";
 import { DiscussChannel } from "./mock_server/mock_models/discuss_channel.js";
@@ -103,6 +104,10 @@ addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {
 //-----------------------------------------------------------------------------
 
 export function defineMailModels() {
+    // Bind the mail mock-server routes to the calling test file's suite: the
+    // module-level registrations in mail_mock_server.js only bind to the file
+    // that first imported it (see registerMailMockRoutes).
+    registerMailMockRoutes();
     defineParams({ suite: "mail" }, "replace");
     return defineModels(mailModels);
 }

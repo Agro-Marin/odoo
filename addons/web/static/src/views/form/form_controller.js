@@ -58,6 +58,16 @@ import { FormStatusIndicator } from "./form_status_indicator/form_status_indicat
 import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
 
 /**
+ * Per-``props.archInfo`` memo of the footer-stripped arch clone (+ the extracted
+ * footer arch). Keyed by the shared arch object's identity so repeated
+ * controller instantiations with identical props reuse the SAME stripped
+ * Element, letting the view compiler's Element-keyed ``archKeyCache`` hit
+ * instead of re-serializing the arch on every dialog open.
+ * @type {WeakMap<object, { footerArchInfo: object, strippedArchInfo: object }>}
+ */
+const footerArchInfoCache = new WeakMap();
+
+/**
  * Controller for the form view.
  *
  * Manages a single record: loading, saving, discarding, duplicating, archiving,
@@ -229,15 +239,38 @@ export class FormController extends Component {
             // (remount with identical props, error-recovery re-render), which
             // would otherwise find its footers already stripped. The
             // controller keeps its own footer-less copy on this.archInfo.
-            const xmlDoc = this.archInfo.xmlDoc.cloneNode(true);
-            this.footerArchInfo = { ...this.archInfo };
-            this.footerArchInfo.xmlDoc = createElement("t");
-            for (const footer of xmlDoc.querySelectorAll("footer:not(field footer)")) {
-                // append() moves the node out of the cloned doc
-                this.footerArchInfo.xmlDoc.append(footer);
+            //
+            // Memoize the footer-stripped clone per props.archInfo: a fresh
+            // clone is a brand-new Element, so ``useViewCompiler``'s
+            // ``archKeyCache`` (WeakMap keyed by Element identity) would miss
+            // and re-serialize + recompile the whole arch on every dialog open.
+            // The clone is only mutated once (footers moved out during this
+            // block) and thereafter read-only (compiled by value), so it is
+            // safe to share the same stripped Element across instantiations.
+            let cached = footerArchInfoCache.get(this.props.archInfo);
+            if (!cached) {
+                const xmlDoc = this.archInfo.xmlDoc.cloneNode(true);
+                const footerArchInfo = { ...this.archInfo };
+                footerArchInfo.xmlDoc = createElement("t");
+                for (const footer of xmlDoc.querySelectorAll(
+                    "footer:not(field footer)",
+                )) {
+                    // append() moves the node out of the cloned doc
+                    footerArchInfo.xmlDoc.append(footer);
+                }
+                footerArchInfo.arch = footerArchInfo.xmlDoc.outerHTML;
+                cached = {
+                    footerArchInfo,
+                    strippedArchInfo: {
+                        ...this.archInfo,
+                        xmlDoc,
+                        arch: xmlDoc.outerHTML,
+                    },
+                };
+                footerArchInfoCache.set(this.props.archInfo, cached);
             }
-            this.footerArchInfo.arch = this.footerArchInfo.xmlDoc.outerHTML;
-            this.archInfo = { ...this.archInfo, xmlDoc, arch: xmlDoc.outerHTML };
+            this.footerArchInfo = cached.footerArchInfo;
+            this.archInfo = cached.strippedArchInfo;
         }
 
         const xmlDocButtonBox = this.archInfo.xmlDoc.querySelector(
@@ -533,12 +566,39 @@ export class FormController extends Component {
         return saved;
     }
 
-    async beforeUnload(ev) {
-        const succeeded = await this.saveCoordinator.requestUrgentSave();
-        if (!succeeded) {
-            ev.preventDefault();
-            ev.returnValue = "Unsaved changes";
+    beforeUnload(ev) {
+        const record = this.model.root;
+        // A record is beacon-eligible only when it already exists (sendBeacon
+        // cannot return the new id for a creation), is not inside a dialog, and
+        // the model opted into sendBeacon urgent saves. Only that path reaches
+        // navigator.sendBeacon() synchronously and settles in microtasks, so a
+        // late ``ev.preventDefault()`` after awaiting is still honored.
+        const canBeacon =
+            Boolean(record.resId) &&
+            !this.env.inDialog &&
+            this.model.useSendBeaconToSaveUrgently;
+        if (!canBeacon) {
+            // Non-beaconable record (a dirty NEW/creation record, or a dialog
+            // form): the urgent save would ``await`` a real web_save macrotask,
+            // so ``ev.preventDefault()`` would land after the synchronous
+            // beforeunload dispatch has already returned — too late for the
+            // browser to honor it — while the in-flight fetch is aborted by the
+            // navigation, silently losing the user's work. Block the unload
+            // SYNCHRONOUSLY instead (preventDefault BEFORE any await) so the
+            // browser shows its native "unsaved changes" prompt while the record
+            // is still dirty and the user can save manually.
+            if (record.dirty) {
+                ev.preventDefault();
+                ev.returnValue = "Unsaved changes";
+            }
+            return;
         }
+        return this.saveCoordinator.requestUrgentSave().then((succeeded) => {
+            if (!succeeded) {
+                ev.preventDefault();
+                ev.returnValue = "Unsaved changes";
+            }
+        });
     }
 
     getStaticActionMenuItems() {

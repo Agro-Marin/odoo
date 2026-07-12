@@ -165,7 +165,18 @@ export async function startServices(env) {
         // microtask window between the pass's last wave settling and its
         // post-await checks — a leftover the old code misreported as a
         // circular dependency.
-        await _startServices(env, new Map());
+        try {
+            await _startServices(env, new Map());
+        } catch (error) {
+            // This runs as an event-listener callback: a rejection here is
+            // awaited by nobody and would surface only as a context-free
+            // unhandled rejection. Log which async startup pass failed so a
+            // late-registered service that throws on start is diagnosable.
+            console.error(
+                "[env] service startup pass (registry UPDATE) failed:",
+                error,
+            );
+        }
     };
     // If startServices is called more than once on the same env (test patterns
     // that re-run startup after an expected throw, for instance), drop the

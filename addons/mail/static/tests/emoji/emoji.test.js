@@ -1,5 +1,5 @@
 import {
-    defineParams,
+    patchTranslations,
     patchWithCleanup,
     preloadBundle,
     serverState,
@@ -19,18 +19,32 @@ import {
 import { describe, getFixture, test } from "@odoo/hoot";
 
 import { queryFirst } from "@odoo/hoot-dom";
+import { loader as emojiLoader } from "@web/components/emoji_picker/emoji_picker";
 
 describe.current.tags("desktop");
 defineMailModels();
 preloadBundle("web.assets_emoji");
 
 test("emoji picker correctly handles translations with special characters", async () => {
-    defineParams({
-        translations: {
+    // patchTranslations (not defineParams) so the terms are applied
+    // synchronously: the localization service keeps an IndexedDB cache warm
+    // across tests, so server-provided translations may only land after the
+    // emoji data was already parsed.
+    patchTranslations({
+        web: {
             "Japanese “here” button": `Bouton "ici" japonais`,
             "heavy dollar sign": `Symbole du dollar\nlourd`,
         },
     });
+    // The emoji data translates its terms when first parsed and caches the
+    // result for the whole browser session: drop the cache so this test's
+    // translations are applied even when another test parsed the data first.
+    // Reset through the PICKER's module instance (bundling may duplicate
+    // emoji_data; only the instance the picker resolves to matters).
+    const pickerModule =
+        odoo.loader.modules.get("@web/components/emoji_picker/emoji_picker") ??
+        (await import("@web/components/emoji_picker/emoji_picker"));
+    await pickerModule.resetLoadedEmojiData?.();
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "" });
     await start();
@@ -175,9 +189,9 @@ test("search matches only frequently used emojis", async () => {
     await contains(".o-EmojiPicker-sectionIcon", { count: 0 }); // await search performed
     await contains(".o-EmojiPicker-content .o-Emoji:eq(0)", { text: "🥦" });
     await contains(".o-EmojiPicker-content .o-Emoji", { count: 1 });
-    await contains(".o-EmojiPicker-content", { text: "No emoji matches your search", count: 0 });
+    await contains(".o-EmojiPicker-content", { text: "No emojis match your search", count: 0 });
     await insertText(".o-EmojiPicker-search input", "2");
-    await contains(".o-EmojiPicker-content", { text: "No emoji matches your search" });
+    await contains(".o-EmojiPicker-content", { text: "No emojis match your search" });
 });
 
 test("emoji usage amount orders frequent emojis", async () => {
@@ -244,10 +258,12 @@ test("shortcodes shown in emoji title in message", async () => {
 });
 
 test("Emoji picker shows failure to load emojis", async () => {
-    // Simulate failure to load emojis
-    patchWithCleanup(odoo.loader.modules.get("@web/components/emoji_picker/emoji_data"), {
-        getEmojis() {
-            return [];
+    // Simulate failure to load emojis. ES module namespaces are not
+    // patchable, so make the bundle loader itself fail: loadEmoji() then
+    // resolves with no emoji at all.
+    patchWithCleanup(emojiLoader, {
+        loadEmoji() {
+            throw new Error("simulated emoji bundle loading failure");
         },
     });
     const pyEnv = await startServer();

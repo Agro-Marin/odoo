@@ -1,5 +1,5 @@
 import { after, Deferred, mockWorker } from "@odoo/hoot";
-import { MockServer, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { MockServer } from "@web/../tests/web_test_helpers";
 
 import { WebsocketWorker } from "@bus/workers/websocket_worker";
 import { patch } from "@web/core/utils/patch";
@@ -84,7 +84,15 @@ export function onWebsocketEvent(eventName, callback) {
 // Setup
 //-----------------------------------------------------------------------------
 
-patchWithCleanup(MockServer.prototype, {
+// Permanent patch (NOT ``patchWithCleanup``): this module is imported at
+// bundle-load time inside the synthetic suite of the FIRST test file that
+// pulls it in (see ``start.hoot.js::_importInFileSuite``), so a
+// ``patchWithCleanup`` here would register its unpatch as an after-suite
+// hook of that suite. Once that suite ends, ``MockServer.start`` would
+// silently lose the websocket-worker wiring for every later suite —
+// ``getWebSocketWorker()`` returns null and all bus tests cascade-fail.
+// Same pattern as ``mock_base_worker.js`` / ``mock_election_worker.js``.
+patch(MockServer.prototype, {
     start() {
         setupWebSocketWorker();
         after(cleanupWebSocketWorker);

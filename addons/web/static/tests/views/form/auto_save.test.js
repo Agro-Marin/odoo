@@ -419,6 +419,37 @@ test("save on closing tab/browser (not dirty)", async () => {
     expect.verifySteps([]);
 });
 
+test("save on closing tab/browser (dirty NEW record blocks unload)", async () => {
+    // A new/creation record cannot be persisted via sendBeacon (it can't return
+    // the server-assigned id) and awaiting a real web_save would run
+    // ev.preventDefault() a macrotask too late — so the user's work used to be
+    // silently lost. The unload must instead be blocked SYNCHRONOUSLY so the
+    // browser shows its native "unsaved changes" prompt.
+    mockSendBeacon(() => expect.step("sendBeacon"));
+    onRpc("partner", "web_save", () => expect.step("save"));
+
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `
+            <form>
+                <group>
+                    <field name="name"/>
+                </group>
+            </form>
+        `,
+        // no resId -> creation / new record
+    });
+    await contains(`.o_field_widget[name="name"] input`).edit("test");
+
+    const [event] = await unload();
+    await animationFrame();
+    // No sendBeacon (can't) and no fire-and-forget web_save (would be aborted by
+    // the navigation) — just a synchronous block.
+    expect.verifySteps([]);
+    expect(event.defaultPrevented).toBe(true);
+});
+
 test("save on closing tab/browser (not dirty but trailing spaces)", async () => {
     Partner._fields.expertise = fields.Char({ trim: true });
     Partner._records[0].expertise = "name with trailing spaces   ";

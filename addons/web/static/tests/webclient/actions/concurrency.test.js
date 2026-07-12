@@ -25,6 +25,7 @@ import {
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
@@ -385,6 +386,52 @@ test("execute a new action while switching to another controller", async () => {
         message: "should not display the form view of action 3",
     });
     expect.verifySteps([]);
+});
+
+test.tags("desktop");
+test("a navigation blocked in clearUncommittedChanges can't mount over a newer one", async () => {
+    // KeepLast guards only the load phase. If an action finishes loading, enters
+    // its executor, and then blocks in clearUncommittedChanges (a save dialog
+    // awaiting the user), a NEWER action can load and mount underneath it in the
+    // meantime. When the save finally resolves, the earlier (now stale) action
+    // must NOT mount on top of the newer one — the executor re-checks the
+    // navigation generation after the await.
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+
+    // Arm a one-shot slow clearUncommittedChanges: the first transition to ask
+    // for consent blocks on ``saveDef`` (simulating an open save dialog).
+    const saveDef = new Deferred();
+    let armed = true;
+    am.env.bus.addEventListener(AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
+        if (armed) {
+            armed = false;
+            ev.detail.push(() => saveDef);
+        }
+    });
+
+    // A: pony list — loads fully, then blocks in clearUncommittedChanges.
+    const navA = am.doAction(8);
+    await animationFrame();
+    expect(".o_list_view").toHaveCount(0, {
+        message: "A is blocked in clearUncommittedChanges, nothing mounted yet",
+    });
+
+    // B: partner kanban — newer navigation, its clearUncommittedChanges is
+    // disarmed so it proceeds and mounts.
+    await am.doAction(4);
+    expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
+
+    // Unblock A: it must abort instead of mounting over B.
+    saveDef.resolve(true);
+    await navA;
+    await animationFrame();
+    expect(".o_kanban_view").toHaveCount(1, {
+        message: "B (newer) is still shown after A unblocks",
+    });
+    expect(".o_list_view").toHaveCount(0, {
+        message: "A (older, superseded) never mounted",
+    });
 });
 
 test("execute a new action while loading views", async () => {

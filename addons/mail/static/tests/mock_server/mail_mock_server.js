@@ -81,6 +81,29 @@ const onRpcAfterGlobal = { cb: (route, args) => {} };
 // We should use `onRpcBefore`/`onRpcAfter` with 1st parameter being (route, args) callback function
 registry.category("mail.on_rpc_before_global").add(true, onRpcBeforeGlobal);
 registry.category("mail.on_rpc_after_global").add(true, onRpcAfterGlobal);
+
+/**
+ * All `[route, handler]` pairs collected by `registerRoute`. Module-level
+ * `onRpc` registrations are scoped to whichever test-file suite happened to
+ * be importing when this module was first evaluated (the ESM loader imports
+ * every test file inside its own synthetic suite — see
+ * `start.hoot.js/_importInFileSuite`), so they are lost for every other test
+ * file. `registerMailMockRoutes()` replays them for the calling file's suite.
+ */
+const registeredRoutes = [];
+
+/**
+ * (Re-)register every collected mock route for the current suite. Must be
+ * called at the top level of each test file's module (this is done by
+ * `defineMailModels()`), so the `onRpc` registrations bind to that file's
+ * suite and every test in the file sees the mail mock routes.
+ */
+export function registerMailMockRoutes() {
+    for (const [route, handler] of registeredRoutes) {
+        onRpc(route, handler);
+    }
+}
+
 export function registerRoute(route, handler) {
     async function beforeCallableHandler(request) {
         let args;
@@ -105,6 +128,7 @@ export function registerRoute(route, handler) {
         return response;
     }
     mockRpcRegistry.add(route, beforeCallableHandler);
+    registeredRoutes.push([route, beforeCallableHandler]);
     onRpc(route, beforeCallableHandler);
 }
 

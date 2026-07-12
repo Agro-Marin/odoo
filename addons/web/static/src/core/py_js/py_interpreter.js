@@ -13,6 +13,7 @@ import {
     pyStr,
     pyTypeName,
 } from "./py_builtin.js";
+import { isEqual, isIn, isLess } from "./py_compare.js";
 import {
     NotSupportedError,
     PyDate,
@@ -58,203 +59,11 @@ const BLOCKED_PROPERTIES = new Set([
 const MAX_EVAL_DEPTH = 100;
 
 /**
- * Order: None < number (boolean) < dict < string < list. Each type maps to
- * an index representing that order.
- *
- * @param {any} val
- * @returns {number} index type
- */
-function pytypeIndex(val) {
-    switch (typeof val) {
-        case "object":
-            // None, List, Object, Dict
-            return val === null ? 1 : Array.isArray(val) ? 5 : 3;
-        case "number":
-            return 2;
-        case "string":
-            return 4;
-    }
-    throw new EvaluationError(`Unknown type: ${typeof val}`);
-}
-
-/**
  * @param {Function} obj
  * @returns {boolean}
  */
 function isConstructor(obj) {
     return !!obj.prototype && !!obj.prototype.constructor.name;
-}
-
-/**
- * Concrete date/time kind of a Py* temporal value, or null. PyTime extends
- * PyDate, so it must be tested first.
- *
- * @param {any} value
- * @returns {"date" | "datetime" | "time" | null}
- */
-function pyDateKind(value) {
-    if (value instanceof PyTime) {
-        return "time";
-    }
-    if (value instanceof PyDate) {
-        return "date";
-    }
-    if (value instanceof PyDateTime) {
-        return "datetime";
-    }
-    return null;
-}
-
-/**
- * Compare two values
- *
- * @param {any} left
- * @param {any} right
- * @returns {boolean}
- */
-function isLess(left, right) {
-    if (typeof left === "number" && typeof right === "number") {
-        return left < right;
-    }
-    if (typeof left === "boolean") {
-        left = left ? 1 : 0;
-    }
-    if (typeof right === "boolean") {
-        right = right ? 1 : 0;
-    }
-    // Cross-kind temporal ordering is a TypeError in Python. Without this
-    // guard the relational operator would silently compare the incompatible
-    // valueOf() scales (date ordinal vs datetime epoch-µs vs time seconds).
-    const leftDateKind = pyDateKind(left);
-    const rightDateKind = pyDateKind(right);
-    if (leftDateKind && rightDateKind && leftDateKind !== rightDateKind) {
-        throw new NotSupportedError(
-            `not supported between instances of '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
-        );
-    }
-    const leftIndex = pytypeIndex(left);
-    const rightIndex = pytypeIndex(right);
-    if (leftIndex === rightIndex) {
-        if (Array.isArray(left) && Array.isArray(right)) {
-            // Python lists compare lexicographically element-by-element, NOT
-            // by their string coercion: `[2] < [10]` is True. `left < right`
-            // would stringify to "2" < "10" → false.
-            const n = Math.min(left.length, right.length);
-            for (let i = 0; i < n; i++) {
-                if (isLess(left[i], right[i])) {
-                    return true;
-                }
-                if (isLess(right[i], left[i])) {
-                    return false;
-                }
-            }
-            return left.length < right.length;
-        }
-        return left < right;
-    }
-    return leftIndex < rightIndex;
-}
-
-/**
- * @param {any} left
- * @param {any} right
- * @returns {boolean}
- */
-function isEqual(left, right) {
-    if (typeof left !== typeof right) {
-        if (typeof left === "boolean" && typeof right === "number") {
-            return right === (left ? 1 : 0);
-        }
-        if (typeof left === "number" && typeof right === "boolean") {
-            return left === (right ? 1 : 0);
-        }
-        return false;
-    }
-    // Typed Py* objects (PyDate, PyTimeDelta, ...) carry their own equality.
-    // Guard with a typeof check so a plain context dict that happens to have an
-    // ``isEqual`` key (a data value, not a method) doesn't get called.
-    if (left instanceof Object && typeof left.isEqual === "function") {
-        return left.isEqual(right);
-    }
-    if (Array.isArray(left) || Array.isArray(right)) {
-        if (!Array.isArray(left) || !Array.isArray(right)) {
-            return false;
-        }
-        return (
-            left.length === right.length && left.every((v, i) => isEqual(v, right[i]))
-        );
-    }
-    if (left instanceof Set || right instanceof Set) {
-        if (
-            !(left instanceof Set) ||
-            !(right instanceof Set) ||
-            left.size !== right.size
-        ) {
-            return false;
-        }
-        for (const v of left) {
-            let found = false;
-            for (const w of right) {
-                if (isEqual(v, w)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return false;
-            }
-        }
-        return true;
-    }
-    if (
-        left !== null &&
-        right !== null &&
-        typeof left === "object" &&
-        typeof right === "object"
-    ) {
-        // Plain dicts: deep-compare own enumerable keys. If either side exposes
-        // a custom ``isEqual`` method it's a typed Py* object, not a dict.
-        if (typeof left.isEqual === "function" || typeof right.isEqual === "function") {
-            return false;
-        }
-        const leftKeys = Object.keys(left);
-        const rightKeys = Object.keys(right);
-        if (leftKeys.length !== rightKeys.length) {
-            return false;
-        }
-        return leftKeys.every(
-            (k) => Object.hasOwn(right, k) && isEqual(left[k], right[k]),
-        );
-    }
-    return left === right;
-}
-
-/**
- * @param {any} left
- * @param {any} right
- * @returns {boolean}
- */
-function isIn(left, right) {
-    if (Array.isArray(right)) {
-        // Python ``in`` uses ``==`` per element, so deep-compare (``[1,2] in
-        // [[1,2]]`` is True) rather than JS strict ``includes``.
-        return right.some((x) => isEqual(left, x));
-    }
-    if (typeof right === "string" && typeof left === "string") {
-        return right.includes(left);
-    }
-    if (right instanceof Set) {
-        for (const x of right) {
-            if (isEqual(left, x)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    if (right != null && typeof right === "object") {
-        return Object.hasOwn(right, left);
-    }
-    return false;
 }
 
 const DICT = {
@@ -900,8 +709,19 @@ function _applyBinaryOp(ast, recurse) {
             const timeDeltaOnLeft = left instanceof PyTimeDelta;
             const timeDeltaOnRight = right instanceof PyTimeDelta;
             if (timeDeltaOnLeft || timeDeltaOnRight) {
+                if (timeDeltaOnLeft && timeDeltaOnRight) {
+                    // Python: timedelta * timedelta is a TypeError (only
+                    // timedelta * number is defined). Reject instead of feeding
+                    // a timedelta into multiply() as the scalar factor.
+                    throw new EvaluationError(
+                        "unsupported operand type(s) for *: 'timedelta' and 'timedelta'",
+                    );
+                }
                 const number = timeDeltaOnLeft ? right : left;
                 const delta = timeDeltaOnLeft ? left : right;
+                // A non-numeric factor (e.g. td * "x") must raise, not coerce
+                // to NaN inside multiply().
+                assertNumericOperand("*", number);
                 return delta.multiply(number);
             }
 
@@ -1028,20 +848,42 @@ function _applyBinaryOp(ast, recurse) {
         case "<<":
         case ">>": {
             assertIntegerOperands(ast.op, left, right);
-            const l = Number(left);
-            const r = Number(right);
+            // JS ``|`` ``^`` ``&`` ``<<`` ``>>`` coerce operands to 32-bit
+            // signed ints, so ``1 << 40`` wrapped to 256 and ``4294967296 | 1``
+            // truncated to 1 — silently wrong versus Python's arbitrary-precision
+            // ints. Do the maths in BigInt, then narrow back, raising if the
+            // exact result no longer fits a JS safe integer.
+            const l = BigInt(left);
+            const r = BigInt(right);
+            if ((ast.op === "<<" || ast.op === ">>") && r < 0n) {
+                throw new EvaluationError("negative shift count");
+            }
+            let result;
             switch (ast.op) {
                 case "|":
-                    return l | r;
+                    result = l | r;
+                    break;
                 case "^":
-                    return l ^ r;
+                    result = l ^ r;
+                    break;
                 case "&":
-                    return l & r;
+                    result = l & r;
+                    break;
                 case "<<":
-                    return l << r;
+                    result = l << r;
+                    break;
                 default:
-                    return l >> r;
+                    result = l >> r;
             }
+            if (
+                result > BigInt(Number.MAX_SAFE_INTEGER) ||
+                result < BigInt(Number.MIN_SAFE_INTEGER)
+            ) {
+                throw new EvaluationError(
+                    `integer result of '${ast.op}' exceeds the safe integer range`,
+                );
+            }
+            return Number(result);
         }
     }
     throw new EvaluationError(`Unknown binary operator: ${ast.op}`);

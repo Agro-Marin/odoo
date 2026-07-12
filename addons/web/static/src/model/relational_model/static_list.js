@@ -501,7 +501,21 @@ export class StaticList extends DataPoint {
                 this.records.pop();
             }
             this._currentIds.splice(this.offset, 0, record._virtualId);
-            this._commands.unshift(command);
+            // Insert the CREATE just AFTER any leading SET/CLEAR command rather
+            // than at index 0: a raw ``unshift`` puts CREATE before a SET (from
+            // ``_replaceWith``), and the server applies commands in order — it
+            // would create the row, then the SET/CLEAR replaces the whole
+            // relation and drops it. With no SET/CLEAR the index is 0, i.e. the
+            // previous unshift behaviour.
+            let insertAt = 0;
+            while (
+                insertAt < this._commands.length &&
+                (this._commands[insertAt][0] === x2ManyCommands.SET ||
+                    this._commands[insertAt][0] === x2ManyCommands.CLEAR)
+            ) {
+                insertAt++;
+            }
+            this._commands.splice(insertAt, 0, command);
         } else if (position === "bottom") {
             this.records.push(record);
             this._currentIds.splice(this.offset + this.limit, 0, record._virtualId);

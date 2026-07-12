@@ -54,29 +54,50 @@ export const profilingService = {
             notify,
         );
 
-        // Populate from the lazy session once it arrives.  Each assignment goes
-        // through the reactive proxy so ``notify`` re-runs and the systray
-        // updates when a profiling session was active on page load.
-        lazy_session.getValue("profile_session", (value) => {
-            if (value) {
-                state.session = value;
+        // Monotonic generation bumped on every user-driven state change
+        // (setProfiling). Lazy-session values captured at boot are only applied
+        // if the generation is unchanged: a slow lazy fetch must never overwrite
+        // a fresh toggle the user made in the meantime (e.g. a late
+        // ``profile_session`` string clobbering a just-turned-off ``false``).
+        let stateGeneration = 0;
+
+        /**
+         * Apply a boot-time lazy-session value into ``state[stateKey]`` unless
+         * the user changed state since the fetch started. Retries the fetch
+         * once on transient failure so a single hiccup can't strand profiling
+         * on defaults for the whole page.
+         *
+         * @param {string} sessionKey lazy_session key
+         * @param {string} stateKey reactive state slot
+         */
+        async function loadLazyState(sessionKey, stateKey) {
+            const bootGeneration = stateGeneration;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    const value = await lazy_session.getValue(sessionKey);
+                    if (value && stateGeneration === bootGeneration) {
+                        // Assign through the reactive proxy so ``notify`` re-runs
+                        // and the systray updates for a session active on load.
+                        state[stateKey] = value;
+                    }
+                    return;
+                } catch {
+                    // Transient failure: retry once, then give up (keep default).
+                }
             }
-        });
-        lazy_session.getValue("profile_collectors", (value) => {
-            if (value) {
-                state.collectors = value;
-            }
-        });
-        lazy_session.getValue("profile_params", (value) => {
-            if (value) {
-                state.params = value;
-            }
-        });
+        }
+        // Populate from the lazy session once it arrives.
+        loadLazyState("profile_session", "session");
+        loadLazyState("profile_collectors", "collectors");
+        loadLazyState("profile_params", "params");
 
         const bus = new EventBus();
         notify();
 
         async function setProfiling(params) {
+            // User-driven change: bump the generation so any still-in-flight
+            // boot-time lazy value is discarded instead of overwriting this.
+            stateGeneration++;
             const kwargs = Object.assign(
                 {
                     collectors: state.collectors,

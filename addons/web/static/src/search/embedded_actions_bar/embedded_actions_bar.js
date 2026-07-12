@@ -68,6 +68,11 @@ export class EmbeddedActionsConfigHandler {
         this.currentActiveId = currentActiveId;
         this.parentResModel = parentResModel;
         this.embeddedActionsKey = `${this.parentActionId}+${this.currentActiveId || ""}`;
+        // Read-only: `user.settings` is a shared (often deep-frozen) session
+        // object, so assigning back to it (`??=`) throws. A fresh `|| {}` means
+        // config mutations made before the server first returns this key don't
+        // survive a remount, but that edge case isn't worth writing to a frozen
+        // object; a session-shared store would be the way to fix it if needed.
         this.embeddedActionsConfig = user.settings.embedded_actions_config_ids || {};
         this.orm = ormService;
         this.notification = notificationService;
@@ -592,6 +597,12 @@ export class EmbeddedActions {
             (a, b) => {
                 const indexA = order.indexOf(a.id);
                 const indexB = order.indexOf(b.id);
+                // Both missing from the persisted order: treat as equal.
+                // Returning 1 for both (a,b) and (b,a) — as before — is an
+                // inconsistent comparator (undefined sort behaviour).
+                if (indexA === -1 && indexB === -1) {
+                    return 0;
+                }
                 if (indexA === -1) {
                     return 1;
                 }
@@ -610,7 +621,12 @@ export class EmbeddedActions {
      * @param {HTMLElement} params.element
      * @param {HTMLElement} [params.previous]
      */
-    reorderFromDrop({ element, previous }) {
+    async reorderFromDrop({ element, previous }) {
+        // Snapshot the pre-drop order so a persistence failure reverts the
+        // dragged tab back (mirrors toggleActionVisibility, which awaits +
+        // restores); a fire-and-forget write would leave the UI reordered
+        // while the server kept the old order.
+        const previousActions = [...this.embeddedInfos.embeddedActions];
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
         const elementId = Number(element.dataset.id) || false;
         const elementIndex = order.indexOf(elementId);
@@ -622,9 +638,12 @@ export class EmbeddedActions {
             order.splice(0, 0, elementId);
         }
         this.sortActions(order);
-        this.configHandler.setEmbeddedActionsConfig({
+        const saved = await this.configHandler.setEmbeddedActionsConfig({
             embedded_actions_order: order,
         });
+        if (!saved) {
+            this.embeddedInfos.embeddedActions = previousActions;
+        }
     }
 }
 
@@ -732,6 +751,15 @@ export class EmbeddedActionsBar extends Component {
      * @returns {boolean}
      */
     _isEmbeddedActionVisible(action) {
+        // Read visibleEmbeddedActions from the bar's OWN reactive state so that
+        // a visibility toggle re-renders the tab bar directly, in the same
+        // frame as the toggle. Delegating the decision solely to the prop
+        // (which reads the parent ControlPanel's reactive) subscribed only the
+        // ControlPanel, so the bar refreshed one frame late via the parent's
+        // render cascade — after hoot's click settled (embedded_action
+        // visibility tests saw the stale tab count). The result is still routed
+        // through the prop so a ControlPanel subclass can override visibility.
+        void this.state.embeddedInfos.visibleEmbeddedActions.includes(action.id);
         return this.props.isActionVisible(action);
     }
 

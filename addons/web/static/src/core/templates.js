@@ -109,10 +109,19 @@ export class TemplateRegistry {
      */
     _parse(templateString) {
         const doc = this._parser.parseFromString(templateString, "text/xml");
+        const parseError = doc.querySelector("parsererror");
+        if (parseError) {
+            // A malformed template was previously compiled as-is (the
+            // <parsererror> doc), or `firstChild` picked up a leading
+            // comment/PI (a non-Element) and later blew up on `.getAttribute`.
+            throw new Error(`Invalid template:\n${parseError.textContent}`);
+        }
         for (const processor of this.templateProcessors) {
             processor(doc);
         }
-        return /** @type {Element} */ (doc.firstChild);
+        // documentElement is the root Element, robust to leading comments /
+        // processing instructions that would make firstChild a non-Element.
+        return doc.documentElement;
     }
 
     /**

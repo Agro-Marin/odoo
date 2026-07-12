@@ -159,6 +159,15 @@ export class SearchModel extends EventBus {
         this.intervalOptions = getIntervalOptions();
         this.categoriesLoadId = 0;
         this.filtersLoadId = 0;
+        // Per-section stale-response guard (keyed by section id). A model-wide
+        // counter dropped the in-flight fetch of every section whenever a later
+        // reload fetched only a subset (e.g. the counter-bearing ones): the
+        // expand/no-counter sections, fetched exactly once at load(), were then
+        // discarded and never refetched, silently disappearing. Tracking a
+        // per-section load id means a fetch is only superseded by a newer fetch
+        // OF THE SAME SECTION.
+        /** @type {Map<number, number>} */
+        this._sectionLoadIds = new Map();
     }
 
     /**

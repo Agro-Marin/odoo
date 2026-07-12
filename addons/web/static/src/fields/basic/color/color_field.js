@@ -14,6 +14,13 @@ export class ColorField extends Component {
         ...standardFieldProps,
         autosave: { type: Boolean, optional: true },
     };
+    // Unlike the other autosave widgets (default true), ColorField's default is
+    // view-dependent — autosave only in list/kanban, see extractProps. The
+    // props-only fallback therefore mirrors the form case (no autosave) so a
+    // direct instantiation never silently persists.
+    static defaultProps = {
+        autosave: false,
+    };
 
     /** @type {{ livePreview: string | null }} */
     state;

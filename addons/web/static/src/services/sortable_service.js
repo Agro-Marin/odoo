@@ -47,10 +47,16 @@ export const sortableService = {
                     if (/** @type {any} */ (sortableId) in boundElement) {
                         return {
                             enable() {
+                                // Re-read the cleanup from the live registry at
+                                // enable() time: the binding captured at create()
+                                // may have been torn down since (cleanup() then
+                                // deleted the entry), so returning the captured
+                                // closure would hand back a dead cleanup. Fall
+                                // back to a no-op when the entry is gone.
                                 return {
-                                    cleanup: /** @type {any} */ (boundElement)[
-                                        sortableId
-                                    ],
+                                    cleanup:
+                                        boundElements.get(element)?.[sortableId] ??
+                                        (() => {}),
                                 };
                             },
                         };
@@ -113,11 +119,20 @@ export const sortableService = {
                     );
                 }
 
+                let enabled = false;
                 return {
                     enable() {
-                        setupFunctions.forEach((dependenciesFn, setupFn) =>
-                            setupFn(...dependenciesFn()),
-                        );
+                        // Idempotent: enable() is called more than once by some
+                        // consumers (re-render, re-mount). Running the setup
+                        // functions again would register a second set of DnD
+                        // listeners on the same element, so the drag handlers
+                        // fire twice. Arm exactly once.
+                        if (!enabled) {
+                            enabled = true;
+                            setupFunctions.forEach((dependenciesFn, setupFn) =>
+                                setupFn(...dependenciesFn()),
+                            );
+                        }
                         return {
                             cleanup,
                         };

@@ -4,6 +4,7 @@
 /** @module @web/views/form/setting/setting - Individual setting row with label, help text, and company-dependent icon */
 
 import { Component } from "@odoo/owl";
+import { exprToBoolean } from "@web/core/utils/format/strings";
 import { user } from "@web/services/user";
 import { FormLabel } from "@web/views/form/form_label";
 import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
@@ -35,7 +36,10 @@ export class Setting extends Component {
     setup() {
         if (this.props.fieldName) {
             this.fieldType = this.props.record.fields[this.props.fieldName].type;
-            if (this.props.fieldInfo.readonly === "True") {
+            // exprToBoolean: accept "1" / "true" / "True" like every other
+            // boolean-ish arch attribute. Matching only the exact "True"
+            // spelling silently mis-styled the label for the "1"/"true" forms.
+            if (exprToBoolean(this.props.fieldInfo.readonly)) {
                 this.notMuttedLabel = true;
             }
         }
