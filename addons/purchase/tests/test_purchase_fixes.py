@@ -595,3 +595,91 @@ class TestPurchaseInvoiceSections(AccountTestInvoicingCommon):
             lambda l: l.display_type == "line_section",
         ).mapped("name")
         self.assertNotIn("Trailing", names, "trailing section must not be billed")
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseQtyInvoicedParity(AccountTestInvoicingCommon):
+    """Parity ports of sale's qty_invoiced (UoM rounding) and multi-order
+    amount_to_invoice tests — untested in purchase.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.svc = cls.env["product.product"].create(
+            {
+                "name": "Svc ordered notax",
+                "type": "service",
+                "bill_policy": "ordered",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.clear()],
+            },
+        )
+        cls.svc_tr = cls.env["product.product"].create(
+            {
+                "name": "Svc transferred notax",
+                "type": "service",
+                "bill_policy": "transferred",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.clear()],
+            },
+        )
+
+    def _confirmed_po(self, product, qty):
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": product.id, "product_qty": qty,
+                         "price_unit": 100, "tax_ids": [Command.clear()]},
+                    ),
+                ],
+            },
+        )
+        po.action_confirm()
+        return po
+
+    def test_qty_invoiced_default_rounding(self):
+        po = self._confirmed_po(self.svc, 5)
+        bill = po.create_invoice()
+        bill.invoice_date = "2026-01-01"
+        self.assertEqual(po.line_ids.qty_invoiced, 0.0, "draft must not count")
+        bill.invoice_line_ids.quantity = 5.13
+        bill.action_post()
+        self.assertEqual(po.line_ids.qty_invoiced, 5.13)
+
+    def test_qty_invoiced_uom_ceil_rounding(self):
+        """qty_invoiced rounds UP (ceil) to the product UoM, not floor/half-up.
+
+        Faithful port of sale.test_qty_invoiced: qty_invoiced does not depend on
+        uom.rounding, so change it after posting and force the recompute.
+        """
+        po = self._confirmed_po(self.svc, 5)
+        bill = po.create_invoice()
+        bill.invoice_date = "2026-01-01"
+        bill.invoice_line_ids.quantity = 5.13
+        bill.action_post()
+        line = po.line_ids
+        self.assertEqual(line.qty_invoiced, 5.13)  # rounding 0.01
+
+        line.product_uom_id.rounding = 0.1
+        line.product_uom_id.flush_recordset(["rounding"])
+        line.env.add_to_compute(line._fields["qty_invoiced"], line)
+        self.assertEqual(line.qty_invoiced, 5.2)  # ceil to 0.1
+
+    def test_amount_to_invoice_multiple_po(self):
+        """Port of sale.test_amount_to_invoice_multiple_so: per-order amounts
+        stay correct when several POs are billed together.
+        """
+        po1 = self._confirmed_po(self.svc_tr, 10)
+        po2 = self._confirmed_po(self.svc_tr, 20)
+        po1.line_ids.qty_transferred = 10
+        po2.line_ids.qty_transferred = 20
+        bills = (po1 | po2).create_invoice()
+        bills.invoice_date = "2026-01-01"
+        bills.action_post()
+        self.assertEqual(po1.amount_taxinc_to_invoice, 0.0)
+        self.assertEqual(po2.amount_taxinc_to_invoice, 0.0)
