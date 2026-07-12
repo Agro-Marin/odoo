@@ -221,3 +221,55 @@ class TestPurchaseSellerCache(AccountTestInvoicingCommon):
             "Five identical-key lines should resolve the seller only once "
             f"(got {len(misses)} lookups)",
         )
+
+
+@tagged("-at_install", "post_install")
+class TestSrmTag(AccountTestInvoicingCommon):
+    """Coverage for the fork's SRM tag model (previously untested).
+
+    ``srm.tag`` builds on ``tag.mixin`` (hierarchical, colored tags) and adds a
+    many2many to ``purchase.order``.
+    """
+
+    def test_hierarchical_display_name(self):
+        parent = self.env["srm.tag"].create({"name": "Strategic"})
+        child = self.env["srm.tag"].create(
+            {"name": "Key Vendor", "parent_id": parent.id},
+        )
+        self.assertEqual(child.display_name, "Strategic / Key Vendor")
+        self.assertEqual(parent.display_name, "Strategic")
+
+    def test_recursion_is_rejected(self):
+        a = self.env["srm.tag"].create({"name": "A"})
+        b = self.env["srm.tag"].create({"name": "B", "parent_id": a.id})
+        # _parent_store raises UserError ("Recursion Detected."); the tag.mixin
+        # _check_parent_id constraint raises ValidationError (a UserError
+        # subclass) — either way it must be rejected.
+        with self.assertRaises(UserError):
+            a.parent_id = b
+            a.flush_recordset()
+
+    def test_order_tag_relation_is_bidirectional(self):
+        tag = self.env["srm.tag"].create({"name": "Preferred"})
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "tag_ids": [Command.link(tag.id)],
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product_a.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+        self.assertIn(po, tag.order_ids)
+        self.assertIn(tag, po.tag_ids)
+
+    def test_parent_delete_cascades_to_children(self):
+        """Deleting a parent tag removes its children (matches crm.tag)."""
+        parent = self.env["srm.tag"].create({"name": "Root"})
+        child = self.env["srm.tag"].create(
+            {"name": "Leaf", "parent_id": parent.id},
+        )
+        parent.unlink()
+        self.assertFalse(child.exists())

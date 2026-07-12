@@ -29,5 +29,5 @@ class ResCompany(models.Model):
 
     _check_po_quotation_validity_days = models.Constraint(
         "CHECK(po_quotation_validity_days >= 0)",
-        "RFQ validity days must be a positive number.",
+        "RFQ validity days must be zero or greater (0 means no default expiration).",
     )
