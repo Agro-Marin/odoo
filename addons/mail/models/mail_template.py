@@ -310,13 +310,13 @@ class MailTemplate(models.Model):
         for template in self:
             model = template.sudo().model_id.model
             if not model:
-                return
+                continue
             record = template.env[model].search([], limit=1)
             if not record:
-                return
+                continue
 
-            fnames = fnames & dynamic_fnames if fnames else dynamic_fnames
-            for fname in fnames:
+            template_fnames = fnames & dynamic_fnames if fnames else dynamic_fnames
+            for fname in template_fnames:
                 try:
                     template._render_field(fname, record.ids, options=render_options)
                 except Exception as e:

@@ -58,10 +58,10 @@ class DiscussChannelRtcSession(models.Model):
         )
         for rtc_session in rtc_sessions:
             rtc_sessions_by_channel[rtc_session.channel_id] += rtc_session
-        for channel, rtc_sessions in rtc_sessions_by_channel.items():
+        for channel, channel_sessions in rtc_sessions_by_channel.items():
             Store(bus_channel=channel).add(
                 channel,
-                {"rtc_session_ids": Store.Many(rtc_sessions, mode="ADD")},
+                {"rtc_session_ids": Store.Many(channel_sessions, mode="ADD")},
             ).bus_send()
         for channel in rtc_sessions.channel_id.filtered(
             lambda c: len(c.rtc_session_ids) == 1

@@ -18,10 +18,10 @@ class DiscussGifController(Controller):
         try:
             response = requests.get(f"https://api.klipy.com/v2/{endpoint}", timeout=3)
             response.raise_for_status()
-        except requests.exceptions.ConnectionError:
-            _logger.error("Failed to connect to Tenor GIF API.")
-        except requests.exceptions.HTTPError:
-            _logger.error("Tenor GIF API returned an HTTP error.")
+        except requests.exceptions.RequestException as e:
+            # covers ConnectionError, HTTPError AND Timeout (not a subclass of the
+            # first two) — an unhandled Timeout previously surfaced as a raw 500.
+            _logger.error("Klipy GIF API request failed: %s", e)
 
         if not response:
             raise BadRequest

@@ -58,6 +58,11 @@ class MailFollowers(models.Model):
         ]:
             if record.get("res_id"):
                 to_invalidate[record.get("res_model")].append(record.get("res_id"))
+        # Changing followers changes record-level access, so any cached field of
+        # the followed documents may now be (in)accessible: actually drop it.
+        for res_model, res_ids in to_invalidate.items():
+            if res_model in self.env:
+                self.env[res_model].browse(res_ids).invalidate_recordset()
 
     @api.model_create_multi
     def create(self, vals_list):

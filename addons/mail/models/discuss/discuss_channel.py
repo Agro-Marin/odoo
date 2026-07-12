@@ -1079,7 +1079,7 @@ class DiscussChannel(models.Model):
                   FROM res_partner partner
              LEFT JOIN res_users users on partner.id = users.partner_id
                  WHERE partner.active IS TRUE
-                       AND partner.email != %(email)s
+                       AND partner.email IS DISTINCT FROM %(email)s
                        AND partner.id IN %(partner_ids)s AND partner.id != %(author_id)s
                 """,
                 email=email_from or "",

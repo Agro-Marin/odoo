@@ -363,8 +363,9 @@ class MailMessage(models.Model):
             )
             .mapped("mail_message_id")
         )
+        my_message_ids = set(my_messages.ids)
         for message in self:
-            message.needaction = message in my_messages
+            message.needaction = message.id in my_message_ids
 
     @api.model
     def _search_needaction(self, operator, operand):
@@ -391,8 +392,9 @@ class MailMessage(models.Model):
             )
             .mapped("mail_message_id")
         )
+        error_message_ids = set(error_from_notification.ids)
         for message in self:
-            message.has_error = message in error_from_notification
+            message.has_error = message.id in error_message_ids
 
     def _search_has_error(self, operator, operand):
         if operator != "in":
@@ -404,11 +406,13 @@ class MailMessage(models.Model):
     def _compute_starred(self):
         """Compute if the message is starred by the current user."""
         # TDE FIXME: use SQL
-        starred = self.sudo().filtered(
-            lambda msg: self.env.user.partner_id in msg.starred_partner_ids
+        starred_ids = set(
+            self.sudo()
+            .filtered(lambda msg: self.env.user.partner_id in msg.starred_partner_ids)
+            .ids
         )
         for message in self:
-            message.starred = message in starred
+            message.starred = message.id in starred_ids
 
     @api.model
     def _search_starred(self, operator, operand):
@@ -970,7 +974,7 @@ class MailMessage(models.Model):
 
             attachment_ids_all = {
                 attachment_id
-                for doc_attachment_ids in doc_to_attachment_ids
+                for doc_attachment_ids in doc_to_attachment_ids.values()
                 for attachment_id in doc_attachment_ids
             }
             AttachmentSudo = (

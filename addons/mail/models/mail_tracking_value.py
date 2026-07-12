@@ -155,7 +155,8 @@ class MailTrackingValue(models.Model):
                     )
                     or "",
                     "new_value_char": (
-                        new_value and dict(col_info["selection"])[new_value]
+                        new_value
+                        and dict(col_info["selection"]).get(new_value, new_value)
                     )
                     or "",
                 }

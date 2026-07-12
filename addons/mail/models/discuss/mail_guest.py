@@ -71,6 +71,10 @@ class MailGuest(models.Model):
         parts = token.split(self._cookie_separator)
         if len(parts) == 2:
             guest_id, guest_access_token = parts
+            if not guest_id.isdigit():
+                # the id comes from an attacker-controllable cookie; a non-numeric
+                # value must not crash every public discuss/RTC route with a 500.
+                return guest
             # sudo: mail.guest: guests need sudo to read their access_token
             guest = self.browse(int(guest_id)).sudo().exists()
             if (

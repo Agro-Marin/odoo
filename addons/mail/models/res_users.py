@@ -1,4 +1,4 @@
-import contextlib
+import logging
 from collections import defaultdict
 
 from odoo import Command, _, api, fields, models, modules, tools
@@ -7,6 +7,8 @@ from odoo.http import request
 from odoo.tools import email_normalize, str2bool
 
 from odoo.addons.mail.tools.discuss import Store
+
+_logger = logging.getLogger(__name__)
 
 
 class ResUsers(models.Model):
@@ -362,8 +364,17 @@ class ResUsers(models.Model):
             mail_create_values.append(vals)
 
         mails = self.env["mail.mail"].sudo().create(mail_create_values)
-        with contextlib.suppress(Exception):
+        try:
             mails.send()
+        except Exception:
+            # these are security-sensitive "your account changed" notices; a
+            # delivery failure must not block the underlying change, but leave a
+            # trace so the user/ops are not silently unaware.
+            _logger.warning(
+                "Could not send security notification email(s) %s",
+                mails.ids,
+                exc_info=True,
+            )
         return mails
 
     def _notify_security_setting_update_prepare_values(self, content, **kwargs):

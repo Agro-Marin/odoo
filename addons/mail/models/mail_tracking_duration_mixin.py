@@ -98,14 +98,15 @@ class MailTrackingDurationMixin(models.AbstractModel):
         else:
             trackings = []
 
+        # Bucket the single fetch once by res_id instead of rescanning the full
+        # tracking list per record (was O(records x trackings)). The SQL is
+        # ordered by v.id, so append preserves per-record chronological order.
+        trackings_by_res = defaultdict(list)
+        for tracking in trackings:
+            trackings_by_res[tracking["res_id"]].append(tracking)
         for record in self:
-            record_trackings = [
-                tracking
-                for tracking in trackings
-                if tracking["res_id"] == record._origin.id
-            ]
             record.duration_tracking = record._get_duration_from_tracking(
-                record_trackings
+                trackings_by_res[record._origin.id]
             )
 
     def _get_duration_from_tracking(self, trackings):
