@@ -79,6 +79,38 @@ test("RamCache: ram is set with promises", async () => {
     expect(await promsSecond).toEqual({ test: 123 });
 });
 
+test("abortPending: a silently-aborted cache miss can be re-fetched fresh", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+
+    // A cache miss whose fallback never settles (silent abort leaves the
+    // underlying fetch pending forever).
+    let fallbackCalls = 0;
+    const hung = new Deferred();
+    rpcCache.read("table", "key", () => {
+        fallbackCalls++;
+        return hung;
+    });
+    expect(fallbackCalls).toBe(1);
+    expect("table/key" in rpcCache.pendingRequests).toBe(true);
+
+    // Evicting the pending slot must clear the never-settling RAM promise too,
+    // so a subsequent read triggers a brand-new fallback instead of returning
+    // the wedged promise forever.
+    rpcCache.abortPending("table", "key");
+    expect("table/key" in rpcCache.pendingRequests).toBe(false);
+
+    const fresh = rpcCache.read("table", "key", () => {
+        fallbackCalls++;
+        return Promise.resolve({ test: 7 });
+    });
+    expect(fallbackCalls).toBe(2);
+    expect(await fresh).toEqual({ test: 7 });
+});
+
 test("PersistentCache: can cache a simple call", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",

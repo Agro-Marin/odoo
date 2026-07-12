@@ -19,9 +19,9 @@ import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred, mockSendBeacon } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-import { ChangeSet } from "@web/model/relational_model/change_set";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { RelationalRecord } from "@web/model/relational_model/record";
+import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { save } from "@web/model/relational_model/record_save";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
@@ -435,12 +435,13 @@ describe("urgentSave in-flight guard", () => {
     /**
      * Record mock backed by the real RelationalRecord prototype, so the real
      * ``urgentSave()``/``_save()``/``_clearChanges()`` methods run against
-     * record_save.save. State goes through ``_config``/``_changeSet`` so the
-     * prototype getters (resId, fields, fieldNames, …) work unmodified.
+     * record_save.save. State goes through ``_config``/``_editState`` so the
+     * prototype getters (resId, fields, fieldNames, dirty, _changes, …) work
+     * unmodified.
      */
     function makeProtoRecord({ webSave }) {
         const rec = Object.create(RelationalRecord.prototype);
-        rec._changeSet = markRaw(new ChangeSet());
+        rec._editState = new RecordEditState();
         rec._config = {
             resModel: "res.partner",
             resId: 7,
@@ -496,6 +497,46 @@ describe("urgentSave in-flight guard", () => {
         expect(webSaveCalls).toBe(1);
 
         def.resolve();
+        await saveProm;
+        expect(rec._saveInFlight).toBe(false);
+        expect(webSaveCalls).toBe(1);
+    });
+
+    test("urgentSave skips the beacon while a save is parked in onWillSaveRecord", async () => {
+        let beaconCalls = 0;
+        mockSendBeacon(() => {
+            beaconCalls++;
+            return true;
+        });
+        const hookDef = new Deferred();
+        let webSaveCalls = 0;
+        const rec = makeProtoRecord({
+            webSave: async () => {
+                webSaveCalls++;
+                return [{ id: 7 }];
+            },
+        });
+        // Enterprise controllers override this hook with dialogs/RPCs that
+        // can park a save for seconds before its RPC fires.
+        rec.model.hooks.lifecycle.onWillSaveRecord = async () => {
+            await hookDef;
+        };
+
+        const saveProm = save(rec, { reload: false });
+        await animationFrame();
+        // Parked in the hook: no RPC yet, but the in-flight marker is up.
+        expect(webSaveCalls).toBe(0);
+        expect(rec._saveInFlight).toBe(true);
+
+        // Tab closes while the save is parked: the beacon must be skipped —
+        // the beacon + the parked webSave used to double-write the same
+        // changes (duplicate x2many CREATEs the server cannot reject).
+        const urgentResult = await rec.urgentSave();
+        expect(urgentResult).toBe(true);
+        expect(beaconCalls).toBe(0);
+        expect(webSaveCalls).toBe(0);
+
+        hookDef.resolve();
         await saveProm;
         expect(rec._saveInFlight).toBe(false);
         expect(webSaveCalls).toBe(1);

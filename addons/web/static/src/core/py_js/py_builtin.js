@@ -222,6 +222,16 @@ export function execOnIterable(iterable, func) {
  * @returns {any[]}
  */
 function maxMinItems(args, name) {
+    const kwargs = args[args.length - 1];
+    // `key=`/`default=` change WHICH element is returned; silently dropping
+    // them (as slicing off kwargs did) returns a different value than the
+    // server would. Fail loudly instead — matching this subsystem's
+    // convention of raising on unsupported features.
+    if (kwargs && typeof kwargs === "object" && Object.keys(kwargs).length) {
+        throw new EvaluationError(
+            `${name}() keyword arguments (${Object.keys(kwargs).join(", ")}) are not supported`,
+        );
+    }
     const values = args.slice(0, -1); // remove kwargs
     let items = values;
     if (values.length === 1) {

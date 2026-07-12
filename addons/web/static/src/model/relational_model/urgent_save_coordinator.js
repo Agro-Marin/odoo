@@ -138,6 +138,11 @@ export class UrgentSaveCoordinator extends SignalStore {
      */
     async awaitUnlessUrgent(promise) {
         if (this.isActive) {
+            // The caller stops awaiting, so a later rejection of `promise`
+            // would surface as an unhandled rejection (→ an error dialog on
+            // tab close). Attach a no-op catch: the work is intentionally
+            // fire-and-forget here.
+            Promise.resolve(promise).catch(() => {});
             return undefined;
         }
         return promise;

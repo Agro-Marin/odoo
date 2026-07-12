@@ -174,6 +174,23 @@ export function makeControllerComponent(am) {
                 // No previous controller to restore; just display the error.
                 return;
             }
+            // index === -1: the erroring controller was never committed (it
+            // fails before its onMounted, the sole commit point). For a
+            // breadcrumb RESTORE (restoreStackOnError set), the URL still points
+            // at the controller that was displayed, so return to that stack
+            // instead of the truncated newStack tip — the failed click becomes a
+            // no-op. Guarded so it can't loop: the tip must be a currently-
+            // mounted (known-good) controller, and reverting must make progress
+            // (the reverted-to stack differs from the live one). loadState
+            // dispatches don't set the flag and keep their ancestor-fallback.
+            const { restoreStackOnError } = this.props._context;
+            if (
+                restoreStackOnError?.length &&
+                restoreStackOnError.at(-1).isMounted &&
+                am.controllerStack !== restoreStackOnError
+            ) {
+                am.controllerStack = restoreStackOnError;
+            }
             const lastController = am.controllerStack.at(-1);
             if (lastController) {
                 if (lastController.jsId !== controller.jsId) {

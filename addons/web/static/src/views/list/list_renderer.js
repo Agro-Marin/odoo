@@ -162,6 +162,8 @@ export class ListRenderer extends Component {
     _defaultActiveActions;
     /** @type {any} identity-stable self reference (see setup) */
     _rendererInstance;
+    /** @type {() => void} identity-stable bound ``displaySaveNotification`` (see setup) */
+    _displaySaveNotification;
 
     setup() {
         useRenderCounter("list.ListRenderer");
@@ -169,6 +171,12 @@ export class ListRenderer extends Component {
         // sub-context, so ``this`` isn't identity-stable across renders —
         // row skipping requires the ``renderer`` prop to stay stable.
         this._rendererInstance = this;
+        // Bind once so the new-x2many-row ViewButton's ``onClick`` prop keeps a
+        // stable identity across renders — an inline ``.bind(this)`` in the
+        // template minted a fresh function every render, defeating the child's
+        // props-stability skip (and the row-skipping contract this renderer
+        // maintains everywhere else).
+        this._displaySaveNotification = this.displaySaveNotification.bind(this);
         this.actionService = useService("action");
         this.uiService = useService("ui");
         this.notificationService = useService("notification");

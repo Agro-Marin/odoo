@@ -1230,6 +1230,15 @@ export class Runner {
             // Do not use logger to not apply the [HOOT] prefix and allow the CI
             // to stop the test run browser.
             $error(errorMessage.join("\n"));
+        } else if (this.headless && passed === 0) {
+            // Fail closed: in headless (CI) mode a run that produced zero
+            // passing tests (and none failed, per the branch above) means an
+            // include filter matched nothing — it must NOT emit the success
+            // signal, or a renamed tests directory would stay
+            // green-with-zero-tests forever (13 files / ~183 tests were once
+            // lost exactly that way; see web/tests/test_js.py suite lists).
+            logger.logGlobal(`no tests matched the current filters`);
+            $error("Test suite matched no tests: failing closed (check the suite id filters)");
         } else {
             // Use console.dir for this log to appear on runbot sub-builds page
             logger.logGlobal(

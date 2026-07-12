@@ -6,10 +6,10 @@
 import { markRaw, toRaw } from "@odoo/owl";
 import { omit } from "@web/core/utils/collections/objects";
 
-import { ChangeSet } from "./change_set.js";
 import { DataPoint } from "./datapoint.js";
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
 import { Operation } from "./operation.js";
+import { RecordEditState } from "./record_edit_state.js";
 import {
     archive,
     deleteRecord,
@@ -86,48 +86,31 @@ export class RelationalRecord extends DataPoint {
         this._virtualId = options.virtualId || false;
         this._isEvalContextReady = false;
 
-        // Pending-edit accumulator; ``markRaw`` keeps it out of OWL's
-        // reactivity graph (see ``change_set.js`` for the rationale).
-        // Exposed via the ``_changes`` getter/setter below so existing
-        // consumers (``Object.keys(record._changes)``) keep working.
-        this._changeSet = markRaw(new ChangeSet());
+        // Owner of the editable-state layer: the pending-edit change set, the
+        // reactive ``dirty`` signal, the field-validity sets, char/text/html
+        // false-vs-"" tracking, and the savepoint. Constructed first so the
+        // delegating accessors below (``dirty``, ``_changes``, ``_invalidFields``,
+        // ``_textValues``, ``_savePoint`` …) are usable for the rest of setup.
+        // NOT ``markRaw``: reached through the record's reactive proxy it keeps
+        // ``dirty``/``invalidFields`` reactive, while ``toRaw(record)._editState``
+        // gives the raw owner for the raw reads in ``_update``. See
+        // ``record_edit_state.js`` for the full reactivity + invariant contract.
+        //
+        // The (dirty, changes) invariants (documented at length in
+        // ``STATE_MANAGEMENT.md``): (1) ``_update`` marks dirty before async
+        // preprocessors populate ``_changes``; (2) ``setInvalidField`` marks
+        // dirty even with an empty change set; (3) clearing the change set must
+        // reset ``dirty`` atomically — always via ``_clearChanges()``
+        // (``RecordEditState.clearChanges``). The ``keepChanges`` reload path in
+        // ``_setData`` instead derives ``dirty`` from the preserved edit state.
+        this._editState = new RecordEditState();
 
-        // Reactive signal indicating whether the record has unsaved edits.
-        //
-        // Invariants enforced by paired helpers:
-        //   1. ``dirty`` is true after ``_update()``, even before async
-        //      preprocessors populate ``_changes`` (race protection — set
-        //      via ``_markDirty()`` so UI bindings reflect "modified" the
-        //      moment a field update is dispatched, not after a network
-        //      round-trip).
-        //   2. ``setInvalidField()`` sets dirty=true even when ``_changes``
-        //      is empty (invalid input never reaches the change log but
-        //      the record still counts as modified) — also routed through
-        //      ``_markDirty()``.
-        //   3. Whenever ``_changes`` is cleared, ``dirty`` MUST reset in the
-        //      same atomic step — use ``_clearChanges()``. The
-        //      ``keepChanges`` reload path instead derives ``dirty`` from
-        //      the preserved change set and invalid-field flags (see
-        //      ``_setData`` — Invariant 2 must survive that reload).
-        //
-        // Field components debounce typing locally; ``isDirty()`` (async)
-        // calls ``model._askChanges()`` first to flush pending edits before
-        // reading this signal. Sync reads are safe once pending changes are
-        // already drained (post-mutex critical sections, post-flush
-        // callbacks).
-        this.dirty = false;
         this.selected = false;
         // True while a save's web_save RPC (and post-RPC state cleanup) is
         // on the wire — set/cleared by ``record_save.save``. ``urgentSave()``
         // reads it to skip the tab-close beacon when the same changes are
         // already being persisted.
         this._saveInFlight = false;
-
-        /** @type {Set<string>} */
-        this._invalidFields = new Set();
-        /** @type {Set<string>} */
-        this._unsetRequiredFields = markRaw(new Set());
-        this._closeInvalidFieldsNotification = () => {};
 
         const parentRecord = this._parentRecord;
         if (parentRecord) {
@@ -157,12 +140,11 @@ export class RelationalRecord extends DataPoint {
             (fieldName) => !(fieldName in data),
         );
         data = { ...this._getDefaultValues(missingFields), ...data };
-        // In db, char, text and html fields can be not set (NULL) and set to the empty string. In
-        // the UI, there's no difference, but in the eval context, it's not the same. The next
-        // structure keeps track of the server values we received for those fields (which can thus
-        // be false or a string). This allows us to properly build the eval context, and to always
-        // expose string values (false fallbacks on the empty string) in this.data.
-        this._textValues = markRaw({});
+        // ``_textValues`` (owned by ``this._editState``) tracks the raw server
+        // value (false or string) of char/text/html fields: in the DB they can
+        // be NULL or the empty string, indistinguishable in the UI but not in
+        // the eval context. It lets us build the eval context correctly and
+        // always expose string values (false → "") in ``this.data``.
         this._setData(data);
     }
 
@@ -434,59 +416,125 @@ export class RelationalRecord extends DataPoint {
     // Protected
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // Editable-state accessors — the state lives in ``this._editState``
+    // ({@link RecordEditState}); these record-level getters/setters keep every
+    // existing consumer working unchanged (``record.dirty``,
+    // ``record._invalidFields.add(…)``, ``record._changes[f] = v``, the sibling
+    // helpers, the test mocks). Reactivity is preserved because ``_editState``
+    // is not ``markRaw``: through the reactive record proxy these read/write
+    // reactive owner fields, while ``toRaw(record)._editState`` gives the raw
+    // owner for the raw reads in ``_update``.
+    // -------------------------------------------------------------------------
+
+    /** Reactive "record has unsaved edits" signal. @returns {boolean} */
+    get dirty() {
+        return this._editState.dirty;
+    }
+
+    set dirty(value) {
+        this._editState.dirty = value;
+    }
+
+    /** The pending-edit change set. @returns {import("./change_set").ChangeSet} */
+    get _changeSet() {
+        return this._editState.changeSet;
+    }
+
     /**
-     * Read-accessor for the pending-edit bag, delegating to the internal
-     * {@link ChangeSet}. Returns the underlying ``markRaw`` object by
-     * reference so existing consumers (``Object.keys(record._changes)``,
-     * ``record._changes[fieldName] = value`` inside ``_applyChanges``,
-     * ``_getChanges(this._changes, ...)`` in the save flow) keep working.
+     * Read-accessor for the pending-edit bag. Returns the underlying
+     * ``markRaw`` object by reference so existing consumers
+     * (``Object.keys(record._changes)``, ``record._changes[fieldName] = value``
+     * inside ``_applyChanges``, ``_getChanges(this._changes, ...)`` in the save
+     * flow) keep working.
      *
      * @returns {Record<string, any>}
      */
     get _changes() {
-        return this._changeSet.raw;
+        return this._editState.changes;
     }
 
     /**
      * Write-accessor for wholesale bag replacement (the undo path in
      * ``_applyChanges`` and the savepoint-restore path each capture and
-     * later reinstall a snapshot). Delegates to {@link ChangeSet#replace}
-     * to preserve the ``markRaw`` invariant. Single-field writes
+     * later reinstall a snapshot). Preserves the ``markRaw`` invariant via
+     * {@link ChangeSet#replace}. Single-field writes
      * (``record._changes[fieldName] = value``) still go through the
-     * setter on the underlying bag, which is the markRaw object.
+     * underlying markRaw bag returned by the getter.
      */
     set _changes(initial) {
-        this._changeSet.replace(initial);
+        this._editState.changes = initial;
+    }
+
+    /** @returns {Set<string>} fields that failed validation */
+    get _invalidFields() {
+        return this._editState.invalidFields;
+    }
+
+    set _invalidFields(value) {
+        this._editState.invalidFields = value;
+    }
+
+    /** @returns {Set<string>} required fields currently left unset */
+    get _unsetRequiredFields() {
+        return this._editState.unsetRequiredFields;
+    }
+
+    /** @returns {() => void} closer for the open invalid-fields notification */
+    get _closeInvalidFieldsNotification() {
+        return this._editState.closeInvalidFieldsNotification;
+    }
+
+    set _closeInvalidFieldsNotification(value) {
+        this._editState.closeInvalidFieldsNotification = value;
+    }
+
+    /** @returns {Record<string, any>} server false-vs-"" tracking (char/text/html) */
+    get _textValues() {
+        return this._editState.textValues;
+    }
+
+    set _textValues(value) {
+        this._editState.textValues = value;
+    }
+
+    /** @returns {Record<string, any>} initial ``_textValues`` snapshot (no-savepoint discard) */
+    get _initialTextValues() {
+        return this._editState.initialTextValues;
+    }
+
+    set _initialTextValues(value) {
+        this._editState.initialTextValues = value;
+    }
+
+    /** @returns {any} single-use savepoint snapshot (set by addSavePoint) */
+    get _savePoint() {
+        return this._editState.savePoint;
+    }
+
+    set _savePoint(value) {
+        this._editState.savePoint = value;
     }
 
     /**
-     * Atomically clear pending changes and reset the reactive ``dirty``
-     * signal. The two assignments MUST happen as a pair: ``_changes`` is
-     * ``markRaw`` (intentionally non-reactive, see ``ChangeSet``), so a
-     * caller that only clears ``_changes`` would leave bindings on
-     * ``record.dirty`` showing "modified" until the next mutation hits.
-     *
-     * Use this whenever ``_changes`` is being emptied. Callers that need
-     * to also rebuild ``data`` or replace ``_values`` keep that logic at
-     * the call site — the helper covers only the invariant that pairs
-     * the two fields.
+     * Atomically clear pending changes and reset the reactive ``dirty`` signal
+     * (Invariant I3 — {@link RecordEditState#clearChanges}). Use whenever
+     * ``_changes`` is being emptied; callers that also rebuild ``data`` or
+     * replace ``_values`` keep that logic at the call site.
      */
     _clearChanges() {
-        this._changeSet.clear();
-        this.dirty = false;
+        this._editState.clearChanges();
         this._assertChangeSetInvariant();
     }
 
     /**
-     * Set the reactive ``dirty`` signal without touching ``_changes``.
-     * Used by paths that consider the record modified before the change
-     * bag is populated — ``setInvalidField()`` (invariant 2; invalid
-     * input never reaches ``_changes``) and ``_update()`` (invariant 1;
-     * race protection — UI binds to "modified" the moment a field update
-     * is dispatched, before async preprocessors land).
+     * Raise the reactive ``dirty`` signal without touching ``_changes``, for
+     * paths that count the record modified before (or without) a field edit
+     * reaching the bag — ``setInvalidField()`` (Invariant 2) and ``_update()``
+     * (Invariant 1). Delegates to {@link RecordEditState#markDirty}.
      */
     _markDirty() {
-        this.dirty = true;
+        this._editState.markDirty();
     }
 
     /**
@@ -1032,7 +1080,18 @@ export class RelationalRecord extends DataPoint {
         // The preprocessors are kicked off above so their fire-and-forget
         // bookkeeping happens; on the tab-close path we skip awaiting them
         // because the browser may kill us before they settle.
-        await this.model.urgentSave.awaitUnlessUrgent(prom);
+        // A preprocessor CAN reject (m2o quick-create AccessError, webRead
+        // failure completing a reference): the change never stuck, so lower
+        // the provisional dirty mark before rethrowing — otherwise the record
+        // shows "unsaved changes" forever and pager/breadcrumb gates chase an
+        // edit that isn't in the model. (The no-op / _onUpdate-failure paths
+        // below already restore for the same reason.)
+        try {
+            await this.model.urgentSave.awaitUnlessUrgent(prom);
+        } catch (e) {
+            restoreDirty();
+            throw e;
+        }
         if (this.selected && this.model.multiEdit) {
             // Model-level dispatch installed by the root DynamicList — a
             // record must not reach into the list's protected ``_multiSave``.

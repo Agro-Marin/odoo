@@ -14,8 +14,6 @@ const log = makeAssetLog("registry");
 // -----------------------------------------------------------------------------
 export class KeyNotFoundError extends Error {}
 
-export class DuplicatedKeyError extends Error {}
-
 // -----------------------------------------------------------------------------
 // Validation
 // -----------------------------------------------------------------------------

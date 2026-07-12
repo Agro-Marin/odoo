@@ -97,6 +97,16 @@ export function useListVirtualization({
         if (!el) {
             return;
         }
+        // The measured heights are only consumed while virtualization is
+        // active. Skip the getBoundingClientRect reads (which force a synchronous
+        // reflow — costly after every inline-edit patch) when it is inactive:
+        // a small x2many list inside a form paid two forced reflows per patch
+        // for numbers it never used, defeating the column-width hook's
+        // reflow-free discipline. On first activation `refresh()` falls back to
+        // the DEFAULT_* constants for one frame, then this measures.
+        if (!active) {
+            return;
+        }
         // Re-measure on every patch, not just once: density (compact/comfortable)
         // and browser zoom change row height at runtime, and a stale measurement
         // desynced the spacer math and ensureRowVisible. Negligible cost next to

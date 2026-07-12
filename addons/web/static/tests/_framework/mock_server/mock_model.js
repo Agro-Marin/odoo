@@ -3200,12 +3200,33 @@ export class Model extends Array {
      * @param {Partial<ModelRecord>} values
      * @param {Record<string, any>} specification
      * @param {MaybeIterable<number>} [nextId]
+     * @param {Record<string, any>} [knownValues]
      */
-    web_save(idOrIds, values, specification, nextId) {
-        const kwargs = getKwArgs(arguments, "ids", "vals", "specification", "next_id");
-        ({ ids: idOrIds, vals: values, specification, next_id: nextId } = kwargs);
+    web_save(idOrIds, values, specification, nextId, knownValues) {
+        const kwargs = getKwArgs(
+            arguments,
+            "ids",
+            "vals",
+            "specification",
+            "next_id",
+            "known_values",
+        );
+        ({
+            ids: idOrIds,
+            vals: values,
+            specification,
+            next_id: nextId,
+            known_values: knownValues,
+        } = kwargs);
 
         let ids = ensureArray(idOrIds);
+        if (ids.length && knownValues) {
+            // Field-scoped optimistic-lock check, mirroring the server
+            // (models/web_read.py). Existing records only. Singleton carries a
+            // flat `{field: baseline}`; a mass-edit carries per-record
+            // `{id: {field: baseline}}`.
+            this._checkConcurrentFieldChanges(ids, values, knownValues);
+        }
         if (ids.length === 0) {
             ids = /** @type {number[]} */ (
                 this.create(/** @type {any} */ ([values]), kwargs)
@@ -3220,14 +3241,109 @@ export class Model extends Array {
     }
 
     /**
+     * Test double for the server's field-scoped optimistic lock. Faithful for
+     * the common comparable types; fails OPEN on anything it can't coerce
+     * (never a false conflict), exactly like the server. The authoritative
+     * server semantics are covered separately by `tests/test_web_save.py`.
+     *
+     * @param {number[]} ids
+     * @param {Record<string, any>} vals uniform values written to every id
+     * @param {Record<string, any>} knownValues flat (singleton) or `{id: {}}`
+     */
+    _checkConcurrentFieldChanges(ids, vals, knownValues) {
+        const SAFE_TYPES = new Set([
+            "integer",
+            "boolean",
+            "char",
+            "text",
+            "selection",
+            "float",
+            "monetary",
+            "many2one",
+        ]);
+        const coerce = (type, value) => {
+            if (value === null || value === undefined || value === false) {
+                return (
+                    { integer: 0, float: 0, monetary: 0, boolean: false }[type] ?? ""
+                );
+            }
+            if (type === "many2one") {
+                if (Array.isArray(value)) {
+                    return value[0] ?? false;
+                }
+                if (value && typeof value === "object") {
+                    return value.id ?? false;
+                }
+                return typeof value === "number" ? value : false;
+            }
+            if (type === "integer") {
+                return Math.trunc(Number(value));
+            }
+            if (type === "float" || type === "monetary") {
+                return Math.round(Number(value) * 1e6) / 1e6;
+            }
+            if (type === "boolean") {
+                return Boolean(value);
+            }
+            return String(value);
+        };
+        // Disambiguate by record count, like the server.
+        const baselinesById =
+            ids.length === 1 ? { [ids[0]]: knownValues } : knownValues;
+        for (const id of ids) {
+            const baseline = baselinesById[id] ?? baselinesById[String(id)];
+            if (!baseline) {
+                continue; // fail open: no baseline for this record
+            }
+            const record = this._records.find((r) => r.id === id);
+            if (!record) {
+                continue;
+            }
+            for (const fieldName of Object.keys(baseline)) {
+                const field = this._fields[fieldName];
+                if (!field || !SAFE_TYPES.has(field.type) || !(fieldName in vals)) {
+                    continue;
+                }
+                let conflicts;
+                try {
+                    const current = coerce(field.type, record[fieldName]);
+                    const base = coerce(field.type, baseline[fieldName]);
+                    const next = coerce(field.type, vals[fieldName]);
+                    conflicts = current !== base && current !== next;
+                } catch {
+                    conflicts = false; // fail open
+                }
+                if (conflicts) {
+                    throw makeServerError({
+                        type: "UserError",
+                        message:
+                            "This record was modified by another user while " +
+                            "you were editing it.",
+                    });
+                }
+            }
+        }
+    }
+
+    /**
      * @param {number[]} ids - List of record IDs to update
      * @param {Partial<ModelRecord>[]} values - List of value dicts (same length/order as `ids`)
      * @param {Record<string, any>} specification - Fields to return after save
+     * @param {Record<string, any>} [knownValues] - Per-record `{id: {field: baseline}}`
+     *   optimistic-lock baselines. Unlike web_save's mass-edit (same vals to
+     *   every record), each record here has its OWN vals (relative Operation),
+     *   so each is checked against its own vals + baseline.
      * @returns {any[]} - List of saved records
      */
-    web_save_multi(ids, values, specification) {
-        const kwargs = getKwArgs(arguments, "ids", "values", "specification");
-        ({ ids, values, specification } = kwargs);
+    web_save_multi(ids, values, specification, knownValues) {
+        const kwargs = getKwArgs(
+            arguments,
+            "ids",
+            "values",
+            "specification",
+            "known_values",
+        );
+        ({ ids, values, specification, known_values: knownValues } = kwargs);
 
         if (
             !Array.isArray(ids) ||
@@ -3244,7 +3360,12 @@ export class Model extends Array {
         for (let i = 0; i < ids.length; i++) {
             const id = ids[i];
             const val = values[i];
-            const res = this.web_save([id], val, specification);
+            // Per-record baseline (if any) → web_save's singleton check runs it
+            // against THIS record's own vals.
+            const baseline = knownValues
+                ? (knownValues[id] ?? knownValues[String(id)])
+                : undefined;
+            const res = this.web_save([id], val, specification, undefined, baseline);
             if (Array.isArray(res)) {
                 results.push(...res);
             } else {

@@ -128,7 +128,7 @@ describe("serializeCommands", () => {
         expect(result).toEqual([[UPDATE, 99, { name: "converted_unity_value" }]]);
     });
 
-    test("handles multiple unknown record commands for same id", () => {
+    test("merges multiple unknown record commands for same id (last wins)", () => {
         const commands = [[UPDATE, 99]];
         const params = makeParams({
             unknownRecordCommands: {
@@ -140,7 +140,30 @@ describe("serializeCommands", () => {
             convertUnityValues: (v) => v,
         });
         const result = serializeCommands(commands, params);
-        expect(result.length).toBe(2);
+        // One merged UPDATE: sequential writes of the same key collapse to
+        // the last value, matching what the server would compute anyway.
+        expect(result).toEqual([[UPDATE, 99, { name: "second" }]]);
+    });
+
+    test("cached record's own changes are merged over deferred slices", () => {
+        // Regression: a loaded record whose onchange carried a sub-x2many
+        // slice its view doesn't display gets that slice stashed in
+        // unknownRecordCommands. The stash used to fully SHADOW the record's
+        // own changeset at serialize time, silently dropping later inline
+        // user edits to that row from the save payload.
+        const commands = [[UPDATE, 42]];
+        const params = makeParams({
+            unknownRecordCommands: {
+                42: [[UPDATE, 42, { invisible_lines: [[5, 0, 0]] }]],
+            },
+            convertUnityValues: (v) => v,
+            getRecord: (id) => (id === 42 ? { resId: 42 } : undefined),
+            getRecordChanges: () => ({ name: "user edit" }),
+        });
+        const result = serializeCommands(commands, params);
+        expect(result).toEqual([
+            [UPDATE, 42, { invisible_lines: [[5, 0, 0]], name: "user edit" }],
+        ]);
     });
 
     test("handles mixed command types", () => {

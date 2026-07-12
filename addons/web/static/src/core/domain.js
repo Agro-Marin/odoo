@@ -586,14 +586,19 @@ function matchCondition(record, condition) {
         }
         case "like":
         case "not like": {
-            if (fieldValue === false) {
+            // An absent field (`false` OR `undefined`) never matches a
+            // pattern: the server compares against NULL. Guarding only
+            // `=== false` let `undefined` reach `RegExp.test(undefined)`,
+            // which coerces to the literal string "undefined" and spuriously
+            // matched patterns like "und" (mirrors the inequality guard above).
+            if (fieldValue === false || fieldValue === undefined) {
                 return isNot;
             }
             return new RegExp(likeToRegExp(value)).test(fieldValue) !== isNot;
         }
         case "=like":
         case "not =like":
-            if (fieldValue === false) {
+            if (fieldValue === false || fieldValue === undefined) {
                 return isNot;
             }
             return (
@@ -601,14 +606,14 @@ function matchCondition(record, condition) {
             );
         case "ilike":
         case "not ilike": {
-            if (fieldValue === false) {
+            if (fieldValue === false || fieldValue === undefined) {
                 return isNot;
             }
             return new RegExp(likeToRegExp(value), "i").test(fieldValue) !== isNot;
         }
         case "=ilike":
         case "not =ilike":
-            if (fieldValue === false) {
+            if (fieldValue === false || fieldValue === undefined) {
                 return isNot;
             }
             return (

@@ -46,9 +46,13 @@ import {
 
 class Foo extends models.Model {
     name = fields.Char();
+    bar = fields.Char();
+    category = fields.Char();
     _records = Array.from({ length: 150 }, (_, i) => ({
         id: i + 1,
         name: `record ${i + 1}`,
+        bar: `bar ${i + 1}`,
+        category: i < 3 ? "cat_a" : "cat_b",
     }));
 }
 
@@ -216,6 +220,54 @@ test("edited row scrolled far away stays a bounded island (V6)", async () => {
     await animationFrame();
     expect(".o_data_row.o_selected_row").toHaveCount(1);
     expect(".o_selected_row [name='name'] input").toHaveValue("pending edit");
+});
+
+test.tags("desktop");
+test("grouped: arrow traversal crosses an 'Add a line' row without trapping focus (V7)", async () => {
+    // Regression: an add-line row has at most two cells (selector placeholder
+    // + one colspan cell, no data-col-index). Arriving on it from a record
+    // column >= 2 made focusAtPosition return null for a RENDERED row, which
+    // the virtualization path misread as "row scrolled out": viewport jump +
+    // a pending focus that never resolved — ArrowDown wedged at every group
+    // boundary of a virtualized grouped list.
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list editable="bottom" expand="1" limit="200"><field name="name"/><field name="bar"/></list>`,
+        groupBy: ["category"],
+    });
+
+    // Virtualization is active (154 flat rows) and the first group (cat_a,
+    // 3 records) is fully rendered, including its add-line row.
+    const groupRows = queryAll(".o_data_row");
+    const lastCatARow = groupRows[2];
+    const addLineCell = queryFirst("td.o_group_field_row_add");
+    expect(addLineCell).not.toBe(null);
+
+    // Focus the LAST column (colIndex 2: selector + name + bar) of the last
+    // cat_a record, directly above the add-line row.
+    const cell = lastCatARow.querySelector("[data-col-index='2']");
+    cell.focus({ preventScroll: true });
+    expect(cell).toBeFocused();
+
+    // ArrowDown lands on the add-line row (clamped to its last cell)
+    // instead of jumping the viewport and losing focus.
+    await press("ArrowDown");
+    await animationFrame();
+    expect(document.activeElement.closest("td.o_group_field_row_add")).not.toBe(null);
+
+    // Continuing down crosses the next group header and re-enters records
+    // at the remembered column.
+    await press("ArrowDown");
+    await animationFrame();
+    expect(document.activeElement.closest("tr.o_group_header")).not.toBe(null);
+
+    await press("ArrowDown");
+    await animationFrame();
+    const focusedCell = document.activeElement.closest("[data-col-index]");
+    expect(focusedCell).not.toBe(null);
+    expect(focusedCell.dataset.colIndex).toBe("2");
+    expect(document.activeElement.closest(".o_data_row")).not.toBe(null);
 });
 
 test.tags("desktop");

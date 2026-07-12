@@ -77,11 +77,11 @@ def generate_hash(test_string: str) -> str:
 # Postgres / port helpers
 # --------------------------------------------------------------------------- #
 def _psql(sql: str) -> str:
-    env = {**os.environ, "PGPASSWORD": "odoo"}
+    # Unix-socket peer auth as role 'marin' (= the OS user). The former 'odoo'
+    # TCP role was dropped; see config/*.conf and the workspace CLAUDE.md.
     out = subprocess.run(
-        ["psql", "-h", "localhost", "-U", "odoo", "-d", "postgres",
-         "-tAc", sql],
-        capture_output=True, text=True, env=env, check=False,
+        ["psql", "-U", "marin", "-d", "postgres", "-tAc", sql],
+        capture_output=True, text=True, check=False,
     )
     return out.stdout.strip()
 
@@ -91,11 +91,10 @@ def db_exists(db: str) -> bool:
 
 
 def drop_db(db: str) -> None:
-    env = {**os.environ, "PGPASSWORD": "odoo"}
     subprocess.run(
-        ["psql", "-h", "localhost", "-U", "odoo", "-d", "postgres", "-c",
+        ["psql", "-U", "marin", "-d", "postgres", "-c",
          f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)'],
-        capture_output=True, text=True, env=env, check=False,
+        capture_output=True, text=True, check=False,
     )
 
 

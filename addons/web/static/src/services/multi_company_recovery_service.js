@@ -104,8 +104,18 @@ export const multiCompanyRecoveryService = {
                     // our recovery path.
                     return false;
                 }
-                model.config.context.allowed_company_ids ??= [];
-                model.config.context.allowed_company_ids.push(suggestedCompany.id);
+                // Seed from the live active list when the model context carries
+                // no allowed_company_ids: caller context keys win over
+                // user.context in ORM.call, so seeding `[]` would deactivate
+                // every other company for all subsequent RPCs of this model.
+                model.config.context.allowed_company_ids ??= [...activeCompanyIds];
+                if (
+                    !model.config.context.allowed_company_ids.includes(
+                        suggestedCompany.id,
+                    )
+                ) {
+                    model.config.context.allowed_company_ids.push(suggestedCompany.id);
+                }
                 activeCompanyIds.push(suggestedCompany.id);
                 user.activateCompanies(activeCompanyIds, { reload: false });
                 return true;

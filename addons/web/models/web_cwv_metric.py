@@ -96,6 +96,17 @@ class WebCwvMetric(models.Model):
         help="Truncated to 500 chars at the controller; the 512-char DB cap is "
         "a backstop for any other write path.",
     )
+    pageview_id = fields.Char(
+        string="Pageview ID",
+        size=64,
+        readonly=True,
+        index=True,
+        help="Client-generated id, stable for one page load. Metrics arrive "
+        "across several beacons as INP/CLS keep growing after the first "
+        "tab-switch; the controller upserts on this key so a pageview "
+        "contributes one row (updated to the latest values) instead of "
+        "accumulating duplicates.",
+    )
 
     # ------------------------------------------------------------------ #
     # Integrity                                                          #

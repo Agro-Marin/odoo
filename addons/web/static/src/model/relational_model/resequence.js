@@ -136,6 +136,17 @@ export async function resequence({
         { records, movedId, targetId, getSequence, asc },
     );
 
+    // `movedId` absent from `records` (e.g. a post-save compute dropped the
+    // moved record from the target group between drop and this reorder):
+    // `fromIndex === -1` would make `splice(-1, 1)` delete the LAST record and
+    // re-insert `undefined`, corrupting the list and crashing the renderer.
+    // Match the sibling guards in static_list.js / record_lifecycle.js and
+    // no-op instead. (Same reasoning as computeResequencePlan's own reorderAll
+    // fallback for a missing handle value.)
+    if (fromIndex < 0) {
+        return [];
+    }
+
     // Save the original list in case of error
     const originalOrder = [...records];
     // Perform the resequence in the list of records/groups (in place: callers

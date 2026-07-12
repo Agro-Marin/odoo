@@ -331,7 +331,7 @@
  string="button.string"
  title="button.title"
  tabindex="editedRecord ? '-1' : '0'"
- onClick="isX2Many and record.isNew ? displaySaveNotification.bind(this) : undefined"
+ onClick="isX2Many and record.isNew ? _displaySaveNotification : undefined"
  />
  </t>
  </div>

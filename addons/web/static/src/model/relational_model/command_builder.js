@@ -57,15 +57,28 @@ export function serializeCommands(commands, params) {
 
     for (const command of commands) {
         if (command[0] === UPDATE && command[1] in unknownRecordCommands) {
-            // Record never loaded — convert deferred unity-format commands
+            // Deferred unity-format commands: either the record was never
+            // loaded, or a loaded record carries sub-x2many slices its view
+            // doesn't display (always-invisible / not in activeFields).
             const uCommands = unknownRecordCommands[command[1]];
+            const deferredValues = {};
             for (const uCommand of uCommands) {
-                const values = convertUnityValues(uCommand[2], fields, activeFields, {
-                    withReadonly,
-                    context,
-                });
-                result.push([uCommand[0], uCommand[1], values]);
+                Object.assign(deferredValues, uCommand[2]);
             }
+            const values = convertUnityValues(deferredValues, fields, activeFields, {
+                withReadonly,
+                context,
+            });
+            const record = getRecord(command[1]);
+            if (record) {
+                // The record is cached and live: the deferred slices must
+                // not shadow its own changeset — merge both, the record's
+                // (user-visible, editable) changes winning. Before this
+                // merge, any inline edit made after the stash was silently
+                // dropped from the save payload.
+                Object.assign(values, getRecordChanges(record, withReadonly));
+            }
+            result.push([UPDATE, command[1], values]);
         } else if (command[0] === CREATE || command[0] === UPDATE) {
             const record = getRecord(command[1]);
             if (!record) {

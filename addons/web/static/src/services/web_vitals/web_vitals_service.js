@@ -48,6 +48,18 @@ export const webVitalsService = {
         /** @type {{ lcp?: number, fcp?: number, cls?: number, ttfb?: number, inp?: number }} */
         const metrics = {};
 
+        // Stable id for this pageview so the server can UPSERT: metrics arrive
+        // across several beacons (see the re-arm below — INP/CLS keep growing
+        // after the first tab-switch), and keying by pageview id lets later,
+        // more-complete beacons replace the earlier partial one instead of
+        // accumulating duplicate rows.
+        const pageviewId =
+            browser.crypto?.randomUUID?.() ??
+            `${browser.performance.now()}-${browser.navigator.userAgent.length}`;
+
+        /** @type {PerformanceObserver[]} */
+        const observers = [];
+
         // TTFB from Navigation Timing — synchronous, available immediately.
         try {
             const nav = /** @type {any} */ (
@@ -72,6 +84,7 @@ export const webVitalsService = {
                 }
             });
             fcpObserver.observe({ type: "paint", buffered: true });
+            observers.push(fcpObserver);
         } catch {
             // ignore — browser without paint timing
         }
@@ -91,6 +104,7 @@ export const webVitalsService = {
                 type: "largest-contentful-paint",
                 buffered: true,
             });
+            observers.push(lcpObserver);
         } catch {
             // ignore
         }
@@ -111,6 +125,7 @@ export const webVitalsService = {
                 metrics.cls = clsValue;
             });
             clsObserver.observe({ type: "layout-shift", buffered: true });
+            observers.push(clsObserver);
         } catch {
             // ignore
         }
@@ -149,22 +164,32 @@ export const webVitalsService = {
                     durationThreshold: 40,
                 }),
             );
+            observers.push(inpObserver);
         } catch {
             // ignore — Safari ≤16 ships event-timing without ``interactionId``
             // (lands in 16.4); pre-Chromium-96 lacks the entry type entirely.
         }
 
-        // Idempotent flush: pagehide AND visibilitychange-to-hidden can both
-        // fire on mobile, but we only want to send once.
-        let flushed = false;
+        // Flush on every hidden transition, not just the first: a long session
+        // is mostly the time AFTER the first tab-switch, which is exactly where
+        // INP degradations accumulate. Sending once (the old `flushed` latch,
+        // never reset) systematically under-reported INP/CLS and biased the
+        // RUM dashboard toward cold-load numbers. Each beacon carries the same
+        // `pageviewId` so the server upserts (one row per pageview, updated to
+        // the latest values) instead of accumulating duplicates.
+        let lastSentSignature = "";
         function flush() {
-            if (flushed) {
+            const keys = Object.keys(metrics);
+            if (!keys.length) {
                 return;
             }
-            flushed = true;
-            if (!Object.keys(metrics).length) {
+            // Skip if nothing changed since the last beacon (a hide→show→hide
+            // with no new interaction would otherwise re-send identical data).
+            const signature = JSON.stringify(metrics);
+            if (signature === lastSentSignature) {
                 return;
             }
+            lastSentSignature = signature;
             try {
                 const payload = {
                     // pathname only — ``location.search`` can carry record ids
@@ -174,6 +199,7 @@ export const webVitalsService = {
                     // defense-in-depth for stale cached clients).
                     url: browser.location.pathname,
                     user_agent: browser.navigator.userAgent.slice(0, 500),
+                    pageview_id: pageviewId,
                     ...metrics,
                 };
                 const blob = new Blob([JSON.stringify(payload)], {
@@ -189,7 +215,14 @@ export const webVitalsService = {
         // unreliable on mobile and breaks BFCache).  visibilitychange to hidden
         // also fires when a tab is backgrounded — capture metrics then in case
         // the user never returns.
-        browser.addEventListener("pagehide", flush);
+        browser.addEventListener("pagehide", () => {
+            flush();
+            // Terminal signal: stop observing so the callbacks don't fire
+            // against a page that is going away (bfcache/unload).
+            for (const observer of observers) {
+                observer.disconnect();
+            }
+        });
         browser.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "hidden") {
                 flush();

@@ -174,3 +174,174 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 {"phone": "9"}, specification={"phone": {}},
                 last_write_date="2020-01-01T00:00:00.000Z",
             )
+
+    # -- multi-record field-scoped locking (list mass-edit) ------------------
+
+    def _server_set_on(self, record, **col_vals):
+        """Commit a change to ``record`` at the DB level (concurrent worker)."""
+        for col, val in col_vals.items():
+            self.env.cr.execute(
+                'UPDATE res_partner SET "%s" = %%s WHERE id = %%s' % col,
+                (val, record.id),
+            )
+
+    def test_multirecord_known_values_conflict(self):
+        """Mass-edit rejects when ANY selected record was changed on the field
+        being written, and each record is checked against its OWN baseline.
+        Only c2 conflicts here — c1/c3 baselines match their real state."""
+        recs = self.c1 + self.c2 + self.c3
+        # Give the three a known starting phone, then let another user change c2.
+        self.c1.phone = self.c2.phone = self.c3.phone = "start"
+        self.env.flush_all()
+        self._server_set_on(self.c2, phone="999")
+        with self.assertRaises(UserError):
+            recs.web_save(
+                {"phone": "new"},
+                specification={"phone": {}},
+                known_values={
+                    self.c1.id: {"phone": "start"},
+                    self.c2.id: {"phone": "start"},  # baseline start, server 999
+                    self.c3.id: {"phone": "start"},
+                },
+            )
+        # The check raised before write(): nothing was persisted.
+        self.env.cr.execute(
+            "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "start")
+
+    def test_multirecord_known_values_no_conflict(self):
+        """Mass-edit succeeds when no selected record's written field was
+        concurrently changed away from its baseline."""
+        recs = self.c1 + self.c2
+        result = recs.web_save(
+            {"phone": "same"},
+            specification={"phone": {}},
+            known_values={
+                self.c1.id: {"phone": self.c1.phone or False},
+                self.c2.id: {"phone": self.c2.phone or False},
+            },
+        )
+        self.assertEqual([r["phone"] for r in result], ["same", "same"])
+
+    def test_multirecord_disjoint_change_no_conflict(self):
+        """A concurrent change to a DIFFERENT field than the one being mass-
+        edited is ignored (disjoint columns, no lost update)."""
+        recs = self.c1 + self.c2
+        self._server_set_on(self.c2, function="changed-by-other")
+        # We mass-edit phone; the concurrent change was to function.
+        recs.web_save(
+            {"phone": "999"},
+            specification={"phone": {}},
+            known_values={
+                self.c1.id: {"phone": self.c1.phone or False},
+                self.c2.id: {"phone": self.c2.phone or False},
+            },
+        )
+        self.assertEqual(recs.mapped("phone"), ["999", "999"])
+
+    def test_multirecord_missing_baseline_fails_open(self):
+        """A record with no baseline entry is skipped (fail open) — its
+        concurrent change does not block the batch."""
+        recs = self.c1 + self.c2
+        self._server_set_on(self.c2, phone="concurrent")
+        # Only c1 has a baseline; c2 is unchecked and must not raise.
+        recs.web_save(
+            {"phone": "999"},
+            specification={"phone": {}},
+            known_values={self.c1.id: {"phone": self.c1.phone or False}},
+        )
+        self.assertEqual(recs.mapped("phone"), ["999", "999"])
+
+    def test_multirecord_same_value_no_conflict(self):
+        """No conflict when the concurrent change landed on the SAME value the
+        user is writing anyway."""
+        recs = self.c1 + self.c2
+        self._server_set_on(self.c2, phone="target")
+        result = recs.web_save(
+            {"phone": "target"},
+            specification={"phone": {}},
+            known_values={
+                self.c1.id: {"phone": self.c1.phone or False},
+                self.c2.id: {"phone": "old"},  # server now "target" == new
+            },
+        )
+        self.assertEqual([r["phone"] for r in result], ["target", "target"])
+
+    # -- web_save_multi: per-record vals (relative Field Operation path) ------
+    # Unlike the mass-edit web_save (same vals to every record), web_save_multi
+    # carries a DISTINCT vals per record, so each is checked against its own
+    # vals AND its own baseline.
+
+    def test_web_save_multi_writes_all_no_locking(self):
+        """Without known_values, web_save_multi writes each record's own vals."""
+        recs = self.c1 + self.c2
+        result = recs.web_save_multi(
+            [{"phone": "a1"}, {"phone": "a2"}],
+            specification={"phone": {}},
+        )
+        self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
+        self.assertEqual(recs.mapped("phone"), ["a1", "a2"])
+
+    def test_web_save_multi_per_record_no_conflict(self):
+        """Distinct per-record vals save when no record's field moved on the
+        server since it was read."""
+        recs = self.c1 + self.c2
+        result = recs.web_save_multi(
+            [{"phone": "a1"}, {"phone": "a2"}],
+            specification={"phone": {}},
+            known_values={
+                self.c1.id: {"phone": self.c1.phone or False},
+                self.c2.id: {"phone": self.c2.phone or False},
+            },
+        )
+        self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
+
+    def test_web_save_multi_per_record_conflict(self):
+        """web_save_multi rejects when a record's written field was changed on
+        the server since its own baseline was read; nothing is persisted."""
+        recs = self.c1 + self.c2
+        self.c1.phone = self.c2.phone = "start"
+        self.env.flush_all()
+        self._server_set_on(self.c2, phone="999")  # another user moved c2
+        with self.assertRaises(UserError):
+            recs.web_save_multi(
+                [{"phone": "a1"}, {"phone": "a2"}],
+                specification={"phone": {}},
+                known_values={
+                    self.c1.id: {"phone": "start"},
+                    self.c2.id: {"phone": "start"},  # server 999 != start, != a2
+                },
+            )
+        # The check raised before any write(): nothing was persisted.
+        self.env.cr.execute(
+            "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "start")
+
+    def test_web_save_multi_same_value_no_conflict(self):
+        """No conflict when the concurrent change happens to equal the absolute
+        value THIS record is writing (the leniency is per-record vals)."""
+        recs = self.c1 + self.c2
+        self._server_set_on(self.c2, phone="a2")  # server == c2's own new value
+        result = recs.web_save_multi(
+            [{"phone": "a1"}, {"phone": "a2"}],
+            specification={"phone": {}},
+            known_values={
+                self.c1.id: {"phone": self.c1.phone or False},
+                self.c2.id: {"phone": "old"},  # baseline old, server a2 == new
+            },
+        )
+        self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
+
+    def test_web_save_multi_missing_baseline_fails_open(self):
+        """A record with no baseline entry is skipped (fail open) — its
+        concurrent change does not block the batch."""
+        recs = self.c1 + self.c2
+        self._server_set_on(self.c2, phone="concurrent")
+        recs.web_save_multi(
+            [{"phone": "a1"}, {"phone": "a2"}],
+            specification={"phone": {}},
+            known_values={self.c1.id: {"phone": self.c1.phone or False}},
+        )
+        self.assertEqual(recs.mapped("phone"), ["a1", "a2"])

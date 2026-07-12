@@ -11898,6 +11898,157 @@ test(`editable list view: multi edition`, async () => {
     });
 });
 
+test(`multi edit sends a per-record optimistic-locking baseline`, async () => {
+    // Field-scoped locking on the mass-edit: each selected record carries its
+    // OWN baseline (its originally-loaded value) under known_values, keyed by
+    // id — so the server can reject only the records another user changed.
+    onRpc("web_save", ({ args, kwargs }) => {
+        if (args[0].length > 1) {
+            expect(args[0]).toEqual([1, 2]);
+            expect(args[1]).toEqual({ int_field: 999 });
+            // Records 1 and 2 had int_field 10 and 9 respectively (Foo._records).
+            expect(kwargs.known_values).toEqual({
+                1: { int_field: 10 },
+                2: { int_field: 9 },
+            });
+            expect.step("multi web_save");
+        }
+    });
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list editable="bottom" multi_edit="1">
+                <field name="int_field"/>
+            </list>
+        `,
+    });
+
+    await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(1) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field]`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field] input`).edit("999");
+    expect(`.modal`).toHaveCount(1);
+    await contains(`.modal .btn-primary`).click();
+    expect.verifySteps(["multi web_save"]);
+});
+
+test(`multi edit surfaces a concurrency conflict from the server`, async () => {
+    // The server rejects a mass-edit whose optimistic-locking check finds a
+    // concurrently-modified record; the client must surface that as an error
+    // dialog (not swallow it). Detection itself is covered by the mock's check
+    // — exercised in the payload test above — and by tests/test_web_save.py.
+    onRpc("web_save", ({ args }) => {
+        if (args[0].length > 1) {
+            throw makeServerError({
+                type: "UserError",
+                message:
+                    "This record was modified by another user while you were " +
+                    "editing it.",
+            });
+        }
+    });
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list editable="bottom" multi_edit="1">
+                <field name="int_field"/>
+            </list>
+        `,
+    });
+
+    await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(1) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field]`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field] input`).edit("999");
+
+    expect.errors(1);
+    await contains(`.modal .btn-primary`).click();
+    await animationFrame();
+
+    expect(`.o_error_dialog`).toHaveCount(1);
+    expect.verifyErrors([
+        "This record was modified by another user while you were editing it.",
+    ]);
+});
+
+test(`multi edit with a relative Operation sends per-record baselines to web_save_multi`, async () => {
+    // A relative Field Operation (``+=5``) resolves to a DIFFERENT absolute
+    // value per record, so the save goes through web_save_multi with a distinct
+    // vals per record — and now each record also carries its OWN baseline under
+    // known_values so the server can reject only the records another user moved.
+    onRpc("web_save_multi", ({ args, kwargs }) => {
+        // args = [ids, valsList]; int_field 10 -> 15 and 9 -> 14.
+        expect(args[0]).toEqual([1, 2]);
+        expect(args[1]).toEqual([{ int_field: 15 }, { int_field: 14 }]);
+        expect(kwargs.known_values).toEqual({
+            1: { int_field: 10 },
+            2: { int_field: 9 },
+        });
+        expect.step("web_save_multi");
+    });
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list editable="bottom" multi_edit="1">
+                <field name="int_field"/>
+            </list>
+        `,
+    });
+
+    await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(1) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field]`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field] input`).edit("+=5");
+    expect(`.modal`).toHaveCount(1);
+    await contains(`.modal .btn-primary`).click();
+    expect.verifySteps(["web_save_multi"]);
+});
+
+test(`multi edit relative Operation surfaces a concurrency conflict from the server`, async () => {
+    // The relative-Operation mass-edit must surface a server optimistic-lock
+    // rejection as an error dialog, exactly like the absolute path.
+    onRpc("web_save_multi", ({ args }) => {
+        if (args[0].length > 1) {
+            throw makeServerError({
+                type: "UserError",
+                message:
+                    "This record was modified by another user while you were " +
+                    "editing it.",
+            });
+        }
+    });
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list editable="bottom" multi_edit="1">
+                <field name="int_field"/>
+            </list>
+        `,
+    });
+
+    await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(1) .o_list_record_selector input`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field]`).click();
+    await contains(`.o_data_row:eq(0) [name=int_field] input`).edit("+=5");
+
+    expect.errors(1);
+    await contains(`.modal .btn-primary`).click();
+    await animationFrame();
+
+    expect(`.o_error_dialog`).toHaveCount(1);
+    expect.verifyErrors([
+        "This record was modified by another user while you were editing it.",
+    ]);
+});
+
 test.tags("desktop");
 test(`editable list view: multi edit a field with string attr`, async () => {
     await mountView({

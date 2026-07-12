@@ -27,6 +27,7 @@ import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
+import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { listView } from "@web/views/list/list_view";
 import { PivotModel } from "@web/views/pivot/pivot_model";
 import { WebClient } from "@web/webclient/webclient";
@@ -316,6 +317,45 @@ test("restore to a deleted virtual action keeps the current controller and surfa
     expect(".o_list_view").toHaveCount(1);
 });
 
+test("restore to a virtual action whose view errors pre-mount keeps the displayed controller", async () => {
+    // Companion to the test above, but for a pre-mount RENDER error (the action
+    // LOADS fine — no MissingActionError — but its view throws before mounting,
+    // e.g. a bad arch / access error on get_views). Clicking the broken
+    // breadcrumb must be a no-op: the displayed controller (action 3) survives
+    // instead of being discarded for the truncated stack's tip.
+    expect.errors(1);
+    redirect("/odoo/action-1/action-3");
+    await mountWithCleanup(WebClient);
+    await animationFrame();
+    expect(".o_list_view").toHaveCount(1);
+
+    const actionService = getService("action");
+    const virtualController = actionService.controllerStack.find((c) => c.virtual);
+    expect(virtualController.action.id).toBe(1);
+    const currentBefore = actionService.currentController;
+    const lengthBefore = actionService.controllerStack.length;
+
+    // Make action 1's kanban view throw when it mounts. Only fires on restore:
+    // a virtual breadcrumb controller is never mounted at initial load.
+    patchWithCleanup(KanbanController.prototype, {
+        setup() {
+            super.setup();
+            throw new Error("view failed to render");
+        },
+    });
+
+    actionService.restore(virtualController.jsId);
+    await animationFrame();
+    await animationFrame();
+
+    // The failed restore left the displayed controller untouched, and the
+    // stack was not truncated to the virtual parent.
+    expect(".o_list_view").toHaveCount(1);
+    expect(actionService.currentController).toBe(currentBefore);
+    expect(actionService.controllerStack).toHaveLength(lengthBefore);
+    expect.verifyErrors(["view failed to render"]);
+});
+
 test("action in handler registry", async () => {
     await makeMockEnv();
     actionHandlersRegistry.add("ir.action_in_handler_registry", ({ action }) =>
@@ -477,7 +517,7 @@ test("document's title is updated when an action is executed", async () => {
     await animationFrame();
     let currentTitle = getService("title").getParts();
     expect(currentTitle).toEqual({});
-    let currentState = router.current;
+    let currentState;
     await getService("action").doAction(4);
     await animationFrame();
     currentTitle = getService("title").getParts();

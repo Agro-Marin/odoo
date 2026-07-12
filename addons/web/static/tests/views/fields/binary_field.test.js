@@ -478,6 +478,41 @@ test("should accept file with allowed MIME type and reject others", async () => 
     expect(".o_notification_bar").toHaveClass("bg-danger");
 });
 
+test("uploading a PDF into a plain binary field mints no object URL", async () => {
+    // FileUploader used to create a blob object URL for EVERY PDF upload;
+    // only PdfViewerField (createObjectUrl="true") ever revokes it, so a PDF
+    // uploaded through a plain binary widget pinned the whole file in memory
+    // until page unload. Creation is now opt-in.
+    const originalCreate = URL.createObjectURL;
+    URL.createObjectURL = (...args) => {
+        expect.step("createObjectURL");
+        return originalCreate.call(URL, ...args);
+    };
+    after(() => {
+        URL.createObjectURL = originalCreate;
+    });
+
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `
+            <form>
+                <field name="document" filename="foo" widget="binary"/>
+            </form>
+        `,
+    });
+
+    await click(`.o_select_file_button`);
+    await animationFrame();
+    const pdfFile = new File(["test"], "fake_pdf.pdf", { type: "application/pdf" });
+    await setInputFiles([pdfFile]);
+    await waitFor(`.o_form_button_save:visible`);
+
+    expect(`.o_field_binary input[type=text]`).toHaveValue("fake_pdf.pdf");
+    expect.verifySteps([]);
+});
+
 test("doesn't crash if value is not a string", async () => {
     class Dummy extends models.Model {
         document = fields.Binary();

@@ -7,6 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 
 import { x2ManyCommands } from "./commands.js";
+import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { DataPoint } from "./datapoint.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { Operation } from "./operation.js";
@@ -490,11 +491,58 @@ export class DynamicList extends DataPoint {
                     changesById[record.resId] || record._getChanges();
             }
             const valsList = resIds.map((resId) => changesById[resId]);
+            // Same field-scoped optimistic lock as the absolute mass-edit path,
+            // but a relative Operation resolves to a DIFFERENT absolute value
+            // per record, so each record is checked against its OWN baseline
+            // (the originally-loaded value the increment was computed from). If
+            // another user moved a record's value since load, that record's
+            // recomputed result is stale and the server rejects just that one.
+            const fieldNames = Object.keys(changes);
+            const knownValues = {};
+            for (const record of validRecords) {
+                if (!record.resId) {
+                    continue;
+                }
+                const baseline = buildConcurrencyBaseline(record, fieldNames);
+                if (Object.keys(baseline).length) {
+                    knownValues[record.resId] = baseline;
+                }
+            }
+            const multiKwargs = Object.keys(knownValues).length
+                ? { ...kwargs, known_values: knownValues }
+                : kwargs;
             save = () =>
-                this.model.orm.webSaveMulti(this.resModel, resIds, valsList, kwargs);
+                this.model.orm.webSaveMulti(
+                    this.resModel,
+                    resIds,
+                    valsList,
+                    multiKwargs,
+                );
         } else {
             const vals = editedRecord._getChanges();
-            save = () => this.model.orm.webSave(this.resModel, resIds, vals, kwargs);
+            // Field-scoped optimistic locking for the mass-edit: the SAME vals
+            // are written to every record, but each carries its OWN baseline
+            // (its originally-loaded values). Send them as
+            // `{ resId: baseline }` so the server rejects only the records
+            // another user genuinely changed, in one bulk check — mass-edit
+            // was previously the only save path with no concurrency guard.
+            // Uses the same shared builder as single-save, so the exclusion
+            // rules can't drift; the server fails open per record.
+            const knownValues = {};
+            for (const record of validRecords) {
+                if (!record.resId) {
+                    continue;
+                }
+                const baseline = buildConcurrencyBaseline(record, Object.keys(vals));
+                if (Object.keys(baseline).length) {
+                    knownValues[record.resId] = baseline;
+                }
+            }
+            const saveKwargs = Object.keys(knownValues).length
+                ? { ...kwargs, known_values: knownValues }
+                : kwargs;
+            save = () =>
+                this.model.orm.webSave(this.resModel, resIds, vals, saveKwargs);
         }
 
         const _changes = { ...changes };

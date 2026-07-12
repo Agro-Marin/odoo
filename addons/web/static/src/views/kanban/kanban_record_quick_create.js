@@ -189,6 +189,12 @@ export class KanbanQuickCreateController extends Component {
             }
 
             if (resId) {
+                // onValidate (group.addExistingRecord) is intentionally NOT
+                // awaited here: the form reset below runs in parallel with the
+                // card insertion, and this ordering is pinned by ~14 quick-
+                // create RPC-sequence tests. A rejection still reaches the
+                // global error service; awaiting would only relocate where it
+                // is caught, not restore the (server-created) card.
                 this.props.onValidate(resId, mode);
                 if (mode === "add") {
                     await this.model.load({ resId: false });

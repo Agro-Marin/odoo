@@ -58,6 +58,12 @@ export class NavBar extends Component {
 
     setup() {
         this.currentAppSectionsExtra = [];
+        // Keys of systray items whose component threw during render, so the
+        // getter can filter them out permanently. `handleItemError` used to
+        // mutate a per-render COPY of the item (systrayItems rebuilds fresh
+        // objects each render), so the faulty item remounted and re-threw —
+        // and re-queued an error dialog — on every navbar re-render.
+        this.failedSystrayKeys = new Set();
         this.actionService = useService("action");
         this.menuService = useService("menu");
         this.pwa = useService(/** @type {any} */ ("pwa"));
@@ -105,7 +111,12 @@ export class NavBar extends Component {
      * @param {Object} item - the systray item that errored
      */
     handleItemError(error, item) {
-        item.isDisplayed = () => false;
+        // Record the failing item's stable registry key (not the transient
+        // per-render copy) so systrayItems drops it on every subsequent
+        // render — otherwise it remounts and re-throws on the next navbar
+        // re-render (app switch, systray UPDATE, overflow adapt), one error
+        // dialog per render.
+        this.failedSystrayKeys.add(item.key);
         // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
         // through the unhandledrejection handler → UncaughtPromiseError dialog.
         Promise.resolve().then(() => {
@@ -139,6 +150,7 @@ export class NavBar extends Component {
     get systrayItems() {
         return systrayRegistry
             .getEntries()
+            .filter(([key]) => !this.failedSystrayKeys.has(key))
             .map(([key, value]) => ({ key, ...value }))
             .filter((item) =>
                 "isDisplayed" in item

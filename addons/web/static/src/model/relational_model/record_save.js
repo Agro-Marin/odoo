@@ -14,6 +14,7 @@ import { _t } from "@web/core/l10n/translation";
 import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { modelLog } from "@web/core/utils/asset_log";
 
+import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { FetchRecordError } from "./errors.js";
 import { getBasicEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -133,34 +134,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     // Field-scoped optimistic locking: capture the originally-loaded (baseline)
     // value of each field being written, so the server rejects only a genuine
     // per-field conflict and ignores concurrent writes to OTHER fields (e.g.
-    // background stored-compute recomputations). Types whose value can't be
-    // compared safely (x2many, binary, html, date/datetime, ...) are omitted;
-    // the server skips any field it has no baseline for (fails open).
-    const concurrencyBaseline = {};
-    for (const fieldName of Object.keys(changes)) {
-        const field = record.fields[fieldName];
-        if (
-            field?.type &&
-            ![
-                "one2many",
-                "many2many",
-                "binary",
-                "html",
-                "date",
-                "datetime",
-                "json",
-                "properties",
-                "reference",
-            ].includes(field.type) &&
-            // jsonb-backed columns: the server-side raw read returns a
-            // per-lang / per-company dict, never comparable to the scalar
-            // the client read — the server skips them, so don't send them.
-            !field.translate &&
-            !field.company_dependent
-        ) {
-            concurrencyBaseline[fieldName] = record._values[fieldName];
-        }
-    }
+    // background stored-compute recomputations). The exclusion rules live in
+    // one shared helper (also used by the list mass-edit path) so the two can't
+    // drift; the server skips any field it has no baseline for (fails open).
+    const concurrencyBaseline = buildConcurrencyBaseline(record, Object.keys(changes));
     if (!creation && !Object.keys(changes).length) {
         if (nextId) {
             // No changes — caller wants to navigate to ``nextId``. Run the
@@ -244,50 +221,56 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         }
         return succeeded;
     }
-    const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(
-        record,
-        changes,
-    );
-    if (canProceed === false) {
-        return false;
-    }
-    // keep x2many orderBy if we stay on the same record
-    /** @type {Record<string, any>} */
-    const orderBys = {};
-    if (!nextId) {
-        for (const fieldName of record.fieldNames) {
-            if (["one2many", "many2many"].includes(record.fields[fieldName].type)) {
-                orderBys[fieldName] = record.data[fieldName].orderBy;
-            }
-        }
-    }
-    let fieldSpec = {};
-    if (reload) {
-        fieldSpec = getFieldsSpec(
-            record.activeFields,
-            record.fields,
-            getBasicEvalContext(record.config),
-            { orderBys },
-        );
-    }
-    const kwargs = {
-        context: record.context,
-        specification: fieldSpec,
-        next_id: nextId,
-    };
-    // Field-scoped optimistic locking: send the baseline values of the fields
-    // being written so the server rejects only genuine per-field conflicts and
-    // ignores concurrent writes to other fields. (Empty baseline => no check.)
-    if (record.resId) {
-        kwargs.known_values = concurrencyBaseline;
-    }
     /** @type {Record<string, any>[]} */
     let records;
-    // In-flight marker for urgentSave(): held from the RPC until the change
-    // bag is cleared, so a tab close anywhere in that window skips the
-    // beacon instead of re-sending the same (non-idempotent) x2many commands.
+    // In-flight marker for urgentSave(): held from the FIRST await after the
+    // `changes` snapshot (the onWillSaveRecord hook — enterprise controllers
+    // park saves there for seconds behind dialogs/RPCs) until the change bag
+    // is cleared, so a tab close anywhere in that window skips the beacon
+    // instead of re-sending the same (non-idempotent) x2many commands: the
+    // beacon plus the parked webSave used to double-write duplicate child
+    // rows. Awaits BEFORE the snapshot need no marker — a beacon firing
+    // there clears `_changes`, so the snapshot comes out empty.
     record._saveInFlight = true;
     try {
+        const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(
+            record,
+            changes,
+        );
+        if (canProceed === false) {
+            return false;
+        }
+        // keep x2many orderBy if we stay on the same record
+        /** @type {Record<string, any>} */
+        const orderBys = {};
+        if (!nextId) {
+            for (const fieldName of record.fieldNames) {
+                if (["one2many", "many2many"].includes(record.fields[fieldName].type)) {
+                    orderBys[fieldName] = record.data[fieldName].orderBy;
+                }
+            }
+        }
+        let fieldSpec = {};
+        if (reload) {
+            fieldSpec = getFieldsSpec(
+                record.activeFields,
+                record.fields,
+                getBasicEvalContext(record.config),
+                { orderBys },
+            );
+        }
+        const kwargs = {
+            context: record.context,
+            specification: fieldSpec,
+            next_id: nextId,
+        };
+        // Field-scoped optimistic locking: send the baseline values of the
+        // fields being written so the server rejects only genuine per-field
+        // conflicts and ignores concurrent writes to other fields. (Empty
+        // baseline => no check.)
+        if (record.resId) {
+            kwargs.known_values = concurrencyBaseline;
+        }
         try {
             records = await record.model.orm.webSave(
                 record.resModel,

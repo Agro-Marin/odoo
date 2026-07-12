@@ -14,7 +14,7 @@ import {
     queryOne,
     runAllTimers,
 } from "@odoo/hoot-dom";
-import { Component, xml } from "@odoo/owl";
+import { Component, EventBus, xml } from "@odoo/owl";
 import {
     contains,
     getService,
@@ -22,6 +22,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/components/main_components_container";
+import { CommandPaletteEvent } from "@web/core/events";
 import { CommandPalette } from "@web/services/commands/command_palette";
 
 class FooterComponent extends Component {
@@ -502,6 +503,54 @@ test("check the concurrency during a research", async () => {
     imSearchDef.resolve();
     await animationFrame();
     expect.verifySteps(["b"]);
+});
+
+test("Enter still executes after an in-flight search is superseded by a reconfigure", async () => {
+    // Regression: a typed search left in-flight and then superseded (here by a
+    // SET_CONFIG, as a nested/reconfiguring command does) used to leave its
+    // awaiter (`searchValuePromise`) pending forever with the default KeepLast,
+    // wedging Enter/click. rejectSuperseded makes the superseded search settle.
+    await mountWithCleanup(MainComponentsContainer);
+    const bus = new EventBus();
+    const searchDef = new Deferred();
+    const provide = async (env, options) => {
+        // Block only the typed search so it is still in-flight when superseded.
+        if (options.searchValue) {
+            await searchDef;
+        }
+        return [
+            {
+                name: "cmd",
+                action: () => expect.step("executed"),
+            },
+        ];
+    };
+    const config = { providers: [{ namespace: "default", provide }] };
+    getService("dialog").add(CommandPalette, { config, bus });
+    await animationFrame();
+    expect(".o_command").toHaveCount(1);
+
+    await click(".o_command_palette_search input");
+    await edit("a");
+    await runAllTimers(); // fire the debounce → search("a") is in-flight on searchDef
+
+    // Reconfigure while search("a") is still pending: this starts a fresh
+    // search that supersedes it without ever touching searchValuePromise.
+    bus.trigger(CommandPaletteEvent.SET_CONFIG, config);
+    await animationFrame();
+
+    // The superseded search resolves its providers; its awaiter must now settle
+    // (reject → swallowed) rather than hang.
+    searchDef.resolve();
+    await animationFrame();
+    await runAllTimers();
+
+    // Enter must reach the (reconfigured) selected command — no wedge.
+    await press("enter");
+    await animationFrame();
+    expect.verifySteps(["executed"]);
+    // The winning search owns the final loading state.
+    expect(".o_command_palette .fa-spin").toHaveCount(0);
 });
 
 test("open the command palette with a searchValue already in the searchbar", async () => {

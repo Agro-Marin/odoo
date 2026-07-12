@@ -360,7 +360,7 @@ export class AutoComplete extends Component {
 
     selectOption(option) {
         this.inEdition = false;
-        if (option.unselectable) {
+        if (!option || option.unselectable) {
             return;
         }
 
@@ -396,7 +396,11 @@ export class AutoComplete extends Component {
                     sourceIndex += step;
                     source = this.sources[sourceIndex];
 
-                    while (source?.isLoading) {
+                    // Skip loaded-but-empty sources too (same predicate as the
+                    // initial-selection branch below): landing on one would set
+                    // activeSourceOption on a nonexistent option, crashing
+                    // Enter/Tab and emitting a dangling aria-activedescendant.
+                    while (source && (source.isLoading || !source.options.length)) {
                         sourceIndex += step;
                         source = this.sources[sourceIndex];
                     }

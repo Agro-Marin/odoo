@@ -503,7 +503,15 @@ export class RPCCache {
                                             if (e instanceof IDBQuotaExceededError) {
                                                 this.indexedDB.deleteDatabase();
                                             } else {
-                                                throw e;
+                                                // Disk persistence is best-effort:
+                                                // rethrowing here surfaced one
+                                                // unhandled-rejection error dialog
+                                                // per cached call when storage is
+                                                // denied.
+                                                console.warn(
+                                                    "RPC cache: disk write failed",
+                                                    e,
+                                                );
                                             }
                                         });
                                 })
@@ -570,21 +578,30 @@ export class RPCCache {
                 } else if (type === "disk") {
                     this.indexedDB
                         .read(table, key)
-                        .then(async (result) => {
-                            if (result) {
-                                let decrypted;
-                                try {
-                                    decrypted = await this.crypto.decrypt(result);
-                                } catch {
-                                    // Do nothing ! The cryptoKey is probably different.
-                                    // The data will be updated with the new cryptoKey.
-                                    return;
+                        .then(
+                            async (result) => {
+                                if (result) {
+                                    let decrypted;
+                                    try {
+                                        decrypted = await this.crypto.decrypt(result);
+                                    } catch {
+                                        // Do nothing ! The cryptoKey is probably different.
+                                        // The data will be updated with the new cryptoKey.
+                                        return;
+                                    }
+                                    resolve(decrypted);
+                                    fromCacheValue = decrypted;
+                                    hasCacheValue = true;
                                 }
-                                resolve(decrypted);
-                                fromCacheValue = decrypted;
-                                hasCacheValue = true;
-                            }
-                        })
+                            },
+                            () => {
+                                // IndexedDB unavailable (storage denied,
+                                // blocked delete): treat as a cache miss —
+                                // the fallback fetch still serves the caller.
+                                // Without this arm every boot-path cached
+                                // call leaked an unhandled rejection.
+                            },
+                        )
                         .finally(() => fromCache.resolve());
                 } else {
                     fromCache.resolve(); // fromCacheValue will remain undefined
@@ -597,6 +614,27 @@ export class RPCCache {
         }
 
         return ramValue.then(shape);
+    }
+
+    /**
+     * Synchronously evict a cache-miss entry whose underlying fetch was
+     * silently aborted (``abort(false)``): that fetch never settles, so the
+     * ``onFulfilled``/``onRejected`` bookkeeping never runs and the
+     * ``pendingRequests`` slot plus the never-settling RAM promise would leak
+     * — every later read of the key (including ``update: "always"``
+     * refreshes) then returns a promise that never resolves. Mirrors the
+     * dedup layer's synchronous abort eviction (rpc.js). No-op if the entry
+     * already settled or was invalidated.
+     *
+     * @param {string} table
+     * @param {string} key
+     */
+    abortPending(table, key) {
+        const requestKey = `${table}/${key}`;
+        if (requestKey in this.pendingRequests) {
+            delete this.pendingRequests[requestKey];
+            this.ramCache.delete(table, key);
+        }
     }
 
     /**

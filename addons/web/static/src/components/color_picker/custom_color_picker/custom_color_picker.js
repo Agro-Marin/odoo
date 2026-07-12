@@ -94,19 +94,29 @@ export class CustomColorPicker extends Component {
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
         // Bind on every document (including iframes) so drag/move tracking survives
-        // moving the pointer off the colorpicker.
-        const documents = [
-            window.top,
-            ...Array.from(window.top.frames).filter((frame) => {
-                try {
-                    const document = frame.document;
-                    return !!document;
-                } catch {
-                    // We cannot access the document (cross origin).
-                    return false;
-                }
-            }),
-        ].map((w) => w.document);
+        // moving the pointer off the colorpicker. Guard the WHOLE computation:
+        // when Odoo itself is embedded in a cross-origin iframe, reading
+        // `window.top.document` (and `window.top.frames`) throws SecurityError
+        // per spec — the per-frame try/catch didn't cover the top document, so
+        // every "Custom" color-picker tab crashed inside such embeds. Fall back
+        // to this component's own document.
+        let documents;
+        try {
+            documents = [
+                window.top,
+                ...Array.from(window.top.frames).filter((frame) => {
+                    try {
+                        const document = frame.document;
+                        return !!document;
+                    } catch {
+                        // We cannot access the document (cross origin).
+                        return false;
+                    }
+                }),
+            ].map((w) => w.document);
+        } catch {
+            documents = [this.props.document ?? document];
+        }
         this.throttleOnPointerMove = useThrottleForAnimation((ev) => {
             this.onPointerMovePicker(ev);
             this.onPointerMoveSlider(ev);

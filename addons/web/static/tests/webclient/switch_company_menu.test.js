@@ -846,3 +846,133 @@ test("disallowed companies in between allowed companies are not enabled", async 
     expect("[data-company-id] .fa-square-check").toHaveCount(0);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
 });
+
+test("switching company probes record access under the new companies before mutating the cookie", async () => {
+    // A form/record view is open on res.partner id 1 when the switch happens.
+    const controller = { props: { resId: 1, resModel: "res.partner" } };
+    const actionService = { currentController: controller };
+
+    const calls = [];
+    // Stub the access check to capture the exact ordering-sensitive state at
+    // the moment it is invoked: the cookie must still hold the OLD selection
+    // (no half-switched window), and the probe must carry the NEW
+    // allowed_company_ids so record rules are evaluated for the target.
+    patchWithCleanup(user, {
+        checkAccessRight(model, operation, ids, options) {
+            calls.push({
+                model,
+                operation,
+                ids,
+                allowedCompanyIds: options?.context?.allowed_company_ids,
+                cidsAtCallTime: cookie.get("cids"),
+            });
+            return Promise.resolve(true);
+        },
+    });
+
+    const selector = new SwitchCompanyMenu.CompanySelector(actionService, {
+        close: () => {},
+    });
+    selector.selectedCompaniesIds = [2];
+
+    expect(cookie.get("cids")).toBe("3");
+    await selector.apply();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].model).toBe("res.partner");
+    expect(calls[0].operation).toBe("read");
+    expect(calls[0].ids).toBe(1);
+    expect(calls[0].allowedCompanyIds).toEqual([2]);
+    // The probe ran BEFORE any cookie mutation...
+    expect(calls[0].cidsAtCallTime).toBe("3");
+    // ...and only once it resolved was the switch committed.
+    expect(cookie.get("cids")).toBe("2");
+});
+
+test("switching company drops the current record when it is inaccessible under the new companies", async () => {
+    const controller = { props: { resId: 1, resModel: "res.partner" } };
+    const actionService = { currentController: controller };
+
+    // The record is not readable under the target company set.
+    patchWithCleanup(user, {
+        checkAccessRight: () => Promise.resolve(false),
+    });
+
+    const pushes = [];
+    patchWithCleanup(router, {
+        pushState(state, options) {
+            pushes.push({ state, options });
+            return super.pushState(state, options);
+        },
+    });
+
+    const selector = new SwitchCompanyMenu.CompanySelector(actionService, {
+        close: () => {},
+    });
+    selector.selectedCompaniesIds = [2];
+    await selector.apply();
+
+    expect(pushes).toHaveLength(1);
+    // A denied record is dropped: the reload replaces the current history
+    // entry and pops the record off the action stack rather than reloading
+    // straight back onto a record the user can no longer see.
+    expect(pushes[0].options.replace).toBe(true);
+    expect(pushes[0].options.reload).toBe(true);
+    expect(pushes[0].state.actionStack).toBeInstanceOf(Array);
+    // The cookie still switches — the access failure only affects which view
+    // is restored, not whether the company change takes effect.
+    expect(cookie.get("cids")).toBe("2");
+});
+
+test("switching company keeps an accessible record and does not touch the action stack", async () => {
+    const controller = { props: { resId: 1, resModel: "res.partner" } };
+    const actionService = { currentController: controller };
+
+    patchWithCleanup(user, {
+        checkAccessRight: () => Promise.resolve(true),
+    });
+
+    const pushes = [];
+    patchWithCleanup(router, {
+        pushState(state, options) {
+            pushes.push({ state, options });
+            return super.pushState(state, options);
+        },
+    });
+
+    const selector = new SwitchCompanyMenu.CompanySelector(actionService, {
+        close: () => {},
+    });
+    selector.selectedCompaniesIds = [2];
+    await selector.apply();
+
+    expect(pushes).toHaveLength(1);
+    // Accessible record: plain reload, no replace, action stack left intact.
+    expect(pushes[0].options.reload).toBe(true);
+    expect(pushes[0].options.replace).toBe(undefined);
+    expect(pushes[0].state.actionStack).toBe(undefined);
+    expect(cookie.get("cids")).toBe("2");
+});
+
+test("switching company with no record open performs no access probe", async () => {
+    // A list view or the home menu: nothing to re-check, so the switch must
+    // not issue a spurious access check.
+    const actionService = { currentController: null };
+
+    let probed = false;
+    patchWithCleanup(user, {
+        checkAccessRight() {
+            probed = true;
+            return Promise.resolve(true);
+        },
+    });
+
+    const selector = new SwitchCompanyMenu.CompanySelector(actionService, {
+        close: () => {},
+    });
+    selector.selectedCompaniesIds = [2];
+    await selector.apply();
+
+    expect(probed).toBe(false);
+    expect(cookie.get("cids")).toBe("2");
+});

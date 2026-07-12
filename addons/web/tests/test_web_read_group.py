@@ -121,6 +121,44 @@ class TestWebReadGroup(TransactionCase):
         total = sum(sum(states.values()) for states in pb.values())
         self.assertEqual(total, len(self.partners))
 
+    def test_web_read_group_length_counts_all_groups_when_page_full(self):
+        """When the first page fills ``limit``, ``length`` must report the true
+        total group count.
+
+        Regression: the total was computed as ``limit + len(_read_group(...,
+        offset=limit))``, materialising and post-processing every trailing
+        group row just to count them. It is now a single ``COUNT(*)`` over the
+        grouped sub-query, which must yield the same total.
+        """
+        Partner = self.env["res.partner"]
+        partners = Partner.create([{"name": f"WRG Count {i}"} for i in range(5)])
+        domain = [("id", "in", partners.ids)]
+        # 5 distinct names => 5 groups; a full page of 2 hides 3 more.
+        result = Partner.web_read_group(
+            domain=domain, groupby=["name"], aggregates=["__count"], limit=2
+        )
+        self.assertEqual(len(result["groups"]), 2)
+        self.assertEqual(result["length"], 5)
+
+    def test_read_group_count_matches_len_read_group(self):
+        """``_read_group_count`` must equal ``len(_read_group(...))`` — the
+        semantics it replaces — across boolean, char and relational groupbys
+        (incl. an all-NULL relational group)."""
+        Partner = self.env["res.partner"]
+        for groupby in (["is_company"], ["name"], ["country_id"], ["parent_id"]):
+            expected = len(Partner._read_group(self.domain, groupby=groupby))
+            self.assertEqual(
+                Partner._read_group_count(self.domain, groupby),
+                expected,
+                f"count mismatch for groupby={groupby}",
+            )
+
+    def test_read_group_count_edge_cases(self):
+        """Empty query => 0 groups; no groupby => exactly one implicit row."""
+        Partner = self.env["res.partner"]
+        self.assertEqual(Partner._read_group_count([("id", "in", [])], ["is_company"]), 0)
+        self.assertEqual(Partner._read_group_count(self.domain, []), 1)
+
     def test_get_read_group_order_aggregator_fallback_and_no_duplicate(self):
         """``_get_read_group_order`` must fall back to a field's aggregator and
         not emit duplicate ORDER BY terms.

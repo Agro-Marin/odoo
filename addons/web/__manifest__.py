@@ -399,11 +399,12 @@ This module provides the core of the Odoo Web Client.
                 "web.assets_backend",
             ),
             # Legacy production modules exercised by the ported HOOT suites in
-            # tests/legacy_js/ (Class, publicWidget.Widget). They live in
-            # web.assets_frontend, not assets_backend, so the unit-test bundle
-            # would not otherwise resolve their imports.
+            # tests/legacy_js/ (Class, lazyloader, publicWidget.Widget). They
+            # live in web.assets_frontend, not assets_backend, so the unit-test
+            # bundle would not otherwise resolve their imports.
             "web/static/src/legacy/js/core/class.js",
             "web/static/src/legacy/js/public/minimal_dom.js",
+            "web/static/src/legacy/js/public/lazyloader.js",
             "web/static/src/legacy/js/public/public_widget.js",
             "web/static/src/public/**/*.js",
             "web/static/src/public/**/*.xml",

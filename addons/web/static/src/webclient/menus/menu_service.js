@@ -78,10 +78,6 @@ export const menuService = {
          */
         const persistMenus = (data, hash) => {
             try {
-                browser.localStorage.setItem(
-                    "webclient_menus_version",
-                    session.registry_hash,
-                );
                 browser.localStorage.setItem("webclient_menus", JSON.stringify(data));
                 if (hash) {
                     browser.localStorage.setItem("webclient_menus_hash", hash);
@@ -94,8 +90,49 @@ export const menuService = {
                     // in tests that spy on localStorage.
                     browser.localStorage.removeItem("webclient_menus_hash");
                 }
+                // Version LAST: it gates reuse of the payload on the next boot.
+                // Writing it first meant a quota failure on the payload write
+                // left a current version stamp over a stale payload.
+                browser.localStorage.setItem(
+                    "webclient_menus_version",
+                    session.registry_hash,
+                );
             } catch (error) {
                 console.error("Error while storing menus in localStorage", error);
+                try {
+                    // Close the gate: a partially-written trio must not be
+                    // reused on the next boot.
+                    browser.localStorage.removeItem("webclient_menus_version");
+                } catch {
+                    // Storage fully unavailable: nothing to clean up.
+                }
+            }
+        };
+        /**
+         * Parse a stored menu payload, discarding the whole cached trio when
+         * it is corrupt (interrupted write, extension, manual edit): before
+         * this guard, one corrupt value made ``start()`` throw on EVERY
+         * subsequent boot — a permanently blank webclient until the user
+         * manually cleared storage.
+         *
+         * @param {string} raw
+         * @returns {Object|null} the parsed menus, or null when corrupt
+         */
+        const parseStoredMenus = (raw) => {
+            try {
+                return JSON.parse(raw);
+            } catch {
+                console.warn(
+                    "Corrupt webclient_menus in localStorage; discarding the cached copy",
+                );
+                try {
+                    browser.localStorage.removeItem("webclient_menus");
+                    browser.localStorage.removeItem("webclient_menus_version");
+                    browser.localStorage.removeItem("webclient_menus_hash");
+                } catch {
+                    // Storage unavailable: nothing to clean up.
+                }
+                return null;
             }
         };
         const storedMenus = browser.localStorage.getItem("webclient_menus");
@@ -105,7 +142,11 @@ export const menuService = {
         const storedMenusHash =
             browser.localStorage.getItem("webclient_menus_hash") || undefined;
 
-        if (storedMenus && storedMenusVersion === session.registry_hash) {
+        const cachedMenus =
+            storedMenus && storedMenusVersion === session.registry_hash
+                ? parseStoredMenus(storedMenus)
+                : null;
+        if (cachedMenus) {
             const generation = ++fetchGeneration;
             fetchMenus(false, storedMenusHash)
                 .then((res) => {
@@ -135,7 +176,7 @@ export const menuService = {
                 .catch((error) => {
                     console.warn("Background menu revalidation failed", error);
                 });
-            menusData = JSON.parse(storedMenus);
+            menusData = cachedMenus;
         } else {
             // Cold boot: no usable stored copy for this registry version.
             let res;
@@ -159,8 +200,9 @@ export const menuService = {
                 menusData = res.menus;
                 persistMenus(res.menus, res.hash);
             } else if (storedMenus) {
-                // Last resort: a stale, version-mismatched copy beats a blank client.
-                menusData = JSON.parse(storedMenus);
+                // Last resort: a stale, version-mismatched copy beats a blank
+                // client (a corrupt one falls through to the minimal root).
+                menusData = parseStoredMenus(storedMenus);
             }
         }
         if (!menusData) {

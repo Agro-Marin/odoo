@@ -84,6 +84,30 @@ test("recoverFromSaveError tolerates a missing allowed_company_ids context", asy
     const recovered = service.recoverFromSaveError(accessError(2), model);
 
     expect(recovered).toBe(true);
-    expect(model.config.context.allowed_company_ids).toEqual([2]);
+    // The seed must include the user's currently-active companies, not just
+    // the suggested one: caller context keys win over user.context in
+    // ORM.call, so `[2]` alone would deactivate company 1 server-side for
+    // every subsequent RPC of this form session.
+    expect(model.config.context.allowed_company_ids).toEqual([1, 2]);
+    expect.verifySteps(["activate:1,2"]);
+});
+
+test("recoverFromSaveError extends an existing allowed_company_ids context", async () => {
+    await makeMockEnv();
+    patchWithCleanup(user, {
+        get activeCompanies() {
+            return [{ id: 1 }];
+        },
+        activateCompanies(/** @type {number[]} */ ids) {
+            expect.step(`activate:${ids.join(",")}`);
+        },
+    });
+    const service = getService("multi_company_recovery");
+    const model = { config: { context: { allowed_company_ids: [1, 3] } } };
+
+    const recovered = service.recoverFromSaveError(accessError(2), model);
+
+    expect(recovered).toBe(true);
+    expect(model.config.context.allowed_company_ids).toEqual([1, 3, 2]);
     expect.verifySteps(["activate:1,2"]);
 });

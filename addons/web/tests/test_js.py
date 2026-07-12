@@ -1,10 +1,65 @@
 import re
 from contextlib import suppress
+from pathlib import Path
 
 import odoo.tests
-from odoo.tools.misc import file_open
+from odoo.tools.misc import file_open, file_path
 
 RE_FORBIDDEN_STATEMENTS = re.compile(r"test.*\.(only|debug)\(")
+
+# Suite name lists shared by the desktop and mobile classes AND by
+# test_suite_filters_cover_every_test_file below. HOOT ``&id=`` filters fail
+# open (zero matched tests still printed the success signal until the runner
+# was hardened), so every static/tests directory MUST appear in one of these
+# lists or its tests silently never run in CI — 13 files (~183 tests) were
+# lost that way once. Keep new tests-directory names in sync here.
+GRAPH_PIVOT_SUITES = (
+    "@web/views/graph",
+    "@web/views/pivot",
+    "@web/views/pivot_view",
+    "@web/views/view_components",
+    "@web/views/view_compiler",
+    "@web/views/view_dialogs",
+    "@web/views/widgets",
+    "@web/views/layout",
+    "@web/views/view_button",
+    "@web/views/view_buttons",
+    "@web/views/view_button_hook",
+    "@web/views/view_service",
+    "@web/views/view",
+    "@web/views/view_utils",
+    "@web/views/module_views",
+)
+MISC_SUITES = (
+    "@web/env",
+    "@web/reactivity",
+    "@web/t_custom_click",
+    "@web/helpers",
+    "@web/interactions",
+    "@web/l10n",
+    "@web/legacy_js",
+    "@web/mock_server",
+    "@web/modules",
+)
+# Union of every suite prefix some CI method selects (html_editor lives in
+# its own addon and is not part of the web tests tree walk).
+ALL_WEB_SUITE_PREFIXES = (
+    "@web/core",
+    "@web/components",
+    "@web/services",
+    "@web/ui",
+    "@web/views/calendar",
+    "@web/views/fields",
+    "@web/views/form",
+    "@web/views/kanban",
+    "@web/views/list",
+    *GRAPH_PIVOT_SUITES,
+    "@web/search",
+    "@web/webclient",
+    "@web/public",
+    "@web/model",
+    *MISC_SUITES,
+)
 
 
 def unit_test_error_checker(message):
@@ -159,23 +214,7 @@ class WebSuite(HOOTCommon):
     @odoo.tests.no_retry
     def test_graph_pivot(self):
         """Graph, pivot, view components/dialogs/widgets, and root view files."""
-        self._run_hoot(
-            "@web/views/graph",
-            "@web/views/pivot",
-            "@web/views/pivot_view",
-            "@web/views/view_components",
-            "@web/views/view_dialogs",
-            "@web/views/widgets",
-            "@web/views/layout",
-            "@web/views/view_button",
-            "@web/views/view_buttons",
-            "@web/views/view_button_hook",
-            "@web/views/view_service",
-            "@web/views/view",
-            "@web/views/view_utils",
-            "@web/views/module_views",
-            preset="desktop",
-        )
+        self._run_hoot(*GRAPH_PIVOT_SUITES, preset="desktop")
 
     @odoo.tests.no_retry
     def test_search(self):
@@ -204,13 +243,10 @@ class WebSuite(HOOTCommon):
 
     @odoo.tests.no_retry
     def test_misc(self):
-        """Root-level web test files (env, reactivity, t_custom_click)."""
-        self._run_hoot(
-            "@web/env",
-            "@web/reactivity",
-            "@web/t_custom_click",
-            preset="desktop",
-        )
+        """Root-level test files (env, reactivity, t_custom_click) plus the
+        infrastructure suites: mock server meta-tests, module loader, l10n
+        utils, legacy Class/publicWidget ports, test helpers, interactions."""
+        self._run_hoot(*MISC_SUITES, preset="desktop")
 
     @odoo.tests.no_retry
     def test_hoot(self):
@@ -229,6 +265,38 @@ class WebSuite(HOOTCommon):
     def test_check_suite(self):
         """Check that no HOOT test uses only() or debug()."""
         self._check_forbidden_statements("web.assets_unit_tests")
+
+    def test_suite_filters_cover_every_test_file(self):
+        """Every ``static/tests/**/*.test.js`` must be selected by at least
+        one CI suite filter in ALL_WEB_SUITE_PREFIXES.
+
+        HOOT ``&id=`` hash filters resolve against suite names, so a tests
+        directory that no method names simply never runs — and, before the
+        runner was hardened to fail on zero matched tests, reported success.
+        13 files (~183 tests: mock_server, l10n, legacy_js, modules,
+        interactions, helpers, view_compiler) were silently lost that way.
+        This walk fails the build the moment a tests directory is added or
+        renamed without updating the suite lists at the top of this file.
+        """
+        tests_root = Path(file_path("web/static/tests"))
+        uncovered = []
+        for test_file in sorted(tests_root.rglob("*.test.js")):
+            rel = test_file.relative_to(tests_root).as_posix()
+            if rel.startswith(("_framework/", "tours/")):
+                # _framework is the mock-server implementation; tours run
+                # through web.assets_tests, not the HOOT unit runner.
+                continue
+            suite = "@web/" + rel[: -len(".test.js")]
+            if not any(
+                suite == prefix or suite.startswith(prefix + "/")
+                for prefix in ALL_WEB_SUITE_PREFIXES
+            ):
+                uncovered.append(suite)
+        self.assertFalse(
+            uncovered,
+            "Test files selected by no CI suite filter (they will never run):"
+            "\n- " + "\n- ".join(uncovered),
+        )
 
     def _check_forbidden_statements(self, bundle):
         # As we currently are not in a request context, we cannot render `web.layout`.
@@ -310,24 +378,7 @@ class MobileWebSuite(HOOTCommon):
     @odoo.tests.no_retry
     def test_graph_pivot(self):
         """Graph, pivot, view components/dialogs/widgets, and root view files."""
-        self._run_hoot(
-            "@web/views/graph",
-            "@web/views/pivot",
-            "@web/views/pivot_view",
-            "@web/views/view_components",
-            "@web/views/view_dialogs",
-            "@web/views/widgets",
-            "@web/views/layout",
-            "@web/views/view_button",
-            "@web/views/view_buttons",
-            "@web/views/view_button_hook",
-            "@web/views/view_service",
-            "@web/views/view",
-            "@web/views/view_utils",
-            "@web/views/module_views",
-            preset="mobile",
-            tag="-headless",
-        )
+        self._run_hoot(*GRAPH_PIVOT_SUITES, preset="mobile", tag="-headless")
 
     @odoo.tests.no_retry
     def test_search(self):
@@ -356,11 +407,5 @@ class MobileWebSuite(HOOTCommon):
 
     @odoo.tests.no_retry
     def test_misc(self):
-        """Root-level web test files (env, reactivity, t_custom_click)."""
-        self._run_hoot(
-            "@web/env",
-            "@web/reactivity",
-            "@web/t_custom_click",
-            preset="mobile",
-            tag="-headless",
-        )
+        """Root-level test files plus infrastructure suites (see WebSuite)."""
+        self._run_hoot(*MISC_SUITES, preset="mobile", tag="-headless")

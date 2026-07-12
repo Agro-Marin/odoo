@@ -23,10 +23,17 @@ export class FileUploader extends Component {
         showUploadingText: { type: Boolean, optional: true },
         // See https://www.iana.org/assignments/media-types/media-types.xhtml
         allowedMIMETypes: { type: String, optional: true },
+        // Opt-in: mint a blob object URL for each uploaded PDF and pass it
+        // as `objectUrl` to `onUploaded`. Ownership transfers to the
+        // consumer, which MUST revoke it (see PdfViewerField). Kept opt-in
+        // because a URL handed to a consumer that ignores it pins the whole
+        // file in memory until page unload.
+        createObjectUrl: { type: Boolean, optional: true },
     };
     static defaultProps = {
         checkSize: true,
         showUploadingText: true,
+        createObjectUrl: false,
     };
 
     setup() {
@@ -75,9 +82,8 @@ export class FileUploader extends Component {
                         size: file.size,
                         type: file.type,
                         data: data.split(",")[1],
-                        // Ownership transfers to the `onUploaded` consumer, which
-                        // must revoke it (see PdfViewerField, its only consumer).
                         objectUrl:
+                            this.props.createObjectUrl &&
                             file.type === "application/pdf"
                                 ? URL.createObjectURL(file)
                                 : null,

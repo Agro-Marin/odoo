@@ -896,6 +896,67 @@ test("unselectable options are... not selectable", async () => {
     expect.verifySteps(["selected: selectable"]);
 });
 
+test("keyboard navigation skips a loaded-but-empty source", async () => {
+    // A source that finished loading with zero options (e.g. a secondary
+    // suggestion provider with no match) must be skipped when arrow keys
+    // cross source boundaries: landing "inside" it used to point
+    // activeSourceOption at a nonexistent option, crashing Enter/Tab.
+    class Parent extends Component {
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = [
+            {
+                options: () => [
+                    item("a", this.onSelect.bind(this)),
+                    item("b", this.onSelect.bind(this)),
+                ],
+            },
+            { options: () => [] },
+        ];
+
+        onSelect(option) {
+            expect.step(`selected: ${option.label}`);
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(`.o-autocomplete input`).click();
+    expect(`.o-autocomplete--input`).toHaveAttribute(
+        "aria-activedescendant",
+        "autocomplete_0_0",
+    );
+
+    await press("arrowdown");
+    await animationFrame();
+    expect(`.o-autocomplete--input`).toHaveAttribute(
+        "aria-activedescendant",
+        "autocomplete_0_1",
+    );
+
+    // Crossing past the last option lands beyond the empty source: nothing
+    // is active, and Enter must be a no-op instead of a crash.
+    await press("arrowdown");
+    await animationFrame();
+    expect(`.o-autocomplete--input`).not.toHaveAttribute("aria-activedescendant");
+
+    await press("enter");
+    await animationFrame();
+    expect.verifySteps([]);
+
+    // Navigation restarts from the top and selection works again.
+    await press("arrowdown");
+    await animationFrame();
+    expect(`.o-autocomplete--input`).toHaveAttribute(
+        "aria-activedescendant",
+        "autocomplete_0_0",
+    );
+    await press("enter");
+    await animationFrame();
+    expect.verifySteps(["selected: a"]);
+});
+
 test.tags("desktop");
 test("items are selected only when the mouse moves, not just on enter", async () => {
     class Parent extends Component {

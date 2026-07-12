@@ -5,10 +5,11 @@
 
 /** Sentinel value indicating a record ID that is inaccessible or does not exist. */
 
-import { AppEvent } from "@web/core/events";
+import { AppEvent, UserEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
+import { userBus } from "@web/services/user";
 export const ERROR_INACCESSIBLE_OR_MISSING = Symbol(
     "INACCESSIBLE OR MISSING RECORD ID",
 );
@@ -60,6 +61,13 @@ export const nameService = {
         }
 
         env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, clearCache);
+        // A company switch can make a previously-inaccessible record readable
+        // (recoverFromSaveError activates a company with reload:false, so no
+        // ACTION_MANAGER:UPDATE fires). Clearing here lets us KEEP miss
+        // sentinels cached (below) — repeated lookups of a genuinely-dead id
+        // in one view no longer re-fetch on every facet interaction — while
+        // still re-checking visibility when it can actually change.
+        userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, clearCache);
 
         /**
          * Get or create the id→Deferred mapping for a model.
@@ -162,14 +170,16 @@ export const nameService = {
                                     if (resId in displayNames) {
                                         deferred.resolve(displayNames[resId]);
                                     } else {
-                                        // Missing/inaccessible isn't durable: resolve
-                                        // pending callers but evict the entry so a later
-                                        // lookup re-fetches — the record may become
-                                        // readable after an ACL/company change that
-                                        // doesn't fire ACTION_MANAGER:UPDATE (e.g.
-                                        // recoverFromSaveError with reload:false).
+                                        // Cache the miss (do NOT evict): a dead id in a
+                                        // saved filter used to re-fetch on every facet
+                                        // recomputation (tree_processor rebuilds
+                                        // descriptions per search interaction) — one
+                                        // extra RPC per keystroke, forever. The two
+                                        // visibility-changing events
+                                        // (ACTION_MANAGER:UPDATE, ACTIVE_COMPANIES_CHANGED)
+                                        // clear the cache, so a record that becomes
+                                        // readable is still picked up.
                                         deferred.resolve(ERROR_INACCESSIBLE_OR_MISSING);
-                                        evict(resModel, resId, deferred);
                                     }
                                 }
                             },

@@ -353,7 +353,6 @@ class ExportFormat:
                     )
                 )
             groupby_type = [Model._fields[f].type for f in groupby_root]
-            export_data = records.export_data([".id"] + field_names).get("datas", [])
             tree = GroupsTreeNode(Model, field_names, groupby, groupby_type)
             if ids:
                 domain = [("id", "in", ids)]
@@ -364,13 +363,23 @@ class ExportFormat:
                 domain, groupby, ["__count", "id:array_agg"]
             )
 
+            # Batch export_data + invalidate the ORM cache between batches, as
+            # the non-grouped branch below does: a single export over the whole
+            # recordset held every browsed record in the ORM cache at once, so
+            # a large grouped XLSX export could exhaust worker memory where the
+            # equivalent non-grouped export survived.
             record_rows = {}
             current_id = None
-            for row in export_data:
-                if row[0]:  # First column is the record ID
-                    current_id = int(row[0])
-                    record_rows[current_id] = []
-                record_rows[current_id].append(row[1:])
+            for batch in split_every(PREFETCH_MAX, records.ids, Model.browse):
+                export_data = batch.export_data([".id"] + field_names).get(
+                    "datas", []
+                )
+                for row in export_data:
+                    if row[0]:  # First column is the record ID
+                        current_id = int(row[0])
+                        record_rows[current_id] = []
+                    record_rows[current_id].append(row[1:])
+                batch.invalidate_recordset()
 
             # Preserve the order records were fetched in (browse/search above)
             # rather than the group order, by indexing rows through `export_data`.

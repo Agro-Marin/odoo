@@ -347,7 +347,6 @@ export class DateTimePicker extends Component {
         },
         isDateValid: { type: Function, optional: true },
         dayCellClass: { type: Function, optional: true },
-        tz: { type: String, optional: true },
     };
 
     static defaultProps = {

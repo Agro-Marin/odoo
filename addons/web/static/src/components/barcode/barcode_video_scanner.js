@@ -192,8 +192,15 @@ export class BarcodeVideoScanner extends Component {
             this.consecutiveDetectErrors = 0;
         } catch (err) {
             this.consecutiveDetectErrors++;
-            this.props.onError(err);
+            // A single detect() rejection is usually transient (e.g. the ZXing
+            // polyfill throws InvalidStateError when video.readyState briefly
+            // drops). Only surface it as an error once the retry budget is
+            // exhausted — reporting every frame made consumers that treat
+            // onError as fatal (BarcodeDialog swaps the live camera for the
+            // error screen) kill the scanner on the first hiccup, turning the
+            // MAX_CONSECUTIVE_DETECT_ERRORS budget into dead code.
             if (this.consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+                this.props.onError(err);
                 this.cleanStreamAndTimeout();
                 return;
             }

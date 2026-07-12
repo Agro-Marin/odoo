@@ -5,9 +5,9 @@
 
 import {
     EventBus,
+    onWillDestroy,
     onWillRender,
     onWillStart,
-    onWillUnmount,
     onWillUpdateProps,
     status,
     useComponent,
@@ -242,15 +242,6 @@ function _isSearchParamsValidationEnabled() {
 }
 
 /**
- * Test-only: reset the validation-cache so a stubbed feature flag /
- * debug mode is re-read on the next call.  Production code never
- * needs this (the answer is fixed for the page lifetime).
- */
-export function _resetSearchParamsValidationCache() {
-    _searchParamsValidationCache = null;
-}
-
-/**
  * @param {typeof Model} ModelClass
  * @param {Object} params
  * @param {Object} [options]
@@ -323,7 +314,12 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
         const onUpdate = () => component.render(true);
         model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
-        onWillUnmount(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
+        // onWillDestroy (not onWillUnmount): unmount hooks don't fire for a
+        // component destroyed BEFORE it mounts, which would leak the listener
+        // (and a load resolving after early destruction would call
+        // component.render on a destroyed component). Same rule navbar /
+        // action_container / command_palette already follow.
+        onWillDestroy(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
     }
 
     const globalState = component.props.globalState || {};

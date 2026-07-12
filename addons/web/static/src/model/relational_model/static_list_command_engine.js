@@ -97,6 +97,8 @@ export function applyCommands(
                     list._unknownRecordCommands[command[1]].push(command);
                 } else {
                     const changes = {};
+                    /** @type {Record<string, any> | null} */
+                    let deferredChanges = null;
                     for (const fieldName of Object.keys(command[2])) {
                         if (
                             ["one2many", "many2many"].includes(
@@ -109,14 +111,28 @@ export function applyCommands(
                                 invisible === "1" ||
                                 !(fieldName in record.activeFields) // this record hasn't been extended
                             ) {
-                                if (!(command[1] in list._unknownRecordCommands)) {
-                                    list._unknownRecordCommands[command[1]] = [];
-                                }
-                                list._unknownRecordCommands[command[1]].push(command);
+                                // Stash ONLY this field's slice: stashing the
+                                // whole command permanently shadowed the
+                                // record's own changeset at serialize time
+                                // (see serializeCommands), silently dropping
+                                // any later user edit to this row from the
+                                // save payload.
+                                deferredChanges = deferredChanges || {};
+                                deferredChanges[fieldName] = command[2][fieldName];
                                 continue;
                             }
                         }
                         changes[fieldName] = command[2][fieldName];
+                    }
+                    if (deferredChanges) {
+                        if (!(command[1] in list._unknownRecordCommands)) {
+                            list._unknownRecordCommands[command[1]] = [];
+                        }
+                        list._unknownRecordCommands[command[1]].push([
+                            command[0],
+                            command[1],
+                            deferredChanges,
+                        ]);
                     }
                     record._applyChanges(
                         record._parseServerValues(changes, {

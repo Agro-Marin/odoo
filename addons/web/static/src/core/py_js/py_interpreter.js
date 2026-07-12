@@ -135,6 +135,21 @@ function isLess(left, right) {
     const leftIndex = pytypeIndex(left);
     const rightIndex = pytypeIndex(right);
     if (leftIndex === rightIndex) {
+        if (Array.isArray(left) && Array.isArray(right)) {
+            // Python lists compare lexicographically element-by-element, NOT
+            // by their string coercion: `[2] < [10]` is True. `left < right`
+            // would stringify to "2" < "10" → false.
+            const n = Math.min(left.length, right.length);
+            for (let i = 0; i < n; i++) {
+                if (isLess(left[i], right[i])) {
+                    return true;
+                }
+                if (isLess(right[i], left[i])) {
+                    return false;
+                }
+            }
+            return left.length < right.length;
+        }
         return left < right;
     }
     return leftIndex < rightIndex;

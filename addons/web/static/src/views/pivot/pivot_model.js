@@ -600,45 +600,57 @@ export class PivotModel extends Model {
      * Swap the pivot columns and the rows.
      */
     async flip() {
+        // Wait for any in-flight LOAD, then transpose the resulting table
+        // (unlike closeGroup, flip stays meaningful across a load, so it
+        // defers rather than drops — pinned by "flip axis while loading").
         await this.race.getCurrentProm();
+        // ...but also serialize with STRUCTURE MUTATIONS on the expandMutex:
+        // expandGroup/addGroupBy run their RPCs under expandMutex (untracked
+        // by `this.race`), so an expansion landing mid-flip would write
+        // UNTWISTED [rowValues, colValues] keys into the already-swapped trees,
+        // corrupting cells until the next full load.
+        await this.expandMutex.exec(async () => {
+            // A load may have started while we were queued on the mutex; wait
+            // it out too so we transpose the freshest table, not a stale one.
+            await this.race.getCurrentProm();
+            // swap the data: the main column and the main row
+            let temp = this.data.rowGroupTree;
+            this.data.rowGroupTree = this.data.colGroupTree;
+            this.data.colGroupTree = temp;
 
-        // swap the data: the main column and the main row
-        let temp = this.data.rowGroupTree;
-        this.data.rowGroupTree = this.data.colGroupTree;
-        this.data.colGroupTree = temp;
+            // we need to update the record metaData: (expanded) row and col groupBys
+            temp = this.metaData.rowGroupBys;
+            this.metaData.rowGroupBys = this.metaData.colGroupBys;
+            this.metaData.colGroupBys = temp;
+            temp = this.metaData.expandedColGroupBys;
+            this.metaData.expandedColGroupBys = this.metaData.expandedRowGroupBys;
+            this.metaData.expandedRowGroupBys = temp;
 
-        // we need to update the record metaData: (expanded) row and col groupBys
-        temp = this.metaData.rowGroupBys;
-        this.metaData.rowGroupBys = this.metaData.colGroupBys;
-        this.metaData.colGroupBys = temp;
-        temp = this.metaData.expandedColGroupBys;
-        this.metaData.expandedColGroupBys = this.metaData.expandedRowGroupBys;
-        this.metaData.expandedRowGroupBys = temp;
-
-        function twistKey(key) {
-            return JSON.stringify(JSON.parse(key).reverse());
-        }
-
-        function twist(object) {
-            const newObject = {};
-            for (const key of Object.keys(object)) {
-                newObject[twistKey(key)] = object[key];
+            function twistKey(key) {
+                return JSON.stringify(JSON.parse(key).reverse());
             }
-            return newObject;
-        }
 
-        this.data.measurements = twist(this.data.measurements);
-        this.data.currencyIds = twist(this.data.currencyIds);
-        this.data.counts = twist(this.data.counts);
-        this.data.groupDomains = twist(this.data.groupDomains);
+            function twist(object) {
+                const newObject = {};
+                for (const key of Object.keys(object)) {
+                    newObject[twistKey(key)] = object[key];
+                }
+                return newObject;
+            }
 
-        // The sorted column's groupId is expressed in PRE-flip coordinates:
-        // after the swap it denotes a row, so any later load/expand would
-        // re-sort the rows against a stale or foreign column. Resetting is
-        // the safe option (transposing is only valid for the Total column).
-        this.metaData.sortedColumn = null;
+            this.data.measurements = twist(this.data.measurements);
+            this.data.currencyIds = twist(this.data.currencyIds);
+            this.data.counts = twist(this.data.counts);
+            this.data.groupDomains = twist(this.data.groupDomains);
 
-        this.notify();
+            // The sorted column's groupId is expressed in PRE-flip coordinates:
+            // after the swap it denotes a row, so any later load/expand would
+            // re-sort the rows against a stale or foreign column. Resetting is
+            // the safe option (transposing is only valid for the Total column).
+            this.metaData.sortedColumn = null;
+
+            this.notify();
+        });
     }
     /**
      * Returns a domain representation of a group.
@@ -782,16 +794,29 @@ export class PivotModel extends Model {
      * @returns {Promise}
      */
     async toggleMeasure(fieldName) {
-        const metaData = this._buildMetaData();
-        this.nextActiveMeasures = this.nextActiveMeasures || metaData.activeMeasures;
-        metaData.activeMeasures = this.nextActiveMeasures;
-        const index = metaData.activeMeasures.indexOf(fieldName);
+        this.nextActiveMeasures = this.nextActiveMeasures || [
+            ...this.metaData.activeMeasures,
+        ];
+        const activeMeasures = this.nextActiveMeasures;
+        const index = activeMeasures.indexOf(fieldName);
         if (index !== -1) {
-            metaData.activeMeasures.splice(index, 1);
-            await Promise.resolve(this.race.getCurrentProm());
+            activeMeasures.splice(index, 1);
+            // Removing a measure needs no reload, but a load may be in
+            // flight (or start while we wait): wait the table out, then
+            // rebuild from the CURRENT metaData so the landed load's
+            // groupBys/data stay paired. Assigning a pre-await snapshot
+            // here used to revert metaData under the fresh data and crash
+            // the renderer.
+            while (this.race.getCurrentProm()) {
+                await this.race.getCurrentProm();
+            }
+            const metaData = this._buildMetaData();
+            metaData.activeMeasures = activeMeasures;
             this.metaData = metaData;
         } else {
-            metaData.activeMeasures.push(fieldName);
+            activeMeasures.push(fieldName);
+            const metaData = this._buildMetaData();
+            metaData.activeMeasures = activeMeasures;
             const config = { metaData, data: this.data };
             await this._loadData(config);
             this.useSampleModel = false;

@@ -317,7 +317,22 @@ export class IndexedDB {
             this._closeCachedDB();
         }
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.name, idbVersion);
+            let request;
+            try {
+                request = indexedDB.open(this.name, idbVersion);
+            } catch (e) {
+                // ``indexedDB.open`` throws SYNCHRONOUSLY in storage-denied
+                // contexts (private browsing, third-party-cookie-blocked
+                // iframes). The async ``onerror`` arm below already degrades
+                // to the no-db path; a sync throw must do the same instead of
+                // rejecting the promise — boot-path consumers
+                // (localization_service.start(), the RPC disk cache) await
+                // reads unguarded, so a rejection here kills the webclient.
+                console.warn(`IndexedDB unavailable: ${e?.message}`);
+                this._degraded = true;
+                Promise.resolve(callback()).then(resolve, reject);
+                return;
+            }
             request.onupgradeneeded = (event) => {
                 const db = /** @type {IDBOpenDBRequest} */ (event.target).result;
                 const dbTables = new Set(db.objectStoreNames);

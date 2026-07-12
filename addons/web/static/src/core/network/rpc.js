@@ -571,13 +571,22 @@ rpc._rpc = function (url, params, settings) {
             }
             return inner;
         };
+        const cacheTable = params?.method || url;
+        const cacheKey = buildKey(url, params); // key-order independent (rpc_dedup.js)
         const cacheProm = _rpcState.rpcCache.read(
-            params?.method || url, // table
-            buildKey(url, params), // key — key-order independent (rpc_dedup.js)
+            cacheTable,
+            cacheKey,
             fallback,
             cacheSettings,
         );
         /** @type {any} */ (cacheProm).abort = function (rejectError = true) {
+            // A silent abort leaves the fallback fetch pending forever, so the
+            // cache's own settle-time bookkeeping never runs — evict the
+            // cache-miss slot synchronously (mirrors the dedup layer) so the
+            // key can be fetched fresh next time instead of wedging.
+            if (!rejectError) {
+                _rpcState.rpcCache?.abortPending(cacheTable, cacheKey);
+            }
             innerAbort?.(rejectError);
         };
         return cacheProm;

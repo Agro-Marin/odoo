@@ -36,8 +36,15 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }) {
     if (!row) {
         return null;
     }
+    // Short rows (a group "Add a line" row has at most a selector cell plus
+    // one colspan cell, none carrying data-col-index) clamp to their last
+    // cell. Returning null for a RENDERED row made findFocusMove misdiagnose
+    // it as virtualized-out: the viewport jumped to the row and focus waited
+    // on a patch that could never resolve it — a focus trap at every group
+    // boundary of a virtualized grouped list.
     const cell =
-        row.querySelector(`[data-col-index="${colIndex}"]`) || row.children[colIndex];
+        row.querySelector(`[data-col-index="${colIndex}"]`) ||
+        row.children[Math.min(colIndex, row.children.length - 1)];
     if (!cell) {
         return null;
     }

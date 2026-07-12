@@ -43,12 +43,26 @@ test("constructor: a synchronous indexedDB.open throw is swallowed (no unhandled
     expect(true).toBe(true);
 });
 
-test("operations after a failing open reject rather than hang", async () => {
-    // Each public operation opens its own connection and must surface the
-    // failure as a rejected promise, not hang — the reject-arm counterpart of
-    // the ``.then(resolve, reject)`` fix.
+test("operations after a failing open degrade to the no-db path", async () => {
+    // A synchronously-throwing open (storage denied, private browsing) must
+    // degrade to the no-db fallback — read resolves undefined (cache miss),
+    // write resolves as a no-op — NOT reject: localization_service.start()
+    // and the RPC disk cache await these unguarded on the boot path, so a
+    // rejection killed the whole webclient there.
     patchOpenToThrow();
 
     const db = new IndexedDB(CACHE_NAME, 1);
-    await expect(db.read("mytable", "key")).rejects.toThrow();
+    expect(await db.read("mytable", "key")).toBe(undefined);
+    expect(await db.write("mytable", "key", { a: 1 })).toBe(undefined);
+});
+
+test("a failing open flips the instance to degraded mode", async () => {
+    // After the first sync open failure the instance short-circuits every
+    // subsequent operation instead of re-attempting a throwing open (and
+    // re-logging) on each call.
+    patchOpenToThrow();
+
+    const db = new IndexedDB(CACHE_NAME, 1);
+    await db.read("mytable", "key");
+    expect(db._degraded).toBe(true);
 });

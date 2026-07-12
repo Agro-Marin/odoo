@@ -127,6 +127,15 @@ export class CodeEditor extends Component {
 
                 return () => {
                     aceEditor.destroy();
+                    // Destroy every accumulated EditSession too: each distinct
+                    // sessionId (e.g. a record id in ir.ui.view arch editing)
+                    // allocates a session (buffer + undo stack) that
+                    // aceEditor.destroy() does NOT reclaim, so an editor
+                    // visiting many records leaked memory for its whole life.
+                    for (const sessionId of Object.keys(sessions)) {
+                        sessions[sessionId].destroy?.();
+                        delete sessions[sessionId];
+                    }
                 };
             },
             () => [this.editorRef.el],

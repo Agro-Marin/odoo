@@ -1,4 +1,5 @@
 import datetime
+import ipaddress
 import logging
 import pathlib
 import re
@@ -23,12 +24,56 @@ from odoo.addons.base.models.ir_qweb import render as qweb_render
 _logger = logging.getLogger(__name__)
 
 
+def _is_loopback(addr: str | None) -> bool:
+    """Whether *addr* is a loopback address (127.0.0.0/8, ::1, or an
+    IPv4-mapped loopback like ``::ffff:127.0.0.1``). Anything unparseable —
+    including ``None`` — is treated as non-loopback (fail closed)."""
+    try:
+        ip = ipaddress.ip_address(addr)
+    except (ValueError, TypeError):
+        return False
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return (mapped or ip).is_loopback
+
+
 class Database(http.Controller):
 
     def _handle_insecure_password(self, master_pwd: str) -> None:
-        """Upgrade the admin password if it is still the insecure default 'admin'."""
-        if odoo.tools.config.verify_admin_password("admin") and master_pwd:
-            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
+        """Upgrade the admin password if it is still the insecure default
+        'admin' — but ONLY for loopback callers.
+
+        Promoting the master password is a silent, permanent state change:
+        the next operation's ``check_super`` then validates against the just-set
+        value. Left ungated, a REMOTE request to an exposed database manager
+        could adopt an attacker-chosen secret and lock the real admin out of the
+        manager (backup = full data exfiltration, drop = destruction). Gating to
+        loopback keeps the "auto-secure a fresh install on first use"
+        convenience for a local admin while removing the remote-lockout vector;
+        a non-loopback caller must instead set ``admin_passwd`` in the config or
+        change the password from localhost. Both the promotion and a refusal
+        (default password still in place, request from elsewhere) are logged.
+
+        Behind a reverse proxy the client IP is only accurate with
+        ``--proxy-mode`` and a trusted proxy; otherwise ``remote_addr`` is the
+        proxy's own (possibly loopback) address.
+        """
+        if not (odoo.tools.config.verify_admin_password("admin") and master_pwd):
+            return
+        remote_addr = request.httprequest.remote_addr
+        if not _is_loopback(remote_addr):
+            _logger.warning(
+                "Refusing to auto-promote the default master password for a "
+                "non-loopback request from %s. Set 'admin_passwd' in the "
+                "config, or change the master password from localhost.",
+                remote_addr,
+            )
+            return
+        _logger.warning(
+            "Auto-promoting the default master password ('admin') to the value "
+            "submitted from loopback (%s).",
+            remote_addr,
+        )
+        dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
 
     def _render_template(self, **d) -> str:
         d.setdefault("manage", True)
