@@ -33,6 +33,7 @@ import psycopg.errors
 
 from odoo import api, db, fields, models
 from odoo.exceptions import RetryableJobError, UserError
+from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
 from odoo.tools import SQL
 
@@ -59,6 +60,12 @@ DEAD_JOB_GRACE_S = 60
 # with an explicit ``seconds`` overrides it.
 RETRY_BACKOFF_BASE_S = 10
 RETRY_BACKOFF_MAX_S = 3600
+
+# Autovacuum retention: how long finished jobs are kept for audit before
+# garbage collection.  Failed jobs stay longer — they are the ones someone
+# may still need to inspect and requeue.
+DONE_RETENTION = timedelta(days=7)
+FAILED_RETENTION = timedelta(days=30)
 
 WAIT_DEPS = "wait_deps"
 PENDING = "pending"
@@ -118,6 +125,7 @@ class Base(models.AbstractModel):
         max_retries: int | None = None,
         identity_key: str | None = None,
         after: models.BaseModel | None = None,
+        description: str | None = None,
     ) -> DelayedProxy:
         """Return a proxy that enqueues the next method call as an ``ir.job``.
 
@@ -137,6 +145,8 @@ class Base(models.AbstractModel):
             ``wait_deps`` until every dependency is ``done``, and is cancelled
             if any of them fails or is cancelled.  Chain jobs by passing the
             previous ``delayed()`` result; fan-in by passing a union.
+        :param description: human-readable label shown in the job list
+            instead of the technical ``model.method`` name
         """
         return DelayedProxy(
             self,
@@ -147,6 +157,7 @@ class Base(models.AbstractModel):
                 "max_retries": max_retries,
                 "identity_key": identity_key,
                 "after": after,
+                "description": description,
             },
         )
 
@@ -187,6 +198,11 @@ class IrJob(models.Model):
     _order = "priority, create_date, id"
     _allow_sudo_commands = False
 
+    name = fields.Char(
+        readonly=True,
+        help="Optional human-readable label shown instead of "
+        "the technical model.method display name.",
+    )
     uuid = fields.Char(readonly=True, index=True)
     channel = fields.Char(required=True, default="root", readonly=True)
     state = fields.Selection(STATES, required=True, default=PENDING, index=True)
@@ -271,6 +287,7 @@ class IrJob(models.Model):
         max_retries: int | None = None,
         identity_key: str | None = None,
         after: models.BaseModel | None = None,
+        description: str | None = None,
     ) -> models.BaseModel:
         """Persist a job row for ``records.method_name(*args, **kwargs)``.
 
@@ -348,12 +365,12 @@ class IrJob(models.Model):
             SQL(
                 """
                 INSERT INTO ir_job (
-                    uuid, channel, state, priority, eta, identity_key,
+                    name, uuid, channel, state, priority, eta, identity_key,
                     model_name, method_name, record_ids, args, kwargs,
                     user_id, company_id, context, retry, max_retries,
                     create_uid, create_date, write_uid, write_date
                 ) VALUES (
-                    gen_random_uuid()::varchar, %s, %s, %s, %s, %s,
+                    %s, gen_random_uuid()::varchar, %s, %s, %s, %s, %s,
                     %s, %s, %s::jsonb, %s::jsonb, %s::jsonb,
                     %s, %s, %s::jsonb, 0, %s,
                     %s, %s, %s, %s
@@ -364,6 +381,7 @@ class IrJob(models.Model):
                     DO NOTHING
                 RETURNING id
                 """,
+                description,
                 channel or job_config["channel"],
                 state,
                 priority if priority is not None else job_config["priority"],
@@ -864,14 +882,39 @@ class IrJob(models.Model):
         if promoted:
             _logger.info("Promoted %s job(s) whose dependencies completed", promoted)
 
+    @api.autovacuum
+    def _gc_jobs(self) -> tuple[int, bool]:
+        """Prune finished jobs past their retention window.
+
+        ``done``/``cancelled`` after ``DONE_RETENTION``; ``failed`` after the
+        longer ``FAILED_RETENTION`` (still inspectable/requeueable meanwhile).
+        Dependency rows follow via the M2M table.
+        """
+        now = self.env.cr.now()
+        domain = [
+            "|",
+            "&",
+            ("state", "in", (DONE, CANCELLED)),
+            ("done_at", "<", now - DONE_RETENTION),
+            "&",
+            ("state", "=", FAILED),
+            ("done_at", "<", now - FAILED_RETENTION),
+        ]
+        records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
+        records.unlink()
+        # autovacuum contract: (records removed, whether more may remain)
+        return len(records), len(records) == GC_UNLINK_LIMIT
+
     # ------------------------------------------------------------------
     # User-facing helpers
     # ------------------------------------------------------------------
 
-    @api.depends("model_name", "method_name")
+    @api.depends("name", "model_name", "method_name")
     def _compute_display_name(self) -> None:
         for job in self:
-            job.display_name = f"{job.model_name}.{job.method_name} (#{job.id})"
+            job.display_name = (
+                job.name or f"{job.model_name}.{job.method_name} (#{job.id})"
+            )
 
     def action_run_now(self) -> None:
         """Execute a pending job immediately, in the current transaction.

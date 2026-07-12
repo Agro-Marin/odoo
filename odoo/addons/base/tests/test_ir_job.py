@@ -371,6 +371,30 @@ class TestIrJob(TransactionCase):
             job.display_name, f"res.partner._ir_job_test_append (#{job.id})"
         )
 
+    def test_gc_prunes_finished_jobs_by_retention(self):
+        done_old = self.partner.delayed()._ir_job_test_append()
+        failed_recent = self.partner.delayed()._ir_job_test_append()
+        pending = self.partner.delayed()._ir_job_test_append()
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'done',"
+            " done_at = (now() AT TIME ZONE 'UTC') - interval '8 days'"
+            " WHERE id = %s",
+            (done_old.id,),
+        )
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'failed',"
+            " done_at = (now() AT TIME ZONE 'UTC') - interval '8 days'"
+            " WHERE id = %s",
+            (failed_recent.id,),
+        )
+        self.env.invalidate_all()
+        removed, more = self.env["ir.job"]._gc_jobs()
+        self.assertEqual(removed, 1)
+        self.assertFalse(more)
+        self.assertFalse(done_old.exists(), "past done retention → pruned")
+        self.assertTrue(failed_recent.exists(), "failed keeps the longer window")
+        self.assertTrue(pending.exists())
+
     def test_job_decorator_requires_private_method(self):
         with self.assertRaises(TypeError):
 

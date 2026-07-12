@@ -38,6 +38,7 @@
                   decoration-muted="state == 'cancelled'"
                   create="false">
                 <field name="id" />
+                <field name="name" optional="show" />
                 <field name="model_name" />
                 <field name="method_name" />
                 <field name="channel" />
