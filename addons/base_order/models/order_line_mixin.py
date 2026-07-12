@@ -348,8 +348,7 @@ class OrderLineFieldsMixin(models.AbstractModel):
     def _validate_write_vals(self, write_vals):
         """Run all registered write validators."""
         for method_name in self._get_validate_write_vals_methods():
-            if hasattr(self, method_name):
-                getattr(self, method_name)(write_vals)
+            getattr(self, method_name)(write_vals)
 
     def _get_validate_write_vals_methods(self):
         """Return validator method names for write operations.

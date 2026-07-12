@@ -558,6 +558,10 @@ class OrderLineInvoiceMixin(models.AbstractModel):
     _description = "Order Line Invoice Integration"
 
     # ─── Currency (required for Monetary fields) ───────────────────
+    # Structural, not composition-defensive: this abstract mixin owns Monetary
+    # fields whose ``currency_field`` must resolve on the mixin itself at
+    # registry setup. Concrete models also inherit ``currency_id`` from
+    # ``order.mixin``, but the mixin must still declare its own. Do not remove.
 
     currency_id = fields.Many2one("res.currency")
 
