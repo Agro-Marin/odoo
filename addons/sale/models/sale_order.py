@@ -1,5 +1,4 @@
 import json
-from collections import defaultdict
 from itertools import groupby
 
 from odoo import api, fields, models
@@ -8,7 +7,6 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.http import request
 from odoo.tools import (
-    SQL,
     OrderedSet,
     float_is_zero,
     format_amount,
@@ -36,12 +34,6 @@ class SaleOrder(models.Model):
     _description = "Sale Order"
     _check_company_auto = True
     _order = "date_order desc, id desc"
-
-    @property
-    def _rec_names_search(self):
-        if self.env.context.get("sale_show_partner_name"):
-            return ["name", "partner_id.name"]
-        return ["name"]
 
     # ------------------------------------------------------------
     # ORDER MIXIN ROUTING HOOKS
@@ -103,18 +95,6 @@ class SaleOrder(models.Model):
         compute="_compute_partner_address_domains",
         help="Dynamic domain limiting delivery address selection.",
     )
-    fiscal_position_id = fields.Many2one(
-        comodel_name="account.fiscal.position",
-        string="Fiscal Position",
-        compute="_compute_fiscal_position_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        check_company=True,
-        domain='[("company_id", "in", (False, company_id))]',
-        help="Fiscal positions are used to adapt taxes and accounts for particular customers or sales orders/invoices."
-        "The default value comes from the customer.",
-    )
     pricelist_id = fields.Many2one(
         comodel_name="product.pricelist",
         string="Pricelist",
@@ -127,13 +107,10 @@ class SaleOrder(models.Model):
         tracking=1,
         help="If you change the pricelist, only newly added lines will be affected.",
     )
+    # Only ``string`` and ``domain`` differ from ``order.mixin.user_id``; the
+    # rest (compute, store, precompute, readonly, index, tracking) is inherited.
     user_id = fields.Many2one(
-        comodel_name="res.users",
         string="Salesperson",
-        compute="_compute_user_id",
-        store=True,
-        precompute=True,
-        readonly=False,
         domain=lambda self: """
             [
                 ('all_group_ids', 'in', {}),
@@ -143,8 +120,6 @@ class SaleOrder(models.Model):
         """.format(
             self.env.ref("sales_team.group_sale_salesman").ids,
         ),
-        index=True,
-        tracking=True,
     )
     team_id = fields.Many2one(
         comodel_name="crm.team",
@@ -160,27 +135,17 @@ class SaleOrder(models.Model):
         index=True,
         tracking=True,
     )
+    # Only ``string``, ``domain`` and ``help`` differ from
+    # ``order.mixin.journal_id``; the rest is inherited.
     journal_id = fields.Many2one(
-        comodel_name="account.journal",
-        string="Invoicing Journal",
-        compute="_compute_journal_id",
-        store=True,
-        precompute=True,
-        readonly=False,
-        check_company=True,
         domain=[("type", "=", "sale")],
         help="If set, the SO will invoice in this journal; "
         "otherwise the sales journal with the lowest sequence is used.",
     )
+    # Same keys as ``order.mixin.state`` (draft/done/cancel), only relabelled;
+    # ``group_expand`` is sale-specific. The rest is inherited.
     state = fields.Selection(
         selection=const.ORDER_STATE,
-        string="Status",
-        default="draft",
-        readonly=True,
-        copy=False,
-        index=True,
-        tracking=True,
-        group_expand=True,
     )
     create_date = fields.Datetime(
         string="Creation Date",
@@ -267,33 +232,18 @@ class SaleOrder(models.Model):
         related="line_ids.product_id",
         string="Product",
     )
+    # Only ``tracking`` (the chatter sequence) differs from
+    # ``order.amount.mixin``; string/compute/store are inherited.
     amount_untaxed = fields.Monetary(
-        string="Untaxed Amount",
-        compute="_compute_amounts",
-        store=True,
         tracking=5,
     )
     amount_tax = fields.Monetary(
-        string="Taxes",
-        compute="_compute_amounts",
-        store=True,
         tracking=4,
     )
     amount_total = fields.Monetary(
-        string="Total",
-        compute="_compute_amounts",
-        store=True,
         tracking=4,
     )
     # Invoice block
-    invoice_state = fields.Selection(
-        selection=const.INVOICE_STATE,
-        string="Invoice Status",
-        default="no",
-        compute="_compute_invoice_state",
-        store=True,
-        copy=False,
-    )
     has_upsell_opportunity = fields.Boolean(
         string="Has Upselling Opportunity",
         compute="_compute_has_upsell_opportunity",
@@ -346,30 +296,24 @@ class SaleOrder(models.Model):
         string="Customer Reference",
         copy=False,
     )
-    partner_ref = fields.Char(
-        string="Vendor Reference",
-        help="Reference of the sales order or bid sent by the vendor. "
-        "It's used to do the matching when you receive the "
-        "products as this reference is usually written on the "
-        "delivery order sent by your vendor.",
-    )
     reference = fields.Char(
         string="Payment Ref.",
         copy=False,
         help="The payment communication of this sale order.",
     )
+    # Only the auto-fill compute machinery differs from ``order.mixin.notes``;
+    # ``string`` ("Terms and Conditions") is inherited.
     notes = fields.Html(
-        string="Terms and conditions",
         compute="_compute_notes",
         store=True,
         precompute=True,
         readonly=False,
     )
     sent = fields.Boolean(
-        help="THE Quotation has been sent to the customer.",
+        help="The quotation has been sent to the customer.",
     )
     printed_before = fields.Boolean(
-        help="THE RFQ has already been printed.",
+        help="The quotation has already been printed.",
     )
     # The template of the pending email that must be sent asynchronously.
     pending_email_template_id = fields.Many2one(
@@ -429,27 +373,6 @@ class SaleOrder(models.Model):
         "A confirmed sales order requires a confirmation date.",
     )
 
-    @api.constrains("company_id", "line_ids")
-    def _check_line_ids_company_id(self):
-        for order in self:
-            invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c: order.company_id not in c._accessible_branches(),  # noqa: B023 — filtered() evaluates eagerly within this iteration
-            )
-            if invalid_companies:
-                bad_products = order.line_ids.product_id.filtered(
-                    lambda p: p.company_id and p.company_id in invalid_companies,  # noqa: B023 — filtered() evaluates eagerly within this iteration
-                )
-                raise ValidationError(
-                    _(
-                        "Your quotation contains products from company %(product_company)s whereas your quotation belongs to company %(quote_company)s. \n Please change the company of your quotation or remove the products from other companies (%(bad_products)s).",
-                        product_company=", ".join(
-                            invalid_companies.sudo().mapped("display_name"),
-                        ),
-                        quote_company=order.company_id.display_name,
-                        bad_products=", ".join(bad_products.mapped("display_name")),
-                    ),
-                )
-
     @api.constrains("prepayment_percent")
     def _check_prepayment_percent(self):
         for order in self:
@@ -463,22 +386,6 @@ class SaleOrder(models.Model):
     # ------------------------------------------------------------
     # CRUD METHODS
     # ------------------------------------------------------------
-
-    def copy_data(self, default=None):
-        default = dict(default or {})
-        default_has_no_order_line = "line_ids" not in default
-        default.setdefault("line_ids", [])
-        vals_list = super().copy_data(default=default)
-        if default_has_no_order_line:
-            for order, vals in zip(self, vals_list, strict=False):
-                vals["line_ids"] = [
-                    Command.create(line_vals)
-                    for line_vals in order._get_order_lines_copiable().copy_data()
-                ]
-        return vals_list
-
-    # _unlink_except_draft_or_cancel: inherited from base_order.order.mixin
-    # (batched, lists the offending order names).
 
     @api.model
     def get_empty_list_help(self, help_message):
@@ -569,14 +476,8 @@ class SaleOrder(models.Model):
         for order in self:
             order.require_signature = order.company_id.portal_confirmation_sign
 
-    @api.depends("state")
-    @api.depends_context("lang")
-    def _compute_type_name(self):
-        for order in self:
-            if order.state in ("draft", "cancel"):
-                order.type_name = _("Quotation")
-            else:
-                order.type_name = _("Sale Order")
+    def _get_confirmed_type_name(self):
+        return _("Sale Order")
 
     @api.depends("require_payment")
     def _compute_prepayment_percent(self):
@@ -586,14 +487,16 @@ class SaleOrder(models.Model):
     @api.depends_context("sale_show_partner_name")
     @api.depends("partner_id")
     def _compute_display_name(self):
+        # Thin override: the mixin's ``_compute_display_name`` carries neither
+        # ``@api.depends("partner_id")`` nor ``@api.depends_context`` so deleting
+        # this would drop the cache-invalidation triggers sale relies on. Restate
+        # them and delegate the body to the mixin (via ``_get_display_name_suffix``).
+        return super()._compute_display_name()
+
+    def _get_display_name_suffix(self):
         if not self.env.context.get("sale_show_partner_name"):
-            return super()._compute_display_name()
-        for order in self:
-            name = order.name
-            if order.partner_id.name:
-                name = f"{name} - {order.partner_id.name}"
-            order.display_name = name
-        return None
+            return ""
+        return f" - {self.partner_id.name}" if self.partner_id.name else ""
 
     @api.depends("partner_id")
     def _compute_notes(self):
@@ -666,21 +569,18 @@ class SaleOrder(models.Model):
             order = order.with_company(order.company_id)
             order.payment_term_id = order.partner_id.property_payment_term_id
 
-    @api.depends("partner_id")
-    def _compute_user_id(self):
-        for order in self:
-            if order.partner_id and not (order._origin.id and order.user_id):
-                # Recompute the salesman on partner change
-                #   * if partner is set (is required anyway, so it will be set sooner or later)
-                #   * if the order is not saved or has no salesman already
-                order.user_id = (
-                    order.partner_id.user_id
-                    or order.partner_id.commercial_partner_id.user_id
-                    or (
-                        self.env.user.has_group("sales_team.group_sale_salesman")
-                        and self.env.user
-                    )
-                )
+    def _get_default_user_from_partner(self):
+        """Salesperson from the partner, falling back to the current user."""
+        self.ensure_one()
+        return (
+            self.partner_id.user_id
+            or self.partner_id.commercial_partner_id.user_id
+            or (
+                self.env.user.has_group("sales_team.group_sale_salesman")
+                and self.env.user
+            )
+            or self.env["res.users"]
+        )
 
     @api.depends("user_id")
     def _compute_team_id(self):
@@ -724,13 +624,7 @@ class SaleOrder(models.Model):
 
     @api.depends("partner_id", "client_order_ref", "origin")
     def _compute_duplicated_order_ids(self):
-        draft_orders = self.filtered(lambda o: o.state == "draft")
-        order_to_duplicate_orders = draft_orders._get_duplicate_orders()
-        for order in draft_orders:
-            order.duplicated_order_ids = [
-                Command.set(order_to_duplicate_orders.get(order.id, [])),
-            ]
-        (self - draft_orders).duplicated_order_ids = False
+        return super()._compute_duplicated_order_ids()
 
     @api.depends("company_id", "pricelist_id")
     def _compute_currency_id(self):
@@ -826,84 +720,24 @@ class SaleOrder(models.Model):
         """
         return self._add_base_lines_for_early_payment_discount()
 
-    @api.depends("state", "line_ids.invoice_state", "invoice_ids")
-    def _compute_invoice_state(self):
-        """Compute the invoice status of a SO. Possible statuses:
-        - no: If the SO is not in status 'done', or all lines are in 'no' state.
-        - to do: If any SO line is 'to invoice', the whole SO is 'to invoice'.
-        - partially: If some SO lines are invoiced and others are pending.
-        - done: If all SO lines are fully invoiced.
-        - over done: If at least one SO line is over-invoiced (qty_invoiced > qty_ordered).
+    def _resolve_invoice_state_to_do(self, states, lines_domain):
+        """Resolve the SO invoice state when at least one line is ``to do``.
+
+        Downgrade to ``no`` when the only lines left to invoice cannot be
+        invoiced alone (e.g. discount lines that can't be invoiced without
+        regular products).
         """
-        # Set default status for non-confirmed orders
-        confirmed_orders = self.filtered(lambda o: o.state == "done")
-        (self - confirmed_orders).invoice_state = "no"
-
-        if not confirmed_orders:
-            return
-
-        # Define domain to filter relevant lines
-        lines_domain = [
-            ("is_downpayment", "=", False),
-            ("display_type", "=", False),
-        ]
-        # Get grouped invoice states for all confirmed orders
-        line_invoice_state_all = {}
-        for order, invoice_state in self.env["sale.order.line"]._read_group(
-            lines_domain + [("order_id", "in", confirmed_orders.ids)],
-            ["order_id", "invoice_state"],
-        ):
-            line_invoice_state_all.setdefault(order.id, set()).add(invoice_state)
-
-        # Process each confirmed order
-        for order in confirmed_orders:
-            states = line_invoice_state_all.get(order._origin.id, set())
-
-            # No relevant lines → nothing to invoice
-            if not states:
-                order.invoice_state = "no"
-                continue
-
-            # Single state → direct assignment (common case optimization)
-            if len(states) == 1:
-                order.invoice_state = next(iter(states))
-                continue
-
-            # Multiple states → resolve by priority
-
-            # Priority 1: Over-invoiced (critical for user visibility)
-            if "over done" in states:
-                order.invoice_state = "over done"
-                continue
-
-            # Priority 2: To invoice (action required)
-            if "to do" in states:
-                # Special case: Don't mark "to do" if only auxiliary lines remain
-                # (e.g., discount lines that can't be invoiced without regular products)
-                if "no" in states:
-                    invoiceable_lines = order.line_ids.filtered_domain(
-                        lines_domain + [("invoice_state", "=", "to do")],
-                    )
-                    auxiliary_lines = invoiceable_lines.filtered(
-                        lambda sol: not sol._can_be_invoiced_alone(),
-                    )
-                    if invoiceable_lines and invoiceable_lines == auxiliary_lines:
-                        order.invoice_state = "no"
-                        continue
-
-                order.invoice_state = "to do"
-                continue
-
-            # Priority 3: Partially invoiced
-            # - Explicit "partial" state from line-level computation
-            # - Mixed done/no: some lines fully invoiced, others not invoiceable
-            if "partial" in states or states == {"done", "no"}:
-                order.invoice_state = "partial"
-                continue
-
-            # Fallback: unexpected state combination (should not occur in practice)
-            # Only "done" and "no" states remain, but not the mixed case above
-            order.invoice_state = "no"
+        self.ensure_one()
+        if "no" in states:
+            invoiceable_lines = self.line_ids.filtered_domain(
+                lines_domain + [("invoice_state", "=", "to do")],
+            )
+            auxiliary_lines = invoiceable_lines.filtered(
+                lambda sol: not sol._can_be_invoiced_alone(),
+            )
+            if invoiceable_lines and invoiceable_lines == auxiliary_lines:
+                return "no"
+        return "to do"
 
     @api.depends(
         "line_ids.product_id",
@@ -1124,6 +958,14 @@ class SaleOrder(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
+    def _get_confirmation_context(self):
+        # Context key 'default_name' is sometimes propagated up to here.
+        # We don't need it and it creates issues in the creation of linked records.
+        context = self.env.context.copy()
+        context.pop("default_name", None)
+        context.pop("default_user_id", None)
+        return context
+
     def action_confirm(self):
         """Confirm the given quotation(s) and set their confirmation date.
 
@@ -1133,23 +975,12 @@ class SaleOrder(models.Model):
         :rtype: bool
         :raise: UserError if trying to confirm cancelled SO's
         """
-        self._can_confirm()
-
-        self.write(self._prepare_confirmation_values())
-
-        # Context key 'default_name' is sometimes propagated up to here.
-        # We don't need it and it creates issues in the creation of linked records.
-        context = self.env.context.copy()
-        context.pop("default_name", None)
-        context.pop("default_user_id", None)
-
-        self.with_context(context)._action_confirm()
-        self.filtered(lambda so: so._should_be_locked()).action_lock()
+        res = super().action_confirm()
 
         if self.env.context.get("send_email"):
             self._send_mail_order_confirmation()
 
-        return True
+        return res
 
     def action_draft(self):
         orders = self.filtered(lambda s: s.state in ["cancel", "draft"])
@@ -1286,43 +1117,13 @@ class SaleOrder(models.Model):
             "target": "new",
         }
 
-    def action_merge(self):
-        """Merge selected quotations into oldest one per compatible group.
-
-        Groups quotations by customer, currency, and delivery address, then
-        merges each group into its oldest quotation. Lines are consolidated
-        using O(1) hash-based matching.
-
-        Returns:
-            dict: Action to display merged quotation(s)
-        """
-        quotations_to_merge = self._merge_get_eligible_quotations()
-        self._merge_validate_selection(quotations_to_merge)
-
-        groups = self._merge_group_quotations(quotations_to_merge)
-        self._merge_validate_groups(groups)
-
-        merged_ids = []
-        for quotations in groups:
-            if len(quotations) > 1:
-                merged_id = self._merge_quotation_group(quotations)
-                merged_ids.append(merged_id)
-
-        return self._merge_build_result_action(merged_ids)
-
     # -------------------------------------------------------------------------
-    # Quotation Merge: Helper Methods (override these to customize merge behavior)
+    # Quotation Merge: sale-specific hooks over order.merge.mixin
+    #
+    # action_merge, eligibility, grouping, group-merge, metadata and the result
+    # action are all inherited from order.merge.mixin. Only the sale-specific
+    # bits are overridden below.
     # -------------------------------------------------------------------------
-
-    def _merge_get_eligible_quotations(self):
-        """Get quotations eligible for merging.
-
-        Override to change eligibility criteria.
-
-        Returns:
-            recordset: Quotations that can be merged
-        """
-        return self.filtered(lambda r: r.state == "draft")
 
     def _merge_validate_selection(self, quotations):
         """Validate the quotation selection for merge.
@@ -1337,21 +1138,6 @@ class SaleOrder(models.Model):
             raise UserError(
                 _("Please select at least two quotations to merge."),
             )
-
-    def _merge_group_quotations(self, quotations):
-        """Group quotations by compatible attributes for merging.
-
-        Args:
-            quotations: recordset of quotations to group
-
-        Returns:
-            list: List of recordsets, each containing quotations that can merge together
-        """
-        groups = defaultdict(lambda: self.env["sale.order"])
-        for quotation in quotations:
-            key = self._prepare_grouped_data(quotation)
-            groups[key] += quotation
-        return [g for g in groups.values() if len(g) > 1]
 
     def _prepare_grouped_data(self, quotation):
         """Get the grouping key for a quotation during merge.
@@ -1370,81 +1156,17 @@ class SaleOrder(models.Model):
             quotation.partner_shipping_id.id,
         )
 
-    def _merge_validate_groups(self, groups):
-        """Validate that mergeable groups exist.
+    def _get_merge_group_description(self):
+        """Grouping criteria listed in the "no compatible orders" error."""
+        return _("- Customer\n- Currency\n- Delivery address")
 
-        Args:
-            groups: list of quotation recordsets
-
-        Raises:
-            UserError: If no compatible quotations found
-        """
-        if not groups:
-            raise UserError(
-                _(
-                    "No compatible quotations to merge. Quotations must have the same:\n"
-                    "- Customer\n"
-                    "- Currency\n"
-                    "- Delivery address"
-                ),
-            )
-
-    def _merge_quotation_group(self, quotations):
-        """Merge a group of compatible quotations into one.
-
-        Args:
-            quotations: recordset of quotations to merge (must be compatible)
-
-        Returns:
-            int: ID of the merged (target) quotation
-        """
-        target = self._merge_get_target(quotations)
-        sources = quotations - target
-
-        line_index = self._merge_build_line_index(target)
-        self._merge_lines(target, sources, line_index)
-        self._merge_metadata(target, sources)
-        self._merge_post_messages(target, sources)
-        self._merge_finalize(target, sources)
-
-        return target.id
-
-    def _merge_metadata(self, target, sources):
-        """Merge metadata fields from sources into target.
-
-        Args:
-            target: Target quotation
-            sources: Source quotations
-        """
-        all_origins = [target.origin] + list(sources.mapped("origin"))
-        target.origin = ", ".join(filter(None, all_origins))
-
+    def _merge_metadata_refs(self, target, sources):
+        """Merge ``client_order_ref`` from sources into target."""
         all_refs = [target.client_order_ref] + list(sources.mapped("client_order_ref"))
         target.client_order_ref = ", ".join(filter(None, all_refs))
 
-    def _merge_build_result_action(self, merged_ids):
-        """Build the action dict to return after merge.
-
-        Args:
-            merged_ids: List of merged quotation IDs
-
-        Returns:
-            dict: Action to open merged quotation(s)
-        """
-        action = {
-            "type": "ir.actions.act_window",
-            "res_model": "sale.order",
-        }
-
-        if len(merged_ids) == 1:
-            action["res_id"] = merged_ids[0]
-            action["view_mode"] = "form"
-        else:
-            action["name"] = _("Merged Quotations")
-            action["view_mode"] = "list,kanban,form"
-            action["domain"] = [("id", "in", merged_ids)]
-
-        return action
+    def _get_merge_result_name(self):
+        return _("Merged Quotations")
 
     # ------------------------------------------------------------
     # MAIL METHODS
@@ -1473,31 +1195,10 @@ class SaleOrder(models.Model):
             and request.env.context.get("catalog_skip_tracking")
         )
 
-    def message_post(self, **kwargs):
-        if self.env.context.get("mark_so_as_sent"):
-            self.filtered(lambda o: o.state == "draft").with_context(
-                tracking_disable=True,
-            ).write({"sent": True})
-            kwargs["notify_author_mention"] = kwargs.get("notify_author_mention", True)
-        return super().message_post(**kwargs)
+    def _mark_as_sent(self):
+        self.with_context(tracking_disable=True).write({"sent": True})
 
-    def _notify_by_email_prepare_rendering_context(
-        self,
-        message,
-        msg_vals=False,
-        model_description=False,
-        force_email_company=False,
-        force_email_lang=False,
-        force_record_name=False,
-    ):
-        render_context = super()._notify_by_email_prepare_rendering_context(
-            message,
-            msg_vals=msg_vals,
-            model_description=model_description,
-            force_email_company=force_email_company,
-            force_email_lang=force_email_lang,
-            force_record_name=force_record_name,
-        )
+    def _get_mail_subtitles(self, render_context):
         lang_code = render_context.get("lang")
         record = render_context["record"]
         subtitles = [
@@ -1518,22 +1219,12 @@ class SaleOrder(models.Model):
                 ),
             )
 
-        render_context["subtitles"] = subtitles
-        return render_context
+        return subtitles
 
-    def _notify_get_recipients_groups(self, message, model_description, msg_vals=False):
+    def _tweak_notify_recipient_groups(self, groups):
         # Give access button to users and portal customer as portal is integrated
         # in sale. Customer and portal group have probably no right to see
         # the document so they don't have the access button.
-        groups = super()._notify_get_recipients_groups(
-            message,
-            model_description,
-            msg_vals=msg_vals,
-        )
-        if not self:
-            return groups
-
-        self.ensure_one()
         if self.env.context.get("proforma"):
             for group in [
                 g
@@ -1541,7 +1232,7 @@ class SaleOrder(models.Model):
                 if g[0] in ("portal_customer", "portal", "follower", "customer")
             ]:
                 group[2]["has_button_access"] = False
-            return groups
+            return
 
         # portal customers have full access (existence not granted, depending on partner_id)
         try:
@@ -1567,8 +1258,6 @@ class SaleOrder(models.Model):
             elif self.state == "draft":
                 access_opt["title"] = _("View Quotation")
 
-        return groups
-
     def _phone_get_number_fields(self):
         """No phone or mobile field is available on sale model. Instead SMS will
         fallback on partner-based computation using ``_mail_get_partner_fields``."""
@@ -1588,13 +1277,12 @@ class SaleOrder(models.Model):
             return None
         return super()._track_finalize()
 
-    def _track_subtype(self, init_values):
-        self.ensure_one()
+    def _get_state_track_subtype_xmlid(self, init_values):
         if "state" in init_values and self.state == "done":
-            return self.env.ref("sale.mt_order_confirmed")
+            return "sale.mt_order_confirmed"
         elif "sent" in init_values and self.sent:
-            return self.env.ref("sale.mt_order_sent")
-        return super()._track_subtype(init_values)
+            return "sale.mt_order_sent"
+        return None
 
     def _get_model_description(self, model_name):
         if not self:
@@ -1605,44 +1293,10 @@ class SaleOrder(models.Model):
     # INVOICING METHODS
     # ------------------------------------------------------------
 
-    @api.readonly
-    def action_view_invoice(self, invoices=False):
-        if not invoices:
-            invoices = self.mapped("invoice_ids")
-        action = self.env["ir.actions.actions"]._for_xml_id(
-            "account.action_move_out_invoice_type",
-        )
-        if len(invoices) > 1:
-            action["domain"] = [("id", "in", invoices.ids)]
-        elif len(invoices) == 1:
-            form_view = [(self.env.ref("account.view_move_form").id, "form")]
-            if "views" in action:
-                action["views"] = form_view + [
-                    (state, view) for state, view in action["views"] if view != "form"
-                ]
-            else:
-                action["views"] = form_view
-            action["res_id"] = invoices.id
-        else:
-            action = {"type": "ir.actions.act_window_close"}
-
-        context = {
-            "default_move_type": "out_invoice",
-        }
-        if len(self) == 1:
-            context.update(
-                {
-                    "default_partner_id": self.partner_id.id,
-                    "default_partner_shipping_id": self.partner_shipping_id.id,
-                    "default_invoice_payment_term_id": self.payment_term_id.id
-                    or self.partner_id.property_payment_term_id.id
-                    or self.env["account.move"]
-                    .default_get(["invoice_payment_term_id"])
-                    .get("invoice_payment_term_id"),
-                },
-            )
-        action["context"] = context
-        return action
+    def _get_invoice_action_context(self):
+        context = super()._get_invoice_action_context()
+        context["default_partner_shipping_id"] = self.partner_shipping_id.id
+        return context
 
     def _get_invoicing_order(self):
         order = self
@@ -2048,7 +1702,7 @@ class SaleOrder(models.Model):
     # CATALOGUE MIXIN METHODS
     # ------------------------------------------------------------
 
-    def _get_product_catalog_order_data(self, products, **kwargs):
+    def _get_catalog_product_data(self, products, **kwargs):
         pricelist = self.pricelist_id._get_products_price(
             quantity=1.0,
             products=products,
@@ -2056,13 +1710,14 @@ class SaleOrder(models.Model):
             date=self.date_order,
             **kwargs,
         )
-        res = super()._get_product_catalog_order_data(products, **kwargs)
         has_warning_group = self.env.user.has_group("sale.group_warning_sale")
+        catalog_data = {}
         for product in products:
-            res[product.id]["price"] = pricelist.get(product.id)
+            product_data = {"price": pricelist.get(product.id)}
             if product.sale_line_warn_msg and has_warning_group:
-                res[product.id]["warning"] = product.sale_line_warn_msg
-        return res
+                product_data["warning"] = product.sale_line_warn_msg
+            catalog_data[product.id] = product_data
+        return catalog_data
 
     def _prepare_catalog_update(self):
         request.update_context(catalog_skip_tracking=True)
@@ -2099,14 +1754,11 @@ class SaleOrder(models.Model):
 
         return self.env.lang
 
-    @api.model
-    def get_import_templates(self):
-        return [
-            {
-                "label": _("Import Template for Quotations"),
-                "template": "/sale/static/xls/quotations_import_template.xlsx",
-            },
-        ]
+    def _get_import_template_label(self):
+        return _("Import Template for Quotations")
+
+    def _get_import_template_path(self):
+        return "/sale/static/xls/quotations_import_template.xlsx"
 
     def _get_product_documents(self):
         self.ensure_one()
@@ -2295,43 +1947,8 @@ class SaleOrder(models.Model):
         self.ensure_one()
         return min(date_planneds)
 
-    def _get_duplicate_orders(self):
-        """Fetch duplicated orders.
-
-        :return: Dictionary mapping order to its related duplicated orders.
-        :rtype: dict
-        """
-        orders = self.filtered(lambda order: order.id and order.client_order_ref)
-        if not orders:
-            return {}
-
-        self.env["sale.order"].flush_model(
-            ["company_id", "partner_id", "client_order_ref", "origin", "state"],
-        )
-
-        result = self.env.execute_query(
-            SQL(
-                """
-                SELECT
-                    sale_order.id AS order_id,
-                    array_agg(duplicate_order.id) AS duplicate_ids
-                FROM sale_order
-                JOIN sale_order AS duplicate_order
-                    ON sale_order.company_id = duplicate_order.company_id
-                    AND sale_order.id != duplicate_order.id
-                    AND duplicate_order.state != 'cancel'
-                    AND sale_order.partner_id = duplicate_order.partner_id
-                    AND (
-                        sale_order.origin = duplicate_order.name
-                        OR sale_order.client_order_ref = duplicate_order.client_order_ref
-                    )
-                WHERE sale_order.id IN %(orders)s
-                GROUP BY sale_order.id
-                """,
-                orders=tuple(orders.ids),
-            ),
-        )
-        return {order_id: set(duplicate_ids) for order_id, duplicate_ids in result}
+    def _get_duplicate_ref_field(self):
+        return "client_order_ref"
 
     def _get_mail_template(self):
         """Get the appropriate mail template for the current sales order based on its state.
@@ -2359,10 +1976,6 @@ class SaleOrder(models.Model):
     @api.model
     def _get_note_url(self):
         return self.env.company.get_base_url()
-
-    def _get_order_lines_copiable(self):
-        """Returns the order lines that can be copied to a new order."""
-        return self.line_ids.filtered(lambda l: not l.is_downpayment)
 
     def _get_prepayment_required_amount(self):
         """Return the minimum amount needed to automatically confirm the quotation.
@@ -2584,15 +2197,10 @@ class SaleOrder(models.Model):
         self.ensure_one()
         return self.state == "draft"
 
-    def _should_be_locked(self):
-        """Check if sale order should be automatically locked on confirmation.
-
-        Returns True if company configuration is set to lock confirmed orders.
-        """
+    def _get_lock_setting_user(self):
+        """Sale checks the order creator's auto-lock group, not the current user."""
         self.ensure_one()
-        return self.company_id.order_lock_so == "lock" or self.create_uid.has_group(
-            "sale.group_auto_done_setting",
-        )
+        return self.create_uid
 
     def _can_confirm_proper_state(self):
         """Ensure orders are in draft state (Quotation).
