@@ -31,6 +31,50 @@ test("successive calls to hasGroup", async () => {
     expect.verifySteps(["res.users/has_group/x", "res.users/has_group/y"]);
 });
 
+test("checkAccessRight without context is cached by model/operation/ids", async () => {
+    await makeMockEnv();
+    onRpc("has_access", (args) => {
+        expect.step(`${args.model}/${args.args[1]}/${JSON.stringify(args.args[0])}`);
+        return true;
+    });
+
+    expect(await user.checkAccessRight("res.partner", "read", 1)).toBe(true);
+    expect(await user.checkAccessRight("res.partner", "read", 1)).toBe(true);
+    expect(await user.checkAccessRight("res.partner", "write", 1)).toBe(true);
+
+    // The second identical (model, operation, ids) read is served from the
+    // cache — only the first read and the distinct write hit the server.
+    expect.verifySteps(["res.partner/read/[1]", "res.partner/write/[1]"]);
+});
+
+test("checkAccessRight with explicit context bypasses the cache and forwards it", async () => {
+    await makeMockEnv();
+    onRpc("has_access", (args) => {
+        expect.step(
+            `${args.args[1]}:${JSON.stringify(args.kwargs.context?.allowed_company_ids)}`,
+        );
+        return true;
+    });
+
+    // A context-scoped probe (e.g. checking access under companies the user
+    // has not switched to yet) must never read from — nor write to — the
+    // company-independent cache, whose key omits the context. Each call hits
+    // the server, and the supplied context reaches has_access verbatim.
+    await user.checkAccessRight("res.partner", "read", 1, {
+        context: { allowed_company_ids: [2] },
+    });
+    await user.checkAccessRight("res.partner", "read", 1, {
+        context: { allowed_company_ids: [2] },
+    });
+    // A subsequent cache-backed read still hits the server (a third step
+    // fires): the context probes above did not populate — hence could not
+    // poison — the shared cache. This read carries the user's own active
+    // companies, not the probe's throwaway context.
+    await user.checkAccessRight("res.partner", "read", 1);
+
+    expect.verifySteps(["read:[2]", "read:[2]", "read:[1]"]);
+});
+
 test("set user settings do not override old valid keys", async () => {
     await makeMockEnv();
     patchWithCleanup(user, _makeUser({ user_settings: { a: 1, b: 2 } }));

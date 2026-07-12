@@ -449,7 +449,14 @@ export class ListGridState {
         if (nextCol < 0 || nextCol >= this.colCount) {
             return null;
         }
-        this._lastColIndex = nextCol;
+        // Only remember the column when moving within a data record: cells
+        // of group-header rows carry no data-col-index, so their DOM child
+        // positions (name cell spans many columns) are not grid columns —
+        // storing one here made the next vertical re-entry into records
+        // "restore" an arbitrary early column.
+        if (this._flatRows[rowIndex]?.type === "record") {
+            this._lastColIndex = nextCol;
+        }
         return { rowIndex, colIndex: nextCol };
     }
 }

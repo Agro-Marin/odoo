@@ -331,6 +331,33 @@ describe("applyCommands — UPDATE", () => {
         ]);
     });
 
+    test("stashes only the invisible sub-x2many slice, applies the rest", () => {
+        // Regression: the whole command used to be stashed when ONE of its
+        // fields was an always-invisible / non-active sub-x2many. Only that
+        // field's slice may be deferred — the stash shadows the record's own
+        // changeset at serialize time, so over-stashing dropped later user
+        // edits to the row from the save payload.
+        const list = makeList();
+        const record = addRecord(list, 20);
+        list.fields = {
+            name: { type: "char" },
+            lines: { type: "one2many" },
+        };
+        record.activeFields = {
+            name: {},
+            // `lines` is NOT in activeFields: its slice must be deferred.
+        };
+
+        applyCommands(list, [[UPDATE, 20, { name: "Updated", lines: [[5, 0, 0]] }]]);
+
+        // The visible scalar was applied to the record...
+        expect(record.data.name).toBe("Updated");
+        // ...and only the sub-x2many slice was stashed.
+        expect(list._unknownRecordCommands[20]).toEqual([
+            [UPDATE, 20, { lines: [[5, 0, 0]] }],
+        ]);
+    });
+
     test("emits UPDATE command in _commands", () => {
         const list = makeList();
         addRecord(list, 30);

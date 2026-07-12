@@ -92,37 +92,58 @@ class CompanySelector {
     }
 
     async apply() {
-        user.activateCompanies(this.selectedCompaniesIds, {
-            includeChildCompanies: false,
-            reload: false,
-        });
+        // Snapshot the selection: closing the dropdown (loginto/confirm close
+        // right after calling apply) runs reset(), which re-seeds
+        // selectedCompaniesIds — this must not change under the await below.
+        const newCompanyIds = [...this.selectedCompaniesIds];
 
+        // Decide whether the current record survives the switch BEFORE mutating
+        // any global state, probing access under the NEW companies (passed
+        // explicitly, uncached). The old code switched the cookie/context
+        // FIRST and then awaited this RPC: during that window the live UI still
+        // showed the old records but every new RPC (autosave, onchange, polling)
+        // ran under the new allowed_company_ids — a create/write could land with
+        // the wrong company. Checking first keeps the state consistent until the
+        // atomic mutate+reload below (and a stalled probe now leaves the old
+        // state intact rather than a half-switched one).
         const controller = this.actionService.currentController;
-        const state = {};
-        // sync: the cookie/context are already switched, so the reload must
-        // fire immediately — a debounced push could be dropped by a popstate
-        // or cancelPushes, leaving a switched cookie under a stale webclient.
-        const options = { reload: true, sync: true };
+        let dropRecord = false;
         if (controller?.props.resId && controller?.props.resModel) {
-            let hasReadRights = true;
             try {
-                hasReadRights = await user.checkAccessRight(
+                const hasReadRights = await user.checkAccessRight(
                     controller.props.resModel,
                     "read",
                     controller.props.resId,
+                    {
+                        context: {
+                            ...user.context,
+                            allowed_company_ids: newCompanyIds,
+                        },
+                    },
                 );
+                dropRecord = !hasReadRights;
             } catch {
-                // The companies were already switched (cookie/context mutated
-                // above): the reload below must happen no matter what, so keep
-                // the current view and let the server enforce access rights.
-            }
-
-            if (!hasReadRights) {
-                options.replace = true;
-                state.actionStack = router.current.actionStack?.slice(0, -1) || [];
+                // Keep the current view and let the server enforce access on
+                // reload — the switch must still proceed.
             }
         }
 
+        // Mutate cookie/context and reload in ONE synchronous block — no await
+        // in between, so there is no window for the still-live UI to issue RPCs
+        // under the new context.
+        user.activateCompanies(newCompanyIds, {
+            includeChildCompanies: false,
+            reload: false,
+        });
+        const state = {};
+        // sync: the cookie/context are switched, so the reload must fire
+        // immediately — a debounced push could be dropped by a popstate or
+        // cancelPushes, leaving a switched cookie under a stale webclient.
+        const options = { reload: true, sync: true };
+        if (dropRecord) {
+            options.replace = true;
+            state.actionStack = router.current.actionStack?.slice(0, -1) || [];
+        }
         router.pushState(state, options);
     }
 

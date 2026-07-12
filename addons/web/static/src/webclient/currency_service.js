@@ -24,9 +24,21 @@ export const currencyService = {
      * @returns {{ reloadCurrencies: () => Promise<void> }}
      */
     start(env, { orm }) {
+        // Monotonic fetch generation: two rapid res.currency mutations fire two
+        // overlapping reloads whose responses can resolve out of order; without
+        // this the later-arriving OLDER snapshot would win the delete+assign
+        // swap, showing a stale rate/decimal config until the next mutation.
+        // Same precedent as menu_service's fetchGeneration.
+        let fetchGeneration = 0;
         /** Reload currencies from the server, replacing the in-memory cache. */
         async function reloadCurrencies() {
+            const generation = ++fetchGeneration;
             const result = await orm.call("res.currency", "get_all_currencies");
+            if (generation !== fetchGeneration) {
+                // A newer reload was started while this one was in flight; its
+                // result supersedes ours, so don't clobber it with stale data.
+                return;
+            }
             for (const k of Object.keys(currencies)) {
                 delete currencies[k];
             }

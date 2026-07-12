@@ -104,7 +104,7 @@ Help your customers with this chat, and analyse their feedback.
             'im_livechat/static/tests/tours/**/*',
         ],
         'im_livechat.assets_embed_core': [
-            ('remove', 'web/static/src/core/browser/title_service.js'),
+            ('remove', 'web/static/src/services/title_service.js'),
             ("include", "html_editor._assets_editor"),
             'mail/static/src/model/**/*',
             'mail/static/src/core/common/**/*',
@@ -158,7 +158,7 @@ Help your customers with this chat, and analyse their feedback.
             ('include', 'im_livechat.assets_embed_external'),
             ('remove', 'im_livechat/static/src/embed/external/boot.js'),
             ('remove', 'mail/static/src/discuss/core/web/discuss_core_common_service_patch.js'),
-            'web/static/src/core/browser/title_service.js',
+            'web/static/src/services/title_service.js',
             'web/static/tests/web_test_helpers.js',
             'bus/static/tests/bus_test_helpers.js',
             'mail/static/tests/mail_test_helpers.js',

@@ -110,6 +110,8 @@ class Observability(Controller):
             if isinstance(payload.get("user_agent"), str)
             else ""
         )
+        raw_pageview = payload.get("pageview_id")
+        pageview_id = raw_pageview[:64] if isinstance(raw_pageview, str) else ""
 
         # Drop completely empty beacons (no metric survived validation).
         if lcp is None and fcp is None and ttfb is None and cls is None and inp is None:
@@ -134,18 +136,33 @@ class Observability(Controller):
         )
         # sudo() — anonymous frontend traffic has no write access on
         # web.cwv.metric.  RUM beacons should not be lost based on caller ACL.
-        request.env["web.cwv.metric"].sudo().create(
-            {
-                "url": url,
-                "user_id": uid,
-                "lcp": lcp,
-                "fcp": fcp,
-                "cls": cls,
-                "ttfb": ttfb,
-                "inp": inp,
-                "user_agent": user_agent or False,
-            }
+        Metric = request.env["web.cwv.metric"].sudo()
+        values = {
+            "url": url,
+            "user_id": uid,
+            "lcp": lcp,
+            "fcp": fcp,
+            "cls": cls,
+            "ttfb": ttfb,
+            "inp": inp,
+            "user_agent": user_agent or False,
+            "pageview_id": pageview_id or False,
+        }
+        # Upsert on pageview_id: a single pageview beacons several times as
+        # INP/CLS keep growing (web_vitals_service), so update the existing row
+        # to the latest values instead of accumulating one row per beacon. A
+        # spoofed/duplicated pageview_id can only overwrite its own row, never
+        # another session's data. Empty pageview_id (old clients) always
+        # creates, preserving prior behavior.
+        existing = (
+            Metric.search([("pageview_id", "=", pageview_id)], limit=1)
+            if pageview_id
+            else Metric.browse()
         )
+        if existing:
+            existing.write(values)
+        else:
+            Metric.create(values)
         return Response("", status=204)
 
     @route(

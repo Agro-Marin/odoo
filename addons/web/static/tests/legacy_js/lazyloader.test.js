@@ -107,9 +107,14 @@ test("a hung script (neither load nor error) cannot block the page forever", asy
     ]);
 });
 
-test("runner page singletons: allScriptsLoaded resolved and waiting state cleaned", async () => {
-    // The import-time chain of this very page (no `script[data-src]` node)
-    // resolved the singleton promise, which must have run stopWaitingLazy.
+test("empty chain resolves the singleton and clears the waiting state", async () => {
+    // Production drives `_loadScripts` from a window-load `setTimeout(0)`; under
+    // the test runner's mocked clock that import-time timer is not a reliable
+    // signal, so drive the empty chain explicitly (the no-`script[data-src]`
+    // case): it must resolve the shared `allScriptsLoaded` promise, whose
+    // `.then(stopWaitingLazy)` removes the page's waiting class.
+    document.body.classList.add("o_lazy_js_waiting");
+    lazyloader.loadScripts([]);
     await lazyloader.allScriptsLoaded;
     expect(document.body).not.toHaveClass("o_lazy_js_waiting");
 });

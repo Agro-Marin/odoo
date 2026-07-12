@@ -102,6 +102,12 @@ export class KanbanRenderer extends Component {
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
         this.dialogClose = [];
+        // Identity-stable ``onValidate`` for KanbanColumnQuickCreate: an inline
+        // ``props.list.createGroup.bind(props.list)`` in the template minted a
+        // fresh function each render, so the quick-create re-rendered on every
+        // renderer render. The wrapper reads ``props.list`` at call time, so it
+        // stays correct even if the list datapoint is replaced.
+        this._onValidateQuickCreate = (...args) => this.props.list.createGroup(...args);
         this.state = useState({
             selectionAvailable: false,
             processedIds: [],

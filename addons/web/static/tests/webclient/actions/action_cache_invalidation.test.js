@@ -113,6 +113,46 @@ test("act_window write with no active controller is a no-op", async () => {
     expect(am.controllerStack.length).toBe(0);
 });
 
+test("any ir.actions.* write clears the /web/action/load cache", async () => {
+    await mountWithCleanup(WebClient);
+
+    const cleared = [];
+    const onClear = (ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    // Non-act_window action types (server/report/client/act_url) also
+    // staleness the action-load disk cache; each must clear it.
+    for (const model of [
+        "ir.actions.server",
+        "ir.actions.report",
+        "ir.actions.client",
+        "ir.actions.act_url",
+        "ir.actions.act_window",
+    ]) {
+        rpcBus.trigger(RpcEvent.RESPONSE, {
+            data: { params: { model, method: "write" } },
+            settings: { silent: true },
+        });
+    }
+    await animationFrame();
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    // One CLEAR_CACHES("/web/action/load") per action-type write.
+    expect(cleared.filter((d) => d === "/web/action/load").length).toBe(5);
+
+    // A non-action model must NOT clear the action cache.
+    const clearedAfter = [];
+    const onClear2 = (ev) => clearedAfter.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear2);
+    rpcBus.trigger(RpcEvent.RESPONSE, {
+        data: { params: { model: "res.partner", method: "write" } },
+        settings: { silent: true },
+    });
+    await animationFrame();
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear2);
+    expect(clearedAfter.includes("/web/action/load")).toBe(false);
+});
+
 test("failed breadcrumb refresh keeps the current names", async () => {
     onRpc("/web/action/load_breadcrumbs", () => {
         expect.step("/web/action/load_breadcrumbs");

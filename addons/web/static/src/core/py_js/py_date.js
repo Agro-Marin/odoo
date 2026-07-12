@@ -663,7 +663,12 @@ export class PyRelativeDelta {
             }),
         );
 
-        // Determine return type from input type and actual time values
+        // Determine return type from input type and actual time values.
+        // dateutil normalizes the delta before checking `_has_time`, so
+        // `relativedelta(hours=24)` carries into `days=1` and stays a date,
+        // while `hours=5` promotes to datetime. For a date base (always
+        // midnight) the normalized residual time equals the result's clock,
+        // so testing the result's h/m/s/µs is equivalent to dateutil here.
         const hasTime = Boolean(
             temp.hour || temp.minute || temp.second || temp.microsecond,
         );

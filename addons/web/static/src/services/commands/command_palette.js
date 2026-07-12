@@ -210,7 +210,15 @@ export class CommandPalette extends Component {
         );
         this.switchNamespace(namespace);
         this.state.searchValue = searchValue;
-        await this.race.add(this.search(searchValue));
+        // Track this config's search as the current one. A reconfigure (nested
+        // palette / SET_CONFIG) supersedes any in-flight typed search, whose
+        // KeepLast wrapper is then left pending forever; without this
+        // reassignment ``executeSelectedCommand`` would keep awaiting that dead
+        // promise and Enter/click would wedge. The superseded search hanging is
+        // intentional elsewhere — the shared ``race`` still resolves on this
+        // (winning) search, so the palette opens on the latest config.
+        this.searchValuePromise = this.search(searchValue);
+        await this.race.add(this.searchValuePromise);
     }
 
     /**

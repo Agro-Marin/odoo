@@ -381,7 +381,15 @@ export class CalendarCommonRenderer extends Component {
     }
 
     onClick(info) {
-        this.openPopover(info.el, this.props.model.records[info.event.id]);
+        // The single-click path runs on a 250ms timer; a load landing in that
+        // window (filter toggle, another session's change) can drop the
+        // record, and openPopover → getColor(record.colorIndex) would throw on
+        // undefined. Bail if the record is gone.
+        const record = this.props.model.records[info.event.id];
+        if (!record) {
+            return;
+        }
+        this.openPopover(info.el, record);
         this.highlightEvent(info.event, "o_cw_custom_highlight");
     }
     onDateClick(info) {
@@ -413,7 +421,13 @@ export class CalendarCommonRenderer extends Component {
         return extras.length ? `${base} ${extras.join(" ")}` : base;
     }
     onDblClick(info) {
-        this.props.editRecord(this.props.model.records[info.event.id]);
+        const record = this.props.model.records[info.event.id];
+        if (!record) {
+            // Same race as onClick: a reload within the double-click window can
+            // drop the record; editRecord(undefined) would throw on record.id.
+            return;
+        }
+        this.props.editRecord(record);
     }
     onEventClick(info) {
         if (this.clickTimeoutId) {
@@ -585,26 +599,29 @@ export class CalendarCommonRenderer extends Component {
         this.fc.api.unselect();
     }
     isSelectionAllowed(event) {
-        // Compare the whole calendar day, not just the day-of-month: getDate()
-        // returns 1–31, so a timed selection spanning the same day number in a
-        // different month (e.g. Mar 3 → Apr 3) was wrongly treated as same-day.
         if (event.allDay) {
             return true;
         }
-        // A timed selection ending exactly at midnight (e.g. 23:00→24:00) has
-        // its end roll over to 00:00 of the next day; without this the last
-        // slot of a day could never be drag-selected. Treat an end at exactly
-        // 00:00 as belonging to the previous day.
-        let end = event.end;
+        // Every FC date consumer must go through fromFcDate (see
+        // full_calendar_hook): raw getHours()/toDateString() evaluate in the
+        // BROWSER timezone, so when the user's profile tz differs from the
+        // browser tz a grid-visible same-day selection could be blocked (and
+        // a cross-midnight one allowed). Convert to the marker-aware Luxon
+        // DateTime first, then compare calendar days there.
+        const start = fromFcDate(event.start);
+        let end = fromFcDate(event.end);
+        // A timed selection ending exactly at midnight (e.g. 23:00→24:00) rolls
+        // its end over to 00:00 of the next day; treat that as the previous
+        // day so the last slot of a day stays drag-selectable.
         if (
-            end.getHours() === 0 &&
-            end.getMinutes() === 0 &&
-            end.getSeconds() === 0 &&
-            end.getMilliseconds() === 0
+            end.hour === 0 &&
+            end.minute === 0 &&
+            end.second === 0 &&
+            end.millisecond === 0
         ) {
-            end = new Date(end.getTime() - 1);
+            end = end.minus({ milliseconds: 1 });
         }
-        return event.start.toDateString() === end.toDateString();
+        return start.hasSame(end, "day");
     }
     onEventDrop(info) {
         this.fc.api.unselect();

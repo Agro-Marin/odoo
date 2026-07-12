@@ -60,13 +60,17 @@ export async function loadState(am, state) {
                 error.exceptionName ===
                 "odoo.addons.web.controllers.action.MissingActionError"
             ) {
-                if (state.actionStack.length > 1) {
+                if (state.actionStack?.length > 1) {
                     const newState = {
                         ...state.actionStack.slice(0, -1).at(-1),
                         actionStack: [...state.actionStack.slice(0, -1)],
                     };
                     return loadState(am, newState);
                 } else {
+                    // `state.actionStack` is absent for a bare `/odoo` URL that
+                    // fell back to a (now-deleted) home action: optional-chain
+                    // so a MissingActionError here reaches the intended silent
+                    // default-app fallback instead of a TypeError dialog.
                     am.env.bus.trigger(AppEvent.WEBCLIENT_LOAD_DEFAULT_APP);
                 }
             } else {

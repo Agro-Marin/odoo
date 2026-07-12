@@ -494,7 +494,6 @@ export class DateTimePickerController {
         const convertFn = (operation === "format" ? formatters : parsers)[type];
         /** @type {any} */
         const options = {
-            tz: /** @type {any} */ (this.pickerProps).tz,
             format: this.params.format,
         };
         if (operation === "format") {

@@ -227,6 +227,12 @@ export class TimePicker extends Component {
      */
     setValue(newValue, cleanValue = true) {
         if (newValue && cleanValue) {
+            // Copy before mutating: onItemSelected / the tab-enter hotkeys pass
+            // `this.suggestions[index]` directly, and those Time objects persist
+            // across opens (onPropsUpdated). Rounding or stamping seconds onto
+            // the shared instance permanently skewed getNearestSuggestionIndex
+            // and leaked hidden seconds into later onChange payloads.
+            newValue = newValue.copy();
             if (this.props.minutesRounding > 1) {
                 newValue.roundMinutes(this.props.minutesRounding);
             }

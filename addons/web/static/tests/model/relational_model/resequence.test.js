@@ -84,6 +84,32 @@ describe("resequence — move forward", () => {
 
         expect(records[0].id).toBe(3);
     });
+
+    test("a movedId absent from the list is a no-op (no splice(-1) corruption)", async () => {
+        const orm = makeMockOrm();
+        const records = makeRecords([
+            [1, 10],
+            [2, 20],
+            [3, 30],
+        ]);
+
+        // movedId 99 was dropped from this list (e.g. a post-save compute
+        // moved it out of the target group). fromIndex === -1 previously made
+        // splice(-1, 1) delete the LAST record and insert undefined.
+        const result = await resequence({
+            records,
+            resModel: "product.product",
+            orm,
+            fieldName: "sequence",
+            movedId: 99,
+            targetId: 2,
+        });
+
+        expect(result).toEqual([]);
+        expect(orm.calls.length).toBe(0);
+        // The list is untouched: same ids, in order, no undefined entries.
+        expect(records.map((r) => r.id)).toEqual([1, 2, 3]);
+    });
 });
 
 // ORM call parameters

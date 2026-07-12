@@ -36,7 +36,8 @@ declare module "@web/services/user" {
         checkAccessRight(
             model: string,
             operation: string,
-            ids?: number | number[]
+            ids?: number | number[],
+            options?: { context?: Context }
         ): Promise<boolean>;
         setUserSettings(key: string, value: any): Promise<void>;
         updateUserSettings(key: string, value: any): void;

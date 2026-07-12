@@ -337,6 +337,14 @@ export class TemplateRegistry {
             templateString,
             url,
         });
+        // Evict any compiled/negative cache entry for the parent: a prior
+        // getTemplate(inheritFrom) — from an eager render before a lazy bundle
+        // registered this extension — would otherwise keep serving the
+        // pre-extension DOM forever. Symmetric with registerTemplate and with
+        // this method's own unregister callback below. (OWL Apps that already
+        // compiled the template keep their closure — same caveat as there.)
+        delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
+        this.processedTemplates.delete(inheritFrom);
 
         return () => {
             const index = this.templateExtensions[inheritFrom]?.[blockId]?.findIndex(

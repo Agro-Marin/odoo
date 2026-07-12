@@ -66,15 +66,41 @@ describe("extractSessionInfo", () => {
 });
 
 describe("isStaleWhileRevalidateURL", () => {
-    test("translations and asset bundles match on pathname alone", async () => {
+    test("translations and content-hashed asset bundles match", async () => {
         const { isStaleWhileRevalidateURL } = await loadServiceWorkerHooks();
         expect(
             isStaleWhileRevalidateURL(url("/web/webclient/translations/abc123")),
         ).toBe(true);
+        // Content-addressed asset URLs (hex hash in the path) are safe to
+        // serve stale-first — the hash changes when the content does.
         expect(
-            isStaleWhileRevalidateURL(url("/web/assets/1/web.assets_web.min.js")),
+            isStaleWhileRevalidateURL(
+                url("/web/assets/d3796119d3095207/web.assets_web.min.js"),
+            ),
         ).toBe(true);
-        expect(isStaleWhileRevalidateURL(url("/web/assets"))).toBe(true);
+        expect(
+            isStaleWhileRevalidateURL(
+                url("/web/assets/esm/d3796119d3095207/web.assets_web.esm.js"),
+            ),
+        ).toBe(true);
+    });
+
+    test("mutable asset URLs (debug/any/%) are NOT served stale", async () => {
+        const { isStaleWhileRevalidateURL } = await loadServiceWorkerHooks();
+        // The binary controller serves these with a non-hash "unique" segment;
+        // they are mutable, so a developer in ?debug=assets must not get the
+        // previous build from the cache.
+        expect(
+            isStaleWhileRevalidateURL(url("/web/assets/debug/web.assets_web.min.js")),
+        ).toBe(false);
+        expect(
+            isStaleWhileRevalidateURL(url("/web/assets/any/web.assets_web.min.js")),
+        ).toBe(false);
+        expect(
+            isStaleWhileRevalidateURL(url("/web/assets/%/web.assets_web.min.js")),
+        ).toBe(false);
+        // Bare /web/assets with no hash segment is not content-addressed.
+        expect(isStaleWhileRevalidateURL(url("/web/assets"))).toBe(false);
     });
 
     test("images require a cache-busting unique= token", async () => {

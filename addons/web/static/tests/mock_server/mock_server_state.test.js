@@ -40,17 +40,20 @@ test("default state", () => {
 test("state changes should be reflected on user and session", () => {
     expect(serverState.userId).toBe(7);
     expect(user.userId).toBe(7);
-    expect(session.uid).toBe(undefined); // deleted by `user.js`
+    // The mock session is rebuilt from serverState on every reset (see
+    // module_set.hoot.js) and now carries `uid: userId` (mock_session.hoot.js),
+    // so it tracks serverState rather than being deleted.
+    expect(session.uid).toBe(7);
 
     serverState.userId = 42;
 
     expect(serverState.userId).toBe(42);
     expect(user.userId).toBe(42);
-    expect(session.uid).toBe(undefined);
+    expect(session.uid).toBe(42);
 });
 
 test("sanity check: server state is unaffected by previous tests", () => {
     expect(serverState.userId).toBe(7);
     expect(user.userId).toBe(7);
-    expect(session.uid).toBe(undefined);
+    expect(session.uid).toBe(7);
 });

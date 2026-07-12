@@ -212,6 +212,19 @@ describe("comparisons", () => {
         expect(evaluateExpr("1 < 2 < 3 < 4 < 5 < 6")).toBe(true);
     });
 
+    test("lists compare lexicographically, not by string coercion", () => {
+        // `[2] < [10]` is True in Python (2 < 10 element-wise). String
+        // coercion would compare "2" < "10" → false.
+        expect(evaluateExpr("[2] < [10]")).toBe(true);
+        expect(evaluateExpr("[10] < [2]")).toBe(false);
+        expect(evaluateExpr("[1, 2] < [1, 3]")).toBe(true);
+        expect(evaluateExpr("[1, 2] < [1, 2, 0]")).toBe(true);
+        expect(evaluateExpr("[1, 2, 0] < [1, 2]")).toBe(false);
+        expect(evaluateExpr("[1, 2] < [1, 2]")).toBe(false);
+        expect(evaluateExpr("[2, 0] < [10, 0]")).toBe(true);
+        expect(evaluateExpr("[1, 2] >= [1, 2]")).toBe(true);
+    });
+
     test("should compare strings", () => {
         expect(
             evaluateExpr("date >= current", {
@@ -318,6 +331,14 @@ describe("callables", () => {
         expect(() => evaluateExpr("max(5)")).toThrow(/not iterable/);
         expect(() => evaluateExpr("max([])")).toThrow(/empty sequence/);
         expect(() => evaluateExpr("min('')")).toThrow(/empty sequence/);
+    });
+    test("min/max reject unsupported keyword arguments loudly", () => {
+        // `key=`/`default=` change WHICH element is returned; silently
+        // dropping them (slicing kwargs off) returned a wrong value, so they
+        // must raise instead. (A `key=<function>` form is separately rejected
+        // earlier by the context-function guard.)
+        expect(() => evaluateExpr("max([1, 2], default=0)")).toThrow(/not supported/);
+        expect(() => evaluateExpr("min([1, 2], default=0)")).toThrow(/not supported/);
     });
 });
 

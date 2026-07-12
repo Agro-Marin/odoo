@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import { evaluateExpr } from "@web/core/py_js/py";
-import { PyDate, PyTimeDelta } from "@web/core/py_js/py_date";
+import { PyDate, PyDateTime, PyTimeDelta } from "@web/core/py_js/py_date";
 
 const check = (expr, fn) => {
     const d0 = new Date();
@@ -289,6 +289,24 @@ describe("relativedelta relative : period is plural", () => {
         const expr =
             "(relativedelta(days=-1) + datetime.date(day=3,month=4,year=2001)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr)).toBe("2001-04-02");
+    });
+
+    test("date + delta type follows dateutil normalization (hours=24 stays date)", () => {
+        // dateutil normalizes the delta before deciding the type: hours=24
+        // carries into days=1 (no residual time) → stays a date, while a
+        // sub-day residual (hours=5) promotes to datetime.
+        const carried = evaluateExpr(
+            "datetime.date(day=3,month=4,year=2001) + relativedelta(hours=24)",
+        );
+        expect(carried).toBeInstanceOf(PyDate);
+        expect(carried).not.toBeInstanceOf(PyDateTime);
+        expect(carried.strftime("%Y-%m-%d")).toBe("2001-04-04");
+
+        const promoted = evaluateExpr(
+            "datetime.date(day=3,month=4,year=2001) + relativedelta(hours=5)",
+        );
+        expect(promoted).toBeInstanceOf(PyDateTime);
+        expect(promoted.strftime("%Y-%m-%d %H:%M:%S")).toBe("2001-04-03 05:00:00");
     });
 
     test("adding/subtracting relative delta and date -- shifts order of magnitude", () => {

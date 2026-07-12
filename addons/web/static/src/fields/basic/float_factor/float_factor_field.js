@@ -6,6 +6,7 @@
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
+import { Operation } from "@web/model/relational_model/operation";
 
 export class FloatFactorField extends FloatField {
     static props = {
@@ -29,10 +30,21 @@ export class FloatFactorField extends FloatField {
 
     /**
      * @param {string} value - user input to parse
-     * @returns {number} parsed float divided by the factor
+     * @returns {number|Operation} parsed float divided by the factor
      */
     parse(value) {
-        return super.parse(value) / this.factor;
+        const parsed = super.parse(value);
+        if (parsed instanceof Operation) {
+            // The operation applies to the DISPLAYED value (stored * factor):
+            // += / -= operands must be scaled back to storage units, while
+            // *= and /= are scale-invariant. Dividing the Operation object
+            // itself would yield NaN and commit it.
+            if (parsed.operator === "+" || parsed.operator === "-") {
+                return new Operation(parsed.operator, parsed.operand / this.factor);
+            }
+            return parsed;
+        }
+        return parsed / this.factor;
     }
 
     /** @returns {number|false} stored value multiplied by the factor, or false when unset */

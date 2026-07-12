@@ -132,6 +132,15 @@ export class ListRecordRow extends Component {
         installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
         onWillRender(() => {
             this._isRendering = true;
+            // Re-run the (idempotent, Set-guarded) install every render, not
+            // just at setup: a renderer field first assigned AFTER the initial
+            // setup (a subclass setting `this.flag = …` in an event handler)
+            // otherwise had no delegation accessor, so row templates reading it
+            // silently resolved to undefined until some new row mounted. The
+            // re-scan installs only genuinely-new names, so the steady-state
+            // cost is a couple of Set lookups. The debug warning still fires
+            // for names assigned mid-render (after this scan).
+            installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
             if (odoo.debug) {
                 warnUndelegatedRendererFields(
                     /** @type {any} */ (this.constructor),

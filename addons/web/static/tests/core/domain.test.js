@@ -254,6 +254,19 @@ describe("Basic Properties", () => {
         );
     });
 
+    test("like-family: an absent field never matches (no 'undefined' coercion)", () => {
+        // A record missing the field entirely (fieldValue === undefined) must
+        // behave like an unset field, NOT be coerced to the string "undefined"
+        // and matched against the pattern.
+        expect(new Domain([["name", "ilike", "und"]]).contains({})).toBe(false);
+        expect(new Domain([["name", "like", "und"]]).contains({})).toBe(false);
+        expect(new Domain([["name", "=ilike", "unde%"]]).contains({})).toBe(false);
+        expect(new Domain([["name", "=like", "unde%"]]).contains({})).toBe(false);
+        // Negated forms match an absent field (the pattern is not present).
+        expect(new Domain([["name", "not ilike", "nde"]]).contains({})).toBe(true);
+        expect(new Domain([["name", "not like", "nde"]]).contains({})).toBe(true);
+    });
+
     test("complex domain", () => {
         const domain = new Domain([
             "&",

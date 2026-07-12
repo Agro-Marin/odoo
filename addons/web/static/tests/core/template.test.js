@@ -655,6 +655,28 @@ test("TemplateRegistry: registering after a negative-lookup probe serves the rea
     expect(tmpl.textContent).toMatch(/real/);
 });
 
+test("TemplateRegistry: an extension registered after the first get is applied on re-get", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate(
+        "tr-late-ext",
+        "/addon_base",
+        `<t t-name="tr-late-ext"><div class="base">base</div></t>`,
+    );
+    // Eager render compiles and caches the pre-extension DOM.
+    expect(scoped.getTemplate("tr-late-ext").textContent).toMatch(/base/);
+    expect(scoped.getTemplate("tr-late-ext").textContent).not.toMatch(/ext/);
+
+    // A lazily-loaded bundle registers an extension for the already-compiled
+    // parent. Without cache eviction on registration, the stale pre-extension
+    // DOM would be served forever.
+    scoped.registerTemplateExtension(
+        "tr-late-ext",
+        "/addon_ext",
+        `<t t-inherit="tr-late-ext" t-inherit-mode="extension"><xpath expr="div" position="inside"><span class="ext">ext</span></xpath></t>`,
+    );
+    expect(scoped.getTemplate("tr-late-ext").textContent).toMatch(/ext/);
+});
+
 test("TemplateRegistry: unregistering an extension does not re-apply it on re-get", () => {
     const scoped = new TemplateRegistry();
     scoped.registerTemplate(

@@ -265,6 +265,24 @@ Records maintain a three-layer state model:
 **Save flow**: `_changes` → RPC write → server returns new `_values` → `_changes` cleared → `data` rebuilt.
 **Discard flow**: `_changes` cleared → `data` rebuilt from `_values` only → `dirty = false`.
 
+**Edit-state owner (`RecordEditState`, `model/relational_model/record_edit_state.js`)**:
+the editable-state layer — the pending-edit `ChangeSet`, the reactive `dirty`
+signal, `invalidFields`/`unsetRequiredFields`, the char/text/html `textValues`
+tracking, and the `savePoint` — is owned by a single `RecordEditState` instance
+held at `record._editState`. The record exposes back-compat getters/setters
+(`dirty`, `_changes`, `_changeSet`, `_invalidFields`, `_unsetRequiredFields`,
+`_textValues`, `_initialTextValues`, `_savePoint`,
+`_closeInvalidFieldsNotification`) that delegate to the owner, so every consumer
+(sibling helpers, fields/views, subclasses, test mocks) is unchanged. `_values`
+(server layer) and `_saveInFlight` stay on the record. The `(dirty, changes)`
+invariant now has one home: `RecordEditState.clearChanges()` is the only
+sanctioned reset and pairs bag-clear with `dirty=false` atomically (I3);
+`markDirty()` raises `dirty` alone (I1/I2). **Reactivity**: `_editState` is NOT
+`markRaw`, so reached through the record's reactive proxy `dirty`/`invalidFields`
+stay reactive, while `toRaw(record)._editState` yields the raw owner for the raw
+reads in `_update`; the bags (`changeSet`, `textValues`, `unsetRequiredFields`)
+are `markRaw` inside the owner exactly as before.
+
 **Scoped re-validation on commit**: committing changes re-checks
 unset-required status only for fields whose status could actually have
 changed. `computeRevalidationScope(changedFieldNames, activeFields)`
@@ -348,6 +366,7 @@ the mutex and normal flow.
 - `views/form/form_controller.js` — `save()` entry point
 - `views/form/form_controller.js` — `discard()` entry point
 - `views/form/form_controller.js` — `beforeLeave()` auto-save
+- `model/relational_model/record_edit_state.js` — `RecordEditState` owner (change set, `dirty`, validity, text-values, savepoint; `clearChanges()`/`markDirty()`)
 - `model/relational_model/record.js` — `_applyChanges()` (dirty tracking)
 - `model/relational_model/record.js` — `discard()` (mutex-wrapped)
 - `services/result_set_cache_invalidator_service.js` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined by `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).

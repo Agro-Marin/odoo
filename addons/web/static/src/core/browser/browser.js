@@ -37,6 +37,7 @@ const browserImpl = {
     setInterval: window.setInterval.bind(window),
     clearInterval: window.clearInterval.bind(window),
     performance: window.performance,
+    crypto: window.crypto,
     // NB: a constructor — must NOT be ``.bind()``-ed (that would break ``new``).
     PerformanceObserver: window.PerformanceObserver,
     requestAnimationFrame: window.requestAnimationFrame.bind(window),

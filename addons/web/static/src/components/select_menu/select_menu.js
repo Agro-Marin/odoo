@@ -147,14 +147,13 @@ export class SelectMenu extends Component {
         this.dropdownState = useDropdownState();
 
         this.selectedChoice = this.getSelectedChoice(this.props);
-        // Cache of props.choices sorted by label, keyed on the props.choices
-        // array identity. filterOptions re-sorts ALL choices on every open;
-        // for a stable choices array this recomputes an identical result each
-        // time. Invalidate whenever the choices reference changes.
-        /** @type {any[] | null} */
+        // WeakMap cache of sorted choices keyed on each source array's
+        // identity (props.choices AND per-group arrays); filterOptions re-sorts
+        // on every open, and for stable arrays this recomputes an identical
+        // result each time. Lazily created in getSortedChoices; entries drop
+        // automatically when an array is no longer referenced.
+        /** @type {WeakMap<any[], any[]> | null} */
         this._sortedChoicesCache = null;
-        /** @type {any[] | null} */
-        this._sortedChoicesSource = null;
         onWillUpdateProps((nextProps) => {
             const choicesChanged = this.props.choices !== nextProps.choices;
             if (choicesChanged) {
@@ -460,25 +459,28 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Returns ``choices`` sorted by label. The result for ``props.choices``
-     * (the common case: the same array is re-filtered on every open) is
-     * cached against the array's identity so the sort runs once per distinct
-     * choices reference instead of on every open. Other arrays (per-group
-     * choices) are sorted without caching.
+     * Returns ``choices`` sorted by label, cached against the array's identity
+     * so the n·log n sort runs once per distinct array reference instead of on
+     * every open / every debounced keystroke-clear. A WeakMap keyed on the
+     * array covers per-GROUP choices too (the previous single-slot cache only
+     * covered ``props.choices``, so group-based consumers re-sorted every
+     * group on every open — a visible latency cliff for large lists).
      *
      * @param {any[]} choices
      * @returns {any[]}
      */
     getSortedChoices(choices) {
         const sortByLabel = (a, b) => collator.compare(a.label, b.label);
-        if (choices !== this.props.choices) {
-            return choices.toSorted(sortByLabel);
+        if (!this._sortedChoicesCache) {
+            /** @type {WeakMap<any[], any[]>} */
+            this._sortedChoicesCache = new WeakMap();
         }
-        if (this._sortedChoicesSource !== choices) {
-            this._sortedChoicesSource = choices;
-            this._sortedChoicesCache = choices.toSorted(sortByLabel);
+        let sorted = this._sortedChoicesCache.get(choices);
+        if (!sorted) {
+            sorted = choices.toSorted(sortByLabel);
+            this._sortedChoicesCache.set(choices, sorted);
         }
-        return this._sortedChoicesCache;
+        return sorted;
     }
 
     // ==========================================================================================

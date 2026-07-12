@@ -86,6 +86,63 @@ test("FloatFactorField comma as decimal point", async () => {
     expect.verifySteps(["save"]);
 });
 
+test("FloatFactorField scales += operation input into storage units", async () => {
+    expect.assertions(2);
+
+    onRpc("partner", "web_save", ({ args }) => {
+        // Displayed value is 4.55 (9.1 * 0.5); "+=1" means displayed 5.55,
+        // i.e. stored 11.1. The += operand must be scaled by 1/factor —
+        // dividing the Operation object itself would commit NaN.
+        expect(args[1].qux).toBe(11.1, {
+            message: "the += operand should be scaled back to storage units",
+        });
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="qux" widget="float_factor" options="{'factor': 0.5}" digits="[16,2]" />
+            </form>`,
+    });
+
+    await contains(".o_field_widget[name='qux'] input").edit("+=1");
+    await clickSave();
+
+    expect(".o_field_widget input").toHaveValue("5.55", {
+        message: "the displayed value should reflect the operation",
+    });
+});
+
+test("FloatFactorField passes *= operation input through unscaled", async () => {
+    expect.assertions(2);
+
+    onRpc("partner", "web_save", ({ args }) => {
+        // "*=2" doubles the displayed value, which doubles the stored value
+        // identically: multiplicative operations are scale-invariant.
+        expect(args[1].qux).toBe(18.2, {
+            message: "the *= operand should not be scaled",
+        });
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="qux" widget="float_factor" options="{'factor': 0.5}" digits="[16,2]" />
+            </form>`,
+    });
+
+    await contains(".o_field_widget[name='qux'] input").edit("*=2");
+    await clickSave();
+
+    expect(".o_field_widget input").toHaveValue("9.10", {
+        message: "the displayed value should reflect the doubled amount",
+    });
+});
+
 test("FloatFactorField.value passes an unset value through as false", () => {
     // An unset float is ``false``; ``false * factor`` would coerce it to 0 and
     // render "0.00" instead of the empty string a plain float renders. The

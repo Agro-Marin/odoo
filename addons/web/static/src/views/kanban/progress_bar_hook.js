@@ -384,13 +384,21 @@ class ProgressBarState {
         for (const emptyGroup of this.model.root.groups) {
             if (
                 this.activeBars[emptyGroup.serverValue] &&
-                emptyGroup.list.count === 0
+                emptyGroup.list.count === 0 &&
+                // Share the in-flight guard with _deselectEmptyActiveBars (the
+                // 300ms trailing refresh also deselects): without it, a burst
+                // of drags emptying a bar-filtered column fired one redundant
+                // applyFilter reload per save until the first resolved.
+                !this._pendingBarDeselections.has(emptyGroup.serverValue)
             ) {
+                this._pendingBarDeselections.add(emptyGroup.serverValue);
                 // Fire-and-forget: selectBar awaits applyFilter RPCs, so
                 // catch rejections like the two refreshes above.
-                this.selectBar(emptyGroup.id, { value: null }).catch((error) =>
-                    console.error(error),
-                );
+                this.selectBar(emptyGroup.id, { value: null })
+                    .catch((error) => console.error(error))
+                    .finally(() =>
+                        this._pendingBarDeselections.delete(emptyGroup.serverValue),
+                    );
             }
         }
     }

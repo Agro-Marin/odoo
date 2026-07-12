@@ -262,7 +262,12 @@ class Home(http.Controller):
         valid_values = {k: v for k, v in kwargs.items() if k in LOGIN_SUCCESSFUL_PARAMS}
         return request.render("web.login_successful", valid_values)
 
-    @http.route("/web/become", type="http", auth="user", sitemap=False, readonly=True)
+    # readonly=False: this route mutates — it clears the registry cache (queued
+    # to the DB signaling sequence at commit) and rewrites the session token.
+    # Declaring it readonly routed it to a read replica, forcing the
+    # dispatcher's RO→RW retry (or failing on a strict replica) for a route
+    # that is inherently a write.
+    @http.route("/web/become", type="http", auth="user", sitemap=False, readonly=False)
     def switch_to_admin(self) -> Response:
         uid = request.env.user.id
         if request.env.user._is_system():

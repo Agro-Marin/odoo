@@ -6,9 +6,11 @@ alone to clamp values: the model carries CHECK constraints and column-size caps
 that hold regardless of the write path.
 """
 
+import json
+
 from psycopg.errors import CheckViolation
 
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import HttpCase, TransactionCase, tagged
 from odoo.tools import mute_logger
 
 
@@ -70,3 +72,44 @@ class TestWebCwvMetric(TransactionCase):
             self.assertIsNone(_clamp_cls(bad), f"_clamp_cls({bad!r}) must be None")
         self.assertEqual(_clamp_latency(1200), 1200.0)
         self.assertEqual(_clamp_cls(0.05), 0.05)
+
+
+@tagged("-at_install", "post_install", "web_http", "web_cwv")
+class TestWebCwvBeacon(HttpCase):
+    """End-to-end behaviour of the /web/observability/cwv beacon controller."""
+
+    def _beacon(self, payload):
+        return self.url_open(
+            "/web/observability/cwv",
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+
+    def test_pageview_upsert(self):
+        # Several beacons for one pageview (INP/CLS grow after the first
+        # tab-switch) must collapse to ONE row, updated to the latest values,
+        # not accumulate duplicates.
+        Metric = self.env["web.cwv.metric"].sudo()
+        before = Metric.search_count([])
+
+        pid = "pageview-upsert-test"
+        r1 = self._beacon({"url": "/odoo", "pageview_id": pid, "lcp": 1000.0})
+        self.assertEqual(r1.status_code, 204)
+        r2 = self._beacon(
+            {"url": "/odoo", "pageview_id": pid, "lcp": 1000.0, "inp": 250.0}
+        )
+        self.assertEqual(r2.status_code, 204)
+
+        rows = Metric.search([("pageview_id", "=", pid)])
+        self.assertEqual(len(rows), 1, "one row per pageview_id")
+        self.assertEqual(rows.inp, 250.0, "row updated to the latest values")
+        self.assertEqual(Metric.search_count([]) - before, 1)
+
+    def test_missing_pageview_id_always_creates(self):
+        # Old clients send no pageview_id: each beacon still creates a row
+        # (previous behaviour preserved).
+        Metric = self.env["web.cwv.metric"].sudo()
+        before = Metric.search_count([])
+        self._beacon({"url": "/odoo", "lcp": 1100.0})
+        self._beacon({"url": "/odoo", "lcp": 1200.0})
+        self.assertEqual(Metric.search_count([]) - before, 2)

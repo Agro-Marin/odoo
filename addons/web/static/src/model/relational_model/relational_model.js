@@ -184,6 +184,13 @@ export class RelationalModel extends Model {
         this.bus = new EventBus();
 
         this.keepLast = markRaw(new KeepLast());
+        // A SEPARATE keepLast for the pager count: sharing `this.keepLast`
+        // with `load()` meant a count refresh (pager total, clickable while
+        // the old UI is still interactive) superseded an in-flight root
+        // load, whose `await` then never settled — `this.root`/`isReady`
+        // never advanced and the view froze until the next search. A stale
+        // count is harmless (last-write-wins), so isolating it is safe.
+        this.countKeepLast = markRaw(new KeepLast());
         this.mutex = markRaw(new Mutex());
 
         /** @type {RelationalModelConfig} */
@@ -746,7 +753,7 @@ export class RelationalModel extends Model {
      * @returns {Promise<number>}
      */
     async _updateCount(config) {
-        const count = await this.keepLast.add(
+        const count = await this.countKeepLast.add(
             this.orm.searchCount(config.resModel, config.domain, {
                 context: config.context,
             }),

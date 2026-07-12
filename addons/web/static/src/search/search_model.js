@@ -1085,6 +1085,16 @@ export class SearchModel extends EventBus {
      * @private
      */
     _reconciliateFavorites() {
+        // Only reconcile when ir.filters were actually (re)loaded for this
+        // import. `this.irFilters` is set solely when the config carried them
+        // (undefined otherwise); reconciling against undefined treated every
+        // imported favorite as server-deleted and removed it — plus its active
+        // query entry. Distinguish "not loaded" (undefined) from "loaded,
+        // empty" ([]). (enterprise/knowledge overrides this to a no-op purely
+        // to dodge that data loss; this guard makes the base path safe.)
+        if (this.irFilters === undefined) {
+            return;
+        }
         reconciliateFavorites(
             this.searchItems,
             this.query,

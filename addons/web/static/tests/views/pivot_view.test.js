@@ -3150,6 +3150,47 @@ test("flip axis while loading a filter", async () => {
     expect(getCurrentValues()).toBe(["20", "2", "1", "17"].join(","));
 });
 
+test("remove a measure while loading a group by", async () => {
+    // Regression: the remove branch of toggleMeasure used to wait out the
+    // in-flight load and then assign a metaData snapshot built BEFORE the
+    // wait, reverting rowGroupBys under the freshly-grouped data (renderer
+    // TypeError). It must rebuild from the landed metaData instead.
+    let def;
+    onRpc("formatted_read_grouping_sets", () => def);
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `<pivot><field name="foo" type="measure"/></pivot>`,
+        searchViewArch: `
+			<search>
+				<filter name="group_by_bar" string="Bar" context="{'group_by': 'bar'}"/>
+			</search>`,
+    });
+
+    // Activate Count so removing Foo still leaves a measure.
+    await toggleMenu("Measures");
+    await toggleMenuItem("Count");
+    expect(getCurrentValues()).toBe(["32", "4"].join(","));
+
+    // Group by bar (this reload is delayed).
+    def = new Deferred();
+    await toggleSearchBarMenu();
+    await toggleMenuItem("Bar");
+    expect(getCurrentValues()).toBe(["32", "4"].join(","));
+
+    // Remove Foo while the group-by load is in flight: the removal waits.
+    await toggleMenu("Measures");
+    await toggleMenuItem("Foo");
+    expect(getCurrentValues()).toBe(["32", "4"].join(","));
+
+    def.resolve();
+    await animationFrame();
+
+    // The landed group-by state is kept and Foo is removed: Count only,
+    // for Total / bar=false (1 record) / bar=true (3 records).
+    expect(getCurrentValues()).toBe(["4", "1", "3"].join(","));
+});
+
 test("sort rows while loading a filter", async () => {
     let def;
     onRpc("formatted_read_grouping_sets", () => def);

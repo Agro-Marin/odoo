@@ -420,6 +420,12 @@ export class ActionManager {
             reject = _rej;
         });
         const action = controller.action;
+        // Snapshot the displayed stack BEFORE the (load-bearing) early commit of
+        // ``newStack``: the early commit makes the parent breadcrumb the current
+        // action while the new controller initializes, but if this dispatch is a
+        // breadcrumb restore that then errors before mounting, ``onError`` uses
+        // this snapshot to return to the displayed controller (see restore()).
+        const previousStack = this.controllerStack;
         if (action.target !== "new" && "newStack" in options) {
             this.controllerStack = options.newStack;
         }
@@ -433,6 +439,11 @@ export class ActionManager {
             resolve,
             reject,
             removeDialogRef,
+            // Only breadcrumb restores set this; loadState deliberately does not
+            // (it must degrade within the already-committed URL's stack).
+            restoreStackOnError: options.isBreadcrumbRestore
+                ? previousStack
+                : undefined,
         };
         if (action.target !== "new" && options.newWindow) {
             return this._openActionInNewWindow(action, makeActionState(nextStack));
@@ -864,9 +875,19 @@ export class ActionManager {
             // the currently-displayed controller must remain committed. Hand
             // the truncated stack to _updateUI via the existing `newStack`
             // plumbing, which only commits it once the action has loaded.
+            //
+            // ``isBreadcrumbRestore``: this is a user-initiated breadcrumb
+            // click, so the URL still points at the currently-displayed
+            // controller (pushState only runs on mount). If the restored view
+            // then errors BEFORE mounting, we must return to that displayed
+            // controller — NOT the truncated newStack tip — so the failed click
+            // is a no-op and the URL stays consistent. (A loadState dispatch,
+            // by contrast, runs AFTER the browser changed the URL and must
+            // degrade within that URL's stack, so it does NOT set this flag.)
             return this.doAction(actionRequest, {
                 ...options,
                 newStack: this.controllerStack.slice(0, index),
+                isBreadcrumbRestore: true,
             });
         }
         if (controller.action.type === "ir.actions.act_window") {
@@ -881,7 +902,7 @@ export class ActionManager {
             }
             Object.assign(controller, this._getViewInfo(view, action, views, props));
         }
-        return this._updateUI(controller, { index });
+        return this._updateUI(controller, { index, isBreadcrumbRestore: true });
     }
 
     async loadState(state) {

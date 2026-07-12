@@ -16,7 +16,7 @@ from odoo import api, models
 from odoo.fields import Domain
 from odoo.models import regex_order
 from odoo.api import DomainType
-from odoo.tools import unique
+from odoo.tools import SQL, unique
 
 from odoo.tools.cache_version import versioned
 from .web_read_group_helpers import AND
@@ -220,17 +220,45 @@ class Base(models.AbstractModel):
         if not groups:
             length = 0
         elif limit and len(groups) == limit:
-            length = limit + len(
-                self._read_group(
-                    domain,
-                    groupby=groupby,
-                    offset=limit,
-                )
-            )
+            # A full page may hide further groups. Count the total number of
+            # groups with a single COUNT(*) over the grouped sub-query rather
+            # than fetching every remaining group as a row and taking len():
+            # the old form materialised (and post-processed — incl. building a
+            # recordset for a relational groupby) all trailing groups just to
+            # count them, which is O(number of groups) rows on the wire.
+            length = self._read_group_count(domain, groupby)
         else:
             length = len(groups) + offset
 
         return groups, length
+
+    def _read_group_count(self, domain, groupby):
+        """Return how many groups ``_read_group(domain, groupby)`` would yield.
+
+        Issues one ``COUNT(*)`` over the grouped sub-query, so — unlike
+        ``len(self._read_group(...))`` — it never selects, transfers or
+        post-processes the group rows themselves (in particular it never builds
+        the recordsets a relational ``groupby`` implies). The cost is a single
+        aggregate query returning one integer, independent of the group count.
+        """
+        self.browse().check_access("read")
+        query = self._search(domain)
+        if query.is_empty():
+            return 0
+        if not groupby:
+            # Without a GROUP BY, PostgreSQL returns exactly one aggregate row
+            # (mirrors _read_group's single-row contract).
+            return 1
+        groupby_terms = {
+            spec: self._read_group_groupby(self._table, spec, query)
+            for spec in groupby
+        }
+        query.groupby = SQL(", ").join(groupby_terms.values())
+        # SELECT 1 keeps the GROUP BY (one row per group) while selecting
+        # nothing to post-process; the outer COUNT(*) tallies those group rows.
+        grouped = query.select(SQL("1"))
+        [(count,)] = self.env.execute_query(SQL("SELECT COUNT(*) FROM (%s) t", grouped))
+        return count
 
     def _add_groupby_values(
         self,

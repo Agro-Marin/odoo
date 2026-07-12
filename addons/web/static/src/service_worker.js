@@ -11,10 +11,17 @@ const offLineURL = `${homepageURL}/offline`;
 // bundles, and cache-busted ``/web/image/`` responses.
 const staticCacheName = "odoo-static-cache";
 
-// URL patterns eligible for stale-while-revalidate.  Translation and asset
-// bundle URLs embed a content hash in the PATH, so a pathname match is
-// enough: reusing a cached entry for a matching URL is always correct.
-const STATIC_PATH_RE = /^\/web\/(webclient\/translations|assets)(\/|$)/;
+// URL patterns eligible for stale-while-revalidate.  Only CONTENT-ADDRESSED
+// asset URLs qualify: `/web/assets/<hex-hash>/…` (or `/web/assets/esm/<hash>/…`)
+// — reusing a cached entry for such a URL is always correct because the hash
+// changes when the content does.  The binary controller also serves MUTABLE
+// asset URLs where the "unique" segment is `debug`, `any`, or `%`
+// (controllers/binary.py); requiring a hex-hash segment (>=7 hex chars)
+// excludes those, so a developer in `?debug=assets` no longer gets the
+// previous build served stale on every reload.  Translations are versioned
+// by the same hash round-trip and match their own route.
+const STATIC_PATH_RE =
+    /^\/web\/(webclient\/translations(\/|$)|assets\/(esm\/)?[0-9a-f]{7,}\/)/;
 // ``/web/image/`` URLs are only content-addressable when the caller passed a
 // cache-busting token (``unique=`` — see ``core/utils/urls.js:imageUrl``); a
 // bare ``/web/image/<model>/<id>/<field>`` URL is mutable server-side and
@@ -56,25 +63,30 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
     // "activate" fires exactly once per new service-worker version taking
     // over.  Image entries are only correct while the record they belong to
-    // is — a version change is a cheap, reliable point to drop them
-    // (translations/assets stay: their URLs embed a content hash in the
-    // path).  This also bounds how long ACL-scoped image responses can
-    // outlive the session that fetched them when the "user_logout" message
-    // never arrives (server-side expiry, session switch via the login page,
-    // browser closed before logout).
-    event.waitUntil(purgeStaticImageEntries());
+    // is — a version change is a cheap, reliable point to drop them.  Asset
+    // entries are content-addressed (hash in the path), so after a deploy the
+    // HTML references NEW hashes and the old cached bundles are dead weight
+    // that only ever grows: purge them here too, bounding the static cache to
+    // roughly one deploy's worth instead of accumulating every superseded
+    // bundle set until browser quota eviction nukes the whole origin (which
+    // would also take the IndexedDB RPC cache with it).  Translations stay
+    // (small, re-validated by the hash round-trip).
+    event.waitUntil(purgeSupersededStaticEntries());
 });
 
 /**
- * Deletes all ``/web/image`` entries from the static cache.
+ * Deletes all ``/web/image`` and content-hashed ``/web/assets`` entries from
+ * the static cache — the entries that are either mutable (images) or
+ * superseded after a deploy (old asset hashes).
  *
  * @returns {Promise<void>}
  */
-const purgeStaticImageEntries = async () => {
+const purgeSupersededStaticEntries = async () => {
     try {
         const cache = await caches.open(staticCacheName);
         for (const request of await cache.keys()) {
-            if (IMAGE_PATH_RE.test(new URL(request.url).pathname)) {
+            const { pathname } = new URL(request.url);
+            if (IMAGE_PATH_RE.test(pathname) || pathname.startsWith("/web/assets/")) {
                 await cache.delete(request);
             }
         }
@@ -210,15 +222,34 @@ const getTextFromResponse = async (response) => {
  */
 const storeDataOnCache = async (url, response) => {
     const htmlBody = await getTextFromResponse(response);
+    const isOffline = url.endsWith(offLineURL);
     const extracted = extractSessionInfo(htmlBody);
+    // Fail CLOSED on the scrub: if extraction fails (the marker regex is
+    // format-coupled to `odoo.__session_info__ = {`; a template/serializer
+    // change breaks it silently), the page still carries the session info +
+    // registry HMAC + company data. Caching it would persist that at rest in
+    // Cache Storage indefinitely. The offline shell (no session info) is
+    // exempt — nothing to scrub there.
+    if (!isOffline && !extracted) {
+        console.warn(
+            "[sw] could not extract session info from the app shell; " +
+                "not caching it (offline mode disabled for this page).",
+        );
+        await saveSessionInfo(null);
+        return;
+    }
     await saveSessionInfo(extracted);
     const cache = await caches.open(cacheName);
     const body = extracted
         ? htmlBody.replace(extracted, "@@@session_info_secret@@@")
         : htmlBody;
     return cache.put(
-        url.endsWith(offLineURL) ? url : homepageURL,
-        new Response(body, { headers: response.headers }),
+        isOffline ? url : homepageURL,
+        // Minimal headers: the scrub changes the body length, so reusing the
+        // network response's Content-Length / Content-Encoding would describe
+        // a body that no longer matches (and a stale Content-Encoding could
+        // make the browser try to gunzip plain text).
+        new Response(body, { headers: { "Content-Type": "text/html" } }),
     );
 };
 
@@ -249,7 +280,9 @@ const readDataOnCache = async (url) => {
         return undefined;
     }
     return new Response(htmlBody.replaceAll("@@@session_info_secret@@@", info), {
-        headers: response.headers,
+        // Minimal headers: the restored body differs in length from what the
+        // original network headers describe (see storeDataOnCache).
+        headers: { "Content-Type": "text/html" },
     });
 };
 

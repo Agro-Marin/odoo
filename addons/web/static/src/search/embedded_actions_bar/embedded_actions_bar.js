@@ -71,6 +71,12 @@ export class EmbeddedActionsConfigHandler {
         this.embeddedActionsConfig = user.settings.embedded_actions_config_ids || {};
         this.orm = ormService;
         this.notification = notificationService;
+        // Serializes the write RPCs: two quick mutations (toggle + toggle, or
+        // drag + toggle) fired independent res.users.settings writes whose
+        // responses could resolve out of order, leaving the server on the
+        // FIRST request's state while the UI shows the second. Chaining them
+        // makes the last write win server-side too.
+        this._writeQueue = Promise.resolve();
     }
 
     /**
@@ -95,27 +101,41 @@ export class EmbeddedActionsConfigHandler {
         } else {
             this.embeddedActionsConfig[this.embeddedActionsKey] = config;
         }
-        try {
-            await this.orm.call("res.users.settings", "set_embedded_actions_setting", [
-                user.settings.id,
-                this.parentActionId,
-                this.currentActiveId,
-                config,
-            ]);
-            return true;
-        } catch {
-            // Revert the local cache so it stays in sync with the server.
-            if (hadConfig) {
-                this.embeddedActionsConfig[this.embeddedActionsKey] = previousConfig;
-            } else {
-                delete this.embeddedActionsConfig[this.embeddedActionsKey];
+        const run = async () => {
+            try {
+                await this.orm.call(
+                    "res.users.settings",
+                    "set_embedded_actions_setting",
+                    [
+                        user.settings.id,
+                        this.parentActionId,
+                        this.currentActiveId,
+                        config,
+                    ],
+                );
+                return true;
+            } catch {
+                // Revert the local cache so it stays in sync with the server.
+                if (hadConfig) {
+                    this.embeddedActionsConfig[this.embeddedActionsKey] =
+                        previousConfig;
+                } else {
+                    delete this.embeddedActionsConfig[this.embeddedActionsKey];
+                }
+                this.notification.add(
+                    _t("Failed to save the embedded actions configuration."),
+                    { type: "danger" },
+                );
+                return false;
             }
-            this.notification.add(
-                _t("Failed to save the embedded actions configuration."),
-                { type: "danger" },
-            );
-            return false;
-        }
+        };
+        // Run after any in-flight write (the queue never rejects, so a prior
+        // failure doesn't stall the chain). Lazily initialized so the handler
+        // works regardless of how it was constructed.
+        this._writeQueue = this._writeQueue || Promise.resolve();
+        const result = this._writeQueue.then(run, run);
+        this._writeQueue = result.catch(() => {});
+        return result;
     }
 
     /**

@@ -260,7 +260,20 @@ export function _makeUser(session) {
         hasGroup(group) {
             return groupCache.read(group, this.context);
         },
-        checkAccessRight(model, operation, ids = []) {
+        checkAccessRight(model, operation, ids = [], { context } = {}) {
+            if (context) {
+                // Explicit context (e.g. probing access under a company set the
+                // user has NOT switched to yet): bypass the company-dependent
+                // cache — its key is [model, operation, ids] and omits the
+                // context, so a cached entry would answer for the wrong
+                // companies and a write would poison it. Direct, uncached RPC.
+                return getAccessRightCacheValue(
+                    model,
+                    operation,
+                    ensureArray(ids),
+                    context,
+                );
+            }
             return accessRightCache.read(
                 model,
                 operation,

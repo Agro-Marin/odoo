@@ -9,7 +9,7 @@ import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { debounce } from "@web/core/utils/timing";
+import { useDebounced } from "@web/core/utils/timing";
 class Page {
     /**
      * @param {string} resModel - model technical name
@@ -157,7 +157,11 @@ export class ModelFieldSelectorPopover extends Component {
         this.fieldService = useService("field");
         this.state = useState({ page: null });
         this.keepLast = new KeepLast();
-        this.debouncedSearchFields = debounce(this.searchFields.bind(this), 250);
+        // useDebounced auto-cancels on unmount: a keystroke followed within
+        // 250ms by a field selection (which closes/destroys the popover) used
+        // to leave a live timer that fired searchFields against a destroyed
+        // component (state mutation + wasted fuzzyLookup, retained closure).
+        this.debouncedSearchFields = useDebounced(this.searchFields, 250);
 
         onWillStart(async () => {
             this.state.page = await this.loadPages(

@@ -110,9 +110,13 @@ describe("useViewCompiler — cache coherence after reset", () => {
 
         const result = useViewCompiler(TestCompiler, templates);
 
-        // The OWL template name is "ClassName/arch.outerHTML" — deterministic
-        // and unique per (compiler, arch) pair.
-        expect(result.list).toBe(`TestCompiler/${arch.outerHTML}`);
+        // The OWL template name is "ClassName#N/paramsKey/arch.outerHTML" —
+        // deterministic and unique per (compiler class, params, arch) triple.
+        // The #N class discriminator is a private monotonic counter (it keeps
+        // same-named compiler classes apart), so assert the structure rather
+        // than a literal.
+        expect(result.list).toMatch(/^TestCompiler#\d+\/\//);
+        expect(result.list.endsWith(`/${arch.outerHTML}`)).toBe(true);
     });
 
     test("multiple resets do not change the registered template name", () => {
@@ -177,8 +181,10 @@ describe("useViewCompiler — template name uniqueness", () => {
 
         const result = useViewCompiler(TestCompiler, templates);
 
-        expect(result.form).toBe(`TestCompiler/${templates.form.outerHTML}`);
-        expect(result.buttons).toBe(`TestCompiler/${templates.buttons.outerHTML}`);
+        // Structural check (the #N class discriminator is private — see
+        // "template name equals the arch-content key" above).
+        expect(result.form.endsWith(`/${templates.form.outerHTML}`)).toBe(true);
+        expect(result.buttons.endsWith(`/${templates.buttons.outerHTML}`)).toBe(true);
         expect(result.form).not.toBe(result.buttons);
     });
 });

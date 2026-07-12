@@ -30,8 +30,24 @@ export function installActionCacheInvalidation(am) {
             return;
         }
         const { model, method } = ev.detail.data.params;
-        if (model === "ir.actions.act_window" && UPDATE_METHODS.includes(method)) {
+        if (
+            typeof model === "string" &&
+            model.startsWith("ir.actions.") &&
+            UPDATE_METHODS.includes(method)
+        ) {
+            // Any action-type write (server/report/client/act_url/act_window)
+            // staleness the /web/action/load disk cache, which has no
+            // background revalidation — a stale descriptor was served from
+            // IndexedDB on every execution, surviving page reloads, until an
+            // unrelated act_window write happened to flush it. Clear on all
+            // ir.actions.* writes.
             rpcBus.trigger(RpcEvent.CLEAR_CACHES, "/web/action/load");
+            // The breadcrumb display-name refresh below only concerns
+            // act_window records (the only type shown in breadcrumbs); other
+            // action types just need the descriptor cache cleared above.
+            if (model !== "ir.actions.act_window") {
+                return;
+            }
             // The client-side breadcrumb display-name cache is stale too;
             // flush it so the recomputation below refetches fresh names.
             am.breadcrumbCache = {};

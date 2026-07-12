@@ -51,7 +51,11 @@ class Base(models.AbstractModel):
                 {
                     "id": id,
                     "display_name": name,
-                    "__formatted_display_name": formatted_map[id],
+                    # Fall back to the name_search name if the record vanished
+                    # between name_search and this browse (concurrent unlink),
+                    # or display_name iteration skipped it — a missing key would
+                    # 500 the whole RPC instead of degrading gracefully.
+                    "__formatted_display_name": formatted_map.get(id, name),
                 }
                 for id, name in id_name_pairs
             ]
@@ -141,15 +145,18 @@ class Base(models.AbstractModel):
 
         Optimistic concurrency control:
 
-        * *known_values* — a ``{field: baseline_value}`` map of the fields being
-          written, as the client originally read them.  Triggers a
-          **field-scoped** check: ``UserError`` is raised only if one of *those*
-          fields was changed on the server since the client read it.  Concurrent
-          writes to *other* fields (e.g. stored-compute recomputations triggered
-          by related records) touch disjoint columns, cannot cause a lost
-          update, and are ignored.  The comparison is type-aware and fails
-          OPEN — any field that cannot be safely compared is skipped rather than
-          risk a false conflict.
+        * *known_values* — the fields being written, as the client originally
+          read them, for a **field-scoped** check: ``UserError`` is raised only
+          if one of *those* fields was changed on the server since the client
+          read it. Concurrent writes to *other* fields (e.g. stored-compute
+          recomputations triggered by related records) touch disjoint columns,
+          cannot cause a lost update, and are ignored. The comparison is
+          type-aware and fails OPEN — any field that cannot be safely compared
+          is skipped rather than risk a false conflict. Two shapes, chosen by
+          record count: a singleton passes a flat ``{field: baseline}``; a
+          list mass-edit (same *vals* to several records) passes per-record
+          ``{id: {field: baseline}}`` so each record is checked against its own
+          baseline in one bulk query.
         * *last_write_date* — legacy / urgent (sendBeacon) fallback: a coarser
           row-level ``write_date`` check.
 
@@ -162,7 +169,13 @@ class Base(models.AbstractModel):
             # it with several ids (dynamic_list._multiSave -> webSave, non-x2many
             # branch). Only the concurrency-checked paths below require a singleton.
             if known_values is not None:
-                self._check_concurrent_field_changes(vals, known_values)
+                # Shape is disambiguated by record count (no key-type sniffing):
+                # a singleton carries a flat ``{field: baseline}``; a mass-edit
+                # carries per-record ``{id: {field: baseline}}``.
+                if len(self) == 1:
+                    self._check_concurrent_field_changes(vals, known_values)
+                else:
+                    self._check_concurrent_field_changes_multi(vals, known_values)
             elif last_write_date and 'write_date' in self._fields:
                 # Row-level write_date check reads ``self.id`` directly: this is a
                 # single-record (urgent sendBeacon) path, so enforce the singleton.
@@ -212,43 +225,68 @@ class Base(models.AbstractModel):
             record = self.browse(next_id)
         return record.with_context(bin_size=True).web_read(specification)
 
-    def _check_concurrent_field_changes(self, vals, known_values):
-        """Field-scoped optimistic lock for :meth:`web_save`.
+    # Only unambiguous primitives + many2one (compared by id) are concurrency-
+    # checkable. date/datetime are deliberately excluded: their client
+    # serialization (Luxon, tz/ms) vs the raw DB value risks a timezone-boundary
+    # mismatch — a *false* conflict, the very thing this check exists to avoid.
+    # jsonb-backed columns (translated / company-dependent fields) are excluded
+    # for the same reason: the raw DB value is a per-lang / per-company dict, not
+    # the scalar the client read. Excluded types fall through unchecked (fail open).
+    _CONCURRENCY_SAFE_TYPES = frozenset((
+        "integer", "boolean", "char", "text", "selection",
+        "float", "monetary", "many2one",
+    ))
 
-        Raise ``UserError`` if a field being written (*vals*) was changed on the
-        server since the client read it (*known_values* holds the client's
-        baseline for those fields).  Concurrent writes to *other* fields are
-        ignored — they touch disjoint columns and cannot lose the user's edit.
-        Comparison is type-aware and fails OPEN: any field that cannot be safely
-        compared is skipped, never producing a false conflict.
+    def _concurrency_checkable_fields(self, vals):
+        """Field names in *vals* whose value can be safely concurrency-checked
+        (model-level: independent of which record). See _CONCURRENCY_SAFE_TYPES.
         """
-        self.ensure_one()
-        # Only unambiguous primitives + many2one (compared by id). date/datetime
-        # are deliberately excluded: their client serialization (Luxon, tz/ms)
-        # vs the raw DB value risks a timezone-boundary mismatch — a *false*
-        # conflict, the very thing this check exists to avoid. jsonb-backed
-        # columns (translated / company-dependent fields) are excluded for the
-        # same reason: the raw DB value is a per-lang / per-company dict, not
-        # the scalar the client read. Excluded types fall through unchecked
-        # (fail open).
-        SAFE_TYPES = frozenset((
-            "integer", "boolean", "char", "text", "selection",
-            "float", "monetary", "many2one",
-        ))
-        names = [
-            n for n in known_values
-            if n in vals
-            and n in self._fields
+        return [
+            n for n in vals
+            if n in self._fields
             and self._fields[n].store
             and self._fields[n].column_type
             and self._fields[n].column_type[0] != "jsonb"
-            and self._fields[n].type in SAFE_TYPES
+            and self._fields[n].type in self._CONCURRENCY_SAFE_TYPES
+        ]
+
+    def _field_concurrently_modified(self, name, server_raw, baseline_raw, new_raw):
+        """True iff the server moved *name* away from the client's baseline AND
+        the user's write would not land on the server's current value anyway.
+
+        Type-aware and fails OPEN: any value that cannot be safely coerced is
+        treated as non-conflicting rather than risk a false positive. Shared by
+        the singleton and multi-record concurrency checks so their comparison
+        semantics can never drift.
+        """
+        try:
+            field = self._fields[name]
+            current = self._coerce_concurrency_value(field, server_raw)
+            baseline = self._coerce_concurrency_value(field, baseline_raw)
+            new = self._coerce_concurrency_value(field, new_raw)
+            return current not in (baseline, new)
+        except Exception:
+            # Fail OPEN: any value we cannot safely coerce is treated as
+            # non-conflicting rather than risk a false positive.
+            return False
+
+    def _check_concurrent_field_changes(self, vals, known_values):
+        """Field-scoped optimistic lock for a SINGLE record :meth:`web_save`.
+
+        Raise ``UserError`` if a field being written (*vals*) was changed on the
+        server since the client read it (*known_values* is the client's flat
+        ``{field: baseline}`` map). Concurrent writes to *other* fields are
+        ignored — they touch disjoint columns and cannot lose the user's edit.
+        """
+        self.ensure_one()
+        names = [
+            n for n in self._concurrency_checkable_fields(vals) if n in known_values
         ]
         if not names:
             return
         # Read current values straight from the DB, bypassing the ORM cache
         # (which may be stale w.r.t. a write committed by another transaction)
-        # — same rationale as the legacy write_date check below.
+        # — same rationale as the legacy write_date check.
         cols = ", ".join('"%s"' % n for n in names)
         self.env.cr.execute(
             'SELECT %s FROM "%s" WHERE id = %%s' % (cols, self._table),
@@ -257,26 +295,100 @@ class Base(models.AbstractModel):
         row = self.env.cr.fetchone()
         if not row:
             return
-        conflicts = []
-        for name, server_raw in zip(names, row, strict=True):
-            try:
-                field = self._fields[name]
-                current = self._coerce_concurrency_value(field, server_raw)
-                baseline = self._coerce_concurrency_value(field, known_values[name])
-                new = self._coerce_concurrency_value(field, vals[name])
-                # Conflict only if the server moved this field away from the
-                # client's baseline AND the user's write would not land on the
-                # server's current value anyway.
-                if current not in (baseline, new):
-                    conflicts.append(field.string or name)
-            except Exception:  # noqa: S112 — fail OPEN, never a false conflict
-                continue
+        conflicts = [
+            self._fields[name].string or name
+            for name, server_raw in zip(names, row, strict=True)
+            if self._field_concurrently_modified(
+                name, server_raw, known_values[name], vals[name]
+            )
+        ]
         if conflicts:
             raise UserError(self.env._(
                 "This record was modified by another user while you were "
                 "editing it.\nConflicting field(s): %s.\n"
                 "Please reload and re-apply your changes.",
                 ", ".join(conflicts),
+            ))
+
+    def _check_concurrent_field_changes_multi(self, vals, known_values):
+        """Per-record field-scoped optimistic lock for a MULTI-record
+        :meth:`web_save` (list mass-edit: the SAME *vals* written to every
+        record, each carrying its OWN baseline). *known_values* is
+        ``{id: {field: baseline}}``.
+        """
+        # Same vals written to every record: map each id to that shared dict.
+        self._check_concurrent_field_changes_records(
+            dict.fromkeys(self.ids, vals), known_values
+        )
+
+    def _check_concurrent_field_changes_multi_list(self, vals_list, known_values):
+        """Per-record field-scoped optimistic lock for :meth:`web_save_multi`,
+        where each record has its OWN *vals* (a relative Field Operation, e.g.
+        ``qty += 5``, resolves client-side to a distinct absolute value per
+        record). *vals_list* is aligned with ``self``; *known_values* is
+        ``{id: {field: baseline}}``.
+        """
+        self._check_concurrent_field_changes_records(
+            dict(zip(self.ids, vals_list, strict=True)), known_values
+        )
+
+    def _check_concurrent_field_changes_records(self, vals_by_id, known_values):
+        """Core per-record field-scoped optimistic lock. *vals_by_id* maps each
+        record id to the vals being written to IT — shared by the mass-edit
+        (same vals everywhere) and :meth:`web_save_multi` (per-record vals)
+        callers so their comparison semantics can never drift.
+
+        One bulk ``SELECT`` reads every record's current values (no N+1: the
+        query is batched over the whole set); the comparison is then in-memory
+        and reuses the exact same per-field semantics as the singleton path,
+        failing OPEN per (record, field). A record with no baseline is skipped.
+        Concurrent writes to other fields, or to the value the user is writing
+        anyway, are ignored.
+        """
+        if not vals_by_id:
+            return
+        # Checkable fields are model-level (depend on the field TYPE, not the
+        # value), so the union of written keys covers a per-record vals that
+        # writes a field the others don't.
+        all_keys = set().union(*(v.keys() for v in vals_by_id.values()))
+        checkable = self._concurrency_checkable_fields(dict.fromkeys(all_keys))
+        if not checkable:
+            return
+        # JSON serializes integer dict keys as strings; normalize back to ints.
+        baselines = {int(rec_id): base for rec_id, base in known_values.items()}
+        cols = ", ".join('"%s"' % n for n in checkable)
+        # ``= ANY(%s)`` with a list (psycopg3 adapts it to a Postgres array) —
+        # one bulk read for the whole set, no N+1.
+        self.env.cr.execute(
+            'SELECT id, %s FROM "%s" WHERE id = ANY(%%s)' % (cols, self._table),
+            (list(self.ids),),
+        )
+        current = {
+            row[0]: dict(zip(checkable, row[1:], strict=True))
+            for row in self.env.cr.fetchall()
+        }
+        conflict_ids = set()
+        conflict_fields = set()
+        for rec_id, server_row in current.items():
+            baseline = baselines.get(rec_id)
+            vals = vals_by_id.get(rec_id)
+            if not baseline or not vals:
+                continue  # fail open: no baseline (or no vals) for this record
+            for name in checkable:
+                if name not in baseline or name not in vals:
+                    continue
+                if self._field_concurrently_modified(
+                    name, server_row[name], baseline[name], vals[name]
+                ):
+                    conflict_ids.add(rec_id)
+                    conflict_fields.add(self._fields[name].string or name)
+        if conflict_ids:
+            raise UserError(self.env._(
+                "%(count)s of the records you edited were modified by another "
+                "user in the meantime.\nConflicting field(s): %(fields)s.\n"
+                "Please reload and re-apply your changes.",
+                count=len(conflict_ids),
+                fields=", ".join(sorted(conflict_fields)),
             ))
 
     @staticmethod
@@ -309,7 +421,10 @@ class Base(models.AbstractModel):
         return str(value)
 
     def web_save_multi(
-        self, vals_list: list[dict], specification: dict[str, dict]
+        self,
+        vals_list: list[dict],
+        specification: dict[str, dict],
+        known_values=None,
     ) -> list[dict]:
         """Write multiple records at once and return them formatted.
 
@@ -317,10 +432,20 @@ class Base(models.AbstractModel):
         ``write()`` per group, amortising access-check, ``modified()``,
         and validation overhead.  Records with unhashable vals (x2many
         commands) fall back to individual writes.
+
+        *known_values* (``{id: {field: baseline}}``) enables the same
+        field-scoped optimistic concurrency check as :meth:`web_save`, but
+        per-record: this path carries a DISTINCT vals per record (a relative
+        Field Operation resolves to a different absolute value for each), so
+        each record is checked against its own vals and baseline. The check
+        runs BEFORE any write.
         """
         if len(self) != len(vals_list):
             msg = "Each record must have a corresponding vals entry."
             raise ValueError(msg)
+
+        if known_values is not None:
+            self._check_concurrent_field_changes_multi_list(vals_list, known_values)
 
         # Group records sharing identical vals — one write() per group
         # instead of one per record.  Preserves prefetch set via
@@ -405,20 +530,44 @@ class Base(models.AbstractModel):
                 extra_fields = dict(field_spec["fields"])
                 extra_fields.pop("display_name", None)
 
+                # Drop co-records the user cannot read (record rules) *before*
+                # web_read, so a single restricted many2one target does not
+                # raise AccessError and abort the WHOLE parent read — the
+                # x2many branch below already does this; the many2one branch
+                # used to abort instead of degrading to a name-only fallback.
+                # Only filter sub-fields (extra_fields); display_name is read
+                # under sudo() below and stays available for every target.
+                accessible_ids = None
+                if extra_fields and co_records:
+                    accessible_ids = set(
+                        co_records.with_context(active_test=False)
+                        ._filtered_access("read")
+                        .ids
+                    )
+                    readable_records = co_records.browse(
+                        id_ for id_ in co_records.ids if id_ in accessible_ids
+                    )
+                else:
+                    readable_records = co_records
+
                 many2one_data = {
                     vals["id"]: cleanup(vals)
-                    for vals in co_records.web_read(extra_fields)
+                    for vals in readable_records.web_read(extra_fields)
                 }
 
                 if "display_name" in field_spec["fields"]:
                     for rec in co_records.sudo():
-                        many2one_data[rec.id]["display_name"] = rec.display_name
+                        many2one_data.setdefault(rec.id, {"id": rec.id})[
+                            "display_name"
+                        ] = rec.display_name
 
                 for values in values_list:
                     if values[field_name] is False:
                         continue
-                    vals = many2one_data[values[field_name]]
-                    values[field_name] = vals["id"] and vals
+                    vals = many2one_data.get(values[field_name])
+                    # A target with no sub-field data (inaccessible, sub-fields
+                    # dropped) still resolves to at least its id/display_name.
+                    values[field_name] = vals and vals["id"] and vals
 
             elif field.type in ("one2many", "many2many"):
                 if not field_spec:
