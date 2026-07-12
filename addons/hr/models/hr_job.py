@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 from odoo.addons.html_editor.tools import handle_history_divergence
 
@@ -72,6 +72,10 @@ class HrJob(models.Model):
 
     _name_company_uniq = models.Constraint(
         "unique(name, company_id, department_id)",
+        "The name of the job position must be unique per department in company!",
+    )
+    _name_company_uniq_no_department = models.UniqueIndex(
+        "(name, company_id) WHERE department_id IS NULL",
         "The name of the job position must be unique per department in company!",
     )
     _no_of_recruitment_positive = models.Constraint(

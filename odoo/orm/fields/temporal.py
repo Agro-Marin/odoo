@@ -195,8 +195,15 @@ class Date(BaseDate[date]):
             if isinstance(value, datetime):
                 return value.date()
             return value
-        # fromisoformat (C-level) is ~44x faster than strptime for ISO dates
-        return date.fromisoformat(value[:DATE_LENGTH])
+        value = value[:DATE_LENGTH]
+        # fromisoformat (C-level) is ~44x faster than strptime for ISO dates, but
+        # it rejects non-zero-padded components (e.g. "2020-9-30") that the legacy
+        # strptime parser accepted. Keep the fast path and fall back to strptime
+        # for those so imports/onchange remain backwards compatible.
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return datetime.strptime(value, DATE_FORMAT).date()
 
     from_string = to_date  # deprecated alias, kept for backwards compatibility
 
@@ -300,8 +307,14 @@ class Datetime(BaseDate[datetime]):
                 return value
             return datetime.combine(value, time.min)
 
-        # fromisoformat (C-level) is ~61x faster than strptime for ISO datetimes
-        value = datetime.fromisoformat(value)
+        # fromisoformat (C-level) is ~61x faster than strptime for ISO datetimes,
+        # but it rejects non-zero-padded components (e.g. "2020-9-30 5:00:00")
+        # that the legacy strptime parser accepted. Keep the fast path and fall
+        # back to strptime for those so imports remain backwards compatible.
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            value = datetime.strptime(value[:DATETIME_LENGTH], DATETIME_FORMAT)
         # ISO strings with offsets (e.g. Luxon's toISO() from the JS client)
         # yield aware datetimes: normalize to naive UTC like the datetime path.
         if value.tzinfo:

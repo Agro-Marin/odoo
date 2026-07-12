@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -104,6 +104,7 @@ class HrDepartureWizard(models.TransientModel):
             related_employees_count = dict(
                 self.env["hr.employee"]
                 .sudo()
+                .with_context(active_test=False)
                 ._read_group(
                     domain=[("user_id", "in", employee_ids.user_id.ids)],
                     groupby=["user_id"],
@@ -130,7 +131,13 @@ class HrDepartureWizard(models.TransientModel):
                     archived_users |= employee.user_id
 
         archived_employees.with_context(no_wizard=True).action_archive()
-        archived_users.action_archive()
+        # Never archive the acting user or the root/superuser account, even if
+        # they happen to be linked to a departing employee. Use sudo() so an HR
+        # officer without ERP-manager rights can still write active=False.
+        archived_users = archived_users.filtered(
+            lambda u: u.id not in (self.env.uid, SUPERUSER_ID)
+        )
+        archived_users.sudo().action_archive()
 
         employee_ids.write(
             {

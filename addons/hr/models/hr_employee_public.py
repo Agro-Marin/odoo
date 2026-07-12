@@ -138,7 +138,7 @@ class HrEmployeePublic(models.Model):
             if last_presence := employee.user_id.sudo().presence_ids.last_presence:
                 last_activity_datetime = (
                     last_presence.replace(tzinfo=UTC)
-                    .astimezone(timezone(tz))
+                    .astimezone(timezone(tz or "UTC"))
                     .replace(tzinfo=None)
                 )
                 employee.last_activity = last_activity_datetime.date()
@@ -234,9 +234,39 @@ class HrEmployeePublic(models.Model):
         )
         return [("id", operator, new_hires.ids)]
 
+    # Fields that ``_get_fields`` always emits explicitly (they are selected
+    # from the employee row directly, not derived from the model's field set).
+    _PUBLIC_BASE_FIELDS = ("id", "employee_id", "name", "active")
+
+    @api.model
+    def _get_public_field_names(self):
+        """Single source of truth for the public/private field boundary.
+
+        A field of ``hr.employee`` is considered *public* iff it is declared on
+        this model (``hr.employee.public``) as a stored, column-backed field.
+        This method returns exactly those names (excluding ``_PUBLIC_BASE_FIELDS``,
+        which ``_get_fields`` emits explicitly).
+
+        Two mechanisms rely on this boundary and MUST stay consistent:
+          * ``_get_fields`` builds the SQL view columns from this set;
+          * ``hr.employee._check_private_fields`` treats any field absent from
+            ``hr.employee.public._fields`` as private.
+
+        Drift risk: the set is *derived* from this model's stored fields, so
+        adding or removing a stored field here silently moves the boundary
+        (a new stored field becomes publicly readable). Review such changes
+        against the private-field expectations of ``hr.employee``.
+        """
+        return [
+            name
+            for name, field in self._fields.items()
+            if name not in self._PUBLIC_BASE_FIELDS
+            and field.store
+            and field.column_type
+        ]
+
     @api.model
     def _get_fields(self):
-        base_fields = ("id", "employee_id", "name", "active")
         version_fields = self.env["hr.version"]._fields
         return (
             "e.id AS id,e.id AS employee_id,e.name AS name,e.active AS active,"
@@ -246,8 +276,7 @@ class HrEmployeePublic(models.Model):
                     if name in version_fields and version_fields[name].store
                     else f"e.{name}"
                 )
-                for name, field in self._fields.items()
-                if name not in base_fields and field.store and field.column_type
+                for name in self._get_public_field_names()
             )
         )
 

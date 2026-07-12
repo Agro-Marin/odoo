@@ -932,11 +932,14 @@ class ResUsers(models.Model):
             user_sudo = self.sudo()
             fields_ = self._fields
             for field_name in self._self_accessible_fields()[0]:
-                # RU-P2: skip binary/relational fields -- warming them re-fetched
-                # multi-MB image columns and x2many fields every round-trip only
-                # to discard them; lazy access checks cover them when needed.
+                # RU-P2: skip binary and x2many fields -- warming them re-fetched
+                # multi-MB image columns and whole x2many relations every
+                # round-trip only to discard them. Many2one self fields ARE warmed:
+                # they are cheap, and a cold Many2one (e.g. a self field delegated
+                # through a group-restricted parent like hr.employee.version_id)
+                # otherwise triggers an access check on lazy onchange access.
                 field = fields_[field_name]
-                if field.type == "binary" or field.relational:
+                if field.type in ("binary", "one2many", "many2many"):
                     continue
                 user_sudo[field_name]  # warm ORM cache
         return super().onchange(values, field_names, fields_spec)
