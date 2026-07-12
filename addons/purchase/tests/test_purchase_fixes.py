@@ -344,3 +344,81 @@ class TestBillPoLinkTracking(AccountTestInvoicingCommon):
             self._has_modified_note(bill),
             "a ref-only write must not post a PO-modified note",
         )
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseOverInvoiceState(AccountTestInvoicingCommon):
+    """Over-billed lines: 'over done' on 'ordered' products, 'to do' on
+    'transferred' products (return/credit note). Mirrors sale, keyed on
+    bill_policy — previously 'over done' was unreachable in purchase.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.svc_ordered = cls.env["product.product"].create(
+            {
+                "name": "Svc ordered",
+                "type": "service",
+                "bill_policy": "ordered",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+            },
+        )
+        cls.svc_transferred = cls.env["product.product"].create(
+            {
+                "name": "Svc transferred",
+                "type": "service",
+                "bill_policy": "transferred",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+            },
+        )
+
+    def _confirmed_po(self, product, qty):
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": product.id, "product_qty": qty, "price_unit": 100},
+                    ),
+                ],
+            },
+        )
+        po.action_confirm()
+        return po
+
+    def _post_bill(self, po, product, qty):
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                            "quantity": qty,
+                            "price_unit": 100,
+                            "purchase_line_ids": [Command.set(po.line_ids.ids)],
+                        },
+                    ),
+                ],
+            },
+        )
+        bill.action_post()
+        return bill
+
+    def test_ordered_over_billed_is_over_done(self):
+        po = self._confirmed_po(self.svc_ordered, 1)
+        self._post_bill(po, self.svc_ordered, 2)  # billed 2 > ordered 1
+        self.assertEqual(po.line_ids.invoice_state, "over done")
+        self.assertEqual(po.invoice_state, "over done")
+
+    def test_transferred_over_billed_is_to_do(self):
+        po = self._confirmed_po(self.svc_transferred, 5)
+        po.line_ids.qty_transferred = 1.0  # received 1
+        self._post_bill(po, self.svc_transferred, 2)  # billed 2 > received 1
+        self.assertEqual(po.line_ids.invoice_state, "to do")
+        self.assertEqual(po.invoice_state, "to do")
