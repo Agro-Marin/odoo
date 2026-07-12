@@ -437,11 +437,21 @@ export class WebsocketWorker {
      */
     _onWebsocketMessage(messageEv) {
         this._restartConnectionCheckInterval();
+        let payload;
+        try {
+            payload = JSON.parse(messageEv.data);
+        } catch {
+            // The server delivers notification batches as JSON. Anything else
+            // (e.g. an echoed keepalive/control frame) is not ours: ignore it
+            // rather than throwing out of the message listener.
+            this._logDebug("_onWebsocketMessage: ignored non-JSON frame");
+            return;
+        }
         // Drop any notification we have already processed. This makes the
         // pipeline robust against duplicate delivery (server resend on
         // reconnect, a rewound `last`, ...) instead of relying solely on the
         // server honouring `last`.
-        const notifications = JSON.parse(messageEv.data).filter(
+        const notifications = payload.filter(
             (notification) => notification.id > this.lastNotificationId,
         );
         this._logDebug("_onWebsocketMessage", notifications);
@@ -477,6 +487,15 @@ export class WebsocketWorker {
      */
     _onWebsocketOpen() {
         this._logDebug("_onWebsocketOpen");
+        // Gate this connection's queued messages behind ITS OWN subscribe.
+        // `_onWebsocketClose` resets this deferred, but a `_stop()`/`_start()`
+        // cycle (e.g. offline→online) removes the socket listeners so close
+        // never runs, leaving a stale *resolved* deferred. Without this reset
+        // the queue would flush (next microtask) before the new subscribe is
+        // sent (~300ms later, debounced), violating the ordering guarantee.
+        // `_stop`/`_onWebsocketClose` both null `lastChannelSubscription`, so
+        // the subscribe below is always (re)sent and resolves this deferred.
+        this.firstSubscribeDeferred = new Deferred();
         this._updateState(WORKER_STATE.CONNECTED);
         this.broadcast(this.isReconnecting ? "BUS:RECONNECT" : "BUS:CONNECT");
         this._debouncedUpdateChannels();
@@ -523,14 +542,23 @@ export class WebsocketWorker {
         // the first timer would be orphaned (untracked by `connectTimeout`,
         // so uncancellable by `_stop`), leaking a zombie reconnect.
         clearTimeout(this.connectTimeout);
-        this.connectRetryDelay =
-            Math.min(this.connectRetryDelay * 1.5, MAXIMUM_RECONNECT_DELAY) +
-            this.RECONNECT_JITTER * Math.random();
-        this._logDebug("_retryConnectionWithDelay", this.connectRetryDelay);
-        this.connectTimeout = setTimeout(
-            this._start.bind(this),
-            this.connectRetryDelay,
+        // `connectRetryDelay` is the jitter-free exponential base: keeping
+        // jitter out of it stops the base from drifting and makes
+        // MAXIMUM_RECONNECT_DELAY a true ceiling. Jitter is added only to the
+        // armed timer. A base of 0 means "reconnect immediately" (set on
+        // keep-alive/aborted closes) and skips jitter — but the base is then
+        // advanced to INITIAL so a persistently failing socket backs off
+        // normally instead of hot-looping at delay 0.
+        const delay =
+            this.connectRetryDelay === 0
+                ? 0
+                : this.connectRetryDelay + this.RECONNECT_JITTER * Math.random();
+        this.connectRetryDelay = Math.min(
+            (this.connectRetryDelay || this.INITIAL_RECONNECT_DELAY) * 1.5,
+            MAXIMUM_RECONNECT_DELAY,
         );
+        this._logDebug("_retryConnectionWithDelay", delay);
+        this.connectTimeout = setTimeout(this._start.bind(this), delay);
     }
 
     /**
@@ -585,12 +613,20 @@ export class WebsocketWorker {
         if (this._isWebsocketClosing()) {
             // The close event didn’t trigger. Trigger manually to maintain
             // correct state and lifecycle handling.
+            const wasReconnecting = this.isReconnecting;
             this._onWebsocketClose(
                 new CloseEvent("close", {
                     code: WEBSOCKET_CLOSE_CODES.CLOSING_HANDSHAKE_ABORTED,
                 }),
             );
             this.websocket = null;
+            if (wasReconnecting) {
+                // `_onWebsocketClose` early-returns while reconnecting because
+                // it expects a real `error` event to drive the retry — but this
+                // synthetic close has none. Schedule the retry explicitly so
+                // the reconnect loop doesn't stall until an external BUS:START.
+                this._retryConnectionWithDelay();
+            }
             return;
         }
         this._updateState(WORKER_STATE.CONNECTING);
@@ -611,6 +647,13 @@ export class WebsocketWorker {
         // (the other place clearing this interval) will not run: clear it here
         // to avoid leaking a timer on every stop cycle.
         clearInterval(this._connectionCheckInterval);
+        // Cancel pending debounced work so it can't fire against the *next*
+        // connection: a trailing `_updateChannels` would enqueue a stray
+        // subscribe and prematurely resolve `firstSubscribeDeferred`, and a
+        // trailing `_sendToServer` would leak an app message into the queue.
+        this._debouncedUpdateChannels.cancel();
+        this._debouncedSendToServer.cancel();
+        this._forceUpdateChannels.cancel();
         this.connectRetryDelay = this.INITIAL_RECONNECT_DELAY;
         this.isReconnecting = false;
         this.lastChannelSubscription = null;

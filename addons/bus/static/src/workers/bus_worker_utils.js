@@ -9,7 +9,7 @@
  */
 export function debounce(func, wait, immediate) {
     let timeout;
-    return function () {
+    function debounced() {
         const context = this;
         const args = arguments;
         function later() {
@@ -24,7 +24,15 @@ export function debounce(func, wait, immediate) {
         if (callNow) {
             func.apply(context, args);
         }
+    }
+    // Cancel a pending trailing invocation. Needed so a lifecycle reset (e.g.
+    // the worker's `_stop()`) can drop an in-flight debounced `subscribe`/send
+    // instead of letting it fire against the next connection.
+    debounced.cancel = function () {
+        clearTimeout(timeout);
+        timeout = null;
     };
+    return debounced;
 }
 
 /**
@@ -91,7 +99,11 @@ export class Logger {
         if (this._db) {
             return;
         }
-        return new Promise((res, rej) => {
+        // Dedupe concurrent opens: `log()`/`getLogs()`/`gcOutdatedLogs()` can
+        // all race here before `_db` is set. Without this, each call issues its
+        // own `indexedDB.open`, and multiple in-flight opens interleave with
+        // `onupgradeneeded`. Cache the single in-flight open promise instead.
+        this._dbPromise ??= new Promise((res, rej) => {
             const request = indexedDB.open(this._name, 1);
             request.onsuccess = (event) => {
                 this._db = event.target.result;
@@ -105,8 +117,13 @@ export class Logger {
                     store.createIndex("timestamp", "timestamp", { unique: false });
                 }
             };
-            request.onerror = (e) => rej(e.target.error);
+            request.onerror = (e) => {
+                // Allow a later call to retry the open.
+                this._dbPromise = null;
+                rej(e.target.error);
+            };
         });
+        return this._dbPromise;
     }
 
     async log(message) {

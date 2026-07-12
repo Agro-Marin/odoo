@@ -15,7 +15,21 @@ export const multiTabSharedWorkerService = {
         const bus = new EventBus();
         let responseDeferred = null;
         let state = STATE.INIT;
+        // Memoizes the in-flight worker start so concurrent `isOnMainTab()`
+        // callers (common at boot) don't each run `startWorker` — which would
+        // send a duplicate `ELECTION:REGISTER`.
+        let startPromise = null;
         browser.addEventListener("pagehide", unregister);
+        browser.addEventListener("pageshow", (ev) => {
+            if (ev.persisted && state === STATE.UNREGISTERED) {
+                // Page restored from bfcache: `pagehide` unregistered us but
+                // the worker (and its port) is still alive. Re-join the
+                // election so main-tab tracking resumes instead of reporting
+                // `false` forever.
+                workerService.send("ELECTION:REGISTER");
+                state = STATE.REGISTERED;
+            }
+        });
 
         function messageHandler(messageEv) {
             const { type, data } = messageEv.data;
@@ -31,8 +45,13 @@ export const multiTabSharedWorkerService = {
                     workerService.send("ELECTION:HEARTBEAT");
                     break;
                 case "ELECTION:ASSIGN_MASTER":
-                    state = STATE.MASTER;
-                    bus.trigger("become_main_tab");
+                    // Ignore a stray/in-flight assignment for a tab that has
+                    // already unregistered (mirrors the UNASSIGN_MASTER guard):
+                    // a gone tab must not resurrect itself as main.
+                    if (state !== STATE.UNREGISTERED) {
+                        state = STATE.MASTER;
+                        bus.trigger("become_main_tab");
+                    }
                     break;
                 case "ELECTION:UNASSIGN_MASTER":
                     if (state !== STATE.UNREGISTERED) {
@@ -48,11 +67,13 @@ export const multiTabSharedWorkerService = {
             }
         }
 
-        async function startWorker() {
-            await workerService.ensureWorkerStarted();
-            await workerService.registerHandler(messageHandler);
-            workerService.send("ELECTION:REGISTER");
-            state = STATE.REGISTERED;
+        function startWorker() {
+            return (startPromise ??= (async () => {
+                await workerService.ensureWorkerStarted();
+                await workerService.registerHandler(messageHandler);
+                workerService.send("ELECTION:REGISTER");
+                state = STATE.REGISTERED;
+            })());
         }
 
         function unregister() {

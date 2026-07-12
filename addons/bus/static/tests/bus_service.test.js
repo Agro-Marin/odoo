@@ -11,6 +11,10 @@ import {
     WebsocketWorker,
     WORKER_STATE,
 } from "@bus/workers/websocket_worker";
+import {
+    WorkerService,
+    WORKER_STATE as WORKER_SERVICE_STATE,
+} from "@bus/services/worker_service";
 import { after, describe, expect, test } from "@odoo/hoot";
 import { Deferred, manuallyDispatchProgrammaticEvent, on, runAllTimers, waitFor } from "@odoo/hoot-dom";
 import { mockWebSocket } from "@odoo/hoot-mock";
@@ -518,6 +522,65 @@ test("subscribe message is sent first", async () => {
     startBusService();
     await runAllTimers();
     await waitForSteps(["subscribe", "some_event", "some_other_event"]);
+});
+
+test("subscribe is re-sent before queued messages after offline/online", async () => {
+    // Regression: a `_stop()`/`_start()` cycle (offline→online) removes the
+    // socket listeners, so `_onWebsocketClose` (which resets
+    // `firstSubscribeDeferred`) never runs. If the deferred stays
+    // stale-resolved, queued app messages flush before the reconnection's
+    // `subscribe`. The worker resets the deferred on open so `subscribe` wins.
+    browser.addEventListener("online", () => asyncStep("online"));
+    addBusServiceListeners(["BUS:DISCONNECT", () => asyncStep("BUS:DISCONNECT")]);
+    await makeMockServer();
+    const ogSocket = window.WebSocket;
+    patchWithCleanup(window, {
+        WebSocket: function () {
+            const ws = new ogSocket(...arguments);
+            ws.send = (message) => {
+                const evName = JSON.parse(message).event_name;
+                if (["subscribe", "queued_event"].includes(evName)) {
+                    asyncStep(evName);
+                }
+            };
+            return ws;
+        },
+    });
+    await makeMockEnv();
+    startBusService();
+    await runAllTimers();
+    await waitForSteps(["subscribe"]);
+    manuallyDispatchProgrammaticEvent(window, "offline");
+    await waitForSteps(["BUS:DISCONNECT"]);
+    // Enqueued while stopped; must be sent AFTER the reconnection's subscribe.
+    getService("bus_service").send("queued_event");
+    manuallyDispatchProgrammaticEvent(window, "online");
+    await waitForSteps(["online"]);
+    await runAllTimers();
+    await waitForSteps(["subscribe", "queued_event"]);
+});
+
+test("bus service does not hang when the worker fails to initialize", async () => {
+    // Regression: when worker_service degrades to FAILED (e.g. cross-origin
+    // bundle fetch failure), it resolves its own init deferred and no-ops all
+    // sends/handlers, so no BUS:INITIALIZED is ever emitted. bus_service must
+    // detect FAILED and unblock its callers instead of awaiting that signal
+    // forever. Force that terminal state (and never create a real worker, so
+    // it stays FAILED) by stubbing worker_service's entry point.
+    patchWithCleanup(WorkerService.prototype, {
+        async ensureWorkerStarted() {
+            this._state = WORKER_SERVICE_STATE.FAILED;
+            this.connectionInitializedDeferred.resolve();
+        },
+    });
+    patchWithCleanup(console, { warn: () => {} });
+    await makeMockEnv();
+    getService("bus_service")
+        .start()
+        .then(() => asyncStep("start resolved"));
+    await runAllTimers();
+    await waitForSteps(["start resolved"]);
+    expect(getService("worker_service").state).toBe(WORKER_SERVICE_STATE.FAILED);
 });
 
 test("worker state is available from the bus service", async () => {

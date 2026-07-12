@@ -14,9 +14,13 @@ export const presenceService = {
         const LOCAL_STORAGE_PREFIX = "presence";
         const bus = new EventBus();
         let isOdooFocused = true;
+        // Stored as a number by onPresence/onStorage; localStorage returns it
+        // as a string (or null when absent). Parse so getLastPresence() always
+        // yields a number, not a string on first load.
         let lastPresenceTime =
-            browser.localStorage.getItem(`${LOCAL_STORAGE_PREFIX}.lastPresence`) ||
-            luxon.DateTime.now().ts;
+            parseInt(
+                browser.localStorage.getItem(`${LOCAL_STORAGE_PREFIX}.lastPresence`),
+            ) || luxon.DateTime.now().ts;
 
         function onPresence() {
             lastPresenceTime = luxon.DateTime.now().ts;

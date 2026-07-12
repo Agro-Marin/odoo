@@ -7,6 +7,7 @@ import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
+import { WORKER_STATE } from "@bus/services/worker_service";
 
 // List of worker events that should not be broadcasted.
 const INTERNAL_EVENTS = new Set([
@@ -84,6 +85,9 @@ export const busService = {
                         id,
                         ...message,
                     }));
+                    if (!notifications.length) {
+                        break;
+                    }
                     state.lastNotificationId = notifications.at(-1).id;
                     legacyMultiTab.setSharedValue(
                         "last_notification_id",
@@ -144,6 +148,16 @@ export const busService = {
                     uid = false;
                 }
                 await workerService.ensureWorkerStarted();
+                if (workerService.state === WORKER_STATE.FAILED) {
+                    // The worker could not be created (e.g. cross-origin
+                    // bundle fetch failed in prefork mode without a proxy).
+                    // worker_service already degrades to no-op sends/handlers,
+                    // so no BUS:INITIALIZED will ever arrive. Unblock our own
+                    // callers instead of awaiting a deferred that never
+                    // resolves (which would hang addChannel/start/subscribe).
+                    connectionInitializedDeferred.resolve();
+                    return;
+                }
                 await workerService.registerHandler(handleMessage);
                 workerService.send("BUS:INITIALIZE_CONNECTION", {
                     websocketURL: `${params.serverURL.replace("http", "ws")}/websocket?version=${
@@ -172,6 +186,10 @@ export const busService = {
         browser.addEventListener(
             "online",
             () => {
+                // Two `online` events with no intervening `offline` would
+                // otherwise orphan the first timer (it still fires a redundant
+                // BUS:START); clear it before rescheduling.
+                clearTimeout(backOnlineTimeout);
                 backOnlineTimeout = browser.setTimeout(() => {
                     if (state.isActive) {
                         workerService.send("BUS:START");
