@@ -260,18 +260,30 @@ class TestTaskDependencies(TestProjectCommon):
             )
         )
 
-        node1 = parent_task.child_ids[0]
-        node2 = parent_task.child_ids[1].child_ids
-        node3 = parent_task.child_ids[2]
+        # child_ids is newest-first (_order ends in `id desc`), so bind nodes by
+        # name, not position — otherwise node1/node3 are silently swapped and the
+        # test only passes against a mis-wired copy mapping.
+        node1 = parent_task.child_ids.filtered(lambda t: t.name == "Node 1")
+        node2 = parent_task.child_ids.filtered(
+            lambda t: t.name == "SuperNode 2"
+        ).child_ids
+        node3 = parent_task.child_ids.filtered(lambda t: t.name == "Node 3")
 
         node1.successor_ids = node2
         node2.successor_ids = node3
 
-        # Test copying the whole Node tree
+        # Test copying the whole Node tree. Copies keep the source name (with a
+        # " (copy)" suffix here), so match by prefix.
         parent_task_copy = parent_task.copy()
-        parent_copy_node1 = parent_task_copy.child_ids[0]
-        parent_copy_node2 = parent_task_copy.child_ids[1].child_ids
-        parent_copy_node3 = parent_task_copy.child_ids[2]
+        parent_copy_node1 = parent_task_copy.child_ids.filtered(
+            lambda t: t.name.startswith("Node 1")
+        )
+        parent_copy_node2 = parent_task_copy.child_ids.filtered(
+            lambda t: t.name.startswith("SuperNode 2")
+        ).child_ids
+        parent_copy_node3 = parent_task_copy.child_ids.filtered(
+            lambda t: t.name.startswith("Node 3")
+        )
 
         # Relation should only be copied between the newly created node
         self.assertEqual(len(parent_copy_node1.successor_ids), 1)

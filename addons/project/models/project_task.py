@@ -1155,9 +1155,13 @@ class ProjectTask(models.Model):
     def _search_personal_triage_id(self, operator: str, value: Any) -> list:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
+        # value may be a scalar (e.g. domain [("personal_triage_id", "=", 5)]);
+        # normalise a local copy for the type check only — the original value is
+        # what the sub-domain expects — else `for v in value` raises on an int.
+        values = value if isinstance(value, (list, tuple)) else [value]
         field_name = (
             "display_name"
-            if any(isinstance(v, str) for v in value) or value == ""
+            if any(isinstance(v, str) for v in values)
             else "id"
         )
         domain = Domain(field_name, operator, value) & Domain(
@@ -1405,12 +1409,18 @@ class ProjectTask(models.Model):
         return [("res_id", "=", self.id), ("res_model", "=", "project.task")]
 
     def _compute_attachment_ids(self) -> None:
-        for task in self:
-            attachment_ids = (
-                self.env["ir.attachment"]
-                .search(task._get_attachments_search_domain())
-                .ids
+        # Batch the attachment lookup for the whole recordset (one query instead
+        # of one search per task): this field is read in kanban/list prefetch.
+        attachments_by_task: dict[int, list[int]] = {}
+        if self.ids:
+            attachment_data = self.env["ir.attachment"]._read_group(
+                [("res_model", "=", "project.task"), ("res_id", "in", self.ids)],
+                ["res_id"],
+                ["id:array_agg"],
             )
+            attachments_by_task = dict(attachment_data)
+        for task in self:
+            attachment_ids = attachments_by_task.get(task.id, [])
             message_attachment_ids = task.mapped(
                 "message_ids.attachment_ids"
             ).ids  # from mail_thread
@@ -1652,13 +1662,21 @@ class ProjectTask(models.Model):
 
     @api.depends("project_id")
     def _compute_step_id(self) -> None:
+        # The default step only depends on the target project, so resolve it
+        # once per distinct project instead of running step_find per task
+        # (matters when moving/duplicating many tasks at once).
+        default_step_by_project: dict[int, int | bool] = {}
         for task in self:
             project = task.project_id or task.parent_id.project_id
-            if project:
-                if project not in task.step_id.project_ids:
-                    task.step_id = task.step_find(project.id, [("fold", "=", False)])
-            else:
+            if not project:
                 task.step_id = False
+                continue
+            if project not in task.step_id.project_ids:
+                if project.id not in default_step_by_project:
+                    default_step_by_project[project.id] = task.step_find(
+                        project.id, [("fold", "=", False)]
+                    )
+                task.step_id = default_step_by_project[project.id]
 
     @api.depends("user_ids")
     def _compute_portal_user_names(self) -> None:
@@ -1929,6 +1947,15 @@ class ProjectTask(models.Model):
             (k: original_task_id, v: [original_task.predecessor_ids.ids, original_task.successor_ids.ids]
         """
         task_mapping, task_dependencies = {}, {}
+        # `copied_tasks` (read back as a child_ids/One2many) is returned in the
+        # model's _order, which does NOT match `self`'s iteration order — so a
+        # positional zip mis-pairs originals with copies (and, one level down,
+        # zips a parent's real children against the wrong copy's empty child set,
+        # raising `zip strict`). copy_data builds the copies by iterating this
+        # same `self` and Command.create assigns ids in creation order, so the
+        # i-th original corresponds to the i-th *smallest copied id*. Sort the
+        # copies by id to restore that correspondence.
+        copied_tasks = copied_tasks.sorted("id")
         for original_task, copied_task in zip(self, copied_tasks, strict=True):
             task_mapping[original_task.id] = copied_task
             if original_task.allow_dependencies and (
@@ -2499,9 +2526,16 @@ class ProjectTask(models.Model):
                         task.state = "blocked"
                 task.date_last_status_change = now
         elif "project_id" in vals:
-            self.filtered(
-                lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
-            ).state = "in_progress"
+            # Re-homing a task into another project drops it onto that project's
+            # default *non-folded* step (_compute_step_id → step_find fold=False).
+            # State follows step in this model, so a closed state in an open step
+            # is an invalid combination: reopen every non-blocked task —
+            # done/canceled included — and clear its now-stale closure date so
+            # deadline_met/_compute_elapsed don't read an undone completion.
+            # _compute_state keeps genuinely predecessor-blocked tasks blocked.
+            reopened = self.filtered(lambda t: t.state != "blocked")
+            reopened.state = "in_progress"
+            reopened.filtered("date_closed").date_closed = False
 
         # Do not recompute the state when changing the parent (to avoid resetting the state)
         if "parent_id" in vals:
@@ -2834,7 +2868,9 @@ class ProjectTask(models.Model):
                 [  # sudo is needed for the portal user in Project Sharing.
                     ("id", "in", self.milestone_id.ids),
                     ("is_reached", "=", False),
-                    ("deadline", "<=", fields.Date.today()),
+                    # Strictly before today, matching the search method below
+                    # (a milestone due *today* is not yet late).
+                    ("deadline", "<", fields.Date.today()),
                 ]
             )
         )

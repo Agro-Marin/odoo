@@ -753,7 +753,12 @@ class TestProjectSubtasks(TestProjectCommon):
                 }
             )
         )
-        child_1, child_2, child_3, child_4 = parent_task.child_ids
+        # child_ids is newest-first (_order ends in `id desc`), so bind children
+        # by name rather than by position to keep the assertions order-independent.
+        child_1 = parent_task.child_ids.filtered(lambda c: c.name == "child 1")
+        child_2 = parent_task.child_ids.filtered(lambda c: c.name == "child 2")
+        child_3 = parent_task.child_ids.filtered(lambda c: c.name == "child 3")
+        child_4 = parent_task.child_ids.filtered(lambda c: c.name == "child 4")
         self.assertEqual(
             9, len(parent_task._get_all_subtasks()), "Should have 9 subtasks"
         )
@@ -912,7 +917,14 @@ class TestProjectSubtasks(TestProjectCommon):
                 ],
             }
         )
-        subtask_1, subtask_2 = task.child_ids
+        # Both subtasks share a name; identify them by project rather than by
+        # position (child_ids is newest-first, _order ends in `id desc`).
+        subtask_1 = task.child_ids.filtered(
+            lambda c: c.project_id == self.project_goats
+        )
+        subtask_2 = task.child_ids.filtered(
+            lambda c: c.project_id == self.project_pigs
+        )
 
         self.assertFalse(subtask_1.display_in_project)
         self.assertTrue(subtask_2.display_in_project)

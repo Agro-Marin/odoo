@@ -311,9 +311,13 @@ class TestProjectRecurrence(TransactionCase):
             )
         )
 
-        node1 = parent_task.child_ids[0]
-        node2 = parent_task.child_ids[1].child_ids
-        node3 = parent_task.child_ids[2]
+        # child_ids is newest-first (_order ends in `id desc`), so bind nodes by
+        # name, not position — otherwise node1/node3 are silently swapped.
+        node1 = parent_task.child_ids.filtered(lambda t: t.name == "Node 1")
+        node2 = parent_task.child_ids.filtered(
+            lambda t: t.name == "SuperNode 2"
+        ).child_ids
+        node3 = parent_task.child_ids.filtered(lambda t: t.name == "Node 3")
 
         # Dependencies
         node1.successor_ids = node2
@@ -334,10 +338,17 @@ class TestProjectRecurrence(TransactionCase):
             "The generated recurring task should be different than the original one",
         )
 
-        # Newly created nodes from recurrence
-        parent_copy_node1 = parent_task_copy.child_ids[0]
-        parent_copy_node2 = parent_task_copy.child_ids[1].child_ids
-        parent_copy_node3 = parent_task_copy.child_ids[2]
+        # Newly created nodes from recurrence (match by name prefix — copies may
+        # carry a " (copy)" suffix).
+        parent_copy_node1 = parent_task_copy.child_ids.filtered(
+            lambda t: t.name.startswith("Node 1")
+        )
+        parent_copy_node2 = parent_task_copy.child_ids.filtered(
+            lambda t: t.name.startswith("SuperNode 2")
+        ).child_ids
+        parent_copy_node3 = parent_task_copy.child_ids.filtered(
+            lambda t: t.name.startswith("Node 3")
+        )
 
         # The nodes and dependencies ids of the orginal and newly created nodes should be different
         self.assertNotEqual(

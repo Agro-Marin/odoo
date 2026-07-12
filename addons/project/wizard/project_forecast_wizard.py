@@ -6,6 +6,7 @@ weekly throughput history to simulate completion dates.
 """
 
 import random
+from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.tools import SQL
@@ -103,24 +104,34 @@ class ProjectForecastWizard(models.TransientModel):
         return self._reopen_wizard()
 
     def _get_weekly_throughput(self) -> list[int]:
-        """Fetch tasks-closed-per-week for the last N weeks."""
+        """Fetch tasks-closed-per-week for the last N weeks.
+
+        Throughput buckets by ``date_closed`` (the actual completion timestamp),
+        not ``date_end`` (the renamed deadline) — forecasting from deadlines
+        rather than real closures would be meaningless. The rolling-window
+        boundary is computed in Python via ``cr.now()`` (naive UTC, matching the
+        column's storage): ``INTERVAL %(param)s`` is not valid SQL (the interval
+        text must be a literal, not a bind placeholder) and a bare ``NOW()``
+        would be evaluated in the session timezone against a UTC column.
+        """
+        since = self.env.cr.now() - timedelta(weeks=self.weeks_of_history)
         self.env.cr.execute(
             SQL(
                 """
             SELECT
-                DATE_TRUNC('week', date_end) AS week,
+                DATE_TRUNC('week', date_closed) AS week,
                 COUNT(*) AS closed_count
             FROM project_task
             WHERE project_id = %(project_id)s
               AND state IN ('done', 'canceled')
-              AND date_end >= NOW() - INTERVAL %(weeks)s
-              AND date_end IS NOT NULL
-              AND is_template = FALSE
-            GROUP BY DATE_TRUNC('week', date_end)
+              AND date_closed >= %(since)s
+              AND date_closed IS NOT NULL
+              AND is_template IS NOT TRUE
+            GROUP BY DATE_TRUNC('week', date_closed)
             ORDER BY week
             """,
                 project_id=self.project_id.id,
-                weeks=f"{self.weeks_of_history} weeks",
+                since=since,
             )
         )
         return [row[1] for row in self.env.cr.fetchall()]

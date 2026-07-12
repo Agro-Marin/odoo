@@ -60,7 +60,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         ).create(
             {
                 "name": "Task Child with project",
-                "allocated_hours": 3,
+                "planned_hours": 3,
             }
         )
 
@@ -70,7 +70,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "name": "Task Child without project",
                 "parent_id": parent_task.id,
                 "project_id": self.project_pigs.id,
-                "allocated_hours": 5,
+                "planned_hours": 5,
             }
         )
 
@@ -91,7 +91,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
         self.assertEqual(
-            parent_task.subtask_allocated_hours,
+            parent_task.subtask_planned_hours,
             8,
             "Planned hours of subtask should impact parent task",
         )

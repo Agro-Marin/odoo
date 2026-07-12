@@ -1033,6 +1033,25 @@ class ProjectProject(models.Model):
             self.health_status = "healthy"
             return
 
+        # Compare against a naive-UTC "now"/"today" bound in Python. The task
+        # timestamp columns store naive UTC; a bare SQL NOW()/CURRENT_DATE is a
+        # timestamptz evaluated in the connection's session timezone (not UTC
+        # here), which skews every "overdue"/"stale" comparison by the offset.
+        now = self.env.cr.now()
+        today = now.date()
+
+        # These computes read via hand-written SQL and have no @api.depends, so
+        # the ORM will not auto-flush pending task/milestone/risk writes first.
+        # Flush explicitly, else the metrics read stale pre-write rows.
+        self.env["project.task"].flush_model(
+            ["project_id", "state", "date_end", "date_last_status_change",
+             "create_date", "is_template", "active"]
+        )
+        self.env["project.milestone"].flush_model(
+            ["project_id", "is_reached", "deadline"]
+        )
+        self.env["project.risk"].flush_model(["project_id", "risk_score", "active"])
+
         self.env.cr.execute(
             SQL(
                 """
@@ -1047,7 +1066,7 @@ class ProjectProject(models.Model):
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
                           AND t.date_end IS NOT NULL
-                          AND t.date_end >= NOW()
+                          AND t.date_end >= %(now)s
                     ) / NULLIF(COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
                           AND t.date_end IS NOT NULL
@@ -1060,10 +1079,8 @@ class ProjectProject(models.Model):
                     ) = 0 THEN 100.0
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND (
-                              t.date_last_status_change IS NULL
-                              OR t.date_last_status_change >= NOW() - INTERVAL '14 days'
-                          )
+                          AND COALESCE(t.date_last_status_change, t.create_date)
+                              >= %(now)s - INTERVAL '14 days'
                     ) / NULLIF(COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
                     ), 0)
@@ -1071,9 +1088,11 @@ class ProjectProject(models.Model):
             FROM project_task t
             WHERE t.project_id IN %(project_ids)s
               AND t.is_template IS NOT TRUE
+              AND t.active = TRUE
             GROUP BY t.project_id
             """,
                 project_ids=tuple(self.ids),
+                now=now,
             )
         )
         task_scores = {row[0]: (row[1], row[2]) for row in self.env.cr.fetchall()}
@@ -1089,7 +1108,9 @@ class ProjectProject(models.Model):
                     CASE
                         WHEN COUNT(*) = 0 THEN 100.0
                         ELSE 100.0 * COUNT(*) FILTER (
-                            WHERE is_reached OR deadline >= CURRENT_DATE
+                            WHERE is_reached
+                               OR deadline IS NULL
+                               OR deadline >= %(today)s
                         ) / COUNT(*)
                     END AS milestone_score
                 FROM project_milestone
@@ -1097,6 +1118,7 @@ class ProjectProject(models.Model):
                 GROUP BY project_id
                 """,
                     project_ids=tuple(self.ids),
+                    today=today,
                 )
             )
             milestone_scores = {row[0]: row[1] for row in self.env.cr.fetchall()}
@@ -1177,6 +1199,16 @@ class ProjectProject(models.Model):
             self.deadline_compliance_pct = 0.0
             return
 
+        # Naive-UTC "now" bound in Python — see _compute_health_indicators: a
+        # bare SQL NOW() is timezone-skewed against the naive-UTC columns.
+        now = self.env.cr.now()
+
+        # No @api.depends here, so flush pending task writes before the raw SQL.
+        self.env["project.task"].flush_model(
+            ["project_id", "state", "date_closed", "date_end",
+             "lead_time_hours", "cycle_time_hours", "is_template", "active"]
+        )
+
         self.env.cr.execute(
             SQL(
                 """
@@ -1191,19 +1223,19 @@ class ProjectProject(models.Model):
                 -- is the (renamed) deadline. Rolling windows must key off closure.
                 AVG(lead_time_hours) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_closed >= NOW() - INTERVAL '90 days'
+                      AND date_closed >= %(now)s - INTERVAL '90 days'
                       AND lead_time_hours > 0
                 ) AS avg_lead_time,
                 -- Avg cycle time: assign→close (closed in last 90 days)
                 AVG(cycle_time_hours) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_closed >= NOW() - INTERVAL '90 days'
+                      AND date_closed >= %(now)s - INTERVAL '90 days'
                       AND cycle_time_hours > 0
                 ) AS avg_cycle_time,
                 -- Throughput: tasks closed in last 28 days / 4
                 COUNT(*) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_closed >= NOW() - INTERVAL '28 days'
+                      AND date_closed >= %(now)s - INTERVAL '28 days'
                 ) / 4.0 AS throughput_week,
                 -- Deadline compliance: pct of deadline-having closed tasks whose
                 -- actual closure (date_closed) landed on or before the deadline.
@@ -1229,9 +1261,11 @@ class ProjectProject(models.Model):
               -- is_template has no default, so it is NULL (not FALSE) for normal
               -- tasks; `= FALSE` would wrongly exclude every non-template task.
               AND is_template IS NOT TRUE
+              AND active = TRUE
             GROUP BY project_id
             """,
                 project_ids=tuple(self.ids),
+                now=now,
             )
         )
         results = {row[0]: row[1:] for row in self.env.cr.fetchall()}
@@ -1868,7 +1902,9 @@ class ProjectProject(models.Model):
             analytic_account_to_update = self.env["account.analytic.account"].browse(
                 [analytic_account.id for [analytic_account] in projects_read_group]
             )
-            analytic_account_to_update.write({"name": self.name})
+            # Use the written value, not self.name: on a multi-record write
+            # (e.g. mass rename) self.name raises "Expected singleton".
+            analytic_account_to_update.write({"name": vals["name"]})
         return res
 
     def unlink(self) -> bool:

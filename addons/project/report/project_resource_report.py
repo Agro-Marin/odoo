@@ -66,6 +66,7 @@ class ProjectResourceReport(models.Model):
                     WHERE t.state NOT IN ('done', 'canceled')
                       AND t.project_id IS NOT NULL
                       AND t.is_template IS NOT TRUE
+                      AND t.active = TRUE
                       AND res.user_id IS NOT NULL
                     GROUP BY res.user_id, t.project_id
                 ),
@@ -78,7 +79,7 @@ class ProjectResourceReport(models.Model):
                     GROUP BY user_id
                 )
                 SELECT
-                    ROW_NUMBER() OVER () AS id,
+                    ROW_NUMBER() OVER (ORDER BY up.user_id, up.project_id) AS id,
                     up.user_id,
                     up.project_id,
                     up.allocated_hours,

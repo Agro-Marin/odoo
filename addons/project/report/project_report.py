@@ -110,7 +110,7 @@ class ReportProjectTaskUser(models.Model):
     successor_ids = fields.Many2many(
         "project.task",
         relation="project_task_dependency_rel",
-        column1="predecessor_id",
+        column1="depends_on_id",
         column2="task_id",
         string="Block",
         readonly=True,

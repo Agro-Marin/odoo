@@ -219,3 +219,239 @@ class TestAuditFixes(TestProjectCommon):
             1,
             "closing a predecessor must update closed_predecessor_count",
         )
+
+
+@tagged("-at_install", "post_install")
+class TestAuditFixesBatchB(TestProjectCommon):
+    """Batch B: correctness/crash fixes from the 2026-07 follow-up audit."""
+
+    def test_state_blocked_transition_still_works(self) -> None:
+        """The dependency-driven blocked/unblock transition must be intact."""
+        project = self.env["project.project"].create(
+            {"name": "BlockProj", "allow_dependencies": True}
+        )
+        a = self.env["project.task"].create({"name": "A", "project_id": project.id})
+        b = self.env["project.task"].create({"name": "B", "project_id": project.id})
+        b.write({"predecessor_ids": [(4, a.id)]})
+        self.assertEqual(b.state, "blocked", "open predecessor must block")
+        a.state = "done"
+        self.assertEqual(b.state, "in_progress", "clearing blockers must unblock")
+
+    def test_mass_rename_projects_with_analytic_account(self) -> None:
+        """Renaming several projects at once must not raise 'Expected singleton'.
+
+        Bug: write() used self.name (a multi-record set) to update the linked
+        analytic accounts.
+        """
+        p1 = self.env["project.project"].create({"name": "P1"})
+        p2 = self.env["project.project"].create({"name": "P2"})
+        # Give each its own analytic account (one project per account → the
+        # single-project branch that updates the account name).
+        p1._create_analytic_account()
+        p2._create_analytic_account()
+        self.assertTrue(p1.account_id and p2.account_id)
+        (p1 + p2).write({"name": "Renamed"})  # must not raise
+        self.assertEqual(p1.name, "Renamed")
+        self.assertEqual(p2.name, "Renamed")
+        self.assertEqual(p1.account_id.name, "Renamed")
+
+    def test_report_successor_ids_is_queryable(self) -> None:
+        """report.project.task.user.successor_ids must map to an existing column.
+
+        Bug: column1='predecessor_id' doesn't exist on the rel table → any read
+        of the 'Block' field raised a Fault 500.
+        """
+        project = self.env["project.project"].create(
+            {"name": "RepProj", "allow_dependencies": True}
+        )
+        a = self.env["project.task"].create({"name": "A", "project_id": project.id})
+        b = self.env["project.task"].create({"name": "B", "project_id": project.id})
+        b.write({"predecessor_ids": [(4, a.id)]})
+        self.env.flush_all()
+        report = self.env["report.project.task.user"]
+        rows = report.search([("task_id", "=", a.id)])
+        # Reading the field must not raise; A blocks B, so A is a successor edge.
+        self.assertIn(b, rows.successor_ids)
+
+    def test_forecast_wizard_throughput_by_closure(self) -> None:
+        """The forecast wizard's throughput query must run (no INTERVAL syntax
+        error), count non-template tasks, and bucket by date_closed."""
+        project = self.project_pigs
+        now = fields.Datetime.now()
+        for i in range(3):
+            self.env["project.task"].create(
+                {
+                    "name": f"done {i}",
+                    "project_id": project.id,
+                    "state": "done",
+                    "date_closed": now - timedelta(days=3),
+                }
+            )
+        wizard = self.env["project.forecast.wizard"].create(
+            {"project_id": project.id, "weeks_of_history": 8}
+        )
+        throughput = wizard._get_weekly_throughput()  # must not raise
+        self.assertEqual(sum(throughput), 3)
+
+    def test_health_schedule_respects_utc(self) -> None:
+        """An open task whose deadline is a couple of hours in the past (naive
+        UTC) must count as overdue.
+
+        Bug: the SQL compared date_end (naive UTC) to a bare NOW() (session tz,
+        here UTC-6), so a task up to 6h overdue was still counted on-time.
+        """
+        project = self.env["project.project"].create({"name": "TZProj"})
+        now = fields.Datetime.now()  # naive UTC
+        self.env["project.task"].create(
+            {
+                "name": "just overdue",
+                "project_id": project.id,
+                "state": "in_progress",
+                "date_end": now - timedelta(hours=2),
+            }
+        )
+        project.invalidate_recordset(["health_score", "health_status"])
+        project._compute_health_indicators()
+        # The only deadline-bearing open task is overdue → schedule component 0.
+        # (Composite of schedule/staleness/milestone/risk; schedule dragged down.)
+        self.assertLess(
+            project.health_score,
+            100,
+            "a task 2h past its UTC deadline must lower the schedule score",
+        )
+
+    def test_flow_metrics_exclude_archived(self) -> None:
+        """WIP and other flow metrics must not count archived tasks."""
+        project = self.env["project.project"].create({"name": "ArchProj"})
+        live = self.env["project.task"].create(
+            {"name": "live", "project_id": project.id, "state": "in_progress"}
+        )
+        archived = self.env["project.task"].create(
+            {"name": "arch", "project_id": project.id, "state": "in_progress"}
+        )
+        project.invalidate_recordset(["wip_count"])
+        project._compute_flow_metrics()
+        self.assertEqual(project.wip_count, 2)
+        archived.active = False
+        project.invalidate_recordset(["wip_count"])
+        project._compute_flow_metrics()
+        self.assertEqual(
+            project.wip_count, 1, "archived tasks must be excluded from WIP"
+        )
+        self.assertTrue(live.active)
+
+    def test_personal_triage_search_accepts_scalar(self) -> None:
+        """Searching personal_triage_id with a scalar value must not raise
+        TypeError ('int' object is not iterable)."""
+        # A non-falsy scalar exercises the scalar-iteration path in the search
+        # method (a falsy value would be short-circuited before it is reached).
+        result = self.env["project.task"].search(
+            [("personal_triage_id", "=", 999999999)]
+        )
+        self.assertEqual(len(result), 0)
+
+    def test_baseline_snapshot_uses_planned_start(self) -> None:
+        """Baseline snapshots must capture planned_date_begin (scheduled start),
+        not date_assign (actual assignment)."""
+        project = self.env["project.project"].create({"name": "BaseProj"})
+        begin = fields.Datetime.now() - timedelta(days=5)
+        task = self.env["project.task"].create(
+            {
+                "name": "planned",
+                "project_id": project.id,
+                "planned_date_begin": begin,
+                "date_end": begin + timedelta(days=1),
+            }
+        )
+        baseline = self.env["project.baseline"].create(
+            {"name": "B1", "project_id": project.id}
+        )
+        baseline.action_capture_snapshot()
+        line = baseline.line_ids.filtered(lambda line: line.task_id == task)
+        self.assertEqual(line.planned_start, begin)
+
+    def test_project_change_reopens_closed_task(self) -> None:
+        """Moving a task to another project must reopen it and drop its closure
+        date: it lands on the target project's default non-folded step, and in
+        this model state follows step, so a closed state there is invalid.
+
+        Pins the fix for the pre-existing TestTaskState.test_change_stage_or_project
+        failure (a canceled task stayed canceled after a project change).
+        """
+        source = self.env["project.project"].create({"name": "Src"})
+        target = self.env["project.project"].create({"name": "Dst"})
+        task = self.env["project.task"].create(
+            {
+                "name": "was done",
+                "project_id": source.id,
+                "state": "done",
+                "date_closed": fields.Datetime.now(),
+            }
+        )
+        self.assertTrue(task.date_closed)
+        task.write({"project_id": target.id})
+        self.assertEqual(
+            task.state, "in_progress", "a re-homed task must reopen to an open state"
+        )
+        self.assertFalse(
+            task.date_closed, "reopening must clear the stale closure date"
+        )
+        self.assertNotIn(task.step_id.fold, (True,), "must land on a non-folded step")
+
+    def test_project_copy_remaps_subtask_dependencies(self) -> None:
+        """Copying a project must remap subtask dependencies onto the COPIED
+        tasks, not leave them pointing at the originals.
+
+        Pins the fix to _create_task_mapping: child_ids is read back in _order
+        (newest-first), not creation order, so the positional zip mis-paired
+        originals with copies — mis-wiring dependencies (and crashing with
+        `zip strict` when a grandchild zipped against the wrong copy).
+        """
+        project = self.env["project.project"].create(
+            {"name": "DepCopy", "allow_dependencies": True}
+        )
+        parent = self.env["project.task"].create(
+            {"name": "P", "project_id": project.id}
+        )
+        a = self.env["project.task"].create(
+            {"name": "A", "project_id": project.id, "parent_id": parent.id}
+        )
+        b = self.env["project.task"].create(
+            {"name": "B", "project_id": project.id, "parent_id": parent.id}
+        )
+        a.write({"predecessor_ids": [(4, b.id)]})
+        copy = project.copy()
+        copied_a = copy.task_ids.filtered(lambda t: t.name == "A")
+        copied_b = copy.task_ids.filtered(lambda t: t.name == "B")
+        self.assertTrue(copied_a and copied_b, "both subtasks must be copied")
+        self.assertEqual(
+            copied_a.predecessor_ids,
+            copied_b,
+            "copied A must depend on the COPIED B, not the original",
+        )
+        self.assertNotIn(
+            b, copied_a.predecessor_ids, "must not reference the original task"
+        )
+
+    def test_retrospective_carry_forward_idempotent(self) -> None:
+        """action_carry_forward run twice must not duplicate carried actions."""
+        project = self.env["project.project"].create({"name": "RetroProj"})
+        prev = self.env["project.retrospective"].create(
+            {"name": "Sprint 1", "project_id": project.id}
+        )
+        self.env["project.retrospective.action"].create(
+            {
+                "name": "Fix CI",
+                "retrospective_id": prev.id,
+                "state": "open",
+                "owner_id": self.user_projectuser.id,
+            }
+        )
+        current = self.env["project.retrospective"].create(
+            {"name": "Sprint 2", "project_id": project.id, "previous_id": prev.id}
+        )
+        current.action_carry_forward()
+        current.action_carry_forward()
+        self.assertEqual(
+            len(current.action_ids), 1, "carry-forward must be idempotent"
+        )
