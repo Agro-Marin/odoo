@@ -50,9 +50,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
 
         self.authenticate("admin", "admin")
         # rpc with outdated session should lead to error.
-        with self.assertRaises(
-            JsonRpcException, msg="odoo.http.SessionExpiredException"
-        ):
+        with self.assertRaisesRegex(JsonRpcException, "SessionExpired"):
             self.make_jsonrpc_request(
                 "/websocket/peek_notifications",
                 {
@@ -75,9 +73,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         )
         self.url_open("/web/session/logout")
         # rpc with outdated session should lead to error.
-        with self.assertRaises(
-            JsonRpcException, msg="odoo.http.SessionExpiredException"
-        ):
+        with self.assertRaisesRegex(JsonRpcException, "SessionExpired"):
             self.make_jsonrpc_request(
                 "/websocket/peek_notifications",
                 {

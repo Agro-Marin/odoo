@@ -304,7 +304,13 @@ export class WebsocketWorker {
         }
         this.newestStartTs = startTs;
         this.websocketURL = websocketURL;
-        this.lastNotificationId = lastNotificationId;
+        // Never let a newly-attaching tab rewind the shared high-watermark:
+        // its localStorage snapshot may lag behind notifications this worker
+        // has already dispatched, which would make the server re-deliver them.
+        this.lastNotificationId = Math.max(
+            this.lastNotificationId ?? 0,
+            lastNotificationId ?? 0,
+        );
         this.debugModeByClient.set(client, debug);
         this.isDebug = [...this.debugModeByClient.values()].some(Boolean);
         const isCurrentUserKnown = uid !== undefined;
@@ -431,12 +437,22 @@ export class WebsocketWorker {
      */
     _onWebsocketMessage(messageEv) {
         this._restartConnectionCheckInterval();
-        const notifications = JSON.parse(messageEv.data);
+        // Drop any notification we have already processed. This makes the
+        // pipeline robust against duplicate delivery (server resend on
+        // reconnect, a rewound `last`, ...) instead of relying solely on the
+        // server honouring `last`.
+        const notifications = JSON.parse(messageEv.data).filter(
+            (notification) => notification.id > this.lastNotificationId,
+        );
         this._logDebug("_onWebsocketMessage", notifications);
         if (!notifications.length) {
             return;
         }
-        this.lastNotificationId = notifications[notifications.length - 1].id;
+        // Advance to the greatest id seen: do not assume the server returns
+        // notifications in strictly ascending id order.
+        this.lastNotificationId = Math.max(
+            ...notifications.map((notification) => notification.id),
+        );
         this.broadcast("BUS:NOTIFICATION", notifications);
     }
 
@@ -502,6 +518,11 @@ export class WebsocketWorker {
      * applied to the reconnect attempts.
      */
     _retryConnectionWithDelay() {
+        // Cancel any pending retry first: a failed connection fires both
+        // `error` and `close`, each of which schedules a retry. Without this,
+        // the first timer would be orphaned (untracked by `connectTimeout`,
+        // so uncancellable by `_stop`), leaking a zombie reconnect.
+        clearTimeout(this.connectTimeout);
         this.connectRetryDelay =
             Math.min(this.connectRetryDelay * 1.5, MAXIMUM_RECONNECT_DELAY) +
             this.RECONNECT_JITTER * Math.random();
@@ -586,6 +607,10 @@ export class WebsocketWorker {
     _stop() {
         this._logDebug("_stop");
         clearTimeout(this.connectTimeout);
+        // `_stop` removes the socket listeners below, so `_onWebsocketClose`
+        // (the other place clearing this interval) will not run: clear it here
+        // to avoid leaking a timer on every stop cycle.
+        clearInterval(this._connectionCheckInterval);
         this.connectRetryDelay = this.INITIAL_RECONNECT_DELAY;
         this.isReconnecting = false;
         this.lastChannelSubscription = null;

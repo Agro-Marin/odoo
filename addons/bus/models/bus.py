@@ -105,16 +105,25 @@ def _send_pg_notify(payloads):
     Retries once on any exception (e.g. transient connection drop) with a
     fresh connection.  Re-raises on the second failure so the caller can
     decide how to handle it; notifications will be lost in that case.
+
+    Because the connection is in autocommit mode, each ``execute`` delivers its
+    NOTIFY immediately, so already-sent payloads are not replayed on retry: the
+    retry resumes at the payload that failed. (A payload that failed *after*
+    committing may be sent twice, but imbus payloads are idempotent channel
+    triggers deduplicated downstream by notification id.)
     """
     _query = psycopg.sql.SQL("SELECT {}('imbus', %s)").format(
         psycopg.sql.Identifier(ODOO_NOTIFY_FUNCTION)
     )
+    payloads = list(payloads)
+    sent = 0
     with _notify_lock:
         for attempt in range(2):
             conn = _get_notify_conn_locked()
             try:
-                for payload in payloads:
-                    conn.execute(_query, (payload,))
+                while sent < len(payloads):
+                    conn.execute(_query, (payloads[sent],))
+                    sent += 1
                 return
             except Exception:
                 _close_notify_conn_locked()
