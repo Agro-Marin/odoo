@@ -1,13 +1,12 @@
 from collections import defaultdict
-from datetime import timedelta
 
 from pytz import utc
 
 from odoo import api, fields, models
-from odoo.exceptions import MissingError, ValidationError
+from odoo.exceptions import ValidationError
 from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
-from odoo.tools.date_utils import localized, sum_intervals
+from odoo.tools.date_utils import localized
 
 
 class ResourceReservation(models.Model):
@@ -27,6 +26,7 @@ class ResourceReservation(models.Model):
 
     _name = "resource.reservation"
     _description = "Resource Reservation"
+    _inherit = ["resource.scheduling.tools"]
     _order = "date_start"
 
     # ---- Identity ----
@@ -204,7 +204,17 @@ class ResourceReservation(models.Model):
 
         Two records overlap when their datetime ranges intersect AND they
         share the same resource AND their combined allocation exceeds 100%.
-        Records without an id (unsaved) or without a resource are skipped.
+        Only ``active`` reservations are considered on both sides: an archived
+        reservation is no longer a claim on the resource.  Records without an
+        id (unsaved) or without a resource are skipped.
+
+        Known limitation: the check is *pairwise* — it flags a record only if
+        it exceeds 100% against some single other reservation.  A cumulative
+        over-allocation spread over three or more partial reservations (e.g.
+        3 × 50 % = 150 %) where no individual pair exceeds 100 % is NOT
+        detected.  Fixing that requires a windowed/sweep-line sum of
+        allocations per resource; deferred as it changes the meaning of the
+        displayed conflict count.
         """
         stored = self.filtered(
             lambda r: (
@@ -219,8 +229,12 @@ class ResourceReservation(models.Model):
         if not stored:
             return
 
-        stored.flush_recordset(
-            ["date_start", "date_end", "resource_id", "allocated_percentage"]
+        # The self-join below reads sibling rows (s2) straight from the table,
+        # so every pending change to those columns — not just on ``stored`` —
+        # must be flushed first, otherwise an unflushed archive/allocation edit
+        # on another reservation would be invisible to the overlap query.
+        self.flush_model(
+            ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
         )
         table = SQL.identifier(self._table)
         query = SQL(
@@ -230,11 +244,13 @@ class ResourceReservation(models.Model):
               JOIN %s s2
                 ON s1.resource_id = s2.resource_id
                AND s1.id != s2.id
+               AND s2.active
                AND s1.date_start < s2.date_end
                AND s1.date_end > s2.date_start
                AND COALESCE(s1.allocated_percentage, 100)
                  + COALESCE(s2.allocated_percentage, 100) > 100
              WHERE s1.id = ANY(%s)
+               AND s1.active
              GROUP BY s1.id
             """,
             table,
@@ -248,16 +264,24 @@ class ResourceReservation(models.Model):
 
     @api.depends("res_model", "res_id")
     def _compute_origin_display(self):
-        """Resolve the source record's display name."""
-        for record in self:
-            if record.res_model and record.res_id:
-                try:
-                    source = self.env[record.res_model].browse(record.res_id)
-                    record.origin_display = source.display_name
-                except KeyError, ValueError, MissingError:
-                    record.origin_display = f"{record.res_model},{record.res_id}"
-            else:
-                record.origin_display = False
+        """Resolve each source record's display name (batched per model)."""
+        self.origin_display = False
+        with_origin = self.filtered(lambda r: r.res_model and r.res_id)
+        for model_name, records in with_origin.grouped("res_model").items():
+            if model_name not in self.env:
+                # Model belongs to an uninstalled module: fall back to the raw ref.
+                for record in records:
+                    record.origin_display = f"{model_name},{record.res_id}"
+                continue
+            # One browse for the whole group; ``exists()`` drops stale ids in a
+            # single query so a deleted source falls back to the raw reference
+            # instead of raising ``MissingError`` (the old per-record behaviour).
+            sources = self.env[model_name].browse(records.mapped("res_id")).exists()
+            names = dict(zip(sources.ids, sources.mapped("display_name"), strict=True))
+            for record in records:
+                record.origin_display = names.get(record.res_id) or (
+                    f"{model_name},{record.res_id}"
+                )
 
     # Color mapping: different colors per source module for visual distinction
     _COLOR_MAP = {
@@ -395,114 +419,3 @@ class ResourceReservation(models.Model):
                 result[resource.id] = Intervals()
 
         return dict(result)
-
-    # ------------------------------------------------------------------
-    # Utility methods (calendar-aware — duplicated from
-    # ``resource.scheduling.mixin`` to keep this model standalone)
-    # ------------------------------------------------------------------
-
-    def _scheduling_get_work_hours(
-        self,
-        date_start,
-        date_end,
-        resource=None,
-        calendar=None,
-        compute_leaves=True,
-        leave_domain=None,
-    ):
-        """See :meth:`resource.scheduling.mixin._scheduling_get_work_hours`."""
-        self.ensure_one()
-        if not date_start or not date_end or date_end <= date_start:
-            return 0.0
-
-        start_utc = localized(date_start)
-        end_utc = localized(date_end)
-
-        if not resource:
-            cal = calendar or self._scheduling_resolve_calendar()
-            if cal:
-                return cal.get_work_hours_count(
-                    start_utc,
-                    end_utc,
-                    compute_leaves=compute_leaves,
-                    domain=leave_domain,
-                )
-            return (end_utc - start_utc).total_seconds() / 3600.0
-
-        if resource._is_flexible():
-            work_intervals, hours_per_day, hours_per_week = (
-                resource._get_flexible_resource_valid_work_intervals(start_utc, end_utc)
-            )
-            return resource._get_flexible_resource_work_hours(
-                work_intervals[resource.id],
-                hours_per_day[resource.id],
-                hours_per_week[resource.id],
-            )
-
-        work_intervals, _calendar_intervals = resource._get_valid_work_intervals(
-            start_utc,
-            end_utc,
-            calendars=(calendar,) if calendar else None,
-        )
-        return sum_intervals(work_intervals[resource.id])
-
-    def _scheduling_snap_to_calendar(self, date_start, date_end, calendar=None):
-        """See :meth:`resource.scheduling.mixin._scheduling_snap_to_calendar`."""
-        self.ensure_one()
-        cal = calendar or self._scheduling_resolve_calendar()
-        if not cal or not date_start or not date_end:
-            return date_start, date_end
-
-        start_utc = localized(date_start)
-        end_utc = localized(date_end)
-
-        intervals = cal._work_intervals_batch(start_utc, end_utc)[False]
-        if not intervals:
-            return date_start, date_end
-
-        items = list(intervals)
-        snapped_start = items[0][0].astimezone(utc).replace(tzinfo=None)
-        snapped_end = items[-1][1].astimezone(utc).replace(tzinfo=None)
-        return snapped_start, snapped_end
-
-    def _scheduling_plan_hours(
-        self,
-        hours,
-        date_start,
-        resource=None,
-        calendar=None,
-        leave_domain=None,
-    ):
-        """See :meth:`resource.scheduling.mixin._scheduling_plan_hours`."""
-        self.ensure_one()
-        if hours is None or not date_start:
-            return False
-        if not hours:
-            return date_start
-
-        cal = calendar or self._scheduling_resolve_calendar(resource=resource)
-        if not cal:
-            return date_start + timedelta(hours=hours)
-
-        start_utc = localized(date_start)
-        plan_kwargs = {
-            "compute_leaves": True,
-            "resource": resource,
-        }
-        if leave_domain is not None:
-            plan_kwargs["domain"] = leave_domain
-        result = cal.plan_hours(hours, start_utc, **plan_kwargs)
-        if result:
-            return result.astimezone(utc).replace(tzinfo=None)
-        return False
-
-    def _scheduling_resolve_calendar(self, resource=None):
-        """See :meth:`resource.scheduling.mixin._scheduling_resolve_calendar`."""
-        self.ensure_one()
-        if resource and resource.calendar_id:
-            return resource.calendar_id
-        if "resource_calendar_id" in self._fields and self.resource_calendar_id:
-            return self.resource_calendar_id
-        if "company_id" in self._fields and self.company_id:
-            return self.company_id.resource_calendar_id
-        return self.env.company.resource_calendar_id
