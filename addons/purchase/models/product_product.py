@@ -71,14 +71,14 @@ class ProductProduct(models.Model):
     def _search_is_in_purchase_order(self, operator, value):
         if operator != "in":
             return NotImplemented
+        order_id = self.env.context.get("order_id")
+        if not order_id:
+            # No order in context: match nothing rather than building a
+            # malformed ("order_id", "in", [""]) domain.
+            return [("id", "in", [])]
         product_ids = (
             self.env["purchase.order.line"]
-            .search_fetch(
-                [
-                    ("order_id", "in", [self.env.context.get("order_id", "")]),
-                ],
-                ["product_id"],
-            )
+            .search_fetch([("order_id", "=", order_id)], ["product_id"])
             .product_id.ids
         )
         return [("id", "in", product_ids)]

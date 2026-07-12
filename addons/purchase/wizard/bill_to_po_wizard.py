@@ -12,7 +12,7 @@ class BillToPoWizard(models.TransientModel):
     def action_add_to_po(self):
         aml_ids = [
             abs(record_id)
-            for record_id in self.env.context.get("active_ids")
+            for record_id in (self.env.context.get("active_ids") or [])
             if record_id < 0
         ]
         lines_to_add = (
@@ -37,6 +37,9 @@ class BillToPoWizard(models.TransientModel):
                     for val in line_vals
                 ]
             )
+            # Re-assign line_ids: this is not a no-op — it re-runs the O2M
+            # onchange/recompute so the new lines keep the bill's price
+            # instead of the seller/product-derived price.
             self.purchase_order_id.line_ids += new_po_lines
         else:
             self.purchase_order_id = self.env["purchase.order"].create(
@@ -63,7 +66,7 @@ class BillToPoWizard(models.TransientModel):
     def action_add_downpayment(self):
         aml_ids = [
             abs(record_id)
-            for record_id in self.env.context.get("active_ids")
+            for record_id in (self.env.context.get("active_ids") or [])
             if record_id < 0
         ]
         lines_to_convert = self.env["account.move.line"].browse(aml_ids)
