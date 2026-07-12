@@ -23,6 +23,7 @@ class ProjectWorkflowStep(models.Model):
 
     _name = "project.workflow.step"
     _description = "Workflow Step"
+    _inherit = ["project.pm.mixin"]
     _order = "sequence, id"
 
     def _get_default_project_ids(self) -> list[int] | None:
@@ -188,14 +189,6 @@ class ProjectWorkflowStep(models.Model):
             "target": "new",
             "context": context,
         }
-
-    def copy_data(self, default: dict | None = None) -> list[dict]:
-        """Append '(copy)' to the name when duplicating a workflow step."""
-        vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=self.env._("%s (copy)", step.name))
-            for step, vals in zip(self, vals_list, strict=True)
-        ]
 
     @api.depends("rating_status", "rating_status_period")
     def _compute_rating_request_deadline(self) -> None:

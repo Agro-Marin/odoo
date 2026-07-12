@@ -771,6 +771,39 @@ class ProjectProject(models.Model):
 
         duration = {t.id: t.allocated_hours or 0.0 for t in tasks}
 
+        # Guard against dependency cycles before running the passes: forward()
+        # and backward() are plain recursive DFS and would recurse forever
+        # (RecursionError → HTTP 500) on a cyclic graph. Dependencies are
+        # user-editable and not otherwise constrained to a DAG, so detect a
+        # back-edge with an iterative three-colour DFS and fail cleanly.
+        _UNVISITED, _IN_STACK, _DONE = 0, 1, 2
+        color = dict.fromkeys(task_set, _UNVISITED)
+        for root in task_set:
+            if color[root] != _UNVISITED:
+                continue
+            dfs_stack: list[tuple[int, int]] = [(root, 0)]
+            while dfs_stack:
+                node, idx = dfs_stack[-1]
+                color[node] = _IN_STACK
+                preds = deps_on[node]
+                if idx < len(preds):
+                    dfs_stack[-1] = (node, idx + 1)
+                    pred_id = preds[idx][0]
+                    if color.get(pred_id) == _IN_STACK:
+                        raise UserError(
+                            self.env._(
+                                "A dependency cycle was detected among the tasks "
+                                "of project %(project)s. Resolve the circular "
+                                "dependency before computing the critical path.",
+                                project=self.display_name,
+                            )
+                        )
+                    if color.get(pred_id, _UNVISITED) == _UNVISITED:
+                        dfs_stack.append((pred_id, 0))
+                else:
+                    color[node] = _DONE
+                    dfs_stack.pop()
+
         # Forward pass
         es: dict[int, float] = {}
         ef: dict[int, float] = {}
@@ -987,6 +1020,13 @@ class ProjectProject(models.Model):
         - Milestones: % of milestones on track (reached or deadline in future)
         - Risk: inverse of normalized risk exposure
         - Staleness: % of open tasks that are not rotting
+
+        Intentionally has NO @api.depends: this aggregates across every task,
+        milestone and risk of the project, so a reactive recompute would fire a
+        full re-aggregation on any task edit. It is a per-read snapshot
+        (recomputed once per environment / page load) — do not make it stored or
+        add depends. Because it is non-reactive it also cannot be searched or
+        grouped; expose a refresh action instead if live values are needed.
         """
         if not self.ids:
             self.health_score = 100
@@ -1030,7 +1070,7 @@ class ProjectProject(models.Model):
                 END AS staleness_score
             FROM project_task t
             WHERE t.project_id IN %(project_ids)s
-              AND t.is_template = FALSE
+              AND t.is_template IS NOT TRUE
             GROUP BY t.project_id
             """,
                 project_ids=tuple(self.ids),
@@ -1125,6 +1165,9 @@ class ProjectProject(models.Model):
 
         Uses direct SQL for performance — these are read-heavy analytics fields
         that aggregate across potentially thousands of tasks.
+
+        Intentionally has NO @api.depends (see _compute_health_indicators): a
+        per-read snapshot, not a reactive/stored field. Do not add depends.
         """
         if not self.ids:
             self.wip_count = 0
@@ -1143,41 +1186,49 @@ class ProjectProject(models.Model):
                 COUNT(*) FILTER (
                     WHERE state NOT IN ('done', 'canceled', 'blocked')
                 ) AS wip_count,
-                -- Avg lead time: create→end (last 90 days)
+                -- Avg lead time: create→close (closed in last 90 days).
+                -- NOTE: date_closed is the actual completion timestamp; date_end
+                -- is the (renamed) deadline. Rolling windows must key off closure.
                 AVG(lead_time_hours) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_end >= NOW() - INTERVAL '90 days'
+                      AND date_closed >= NOW() - INTERVAL '90 days'
                       AND lead_time_hours > 0
                 ) AS avg_lead_time,
-                -- Avg cycle time: assign→end (last 90 days)
+                -- Avg cycle time: assign→close (closed in last 90 days)
                 AVG(cycle_time_hours) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_end >= NOW() - INTERVAL '90 days'
+                      AND date_closed >= NOW() - INTERVAL '90 days'
                       AND cycle_time_hours > 0
                 ) AS avg_cycle_time,
                 -- Throughput: tasks closed in last 28 days / 4
                 COUNT(*) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_end >= NOW() - INTERVAL '28 days'
+                      AND date_closed >= NOW() - INTERVAL '28 days'
                 ) / 4.0 AS throughput_week,
-                -- Deadline compliance: pct of deadline-having closed tasks that met it
+                -- Deadline compliance: pct of deadline-having closed tasks whose
+                -- actual closure (date_closed) landed on or before the deadline.
                 CASE
                     WHEN COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
                           AND date_end IS NOT NULL
+                          AND date_closed IS NOT NULL
                     ) = 0 THEN 0.0
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
                           AND date_end IS NOT NULL
-                          AND date_end <= date_end
+                          AND date_closed IS NOT NULL
+                          AND date_closed <= date_end
                     ) / COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
                           AND date_end IS NOT NULL
+                          AND date_closed IS NOT NULL
                     )
                 END AS deadline_compliance_pct
             FROM project_task
             WHERE project_id IN %(project_ids)s
-              AND is_template = FALSE
+              -- is_template has no default, so it is NULL (not FALSE) for normal
+              -- tasks; `= FALSE` would wrongly exclude every non-template task.
+              AND is_template IS NOT TRUE
             GROUP BY project_id
             """,
                 project_ids=tuple(self.ids),
@@ -1551,7 +1602,7 @@ class ProjectProject(models.Model):
                     subtype_ids=follower.subtype_ids.ids,
                 )
             if old_project.allow_milestones:
-                new_project.milestone_ids = self.milestone_ids.copy().ids
+                new_project.milestone_ids = old_project.milestone_ids.copy().ids
             if "tasks" not in default:
                 old_project.map_tasks(new_project.id)
             if not old_project.active:

@@ -69,8 +69,7 @@
                             <field name="completion_pct" widget="progressbar"/>
                         </group>
                     </group>
-                    <field name="task_ids" widget="many2many"
-                        domain="[('project_id', '=', project_id), ('state', 'not in', ['done', 'canceled'])]"
+                    <field name="task_ids"
                         context="{'default_project_id': project_id}">
                         <list>
                             <field name="name"/>

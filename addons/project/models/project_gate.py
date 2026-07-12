@@ -6,6 +6,7 @@ Gate reviews force explicit go/no-go decisions at defined points.
 """
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProjectGate(models.Model):
@@ -73,6 +74,24 @@ class ProjectGate(models.Model):
         for gate in self:
             gate.criteria_total_count = len(gate.criterion_ids)
             gate.criteria_met_count = len(gate.criterion_ids.filtered("met"))
+
+    @api.constrains("milestone_id", "project_id")
+    def _check_milestone_project(self) -> None:
+        """The trigger milestone must belong to the gate's own project.
+
+        The form view scopes milestone_id via a domain, but ORM create/write
+        and imports bypass domains, so enforce cross-project consistency here.
+        """
+        for gate in self:
+            if gate.milestone_id and gate.milestone_id.project_id != gate.project_id:
+                raise ValidationError(
+                    self.env._(
+                        "The trigger milestone of gate %(gate)s must belong to "
+                        "its project (%(project)s).",
+                        gate=gate.name,
+                        project=gate.project_id.display_name,
+                    )
+                )
 
 
 class ProjectGateCriterion(models.Model):

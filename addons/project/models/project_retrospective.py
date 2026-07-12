@@ -6,6 +6,7 @@ Evidence basis: Deming PDSA (no feedback loop = no learning), NASA LLIS
 """
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProjectRetrospective(models.Model):
@@ -71,6 +72,21 @@ class ProjectRetrospective(models.Model):
             retro.action_count = len(retro.action_ids)
             retro.open_action_count = len(
                 retro.action_ids.filtered(lambda a: a.state in ("open", "in_progress"))
+            )
+
+    @api.constrains("previous_id")
+    def _check_previous_no_cycle(self) -> None:
+        """A retrospective cannot chain back to itself via previous_id.
+
+        Without this, a self-link makes action_carry_forward duplicate a
+        retrospective's own actions, and a longer loop is unbounded.
+        """
+        if self._has_cycle("previous_id"):
+            raise ValidationError(
+                self.env._(
+                    "A retrospective cannot be its own predecessor "
+                    "(circular 'Previous Retrospective' link)."
+                )
             )
 
     def action_carry_forward(self) -> None:

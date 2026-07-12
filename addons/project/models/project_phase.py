@@ -21,6 +21,7 @@ class ProjectPhase(models.Model):
 
     _name = "project.phase"
     _description = "Project Phase"
+    _inherit = ["project.pm.mixin"]
     _order = "sequence, id"
 
     active = fields.Boolean(default=True, export_string_translation=False)
@@ -61,14 +62,6 @@ class ProjectPhase(models.Model):
             "target": "new",
             "context": context,
         }
-
-    def copy_data(self, default: dict | None = None) -> list[dict]:
-        """Append '(copy)' to the name when duplicating a phase."""
-        vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=self.env._("%s (copy)", phase.name))
-            for phase, vals in zip(self, vals_list, strict=True)
-        ]
 
     def write(self, vals: dict) -> bool:
         """Guard company switches when projects are already assigned to this phase."""
