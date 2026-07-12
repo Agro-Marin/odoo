@@ -28,7 +28,7 @@ class SaleOrderDiscount(models.TransientModel):
 
     # CONSTRAINT METHODS #
 
-    @api.constrains("discount_type", "discount_percentage")
+    @api.constrains("discount_type", "discount_percentage", "discount_amount")
     def _check_discount_amount(self):
         for wizard in self:
             if (
@@ -36,6 +36,23 @@ class SaleOrderDiscount(models.TransientModel):
                 and wizard.discount_percentage > 1.0
             ):
                 raise ValidationError(_("Discount percentage must be at most 100%%."))
+            if wizard.discount_type == "amount":
+                currency = wizard.currency_id or wizard.sale_order_id.currency_id
+                # A 0.0 fixed discount is a legitimate no-op; only negatives
+                # (which would act as a surcharge) are rejected.
+                if wizard.discount_amount < 0.0:
+                    raise ValidationError(
+                        _("The discount amount cannot be negative."),
+                    )
+                if (
+                    currency.compare_amounts(
+                        wizard.discount_amount, wizard.sale_order_id.amount_total
+                    )
+                    > 0
+                ):
+                    raise ValidationError(
+                        _("The discount amount cannot exceed the order total."),
+                    )
 
     def _prepare_discount_product_values(self):
         self.ensure_one()
@@ -74,8 +91,8 @@ class SaleOrderDiscount(models.TransientModel):
             if has_multiple_tax_combinations:
                 if self.discount_type == "so_discount":
                     so_line_description = self.env._(
-                        "Discount %(percent)s%%"
-                        "- On products with the following taxes %(taxes)s",
+                        "Discount %(percent)s%% - On products with the following"
+                        " taxes %(taxes)s",
                         percent=float_repr(
                             self.discount_percentage * 100.0, discount_dp
                         ),
@@ -83,7 +100,7 @@ class SaleOrderDiscount(models.TransientModel):
                     )
                 else:
                     so_line_description = self.env._(
-                        "Discount- On products with the following taxes %(taxes)s",
+                        "Discount - On products with the following taxes %(taxes)s",
                         taxes=", ".join(base_line["tax_ids"].mapped("name")),
                     )
             elif self.discount_type == "so_discount":

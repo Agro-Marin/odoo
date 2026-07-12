@@ -42,6 +42,18 @@ class CrmTeam(models.Model):
 
     def _compute_invoiced(self):
         if self.ids:
+            # Raw SQL bypasses the ORM cache — flush pending account.move writes
+            # first so in-transaction invoice changes are reflected.
+            self.env["account.move"].flush_model(
+                [
+                    "team_id",
+                    "amount_untaxed_signed",
+                    "move_type",
+                    "payment_state",
+                    "state",
+                    "date",
+                ],
+            )
             today = fields.Date.today()
             data_map = dict(
                 self.env.execute_query(

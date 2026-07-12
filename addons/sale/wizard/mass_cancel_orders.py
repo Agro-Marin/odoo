@@ -27,4 +27,7 @@ class SaleMassCancelOrders(models.TransientModel):
             )
 
     def action_mass_cancel(self):
-        self.sale_order_ids._action_cancel()
+        # Skip orders already cancelled (avoid redundant writes/tracking) and
+        # close the wizard so the originating list refreshes.
+        self.sale_order_ids.filtered(lambda so: so.state != "cancel")._action_cancel()
+        return {"type": "ir.actions.act_window_close"}

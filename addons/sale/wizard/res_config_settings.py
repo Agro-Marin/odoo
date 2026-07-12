@@ -108,7 +108,7 @@ class ResConfigSettings(models.TransientModel):
 
     # === ONCHANGE METHODS ===#
 
-    @api.depends("group_discount_per_so_line")
+    @api.onchange("group_discount_per_so_line")
     def _onchange_group_discount_per_so_line(self):
         if self.group_discount_per_so_line:
             self.group_product_pricelist = True
