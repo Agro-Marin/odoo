@@ -54,8 +54,6 @@ class ModelConverter(ir_http.ModelConverter):
 class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
 
-    rerouting_limit = 10
-
     # ------------------------------------------------------------
     # Slug tools
     # ------------------------------------------------------------
@@ -277,8 +275,15 @@ class IrHttp(models.AbstractModel):
                 func.routing.get("website", False)
                 and func.routing.get("multilang", func.routing["type"] == "http")
             )
-        except Exception as exception:
-            _logger.warning(exception)
+        except Exception:
+            # Never let a routing-table probe break URL generation: if we
+            # cannot decide, treat the URL as non-multilang. Log with context
+            # and traceback so the swallowed failure is still diagnosable.
+            _logger.warning(
+                "Could not determine multilang status for %r, assuming False",
+                local_url,
+                exc_info=True,
+            )
             return False
 
     @classmethod
@@ -349,11 +354,11 @@ class IrHttp(models.AbstractModel):
         return next((code for code in frontend_langs if code.startswith(short)), None)
 
     # ------------------------------------------------------------
-    # Routing and diplatch
+    # Routing and dispatch
     # ------------------------------------------------------------
 
     @classmethod
-    def _match(cls, path):
+    def _match(cls, path: str) -> tuple[werkzeug.routing.Rule, dict[str, typing.Any]]:
         """
         Grant multilang support to URL matching by using http 3xx
         redirections and URL rewrite. This method also grants various
@@ -444,7 +449,9 @@ class IrHttp(models.AbstractModel):
             raise
 
     @classmethod
-    def _match_and_flag(cls, path):
+    def _match_and_flag(
+        cls, path: str
+    ) -> tuple[werkzeug.routing.Rule, dict[str, typing.Any]]:
         """Match ``path`` against the (non-http_routing) routing table and set
         ``request.is_frontend`` / ``request.is_frontend_multilang`` from the
         matched rule. Raises ``NotFound`` like the parent when nothing matches.
@@ -458,7 +465,7 @@ class IrHttp(models.AbstractModel):
         return rule, args
 
     @classmethod
-    def _resolve_frontend_lang(cls, url_lang_str):
+    def _resolve_frontend_lang(cls, url_lang_str: str) -> tuple[LangData, str | None]:
         """Determine and set ``request.lang`` for a frontend request.
 
         The "requested lang" is, in priority order: the lang in the URL, the
@@ -495,9 +502,37 @@ class IrHttp(models.AbstractModel):
         return default_lang, nearest_url_lang
 
     @classmethod
+    def _redirect_lang(cls, target: str, code: int = 303) -> typing.NoReturn:
+        """Abort the current request with a lang-aware 3xx redirect.
+
+        Every branch of the redirect ladder shares the same three steps: build
+        the redirect (carrying the original query string), pin the
+        ``frontend_lang`` cookie to the language the browser is being routed
+        to, and abort with it.
+
+        The cookie always records ``request.lang`` -- the destination language
+        -- keeping a single invariant across the whole module: the
+        ``frontend_lang`` cookie holds the active frontend language. This is
+        the same value :meth:`_frontend_pre_dispatch` writes on the request
+        that is finally dispatched, so the redirect and its followed request
+        agree instead of momentarily disagreeing.
+
+        The default ``code`` mirrors :meth:`request.redirect_query` (303); the
+        permanent-move branches pass ``301`` explicitly.
+        """
+        redirect = request.redirect_query(target, request.httprequest.args, code=code)
+        redirect.set_cookie("frontend_lang", request.lang.code)
+        werkzeug.exceptions.abort(redirect)
+
+    @classmethod
     def _reroute_for_lang(
-        cls, path, path_no_lang, url_lang_str, default_lang, allow_redirect
-    ):
+        cls,
+        path: str,
+        path_no_lang: str,
+        url_lang_str: str | None,
+        default_lang: LangData,
+        allow_redirect: bool,
+    ) -> str:
         """Apply the multilang redirect/rewrite ladder (cases /2../9 of
         :meth:`_match`), given the already-resolved ``request.lang``.
 
@@ -537,44 +572,35 @@ class IrHttp(models.AbstractModel):
             _logger.debug(
                 "%r (lang: %r) missing lang in url, redirect", path, request_url_code
             )
-            redirect = request.redirect_query(
-                f"/{request_url_code}{path}", request.httprequest.args
-            )
-            redirect.set_cookie("frontend_lang", request.lang.code)
-            werkzeug.exceptions.abort(redirect)
+            cls._redirect_lang(f"/{request_url_code}{path}")
 
-        # See /6, default lang in url, /en/home -> /home
+        # See /6, default lang in url, /en/home -> /home. Here ``request.lang``
+        # resolved from ``url_lang_str`` *is* the default lang, so the cookie
+        # (always ``request.lang``) correctly records the default.
         elif url_lang_str == default_lang.url_code and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) default lang in url, redirect", path, request_url_code
             )
-            redirect = request.redirect_query(path_no_lang, request.httprequest.args)
-            redirect.set_cookie("frontend_lang", default_lang.code)
-            werkzeug.exceptions.abort(redirect)
+            cls._redirect_lang(path_no_lang)
 
         # See /7, lang alias in url, /fr_FR/home -> /fr/home
         elif url_lang_str != request_url_code and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) lang alias in url, redirect", path, request_url_code
             )
-            redirect = request.redirect_query(
-                f"/{request_url_code}{path_no_lang}", request.httprequest.args, code=301
-            )
-            redirect.set_cookie("frontend_lang", request.lang.code)
-            werkzeug.exceptions.abort(redirect)
+            cls._redirect_lang(f"/{request_url_code}{path_no_lang}", code=301)
 
-        # See /8, homepage with trailing slash. /fr_BE/ -> /fr_BE
+        # See /8, homepage with trailing slash. /fr_BE/ -> /fr_BE. The cookie
+        # records ``request.lang`` (the URL's non-default lang), not the default
+        # -- otherwise a bare /<lang>/ would emit a redirect claiming the wrong
+        # frontend_lang.
         elif path == f"/{url_lang_str}/" and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) homepage with trailing slash, redirect",
                 path,
                 request_url_code,
             )
-            redirect = request.redirect_query(
-                path[:-1], request.httprequest.args, code=301
-            )
-            redirect.set_cookie("frontend_lang", default_lang.code)
-            werkzeug.exceptions.abort(redirect)
+            cls._redirect_lang(path[:-1], code=301)
 
         # See /9, valid lang in url
         elif url_lang_str == request_url_code:
@@ -589,7 +615,7 @@ class IrHttp(models.AbstractModel):
 
         else:
             _logger.warning(
-                "%r (lang: %r) couldn't not correctly route this frontend request, url used as-is.",
+                "%r (lang: %r) couldn't correctly route this frontend request, url used as-is.",
                 path,
                 request_url_code,
             )
@@ -597,7 +623,9 @@ class IrHttp(models.AbstractModel):
         return path
 
     @classmethod
-    def _pre_dispatch(cls, rule, args):
+    def _pre_dispatch(
+        cls, rule: werkzeug.routing.Rule, args: dict[str, typing.Any]
+    ) -> None:
         super()._pre_dispatch(rule, args)
 
         if request.is_frontend:
@@ -631,7 +659,7 @@ class IrHttp(models.AbstractModel):
                     werkzeug.exceptions.abort(redirect)
 
     @classmethod
-    def _frontend_pre_dispatch(cls):
+    def _frontend_pre_dispatch(cls) -> None:
         request.update_context(lang=request.lang.code)
         if request.cookies.get("frontend_lang") != request.lang.code:
             request.future_response.set_cookie("frontend_lang", request.lang.code)
@@ -641,7 +669,9 @@ class IrHttp(models.AbstractModel):
     # ------------------------------------------------------------
 
     @classmethod
-    def _get_exception_code_values(cls, exception):
+    def _get_exception_code_values(
+        cls, exception: Exception
+    ) -> tuple[int, dict[str, typing.Any]]:
         """Return a tuple with the error code following by the values matching the exception"""
         code = 500  # default code
         values = {
@@ -677,13 +707,18 @@ class IrHttp(models.AbstractModel):
         return values
 
     @classmethod
-    def _get_error_html(cls, env, code, values):
+    def _get_error_html(
+        cls, env, code: int, values: dict[str, typing.Any]
+    ) -> tuple[int, typing.Any]:
         try:
             return code, env["ir.ui.view"]._render_template(
                 "http_routing.%s" % code, values
             )
         except MissingError:
-            if str(code)[0] == "4":
+            # ``code`` is an int for every real status, but a bare
+            # werkzeug HTTPException carries ``code = None``; guard so the
+            # comparison stays a clean re-raise instead of a TypeError.
+            if isinstance(code, int) and 400 <= code < 500:
                 return code, env["ir.ui.view"]._render_template(
                     "http_routing.4xx", values
                 )
@@ -748,7 +783,9 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     @tools.ormcache("path", "query_args", cache="routing.rewrites")
-    def url_rewrite(self, path, query_args=None):
+    def url_rewrite(
+        self, path: str, query_args: str | None = None
+    ) -> tuple[str, typing.Any]:
         new_url = False
         router = http.root.get_db_router(request.db).bind("")
         endpoint = False
@@ -758,7 +795,10 @@ class IrHttp(models.AbstractModel):
             except werkzeug.exceptions.MethodNotAllowed:
                 endpoint = router.match(path, method="GET", query_args=query_args)
         except werkzeug.routing.RequestRedirect as e:
-            new_url = e.new_url.split("?")[0][7:]  # remove scheme
+            # e.new_url is absolute ("http://host/path?qs"); keep only the path.
+            # urlsplit is robust to the scheme/host (http vs https, empty host
+            # from bind("")) that a hardcoded prefix strip silently mishandles.
+            new_url = urllib.parse.urlsplit(e.new_url).path
             _, endpoint = self.url_rewrite(new_url, query_args)
             endpoint = endpoint and [endpoint]
         except werkzeug.exceptions.NotFound:
