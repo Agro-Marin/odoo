@@ -366,7 +366,6 @@ class MailController(http.Controller):
         bg=None,
         size=100,
         alpha=255,
-        font="/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2",
         width=None,
         height=None,
     ):
@@ -379,12 +378,16 @@ class MailController(http.Controller):
         :param bg : RGB code of the background color
         :param size : Pixels in integer
         :param alpha : transparency of the image from 0 to 255
-        :param font : font path
         :param width : Pixels in integer
         :param height : Pixels in integer
 
         :returns PNG image converted from given font
         """
+        # The font is a fixed server-side asset, never caller-controlled: this
+        # is an auth="none" route, so exposing `font` as a parameter let an
+        # unauthenticated caller point ImageFont.truetype at any file inside the
+        # addons tree (file-existence oracle / 500 on a non-font file).
+        font = "/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2"
         # For custom icons, use the corresponding custom font
         if icon.isdigit() and icon in self._OI_FONT_CHAR_CODES:
             icon = self._OI_FONT_CHAR_CODES[icon]

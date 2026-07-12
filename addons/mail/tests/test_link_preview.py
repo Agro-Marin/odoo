@@ -16,6 +16,14 @@ class TestLinkPreview(MailCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.maxDiff = None
+        # The SSRF egress guard (link_preview._url_is_safe) does real DNS
+        # resolution and would reject the dummy/localhost URLs these tests use;
+        # egress control is covered directly in test_mail_hardening_v3. Disable
+        # it here so this suite keeps exercising parsing / link-extraction with
+        # the network mocked.
+        _ssrf_patcher = patch.object(link_preview, "_url_is_safe", return_value=True)
+        _ssrf_patcher.start()
+        cls.addClassCleanup(_ssrf_patcher.stop)
         cls.test_partner = cls.env["res.partner"].create({"name": "a partner"})
         cls.existing_message = cls.test_partner.message_post(body="Test")
         cls.title = "Test title"

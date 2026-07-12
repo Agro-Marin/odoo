@@ -403,9 +403,15 @@ class MailAlias(models.Model):
           (name, alias_domain);
         """
         if len(alias_names) != len(alias_domains):
+            # Build the diagnostic defensively: alias_names may hold False (a
+            # sanitized-away name) and alias_domains is a plain list here, so the
+            # old ', '.join(alias_names) / alias_domains.mapped('name') both
+            # raised (TypeError/AttributeError), masking the real coherency error.
+            names_repr = ", ".join(str(name) for name in alias_names)
+            domains_repr = ", ".join(domain.display_name for domain in alias_domains)
             msg = (
                 f"Invalid call to '_check_unique': names and domains should make coherent lists, "
-                f"received {', '.join(alias_names)} and {', '.join(alias_domains.mapped('name'))}"
+                f"received {names_repr} and {domains_repr}"
             )
             raise ValueError(msg)
 

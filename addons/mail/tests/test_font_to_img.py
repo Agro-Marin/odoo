@@ -12,15 +12,19 @@ class TestFontToImg(HttpCase):
         # This test was introduced because the play button was cropped in noble following some adaptation.
         # This test is able to reproduce the issue and ensure that the expected result is the right one
         # comparing image is not ideal, but this should work in most case, maybe adapted if the font is changed.
+        # Uses fa-play (U+F04B = 61515), the real play glyph in FA7 fa-solid-900.
+        # The former code 61802 (U+F16A) was a play button in older FontAwesome
+        # but is a placeholder box in FA7 — fragile to golden-test and not a
+        # "play button". Size is the glyph's bbox for this font + Pillow.
 
         response = self.url_open(
-            "/mail/font_to_img/61802/rgb(0,143,140)/rgb(255,255,255)/190x200"
+            "/mail/font_to_img/61515/rgb(0,143,140)/rgb(255,255,255)/190x200"
         )
 
         img = Image.open(BytesIO(response.content))
         self.assertEqual(
             img.size,
-            (150, 200),
+            (175, 200),
             "Width depends on glyph bbox in FA7 fa-solid-900.woff2 with Pillow 12+",
         )
         # Image is a play button

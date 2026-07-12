@@ -212,7 +212,10 @@ class MailActivityMixin(models.AbstractModel):
                     WHERE mail_activity.res_model = %(res_model_table)s AND mail_activity.active = true
                 GROUP BY res_id
                 ) AS res_record
-            WHERE %(search_states_int)s @> ARRAY[activity_state]
+            -- Cast the parameter to integer[]: psycopg adapts the small-int
+            -- list (-1/0/1) as smallint[], but activity_state is SIGN(...)::INT
+            -- (integer[]), and PG18 has no `smallint[] @> integer[]` operator.
+            WHERE %(search_states_int)s::integer[] @> ARRAY[activity_state]
             )""",
             today_utc=datetime.now(UTC),
             res_model_table=self._name,
@@ -312,11 +315,16 @@ class MailActivityMixin(models.AbstractModel):
         if alias in query._joins:
             return SQL.identifier(alias, "activity_state")
 
+        # The SQL below reads mail_activity.active and mail_activity.user_tz, so
+        # both must be flushed (mirrors _search_activity_state). The old list
+        # omitted them -> a same-transaction archive/reassign was read stale
+        # (reproduced: an archived activity stayed counted in activity_state
+        # grouping). It also flushed res.users.partner_id / res.partner.tz,
+        # which this query never joins (dead flushes from before user_tz was
+        # denormalized onto the activity).
         self.env["mail.activity"].flush_model(
-            ["res_model", "res_id", "user_id", "date_deadline"]
+            ["active", "date_deadline", "res_model", "res_id", "user_id", "user_tz"]
         )
-        self.env["res.users"].flush_model(["partner_id"])
-        self.env["res.partner"].flush_model(["tz"])
 
         tz = "UTC"
         if self.env.context.get("tz") in pytz.all_timezones_set:

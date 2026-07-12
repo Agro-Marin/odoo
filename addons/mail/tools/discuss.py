@@ -587,7 +587,7 @@ class Store:
             return res
 
         def _add_to_store(self, store: Store, target, key):
-            self._sort_recods()
+            self._sort_records()
             super()._add_to_store(store, target, key)
             if not self.only_data:
                 rel_val = self._get_id()
@@ -599,7 +599,7 @@ class Store:
 
         def _get_id(self):
             """Return the ids that can be used to insert the current relation in the store."""
-            self._sort_recods()
+            self._sort_records()
             if self.records._name == "mail.message.reaction":
                 res = [
                     {"message": message.id, "content": content}
@@ -618,7 +618,7 @@ class Store:
                 res = [("DELETE", res)]
             return res
 
-        def _sort_recods(self):
+        def _sort_records(self):
             if self.sort:
                 self.records = self.records.sorted(self.sort)
                 self.sort = None

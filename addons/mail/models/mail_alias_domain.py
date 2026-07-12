@@ -236,11 +236,17 @@ class MailAliasDomain(models.Model):
 
     @api.model
     def _sanitize_configuration(self, config_values):
-        """Tool sanitizing configuration values for domains"""
-        if config_values.get("name"):
-            config_values["name"] = self.env["mail.alias"]._sanitize_alias_name(
-                config_values["name"]
-            )
+        """Tool sanitizing configuration values for domains.
+
+        The domain ``name`` is deliberately NOT sanitized here: _check_name
+        validates it and *raises* on anything invalid rather than silently
+        rewriting it (per its own contract "do not dynamically change it, would
+        be confusing"). Running the local-part sanitizer on the name would strip
+        accents / rewrite characters (e.g. 'provaïder.cöm' -> 'provaider.com'),
+        masking the very inputs _check_name must reject and turning an empty
+        name into a NOT NULL crash instead of a clean ValidationError. Only the
+        local-part aliases (bounce/catchall/default_from) are sanitized.
+        """
         if config_values.get("bounce_alias"):
             config_values["bounce_alias"] = self.env["mail.alias"]._sanitize_alias_name(
                 config_values["bounce_alias"]

@@ -468,8 +468,11 @@ class TestAliasCompany(TestMailAliasCommon):
         self.assertEqual(self.company_admin.alias_domain_id, mail_alias_domain)
         self.assertEqual(self.company_2.alias_domain_id, mail_alias_domain_c2)
 
-        # cannot unlink alias domain as there are aliases linked to it
-        with self.assertRaises(psycopg.errors.ForeignKeyViolation), mute_logger('odoo.db'):
+        # cannot unlink alias domain as there are aliases linked to it.
+        # alias_domain_id is ondelete="restrict", so PG18/psycopg3 raises
+        # RestrictViolation (23001), not ForeignKeyViolation (23503); accept
+        # both, matching the framework's own handling in orm schema.py.
+        with self.assertRaises((psycopg.errors.ForeignKeyViolation, psycopg.errors.RestrictViolation)), mute_logger('odoo.db'):
             mail_alias_domain.unlink()
 
         # eject linked aliases then remove alias domain of first company; should

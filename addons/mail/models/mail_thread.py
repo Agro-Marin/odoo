@@ -1305,11 +1305,25 @@ class MailThread(models.AbstractModel):
             return True
 
         # detection based on content type. get_content_type() strips parameters
-        # and lowercases, so the report-type must be read from the header param
-        # (RFC 3462), not substring-matched against content_type.
+        # and lowercases, so the report-type is read from the structured header
+        # param (RFC 3462) rather than substring-matched against content_type.
         content_type = message.get_content_type()
         report_type = (message.get_param("report-type") or "").lower()
-        return content_type == "multipart/report" or report_type == "delivery-status"
+        # Some MTAs emit a slightly malformed Content-Type (e.g.
+        # "multipart/report:" with a colon) that defeats structured param
+        # parsing; fall back to scanning the raw header for the RFC 3462
+        # report-type token so those bounces are still detected.
+        raw_content_type = (
+            (message.get("Content-Type") or "")
+            .lower()
+            .replace(" ", "")
+            .replace('"', "")
+        )
+        return (
+            content_type == "multipart/report"
+            or report_type == "delivery-status"
+            or "report-type=delivery-status" in raw_content_type
+        )
 
     @api.model
     def _detect_loop_sender_domain(self, email_from_normalized):
@@ -2344,10 +2358,18 @@ class MailThread(models.AbstractModel):
                     email_part.get_content(), policy=email.policy.SMTP
                 )
             else:
-                email_payload = email_part.get_payload()[0]
-            bounced_message, bounced_msg_ids = self._get_bounced_message_data(
-                email_payload, message_dict
-            )
+                # Guard the payload index: a malformed multipart/report (or
+                # message/rfc822) bounce with an empty payload used to raise
+                # IndexError here (reproduced end-to-end at this line),
+                # propagating out of message_process and losing the whole
+                # inbound message (deleted on POP). get_payload() may return []
+                # or "" for such parts; skip extraction when there is nothing.
+                payload = email_part.get_payload()
+                email_payload = payload[0] if payload else None
+            if email_payload is not None:
+                bounced_message, bounced_msg_ids = self._get_bounced_message_data(
+                    email_payload, message_dict
+                )
 
         if (
             bounced_message

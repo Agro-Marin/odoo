@@ -39,6 +39,7 @@ class MailPush(models.Model):
         devices_to_unlink = set()
 
         # process send notif
+        base_url = self.get_base_url()  # constant per run; hoisted out of the loop
         devices = web_push_notifications_sudo.mail_push_device_id.grouped("id")
         for web_push_notification_sudo in web_push_notifications_sudo:
             device = devices.get(web_push_notification_sudo.mail_push_device_id.id)
@@ -46,7 +47,7 @@ class MailPush(models.Model):
                 continue
             try:
                 push_to_end_point(
-                    base_url=self.get_base_url(),
+                    base_url=base_url,
                     device={
                         "id": device.id,
                         "endpoint": device.endpoint,
