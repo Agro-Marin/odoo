@@ -188,13 +188,25 @@ class PosPaymentMethod(models.Model):
 
     @api.depends("config_ids")
     def _compute_open_session_ids(self):
+        # Batch a single search over every config of self, then map open
+        # sessions back to each payment method (avoids an N+1 search per method).
+        all_configs = self.config_ids
+        open_sessions = self.env["pos.session"].search(
+            [
+                ("config_id", "in", all_configs.ids),
+                ("state", "!=", "closed"),
+            ]
+        )
+        sessions_by_config = {}
+        for session in open_sessions:
+            sessions_by_config.setdefault(session.config_id.id, self.env["pos.session"])
+            sessions_by_config[session.config_id.id] |= session
+        empty_sessions = self.env["pos.session"]
         for payment_method in self:
-            payment_method.open_session_ids = self.env["pos.session"].search(
-                [
-                    ("config_id", "in", payment_method.config_ids.ids),
-                    ("state", "!=", "closed"),
-                ]
-            )
+            method_sessions = empty_sessions
+            for config_id in payment_method.config_ids.ids:
+                method_sessions |= sessions_by_config.get(config_id, empty_sessions)
+            payment_method.open_session_ids = method_sessions
 
     @api.depends("journal_id", "split_transactions")
     def _compute_type(self):
@@ -264,11 +276,12 @@ class PosPaymentMethod(models.Model):
         not_pmt = self - pmt_terminal - pmt_qr
 
         res = True
-        forced_vals = vals.copy()
         if pmt_terminal:
+            forced_vals = vals.copy()
             self._force_payment_method_type_values(forced_vals, "terminal", True)
             res = super(PosPaymentMethod, pmt_terminal).write(forced_vals) and res
         if pmt_qr:
+            forced_vals = vals.copy()
             self._force_payment_method_type_values(forced_vals, "qr_code", True)
             res = super(PosPaymentMethod, pmt_qr).write(forced_vals) and res
         if not_pmt:
@@ -350,8 +363,10 @@ class PosPaymentMethod(models.Model):
                 pm.default_qr = False
                 continue
             try:
-                # Generate QR without amount that can then be used when the POS is offline
-                pm.default_qr = pm.get_qr_code(
+                # Generate QR without amount that can then be used when the POS is offline.
+                # Trusted internal call: skip the open-session access guard so the
+                # default QR is still available outside an open session (backend form).
+                pm.default_qr = pm._get_qr_code(
                     False, "", "", pm.company_id.currency_id.id, False
                 )
             except UserError:
@@ -365,7 +380,34 @@ class PosPaymentMethod(models.Model):
         currency,
         debtor_partner,
     ):
-        """Generates and returns a QR-code"""
+        """Generates and returns a QR-code (public / RPC entry point)."""
+        self.ensure_one()
+        # Security: only allow generating a QR-code for a payment method that
+        # belongs to one of the current user's open sessions' configs, so a
+        # caller cannot probe arbitrary payment methods / bank accounts.
+        if self not in self.open_session_ids.config_id.payment_method_ids:
+            raise UserError(
+                _(
+                    "This payment method is not available in any of your open PoS sessions."
+                )
+            )
+        return self._get_qr_code(
+            amount,
+            free_communication,
+            structured_communication,
+            currency,
+            debtor_partner,
+        )
+
+    def _get_qr_code(
+        self,
+        amount,
+        free_communication,
+        structured_communication,
+        currency,
+        debtor_partner,
+    ):
+        """Generates and returns a QR-code (unguarded internal implementation)."""
         self.ensure_one()
         if self.payment_method_type != "qr_code" or not self.qr_code_method:
             raise UserError(

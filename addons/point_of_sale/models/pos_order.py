@@ -159,7 +159,7 @@ class PosOrder(models.Model):
                     order[field] = []
 
             del order["uuid"]
-            del order["access_token"]
+            order.pop("access_token", None)
             if order.get("state") == "paid":
                 # The "paid" state will be assigned later by `_process_saved_order`
                 order["state"] = pos_order.state
@@ -198,17 +198,15 @@ class PosOrder(models.Model):
             self._create_order_picking()
             self._compute_total_cost_in_real_time()
 
-        if (
-            self.to_invoice
-            and self.state == "paid"
-            and self.config_id.invoice_journal_id
-        ):
+        if self.to_invoice and self.state == "paid":
+            if not self.config_id.invoice_journal_id:
+                _logger.warning(
+                    "Trying to create an invoice without any journal configured"
+                )
+                raise UserError(
+                    _("No invoice journal configured for this POS session.")
+                )
             self._generate_pos_order_invoice()
-        elif not self.config_id.invoice_journal_id:
-            _logger.warning(
-                "Trying to create an invoice without any journal configured"
-            )
-            raise UserError(_("No invoice journal configured for this POS session."))
 
         return self.id
 
@@ -321,6 +319,11 @@ class PosOrder(models.Model):
             line_values_list = order.with_context(
                 invoicing=True
             )._prepare_tax_base_line_values()
+            is_percentage = order.pricelist_id and any(
+                order.pricelist_id.item_ids.filtered(
+                    lambda rule: rule.compute_price == "percentage"
+                )
+            )
             for line_values in line_values_list:
                 line = line_values["record"]
                 invoice_lines_values = order._get_invoice_lines_values(
@@ -328,11 +331,6 @@ class PosOrder(models.Model):
                 )
                 invoice_lines.append((0, None, invoice_lines_values))
 
-                is_percentage = order.pricelist_id and any(
-                    order.pricelist_id.item_ids.filtered(
-                        lambda rule: rule.compute_price == "percentage"
-                    )
-                )
                 if (
                     is_percentage
                     and float_compare(
@@ -871,7 +869,7 @@ class PosOrder(models.Model):
             if vals.get("state") and vals["state"] == "paid" and order.name == "/":
                 session = (
                     self.env["pos.session"].browse(vals["session_id"])
-                    if not self.session_id and vals.get("session_id")
+                    if not order.session_id and vals.get("session_id")
                     else False
                 )
                 vals["name"] = self._compute_order_name(session)
@@ -880,7 +878,7 @@ class PosOrder(models.Model):
                     number=vals.get("mobile"),
                     country=order.partner_id.country_id or self.env.company.country_id,
                 )
-            if vals.get("has_deleted_line") is not None and self.has_deleted_line:
+            if vals.get("has_deleted_line") is not None and order.has_deleted_line:
                 del vals["has_deleted_line"]
             allowed_vals = ["paid", "done", "invoiced"]
             if (
@@ -1567,7 +1565,7 @@ class PosOrder(models.Model):
                         "partner_id": commercial_partner.id
                         if is_split_transaction
                         else False,
-                        "name": f"{reversed_move_receivable_account_id.code} {reversed_move_receivable_account_id.code}",
+                        "name": f"{reversed_move_receivable_account_id.code} {reversed_move_receivable_account_id.name}",
                         "account_id": reversed_move_receivable_account_id.id,
                         "currency_id": self.currency_id.id,
                         "amount_currency": payment_id.amount,
@@ -2021,7 +2019,6 @@ class PosOrder(models.Model):
                     line._prepare_refund_data(refund_order, PosPackOperationLot)
                 )
                 refund_line._onchange_amount_line_all()
-            refund_order._compute_prices()
             refund_orders |= refund_order
             refund_order.config_id.notify_synchronisation(current_session.id, 0)
         refund_orders._compute_prices()

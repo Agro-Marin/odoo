@@ -373,7 +373,6 @@ class PosConfig(models.Model):
         string="Trusted Point of Sale Configurations",
         domain="[('company_id', '=', company_id)]",
     )
-    access_token = fields.Char("Access Token", default=lambda self: uuid4().hex[:16])
     show_product_images = fields.Boolean(
         string="Show Product Images",
         help="Show product images in the Point of Sale interface.",
@@ -450,8 +449,8 @@ class PosConfig(models.Model):
         static_records = {}
 
         for model, ids in records.items():
-            records = self.env[model].browse(ids).exists()
-            static_records[model] = self.env[model]._load_pos_data_read(records, self)
+            browsed = self.env[model].browse(ids).exists()
+            static_records[model] = self.env[model]._load_pos_data_read(browsed, self)
 
         self._notify(
             "SYNCHRONISATION",
@@ -792,7 +791,7 @@ class PosConfig(models.Model):
                 raise ValidationError(
                     _(
                         "The payment methods for the point of sale %s must belong to its company.",
-                        self.name,
+                        config.name,
                     )
                 )
 
@@ -955,7 +954,7 @@ class PosConfig(models.Model):
         if not self._default_warehouse_id():
             self.env["stock.warehouse"].create(
                 {
-                    "code": vals_list[0].get("name")[
+                    "code": (vals_list[0].get("name") or "POS")[
                         :3
                     ],  # first 3 characters of pos.config name
                     "company_id": self.env.company.id,
@@ -1131,8 +1130,9 @@ class PosConfig(models.Model):
                 config.available_preset_ids |= config.default_preset_id
 
         self.sudo()._set_fiscal_position()
-        self.sudo()._check_modules_to_install()
-        self.sudo()._check_groups_implied()
+        if any(k.startswith(("module_", "group_")) for k in vals):
+            self.sudo()._check_modules_to_install()
+            self.sudo()._check_groups_implied()
         if "is_order_printer" in vals:
             self._update_preparation_printers_menuitem_visibility()
         return result
@@ -1194,7 +1194,12 @@ class PosConfig(models.Model):
 
     def unlink(self):
         # Delete the pos.config records first then delete the sequences linked to them
-        sequences_to_delete = self.order_line_seq_id | self.device_seq_id
+        sequences_to_delete = (
+            self.order_seq_id
+            | self.order_backend_seq_id
+            | self.order_line_seq_id
+            | self.device_seq_id
+        )
         res = super().unlink()
         sequences_to_delete.unlink()
         return res

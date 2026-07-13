@@ -5,6 +5,7 @@ from datetime import timedelta
 from itertools import batched, groupby, starmap
 
 from markupsafe import Markup
+from psycopg.errors import LockNotAvailable
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -371,22 +372,32 @@ class PosSession(models.Model):
 
     @api.depends("payment_method_ids", "order_ids", "cash_register_balance_start")
     def _compute_cash_balance(self):
+        # Single grouped read over all captured cash payments for the whole
+        # recordset (avoids one `_read_group` per session), keyed by
+        # (session_id, payment_method_id).
+        captured_cash_payments_domain = Domain.AND(
+            [
+                self._get_captured_payments_domain(),
+                [("payment_method_id.is_cash_count", "=", True)],
+            ]
+        )
+        result = self.env["pos.payment"]._read_group(
+            captured_cash_payments_domain,
+            ["session_id", "payment_method_id"],
+            ["amount:sum"],
+        )
+        cash_payment_map = {
+            (session.id, payment_method.id): amount
+            for session, payment_method, amount in result
+        }
         for session in self:
             cash_payment_method = session.payment_method_ids.filtered("is_cash_count")[
                 :1
             ]
             if cash_payment_method:
-                total_cash_payment = 0.0
-                captured_cash_payments_domain = Domain.AND(
-                    [
-                        session._get_captured_payments_domain(),
-                        [("payment_method_id", "=", cash_payment_method.id)],
-                    ]
+                total_cash_payment = (
+                    cash_payment_map.get((session.id, cash_payment_method.id)) or 0.0
                 )
-                result = self.env["pos.payment"]._read_group(
-                    captured_cash_payments_domain, aggregates=["amount:sum"]
-                )
-                total_cash_payment = result[0][0] or 0.0
                 if session.state == "closed":
                     total_cash = session.cash_real_transaction + total_cash_payment
                 else:
@@ -425,16 +436,21 @@ class PosSession(models.Model):
 
     @api.depends("picking_ids", "picking_ids.state")
     def _compute_picking_count(self):
+        picking_data = self.env["stock.picking"]._read_group(
+            [("pos_session_id", "in", self.ids)],
+            ["pos_session_id"],
+            ["__count"],
+        )
+        picking_count_map = {session.id: count for session, count in picking_data}
+        failed_data = self.env["stock.picking"]._read_group(
+            [("pos_session_id", "in", self.ids), ("state", "!=", "done")],
+            ["pos_session_id"],
+            ["__count"],
+        )
+        failed_map = {session.id: count for session, count in failed_data}
         for session in self:
-            session.picking_count = self.env["stock.picking"].search_count(
-                [("pos_session_id", "in", session.ids)]
-            )
-            session.failed_pickings = bool(
-                self.env["stock.picking"].search(
-                    [("pos_session_id", "in", session.ids), ("state", "!=", "done")],
-                    limit=1,
-                )
-            )
+            session.picking_count = picking_count_map.get(session.id, 0)
+            session.failed_pickings = bool(failed_map.get(session.id, 0))
 
     def action_stock_picking(self):
         self.ensure_one()
@@ -594,6 +610,7 @@ class PosSession(models.Model):
         bank_payment_method_diffs=None,
     ):
         bank_payment_method_diffs = bank_payment_method_diffs or {}
+        results = []
         for session in self:
             if any(order.state == "draft" for order in session.get_session_orders()):
                 raise UserError(
@@ -603,19 +620,22 @@ class PosSession(models.Model):
                 )
             if session.state == "closed":
                 raise UserError(_("This session is already closed."))
-            stop_at = self.stop_at or fields.Datetime.now()
+            stop_at = session.stop_at or fields.Datetime.now()
             session.write({"state": "closing_control", "stop_at": stop_at})
             if not session.config_id.cash_control:
-                return session.action_pos_session_close(
-                    balancing_account, amount_to_balance, bank_payment_method_diffs
+                results.append(
+                    session.action_pos_session_close(
+                        balancing_account, amount_to_balance, bank_payment_method_diffs
+                    )
                 )
+                continue
             # If the session is in rescue, we only compute the payments in the cash register
             # It is not yet possible to close a rescue session through the front end, see `close_session_from_ui`
             if session.rescue and session.config_id.cash_control:
-                default_cash_payment_method_id = self.payment_method_ids.filtered(
+                default_cash_payment_method_id = session.payment_method_ids.filtered(
                     lambda pm: pm.type == "cash"
                 )[0]
-                orders = self._get_closed_orders()
+                orders = session._get_closed_orders()
                 total_cash = (
                     sum(
                         orders.payment_ids.filtered(
@@ -624,15 +644,22 @@ class PosSession(models.Model):
                             )
                         ).mapped("amount")
                     )
-                    + self.cash_register_balance_start
+                    + session.cash_register_balance_start
                 )
 
                 session.cash_register_balance_end_real = total_cash
 
-            return session.action_pos_session_validate(
-                balancing_account, amount_to_balance, bank_payment_method_diffs
+            results.append(
+                session.action_pos_session_validate(
+                    balancing_account, amount_to_balance, bank_payment_method_diffs
+                )
             )
-        return None
+        # Preserve the singleton contract: callers (and the front end) expect an
+        # action dict for a single session. For multi-session recordsets return
+        # the list of per-session results.
+        if len(self) == 1:
+            return results[0]
+        return results or None
 
     def action_pos_session_validate(
         self,
@@ -667,6 +694,16 @@ class PosSession(models.Model):
     ):
         bank_payment_method_diffs = bank_payment_method_diffs or {}
         record = self.ensure_one()
+        # Take a row-level lock on the session to prevent two concurrent
+        # transactions from closing it at the same time (double-close race).
+        # NOWAIT surfaces immediately instead of blocking.
+        try:
+            self.env.cr.execute(
+                "SELECT id FROM pos_session WHERE id = %s FOR UPDATE NOWAIT",
+                (self.id,),
+            )
+        except LockNotAvailable as e:
+            raise UserError(_("Another user is currently closing this session.")) from e
         if self.env.user.has_group("point_of_sale.group_pos_user"):
             record = record.sudo()
         data = {}
@@ -747,15 +784,17 @@ class PosSession(models.Model):
         return True
 
     def _post_statement_difference(self, amount):
-        if amount:
-            if self.config_id.cash_control:
-                st_line_vals = {
-                    "journal_id": self.cash_journal_id.id,
-                    "amount": amount,
-                    "date": self.statement_line_ids.sorted()[-1:].date
-                    or fields.Date.context_today(self),
-                    "pos_session_id": self.id,
-                }
+        # The whole body creates a cash statement line, so it only makes sense
+        # under cash control. Guarding on `cash_control` also avoids using the
+        # otherwise-unbound `st_line_vals` when there is no cash register.
+        if amount and self.config_id.cash_control:
+            st_line_vals = {
+                "journal_id": self.cash_journal_id.id,
+                "amount": amount,
+                "date": self.statement_line_ids.sorted()[-1:].date
+                or fields.Date.context_today(self),
+                "pos_session_id": self.id,
+            }
 
             if amount < 0.0:
                 if not self.cash_journal_id.loss_account_id:
@@ -1202,7 +1241,7 @@ class PosSession(models.Model):
                 imbalance_amount,
                 self.currency_id,
                 self.company_id,
-                fields.Date.context_today(self),
+                self.stop_at,
             )
         return self._credit_amounts(
             partial_vals, imbalance_amount_session, imbalance_amount

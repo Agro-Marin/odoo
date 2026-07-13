@@ -57,6 +57,11 @@ class PosController(PortalAccount):
         pos_config = False
         if not is_internal_user:
             return request.not_found()
+        # Only POS users (managers imply group_pos_user) may open/create a
+        # session. Others are sent back to the backend action instead of
+        # silently opening the POS.
+        if not request.env.user.has_group("point_of_sale.group_pos_user"):
+            return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
         domain = [
             ("state", "in", ["opening_control", "opened"]),
             ("user_id", "=", request.session.uid),
@@ -142,11 +147,14 @@ class PosController(PortalAccount):
 
     @http.route("/pos/sale_details_report", type="http", auth="user")
     def print_sale_details(self, date_start=False, date_stop=False, **kw):
-        r = request.env["report.point_of_sale.report_saledetails"]
-        pdf, _ = (
-            request.env["ir.actions.report"]
-            .with_context(date_start=date_start, date_stop=date_stop)
-            ._render_qweb_pdf("point_of_sale.sale_details_report", r)
+        # This route returns company-wide sales aggregates, so restrict it to POS
+        # managers. The cashier's own single-session report goes through the JS
+        # get_sale_details call, not this HTTP PDF route.
+        if not request.env.user.has_group("point_of_sale.group_pos_manager"):
+            return request.not_found()
+        pdf, _ = request.env["ir.actions.report"]._render_qweb_pdf(
+            "point_of_sale.sale_details_report",
+            data={"date_start": date_start, "date_stop": date_stop},
         )
         pdfhttpheaders = [
             ("Content-Type", "application/pdf"),

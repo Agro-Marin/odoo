@@ -63,6 +63,7 @@ export class ProductScreen extends Component {
         this.dialog = useService("dialog");
         this.notification = useService("notification");
         this.numberBuffer = useService("number_buffer");
+        this.isValidatingOrder = false;
         this.state = useState({
             previousSearchWord: "",
             currentOffset: 0,
@@ -449,6 +450,9 @@ export class ProductScreen extends Component {
     }
 
     async fastValidate(paymentMethod) {
+        if (this.isValidatingOrder) {
+            return;
+        }
         try {
             this.isValidatingOrder = true;
             await this.pos.validateOrderFast(paymentMethod);
