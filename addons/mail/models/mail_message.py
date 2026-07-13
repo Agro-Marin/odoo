@@ -1832,7 +1832,12 @@ class MailMessage(models.Model):
         ids_by_model = defaultdict(OrderedSet)
         prefetch_ids_by_model = defaultdict(OrderedSet)
         prefetch_messages = self | self.browse(self._prefetch_ids)
-        for message in prefetch_messages.filtered(lambda m: m.model and m.res_id):
+        # ``m.model in self.env`` skips messages pointing at a model whose addon
+        # was uninstalled (rows are not cascade-cleaned): ``self.env[model]``
+        # would raise KeyError and 500 the whole store/notification render.
+        for message in prefetch_messages.filtered(
+            lambda m: m.model in self.env and m.res_id
+        ):
             target = ids_by_model if message in self else prefetch_ids_by_model
             target[message.model].add(message.res_id)
         return {
@@ -1848,5 +1853,5 @@ class MailMessage(models.Model):
             message: self.env[message.model]
             .browse(message.res_id)
             .with_prefetch(records_by_model_name[message.model]._prefetch_ids)
-            for message in self.filtered(lambda m: m.model and m.res_id)
+            for message in self.filtered(lambda m: m.model in self.env and m.res_id)
         }

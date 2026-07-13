@@ -2147,7 +2147,19 @@ export class Rtc extends Record {
             screenSource.connect(destination);
             this.state.audioTrack = destination.stream.getAudioTracks()[0];
         } else {
+            // Only one source remains: no mixing needed. Tear down the mix
+            // AudioContext (browsers cap concurrent contexts, so leaking one per
+            // screen-share toggle eventually breaks audio for the rest of the
+            // call) and stop the now-unused mixed destination track.
+            if (this.audioContext) {
+                await this.audioContext.close();
+                this.audioContext = undefined;
+            }
+            const previousTrack = this.state.audioTrack;
             this.state.audioTrack = micAudioTrack ?? screenAudioTrack;
+            if (previousTrack && previousTrack !== this.state.audioTrack) {
+                previousTrack.stop();
+            }
         }
         await this.network?.updateUpload("audio", this.state.audioTrack);
     }

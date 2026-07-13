@@ -448,7 +448,12 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                 try:
                     if server_connection:
                         server_connection.disconnect()
-                except OSError, IMAP4.abort:
+                except OSError, poplib.error_proto, IMAP4.error:
+                    # POP3 quit() raises poplib.error_proto and IMAP4
+                    # close()/logout() raise IMAP4.error (of which IMAP4.abort
+                    # is a subclass) — neither derives from OSError. Catch them
+                    # so a teardown hiccup on one server does not abort the
+                    # whole per-server fetch loop. Matches the handler at l.281.
                     _logger.warning(
                         "Failed to properly finish %s connection: %s.",
                         *server_type_and_name,

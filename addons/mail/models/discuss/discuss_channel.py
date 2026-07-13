@@ -1331,6 +1331,21 @@ class DiscussChannel(models.Model):
             ),
         ).message_post(message_type=message_type, **kwargs)
 
+    def _partner_wants_channel_notifications(self, partner):
+        """Whether ``partner`` opts into channel notifications (for sub-channel
+        auto-invite on mention).
+
+        A partner may back several ``res.users``; reading the settings scalar
+        straight off ``partner.user_ids.res_users_settings_id`` raises a
+        singleton ``ValueError`` as soon as there are 2+ users. Evaluate per
+        user instead. A partner with no user keeps the historical default of
+        being invited.
+        """
+        return not partner.user_ids or any(
+            user.res_users_settings_id.channel_notifications != "no_notif"
+            for user in partner.user_ids
+        )
+
     def _message_post_after_hook(self, message, msg_vals):
         # Automatically set the message posted by the current user as seen for themselves.
         if self.self_member_id and message.is_current_user_or_guest_author:
@@ -1348,16 +1363,12 @@ class DiscussChannel(models.Model):
                 lambda m: (
                     m.custom_notifications != "no_notif"
                     if m.custom_notifications
-                    else m.partner_id.user_ids.res_users_settings_id.channel_notifications
-                    != "no_notif"
+                    else self._partner_wants_channel_notifications(m.partner_id)
                 )
             ).partner_id
             if self.parent_channel_id.channel_type == "channel":
                 to_invite |= (message.partner_ids - members.partner_id).filtered(
-                    lambda p: (
-                        p.user_ids.res_users_settings_id.channel_notifications
-                        != "no_notif"
-                    )
+                    self._partner_wants_channel_notifications
                 )
             self._add_members(partners=to_invite)
         return super()._message_post_after_hook(message, msg_vals)

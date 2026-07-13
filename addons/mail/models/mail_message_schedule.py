@@ -61,18 +61,23 @@ class MailMessageSchedule(models.Model):
           ``notification_parameters`` field.
         """
         for model, schedules in self._group_by_model().items():
+            # Resolve the record per schedule: two schedules may share a
+            # mail_message_id, so ``schedules.mapped("mail_message_id.res_id")``
+            # deduplicates and the positional ``zip`` would drop (and then
+            # unlink unsent) the tail schedules. Pre-compute the existing ids
+            # from a single browse for prefetching.
+            existing_ids = ()
             if model:
-                records = self.env[model].browse(
-                    schedules.mapped("mail_message_id.res_id")
-                )
-                existing = records.exists()
-            else:
-                records = [self.env["mail.thread"]] * len(schedules)
-                existing = records
+                res_ids = schedules.mapped("mail_message_id.res_id")
+                existing_ids = set(self.env[model].browse(res_ids).exists()._ids)
 
-            for record, schedule in zip(records, schedules, strict=False):
-                if record not in existing:
-                    continue
+            for schedule in schedules:
+                if model:
+                    record = self.env[model].browse(schedule.mail_message_id.res_id)
+                    if record.id not in existing_ids:
+                        continue
+                else:
+                    record = self.env["mail.thread"]
                 notify_kwargs = dict(default_notify_kwargs or {}, skip_existing=True)
                 try:
                     schedule_notify_kwargs = (

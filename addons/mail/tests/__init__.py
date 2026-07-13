@@ -11,6 +11,7 @@ from . import test_mail_blacklist
 from . import test_mail_composer
 from . import test_mail_hardening_v2
 from . import test_mail_hardening_v3
+from . import test_mail_hardening_v4
 from . import test_mail_mail
 from . import test_mail_message
 from . import test_mail_message_translate

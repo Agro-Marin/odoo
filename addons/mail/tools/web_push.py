@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from . import jwt
+from .link_preview import _url_is_safe
 
 MAX_PAYLOAD_SIZE = 4096
 
@@ -158,6 +159,12 @@ def push_to_end_point(
     # https://datatracker.ietf.org/doc/html/rfc2606#section-2
     if url.netloc.endswith(".invalid"):
         raise DeviceUnreachableError("Device Unreachable")
+    # SSRF guard: ``endpoint`` is attacker-controlled (any authenticated user
+    # registers their own push device). The cron POSTs to it under sudo, so an
+    # endpoint pointing at loopback / link-local / private ranges (e.g. the
+    # cloud metadata service) would turn this into a blind SSRF primitive.
+    if not _url_is_safe(endpoint):
+        raise DeviceUnreachableError("Device Unreachable")
     jwt_claims = {
         # aud: The “Audience” is a JWT construct that indicates the recipient scheme and host
         # e.g. for an endpoint like https://updates.push.services.mozilla.com/wpush/v2/gAAAAABY...,
@@ -185,7 +192,11 @@ def push_to_end_point(
         "TTL": "60",
     }
 
-    response = session.post(endpoint, headers=headers, data=payload, timeout=5)
+    # Push endpoints never legitimately redirect; disallowing redirects closes
+    # the "public host 302s into the internal network" SSRF bypass.
+    response = session.post(
+        endpoint, headers=headers, data=payload, timeout=5, allow_redirects=False
+    )
     if response.status_code == 201:
         _logger.debug("Sent push notification %s", endpoint)
     else:

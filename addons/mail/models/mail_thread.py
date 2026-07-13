@@ -331,6 +331,14 @@ class MailThread(models.AbstractModel):
     def _compute_message_needaction(self):
         res = dict.fromkeys(self.ids, 0)
         if self.ids:
+            # Flush pending writes: this reads mail_message/mail_notification in
+            # raw SQL and has no @api.depends to trigger an auto-flush (the deps
+            # live in other models), so same-transaction posts / mark-as-read
+            # would otherwise be invisible. Mirrors ``_compute_has_message``.
+            self.env["mail.message"].flush_model(["model", "res_id", "message_type"])
+            self.env["mail.notification"].flush_model(
+                ["mail_message_id", "res_partner_id", "is_read"]
+            )
             # search for unread messages, directly in SQL to improve performances
             self.env.cr.execute(
                 """ SELECT msg.res_id FROM mail_message msg
@@ -357,6 +365,12 @@ class MailThread(models.AbstractModel):
     def _compute_message_has_error(self):
         res = {}
         if self.ids:
+            # See ``_compute_message_needaction``: raw SQL with no @api.depends,
+            # so flush the fields it reads to avoid stale in-transaction counts.
+            self.env["mail.message"].flush_model(["model", "res_id", "message_type"])
+            self.env["mail.notification"].flush_model(
+                ["mail_message_id", "author_id", "notification_status"]
+            )
             self.env.cr.execute(
                 """
                     SELECT msg.res_id, COUNT(msg.res_id)
@@ -2016,8 +2030,12 @@ class MailThread(models.AbstractModel):
             # Synchronize concurrent transactions for the same message_id to make the duplicate check reliable.
             # Use pg_try_advisory_xact_lock: if another transaction is already processing the same message_id,
             # treat it as a duplicate.
+            # hashtextextended returns a 64-bit key (vs hashtext's 32-bit),
+            # making a hash collision that would treat two distinct Message-Ids
+            # as duplicates — and silently drop the second inbound mail —
+            # vanishingly unlikely.
             self.env.cr.execute(
-                SQL("SELECT pg_try_advisory_xact_lock(hashtext(%s))", msg_id)
+                SQL("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", msg_id)
             )
             is_duplicate = not self.env.cr.fetchone()[0]
 
@@ -2379,7 +2397,12 @@ class MailThread(models.AbstractModel):
             # if the original recipient was not found,
             # try to find the recipient based on parent <mail.message> notification
             bounced_partner = bounced_message.notification_ids.res_partner_id[0]
-            bounced_email = bounced_partner.email
+            # Use the normalized form: ``bounced_email`` feeds equality searches
+            # on ``email_normalized`` in ``_routing_handle_bounce``; a raw
+            # ``partner.email`` (mixed case or "Name <a@b>") would silently miss.
+            bounced_email = bounced_partner.email_normalized or email_normalize(
+                bounced_partner.email
+            )
 
         return {
             "bounced_email": bounced_email,
