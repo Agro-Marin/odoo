@@ -110,6 +110,7 @@ class ProjectMilestone(models.Model):
                 all_and_done_task_count_per_milestone.get(milestone.id, (0, 0))
             )
 
+    @api.depends("is_reached", "task_ids.state", "task_ids.is_closed")
     def _compute_can_be_marked_as_done(self) -> None:
         if not any(self._ids):
             for milestone in self:

@@ -33,7 +33,7 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
         compute="_compute_steps_active", export_string_translation=False
     )
 
-    @api.depends("project_ids")
+    @api.depends("step_ids")
     def _compute_tasks_count(self) -> None:
         for wizard in self:
             wizard.tasks_count = (

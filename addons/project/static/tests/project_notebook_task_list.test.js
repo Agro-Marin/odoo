@@ -27,7 +27,7 @@ beforeEach(() => {
             subtask_count: 4,
             child_ids: [2, 3, 4, 7],
             predecessor_ids: [5,6],
-            state: 'waiting',
+            state: 'blocked',
         },
         {
             name: 'task two',

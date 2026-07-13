@@ -163,11 +163,18 @@ class ProjectTaskDependency(models.Model):
         return super().unlink()
 
     def _sync_to_m2m(self) -> None:
-        """Ensure the legacy M2M predecessor_ids reflects typed dependencies."""
+        """Ensure the legacy M2M predecessor_ids reflects typed dependencies.
+
+        Group the links per task and write once per task: a single
+        ``predecessor_ids`` write runs the framework cycle check once, instead
+        of once per dependency row (which, on a batch create, re-validated the
+        whole graph N times).
+        """
+        preds_by_task = defaultdict(lambda: self.env["project.task"])
         for dep in self:
             if dep.depends_on_id not in dep.task_id.predecessor_ids:
-                dep.task_id.write(
-                    {
-                        "predecessor_ids": [fields.Command.link(dep.depends_on_id.id)],
-                    }
-                )
+                preds_by_task[dep.task_id] |= dep.depends_on_id
+        for task, preds in preds_by_task.items():
+            task.write(
+                {"predecessor_ids": [fields.Command.link(p.id) for p in preds]}
+            )

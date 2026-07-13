@@ -18,7 +18,7 @@ class ProjectBenefit(models.Model):
     _name = "project.benefit"
     _description = "Project Benefit"
     _order = "sequence, id"
-    _inherit = ["mail.thread"]
+    _inherit = ["mail.thread", "mail.activity.mixin"]
 
     name = fields.Char("Benefit", required=True, tracking=True)
     sequence = fields.Integer(default=10)
@@ -59,6 +59,13 @@ class ProjectBenefit(models.Model):
         "Next Review Date",
         help="When this benefit should next be reviewed for progress.",
     )
+    review_reminder_date = fields.Date(
+        "Reminder Scheduled For",
+        copy=False,
+        help="Internal: the review_date for which a reminder activity was last "
+        "scheduled by the cron. Prevents re-nagging every day once a reminder "
+        "has been raised; a new reminder is only scheduled when review_date moves.",
+    )
     state = fields.Selection(
         [
             ("expected", "Expected"),
@@ -89,6 +96,13 @@ class ProjectBenefit(models.Model):
                 ("accountable_id", "!=", False),
             ]
         )
+        # Schedule at most one reminder per review_date: skip benefits already
+        # reminded for their current review_date. This survives the user
+        # completing (deleting) the activity, so the cron no longer re-creates
+        # the reminder every single day. (A domain cannot compare two fields.)
+        benefits = benefits.filtered(
+            lambda b: b.review_reminder_date != b.review_date
+        )
         if not benefits:
             return
 
@@ -103,33 +117,19 @@ class ProjectBenefit(models.Model):
                 "Benefit review cron: default activity type missing, skipping."
             )
             return
-        activity_type_id = activity_type.id
-        # Batch the dedup lookup: one search over all candidate benefits instead
-        # of one query per benefit. Existing reminders are keyed on
-        # (res_id, user_id) — the same pair used when creating below.
-        existing = self.env["mail.activity"].search(
-            [
-                ("res_model", "=", self._name),
-                ("res_id", "in", benefits.ids),
-                ("activity_type_id", "=", activity_type_id),
-            ]
-        )
-        already_scheduled = {(act.res_id, act.user_id.id) for act in existing}
-        model_id = self.env["ir.model"]._get_id(self._name)
-        vals_list = [
-            {
-                "res_model_id": model_id,
-                "res_id": benefit.id,
-                "activity_type_id": activity_type_id,
-                "user_id": benefit.accountable_id.id,
-                "date_deadline": benefit.review_date,
-                "summary": f"Benefit review: {benefit.name}",
-            }
-            for benefit in benefits
-            if (benefit.id, benefit.accountable_id.id) not in already_scheduled
-        ]
-        self.env["mail.activity"].create(vals_list)
-        _logger.info("Benefit review cron: scheduled %d activities", len(vals_list))
+        scheduled = 0
+        for benefit in benefits:
+            benefit.activity_schedule(
+                "mail.mail_activity_data_todo",
+                date_deadline=benefit.review_date,
+                summary=self.env._("Benefit review: %s", benefit.name),
+                user_id=benefit.accountable_id.id,
+            )
+            # Mark this review_date as reminded so subsequent daily runs stay
+            # quiet until the owner moves review_date forward.
+            benefit.review_reminder_date = benefit.review_date
+            scheduled += 1
+        _logger.info("Benefit review cron: scheduled %d activities", scheduled)
 
     @api.depends("target_value", "actual_value")
     def _compute_achievement_pct(self) -> None:

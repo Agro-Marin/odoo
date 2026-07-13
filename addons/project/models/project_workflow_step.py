@@ -10,6 +10,7 @@ from typing import Any
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Command
 
 
 class ProjectWorkflowStep(models.Model):
@@ -135,6 +136,38 @@ class ProjectWorkflowStep(models.Model):
         required=True,
     )
 
+    @staticmethod
+    def _vals_assign_projects(vals: dict) -> bool:
+        """Whether ``vals`` actually assigns at least one project.
+
+        A non-empty command list that resolves to *no* project — e.g.
+        ``[(6, 0, [])]`` or ``[(5,)]`` — is falsy for our purposes: it must not
+        be mistaken for a project assignment (which would wrongly wipe
+        ``user_id`` and leave a step that is neither a project nor a personal
+        stage).
+        """
+        commands = vals.get("project_ids")
+        if not commands:
+            return False
+        resolved: set = set()
+        for command in commands:
+            # Bare ids (Odoo shorthand for a SET command).
+            if isinstance(command, int):
+                resolved.add(command)
+                continue
+            code = command[0]
+            if code == Command.CREATE:
+                resolved.add(command)  # a brand-new project will exist
+            elif code == Command.LINK:
+                resolved.add(command[1])
+            elif code == Command.SET:
+                resolved = set(command[2])
+            elif code == Command.CLEAR:
+                resolved = set()
+            elif code == Command.UNLINK:
+                resolved.discard(command[1])
+        return bool(resolved)
+
     @api.model_create_multi
     def create(self, vals_list: list[dict]) -> ProjectWorkflowStep:
         """Enforce mutual exclusivity between personal and project stages.
@@ -143,7 +176,7 @@ class ProjectWorkflowStep(models.Model):
         provided, ``user_id`` defaults to the current user (personal stage).
         """
         for vals in vals_list:
-            if vals.get("project_ids"):
+            if self._vals_assign_projects(vals):
                 vals.pop("user_id", None)
             elif "user_id" not in vals:
                 vals["user_id"] = self.env.uid
@@ -244,9 +277,10 @@ class ProjectWorkflowStep(models.Model):
             # Only the tasks currently IN this step, not every task of the
             # project: _send_task_rating_mail keys off each task's own step, so
             # blasting the whole project fires premature requests for tasks that
-            # sit in other (not-yet-due) periodic steps.
-            step.project_ids.task_ids.filtered(
-                lambda t, step=step: t.step_id == step
-            )._send_task_rating_mail()
+            # sit in other (not-yet-due) periodic steps. Search the step's tasks
+            # directly instead of materialising every task of every linked
+            # project and filtering in memory.
+            tasks = self.env["project.task"].search([("step_id", "=", step.id)])
+            tasks._send_task_rating_mail()
             step.rating_request_deadline = step._next_rating_deadline()
             self.env.cr.commit()

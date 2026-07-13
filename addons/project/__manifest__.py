@@ -1,6 +1,6 @@
 {
     "name": "Project",
-    "version": "1.9",
+    "version": "1.10",
     "website": "https://www.odoo.com/app/project",
     "category": "Services/Project",
     "sequence": 45,

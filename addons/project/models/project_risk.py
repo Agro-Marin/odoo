@@ -6,9 +6,6 @@ in top-5 critical success factors across meta-analyses.
 """
 
 from odoo import api, fields, models
-from odoo.tools import LazyTranslate
-
-_lt = LazyTranslate(__name__)
 
 
 class ProjectRisk(models.Model):
