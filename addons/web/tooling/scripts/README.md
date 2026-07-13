@@ -9,8 +9,10 @@ scripts pay that cost **once**: they keep one Odoo dev server warm across
 invocations and drive Chrome against it with Odoo's own `ChromeBrowser` CDP
 driver (imported from `odoo.tests.common` — not reinvented).
 
-Everything here runs with the workspace venv
-(`/home/marin/Odoo/venv/p314o19marin/bin/python`, hard-coded in the shebangs).
+Everything here runs with the workspace venv: the CLI shebangs are
+self-locating trampolines that pick the single venv under `<workspace>/venv/`
+(override with `$ODOO_VENV_PYTHON`; config resolution follows the
+`config/<venv-name>.conf` convention, override with `$ODOO_CONF`).
 
 ## Files
 

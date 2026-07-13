@@ -1,8 +1,9 @@
 """Shared helpers for the warm-server HOOT runner.
 
 This module is imported by the ``hoot`` and ``hoot-affected`` CLI scripts. It
-must be run with the workspace venv interpreter
-(``/home/marin/Odoo/venv/p314o19marin/bin/python``) because it imports the Odoo
+must be run with the workspace venv interpreter (the CLI shebang trampolines
+re-exec with it automatically; override with ``$ODOO_VENV_PYTHON``) because it
+imports the Odoo
 framework to reuse ``odoo.tests.common.ChromeBrowser`` (the exact CDP driver the
 real ``odoo-bin`` test loop uses) instead of reinventing a Chrome DevTools
 client.
@@ -29,13 +30,41 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
-# Static workspace layout (this fork's fixed dev environment)
+# Workspace layout — derived, never hardcoded.
+#
+# This file lives at <ws>/addons/odoo/addons/web/tooling/scripts/, so the odoo
+# checkout and the workspace root are fixed numbers of parents up. The venv is
+# whatever interpreter is running us (the CLI shebang trampolines guarantee it
+# is the workspace venv; ``$ODOO_VENV_PYTHON`` overrides). The conf follows
+# the workspace convention of one ``config/<venv-name>.conf`` per venv, with a
+# single-conf fallback and an ``$ODOO_CONF`` override.
 # --------------------------------------------------------------------------- #
-WORKSPACE = Path("/home/marin/Odoo")
-ODOO_ROOT = WORKSPACE / "addons" / "odoo"
-VENV_PY = WORKSPACE / "venv" / "p314o19marin" / "bin" / "python"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+ODOO_ROOT = _SCRIPT_DIR.parents[3]
+WORKSPACE = ODOO_ROOT.parents[1]
+VENV_PY = Path(os.environ.get("ODOO_VENV_PYTHON", sys.executable))
 ODOO_BIN = ODOO_ROOT / "odoo-bin"
-CONF = WORKSPACE / "config" / "p314o19marin.conf"
+
+
+def _find_conf() -> Path:
+    override = os.environ.get("ODOO_CONF")
+    if override:
+        return Path(override)
+    # Workspace convention: config/<name>.conf pairs with venv/<name>/.
+    venv_name = VENV_PY.parent.parent.name
+    candidate = WORKSPACE / "config" / f"{venv_name}.conf"
+    if candidate.exists():
+        return candidate
+    confs = sorted((WORKSPACE / "config").glob("*.conf"))
+    if len(confs) == 1:
+        return confs[0]
+    raise SystemExit(
+        f"hoot: cannot pick a config under {WORKSPACE / 'config'} "
+        f"(no {candidate.name}, found {[c.name for c in confs]}); set $ODOO_CONF"
+    )
+
+
+CONF = _find_conf()
 
 # Our dedicated slice of the world. Port 8069 + db ``wjsaudit`` are OFF-LIMITS.
 PORT_RANGE = range(8085, 8090)

@@ -68,6 +68,7 @@ _ESM_MANIFEST_KEYS = frozenset(
         "dynamic_children",
         "import_map_includes",
         "secondary_import_map_includes",
+        "standalone_bundles",
     }
 )
 
@@ -82,6 +83,11 @@ class EsmRegistry(NamedTuple):
     # Flat sets for O(1) membership checks — derived from the mappings.
     dynamic_bundle_names: frozenset
     import_map_included_bundles: frozenset
+    # Bundles compiled WITHOUT the page-context glue (no ``@odoo/owl``
+    # external import, no ``odoo.loader.registerNativeModules`` trailer):
+    # self-contained artifacts for non-page runtimes such as web workers,
+    # where neither an import map nor the ``odoo`` global exists.
+    standalone_bundles: frozenset = frozenset()
 
 
 _lock = threading.Lock()
@@ -136,6 +142,7 @@ def _build() -> EsmRegistry:
     dynamic_children: dict = {}
     import_map_includes: dict = {}
     secondary_includes: dict = {}
+    standalone_bundles: set = set()
     declaring_modules = 0
     for manifest in Manifest.all_addon_manifests():
         esm = manifest.get("esm")
@@ -161,6 +168,13 @@ def _build() -> EsmRegistry:
                 f"not a bare string"
             )
         bundles.update(declared_bundles)
+        declared_standalone = esm.get("standalone_bundles", ())
+        if isinstance(declared_standalone, str):
+            raise TypeError(
+                f"Module {manifest.name!r}: 'esm.standalone_bundles' must be "
+                f"a list, not a bare string"
+            )
+        standalone_bundles.update(declared_standalone)
         for target, key in (
             (dynamic_children, "dynamic_children"),
             (import_map_includes, "import_map_includes"),
@@ -170,7 +184,11 @@ def _build() -> EsmRegistry:
                 _merge_mapping(target, esm[key], module=manifest.name, key=key)
 
     validate_esm_config(
-        bundles, dynamic_children, import_map_includes, secondary_includes
+        bundles,
+        dynamic_children,
+        import_map_includes,
+        secondary_includes,
+        standalone_bundles=standalone_bundles,
     )
     registry = EsmRegistry(
         bundles=frozenset(bundles),
@@ -189,6 +207,7 @@ def _build() -> EsmRegistry:
         import_map_included_bundles=frozenset(
             child for children in import_map_includes.values() for child in children
         ),
+        standalone_bundles=frozenset(standalone_bundles),
     )
     log_event(
         _registry_log,
@@ -207,6 +226,8 @@ def validate_esm_config(
     dynamic_children: Mapping,
     import_map_includes: Mapping,
     secondary_import_map_includes: Mapping,
+    *,
+    standalone_bundles: set = frozenset(),
 ) -> None:
     """Sanity-check the aggregated ESM bundle classification.
 
@@ -259,4 +280,21 @@ def validate_esm_config(
             raise ValueError(
                 f"Bundles declared both as dynamic children and import-map "
                 f"includes of parent {parent!r}: {sorted(shared)}"
+            )
+
+    for name in standalone_bundles:
+        if name not in bundles:
+            raise ValueError(
+                f"esm.standalone_bundles entry {name!r} is not a registered "
+                f"ESM bundle (add it to the same module's 'esm.bundles')"
+            )
+        if (
+            name
+            in {child for children in dynamic_children.values() for child in children}
+            or name in import_map_includes
+        ):
+            raise ValueError(
+                f"esm.standalone_bundles entry {name!r} cannot participate in "
+                f"page import-map relationships: a standalone bundle has no "
+                f"import map or odoo.loader at runtime"
             )

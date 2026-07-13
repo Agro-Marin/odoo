@@ -228,6 +228,7 @@ class EsbuildCompiler:
         *,
         import_map_included: bool = False,
         skip_legacy_test_imports: bool = False,
+        standalone: bool = False,
         addon_flags_provider: Callable[[Path], tuple[list[str], list[str]]]
         | None = None,
     ) -> None:
@@ -240,6 +241,11 @@ class EsbuildCompiler:
         self.javascripts = list(javascripts)
         self._import_map_included = import_map_included
         self._skip_legacy_test_imports = skip_legacy_test_imports
+        # Standalone bundles (esm.standalone_bundles) target non-page
+        # runtimes (web workers): the entry imports modules only for their
+        # side effects — no ``@odoo/owl`` external, no ``odoo.loader``
+        # registration trailer, both of which would crash outside a page.
+        self._standalone = standalone
         self._addon_flags_provider = (
             addon_flags_provider or self._get_esbuild_addon_flags
         )
@@ -695,7 +701,19 @@ class EsbuildCompiler:
         the ``registerNativeModules({...})`` call, and the
         ``odoo.loader.modules.set(...)`` aliases for the hoot family.  The
         caller joins these with newlines into the temp entry file.
+
+        Standalone bundles skip all of that page-context glue: the entry
+        imports each module purely for its side effects.
         """
+        if self._standalone:
+            entry_lines = []
+            for asset in self.native_modules:
+                if asset._filename:
+                    path = os.path.relpath(asset._filename, odoo_root)
+                else:
+                    path = f"addons{asset.url}"
+                entry_lines.append(f"import {json.dumps('./' + path)};")
+            return entry_lines
         entry_lines = []
         register_entries = []
         # Specifiers actually handed to ``registerNativeModules`` — used
