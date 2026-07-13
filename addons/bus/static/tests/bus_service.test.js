@@ -688,6 +688,39 @@ test("channels are replayed after a bfcache restore", async () => {
     expect(worker._getAllChannels()).toInclude("lambda");
 });
 
+test("offline does not resurrect a stopped tab (no BUS:STOP after stop())", async () => {
+    // After stop() this tab is inactive and was dropped worker-side. An
+    // unconditional `offline` BUS:STOP, combined with the worker re-registering
+    // on some actions, would silently resurrect it. The handler is guarded by
+    // isActive, like `online`/`pageshow`.
+    await makeMockEnv();
+    const bus = getService("bus_service");
+    bus.addChannel("a");
+    await waitForChannels(["a"]);
+    stepWorkerActions(["BUS:STOP", "BUS:LEAVE"]);
+    bus.stop();
+    await waitForSteps(["BUS:LEAVE"]);
+    manuallyDispatchProgrammaticEvent(window, "offline");
+    await runAllTimers();
+    // Inactive tab: no BUS:STOP is forwarded to the worker.
+    await waitForSteps([]);
+});
+
+test("visibilitychange to visible resends BUS:START while active", async () => {
+    // A tab frozen by Page Lifecycle (Chromium Memory Saver) or system suspend
+    // resumes via visibilitychange, never `pageshow`. BUS:START lets the worker
+    // re-register it if it was evicted while frozen (answered with BUS:RESYNC);
+    // the worker no-ops when the socket is already connected.
+    await makeMockEnv();
+    const bus = getService("bus_service");
+    bus.addChannel("a");
+    await waitForChannels(["a"]);
+    stepWorkerActions(["BUS:START"]);
+    manuallyDispatchProgrammaticEvent(document, "visibilitychange");
+    await runAllTimers();
+    await waitForSteps(["BUS:START"]);
+});
+
 test("J2: stop() then start() replays this tab's channels", async () => {
     await makeMockEnv();
     const bus = getService("bus_service");
@@ -758,17 +791,17 @@ test("J2: page-side over-release of a channel warns", async () => {
     ]);
 });
 
-test("J7: ELECTION:*/BASE:* never reach the public bus; unknown BUS:* rebroadcasts", async () => {
+test("J7: non-BUS:* worker broadcasts never reach the public bus; unknown BUS:* rebroadcasts", async () => {
     addBusServiceListeners(
         ["BUS:CUSTOM_EVENT", () => asyncStep("BUS:CUSTOM_EVENT")],
-        ["ELECTION:SOMETHING", () => asyncStep("ELECTION:SOMETHING")],
         ["BASE:SOMETHING", () => asyncStep("BASE:SOMETHING")],
+        ["SOMETHING:ELSE", () => asyncStep("SOMETHING:ELSE")],
     );
     await makeMockEnv();
     startBusService();
     const worker = getWebSocketWorker();
-    worker.broadcast("ELECTION:SOMETHING", {});
     worker.broadcast("BASE:SOMETHING", {});
+    worker.broadcast("SOMETHING:ELSE", {});
     worker.broadcast("BUS:CUSTOM_EVENT", {});
     await runAllTimers();
     // Only the application-level BUS: event surfaced on the public bus.
