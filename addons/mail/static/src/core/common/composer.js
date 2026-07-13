@@ -738,13 +738,22 @@ export class Composer extends Component {
                 return;
             }
             this.state.active = false;
-            await cb(trimEmptyBlocksAround(this.props.composer.composerHtml));
-            if (this.props.onPostCallback) {
-                this.props.onPostCallback();
+            try {
+                await cb(trimEmptyBlocksAround(this.props.composer.composerHtml));
+                if (this.props.onPostCallback) {
+                    this.props.onPostCallback();
+                }
+                // Only clear the composer on success; a failed post must keep
+                // the user's draft.
+                this.clear();
+                this.ref.el?.focus();
+            } finally {
+                // Always re-enable: on a record thread cb() rethrows RPC
+                // failures (unlike the fire-and-forget channel path), and
+                // without this the composer stays disabled until remount,
+                // silently swallowing every later send.
+                this.state.active = true;
             }
-            this.clear();
-            this.state.active = true;
-            this.ref.el?.focus();
         }
     }
 

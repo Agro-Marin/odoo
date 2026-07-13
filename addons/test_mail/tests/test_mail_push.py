@@ -23,6 +23,17 @@ class TestWebPushNotification(SMSCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # push_to_end_point's SSRF guard (_classify_url_safety) does real DNS on
+        # the dummy test.odoo.com endpoints these tests use; force SAFE so the
+        # suite exercises encryption/delivery without depending on live DNS.
+        # Tests that need a specific classification patch it themselves.
+        from odoo.addons.mail.tools import web_push
+        from odoo.addons.mail.tools.link_preview import UrlSafety
+        _safety_patcher = patch.object(
+            web_push, '_classify_url_safety', return_value=UrlSafety.SAFE)
+        _safety_patcher.start()
+        cls.addClassCleanup(_safety_patcher.stop)
+
         cls.user_email = cls.user_employee
         cls.user_email.notification_type = 'email'
 
@@ -565,6 +576,92 @@ class TestWebPushNotification(SMSCommon):
                 partner_id=self.user_email.partner_id.id,
                 vapid_public_key=self.vapid_public_key,
             )
+
+    def test_register_devices_endpoint_rotation(self):
+        """A push subscription endpoint rotation must update the existing
+        device row in place rather than orphan it and create a duplicate. The
+        web client signals the rotation via a snake_case ``previous_endpoint``
+        kwarg (the service worker uses camelCase ``previousEndpoint``); both
+        must be honored."""
+        Device = self.env['mail.push.device']
+        keys = {
+            'p256dh': 'BGbhnoP_91U7oR59BaaSx0JnDv2oEooYnJRV2AbY5TBeKGCRCf0HcIJ9bOKchUCDH4cHYWo9SYDz3U-8vSxPL_A',
+            'auth': 'DJFdtAgZwrT6yYkUMgUqow',
+        }
+        old_endpoint = 'https://test.odoo.com/webpush/rotate-old'
+        new_endpoint = 'https://test.odoo.com/webpush/rotate-new'
+        for hint in ('previous_endpoint', 'previousEndpoint'):
+            with self.subTest(hint=hint):
+                Device.sudo().search(
+                    [('endpoint', 'in', [old_endpoint, new_endpoint])]).unlink()
+                Device.with_user(self.user_email).register_devices(
+                    endpoint=old_endpoint, expirationTime=None, keys=keys,
+                    vapid_public_key=self.vapid_public_key,
+                )
+                original = Device.sudo().search([('endpoint', '=', old_endpoint)])
+                self.assertEqual(len(original), 1)
+                # rotation: same subscription, new endpoint, old one passed as hint
+                Device.with_user(self.user_email).register_devices(
+                    endpoint=new_endpoint, expirationTime=None, keys=keys,
+                    vapid_public_key=self.vapid_public_key, **{hint: old_endpoint},
+                )
+                self.assertFalse(
+                    Device.sudo().search([('endpoint', '=', old_endpoint)]),
+                    "old endpoint row must be updated in place, not orphaned",
+                )
+                rotated = Device.sudo().search([('endpoint', '=', new_endpoint)])
+                self.assertEqual(rotated, original, "same row, endpoint rotated in place")
+
+    def test_classify_url_safety(self):
+        """A non-global address is BLOCKED (permanently bad); a resolution
+        failure is UNRESOLVABLE (transient) — never conflate the two."""
+        from odoo.addons.mail.tools import link_preview
+        from odoo.addons.mail.tools.link_preview import UrlSafety
+        with patch.object(
+            link_preview.socket, 'getaddrinfo',
+            return_value=[(2, 1, 6, '', ('10.0.0.1', 443))],
+        ):
+            self.assertEqual(
+                link_preview._classify_url_safety('https://x.test/'), UrlSafety.BLOCKED)
+        with patch.object(
+            link_preview.socket, 'getaddrinfo',
+            return_value=[(2, 1, 6, '', ('93.184.216.34', 443))],
+        ):
+            self.assertEqual(
+                link_preview._classify_url_safety('https://x.test/'), UrlSafety.SAFE)
+        with patch.object(link_preview.socket, 'getaddrinfo', side_effect=socket.gaierror):
+            self.assertEqual(
+                link_preview._classify_url_safety('https://x.test/'), UrlSafety.UNRESOLVABLE)
+
+    def test_web_push_transient_failure_keeps_device(self):
+        """A transient endpoint-resolution failure must NOT delete the push
+        device (regression: it used to wipe every device in the batch on a DNS
+        blip); only a permanently-invalid (non-global) endpoint is deleted.
+        Patches the safety classifier so the real push_to_end_point exception
+        mapping and the caller's unlink decision are exercised together."""
+        from odoo.addons.mail.tools import web_push
+        from odoo.addons.mail.tools.link_preview import UrlSafety
+        device = self.env['mail.push.device'].sudo().search(
+            [('partner_id', '=', self.user_email.partner_id.id)], limit=1)
+        self.assertTrue(device)
+
+        # endpoint host cannot be resolved right now -> keep the device
+        with patch.object(
+            web_push, '_classify_url_safety', return_value=UrlSafety.UNRESOLVABLE
+        ):
+            self.record_simple._web_push_send_notification(
+                device, 'priv', 'pub', payload={'title': 't'})
+        self.assertTrue(
+            device.exists(), "transient resolution failure must keep the device")
+
+        # endpoint resolves to a non-global address -> bogus subscription, delete
+        with patch.object(
+            web_push, '_classify_url_safety', return_value=UrlSafety.BLOCKED
+        ):
+            self.record_simple._web_push_send_notification(
+                device, 'priv', 'pub', payload={'title': 't'})
+        self.assertFalse(
+            device.exists(), "endpoint resolving to a non-global address is deleted")
 
     @patch.object(
         odoo.addons.mail.models.mail_thread.Session, 'post', return_value=SimpleNamespace(status_code=201, text='Ok')

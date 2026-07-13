@@ -529,10 +529,21 @@ def fromstring(
         body.text = None
         body.append(p)
     elif body.text and body.text.strip() and _contains_block_level_tag(body):
-        # Text before block elements - wrap leading text in <p>
+        # Leading text before the first block-level element. lxml 5 wrapped the
+        # leading text TOGETHER with the inline run that follows it (e.g. <br>)
+        # up to that block element into a single <p>; lxml 6 drops the wrap
+        # entirely. Replicate lxml 5 faithfully by moving those inline siblings
+        # into the paragraph too — otherwise a separator such as
+        # "text<br>-----<br><p>…</p>" leaves the <br> run stranded outside the
+        # paragraph ("<p>text</p><br>-----<br>…" instead of
+        # "<p>text<br>-----<br></p>…"), changing stored chatter/notification
+        # markup.
         p = etree.Element("p")
         p.text = body.text
         body.text = None
+        while len(body) and body[0].tag not in defs.block_tags:
+            # append moves the node out of body (carrying its tail with it)
+            p.append(body[0])
         body.insert(0, p)
     elif body.text and body.text.strip() and len(body) > 0:
         # Text mixed with inline-only elements (e.g., "text<span>...</span>")

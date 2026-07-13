@@ -1,3 +1,4 @@
+import enum
 import ipaddress
 import logging
 import re
@@ -18,17 +19,36 @@ MAX_HEAD_BYTES = 512 * 1024
 MAX_REDIRECTS = 5
 
 
-def _url_is_safe(url):
-    """Return True only if ``url`` is an http(s) URL whose host resolves
-    exclusively to public IP addresses.
+class UrlSafety(enum.Enum):
+    """Outcome of resolving and classifying a URL's host.
 
-    The link previewer fetches arbitrary URLs pulled from message bodies,
-    server-side and as sudo, so without this guard any user who can post a
-    message could drive a request to internal services (SSRF) —
+    Callers that only decide "may I fetch this?" collapse everything but SAFE
+    to "no" (see :func:`_url_is_safe`). Callers that also decide whether the
+    target is *permanently* bad (e.g. web push, which deletes the subscription)
+    must NOT confuse BLOCKED (definitively unsafe) with UNRESOLVABLE (transient
+    / undeterminable) — see ``web_push.push_to_end_point``.
+    """
+
+    SAFE = "safe"  # resolved exclusively to public (global) addresses
+    BLOCKED = "blocked"  # resolved to a non-global address; never contact it
+    UNRESOLVABLE = "unresolvable"  # bad scheme/host, or DNS could not resolve now
+
+
+def _classify_url_safety(url):
+    """Resolve ``url``'s host and classify it (see :class:`UrlSafety`).
+
+    ``url`` may be attacker-controlled (link-preview targets pulled from message
+    bodies, web-push endpoints registered by any user) and is contacted
+    server-side as sudo, so without this guard it becomes an SSRF primitive —
     ``http://169.254.169.254/…`` (cloud metadata), ``http://localhost:8069/…``,
     private ranges, etc. ``ipaddress.is_global`` is False for
-    loopback/private/link-local/reserved/multicast/CGNAT, which is exactly the
-    set we want to reject.
+    loopback/private/link-local/reserved/multicast/CGNAT, exactly the set to
+    reject.
+
+    A DNS resolution failure is reported as UNRESOLVABLE, NOT BLOCKED: it is
+    transient (a resolver blip, or a proxy-only egress where getaddrinfo fails
+    but the request would still route), so a caller must not treat it as a
+    permanent "this target is bad" signal.
 
     Caveat: validation happens at resolution time; an attacker who controls DNS
     could still rebind between this check and the socket connect (residual
@@ -37,28 +57,37 @@ def _url_is_safe(url):
     """
     split = urlsplit(url)
     if split.scheme not in ("http", "https"):
-        return False
+        return UrlSafety.UNRESOLVABLE
     try:
         host = split.hostname
         port = split.port or (443 if split.scheme == "https" else 80)
     except ValueError:
-        return False
+        return UrlSafety.UNRESOLVABLE
     if not host:
-        return False
+        return UrlSafety.UNRESOLVABLE
     try:
         addrinfos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror, UnicodeError, ValueError:
-        return False
+        return UrlSafety.UNRESOLVABLE
     if not addrinfos:
-        return False
+        return UrlSafety.UNRESOLVABLE
     for *_, sockaddr in addrinfos:
         try:
             ip = ipaddress.ip_address(sockaddr[0])
         except ValueError:
-            return False
+            # A resolved address we cannot even parse: do not contact it, but do
+            # not treat it as a permanent target failure either.
+            return UrlSafety.UNRESOLVABLE
         if not ip.is_global:
-            return False
-    return True
+            return UrlSafety.BLOCKED
+    return UrlSafety.SAFE
+
+
+def _url_is_safe(url):
+    """Return True only if ``url`` is an http(s) URL whose host resolves
+    exclusively to public IP addresses. Thin bool wrapper over
+    :func:`_classify_url_safety` for callers that only gate fetching."""
+    return _classify_url_safety(url) is UrlSafety.SAFE
 
 
 def _fetch_link_preview_response(url, request_session, headers):
@@ -113,20 +142,25 @@ def get_link_preview_from_url(url, request_session=None):
         return False
     if response is None:
         return False
-    if not response.ok or not response.headers.get("Content-Type"):
+    # Close the streamed connection on every exit path (requests.Response as a
+    # context manager calls .close()); otherwise the image branch and
+    # get_link_preview_from_html's early break leave sockets dangling on the
+    # shared session until GC.
+    with response:
+        if not response.ok or not response.headers.get("Content-Type"):
+            return False
+        # Content-Type header can return a charset, but we just need the
+        # mimetype (eg: image/jpeg;charset=ISO-8859-1)
+        content_type = response.headers["Content-Type"].split(";")
+        if response.headers["Content-Type"].startswith("image/"):
+            return {
+                "image_mimetype": content_type[0],
+                "og_image": url,  # If the url mimetype is already an image type, set url as preview image
+                "source_url": url,
+            }
+        elif response.headers["Content-Type"].startswith("text/html"):
+            return get_link_preview_from_html(url, response)
         return False
-    # Content-Type header can return a charset, but we just need the
-    # mimetype (eg: image/jpeg;charset=ISO-8859-1)
-    content_type = response.headers["Content-Type"].split(";")
-    if response.headers["Content-Type"].startswith("image/"):
-        return {
-            "image_mimetype": content_type[0],
-            "og_image": url,  # If the url mimetype is already an image type, set url as preview image
-            "source_url": url,
-        }
-    elif response.headers["Content-Type"].startswith("text/html"):
-        return get_link_preview_from_html(url, response)
-    return False
 
 
 def get_link_preview_from_html(url, response):
@@ -155,9 +189,29 @@ def get_link_preview_from_html(url, response):
     if not content:
         return False
 
-    # chardet may return {"encoding": None}; .get(..., "utf-8") keeps that None,
-    # so fall back explicitly rather than relying on decode() raising TypeError.
-    encoding = response.encoding or chardet.detect(content).get("encoding") or "utf-8"
+    # requests defaults a text/* response with no explicit charset in its
+    # Content-Type header to ISO-8859-1 (RFC 2616 §3.7.1), so response.encoding
+    # is essentially always truthy for text/html. Trusting it decodes a UTF-8
+    # page that declares its charset only via <meta charset> (very common) as
+    # latin-1 -> mojibake in og_title/og_description. When no charset was
+    # declared in the header, prefer the HTML5 default utf-8: valid UTF-8 bytes
+    # essentially never decode cleanly under an unintended charset, so a
+    # successful strict utf-8 decode is decisive. Only fall back to the header
+    # guess / chardet when the bytes are not valid utf-8.
+    header_declared_charset = (
+        "charset=" in response.headers.get("Content-Type", "").lower()
+    )
+    if header_declared_charset:
+        encoding = response.encoding
+    else:
+        try:
+            content.decode("utf-8")
+            encoding = "utf-8"
+        except UnicodeDecodeError:
+            # chardet may return {"encoding": None}; keep an explicit fallback.
+            encoding = (
+                response.encoding or chardet.detect(content).get("encoding") or "utf-8"
+            )
     try:
         decoded_content = content.decode(encoding)
     except UnicodeDecodeError, TypeError:

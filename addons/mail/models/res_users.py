@@ -607,12 +607,21 @@ class ResUsers(models.Model):
                     .with_context(allowed_company_ids=user_company_ids)
                     ._filtered_access("read")
                 )
-            model_activity_states[model_name] = {
-                "overdue_count": 0,
-                "today_count": 0,
-                "planned_count": 0,
-                "total_count": 0,
-            }
+            # setdefault, not assignment: activities on unreadable records of
+            # *other* models are counted into the shared "mail.activity" bucket
+            # (model_key below), and model-less activities also key on
+            # "mail.activity". Re-assigning here would zero that bucket when the
+            # "mail.activity" group is iterated after those models, dropping
+            # their counts from the systray total.
+            model_activity_states.setdefault(
+                model_name,
+                {
+                    "overdue_count": 0,
+                    "today_count": 0,
+                    "planned_count": 0,
+                    "total_count": 0,
+                },
+            )
             # pre-compute sets for O(1) membership checks
             unallowed_ids = set(unallowed_records._ids)
             allowed_ids = set(allowed_records._ids)

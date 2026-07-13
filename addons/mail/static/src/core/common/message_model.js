@@ -738,7 +738,8 @@ export class Message extends Record {
         // Optimistic UI update: immediately mark as read so the notification
         // disappears and the systray counter decreases without waiting for
         // the bus notification.
-        if (this.needaction) {
+        const wasNeedaction = this.needaction;
+        if (wasNeedaction) {
             this.needaction = false;
             this.store.inbox.messages.delete(this);
             this.store.inbox.counter--;
@@ -746,11 +747,28 @@ export class Message extends Record {
                 this.thread.message_needaction_counter--;
             }
         }
-        await this.store.env.services.orm.silent.call(
-            "mail.message",
-            "set_message_done",
-            [[this.id]],
-        );
+        try {
+            await this.store.env.services.orm.silent.call(
+                "mail.message",
+                "set_message_done",
+                [[this.id]],
+            );
+        } catch (e) {
+            // Roll back the optimistic update: the server still has the message
+            // as needaction and no correcting bus notification will arrive, so
+            // without this the inbox and its counter stay wrong until reload.
+            // These call sites are fire-and-forget, so swallow (log) rather
+            // than surface an unhandled rejection / crash dialog.
+            if (wasNeedaction) {
+                this.needaction = true;
+                this.store.inbox.messages.add(this);
+                this.store.inbox.counter++;
+                if (this.thread) {
+                    this.thread.message_needaction_counter++;
+                }
+            }
+            console.warn("Failed to mark message as read", e);
+        }
     }
 
     async toggleStar() {

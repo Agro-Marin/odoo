@@ -33,6 +33,12 @@ class MailThreadBlacklist(models.AbstractModel):
         compute="_compute_email_normalized",
         compute_sudo=True,
         store=True,
+        # Indexed (skipping NULLs): the mail gateway searches this column with
+        # an equality per blacklist-enabled model for every inbound email
+        # (_routing_reset_bounce) and every bounce (_routing_handle_bounce);
+        # on large crm.lead / mailing.contact / hr.applicant tables an
+        # unindexed scan per model dominates gateway latency.
+        index="btree_not_null",
         help="This field is used to search on email address as the primary email field can contain more than strictly an email address.",
     )
     # Note : is_blacklisted sould only be used for display. As the compute is not depending on the blacklist,

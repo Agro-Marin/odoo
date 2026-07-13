@@ -4,7 +4,11 @@ from requests import Session
 
 from odoo import api, fields, models
 
-from odoo.addons.mail.tools.web_push import DeviceUnreachableError, push_to_end_point
+from odoo.addons.mail.tools.web_push import (
+    DeviceUnreachableError,
+    PushEndpointUnresolvableError,
+    push_to_end_point,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -60,6 +64,13 @@ class MailPush(models.Model):
                 )
             except DeviceUnreachableError:
                 devices_to_unlink.add(device.id)
+            except PushEndpointUnresolvableError:
+                # transient (DNS blip / proxy-only egress): keep the device and
+                # retry on the next cron run rather than deleting it
+                _logger.info(
+                    "Push endpoint temporarily unresolvable, keeping device %s",
+                    device.id,
+                )
             except Exception as e:
                 # Avoid blocking the whole cron just for a notification exception
                 _logger.error("An error occurred while trying to send web push: %s", e)

@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
-from odoo import api, fields, models
+from odoo import api, fields, models, modules
 
 _logger = logging.getLogger(__name__)
 
@@ -42,12 +42,57 @@ class MailMessageSchedule(models.Model):
 
     @api.model
     def _send_notifications_cron(self):
-        messages_scheduled = self.env["mail.message.schedule"].search(
-            [("scheduled_datetime", "<=", datetime.now(UTC))]
+        batch_size = int(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("mail.scheduled_notification.batch.size", 500)
         )
-        if messages_scheduled:
-            _logger.info("Send %s scheduled messages", len(messages_scheduled))
-            messages_scheduled._send_notifications()
+        # limit + 1: detect whether a follow-up run is needed without a count()
+        messages_scheduled = self.env["mail.message.schedule"].search(
+            [("scheduled_datetime", "<=", datetime.now(UTC))],
+            limit=batch_size + 1,
+        )
+        has_more = len(messages_scheduled) > batch_size
+        messages_scheduled = messages_scheduled[:batch_size]
+        if not messages_scheduled:
+            return
+        _logger.info("Send %s scheduled messages", len(messages_scheduled))
+        # Isolate each schedule: without this, a single failing _notify_thread
+        # (broken template, recipient with a bad lang/company, uninstalled
+        # model, …) would roll back the whole batch and be retried unchanged on
+        # every cron tick, indefinitely blocking every other user's scheduled
+        # notifications (poison pill). Commit per schedule and drop failed rows,
+        # mirroring mail.scheduled.message._post_message. skip_existing=True
+        # already guards against re-notifying on replay.
+        auto_commit = not modules.module.current_test
+        for schedule in messages_scheduled:
+            try:
+                schedule._send_notifications()
+                if auto_commit:
+                    self.env.cr.commit()
+            except Exception:
+                _logger.warning(
+                    "Sending of scheduled notification %s failed; dropping it",
+                    schedule.id,
+                    exc_info=True,
+                )
+                if auto_commit:
+                    self.env.cr.rollback()
+                try:
+                    schedule.unlink()
+                except Exception:
+                    _logger.exception(
+                        "Could not drop the failed scheduled notification %s",
+                        schedule.id,
+                    )
+                    if auto_commit:
+                        self.env.cr.rollback()
+                if auto_commit:
+                    self.env.cr.commit()
+        # More than one batch was due: re-trigger so the queue drains promptly
+        # instead of waiting for the cron's next natural tick.
+        if has_more:
+            self.env.ref("mail.ir_cron_send_scheduled_message")._trigger()
 
     def force_send(self):
         """Launch notification process independently from the expected date."""

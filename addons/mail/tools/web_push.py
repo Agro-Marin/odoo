@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from . import jwt
-from .link_preview import _url_is_safe
+from .link_preview import UrlSafety, _classify_url_safety
 
 MAX_PAYLOAD_SIZE = 4096
 
@@ -48,7 +48,14 @@ _logger = logger.getLogger(__name__)
 
 
 class DeviceUnreachableError(Exception):
-    pass
+    """The endpoint is permanently invalid (bogus/internal host, 404, 410):
+    callers delete the device."""
+
+
+class PushEndpointUnresolvableError(Exception):
+    """The endpoint host could not be resolved right now (DNS blip, proxy-only
+    egress). Transient — callers must keep the device and retry later, NOT
+    delete it."""
 
 
 # ------------------------------------------------------------
@@ -157,14 +164,24 @@ def push_to_end_point(
     # The TDL ".invalid" is intended for use in online construction of domain names that are sure to be invalid and
     # which it is obvious at a glance are invalid.
     # https://datatracker.ietf.org/doc/html/rfc2606#section-2
-    if url.netloc.endswith(".invalid"):
+    if (url.hostname or "").endswith(".invalid"):
         raise DeviceUnreachableError("Device Unreachable")
     # SSRF guard: ``endpoint`` is attacker-controlled (any authenticated user
     # registers their own push device). The cron POSTs to it under sudo, so an
     # endpoint pointing at loopback / link-local / private ranges (e.g. the
     # cloud metadata service) would turn this into a blind SSRF primitive.
-    if not _url_is_safe(endpoint):
+    #
+    # Distinguish a BLOCKED endpoint (resolves to a non-global address — a bogus
+    # subscription, delete it) from an UNRESOLVABLE one (DNS blip, proxy-only
+    # egress). Treating the latter as unreachable used to delete every device in
+    # the batch on a transient resolver failure, silently and permanently losing
+    # users' web-push registrations; raise a retryable error instead so the
+    # caller keeps the device.
+    safety = _classify_url_safety(endpoint)
+    if safety is UrlSafety.BLOCKED:
         raise DeviceUnreachableError("Device Unreachable")
+    if safety is UrlSafety.UNRESOLVABLE:
+        raise PushEndpointUnresolvableError(endpoint)
     jwt_claims = {
         # aud: The “Audience” is a JWT construct that indicates the recipient scheme and host
         # e.g. for an endpoint like https://updates.push.services.mozilla.com/wpush/v2/gAAAAABY...,

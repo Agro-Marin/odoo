@@ -32,6 +32,7 @@ import {
     Command,
     getService,
     makeKwArgs,
+    makeServerError,
     mockService,
     onRpc,
     patchWithCleanup,
@@ -959,6 +960,41 @@ test('mark a single message as read should only move this message to "History" m
     await contains("button.o-active", { text: "History" });
     await contains(".o-mail-Message");
     await contains(".o-mail-Message-content", { text: "not empty 1" });
+});
+
+test("failed mark-as-read rolls back so the message stays in Inbox", async () => {
+    // Regression: setDone optimistically removed the message and decremented
+    // the counter before the RPC; on failure no correcting bus event arrives,
+    // so without a rollback the inbox and its counter stayed wrong until a
+    // reload. The message must be restored on failure.
+    const pyEnv = await startServer();
+    pyEnv["res.users"].write(serverState.userId, { notification_type: "inbox" });
+    const messageId = pyEnv["mail.message"].create({
+        body: "needy",
+        needaction: true,
+        model: "res.partner",
+        res_id: serverState.partnerId,
+    });
+    pyEnv["mail.notification"].create({
+        mail_message_id: messageId,
+        notification_type: "inbox",
+        res_partner_id: serverState.partnerId,
+    });
+    onRpc("mail.message", "set_message_done", () => {
+        asyncStep("set_message_done");
+        throw makeServerError({ message: "done boom" });
+    });
+    await start();
+    await openDiscuss("mail.box_inbox");
+    await contains(".o-mail-Message", { text: "needy" });
+    await click("[title='Mark as Read']", {
+        parent: [".o-mail-Message", { text: "needy" }],
+    });
+    // the mark-as-read RPC was attempted and failed...
+    await waitForSteps(["set_message_done"]);
+    // ...and the optimistic removal was rolled back: the message is still in
+    // the inbox (before the fix it was dropped with no correcting bus event).
+    await contains(".o-mail-Message", { text: "needy" });
 });
 
 test('all messages in "Inbox" in "History" after marked all as read', async () => {

@@ -233,6 +233,36 @@ class TestMailRender(TestMailRenderCommon):
             self.assertEqual(rendered, expected)
 
     @users("employee")
+    def test_render_qweb_compiles_once_per_batch(self):
+        """A batch qweb render compiles the template once, not once per record:
+        etree templates are not ormcached, so without a shared compile cache
+        each record re-ran codegen + compile() + eval (perf regression guard)."""
+        template = self.env["mail.template"].create({
+            "name": "Batch perf",
+            "model_id": self.env["ir.model"]._get_id("res.partner"),
+            "body_html": '<p>Hi <t t-out="object.name"/> #<t t-out="object.id"/></p>',
+        })
+        partners = self.env["res.partner"].create(
+            [{"name": "P%d" % idx} for idx in range(6)]
+        )
+        ir_qweb_cls = type(self.env["ir.qweb"])
+        origin = ir_qweb_cls._generate_code_uncached
+        compiles = []
+
+        def _counting(self, template_arg):
+            compiles.append(template_arg)
+            return origin(self, template_arg)
+
+        with patch.object(ir_qweb_cls, "_generate_code_uncached", _counting):
+            rendered = template._render_field("body_html", partners.ids)
+        self.assertEqual(
+            len(compiles), 1,
+            "qweb template must be compiled once for the batch, not per record",
+        )
+        for partner in partners:
+            self.assertIn(partner.name, rendered[partner.id])
+
+    @users("employee")
     def test_render_field_lang(self):
         """Test translation in french"""
         template = self.env["mail.template"].browse(self.test_template.ids)

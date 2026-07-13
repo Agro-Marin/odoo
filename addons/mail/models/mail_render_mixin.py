@@ -77,6 +77,28 @@ class MailRenderMixin(models.AbstractModel):
         self.render_model = False
 
     @api.model
+    def _get_mail_batch_size(self, default=50):
+        """Read the ``mail.batch_size`` ICP, tolerating a malformed value.
+
+        A garbage ICP (e.g. ``"50 emails"``) would otherwise crash the
+        mass-send loops with ValueError; a 0 would skip every iteration. Both
+        the template (``send_mail_batch``) and the composer
+        (``_action_send_mail_mass_mail``) go through here so the fallback is
+        applied consistently.
+        """
+        try:
+            batch_size = int(
+                self.env["ir.config_parameter"].sudo().get_param("mail.batch_size") or 0
+            )
+        except ValueError:
+            _logger.warning(
+                "Malformed ICP 'mail.batch_size', falling back to default %s",
+                default,
+            )
+            batch_size = 0
+        return batch_size or default
+
+    @api.model
     def _build_expression(self, field_name, sub_field_name, null_value):
         """Returns a placeholder expression for use in a template field,
         based on the values provided in the placeholder assistant.
@@ -477,10 +499,16 @@ class MailRenderMixin(models.AbstractModel):
         if is_restricted:
             options["raise_on_forbidden_code_for_model"] = model
 
+        # Compile the (etree) template once, not once per record: etree
+        # templates are not ormcached, so a bare _render() in the loop re-runs
+        # codegen + compile() + eval for every record. A persistent
+        # __qweb_compiled_cache shared across the calls keys on the stable
+        # template_node, so the first record compiles and the rest reuse it.
+        qweb = self.env["ir.qweb"].with_context(__qweb_compiled_cache={})
         for record in self.env[model].browse(res_ids):
             variables["object"] = record
             try:
-                render_result = self.env["ir.qweb"]._render(
+                render_result = qweb._render(
                     template_node,
                     variables,
                     **options,
@@ -518,7 +546,11 @@ class MailRenderMixin(models.AbstractModel):
                         record_id=self.id,
                     )
                     is_identified = True
-                elif self._name == "mail.compose.message" and self.mass_mailing_id:
+                elif (
+                    self._name == "mail.compose.message"
+                    and "mass_mailing_id" in self._fields
+                    and self.mass_mailing_id
+                ):
                     template_label = _(
                         "Mass Mailing Template: '%(name)s' (ID: %(record_id)s)",
                         name=self.mass_mailing_id.display_name or _("Unnamed Mailing"),

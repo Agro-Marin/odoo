@@ -1,10 +1,15 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 
 class MailTemplatePreview(models.TransientModel):
     _name = "mail.template.preview"
     _description = "Email Template Preview"
+    # report_template_ids is deliberately excluded: _generate_template would
+    # render every linked report to PDF (_render_qweb_pdf) into values
+    # ["attachments"], which the preview never reads (_set_mail_attributes only
+    # consumes attachment_ids and partner_ids) — a heavy render thrown away on
+    # every record/language change of the preview.
     _MAIL_TEMPLATE_FIELDS = [
         "attachment_ids",
         "body_html",
@@ -13,7 +18,6 @@ class MailTemplatePreview(models.TransientModel):
         "email_from",
         "email_to",
         "partner_to",
-        "report_template_ids",
         "reply_to",
         "scheduled_date",
     ]
@@ -111,7 +115,11 @@ class MailTemplatePreview(models.TransientModel):
                         [preview.resource_ref.id], preview._MAIL_TEMPLATE_FIELDS
                     )[preview.resource_ref.id]
                     preview._set_mail_attributes(values=mail_values)
-                except (ValueError, UserError) as user_error:
+                except (ValueError, UserError, AccessError) as user_error:
+                    # AccessError: restricted rendering raises it when a
+                    # non-editor previews a template with a non-whitelisted
+                    # inline expression; surface it in error_msg instead of
+                    # letting a traceback dialog escape the compute.
                     preview._set_mail_attributes()
                     error_msg = user_error.args[0]
             preview.error_msg = error_msg
@@ -140,9 +148,8 @@ class MailTemplatePreview(models.TransientModel):
 
     def _set_mail_attributes(self, values=None):
         for field in self._MAIL_TEMPLATE_FIELDS:
-            if field in ("partner_to", "report_template_ids"):
+            if field == "partner_to":
                 # partner_to is used to generate partner_ids, handled here below
-                # report_template_ids generates attachments, no usage here
                 continue
             field_value = (
                 values.get(field, False) if values else self.mail_template_id[field]

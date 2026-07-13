@@ -1,10 +1,13 @@
 from contextlib import contextmanager
-from freezegun import freeze_time
+from datetime import UTC
 from unittest.mock import patch
 
+from freezegun import freeze_time
+
 from odoo import Command, fields
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.tests import common
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 class EventCase(common.TransactionCase):
@@ -239,6 +242,12 @@ class EventCase(common.TransactionCase):
         # cr.now() is contractually a datetime; coerce a string so consumers
         # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
         now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
-        with freeze_time(mock_dt), \
+        # cr.now() is naive UTC in production; normalize a tz-aware freeze
+        # point so it (and freeze_time) stay on that convention, else
+        # naive/aware comparisons (e.g. ir.cron._now) crash. Mirrors mail
+        # freeze_all_time.
+        if now_dt.tzinfo is not None:
+            now_dt = now_dt.astimezone(UTC).replace(tzinfo=None)
+        with freeze_time(now_dt), \
              patch.object(self.env.cr, 'now', lambda: now_dt):
             yield

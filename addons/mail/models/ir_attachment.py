@@ -65,7 +65,9 @@ class IrAttachment(models.Model):
         for model, attachments in todo.grouped("res_model").items():
             related_records = self.env[model].browse(attachments.mapped("res_id"))
             if not hasattr(related_records, "_message_set_main_attachment_id"):
-                return
+                # skip this model group only; a mixed-model batch must still
+                # register the main attachment for the thread-enabled models.
+                continue
 
             # this action is generic; if user cannot update record do not crash
             # just skip update
