@@ -1,23 +1,33 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
+import { WORKER_STATE } from "@bus/services/worker_service";
 import { EventBus, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
-import { WORKER_STATE } from "@bus/services/worker_service";
 
-// List of worker events that should not be broadcasted.
+// Worker events consumed internally by this service and NOT re-triggered on
+// the public bus. Everything else is only rebroadcast when it is an
+// application-level `BUS:` event: the worker port also carries ELECTION:*
+// (main-tab election heartbeats, every 1.5s) and BASE:* traffic, which must
+// never leak onto the app bus as events.
 const INTERNAL_EVENTS = new Set([
     "BUS:INITIALIZED",
-    "BUS:OUTDATED",
     "BUS:NOTIFICATION",
+    // Handled by bus.logs_service through its own worker handler.
     "BUS:PROVIDE_LOGS",
     // Liveness probe, answered by worker_service — not an application event.
     "BUS:PING",
 ]);
+// Trailing delay before persisting the notification watermark to
+// localStorage. Writing on every batch in every tab costs N synchronous
+// writes plus N×(N-1) cross-tab `storage` events; the watermark's consumers
+// (fresh-worker seeding, which the worker maxes with its own live value
+// anyway, and the outdated-page watcher, which compares against the server's
+// multi-day GC horizon) tolerate a sub-second-stale value just fine.
+const WATERMARK_WRITE_DELAY = 500;
 // Slightly delay the reconnection when coming back online as the network is not
 // ready yet and the exponential backoff would delay the reconnection by a lot.
 export const BACK_ONLINE_RECONNECT_DELAY = 5000;
@@ -48,7 +58,6 @@ export const busService = {
         "localization",
         "multi_tab",
         "legacy_multi_tab",
-        "notification",
         "worker_service",
     ],
 
@@ -57,7 +66,6 @@ export const busService = {
         {
             multi_tab: multiTab,
             legacy_multi_tab: legacyMultiTab,
-            notification,
             "bus.parameters": params,
             worker_service: workerService,
         },
@@ -66,8 +74,43 @@ export const busService = {
         const notificationBus = new EventBus();
         const subscribeFnToWrapper = new Map();
         let backOnlineTimeout;
+        let watermarkWriteTimeout;
         const startedAt = luxon.DateTime.now().set({ milliseconds: 0 });
         let connectionInitializedDeferred;
+        // Whether this tab's BUS:INITIALIZED handshake completed. Channel
+        // operations issued before that are replayed as one atomic snapshot
+        // instead of incremental messages (see the BUS:INITIALIZED case).
+        let workerInitialized = false;
+        // Whether this tab sent BUS:LEAVE (stop()) since it last pushed its
+        // channels to the worker: the worker dropped the client, so the next
+        // start()/addChannel() must replay the full channel map.
+        let hasLeftWorker = false;
+
+        /**
+         * Persist the highest notification id seen by this tab, debounced and
+         * write-if-newer: all tabs receive the same batches within
+         * milliseconds of each other, so after the first tab's write the
+         * others find the stored value up to date and skip their own write
+         * (reads don't fire cross-tab `storage` events).
+         */
+        function scheduleWatermarkWrite() {
+            if (watermarkWriteTimeout) {
+                return;
+            }
+            watermarkWriteTimeout = browser.setTimeout(() => {
+                watermarkWriteTimeout = null;
+                const stored = legacyMultiTab.getSharedValue(
+                    lastNotificationIdKey(),
+                    0,
+                );
+                if (stored < state.lastNotificationId) {
+                    legacyMultiTab.setSharedValue(
+                        lastNotificationIdKey(),
+                        state.lastNotificationId,
+                    );
+                }
+            }, WATERMARK_WRITE_DELAY);
+        }
 
         /**
          * Handle messages received from the shared worker and fires an
@@ -79,20 +122,6 @@ export const busService = {
         function handleMessage(messageEv) {
             const { type, data } = messageEv.data;
             switch (type) {
-                case "BUS:PROVIDE_LOGS": {
-                    const blob = new Blob([JSON.stringify(data, null, 2)], {
-                        type: "application/json",
-                    });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `bus_logs_${luxon.DateTime.now().toFormat(
-                        "yyyy-LL-dd-HH-mm-ss",
-                    )}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    break;
-                }
                 case "BUS:NOTIFICATION": {
                     const notifications = data.map(({ id, message }) => ({
                         id,
@@ -103,14 +132,15 @@ export const busService = {
                     }
                     // Highest id of the batch, not `.at(-1)`: the worker
                     // deliberately does not assume server batches arrive in
-                    // ascending id order (see `_onWebsocketMessage`).
+                    // ascending id order (see `_onWebsocketMessage`). Max with
+                    // the current value: the worker may also legitimately
+                    // deliver LOWER ids in later batches (late-committed
+                    // notifications inside the server's hold-back window).
                     state.lastNotificationId = Math.max(
+                        state.lastNotificationId ?? 0,
                         ...notifications.map(({ id }) => id),
                     );
-                    legacyMultiTab.setSharedValue(
-                        lastNotificationIdKey(),
-                        state.lastNotificationId,
-                    );
+                    scheduleWatermarkWrite();
                     for (const { id, type, payload } of notifications) {
                         notificationBus.trigger(type, { id, payload });
                         busService._onMessage(env, id, type, payload);
@@ -118,37 +148,37 @@ export const busService = {
                     break;
                 }
                 case "BUS:INITIALIZED": {
+                    // Channels claimed while the worker was initializing were
+                    // NOT sent incrementally (see addChannel/deleteChannel):
+                    // interleaved adds/deletes racing the init handshake can
+                    // reach the worker out of balance. One atomic snapshot of
+                    // the final map — sent before the pending calls resume
+                    // (the resolve below only schedules microtasks) — cannot
+                    // drift.
+                    workerInitialized = true;
+                    if (tabChannels.size) {
+                        sendChannelsSnapshot();
+                    }
                     connectionInitializedDeferred.resolve();
                     break;
                 }
                 case "BUS:WORKER_STATE_UPDATED":
                     state.workerState = data;
                     break;
-                case "BUS:OUTDATED": {
+                case "BUS:OUTDATED":
+                    // Only the multi-tab bookkeeping happens here: a tab
+                    // running outdated code must permanently renounce
+                    // main-tab duties. The user-facing "page is out of date"
+                    // notification is owned by OutdatedPageWatcherService
+                    // (single deduped toast, whichever trigger fires first),
+                    // which listens to the rebroadcast below.
                     multiTab.unregister();
-                    notification.add(
-                        _t(
-                            "Save your work and refresh to get the latest updates and avoid potential issues.",
-                        ),
-                        {
-                            title: _t("The page is out of date"),
-                            type: "warning",
-                            sticky: true,
-                            buttons: [
-                                {
-                                    name: _t("Refresh"),
-                                    primary: true,
-                                    onClick: () => {
-                                        browser.location.reload();
-                                    },
-                                },
-                            ],
-                        },
-                    );
                     break;
-                }
             }
-            if (!INTERNAL_EVENTS.has(type)) {
+            // Allowlist rebroadcast: the port also carries ELECTION:*/BASE:*
+            // frames (election heartbeats every 1.5s), which must not surface
+            // as application events.
+            if (type?.startsWith("BUS:") && !INTERNAL_EVENTS.has(type)) {
                 bus.trigger(type, data);
             }
         }
@@ -194,11 +224,30 @@ export const busService = {
             await connectionInitializedDeferred;
         }
 
-        // Channels this tab forwarded to the worker. Needed to replay the
-        // subscription after a bfcache restore: a long-frozen tab may have
-        // been evicted by the worker's liveness sweep (its JS cannot answer
-        // BUS:PING while frozen), losing its channel list worker-side.
-        const tabChannels = new Set();
+        // Channels claimed by this tab's consumers, REFCOUNTED (channel ->
+        // claim count): several independent features may add/delete the same
+        // channel (e.g. two im_livechat features in one tab), and each delete
+        // must only release its own claim — a Set would conflate them and the
+        // first delete would kill the channel for the remaining consumers.
+        // The worker mirrors this refcounting per client. Also needed to
+        // replay the subscription after a bfcache restore: a long-frozen tab
+        // may have been evicted by the worker's liveness sweep (its JS cannot
+        // answer BUS:PING while frozen), losing its channel map worker-side.
+        const tabChannels = new Map();
+
+        /**
+         * Atomically replace this client's channel claims worker-side with
+         * the current local map. A snapshot (rather than replaying
+         * incremental adds) cannot drift from in-flight add/delete messages:
+         * every local mutation is applied synchronously to `tabChannels`
+         * before any message is sent, so by the time the snapshot is
+         * enqueued it already accounts for every message enqueued before it,
+         * and later messages apply incrementally on top of it.
+         */
+        function sendChannelsSnapshot() {
+            workerService.send("BUS:SET_CHANNELS", [...tabChannels]);
+        }
+
         browser.addEventListener("pagehide", ({ persisted }) => {
             if (!persisted) {
                 // Page is gonna be unloaded, disconnect this client
@@ -208,13 +257,11 @@ export const busService = {
         });
         browser.addEventListener("pageshow", ({ persisted }) => {
             if (persisted && state.isActive) {
-                // Restored from bfcache: re-send our channels. Harmless when
-                // the worker still knows us (per-client channel lists are
-                // deduplicated and an unchanged set sends no new subscribe);
-                // required when the liveness sweep evicted us while frozen.
-                for (const channel of tabChannels) {
-                    workerService.send("BUS:ADD_CHANNEL", channel);
-                }
+                // Restored from bfcache: replay our channel claims with their
+                // refcounts. Harmless when the worker still knows us (an
+                // unchanged aggregate set sends no new subscribe); required
+                // when the liveness sweep evicted us while frozen.
+                sendChannelsSnapshot();
                 workerService.send("BUS:START");
             }
         });
@@ -223,8 +270,10 @@ export const busService = {
             () => {
                 // Two `online` events with no intervening `offline` would
                 // otherwise orphan the first timer (it still fires a redundant
-                // BUS:START); clear it before rescheduling.
-                clearTimeout(backOnlineTimeout);
+                // BUS:START); clear it before rescheduling. `browser.`-prefixed
+                // like the matching `browser.setTimeout`, so mocked clocks see
+                // (and can assert) the cancellation too.
+                browser.clearTimeout(backOnlineTimeout);
                 backOnlineTimeout = browser.setTimeout(() => {
                     if (state.isActive) {
                         workerService.send("BUS:START");
@@ -236,7 +285,7 @@ export const busService = {
         browser.addEventListener(
             "offline",
             () => {
-                clearTimeout(backOnlineTimeout);
+                browser.clearTimeout(backOnlineTimeout);
                 workerService.send("BUS:STOP");
             },
             {
@@ -246,21 +295,60 @@ export const busService = {
         const state = reactive({
             addEventListener: bus.addEventListener.bind(bus),
             addChannel: async (channel) => {
-                tabChannels.add(channel);
-                await ensureWorkerStarted();
-                if (!tabChannels.has(channel)) {
-                    // deleteChannel() was called while the worker was
-                    // initializing: its BUS:DELETE_CHANNEL was dropped by
-                    // `worker_service.send` (pre-init sends are ignored), so
-                    // sending the add now would subscribe a dead channel.
+                tabChannels.set(channel, (tabChannels.get(channel) ?? 0) + 1);
+                if (workerInitialized) {
+                    if (hasLeftWorker) {
+                        // First channel activity after a stop(): the worker
+                        // dropped this client on BUS:LEAVE, so replay the
+                        // whole map, not just this claim.
+                        sendChannelsSnapshot();
+                        hasLeftWorker = false;
+                    } else {
+                        workerService.send("BUS:ADD_CHANNEL", channel);
+                    }
+                    workerService.send("BUS:START");
+                    state.isActive = true;
                     return;
                 }
-                workerService.send("BUS:ADD_CHANNEL", channel);
+                // Worker (still) initializing: do NOT send an incremental add
+                // — interleaved adds/deletes racing the init handshake could
+                // reach the worker out of balance. The claim is included in
+                // the atomic BUS:SET_CHANNELS snapshot sent on
+                // BUS:INITIALIZED; only the connection wake-up remains to do
+                // here.
+                await ensureWorkerStarted();
+                if (!(tabChannels.get(channel) > 0)) {
+                    // Every claim on this channel was released (deleteChannel)
+                    // while the worker was initializing: don't activate the
+                    // bus on behalf of a dead claim.
+                    return;
+                }
                 workerService.send("BUS:START");
                 state.isActive = true;
             },
             deleteChannel: (channel) => {
-                tabChannels.delete(channel);
+                const count = tabChannels.get(channel) ?? 0;
+                if (count <= 0) {
+                    // Refcount must never go negative: an extra delete from
+                    // one consumer would otherwise steal a later legitimate
+                    // claim of another one.
+                    console.warn(
+                        `bus_service: deleteChannel("${channel}") without a matching addChannel.`,
+                    );
+                    return;
+                }
+                if (count === 1) {
+                    tabChannels.delete(channel);
+                } else {
+                    tabChannels.set(channel, count - 1);
+                }
+                if (!workerInitialized) {
+                    // Released before/during worker init: the release is
+                    // already reflected in the BUS:SET_CHANNELS snapshot the
+                    // init handshake sends (or nothing was ever sent for this
+                    // channel if the worker never starts).
+                    return;
+                }
                 workerService.send("BUS:DELETE_CHANNEL", channel);
             },
             setLoggingEnabled: (isEnabled) =>
@@ -273,25 +361,35 @@ export const busService = {
                 workerService.send("BUS:SEND", { event_name: eventName, data }),
             start: async () => {
                 await ensureWorkerStarted();
+                // Replay this tab's channel claims: after a stop() the worker
+                // dropped this client (BUS:LEAVE) along with its channel map,
+                // and without the replay a stop()/start() cycle would lose
+                // every subscription of this tab. Harmless otherwise — the
+                // snapshot matches what the worker already has.
+                if (tabChannels.size || hasLeftWorker) {
+                    sendChannelsSnapshot();
+                    hasLeftWorker = false;
+                }
                 workerService.send("BUS:START");
                 state.isActive = true;
             },
             stop: () => {
                 workerService.send("BUS:LEAVE");
+                hasLeftWorker = true;
                 state.isActive = false;
             },
             isActive: false,
             /**
-             * Subscribe to a single notification type.
+             * Subscribe to a single notification type. Idempotent: subscribing
+             * the same (type, callback) pair again is a no-op — it must NOT
+             * add a second live listener while overwriting the only wrapper
+             * handle in the map, which would leave the first listener firing
+             * forever with no way to unsubscribe it.
              *
              * @param {string} notificationType
              * @param {function} callback
              */
             subscribe(notificationType, callback) {
-                const wrapper = ({ detail }) => {
-                    const { id, payload } = detail;
-                    callback(JSON.parse(JSON.stringify(payload)), { id });
-                };
                 // Key by (callback, notificationType): a single callback may be
                 // subscribed to several types, so one wrapper per type must be
                 // kept, otherwise unsubscribe would remove the wrong listener
@@ -299,7 +397,23 @@ export const busService = {
                 if (!subscribeFnToWrapper.has(callback)) {
                     subscribeFnToWrapper.set(callback, new Map());
                 }
-                subscribeFnToWrapper.get(callback).set(notificationType, wrapper);
+                const wrappersByType = subscribeFnToWrapper.get(callback);
+                if (wrappersByType.has(notificationType)) {
+                    return;
+                }
+                const wrapper = ({ detail }) => {
+                    const { id, payload } = detail;
+                    // Per-subscriber isolation: each callback gets its own
+                    // deep copy, so one subscriber mutating the payload cannot
+                    // corrupt what the others see. `structuredClone` rather
+                    // than a JSON round-trip: same isolation guarantee (the
+                    // payload comes out of `JSON.parse` in the worker, so it
+                    // is plain data), meaningfully cheaper per call, and a
+                    // once-per-notification shared clone would silently drop
+                    // the isolation semantics subscribers rely on today.
+                    callback(structuredClone(payload), { id });
+                };
+                wrappersByType.set(notificationType, wrapper);
                 notificationBus.addEventListener(notificationType, wrapper);
             },
             /**

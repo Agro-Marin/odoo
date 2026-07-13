@@ -1,5 +1,4 @@
 /** @odoo-module native */
-/* eslint-env worker */
 /* eslint-disable no-restricted-globals */
 
 import { BaseWorker } from "./base_worker.js";
@@ -7,7 +6,11 @@ import { ElectionWorker } from "./election_worker.js";
 import { WebsocketWorker } from "./websocket_worker.js";
 
 (function () {
-    const baseWorker = new BaseWorker(self.name);
+    // Single source of truth for the shared-vs-dedicated distinction (the
+    // worker kind is encoded in the name by `worker_service.startWorker`):
+    // derived once here and passed explicitly to whoever needs it.
+    const isShared = self.name.includes("shared");
+    const baseWorker = new BaseWorker(self.name, isShared);
     const websocketWorker = new WebsocketWorker(self.name);
     const electionWorker = new ElectionWorker();
     // A dead port found by the liveness sweep must leave the election too:
@@ -15,9 +18,9 @@ import { WebsocketWorker } from "./websocket_worker.js";
     // otherwise block re-election until its heartbeat times out.
     websocketWorker.onClientEvicted = (client) => electionWorker.evictCandidate(client);
 
-    if (self.name.includes("shared")) {
+    if (isShared) {
         // The script is running in a shared worker.
-        onconnect = (ev) => {
+        self.onconnect = (ev) => {
             const client = ev.ports[0];
             // Register the base worker to handle first init message.
             // Register the current client for main tab election.

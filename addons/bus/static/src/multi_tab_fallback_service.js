@@ -154,12 +154,20 @@ export const multiTabFallbackService = {
             }
         }
 
+        // TERMINAL unregistration (public `unregister()`, e.g. bus_service on
+        // BUS:OUTDATED keeping stale-code tabs out of main-tab duties), as
+        // opposed to the TRANSIENT one of `pagehide`: a terminated tab must
+        // never re-register itself on `pageshow` — an outdated tab restored
+        // from the bfcache becoming main again would run stale code as the
+        // master tab.
+        let terminated = false;
+
         /**
-         * Unregister this tab from the multi-tab service. It will no longer
-         * be able to become the main tab.
+         * Leave the election (transiently): drop this tab's presence and
+         * main-tab role. Used by `pagehide`; `pageshow` may re-register.
          */
-        function unregister() {
-            clearTimeout(heartbeatTimeout);
+        function deactivate() {
+            browser.clearTimeout(heartbeatTimeout);
             // ``JSON.parse(browser.localStorage.getItem(missingKey))`` returns
             // ``null`` on real localStorage but throws ``"undefined" is
             // not valid JSON`` when test patches return ``undefined``.
@@ -183,9 +191,19 @@ export const multiTabFallbackService = {
             }
         }
 
-        browser.addEventListener("pagehide", unregister);
+        /**
+         * Unregister this tab from the multi-tab service, PERMANENTLY: it
+         * will no longer be able to become the main tab, not even after a
+         * bfcache restore.
+         */
+        function unregister() {
+            terminated = true;
+            deactivate();
+        }
+
+        browser.addEventListener("pagehide", deactivate);
         browser.addEventListener("pageshow", (ev) => {
-            if (!ev.persisted) {
+            if (!ev.persisted || terminated) {
                 return;
             }
             // Restored from bfcache: `pagehide` unregistered this tab (cleared

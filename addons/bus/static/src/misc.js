@@ -1,4 +1,6 @@
 /** @odoo-module native */
+import { browser } from "@web/core/browser/browser";
+
 /**
  * Returns a function, that, when invoked, will only be triggered at most once
  * during a given window of time. Normally, the throttled function will run
@@ -8,9 +10,7 @@
  *
  * credit to `underscore.js`
  */
-import { luxon } from "@web/core/l10n/luxon";
-import { browser } from "@web/core/browser/browser";
-function throttle(func, wait, options) {
+export function throttle(func, wait, options) {
     let timeout, context, args, result;
     let previous = 0;
     if (!options) {
@@ -18,7 +18,10 @@ function throttle(func, wait, options) {
     }
 
     const later = function () {
-        previous = options.leading === false ? 0 : luxon.DateTime.now().ts;
+        // Plain Date.now(): this runs on every throttled event (clicks,
+        // keydowns, ...) and only needs a millisecond timestamp — building a
+        // luxon DateTime per event was pure overhead.
+        previous = options.leading === false ? 0 : Date.now();
         timeout = null;
         result = func.apply(context, args);
         if (!timeout) {
@@ -27,7 +30,7 @@ function throttle(func, wait, options) {
     };
 
     const throttled = function () {
-        const _now = luxon.DateTime.now().ts;
+        const _now = Date.now();
         if (!previous && options.leading === false) {
             previous = _now;
         }
@@ -58,7 +61,3 @@ function throttle(func, wait, options) {
 
     return throttled;
 }
-
-export const timings = {
-    throttle,
-};
