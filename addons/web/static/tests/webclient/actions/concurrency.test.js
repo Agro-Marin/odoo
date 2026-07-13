@@ -926,7 +926,7 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     for (let i = 0; i < 50 && !action._skeletonDef; i++) {
         await microTick();
     }
-    expect(action._skeletonDef).toBeTruthy();
+    expect(Boolean(action._skeletonDef)).toBe(true);
 
     // A newer clearBreadcrumbs navigation supersedes the parked skeleton.
     action.doAction("clientB", { clearBreadcrumbs: true });
