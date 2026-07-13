@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
-import { timings } from "../misc.js";
+
+import { throttle } from "../misc.js";
 
 // Throttle window for input-driven presence updates: a click/keydown storm
 // otherwise triggers one synchronous localStorage write (and a cross-tab
@@ -38,7 +39,7 @@ export const presenceService = {
             // carried by the event (a genuine blur/pagehide must not be flipped
             // back to "focused" by a momentarily-stale `hasFocus()`).
             try {
-                if (parent !== self) {
+                if (parent !== window) {
                     isFocused = parent.document.hasFocus();
                 }
             } catch {
@@ -51,11 +52,23 @@ export const presenceService = {
             );
             if (isOdooFocused) {
                 lastPresenceTime = luxon.DateTime.now().ts;
-                env.bus.trigger("window_focus", isOdooFocused);
             }
+            // Fire on BOTH transitions: cross-tab consumers get the `false`
+            // through the storage event, but same-tab listeners (e.g. mail's
+            // out-of-focus counter) would otherwise only ever hear about
+            // gained focus, never about losing it.
+            env.bus.trigger("window_focus", isOdooFocused);
         }
 
         function onStorage({ key, newValue }) {
+            // `newValue` is null when the key is removed (e.g. a "clear site
+            // data" in another tab): parsing it would poison the local state
+            // — a nullish `lastPresenceTime` makes `getInactivityPeriod()`
+            // return an epoch-scale number, flagging the user as inactive for
+            // 50+ years. Keep the current local values instead.
+            if (newValue == null) {
+                return;
+            }
             if (key === `${LOCAL_STORAGE_PREFIX}.focus`) {
                 isOdooFocused = JSON.parse(newValue);
                 env.bus.trigger("window_focus", isOdooFocused);
@@ -65,11 +78,19 @@ export const presenceService = {
                 bus.trigger("presence");
             }
         }
-        const throttledOnPresence = timings.throttle(onPresence, PRESENCE_THROTTLE_MS);
+        const throttledOnPresence = throttle(onPresence, PRESENCE_THROTTLE_MS);
         browser.addEventListener("storage", onStorage);
         browser.addEventListener("focus", () => onFocusChange(true));
         browser.addEventListener("blur", () => onFocusChange(false));
         browser.addEventListener("pagehide", () => onFocusChange(false));
+        browser.addEventListener("pageshow", (ev) => {
+            if (ev.persisted) {
+                // Restored from bfcache: `pagehide` force-unfocused this tab;
+                // restore the real focus state (the browser does not replay a
+                // `focus` event for an already-focused restored page).
+                onFocusChange(document.hasFocus());
+            }
+        });
         browser.addEventListener("click", throttledOnPresence, true);
         browser.addEventListener("keydown", throttledOnPresence, true);
 

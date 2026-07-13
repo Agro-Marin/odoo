@@ -2,6 +2,16 @@
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+
+/**
+ * Despite the name, this is NOT a main-tab election service (that is
+ * `multi_tab` / multi_tab_service.js): it is a cross-tab key/value store on
+ * localStorage (get/set/removeSharedValue + a "shared_value_updated" bus),
+ * used e.g. for the bus notification watermark, composer preferences and RTC
+ * device choices. The name is a historical leftover from when election and
+ * storage lived in one service; the registry id "legacy_multi_tab" is kept
+ * because consumers across addons depend on it.
+ */
 export const legacyMultiTabService = {
     start() {
         const bus = new EventBus();

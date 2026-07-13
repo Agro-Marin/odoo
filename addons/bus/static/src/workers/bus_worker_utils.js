@@ -2,28 +2,21 @@
 /**
  * Returns a function, that, as long as it continues to be invoked, will not
  * be triggered. The function will be called after it stops being called for
- * N milliseconds. If `immediate` is passed, trigger the function on the
- * leading edge, instead of the trailing.
+ * N milliseconds (trailing edge only — a leading-edge `immediate` variant
+ * used to exist here but had no callers).
  *
  * Inspired by https://davidwalsh.name/javascript-debounce-function
  */
-export function debounce(func, wait, immediate) {
+export function debounce(func, wait) {
     let timeout;
     function debounced() {
         const context = this;
         const args = arguments;
-        function later() {
-            timeout = null;
-            if (!immediate) {
-                func.apply(context, args);
-            }
-        }
-        const callNow = immediate && !timeout;
         clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-        if (callNow) {
+        timeout = setTimeout(() => {
+            timeout = null;
             func.apply(context, args);
-        }
+        }, wait);
     }
     // Cancel a pending trailing invocation. Needed so a lifecycle reset (e.g.
     // the worker's `_stop()`) can drop an in-flight debounced `subscribe`/send
@@ -59,6 +52,13 @@ export class Logger {
     static async gcOutdatedLogs() {
         const threshold = Date.now() - Logger.LOG_TTL;
         for (const logger of this.instances) {
+            if (!logger._db && !logger._dbPromise) {
+                // Never opened this session: don't open IndexedDB just to
+                // garbage-collect. Leftover logs from a previous session are
+                // pruned the next time this logger is actually used
+                // (`getLogs` opens the database before GC'ing).
+                continue;
+            }
             try {
                 await logger._ensureDatabaseAvailable();
                 await new Promise((res, rej) => {
@@ -90,9 +90,18 @@ export class Logger {
     constructor(name) {
         this._name = name;
         Logger.instances.push(this);
-        Logger.gcOutdatedLogs();
-        clearInterval(Logger.gcInterval);
-        Logger.gcInterval = setInterval(() => Logger.gcOutdatedLogs(), Logger.LOG_TTL);
+        // Deliberately no IndexedDB access here: a Logger is created on every
+        // worker boot (module level in websocket_worker.js) even when logging
+        // is disabled. The database is only opened on the first `log()` /
+        // `getLogs()`, and garbage collection runs lazily from there.
+    }
+
+    /** Arm the periodic GC once a database is actually in use. */
+    static _ensureGcScheduled() {
+        Logger.gcInterval ??= setInterval(
+            () => Logger.gcOutdatedLogs(),
+            Logger.LOG_TTL,
+        );
     }
 
     async _ensureDatabaseAvailable() {
@@ -128,6 +137,7 @@ export class Logger {
 
     async log(message) {
         await this._ensureDatabaseAvailable();
+        Logger._ensureGcScheduled();
         const transaction = this._db.transaction("logs", "readwrite");
         const store = transaction.objectStore("logs");
         const addRequest = store.add({ timestamp: Date.now(), message });
@@ -138,8 +148,11 @@ export class Logger {
     }
 
     async getLogs() {
-        await Logger.gcOutdatedLogs();
+        // Open before GC'ing: `gcOutdatedLogs` skips loggers with no open
+        // database, and returned logs must not include expired entries.
         await this._ensureDatabaseAvailable();
+        Logger._ensureGcScheduled();
+        await Logger.gcOutdatedLogs();
         const transaction = this._db.transaction("logs", "readonly");
         const store = transaction.objectStore("logs");
         const request = store.getAll();

@@ -1,10 +1,24 @@
 /** @odoo-module native */
+import { lastNotificationIdKey } from "@bus/services/bus_service";
+import { CONNECTION_STATE } from "@bus/workers/websocket_worker_constants";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { lastNotificationIdKey } from "@bus/services/bus_service";
-import { WORKER_STATE } from "@bus/workers/websocket_worker_constants";
+import { session } from "@web/session";
+
+/**
+ * Key of the cross-tab shared flag recording that notifications were missed.
+ *
+ * Scoped by database for the same reason as `lastNotificationIdKey`:
+ * `bus_bus.id` is a per-database sequence, so on a multi-database origin a
+ * flag raised by another database's tabs would show a false "page is out of
+ * date" warning here.
+ */
+export function hasMissedNotificationsKey() {
+    return `${session.db}.bus.has_missed_notifications`;
+}
+
 export class OutdatedPageWatcherService {
     constructor(env, services) {
         this.setup(env, services);
@@ -26,9 +40,27 @@ export class OutdatedPageWatcherService {
         bus_service.addEventListener(
             "BUS:WORKER_STATE_UPDATED",
             ({ detail: state }) => {
-                wasBusAlreadyConnected = state !== WORKER_STATE.IDLE;
+                // Only CONNECTED/DISCONNECTED prove a PREVIOUS connection
+                // existed. CONNECTING must not count: on a browser session
+                // restore, every restored tab joins a worker that is
+                // connecting for the first time, and treating that as
+                // "already connected" would compare yesterday's localStorage
+                // watermark against the server (whose bus_bus rows are long
+                // GC'd) — a guaranteed, sticky false "page is out of date".
+                // A tab joining during a real reconnect is still covered by
+                // the BUS:RECONNECT listener below.
+                wasBusAlreadyConnected =
+                    state !== CONNECTION_STATE.IDLE &&
+                    state !== CONNECTION_STATE.CONNECTING;
             },
             { once: true },
+        );
+        // The transport layer only does the multi-tab bookkeeping on
+        // BUS:OUTDATED (see bus_service): this service owns the single,
+        // deduped (via `closeNotificationFn`) user-facing notification for
+        // every "page is outdated" trigger.
+        bus_service.addEventListener("BUS:OUTDATED", () =>
+            this.showOutdatedPageNotification(),
         );
         bus_service.addEventListener(
             "BUS:DISCONNECT",
@@ -49,7 +81,7 @@ export class OutdatedPageWatcherService {
         legacy_multi_tab.bus.addEventListener(
             "shared_value_updated",
             ({ detail: { key } }) => {
-                if (key === "bus.has_missed_notifications") {
+                if (key === hasMissedNotificationsKey()) {
                     this.showOutdatedPageNotification();
                 }
             },
@@ -68,7 +100,7 @@ export class OutdatedPageWatcherService {
         if (hasMissedNotifications) {
             this.showOutdatedPageNotification();
             this.legacy_multi_tab.setSharedValue(
-                "bus.has_missed_notifications",
+                hasMissedNotificationsKey(),
                 Date.now(),
             );
         }
