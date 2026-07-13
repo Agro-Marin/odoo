@@ -146,7 +146,16 @@ function simplifyTree(tree) {
         );
     }
     if (children.length === 1) {
-        return { ...children[0] };
+        // Collapsing an OR connector down to its single (possibly merged)
+        // child must preserve the connector's negation: push it onto the
+        // surviving child by flipping the child's `negate`, matching
+        // normalizeConnector in condition_tree.js. Dropping it would render
+        // the logical opposite of the filter (e.g. `!(a or b)` shown as `a or b`).
+        const only = { ...children[0] };
+        if (tree.negate) {
+            only.negate = !only.negate;
+        }
+        return only;
     }
     return { ...tree, children };
 }

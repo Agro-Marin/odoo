@@ -675,6 +675,20 @@ describe("createNewGroupBy", () => {
         expect(model.nextGroupId).toBe(3);
     });
 
+    test("joins an existing dateGroupBy's group (unified group-by facet)", () => {
+        const model = makeSearchModel({ nextGroupId: 3 });
+        model.searchViewFields = { name: { string: "Name", type: "char" } };
+        // Only a date group-by pre-exists; the arch parser would have unified it
+        // with plain group-bys into one group, so the custom group-by must reuse
+        // its groupId rather than open a second, separate group-by facet.
+        model.searchItems[99] = { type: "dateGroupBy", groupId: 7 };
+
+        createNewGroupBy(model, "name");
+
+        expect(model.searchItems[1].groupId).toBe(7);
+        expect(model.nextGroupId).toBe(3);
+    });
+
     test("custom flag is set on new item", () => {
         const model = makeSearchModel();
         model.searchViewFields = { name: { string: "Name", type: "char" } };

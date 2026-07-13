@@ -225,7 +225,17 @@ export async function ensureServicesStarted(env) {
  */
 async function _startServices(env, toStart) {
     if (startServicesPromise) {
-        return startServicesPromise.then(() => _startServices(env, toStart));
+        // Serialize behind the in-flight pass, but run this independent pass
+        // regardless of that pass's outcome. A rejecting service.start() in
+        // the earlier pass (propagated through the `start().finally(...)`
+        // below, which does not catch) must not cancel this caller's pass nor
+        // surface as this caller's unrelated rejection. `.catch(() => {})`
+        // swallows only the *previous* pass's result — the original caller of
+        // that pass still sees its own rejection via its own `await`, and this
+        // pass's own errors still propagate normally.
+        return startServicesPromise
+            .catch(() => {})
+            .then(() => _startServices(env, toStart));
     }
     const services = env.services;
     for (const [name, service] of serviceRegistry.getEntries()) {

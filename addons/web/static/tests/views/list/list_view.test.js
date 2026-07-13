@@ -10222,6 +10222,37 @@ test(`navigation with tab and readonly field (with modification)`, async () => {
 });
 
 test.tags("desktop");
+test(`shift+Tab on first cell of the only record wraps to last editable cell`, async () => {
+    // Single-record editable list with no trailing (remove/optional) column, so
+    // the row's last child is an editable data cell. With cycleOnTab (default),
+    // shift+Tab from the first record's first cell wraps to the *last* editable
+    // cell on the same row (mirror of Tab wrapping to the first cell). Regresses
+    // findPreviousFocusableOnRow's off-by-one: called with no `cell`, it must
+    // scan every cell and not drop the rightmost one via slice(0, -1).
+    Foo._records = [Foo._records[0]];
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list editable="bottom">
+                <field name="foo"/>
+                <field name="int_field"/>
+            </list>
+        `,
+    });
+    expect(`.o_data_row`).toHaveCount(1);
+
+    await contains(`.o_data_row:eq(0) [name=foo]`).click();
+    expect(`.o_data_row:eq(0) [name=foo] input`).toBeFocused();
+
+    await press(["shift", "Tab"]);
+    await animationFrame();
+    expect(`.o_data_row:eq(0)`).toHaveClass("o_selected_row");
+    // Must land on the last editable cell (int_field), not stay on foo.
+    expect(`.o_data_row:eq(0) [name=int_field] input`).toBeFocused();
+});
+
+test.tags("desktop");
 test(`navigation with tab on a list with create="0"`, async () => {
     await mountView({
         resModel: "foo",

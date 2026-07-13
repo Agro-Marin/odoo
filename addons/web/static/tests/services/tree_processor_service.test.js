@@ -42,3 +42,20 @@ test("value list longer than `limit` is truncated with an ellipsis", async () =>
     expect(description).toInclude("...");
     expect(description).not.toInclude("6");
 });
+
+test("negated OR collapsing to one merged `in` keeps its negation", async () => {
+    await makeMockEnv();
+    const treeProcessor = getService("tree_processor");
+    // distributeNot=false keeps the connector's `negate` flag on the OR node
+    // instead of pushing it down to the leaves (as happens in debug mode).
+    const tree = await treeProcessor.treeFromDomain(
+        "partner",
+        ["!", "|", ["qty", "=", 1], ["qty", "=", 2]],
+        false,
+    );
+    // simplifyTree merges the two same-path `=` conditions into one `in`,
+    // collapsing the OR to a single child; the connector's negation must be
+    // pushed onto that child, not silently dropped.
+    const description = await treeProcessor.getDomainTreeDescription("partner", tree);
+    expect(description).toInclude("not");
+});

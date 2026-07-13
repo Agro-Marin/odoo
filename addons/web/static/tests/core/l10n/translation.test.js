@@ -17,6 +17,7 @@ import { browser } from "@web/core/browser/browser";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import {
+    _pl,
     _t as basic_t,
     translatedTerms,
     translationLoaded,
@@ -642,5 +643,28 @@ describe("_t with markups", () => {
         expect(translatedStr.valueOf()).toBe(
             "&lt;script&gt;document.write(&#x27;pizza hawai&#x27;)&lt;/script&gt; <blink>Mario Kart</blink>",
         );
+    });
+});
+
+describe("_pl", () => {
+    test("selects the plural category for the active locale", () => {
+        patchWithCleanup(localization, { code: "en_US" });
+        expect(_pl(1, { one: "1 record", other: "records" })).toBe("1 record");
+        expect(_pl(3, { one: "1 record", other: "records" })).toBe("records");
+    });
+
+    test("does not throw for an XPG @modifier locale (sr@latin)", () => {
+        // sr@latin carries no underscore, so a naive _→- replace left "@latin"
+        // intact and `new Intl.PluralRules("sr@latin")` threw RangeError, breaking
+        // every list/x2many aggregate render for Serbian-Latin users.
+        patchWithCleanup(localization, { code: "sr@latin" });
+        expect(() => _pl(2, { one: "a", few: "b", other: "c" })).not.toThrow();
+        expect(_pl(1, { one: "a", few: "b", other: "c" })).toBe("a"); // sr: 1 → one
+        expect(_pl(2, { one: "a", few: "b", other: "c" })).toBe("b"); // sr: 2 → few
+    });
+
+    test("falls back to `other` when the matched category form is absent", () => {
+        patchWithCleanup(localization, { code: "en_US" });
+        expect(_pl(5, { other: "fallback" })).toBe("fallback");
     });
 });

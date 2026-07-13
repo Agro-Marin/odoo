@@ -10,7 +10,7 @@ import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { actionLog } from "@web/core/utils/asset_log";
-import { Deferred, KeepLast } from "@web/core/utils/concurrency";
+import { Deferred, KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { View, ViewNotFoundError } from "@web/views/view";
 
 import { executeActionButton } from "./action_button_executor.js";
@@ -145,6 +145,12 @@ export class ActionManager {
         this.controllerStack = [];
         this.dialog = null;
         this.nextDialog = null;
+        // Deferred parked on by an in-flight clearBreadcrumbs dispatch while it
+        // waits for its SkeletonView to mount (see _dispatchInline). Tracked on
+        // the instance so a superseding inline dispatch can settle it — the
+        // skeleton resolves it only from onMounted, and a skeleton destroyed
+        // before it mounts would otherwise strand that doAction's awaiters.
+        this._skeletonDef = null;
 
         router.hideKeyFromUrl("globalState");
 
@@ -625,6 +631,19 @@ export class ActionManager {
      */
     async _dispatchInline(controllerContext, options, currentActionProm) {
         const { controller, action } = controllerContext;
+        // Any inline dispatch triggers an ACTION_MANAGER:UPDATE that swaps the
+        // action_container's content. If a *previous* clearBreadcrumbs dispatch
+        // is still parked on `await def` waiting for its SkeletonView to mount,
+        // that skeleton is about to be destroyed-before-mount by this swap, so
+        // its Deferred (resolved only from the skeleton's onMounted) would never
+        // settle and would strand the superseded doAction's awaiters. Reject it
+        // with SupersededError now — the same quiet, error-service-swallowed
+        // resolution the ControllerComponent uses in onWillDestroy for the
+        // mounted-controller path.
+        if (this._skeletonDef) {
+            this._skeletonDef.reject(new SupersededError());
+            this._skeletonDef = null;
+        }
         const currentController = this._getCurrentController();
         if (currentController?.getLocalState) {
             currentController.exportedState = currentController.getLocalState();
@@ -663,7 +682,7 @@ export class ActionManager {
         }
 
         if (options.clearBreadcrumbs && !options.noEmptyTransition) {
-            const def = new Deferred();
+            const def = (this._skeletonDef = new Deferred());
             const isActWindow = action.type === "ir.actions.act_window";
             this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
                 id: this._nextId(),
@@ -674,7 +693,15 @@ export class ActionManager {
                     withControlPanel: isActWindow,
                 },
             });
-            await def;
+            try {
+                await def;
+            } finally {
+                // Clear only if still ours: a superseding dispatch may have
+                // already rejected and replaced it with its own skeleton def.
+                if (this._skeletonDef === def) {
+                    this._skeletonDef = null;
+                }
+            }
         }
         if (options.onActionReady) {
             options.onActionReady(action);

@@ -87,8 +87,6 @@ export class Many2ManyTagsField extends Component {
         this.popover = usePopover(
             /** @type {any} */ (this.constructor).components.Popover,
         );
-        this.dialog = useService("dialog");
-        this.dialogClose = [];
         useTagNavigation("many2ManyTagsField", {
             isEnabled: () => !this.props.readonly,
             delete: (index) => this.deleteTagByIndex(index),

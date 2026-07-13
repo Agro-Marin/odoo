@@ -315,3 +315,31 @@ test("Control panel is shown/hide on top when scrolling", async () => {
         message: "control panel is not sticky anymore",
     });
 });
+
+test.tags("mobile");
+test("sticky scroll effect is not rebuilt on re-render", async () => {
+    // The scroll useEffect must have explicit deps: a re-render must not re-run
+    // its setup and reset root.el.style.top to "0px" while the panel is in its
+    // translated-up sticky state.
+    const cp = await mountWithSearch(ControlPanel, { resModel: "foo" });
+    const contentHeight = 200;
+    const sampleContent = document.createElement("div");
+    sampleContent.style.minHeight = `${2 * contentHeight}px`;
+    const target = getFixture();
+    target.appendChild(sampleContent);
+    target.style.maxHeight = `${contentHeight}px`;
+    target.style.overflow = "auto";
+    target.scrollTo({ top: 50 });
+    await animationFrame();
+    const panel = queryFirst(".o_control_panel");
+    expect(panel).toHaveClass("o_mobile_sticky");
+    const stickyTop = panel.style.top;
+    expect(stickyTop).not.toBe("0px");
+
+    // Force a re-render (as a pager/breadcrumb/count update would): the effect
+    // must not re-run, so the sticky top offset survives.
+    cp.render();
+    await animationFrame();
+    expect(panel.style.top).toBe(stickyTop);
+    expect(panel).toHaveClass("o_mobile_sticky");
+});

@@ -3,7 +3,13 @@
 
 /** @module @web/views/kanban/kanban_record - Individual kanban card component with compiled template, color strips, cover images, and action handling */
 
-import { Component, onWillStart, onWillUpdateProps, useRef } from "@odoo/owl";
+import {
+    Component,
+    onWillDestroy,
+    onWillStart,
+    onWillUpdateProps,
+    useRef,
+} from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -263,6 +269,11 @@ export class KanbanRecord extends Component {
 
         this.longTouchTimer = null;
         this.touchStartMs = 0;
+        // Cancel any pending long-touch timer if the card is torn down before
+        // touchend/touchcancel reaches it (e.g. a live-update reload unmounts
+        // this record mid-press): otherwise the orphaned timeout fires and
+        // mutates selection state on a record that is no longer displayed.
+        onWillDestroy(() => this.resetLongTouchTimer());
     }
 
     get record() {

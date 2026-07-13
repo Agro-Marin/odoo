@@ -57,6 +57,17 @@ export const webVitalsService = {
             browser.crypto?.randomUUID?.() ??
             `${browser.performance.now()}-${browser.navigator.userAgent.length}`;
 
+        // Pin the URL to the path captured at service start (the initial
+        // document path). The observers run for the whole document lifetime and
+        // pageviewId is constant, but the Odoo backend is an SPA: the router
+        // mutates ``location.pathname`` via history.pushState on soft navigation
+        // with no reload. Reading ``location.pathname`` fresh at flush time would
+        // relabel this pageview — whose load metrics (LCP/FCP/TTFB) are inherently
+        // tied to the first document — onto whatever route happens to be active
+        // when the tab is next hidden, corrupting per-URL aggregation server-side
+        // (the controller upserts on pageview_id and overwrites ``url``).
+        const pageviewPath = browser.location.pathname;
+
         /** @type {PerformanceObserver[]} */
         const observers = [];
 
@@ -65,8 +76,15 @@ export const webVitalsService = {
             const nav = /** @type {any} */ (
                 browser.performance.getEntriesByType("navigation")[0]
             );
-            if (nav && nav.responseStart > 0 && nav.requestStart >= 0) {
-                metrics.ttfb = Math.max(0, nav.responseStart - nav.requestStart);
+            if (nav && nav.responseStart > 0) {
+                // Canonical Core Web Vitals TTFB: ``responseStart`` is already
+                // relative to navigation start (timeOrigin) per Navigation Timing
+                // L2, so it includes redirect + DNS + TCP + TLS setup. Only
+                // ``activationStart`` is subtracted, to zero-base prerendered
+                // pages. Subtracting ``requestStart`` (the old code) dropped all
+                // connection-setup time and under-reported TTFB on cold links.
+                const activationStart = nav.activationStart || 0;
+                metrics.ttfb = Math.max(0, nav.responseStart - activationStart);
             }
         } catch {
             // ignore — browser without nav-timing v2 (very rare)
@@ -197,7 +215,7 @@ export const webVitalsService = {
                     // so it must not even leave the browser (the /web/cwv
                     // controller additionally strips any query string as
                     // defense-in-depth for stale cached clients).
-                    url: browser.location.pathname,
+                    url: pageviewPath,
                     user_agent: browser.navigator.userAgent.slice(0, 500),
                     pageview_id: pageviewId,
                     ...metrics,

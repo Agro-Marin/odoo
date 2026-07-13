@@ -431,6 +431,61 @@ describe("DebugMenu", () => {
         );
     });
 
+    test("set defaults: dialog opens with an orphaned selection value", async () => {
+        // A stored selection value no longer present in the field's options
+        // (e.g. removed/renamed by a module upgrade) must not crash the dialog.
+        serverState.debug = "1";
+
+        class Partner extends models.Model {
+            _name = "partner";
+
+            state = fields.Selection({
+                selection: [
+                    ["draft", "Draft"],
+                    ["done", "Done"],
+                ],
+            });
+
+            _records = [{ id: 1, display_name: "p1", state: "obsolete" }];
+
+            _views = {
+                "form,30": /* xml */ `
+                    <form>
+                        <field name="state"/>
+                    </form>
+                `,
+            };
+        }
+
+        class IrUiView extends models.Model {
+            _name = "ir.ui.view";
+
+            name = fields.Char();
+            model = fields.Char();
+
+            _records = [{ id: 30 }];
+        }
+
+        defineModels([Partner, IrUiView]);
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction({
+            name: "Partners",
+            res_model: "partner",
+            res_id: 1,
+            type: "ir.actions.act_window",
+            views: [[30, "form"]],
+        });
+        await contains(".o_debug_manager button").click();
+        await contains(
+            ".dropdown-menu .dropdown-item:contains('Set Default Values')",
+        ).click();
+        // Dialog opens instead of throwing, and the raw value is shown verbatim.
+        expect(".modal").toHaveCount(1);
+        expect(
+            ".modal #formview_default_fields option:contains('obsolete')",
+        ).toHaveCount(1);
+    });
+
     test("set defaults: click close", async () => {
         serverState.debug = "1";
 

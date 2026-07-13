@@ -21,7 +21,7 @@
 
         <div t-ref="listbox" role="listbox" class="o_command_palette_listbox position-relative overflow-auto">
           <div t-if="!state.commands.length" id="o_command_empty" role="option" aria-selected="true" class="o_command_palette_listbox_empty px-4 py-3 fst-italic" t-out="state.emptyMessage"/>
-          <t t-if="!isFuzzySearch" t-foreach="commandsByCategory" t-as="category" t-key="category.keyId">
+          <t t-foreach="commandsByCategory" t-as="category" t-key="category.keyId">
             <div class="o_command_category px-0">
               <span t-if="category.name" class="text-uppercase fw-bold px-3 text-muted smaller opacity-50" t-out="category.name"/>
               <t t-foreach="category.commands" t-as="command" t-key="command.keyId">

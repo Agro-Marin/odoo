@@ -436,6 +436,12 @@ export class IndexedDB {
                     }),
             );
             transaction.onerror = () => reject(transaction.error);
+            // A forced/bare abort (browser-initiated, e.g. storage eviction)
+            // fires ``onabort`` — not ``onerror`` — and leaves the clear
+            // requests' ``onsuccess`` unfired, so ``Promise.all`` would never
+            // settle. Reject here so the surrounding ``mutex.exec`` unlocks
+            // instead of deadlocking every later op for the session.
+            transaction.onabort = () => reject(transaction.error);
             Promise.all(proms).then(resolve);
 
             // Force the changes to be committed to the database asap
@@ -455,6 +461,10 @@ export class IndexedDB {
             const r = objectStore.get(key);
             r.onsuccess = () => resolve(r.result);
             transaction.onerror = () => reject(transaction.error);
+            // A forced/bare abort fires ``onabort`` (not ``onerror``) and
+            // ``r.onsuccess`` never fires, so without this the Promise hangs
+            // and the surrounding ``mutex.exec`` stays locked for the session.
+            transaction.onabort = () => reject(transaction.error);
         });
     }
 

@@ -300,18 +300,27 @@ export class SwitchCompanyMenu extends Component {
         );
         this.resetState();
 
-        useHotkey("control+enter", () => this.confirm(), {
-            bypassEditableProtection: true,
-            // The hotkey lives for the component's lifetime: without the
-            // isOpen guard, a draft selection surviving a close could be
-            // applied by a later Ctrl+Enter pressed anywhere in the app.
-            isAvailable: () =>
-                this.dropdown.isOpen && this.companySelector.hasSelectionChanged,
-        });
+        // Both the confirm hotkey and the "Switch Company" command act on
+        // this.dropdown, which only the desktop template renders. On small
+        // screens the switcher is the MobileSwitchCompanyMenu subclass, whose
+        // visibility is driven by its own collapsible (state.isOpen), so these
+        // would register a dead command-palette entry and a hotkey whose
+        // isAvailable (this.dropdown.isOpen) can never become true. Skip them
+        // there instead of shipping silent no-ops.
+        if (!this.env.isSmall) {
+            useHotkey("control+enter", () => this.confirm(), {
+                bypassEditableProtection: true,
+                // The hotkey lives for the component's lifetime: without the
+                // isOpen guard, a draft selection surviving a close could be
+                // applied by a later Ctrl+Enter pressed anywhere in the app.
+                isAvailable: () =>
+                    this.dropdown.isOpen && this.companySelector.hasSelectionChanged,
+            });
 
-        useCommand(_t("Switch Company"), () => this.dropdown.open(), {
-            hotkey: "alt+shift+u",
-        });
+            useCommand(_t("Switch Company"), () => this.dropdown.open(), {
+                hotkey: "alt+shift+u",
+            });
+        }
         useBus(userBus, UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
             this.companySelector.reset();
         });

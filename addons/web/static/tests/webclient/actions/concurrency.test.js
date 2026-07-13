@@ -2,7 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { queryAll, queryAllTexts, runAllTimers } from "@odoo/hoot-dom";
-import { animationFrame, Deferred } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, microTick } from "@odoo/hoot-mock";
 import { Component, onWillStart, xml } from "@odoo/owl";
 import {
     contains,
@@ -27,6 +27,7 @@ import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { SupersededError } from "@web/core/utils/concurrency";
 import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchBar } from "@web/search/search_bar/search_bar";
@@ -888,4 +889,56 @@ test("doing browser back navigates to the previous action", async () => {
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Partners Action 4",
     ]);
+});
+
+test.tags("desktop");
+test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending", async () => {
+    // Regression: while a `clearBreadcrumbs` doAction is parked on `await def`
+    // waiting for its SkeletonView to mount, a newer `clearBreadcrumbs` doAction
+    // fires ACTION_MANAGER:UPDATE and replaces (destroys-before-mount) that
+    // skeleton. Its Deferred is resolved only from the skeleton's onMounted, so
+    // without a supersession guard the superseded doAction promise would hang
+    // forever. The guard rejects it with SupersededError (swallowed globally).
+    class ClientActionA extends Component {
+        static template = xml`<div class="client-a">A</div>`;
+        static props = ["*"];
+    }
+    class ClientActionB extends Component {
+        static template = xml`<div class="client-b">B</div>`;
+        static props = ["*"];
+    }
+    actionRegistry.add("clientA", ClientActionA);
+    actionRegistry.add("clientB", ClientActionB);
+
+    await mountWithCleanup(WebClient);
+    const action = getService("action");
+
+    // Client actions have no RPC, so A reaches `await def` in pure microtasks.
+    // Its SkeletonView only mounts on an animation frame — which we deliberately
+    // withhold — so flushing microtasks parks A exactly at the skeleton wait.
+    let aError = null;
+    const promA = action.doAction("clientA", { clearBreadcrumbs: true }).then(
+        () => expect.step("A resolved (unexpected)"),
+        (err) => {
+            aError = err;
+        },
+    );
+    for (let i = 0; i < 50 && !action._skeletonDef; i++) {
+        await microTick();
+    }
+    expect(action._skeletonDef).toBeTruthy();
+
+    // A newer clearBreadcrumbs navigation supersedes the parked skeleton.
+    action.doAction("clientB", { clearBreadcrumbs: true });
+    // Without the fix this await never returns (defA never settles).
+    await promA;
+    expect(aError).toBeInstanceOf(SupersededError);
+
+    // The winning navigation still lands normally.
+    await animationFrame();
+    await animationFrame();
+    expect(".client-b").toHaveCount(1);
+    expect(".client-a").toHaveCount(0);
+    expect(action._skeletonDef).toBe(null);
+    expect.verifySteps([]);
 });

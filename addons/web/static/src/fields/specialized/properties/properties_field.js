@@ -268,7 +268,12 @@ export class PropertiesField extends Component {
      * @returns {integer}
      */
     get definitionRecordId() {
-        return this.props.record.data[this.definitionRecordField].id;
+        // The definition-record field is a many2one; when it is unset the
+        // relational model stores `false` (not a record object), so guard with
+        // optional chaining. All three call sites already treat a falsy id as
+        // "no parent yet" (they show an "A parent is needed" notification), so
+        // an unguarded `false.id` here would crash those guards instead.
+        return this.props.record.data[this.definitionRecordField]?.id;
     }
 
     /**

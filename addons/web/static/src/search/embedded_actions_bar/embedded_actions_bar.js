@@ -97,16 +97,25 @@ export class EmbeddedActionsConfigHandler {
         // the cache would track later caller mutations and the failure revert
         // would restore the already-mutated array.
         config = structuredClone(config);
-        const hadConfig = this.embeddedActionsKey in this.embeddedActionsConfig;
-        const previousConfig = hadConfig
-            ? structuredClone(this.embeddedActionsConfig[this.embeddedActionsKey])
-            : null;
-        if (hadConfig) {
-            Object.assign(this.embeddedActionsConfig[this.embeddedActionsKey], config);
-        } else {
-            this.embeddedActionsConfig[this.embeddedActionsKey] = config;
-        }
         const run = async () => {
+            // Snapshot + apply the optimistic cache merge here, inside the
+            // queued unit, NOT at call time: overlapping writes must each
+            // read/snapshot/mutate the shared cache in commit order. Capturing
+            // the revert snapshot at call time let an EARLIER write's deferred
+            // failure revert restore a stale snapshot and wipe a LATER (already
+            // applied) write's changes — breaking the documented last-write-wins.
+            const hadConfig = this.embeddedActionsKey in this.embeddedActionsConfig;
+            const previousConfig = hadConfig
+                ? structuredClone(this.embeddedActionsConfig[this.embeddedActionsKey])
+                : null;
+            if (hadConfig) {
+                Object.assign(
+                    this.embeddedActionsConfig[this.embeddedActionsKey],
+                    config,
+                );
+            } else {
+                this.embeddedActionsConfig[this.embeddedActionsKey] = config;
+            }
             try {
                 await this.orm.call(
                     "res.users.settings",

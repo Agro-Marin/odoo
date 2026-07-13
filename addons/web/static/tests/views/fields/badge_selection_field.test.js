@@ -143,6 +143,10 @@ test("BadgeSelectionField widget on a selection in a readonly mode", async () =>
     expect(`div.o_readonly_modifier span`).toHaveCount(1, {
         message: "should have 1 possible value in readonly mode",
     });
+    // The readonly span renders SelectionLikeField.get string(), which resolves
+    // the label from the field's `selection` metadata (not a subclass option
+    // accessor); the default "red" value must show its "Red" label.
+    expect(`div.o_readonly_modifier span`).toHaveText("Red");
 });
 
 test("BadgeSelectionField widget on a selection unchecking selected value", async () => {

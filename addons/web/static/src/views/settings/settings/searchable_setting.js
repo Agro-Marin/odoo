@@ -3,7 +3,7 @@
 
 /** @module @web/views/settings/settings/searchable_setting - Setting variant with search-based visibility filtering and URL hash highlighting */
 
-import { onMounted, useRef, useState } from "@odoo/owl";
+import { onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { Setting } from "@web/views/form/setting/setting";
@@ -42,9 +42,17 @@ export class SearchableSetting extends Setting {
             }
             if (browser.location.hash.slice(1) === this.props.id) {
                 this.state.highlightClass = { o_setting_highlight: true };
-                browser.setTimeout(() => (this.state.highlightClass = {}), 5000);
+                // Store the handle so it can be cancelled if the component is
+                // destroyed before the 5s highlight elapses (e.g. navigating
+                // away from a deep-linked setting), avoiding a stray timer that
+                // retains the component closure.
+                this._highlightTimer = browser.setTimeout(
+                    () => (this.state.highlightClass = {}),
+                    5000,
+                );
             }
         });
+        onWillUnmount(() => browser.clearTimeout(this._highlightTimer));
     }
 
     /**

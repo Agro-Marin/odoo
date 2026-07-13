@@ -74,7 +74,9 @@ export class Dropdown extends Component {
         items: {
             optional: true,
             type: Array,
-            elements: {
+            // OWL validates array-element shapes under the singular `element` key
+            // (see validateType in owl.js); the plural `elements` is inert.
+            element: {
                 type: Object,
                 shape: {
                     label: String,

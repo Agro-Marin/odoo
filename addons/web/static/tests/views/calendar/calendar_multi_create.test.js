@@ -1116,6 +1116,41 @@ test("multi_create: click uses the event's ctrl state, not stale window state", 
 });
 
 test.tags("desktop");
+test("multi_create: toolbar re-centers when its width changes (Delete button appears)", async () => {
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        context: { default_name: "Sick" },
+    });
+
+    function toolbarLeft() {
+        return parseFloat(queryAll(".o_multi_selection_buttons")[0].style.left);
+    }
+
+    // Select an empty day: toolbar is visible, 0 records selected, no Delete button.
+    await click(".fc-day[data-date='2019-03-04']");
+    await animationFrame();
+    expect(".o_multi_selection_buttons").toHaveCount(1);
+    expect(".o_multi_selection_buttons .btn .fa-trash-can").toHaveCount(0);
+    const leftWithoutDelete = toolbarLeft();
+
+    // Extend the selection over existing records without hiding the toolbar: the
+    // same persistent root node stays mounted while nbSelected grows and the
+    // Delete button appears, widening the toolbar (~40px). The centering effect
+    // must re-run so `left` shrinks; the bug froze it at the mount-time value.
+    const { drop } = await contains(".fc-day[data-date='2019-02-26']").drag();
+    await drop(".fc-day[data-date='2019-04-03']");
+    await animationFrame();
+    expect(".o_multi_selection_buttons").toHaveCount(1);
+    expect(".o_multi_selection_buttons .btn .fa-trash-can").toHaveCount(1);
+    const leftWithDelete = toolbarLeft();
+
+    // Wider toolbar => smaller centering offset. Equality means the effect never
+    // re-ran (the frozen-`left` regression).
+    expect(leftWithDelete < leftWithoutDelete).toBe(true);
+});
+
+test.tags("desktop");
 test("multi_create: window blur clears a stuck ctrl for drag selection", async () => {
     await mountView({
         resModel: "event",

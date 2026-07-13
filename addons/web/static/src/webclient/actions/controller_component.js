@@ -134,6 +134,16 @@ export function makeControllerComponent(am) {
             }
             if (!controller.isMounted && status(this) === "mounted") {
                 // Error happened during a child component's onMounted hook.
+                // The dispatch promise was never resolved (our onMounted, which
+                // resolve()s, didn't run because the child threw). Settle it now
+                // with SupersededError — the same quiet, keepLast-swallowed
+                // resolution onWillDestroy uses — instead of leaving it to settle
+                // whenever the BlankComponent swap below happens to destroy this
+                // component: that async, timing-dependent settlement can strand
+                // the doAction/switchView awaiter. The actual error is surfaced
+                // exactly once via Promise.reject(error) below, so we must NOT
+                // reject the dispatch promise with `error` here (double dialog).
+                reject(new SupersededError());
                 am.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
                     id: am._nextId(),
                     Component: BlankComponent,

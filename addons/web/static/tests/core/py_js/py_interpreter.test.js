@@ -759,9 +759,16 @@ describe("security — recursion depth limit", () => {
         // Parens are flattened by the parser and ternaries short-circuit on True,
         // so neither recurses deeply. Chained `and` builds a left-recursive AST
         // that must evaluate each left subtree first, reaching MAX_EVAL_DEPTH.
-        const depth = 150;
+        const depth = 250;
         const expr = "True and ".repeat(depth) + "1";
         expect(() => evaluateExpr(expr)).toThrow(/depth/i);
+    });
+
+    test("long chains within the parser depth limit still evaluate", () => {
+        // MAX_EVAL_DEPTH must not sit below MAX_PARSE_DEPTH (200): a chain the
+        // parser accepts must be evaluable, not rejected as "too deep".
+        const expr = "1" + " + 1".repeat(150);
+        expect(evaluateExpr(expr)).toBe(151);
     });
 });
 
@@ -972,6 +979,23 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("2 ** 2 ** 3")).toBe(256);
         expect(evaluateExpr("(2 ** 3) ** 2")).toBe(64);
         expect(evaluateExpr("2 ** 3")).toBe(8);
+    });
+
+    test("'**' raises on zero to a negative power (ZeroDivisionError, not Infinity)", () => {
+        expect(() => evaluateExpr("0 ** -1")).toThrow(/ZeroDivisionError/);
+        expect(() => evaluateExpr("0 ** -2")).toThrow(/ZeroDivisionError/);
+        // False is an int (0), so it triggers the same guard.
+        expect(() => evaluateExpr("False ** -1")).toThrow(/ZeroDivisionError/);
+        // 0 ** 0 == 1 and 0 ** positive == 0 stay valid.
+        expect(evaluateExpr("0 ** 0")).toBe(1);
+        expect(evaluateExpr("0 ** 2")).toBe(0);
+    });
+
+    test("'**' raises on a negative base with a fractional exponent (complex, not NaN)", () => {
+        expect(() => evaluateExpr("(-8) ** 0.5")).toThrow(/fractional power/);
+        // Integer exponents on a negative base stay valid.
+        expect(evaluateExpr("(-2) ** 3")).toBe(-8);
+        expect(evaluateExpr("(-2) ** 2")).toBe(4);
     });
 });
 

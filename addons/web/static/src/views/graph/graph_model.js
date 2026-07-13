@@ -99,9 +99,15 @@ export class GraphModel extends Model {
     }
 
     async forceLoadAll() {
+        // The DATA_LIMIT sample is applied purely client-side in _getData:
+        // _loadDataPoints already fetched every group into this.dataPoints
+        // (the read_group carries no limit/offset). Lifting the cap only needs
+        // a local re-process — re-issuing the identical (and, by definition,
+        // large) read_group would be a redundant network round-trip. Await any
+        // in-flight fetch first, mirroring updateMetaData's non-fetch path.
+        await this.race.getCurrentProm();
         this.forceAllDataPoints = true;
-        const metaData = this._buildMetaData();
-        await this._fetchDataPoints(metaData);
+        this._prepareData();
         this.notify();
     }
 

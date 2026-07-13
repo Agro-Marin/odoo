@@ -228,6 +228,13 @@ export class ActionSwiper extends Component {
     }
 
     handleSwipe(action) {
+        // A completed swipe schedules the action up to 500ms later (while the
+        // CSS animation runs) but leaves the touch listeners live, so a second
+        // gesture can complete within that window and re-enter here. Cancel any
+        // action/reset still pending from a previous swipe, otherwise both
+        // timers fire and the (possibly destructive) action runs twice.
+        browser.clearTimeout(this.actionTimeoutId);
+        browser.clearTimeout(this.resetTimeoutId);
         if (this.props.animationType === "bounce") {
             this.state.containerStyle = `transform: translateX(${this.swipedDistance}px)`;
             this.actionTimeoutId = browser.setTimeout(async () => {

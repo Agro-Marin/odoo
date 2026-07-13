@@ -75,16 +75,13 @@ export class FileInput extends Component {
     async onFileInputChange() {
         this.state.isDisable = true;
         const httpParams = this.httpParams;
-        if (this.props.onWillUploadFiles) {
-            try {
-                const files = await this.props.onWillUploadFiles(httpParams.ufile);
-                httpParams.ufile = files;
-            } catch (e) {
-                this.state.isDisable = false;
-                throw e;
-            }
-        }
         try {
+            if (this.props.onWillUploadFiles) {
+                // Inside the same try/finally as the upload so a rejecting
+                // pre-upload hook still clears the input value below, otherwise
+                // re-selecting the same file wouldn't re-fire the change event.
+                httpParams.ufile = await this.props.onWillUploadFiles(httpParams.ufile);
+            }
             const parsedFileData = await this.uploadFiles(this.props.route, httpParams);
             if (parsedFileData) {
                 // Also pass the raw files so onUpload can read metadata like names.

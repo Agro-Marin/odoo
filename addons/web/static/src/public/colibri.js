@@ -253,7 +253,13 @@ export class Colibri {
      */
     mountComponent(node, C, props, position = "beforeend") {
         const root = this.core.prepareRoot(node, C, props, position);
-        root.mount();
+        // root.mount() (owl App root mount) rejects if the mounted component's
+        // setup/willStart/render throws. This runs async after start() has
+        // already resolved, so an uncaught rejection would escape the service's
+        // tracked-promise chain and surface as an unhandled rejection (or reach
+        // the frontend crash reporter). Route it through the same soft error
+        // channel used by interaction_service._mountComponent.
+        root.mount().catch((e) => this.core._reportInteractionError(e));
         this.cleanups.push(() => root.destroy());
         return root.destroy;
     }
@@ -293,6 +299,18 @@ export class Colibri {
                 this.refreshNodes();
             }
         } else {
+            // Assigning textContent detaches any existing element children.
+            // Mirror the Markup branch and stop their interactions first, so
+            // Colibri instances started on those children are torn down (their
+            // listeners/cleanups run) instead of leaking on now-detached DOM.
+            if (el.children.length) {
+                const nodes = el === this.interaction.el ? el.children : [el];
+                for (const node of nodes) {
+                    this.core.env.services["public.interactions"].stopInteractions(
+                        node,
+                    );
+                }
+            }
             el.textContent = value;
         }
     }

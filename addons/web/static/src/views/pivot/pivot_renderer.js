@@ -68,10 +68,17 @@ export class PivotRenderer extends Component {
         // column are stable, so each column is queried at most once.
         this.columnCellsCache = new Map();
         this.hoveredCells = null;
+        // Per-render cache of the group-by menu items: the ``groupByItems``
+        // getter is read several times per render (t-foreach, its t-if guard,
+        // and onGroupBySelected's lookup) and rebuilds the list each time.
+        // Cleared every render below, so it only dedupes intra-render reads and
+        // can't go stale across renders.
+        this.groupByItemsCache = null;
         let tableEpoch;
         onWillRender(() => {
             this.columnCellsCache.clear();
             this.hoveredCells = null;
+            this.groupByItemsCache = null;
             if (this.model._updateEpoch !== tableEpoch) {
                 tableEpoch = this.model._updateEpoch;
                 this.table = this.model.getTable();
@@ -209,13 +216,21 @@ export class PivotRenderer extends Component {
      * @returns {Object[]}
      */
     get groupByItems() {
+        if (this.groupByItemsCache) {
+            return this.groupByItemsCache;
+        }
         let items = this.env.searchModel.getSearchItems(
             (searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                 !searchItem.custom,
         );
         if (!items.length) {
-            items = this.fields;
+            // Copy: ``this.fields`` is the renderer's own array (built once in
+            // setup and passed to <CustomGroupByItem/>). The custom-groupby loop
+            // below pushes onto ``items``, and this getter is re-evaluated several
+            // times per menu render — aliasing would append the custom groupbys to
+            // ``this.fields`` on every call, growing it unboundedly.
+            items = [...this.fields];
         }
 
         // Add custom groupbys
@@ -231,7 +246,7 @@ export class PivotRenderer extends Component {
             });
         }
 
-        return items.map((item) => ({
+        this.groupByItemsCache = items.map((item) => ({
             ...item,
             id: item.id || item.name,
             fieldName: item.fieldName || item.name,
@@ -242,6 +257,7 @@ export class PivotRenderer extends Component {
                     ? getIntervalOptions()
                     : undefined),
         }));
+        return this.groupByItemsCache;
     }
 
     /**

@@ -8,6 +8,7 @@ import {
     leave,
     pointerDown,
     pointerUp,
+    press,
     queryOne,
 } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, mockTouch, runAllTimers } from "@odoo/hoot-mock";
@@ -16,9 +17,15 @@ import {
     makeMockEnv,
     mockService,
     mountWithCleanup,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { popoverService } from "@web/ui/popover/popover_service";
-import { OPEN_DELAY, SHOW_AFTER_DELAY } from "@web/ui/tooltip/tooltip_service";
+import {
+    CLOSE_DELAY,
+    OPEN_DELAY,
+    SHOW_AFTER_DELAY,
+} from "@web/ui/tooltip/tooltip_service";
 
 test.tags("desktop");
 test("basic rendering", async () => {
@@ -299,6 +306,46 @@ test("tooltip does not crash with disappearing target", async () => {
 
     await runAllTimers();
     expect(".o_popover").toHaveCount(0);
+});
+
+test.tags("desktop");
+test("self-closing popover (Escape) stops the cleanup interval", async () => {
+    // Track only the tooltip service's own recurring cleanup interval (it uses
+    // CLOSE_DELAY as its period) so unrelated intervals don't skew the count.
+    const tooltipIntervals = new Set();
+    patchWithCleanup(browser, {
+        setInterval(fn, delay) {
+            const id = super.setInterval(fn, delay);
+            if (delay === CLOSE_DELAY) {
+                tooltipIntervals.add(id);
+            }
+            return id;
+        },
+        clearInterval(id) {
+            tooltipIntervals.delete(id);
+            return super.clearInterval(id);
+        },
+    });
+
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" data-tooltip="hello">Action</button>`;
+    }
+
+    await mountWithCleanup(MyComponent);
+    await hover(".mybtn");
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(1);
+    // While the tooltip is open the service polls its target every CLOSE_DELAY.
+    expect(tooltipIntervals.size).toBe(1);
+
+    // The popover self-closes through its own escape hotkey; no mouseleave ever
+    // reaches the target. The onClose callback must tear the service state down,
+    // otherwise the interval would keep polling an already-closed tooltip.
+    await press("Escape");
+    await animationFrame();
+    expect(".o_popover").toHaveCount(0);
+    expect(tooltipIntervals.size).toBe(0);
 });
 
 test.tags("desktop");
