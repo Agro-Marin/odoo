@@ -183,6 +183,8 @@ describe("save barrier on pending commands", () => {
             isInEdition: true,
             _changes: markRaw({}),
             _values: markRaw({}),
+            _textValues: markRaw({}),
+            _setEvalContext() {},
             _checkValidity: () => true,
             // Serialize the x2many through the real command serializer, as
             // record._getChanges does for a dirty x2many.
