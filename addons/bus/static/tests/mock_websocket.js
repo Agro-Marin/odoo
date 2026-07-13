@@ -87,6 +87,19 @@ class MockLockManager {
             options = {};
         }
         const { ifAvailable = false, signal } = options || {};
+        if (signal && ifAvailable) {
+            // Mirror the real LockManager, which rejects this invalid option
+            // combination with a NotSupportedError. Enforcing it here is what
+            // lets the bus test suite catch the misuse instead of leaving it to
+            // blow up only in a real browser (as it once did in
+            // multi_tab_service's fast-path election request).
+            return Promise.reject(
+                new DOMException(
+                    "Failed to execute 'request' on 'LockManager': The 'signal' and 'ifAvailable' options cannot be used together.",
+                    "NotSupportedError",
+                ),
+            );
+        }
         if (signal?.aborted) {
             return Promise.reject(this._abortError());
         }
