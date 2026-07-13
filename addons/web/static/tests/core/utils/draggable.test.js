@@ -434,44 +434,6 @@ test("Focusing is not lost after clicking", async () => {
     expect(".item").toBeFocused();
 });
 
-test("willDrag is reset after an aborted pre-drag (sub-tolerance)", async () => {
-    // A pointerdown that enters the pre-drag phase (willStartDrag -> willDrag=true)
-    // but never crosses the tolerance threshold must leave willDrag=false once the
-    // sequence is cancelled. Otherwise consumers gating hover UI on ctx.willDrag
-    // (e.g. web_gantt resize handles) stay broken until the page is reloaded.
-    let dragState;
-    class List extends Component {
-        static props = ["*"];
-        static template = xml`
-            <div t-ref="root" class="root">
-                <ul class="list">
-                    <li t-foreach="[1, 2, 3]" t-as="i" t-key="i" t-esc="i" class="item" />
-                </ul>
-            </div>`;
-        setup() {
-            dragState = useDraggable({
-                ref: useRef("root"),
-                elements: ".item",
-            });
-        }
-    }
-
-    await mountWithCleanup(List);
-
-    expect(dragState.willDrag).toBe(false);
-
-    // Move by only 5px: below the default 10px tolerance, so dragStart never runs.
-    const { cancel } = await contains(".item:first-child").drag({
-        initialPointerMoveDistance: 0,
-        position: { x: 0, y: 0 },
-        relative: true,
-    });
-    await cancel();
-
-    expect(dragState.dragging).toBe(false);
-    expect(dragState.willDrag).toBe(false);
-});
-
 test("allowDisconnected option", async () => {
     class List extends Component {
         static template = xml`

@@ -734,16 +734,7 @@ export function makeDraggableHook(hookParams) {
             };
 
             // Initialize helpers
-            // Reset both flags on teardown: `willDrag` is set in
-            // `willStartDrag` but only cleared in `dragStart`, so an aborted
-            // pre-drag (sub-tolerance click, delay-timeout abort, keydown/
-            // pointercancel before the threshold) would otherwise leave it
-            // stuck `true` forever, breaking consumers that gate hover UI on
-            // `ctx.willDrag`.
-            const cleanup = makeCleanupManager(() => {
-                state.dragging = false;
-                state.willDrag = false;
-            });
+            const cleanup = makeCleanupManager(() => (state.dragging = false));
             const effectCleanup = makeCleanupManager();
             const dom = makeDOMHelpers(cleanup);
 
