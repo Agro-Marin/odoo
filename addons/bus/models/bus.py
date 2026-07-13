@@ -380,11 +380,17 @@ class ImDispatch(threading.Thread):
         ):
             conn.execute("LISTEN imbus")
             sel.register(conn, selectors.EVENT_READ)
+            # NOTIFYs emitted while the LISTEN connection was down (first
+            # start is a harmless no-op) were lost: without a catch-up, a
+            # notification created during the gap is never dispatched until
+            # its channel receives another one. Websockets track their own
+            # ``last_id``, so waking them all is a cheap incremental poll.
+            self._dispatch_to_all()
             while not stop_event.is_set():
                 if sel.select(TIMEOUT):
                     channels = []
                     for notif in conn.notifies(timeout=0):
-                        channels.extend(orjson.loads(notif.payload))
+                        channels.extend(self._parse_imbus_payload(notif.payload))
                     # Snapshot websockets under lock, then dispatch outside
                     # to avoid holding the lock while calling websocket code.
                     with self._lock:
@@ -396,8 +402,40 @@ class ImDispatch(threading.Thread):
                     for websocket in websockets:
                         websocket.trigger_notification_dispatching()
 
+    @staticmethod
+    def _parse_imbus_payload(payload):
+        """Parse one imbus NOTIFY payload into a list of channels.
+
+        A malformed payload (foreign NOTIFY on the imbus channel, custom
+        ``ODOO_NOTIFY_FUNCTION``, ...) must not kill the dispatch loop for
+        every database: it is logged and skipped instead.
+        """
+        try:
+            channels = orjson.loads(payload)
+        except ValueError:
+            _logger.warning("Bus.loop ignoring malformed imbus payload: %r", payload)
+            return []
+        if not isinstance(channels, list):
+            _logger.warning("Bus.loop ignoring non-list imbus payload: %r", payload)
+            return []
+        return channels
+
+    def _dispatch_to_all(self):
+        """Trigger notification dispatching on every subscribed websocket."""
+        with self._lock:
+            websockets = set().union(*self._channels_to_ws.values())
+        for websocket in websockets:
+            websocket.trigger_notification_dispatching()
+
     def run(self):
+        # Exponential backoff between retries: a transient hiccup recovers
+        # within seconds (the previous flat 50s pause left every websocket
+        # without dispatching for almost a minute), while a persistent outage
+        # (PostgreSQL down) quickly settles at one retry per TIMEOUT to keep
+        # log noise bounded.
+        retry_delay = 1
         while not stop_event.is_set():
+            started_at = time.monotonic()
             try:
                 self.loop()
             except Exception as exc:
@@ -406,8 +444,15 @@ class ImDispatch(threading.Thread):
                     and stop_event.is_set()
                 ):
                     continue
-                _logger.exception("Bus.loop error, sleep and retry")
-                time.sleep(TIMEOUT)
+                if time.monotonic() - started_at > TIMEOUT:
+                    # The loop ran fine for a while before failing: this is a
+                    # new incident, not a consecutive failure. Restart the
+                    # backoff from scratch.
+                    retry_delay = 1
+                _logger.exception("Bus.loop error, retry in %d seconds", retry_delay)
+                # `wait` (vs `sleep`) aborts the pause on server shutdown.
+                stop_event.wait(retry_delay)
+                retry_delay = min(retry_delay * 2, TIMEOUT)
 
 
 # Lazy-started singleton — initialized early to avoid "Bus unavailable" errors.
