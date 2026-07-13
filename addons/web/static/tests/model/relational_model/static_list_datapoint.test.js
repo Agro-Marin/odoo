@@ -201,3 +201,46 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
         expect(list._loadCalled).toBe(true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// _duplicateRecords — early-return guards
+// ---------------------------------------------------------------------------
+
+/**
+ * Bare StaticList with no collaborator methods defined at all: if
+ * _duplicateRecords fails to short-circuit on its early-return guard, it
+ * calls one of them (e.g. `this._createNewRecordDatapoint`) and that throws
+ * "is not a function" — the natural signal that the guard didn't hold,
+ * with no manual instrumentation needed.
+ */
+function makeBareStaticList({ records = [], handleField = "sequence" } = {}) {
+    const list = Object.create(StaticList.prototype);
+    Object.assign(list, { records, handleField });
+    return list;
+}
+
+describe("_duplicateRecords early-return guards", () => {
+    test("no records to duplicate: returns without touching any collaborator", async () => {
+        const list = makeBareStaticList({ records: [] });
+        // Pre-fix: `records.at(-1)` on [] is undefined, so
+        // `this.records.indexOf(undefined) + 1` silently computed 0 instead
+        // of crashing — the guard exists for the *next* line, where
+        // `records.map(...)` over an empty array is harmless but the
+        // sequence read below (targetIndex 0 branch) still touches
+        // `this.records[0]`, which is unsafe when `this.records` is also
+        // empty. Guarding on `!records.length` short-circuits before any of
+        // that runs.
+        await list._duplicateRecords([], {});
+        expect(list.records).toEqual([]);
+    });
+
+    test("no handleField to sequence on: returns without touching any collaborator", async () => {
+        const records = [{ data: { sequence: 1 } }];
+        const list = makeBareStaticList({ records, handleField: false });
+        // Pre-fix, with no handleField the sequence arithmetic read
+        // `data[undefined]` (NaN) and then wrote NaN into every following
+        // record's handle field instead of failing loudly or skipping.
+        await list._duplicateRecords(records, {});
+        expect(list.records).toBe(records);
+    });
+});
