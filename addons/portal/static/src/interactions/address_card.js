@@ -34,7 +34,7 @@ export class AddressCard extends Interaction {
      *
      * @param {Event} ev
      */
-    async toggleBillingAddressRow(ev) {
+    toggleBillingAddressRow(ev) {
         const useDeliveryAsBilling = ev.target.checked;
 
         const addDeliveryAddressButton = this.el.querySelector(

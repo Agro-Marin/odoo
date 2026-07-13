@@ -83,9 +83,15 @@ export class PortalComposer extends Interaction {
             currentTargetEl.closest(".o_portal_chatter_attachment").dataset.id,
             10
         );
-        const accessToken = this.attachments.find(
+        const attachment = this.attachments.find(
             (attachment) => attachment.id === attachmentId
-        ).access_token;
+        );
+        if (!attachment) {
+            // Stale DOM data-id with no matching in-memory attachment: nothing
+            // to remove, and dereferencing `.access_token` would throw.
+            return;
+        }
+        const accessToken = attachment.access_token;
 
         this.sendButtonEl.disabled = true;
 

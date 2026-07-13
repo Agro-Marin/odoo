@@ -114,7 +114,7 @@ export class PortalSecurity extends Interaction {
         // currentTarget is the listened-to .o_portal_remove_api_key element (the <button>);
         // target may be the inner <i> when the user clicks the icon glyph itself.
         await this.waitFor(
-            await handleCheckIdentity(
+            handleCheckIdentity(
                 this.waitFor(
                     this.services.orm.call("res.users.apikeys", "remove", [parseInt(ev.currentTarget.dataset.id, 10)])
                 ),

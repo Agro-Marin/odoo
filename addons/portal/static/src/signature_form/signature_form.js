@@ -73,16 +73,30 @@ export class SignatureForm extends Component {
      * @returns {Promise}
      */
     async onClickSubmit() {
-        const button = document.querySelector('.o_portal_sign_submit')
-        const icon = button.removeChild(button.firstChild)
+        // Scope the lookup to this component's root: a document-wide query would
+        // grab the first form's button when several signature forms coexist.
+        const button = this.rootRef.el.querySelector('.o_portal_sign_submit');
+        const icon = button.removeChild(button.firstChild);
         const restoreBtnLoading = addLoadingEffect(button);
 
         const name = this.signature.name;
         const signature = this.signature.getSignatureImage().split(",")[1];
-        const data = await rpc(this.props.callUrl, { name, signature });
-        if (data.force_refresh) {
+        let data;
+        try {
+            data = await rpc(this.props.callUrl, { name, signature });
+        } catch (error) {
+            // Restore the button so the user can retry instead of being left
+            // with a permanently spinning, disabled control.
             restoreBtnLoading();
-            button.prepend(icon)
+            button.prepend(icon);
+            throw error;
+        }
+        // Restore the button for every in-page outcome (validation error or
+        // success). On the force_refresh path the page navigates away, so it
+        // is moot there but harmless.
+        restoreBtnLoading();
+        button.prepend(icon);
+        if (data.force_refresh) {
             if (data.redirect_url) {
                 redirect(data.redirect_url);
             } else {
@@ -92,10 +106,13 @@ export class SignatureForm extends Component {
             return new Promise(() => {});
         }
         this.state.error = data.error || false;
+        // Keys must match the template (portal.SignatureForm): it reads
+        // ``redirect_url`` / ``redirect_message``. Emitting camelCase here left
+        // the post-sign success link permanently hidden.
         this.state.success = !data.error && {
             message: data.message,
-            redirectUrl: data.redirect_url,
-            redirectMessage: data.redirect_message,
+            redirect_url: data.redirect_url,
+            redirect_message: data.redirect_message,
         };
     }
 }

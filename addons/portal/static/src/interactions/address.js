@@ -151,7 +151,9 @@ export class CustomerAddress extends Interaction {
                 }
             })
             result.invalid_fields.forEach(
-                fieldName => this.addressForm[fieldName].classList.add('is-invalid')
+                // Optional chaining: a server-flagged field may not have a
+                // matching control in this form variant (e.g. vat hidden).
+                fieldName => this.addressForm[fieldName]?.classList.add('is-invalid')
             );
 
             // Display the error messages

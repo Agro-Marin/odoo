@@ -2,7 +2,7 @@
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 
 import { OverlayContainer } from "@web/ui/overlay/overlay_container";
-import { Component, xml, useSubEnv } from "@odoo/owl";
+import { Component, xml, useSubEnv, onWillDestroy } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
 export class PortalChatter extends Component {
@@ -20,8 +20,13 @@ export class PortalChatter extends Component {
         });
         this.overlayService = useService("overlay");
         this.store = useService("mail.store");
-        this.env.bus.addEventListener("reload_chatter_content", (ev) =>
-            this._reloadChatterContent(ev.detail)
+        // Keep a handle on the bound listener so it can be removed on destroy;
+        // an anonymous handler would leak (and stack duplicate reloads) every
+        // time a PortalChatter is mounted and torn down.
+        this._onReloadChatterContent = (ev) => this._reloadChatterContent(ev.detail);
+        this.env.bus.addEventListener("reload_chatter_content", this._onReloadChatterContent);
+        onWillDestroy(() =>
+            this.env.bus.removeEventListener("reload_chatter_content", this._onReloadChatterContent)
         );
     }
 
