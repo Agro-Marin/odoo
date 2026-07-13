@@ -115,8 +115,11 @@ CATEGORY_REQUIRED_FIELDS = {
         "message": "Basic Authentication requires username and password.",
     },
     "oauth2": {
-        "fields": ["oauth_access_token"],  # At minimum, access token required
-        "message": "OAuth 2.0 credentials require at least an access token.",
+        # Either slot satisfies: a client secret alone is valid for a
+        # pre-authorization credential (the access token only exists after
+        # the first token exchange writes it back). See t23878.
+        "fields": [("oauth_access_token", "oauth_client_secret")],
+        "message": "OAuth 2.0 credentials require an access token or a client secret.",
     },
     "aws_iam": {
         "fields": ["api_key", "api_secret"],
@@ -633,6 +636,22 @@ class CredentialCredential(models.Model):
         copy=False,
         groups="base.group_system",
         help="OAuth Refresh Token stored in JSON credential data",
+    )
+    oauth_client_id = fields.Char(
+        string="OAuth Client ID",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_oauth_client_id",
+        copy=False,
+        groups="base.group_system",
+        help="OAuth Client ID stored in JSON credential data",
+    )
+    oauth_client_secret = fields.Char(
+        string="OAuth Client Secret",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_oauth_client_secret",
+        copy=False,
+        groups="base.group_system",
+        help="OAuth Client Secret stored in JSON credential data",
     )
     oauth_token_date_expiration = fields.Datetime(
         string="OAuth Token Expiration",
@@ -1464,6 +1483,8 @@ class CredentialCredential(models.Model):
         "password",
         "oauth_access_token",
         "oauth_refresh_token",
+        "oauth_client_id",
+        "oauth_client_secret",
     )
 
     @api.depends("credential_data")
@@ -1754,6 +1775,14 @@ class CredentialCredential(models.Model):
     def _inverse_credential_field_oauth_refresh_token(self) -> None:
         """Store oauth_refresh_token in JSON credential data."""
         self._inverse_credential_json_field("oauth_refresh_token")
+
+    def _inverse_credential_field_oauth_client_id(self) -> None:
+        """Store oauth_client_id in JSON credential data."""
+        self._inverse_credential_json_field("oauth_client_id")
+
+    def _inverse_credential_field_oauth_client_secret(self) -> None:
+        """Store oauth_client_secret in JSON credential data."""
+        self._inverse_credential_json_field("oauth_client_secret")
 
     def _inverse_certificate_password(self):
         """Encrypt certificate password when set."""
