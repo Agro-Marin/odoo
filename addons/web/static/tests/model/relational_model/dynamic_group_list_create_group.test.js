@@ -17,25 +17,31 @@ function makeList(groups = []) {
     const list = Object.create(DynamicGroupList.prototype);
     list.groups = [...groups];
     list.count = groups.length;
-    list.domain = [];
-    list.orderBy = [];
-    list.groupBy = ["partner_id"];
-    list.context = {};
-    list.groupByField = {
-        name: "partner_id",
-        relation: "res.partner",
-        type: "many2one",
-    };
-    list.config = {
+    // domain / orderBy / groupBy / context / resModel / fields / activeFields /
+    // groupByField are read-only getters backed by `_config` (DataPoint /
+    // DynamicList / DynamicGroupList); set the config, not the getters.
+    // groupByField derives from `fields[groupBy[0]]`.
+    list._config = {
+        domain: [],
+        orderBy: [],
+        groupBy: ["partner_id"],
+        context: {},
         resModel: "res.model",
-        fields: {},
+        fields: {
+            partner_id: {
+                name: "partner_id",
+                relation: "res.partner",
+                type: "many2one",
+            },
+        },
         activeFields: {},
         fieldsToAggregate: [],
         groups: {},
     };
     list.model = {
         initialLimit: 80,
-        orm: { call: async () => [42] }, // name_create returns [id]
+        // name_create returns [id]; write is a no-op stub for the fold path.
+        orm: { call: async () => [42], write: async () => {} },
         _patchConfig: () => {},
     };
     // Stub datapoint creation / resequence so the test exercises only the
