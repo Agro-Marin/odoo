@@ -136,8 +136,8 @@ export function useHover(
             return () => {
                 target.ref.el.removeEventListener("mouseenter", handleMouseenter, true);
                 target.ref.el.removeEventListener("mouseleave", handleMouseleave, true);
-                const idx = state._targets.findIndex((t) => t === target);
-                if (idx) {
+                const idx = state._targets.indexOf(target);
+                if (idx !== -1) {
                     state._targets.splice(idx, 1);
                 }
             };
@@ -256,8 +256,8 @@ export class UseHoverOverlay extends Component {
             });
         });
         onWillUnmount(() => {
-            const idx = this.props.hover._contains.find((c) => c === overlayContains);
-            if (idx) {
+            const idx = this.props.hover._contains.indexOf(overlayContains);
+            if (idx !== -1) {
                 this.props.hover._contains.splice(idx, 1);
             }
             removeTarget?.();

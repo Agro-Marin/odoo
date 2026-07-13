@@ -940,9 +940,9 @@ export class Thread extends Record {
      */
     _enrichMessagesWithTransient() {
         for (const message of this.transientMessages) {
-            if (message.id < this.oldestPersistentMessage && !this.loadOlder) {
+            if (message.id < this.oldestPersistentMessage?.id && !this.loadOlder) {
                 this.messages.unshift(message);
-            } else if (message.id > this.newestPersistentMessage && !this.loadNewer) {
+            } else if (message.id > this.newestPersistentMessage?.id && !this.loadNewer) {
                 this.messages.push(message);
             } else {
                 let afterIndex = this.messages.findIndex((msg) => msg.id > message.id);

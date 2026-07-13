@@ -134,6 +134,12 @@ class MailNotification(models.Model):
                 "<",
                 fields.Datetime.now() - relativedelta(days=max_age_days),
             ),
+            # Also collect email-only notifications (res_partner_id NULL, created
+            # for non-partner recipients): the bare ``partner_share = False``
+            # clause required a partner, so those rows were never garbage
+            # collected and mail_notification grew unbounded.
+            "|",
+            ("res_partner_id", "=", False),
             ("res_partner_id.partner_share", "=", False),
             ("notification_status", "in", ("sent", "canceled")),
         ]

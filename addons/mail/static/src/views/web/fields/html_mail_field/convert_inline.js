@@ -1786,7 +1786,10 @@ function _computeStyleAndSpecificityOnRules(cssRules) {
             if (Object.keys(style).length) {
                 Object.assign(cssRule, {
                     style,
-                    specificity: _computeSpecificity(cssRule.selector),
+                    // Preserve a specificity deliberately pre-set by the caller
+                    // (e.g. the low-priority body->.o_layout trickle-down rule);
+                    // only derive it from the selector when none was provided.
+                    specificity: cssRule.specificity ?? _computeSpecificity(cssRule.selector),
                 });
             } else {
                 Object.assign(cssRule, {

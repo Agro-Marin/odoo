@@ -292,6 +292,13 @@ class MailMail(models.Model):
         ]
         if "filters" in self.env.context:
             domain.extend(self.env.context["filters"])
+        if email_ids:
+            # Narrow the query to the requested ids (implicit AND with the
+            # leaves above). Without this the search is capped at
+            # ``batch_size * 10`` over *all* outgoing mail and only then
+            # intersected, so requested ids sorting beyond the cap were
+            # silently never sent.
+            domain = [("id", "in", list(email_ids)), *domain]
         batch_size = (
             int(
                 self.env["ir.config_parameter"]

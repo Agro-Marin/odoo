@@ -719,12 +719,16 @@ class DiscussChannelMember(models.Model):
                 )
             )
             if devices:
-                if self.channel_id.channel_type != "chat":
-                    icon = f"/web/image/discuss.channel/{self.channel_id.id}/avatar_128"
-                elif guest := self.env["mail.guest"]._get_guest_from_context():
-                    icon = f"/web/image/mail.guest/{guest.id}/avatar_128"
-                elif partner := self.env.user.partner_id:
-                    icon = f"/web/image/res.partner/{partner.id}/avatar_128"
+                # Default to the channel avatar; for a chat, prefer the caller's
+                # persona when resolvable. Without the default, a chat driven by
+                # a member whose persona is neither a context-guest nor a user
+                # partner left ``icon`` unbound -> NameError (500 on the invite).
+                icon = f"/web/image/discuss.channel/{self.channel_id.id}/avatar_128"
+                if self.channel_id.channel_type == "chat":
+                    if guest := self.env["mail.guest"]._get_guest_from_context():
+                        icon = f"/web/image/mail.guest/{guest.id}/avatar_128"
+                    elif partner := self.env.user.partner_id:
+                        icon = f"/web/image/res.partner/{partner.id}/avatar_128"
                 languages = [partner.lang for partner in devices.partner_id]
                 payload_by_lang = {}
                 for lang in languages:

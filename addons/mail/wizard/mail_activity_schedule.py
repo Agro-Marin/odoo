@@ -333,9 +333,13 @@ class MailActivitySchedule(models.TransientModel):
 
                         schedule_line_values_list.append(schedule_line_values)
 
-                scheduler.plan_schedule_line_ids = [(5,)] + [
-                    (0, 0, values) for values in schedule_line_values_list
-                ]
+            # Assign once per scheduler, after every template has contributed its
+            # line(s). Doing this inside the template loop re-issued a full
+            # (5,) clear + recreate on each iteration (O(n^2) command churn,
+            # correct only because last-write-wins).
+            scheduler.plan_schedule_line_ids = [(5,)] + [
+                (0, 0, values) for values in schedule_line_values_list
+            ]
 
     @api.depends("res_model")
     def _compute_activity_type_id(self):
