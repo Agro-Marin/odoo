@@ -150,6 +150,40 @@ describe("EmbeddedActionsConfigHandler.setEmbeddedActionsConfig", () => {
         expect(handler.hasEmbeddedActionsConfig()).toBe(false);
     });
 
+    test("overlapping writes: an earlier failure does not wipe a later success", async () => {
+        // Two writes are queued back-to-back (last-write-wins). The FIRST RPC
+        // fails, the SECOND succeeds. The snapshot/merge/revert must run in
+        // commit order inside the queue, so the first's revert only undoes its
+        // own change and the second's value survives in the cache — rather than
+        // the first's deferred revert deleting the shared key the second wrote.
+        let call = 0;
+        const handler = makeConfigHandler({
+            orm: {
+                call: async () => {
+                    call++;
+                    if (call === 1) {
+                        throw new Error("boom");
+                    }
+                    return true;
+                },
+            },
+        });
+
+        const first = handler.setEmbeddedActionsConfig({
+            embedded_actions_visibility: [7],
+        });
+        const second = handler.setEmbeddedActionsConfig({
+            embedded_actions_visibility: [7, 8],
+        });
+        const [firstSaved, secondSaved] = await Promise.all([first, second]);
+
+        expect(firstSaved).toBe(false);
+        expect(secondSaved).toBe(true);
+        expect(handler.getEmbeddedActionsConfig("embedded_actions_visibility")).toEqual(
+            [7, 8],
+        );
+    });
+
     test("success returns true and merges into the existing entry", async () => {
         const handler = makeConfigHandler({
             initialConfig: { "1+": { embedded_visibility: false } },

@@ -2156,6 +2156,51 @@ describe("t-att and t-out", () => {
         expect("span:first").toHaveText("penguin");
         expect("span:last").toHaveText("ostrich");
     });
+
+    test("plain-string t-out stops child interactions before wiping them", async () => {
+        let innerInteraction;
+        before(() => {
+            clearRegistry(registry);
+            class Inner extends Interaction {
+                static selector = ".inner";
+                dynamicContent = {
+                    _root: { "t-att-animal": () => "colibri" },
+                };
+            }
+            innerInteraction = Inner;
+            class Test extends Interaction {
+                static selector = ".test";
+                dynamicContent = {
+                    _root: { "t-out": () => this.tOut },
+                };
+                setup() {
+                    // Start with INITIAL_VALUE so the interaction-bearing
+                    // child element survives the first updateContent.
+                    this.tOut = Interaction.INITIAL_VALUE;
+                }
+                start() {
+                    this.waitForTimeout(() => {
+                        this.tOut = "goodbye";
+                    }, 1000);
+                }
+            }
+            for (const I of [Inner, Test]) {
+                registry.category("public.interactions").add(I.name, I);
+            }
+        });
+        const { core } = await startInteractions(
+            `<div class="test"><span class="inner">Hi</span></div>`,
+        );
+        const inner = queryOne(".inner");
+        expect(".inner").toHaveAttribute("animal", "colibri");
+        expect(core.activeInteractions.map.get(inner).has(innerInteraction)).toBe(true);
+        // The plain-string t-out replaces the container content; the child
+        // interaction must be stopped (not left leaking on detached DOM).
+        await advanceTime(1000);
+        expect(".test").toHaveText("goodbye");
+        expect(".inner").toHaveCount(0);
+        expect(core.activeInteractions.map.get(inner)).toBe(undefined);
+    });
 });
 
 describe("components", () => {

@@ -3284,6 +3284,10 @@ test("limit dataset amount", async () => {
             expect.step("rerender");
         },
     });
+    // "Load everything anyway" only lifts a client-side cap: all 600 groups
+    // are already in memory, so it must re-slice locally without issuing a
+    // second (identical, large) read_group.
+    onRpc("formatted_read_group", () => expect.step("formatted_read_group"));
     await contains(`.o_graph_load_all_btn`).click();
     expect.verifySteps(["rerender"]);
     expect(model.data.exceeds).toBe(false);

@@ -376,6 +376,37 @@ test("a crashed setup leaves the interaction retryable", async () => {
     expect(core.interactions).toHaveLength(1);
 });
 
+test("a crashed async willStart leaves the interaction retryable", async () => {
+    // willStart() rejects asynchronously, unlike setup() which throws
+    // synchronously in the Colibri constructor. The async rejection must still
+    // drop the half-initialized Colibri from core.interactions and forget the
+    // (el, I) pair so a later startInteractions() can retry it.
+    let boom = true;
+    class Test extends Interaction {
+        static selector = ".test";
+
+        async willStart() {
+            if (boom) {
+                throw new Error("boom");
+            }
+        }
+        start() {
+            expect.step("start");
+        }
+    }
+
+    const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+        waitForStart: false,
+    });
+    await expect(core.isReady).rejects.toThrow("boom");
+    expect(core.interactions).toHaveLength(0);
+
+    boom = false;
+    await core.startInteractions();
+    expect.verifySteps(["start"]);
+    expect(core.interactions).toHaveLength(1);
+});
+
 test("interactions are stopped in reverse order", async () => {
     let n = 1;
     class Test extends Interaction {

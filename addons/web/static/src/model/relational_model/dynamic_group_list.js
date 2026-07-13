@@ -342,6 +342,10 @@ export class DynamicGroupList extends DynamicList {
         } else {
             this.groups.push(group);
         }
+        // this.count is the number of groups (set from data.length in _setData
+        // and decremented by _removeGroup). Keep it symmetric on creation so the
+        // grouped pager total and isRecordCountTrustable stay accurate.
+        this.count++;
     }
 
     _createGroupDatapoint(data) {

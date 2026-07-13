@@ -616,10 +616,15 @@ export class AutoComplete extends Component {
         this.inputRef.el.focus();
     }
     onOptionPointerDown(option, ev) {
-        this.ignoreBlur = true;
         if (option.unselectable) {
+            // preventDefault keeps focus on the input, so NO blur fires for an
+            // unselectable row. Setting ignoreBlur here would latch it forever
+            // (onInputBlur is the only place that clears it), corrupting the
+            // next real blur/change. Only selectable options blur the input.
             ev.preventDefault();
+            return;
         }
+        this.ignoreBlur = true;
     }
 
     externalClose(/** @type {Event} */ ev) {

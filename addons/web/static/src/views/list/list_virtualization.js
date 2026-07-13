@@ -185,12 +185,41 @@ export function useListVirtualization({
 
             const rowH = measuredRowHeight || DEFAULT_ROW_HEIGHT;
             const groupH = measuredGroupRowHeight || DEFAULT_GROUP_ROW_HEIGHT;
-            heights = new Array(rowCount);
+
+            // Rebuild the per-row heights, but only push them into the virtual
+            // grid when they actually changed. refresh() runs on EVERY render —
+            // including every throttled scroll frame — and setRowsHeights()
+            // deletes the grid's cached rowsIndexes and recomputes them from
+            // index 0 (prevStartIndex === undefined), discarding the
+            // incremental, prevStartIndex-optimized window the scroll listener
+            // already computed for this same frame. Calling it unconditionally
+            // turned each scroll frame's O(window) index search into an O(n)
+            // rescan from the top plus a redundant O(n) cumHeights rebuild. When
+            // the heights are unchanged we leave the grid's fresh indexes in
+            // place and reuse the cached cumHeights. (`heights` is non-empty iff
+            // setRowsHeights was already called with it, so reading rowsIndexes
+            // and cumHeights below is safe on the unchanged path.)
+            const newHeights = new Array(rowCount);
+            let heightsChanged = rowCount !== heights.length;
             for (let i = 0; i < rowCount; i++) {
-                heights[i] = flatRows[i].type === "group" ? groupH : rowH;
+                const h = flatRows[i].type === "group" ? groupH : rowH;
+                newHeights[i] = h;
+                if (!heightsChanged && heights[i] !== h) {
+                    heightsChanged = true;
+                }
             }
 
-            virtualGrid.setRowsHeights(heights);
+            if (heightsChanged) {
+                heights = newHeights;
+                virtualGrid.setRowsHeights(heights);
+                // Cumulative heights, used for spacer sizing and ensureRowVisible
+                cumHeights = new Array(rowCount);
+                let acc = 0;
+                for (let i = 0; i < rowCount; i++) {
+                    acc += heights[i];
+                    cumHeights[i] = acc;
+                }
+            }
 
             const indexes = virtualGrid.rowsIndexes;
             if (!indexes || /** @type {any} */ (indexes).length === 0) {
@@ -208,14 +237,6 @@ export function useListVirtualization({
             end = Math.min(rowCount - 1, end);
 
             visible = flatRows.slice(start, end + 1);
-
-            // Cumulative heights, used for spacer sizing and ensureRowVisible
-            cumHeights = new Array(rowCount);
-            let acc = 0;
-            for (let i = 0; i < rowCount; i++) {
-                acc += heights[i];
-                cumHeights[i] = acc;
-            }
 
             topHeight = start > 0 ? cumHeights[start - 1] : 0;
             bottomHeight =

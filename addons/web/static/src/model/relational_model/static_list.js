@@ -536,13 +536,18 @@ export class StaticList extends DataPoint {
         } else {
             const currentIds = [...this._currentIds, record._virtualId];
             if (this.orderBy.length && sort) {
+                // ``sortRecords`` sorts ``currentIds`` and commits the SORTED
+                // order into ``this._currentIds`` (via ``_load``). Do NOT
+                // re-assign ``this._currentIds = currentIds`` here: that would
+                // revert the just-committed sorted order back to insertion
+                // order, desyncing ``_currentIds`` from the sorted ``records``.
                 await sortRecords(this, currentIds);
             } else {
                 if (this.records.length < this.limit) {
                     this.records.push(record);
                 }
+                this._currentIds = currentIds;
             }
-            this._currentIds = currentIds;
             this._commands.push(command);
         }
         this.count++;

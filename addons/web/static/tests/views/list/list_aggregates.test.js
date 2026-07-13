@@ -164,3 +164,32 @@ test("selection footer converts mixed-currency records to the company currency",
     expect(footerCell.textContent).toInclude("1,350.00");
     expect(`tfoot td.o_list_number sup`).toHaveCount(1);
 });
+
+test.tags("desktop");
+test("non-grouped footer stays single-currency when some rows have an empty currency", async () => {
+    // All valued rows are USD; one (blank/zero) row carries no currency. The
+    // empty currency must not be counted as a distinct currency, so the footer
+    // renders a plain USD total WITHOUT the multi-currency indicator (before the
+    // fix, the empty currency became a `false` sentinel that inflated the set to
+    // size 2 and spuriously flagged the total as multi-currency).
+    Partner._records = [
+        { id: 1, name: "a", bar: true, amount: 1200, currency_id: 1 },
+        { id: 2, name: "b", bar: true, amount: 500, currency_id: 1 },
+        { id: 3, name: "c", bar: false, amount: 0, currency_id: false },
+    ];
+
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `
+            <list>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id"/>
+            </list>`,
+    });
+
+    const footerCell = queryOne(`tfoot td.o_list_number span`);
+    expect(footerCell.textContent).toInclude("1,700.00");
+    expect(`tfoot td.o_list_number sup`).toHaveCount(0);
+});

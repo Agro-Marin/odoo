@@ -4,7 +4,7 @@
 /** @module @web/core/l10n/translation - Runtime i18n: _t() tagged-template translator with markup-safe interpolation */
 
 import { localization } from "@web/core/l10n/localization";
-import { formatList } from "@web/core/l10n/utils";
+import { formatList, pyToJsLocale } from "@web/core/l10n/utils";
 import { isIterable } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
 import { htmlSprintf, isMarkup } from "@web/core/utils/dom/html";
@@ -137,7 +137,10 @@ export function _pl(count, forms) {
     // ``localization.code`` is the Python-locale form (``en_US``); ``Intl.PluralRules``
     // requires BCP-47 (``en-US``) and throws ``RangeError`` otherwise, which would fail
     // every caller (e.g. formatX2many's "x records" aggregate rows) — hence the conversion.
-    const code = localization.code.replace(/_/g, "-");
+    // ``pyToJsLocale`` (not a bare ``_``→``-`` replace) also maps the XPG ``@modifier``
+    // form, e.g. ``sr@latin``→``sr-Latn``; the naive replace left ``@latin`` intact and
+    // ``new Intl.PluralRules("sr@latin")`` throws.
+    const code = pyToJsLocale(localization.code) || "en";
     let rules = _pluralRulesCache.get(code);
     if (!rules) {
         rules = new Intl.PluralRules(code);

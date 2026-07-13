@@ -75,15 +75,24 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
             patch(interactionsService.constructor.prototype, {
                 /** @this {any} */
                 startInteractions(el, options) {
-                    super.startInteractions(el);
+                    const started = super.startInteractions(el);
                     const publicRoot = currentPublicRoot;
                     if (publicRoot && !options?.fromPublicRoot) {
-                        // this.editMode is assigned by website_edit_service
-                        publicRoot._startWidgets(el || this.el, {
-                            fromInteractionPatch: true,
-                            editableMode: this.editMode,
-                        });
+                        // Preserve the service contract: startInteractions must
+                        // return a Promise that resolves once everything on `el`
+                        // has started, so awaiters (e.g. survey session
+                        // transitions) wait for both the interactions AND the
+                        // public widgets. this.editMode is assigned by
+                        // website_edit_service.
+                        return Promise.all([
+                            started,
+                            publicRoot._startWidgets(el || this.el, {
+                                fromInteractionPatch: true,
+                                editableMode: this.editMode,
+                            }),
+                        ]);
                     }
+                    return started;
                 },
                 /** @this {any} */
                 stopInteractions(el, options) {

@@ -1137,3 +1137,28 @@ test("exportState returns a snapshot decoupled from the live model", async () =>
     model.searchItems[someId].__probe = "MUTATED";
     expect(state.searchItems[someId].__probe).toBe(undefined);
 });
+
+test("fillSearchViewItemsProperty fetches each properties field's definitions at most once", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+
+    // One PropertiesGroupByItem component exists per properties field and each
+    // calls fillSearchViewItemsProperty once, so the routine is invoked N times.
+    // It must not re-fetch (RPC) definitions for a field it already materialized.
+    const fetchedFields = [];
+    model._fetchPropertiesDefinition = (resModel, fieldName) => {
+        fetchedFields.push(fieldName);
+        return Promise.resolve([]);
+    };
+
+    await model.fillSearchViewItemsProperty();
+    await model.fillSearchViewItemsProperty();
+    await model.fillSearchViewItemsProperty();
+
+    expect(fetchedFields).toEqual(["properties"]);
+});

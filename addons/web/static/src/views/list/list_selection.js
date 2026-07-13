@@ -97,6 +97,11 @@ export function useListSelection({
             const { records } = getProps().list;
             if (!record && direction === "down") {
                 const defaultRecord = records[0];
+                // Guard against an empty record list (e.g. all groups folded):
+                // records[0] is undefined and toggleSelection would throw.
+                if (!defaultRecord) {
+                    return false;
+                }
                 self.shiftKeyedRecord = defaultRecord;
                 defaultRecord.toggleSelection(true);
                 return true;

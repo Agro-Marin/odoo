@@ -168,7 +168,9 @@ export const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"
  * {@link SAFE_URL_SCHEMES}; a protocol-relative ``//host`` is rejected (open
  * redirect / mixed content); scheme-less values (relative paths, queries,
  * fragments) are allowed. Leading whitespace is ignored so e.g. " javascript:"
- * cannot slip through.
+ * cannot slip through, and embedded ASCII tab/newlines (which the WHATWG URL
+ * parser strips before resolving) can't be used to obfuscate a scheme, so e.g.
+ * "java\tscript:" cannot slip through either.
  *
  * @param {string} href
  * @returns {boolean}
@@ -177,10 +179,17 @@ export function isSafeUrlScheme(href) {
     if (typeof href !== "string") {
         return false;
     }
-    if (/^\s*\/\//.test(href)) {
+    // The WHATWG URL/HTML parser removes ASCII tab and newlines (U+0009,
+    // U+000A, U+000D) from anywhere in a URL before resolving it. Test the
+    // same normalized string the browser will act on, otherwise a value like
+    // "java\tscript:alert(1)" hides its scheme from the regex below (the tab
+    // is not in the scheme char class, so no scheme is detected and the value
+    // is wrongly treated as safe) yet still executes on navigation.
+    const cleaned = href.replace(/[\t\n\r]/g, "");
+    if (/^\s*\/\//.test(cleaned)) {
         return false;
     }
-    const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(href);
+    const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(cleaned);
     if (scheme) {
         return SAFE_URL_SCHEMES.includes(scheme[1].toLowerCase());
     }

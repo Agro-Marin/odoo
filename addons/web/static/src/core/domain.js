@@ -53,7 +53,15 @@ export class Domain {
             // Return a fresh Domain, never the caller's instance: the in-place
             // AST mutators (Domain.not's unshift, removeDomainLeaves's push)
             // would otherwise mutate a domain the caller still holds.
-            return new Domain(nonEmpty[0]);
+            //
+            // Copy the (already normalized) AST directly instead of
+            // `new Domain(nonEmpty[0])`, which would round-trip through
+            // toString()+parseExpr (formatAST serialize + re-parse) on this hot
+            // path. A shallow clone of the value array is enough: the in-place
+            // mutators mutate that array, not the shared element nodes.
+            const result = new Domain([]);
+            result.ast = { type: ASTType.List, value: [...nonEmpty[0].ast.value] };
+            return result;
         }
         // Build the right-associated prefix form in a single pass — an operator
         // before each operand except the last (e.g. OR(d1,d2,d3) yields

@@ -2,7 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { click, fill, press, queryAllTexts } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
@@ -153,6 +153,50 @@ test("Display name is correctly fetched", async () => {
     expect(".o_tag").toHaveCount(1);
     expect(".o_tag").toHaveText("Alice");
     expect.verifySteps(["web_search_read"]);
+});
+
+test("A superseded display-name load does not overwrite the current selection", async () => {
+    // Regression: computeDerivedParams must route loads through a KeepLast so a
+    // slow (uncached -> RPC) load for a since-deselected id cannot resolve after
+    // a fast (cached) load and render a record that is no longer selected.
+    Partner._records.push({ id: 99, name: "Zoe" });
+    const held = new Deferred();
+    onRpc("partner", "web_search_read", async ({ kwargs }) => {
+        const ids = kwargs.domain[0][2];
+        if (ids.includes(99)) {
+            // Hold the RPC for id 99 so its load resolves last.
+            await held;
+        }
+    });
+
+    let parent;
+    class Parent extends Component {
+        static components = { MultiRecordSelector };
+        static template = xml`<MultiRecordSelector resModel="'partner'" resIds="state.resIds" update="() => {}" />`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ resIds: [1] });
+            parent = this;
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".o_tag").toHaveText("Alice"); // id 1 loaded and now cached
+
+    // Select id 99 -> triggers a (held) RPC that stays pending.
+    parent.state.resIds = [99];
+    await animationFrame();
+
+    // Re-select id 1 (already cached) -> resolves before the held id-99 load.
+    parent.state.resIds = [1];
+    await animationFrame();
+    expect(".o_tag").toHaveText("Alice");
+
+    // Let the stale id-99 load finish; it must not clobber the current tag.
+    held.resolve();
+    await animationFrame();
+    await animationFrame();
+    expect(".o_tag").toHaveCount(1);
+    expect(".o_tag").toHaveText("Alice");
 });
 
 test("Can give domain and context props for the name search", async () => {

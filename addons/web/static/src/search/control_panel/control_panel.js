@@ -172,33 +172,45 @@ export class ControlPanel extends Component {
             );
         }
 
-        useEffect(() => {
-            if (
-                !this.env.isSmall ||
-                ("adaptToScroll" in this.display && !this.display.adaptToScroll)
-            ) {
-                return;
-            }
-            const scrollingEl = this.getScrollingElement();
-            const resizeObserver = new ResizeObserver((entries) => {
-                for (const entry of entries) {
-                    const target = /** @type {any} */ (entry.target);
-                    if (this.scrollingElementHeight !== target.scrollHeight) {
-                        this.oldScrollTop +=
-                            target.scrollHeight - this.scrollingElementHeight;
-                        this.scrollingElementHeight = target.scrollHeight;
-                    }
+        useEffect(
+            () => {
+                if (
+                    !this.env.isSmall ||
+                    ("adaptToScroll" in this.display && !this.display.adaptToScroll)
+                ) {
+                    return;
                 }
-            });
-            resizeObserver.observe(scrollingEl);
-            scrollingEl.addEventListener("scroll", this.onScrollThrottledBound);
-            this.root.el.style.top = "0px";
-            this.scrollingElementHeight = scrollingEl.scrollHeight;
-            return () => {
-                resizeObserver.disconnect();
-                scrollingEl.removeEventListener("scroll", this.onScrollThrottledBound);
-            };
-        });
+                const scrollingEl = this.getScrollingElement();
+                const resizeObserver = new ResizeObserver((entries) => {
+                    for (const entry of entries) {
+                        const target = /** @type {any} */ (entry.target);
+                        if (this.scrollingElementHeight !== target.scrollHeight) {
+                            this.oldScrollTop +=
+                                target.scrollHeight - this.scrollingElementHeight;
+                            this.scrollingElementHeight = target.scrollHeight;
+                        }
+                    }
+                });
+                resizeObserver.observe(scrollingEl);
+                scrollingEl.addEventListener("scroll", this.onScrollThrottledBound);
+                this.root.el.style.top = "0px";
+                this.scrollingElementHeight = scrollingEl.scrollHeight;
+                return () => {
+                    resizeObserver.disconnect();
+                    scrollingEl.removeEventListener(
+                        "scroll",
+                        this.onScrollThrottledBound,
+                    );
+                };
+                // Explicit deps: without them OWL defaults to `() => [NaN]` (NaN !== NaN),
+                // re-running cleanup+setup on every patch. That would tear down and rebuild
+                // the ResizeObserver/scroll listener on each re-render and, worse, reset
+                // `root.el.style.top` to "0px" mid-scroll — snapping the sticky panel back
+                // down and fighting the offset kept by onScrollThrottled. These inputs only
+                // change on small/large switch, adaptToScroll toggle, or root remount.
+            },
+            () => [this.env.isSmall, this.display.adaptToScroll, this.root.el],
+        );
 
         onMounted(() => {
             if (

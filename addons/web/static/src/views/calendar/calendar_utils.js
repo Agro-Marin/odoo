@@ -73,6 +73,39 @@ export function getColor(key) {
 }
 
 /**
+ * Sort calendar filters by type priority, then by label.
+ *
+ * Filters are grouped by their `type` following the order given in
+ * `typePriority` (a type absent from the list sorts last). Within a group,
+ * `dynamic` filters that have no value (e.g. "Open Shifts") are pushed to the
+ * end; the remaining filters are ordered case-/accent-insensitively by label
+ * with natural numeric ordering.
+ *
+ * @param {Array<{ type: string, value: any, label: string }>} filters
+ * @param {string[]} typePriority - filter types in the desired priority order
+ * @returns {Array} a new array of filters, sorted
+ */
+export function sortCalendarFilters(filters, typePriority) {
+    return filters.toSorted((a, b) => {
+        if (a.type === b.type) {
+            const va = a.value ? -1 : 0;
+            const vb = b.value ? -1 : 0;
+            // Condition to put unvaluable item (eg: Open Shifts) at the end of the sorted list.
+            if (a.type === "dynamic" && va !== vb) {
+                return va - vb;
+            }
+            return a.label.localeCompare(b.label, undefined, {
+                numeric: true,
+                sensitivity: "base",
+                ignorePunctuation: true,
+            });
+        } else {
+            return typePriority.indexOf(a.type) - typePriority.indexOf(b.type);
+        }
+    });
+}
+
+/**
  * Format a start/end date pair as a human-readable date span string.
  *
  * Same-month ranges are collapsed (e.g. "August 4-5, 2019"), same-day

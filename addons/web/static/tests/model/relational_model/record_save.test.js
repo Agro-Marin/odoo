@@ -212,6 +212,38 @@ describe("update path", () => {
     });
 });
 
+// reload:false save-in-place — must refresh the eval context and the
+// char/text/html empty-vs-NULL baseline from the just-persisted state, exactly
+// like the sendBeacon-success branch. Without it, a record that survives (a
+// dialog-hosted or beforeLeave save on a page that stays open) keeps a stale
+// ``_initialTextValues`` snapshot, so a later no-savepoint Discard reverts
+// ``_textValues`` to a false-vs-"" state contradicting the saved value.
+
+describe("reload:false save-in-place text-value baseline", () => {
+    test("refreshes _initialTextValues and eval context from persisted state", async () => {
+        const rec = makeRecord({
+            resId: 7,
+            changes: { name: "Typed value" },
+            webSave: async () => [{ id: 7, name: "Typed value" }],
+        });
+        // Char field originally NULL on the server: the pre-save baseline holds
+        // ``false`` while the freshly-typed value lives in ``_textValues``.
+        rec._textValues = markRaw({ name: "Typed value" });
+        rec._initialTextValues = markRaw({ name: false });
+        let evalContextCalls = 0;
+        rec._setEvalContext = () => evalContextCalls++;
+
+        const result = await save(rec, { reload: false });
+
+        expect(result).toBe(true);
+        // The empty-vs-NULL baseline now mirrors the just-persisted value, so a
+        // later no-savepoint Discard reverts to the saved state, not to ``false``.
+        expect(rec._initialTextValues).toEqual({ name: "Typed value" });
+        // And the eval context was recomputed against the committed values.
+        expect(evalContextCalls).toBe(1);
+    });
+});
+
 // onError callback — called with error and action helpers
 
 describe("onError callback", () => {

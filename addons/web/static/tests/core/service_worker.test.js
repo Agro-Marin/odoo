@@ -12,6 +12,7 @@ describe.current.tags("headless");
  * @type {Promise<{
  *  extractSessionInfo: (html: string) => string | null,
  *  isStaleWhileRevalidateURL: (url: URL) => boolean,
+ *  restoreSessionInfo: (htmlBody: string, info: string) => string,
  * }> | null}
  */
 let hooksPromise = null;
@@ -62,6 +63,31 @@ describe("extractSessionInfo", () => {
         expect(extractSessionInfo("odoo.__session_info__ = null;")).toBe(null);
         // Unterminated object: the scan runs off the end.
         expect(extractSessionInfo(`odoo.__session_info__ = {"a":1`)).toBe(null);
+    });
+});
+
+describe("restoreSessionInfo", () => {
+    test("splices info back into the placeholder", async () => {
+        const { restoreSessionInfo } = await loadServiceWorkerHooks();
+        const info = `{"db":"x","uid":7}`;
+        const shell = `<script>odoo.__session_info__ = @@@session_info_secret@@@;</script>`;
+        expect(restoreSessionInfo(shell, info)).toBe(
+            `<script>odoo.__session_info__ = ${info};</script>`,
+        );
+    });
+
+    test("preserves `$`-substitution sequences in the session info", async () => {
+        // A string replacement argument would let String.prototype.replaceAll
+        // interpret `$$`, `$&`, `$'` and `` $` `` inside `info` (reachable via
+        // company/user free-text fields), corrupting the restored JSON and
+        // white-screening the offline shell. The fix uses a replacer function
+        // so these are inserted verbatim.
+        const { restoreSessionInfo } = await loadServiceWorkerHooks();
+        const info = `{"name":"ACME $' $& $$ $\` $1 Corp"}`;
+        const shell = `odoo.__session_info__ = @@@session_info_secret@@@;`;
+        expect(restoreSessionInfo(shell, info)).toBe(
+            `odoo.__session_info__ = ${info};`,
+        );
     });
 });
 

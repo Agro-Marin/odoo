@@ -257,7 +257,22 @@ class InteractionService {
             try {
                 const interaction = new Colibri(this, I, el);
                 this.interactions.push(interaction);
-                proms.push(interaction.start());
+                // The try/catch only guards SYNCHRONOUS setup failures (setup()
+                // runs in the Colibri constructor). Colibri.start() is async
+                // (it awaits willStart()), so an async willStart()/start()
+                // rejection surfaces here instead. Mirror the Component branch:
+                // drop the half-initialized Colibri and forget the (el, I) pair
+                // so a later startInteractions() may retry it and `el` is not
+                // retained forever.
+                proms.push(
+                    interaction.start().catch((e) => {
+                        this.interactions = this.interactions.filter(
+                            (i) => i !== interaction,
+                        );
+                        this.activeInteractions.delete(el, I);
+                        throw e;
+                    }),
+                );
             } catch (e) {
                 // Forget the (el, I) pair: a later startInteractions() may
                 // retry it, and keeping it would retain `el` forever.

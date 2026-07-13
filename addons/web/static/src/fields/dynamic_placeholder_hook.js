@@ -76,7 +76,10 @@ export function useDynamicPlaceholder(elementRef) {
         }
     };
     const onDynamicPlaceholderClose = function () {
-        elementRef?.el.focus();
+        // Guard `.el` too: the popover's onClose can fire after the input has
+        // detached (e.g. an edit->readonly modifier flip auto-closes the
+        // popover via its MutationObserver while el is null).
+        elementRef?.el?.focus();
     };
 
     /**

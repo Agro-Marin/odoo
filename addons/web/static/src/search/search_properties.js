@@ -93,10 +93,22 @@ export async function fillSearchViewItemsProperty(searchModel) {
 
     const fields = Object.values(searchModel.searchViewFields);
 
+    // One PropertiesGroupByItem component exists per properties field, and each
+    // calls this (unscoped) routine once on first open. Without a cross-call
+    // guard, N components x N fields => N^2 property-definition RPCs. Memoize the
+    // set of already-materialized properties fields on the SearchModel instance
+    // so each field is fetched and turned into search items at most once,
+    // regardless of how many components trigger the fill.
+    const filledPropertyFields = (searchModel._filledPropertyFields ??= new Set());
+
     for (const field of fields) {
         if (field.type !== "properties") {
             continue;
         }
+        if (filledPropertyFields.has(field.name)) {
+            continue;
+        }
+        filledPropertyFields.add(field.name);
 
         const result = await searchModel._fetchPropertiesDefinition(
             searchModel.resModel,

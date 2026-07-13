@@ -8,6 +8,7 @@ import {
     getDataURLFromFile,
     getOrigin,
     imageUrl,
+    isSafeUrlScheme,
     redirect,
     url,
 } from "@web/core/utils/urls";
@@ -155,5 +156,43 @@ describe("compareUrls", () => {
 
     test("different hashes are not equal", () => {
         expect(compareUrls("http://host/path#a", "http://host/path#b")).toBe(false);
+    });
+});
+
+describe("isSafeUrlScheme", () => {
+    test("scheme-less values are safe", () => {
+        expect(isSafeUrlScheme("/path/to/page")).toBe(true);
+        expect(isSafeUrlScheme("page?a=1#frag")).toBe(true);
+        expect(isSafeUrlScheme("")).toBe(true);
+    });
+
+    test("known-safe schemes pass, unknown schemes fail", () => {
+        expect(isSafeUrlScheme("https://example.com")).toBe(true);
+        expect(isSafeUrlScheme("mailto:a@b.c")).toBe(true);
+        expect(isSafeUrlScheme("tel:+123")).toBe(true);
+        expect(isSafeUrlScheme("javascript:alert(1)")).toBe(false);
+        expect(isSafeUrlScheme("data:text/html,x")).toBe(false);
+        expect(isSafeUrlScheme(" javascript:alert(1)")).toBe(false);
+    });
+
+    test("protocol-relative urls are rejected", () => {
+        expect(isSafeUrlScheme("//evil.example")).toBe(false);
+        expect(isSafeUrlScheme("  //evil.example")).toBe(false);
+    });
+
+    test("non-string input is unsafe", () => {
+        expect(isSafeUrlScheme(null)).toBe(false);
+        expect(isSafeUrlScheme(undefined)).toBe(false);
+        expect(isSafeUrlScheme(42)).toBe(false);
+    });
+
+    test("embedded tab/newline/CR cannot hide a dangerous scheme", () => {
+        // The WHATWG URL parser strips these before resolving, so "java\tscript:"
+        // executes as "javascript:" on navigation — the detector must see through it.
+        expect(isSafeUrlScheme("java\tscript:alert(1)")).toBe(false);
+        expect(isSafeUrlScheme("java\nscript:alert(1)")).toBe(false);
+        expect(isSafeUrlScheme("java\rscript:alert(1)")).toBe(false);
+        expect(isSafeUrlScheme("jav\ta\nscript:alert(1)")).toBe(false);
+        expect(isSafeUrlScheme("\t//evil.example")).toBe(false);
     });
 });

@@ -107,7 +107,13 @@ export class Dialog extends Component {
         useHotkey(
             "control+enter",
             () => {
-                const btns = document.querySelectorAll(
+                // Scope the search to the dialog's own root node (Document or
+                // ShadowRoot) so the shortcut still resolves the footer button
+                // when the dialog is rendered inside a shadow DOM host (embedded/
+                // website contexts). querySelectorAll on `document` does not
+                // traverse shadow roots.
+                const searchRoot = this.modalRef.el?.getRootNode() ?? document;
+                const btns = searchRoot.querySelectorAll(
                     ".o_dialog:not(.o_inactive_modal) .modal-footer button",
                 );
                 const firstVisibleBtn = Array.from(btns).find((btn) => {

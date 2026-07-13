@@ -404,6 +404,79 @@ test("invalidateWhere, no-op when none of the tables exist", async () => {
     await ensureDbIsAbsent();
 });
 
+// Regression: a forced/bare transaction abort fires ``onabort`` (NOT
+// ``onerror``) and leaves the request's ``onsuccess`` unfired. ``_read`` and
+// ``_invalidate`` used to wire only ``onerror``, so on abort their Promise
+// never settled — and since every op runs under ``this.mutex.exec``, one
+// unsettled read/invalidate deadlocked every later cache op for the session.
+// We inject a one-shot abort into the next transaction and assert the op
+// rejects (does not hang) and the mutex is released (a follow-up op works).
+async function injectOneShotAbort(indexedDB) {
+    await indexedDB.execute((db) => {
+        const origTransaction = db.transaction.bind(db);
+        let done = false;
+        db.transaction = function (...args) {
+            const tx = origTransaction(...args);
+            if (!done) {
+                done = true;
+                // Abort on the next microtask, after ``_read``/``_invalidate``
+                // wired their handlers but before the IDB request's success
+                // task can be dispatched.
+                Promise.resolve().then(() => tx.abort());
+            }
+            return tx;
+        };
+    });
+}
+
+test("read rejects (does not deadlock the mutex) when its transaction aborts", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    await indexedDB.write("mytable", "k", "v");
+    await injectOneShotAbort(indexedDB);
+
+    let rejected = false;
+    await indexedDB.read("mytable", "k").then(
+        () => {},
+        () => {
+            rejected = true;
+        },
+    );
+    expect(rejected).toBe(true);
+
+    // Mutex released: a subsequent read still works (fresh transaction).
+    expect(await indexedDB.read("mytable", "k")).toBe("v");
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});
+
+test("invalidate rejects (does not deadlock the mutex) when its transaction aborts", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    await indexedDB.write("mytable", "k", "v");
+    await injectOneShotAbort(indexedDB);
+
+    let rejected = false;
+    await indexedDB.invalidate("mytable").then(
+        () => {},
+        () => {
+            rejected = true;
+        },
+    );
+    expect(rejected).toBe(true);
+
+    // Mutex released: a subsequent read still works.
+    expect(await indexedDB.read("mytable", "k")).toBe("v");
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});
+
 test("blocked database deletion degrades to no-cache instead of hanging", async () => {
     const BLOCKED_DB_NAME = "unit_test_blocked_delete";
     patchWithCleanup(console, {

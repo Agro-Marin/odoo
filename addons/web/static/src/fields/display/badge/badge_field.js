@@ -4,6 +4,7 @@
 /** @module @web/fields/display/badge/badge_field - Read-only badge pill for Selection and Many2one columns */
 
 import { Component } from "@odoo/owl";
+import { badgeColorClass } from "@web/core/badge/badge_colors";
 import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
@@ -31,15 +32,11 @@ export class BadgeField extends Component {
 
     /** @returns {string} Bootstrap badge CSS class based on color field or decoration rules. */
     get badgeClass() {
-        // Only emit a color class for a real integer color index. A null/false
-        // color field otherwise produced the junk class `o_badge_color_false`
-        // AND skipped the decoration/default fallback below. Mirrors the
-        // Number.isInteger guard in list_badge_selection_field.
-        if (
-            this.props.colorField &&
-            Number.isInteger(this.props.record.data[this.props.colorField])
-        ) {
-            return `o_badge_color_${this.props.record.data[this.props.colorField]}`;
+        // A real integer color index wins; a null/false color field falls
+        // through to the decoration/default rules below (see badgeColorClass).
+        const colorClass = badgeColorClass(this.props.record, this.props.colorField);
+        if (colorClass) {
+            return colorClass;
         }
         const evalContext = this.props.record.evalContextWithVirtualIds;
         for (const decorationName of Object.keys(this.props.decorations)) {

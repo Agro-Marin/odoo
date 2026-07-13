@@ -51,7 +51,13 @@ export class CalendarArchParser {
         let scales = [...SCALES];
         const scalesAttr = xmlDoc.getAttribute("scales");
         if (scalesAttr) {
-            scales = scalesAttr.split(",").filter((scale) => SCALES.includes(scale));
+            // Trim each segment so whitespaced lists (e.g. `scales="day, month"`)
+            // aren't silently dropped — an untrimmed `" month"` fails SCALES.includes
+            // and, combined with a `mode` naming it, would throw below and break the view.
+            scales = scalesAttr
+                .split(",")
+                .map((scale) => scale.trim())
+                .filter((scale) => SCALES.includes(scale));
         }
         let scale = scales.includes("week") ? "week" : scales[0];
         if (xmlDoc.hasAttribute("mode")) {

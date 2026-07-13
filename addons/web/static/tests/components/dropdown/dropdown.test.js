@@ -115,6 +115,25 @@ test("can be rendered", async () => {
     expect(DROPDOWN_TOGGLE).toHaveAttribute("aria-expanded", "false");
 });
 
+test("items prop validates each item's shape", async () => {
+    // Regression: the `items` prop schema used the plural key `elements`, which
+    // OWL ignores, so a malformed item (missing `onSelected`) passed validation
+    // and only blew up later inside DropdownPopover. With the schema fixed to the
+    // singular `element` key, the bad shape must be rejected at mount time.
+    class Parent extends Component {
+        static components = { Dropdown };
+        static props = ["*"];
+        static template = xml`
+            <Dropdown items="[{ label: 'X' }]">
+                <button>Dropdown</button>
+            </Dropdown>
+        `;
+    }
+    await expect(mountWithCleanup(Parent)).rejects.toThrow(
+        /Invalid props for component 'Dropdown'/,
+    );
+});
+
 test("can be toggled", async () => {
     const beforeOpenProm = new Deferred();
     class Parent extends SimpleDropdown {

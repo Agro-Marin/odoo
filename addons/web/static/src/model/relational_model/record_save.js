@@ -332,6 +332,16 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             }
             record._clearChanges();
             record.data = { ...record._values };
+            // Save-in-place (no server reload): refresh the eval context and the
+            // char/text/html empty-vs-NULL baseline from the just-persisted state.
+            // Mirrors the sendBeacon-success branch above — without it, if the
+            // record survives (e.g. a dialog-hosted or beforeLeave save on a page
+            // that stays open) ``_initialTextValues`` keeps the stale pre-save
+            // snapshot, so a later no-savepoint Discard (record_savepoint) reverts
+            // ``_textValues`` to a false-vs-"" state that contradicts the saved
+            // value and modifier expressions evaluate against it.
+            record._setEvalContext();
+            record._initialTextValues = markRaw({ ...record._textValues });
         }
     } finally {
         record._saveInFlight = false;

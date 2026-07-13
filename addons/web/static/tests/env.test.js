@@ -221,6 +221,45 @@ test(`ensureServicesStarted: starts late-registered services without a registry 
     expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
 });
 
+test(`a queued startup pass runs even if the in-flight pass rejects`, async () => {
+    // Re-entrancy guard regression: while one _startServices pass is
+    // in-flight, an independent second pass serializes behind it via
+    // startServicesPromise. If the first pass rejects (a service.start()
+    // throws), the second, independent pass must still run to completion and
+    // start its own services — it must not inherit the first pass's unrelated
+    // rejection nor be silently cancelled.
+    const env = makeEnv();
+    // "boom" rejects on its first start (poisoning the in-flight pass) and
+    // recovers on a later pass, so we can assert the queued pass re-ran.
+    const deferredBoom = new Deferred();
+    let boomStarts = 0;
+    registerService("boom", [], () => {
+        boomStarts++;
+        return boomStarts === 1 ? deferredBoom : "recovered";
+    });
+
+    // First (in-flight) pass: captures {boom} and suspends on boom's deferred.
+    const p1 = ensureServicesStarted(env);
+    // Attach the rejection expectation now so the pending rejection is handled
+    // (no unhandled-rejection noise) and asserted below.
+    const p1Rejects = expect(p1).rejects.toThrow("boom");
+    await tick();
+
+    // Second (queued) pass: registered after p1 captured its work, so its
+    // "good" service belongs solely to this independent pass.
+    registerService("good", [], () => "g");
+    const p2 = ensureServicesStarted(env);
+    await tick();
+
+    // The in-flight pass rejects; the queued pass must still complete.
+    deferredBoom.reject(new Error("boom"));
+    await p1Rejects;
+    await p2;
+
+    expect(env.services.good).toBe("g");
+    expect(env.services.boom).toBe("recovered");
+});
+
 test(`startServices: cascade-skips transitive consumers when a dep is missing`, async () => {
     // If "a" is missing, "b" (needs a) is skipped, and "c" (needs b)
     // is also skipped — the cascade iterates to a fixpoint so the

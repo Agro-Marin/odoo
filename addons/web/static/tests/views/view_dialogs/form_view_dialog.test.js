@@ -433,6 +433,40 @@ test("new record has an expand button", async () => {
     ]);
 });
 
+test("expand after custom onRecordSave uses the persisted resId", async () => {
+    // Regression: with a custom onRecordSave that persists a create (resId
+    // false->N), the expand button must target the saved record, not res_id: false.
+    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._records = [];
+    onRpc("web_save", () => {
+        expect.step("save");
+    });
+    mockService("action", {
+        doAction(actionRequest) {
+            expect.step([
+                actionRequest.res_id,
+                actionRequest.res_model,
+                actionRequest.type,
+                actionRequest.views,
+            ]);
+        },
+    });
+    await mountWithCleanup(WebClient);
+    getService("dialog").add(FormViewDialog, {
+        resModel: "partner",
+        onRecordSave: (record) => record.save({ reload: false }),
+    });
+    await animationFrame();
+    expect(".o_dialog .modal-header .o_expand_button").toHaveCount(1);
+    await fieldInput("foo").edit("new");
+    await click(".o_dialog .modal-header .o_expand_button");
+    await animationFrame();
+    expect.verifySteps([
+        "save",
+        [1, "partner", "ir.actions.act_window", [[false, "form"]]],
+    ]);
+});
+
 test("existing record has an expand button", async () => {
     Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
     onRpc("web_save", () => {

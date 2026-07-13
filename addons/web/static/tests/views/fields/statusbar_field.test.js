@@ -1231,6 +1231,46 @@ test("cache: update current status if it changed", async () => {
     );
 });
 
+test("statusbar keeps the current stage highlighted when it sorts past the fetch limit", async () => {
+    // The many2one loader caps the search_read at RELATION_LIMIT (100). With
+    // more records than that and the current one beyond the first 100 in the
+    // default order, the selected record is absent from the capped result and
+    // must be fetched explicitly so the bar can still highlight the active step.
+    class Stage extends models.Model {
+        name = fields.Char();
+        _records = Array.from({ length: 150 }, (_, i) => ({
+            id: i + 1,
+            name: `Stage ${i + 1}`,
+        }));
+    }
+    class Task extends models.Model {
+        status = fields.Many2one({ relation: "stage" });
+        _records = [{ id: 1, status: 130 }];
+    }
+    defineModels([Stage, Task]);
+
+    onRpc("stage", "read", ({ args }) => expect.step(`read ${args[0]}`));
+    await mountView({
+        type: "form",
+        resModel: "task",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <header>
+                    <field name="status" widget="statusbar" />
+                </header>
+            </form>
+        `,
+    });
+
+    // The capped search_read (ids 1-100) excludes stage 130, so it is read
+    // explicitly and the current step is highlighted rather than "More".
+    expect.verifySteps(["read 130"]);
+    expect(".o_statusbar_status button[data-value='130']").toHaveClass(
+        "o_arrow_button_current",
+    );
+});
+
 test("[adjust] statusbar with a lot of stages, click to change stage", async () => {
     // force the window width and define long stage names s.t. at most 3 stages can be displayed
     resize({ width: 800 });

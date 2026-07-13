@@ -381,7 +381,13 @@ export function useListKeyboardNavigation(tableRef, options) {
          */
         findPreviousFocusableOnRow(row, cell) {
             const children = /** @type {HTMLElement[]} */ ([...row.children]);
-            const index = children.indexOf(/** @type {HTMLElement} */ (cell));
+            // With no `cell` (shift+tab cycle-to-last on a single-record list,
+            // list_keyboard_edit.js), treat the position as past the end so the
+            // scan covers every cell — mirroring findNextFocusableOnRow, where
+            // slice(index + 1) with index === -1 already yields all cells.
+            // Using indexOf(undefined) === -1 would make slice(0, -1) drop the
+            // row's last (rightmost editable) cell.
+            const index = cell ? children.indexOf(cell) : children.length;
             const previousCells = children.slice(0, index);
             for (const c of previousCells.reverse()) {
                 if (!c.classList.contains("o_data_cell")) {

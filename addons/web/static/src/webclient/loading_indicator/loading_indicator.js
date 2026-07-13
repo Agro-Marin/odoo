@@ -35,7 +35,11 @@ export class LoadingIndicator extends Component {
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */
     requestCall({ detail }) {
-        if (detail.settings.silent) {
+        // Defensive: malformed payloads (null detail, missing data/settings) can
+        // reach the shared rpcBus from tests or synthetic fires. Guard like the
+        // sibling listeners (currency_service, slow_rpc_service) so a bad event
+        // is ignored instead of throwing inside the bus dispatch.
+        if (!detail?.data || detail.settings?.silent) {
             return;
         }
         if (this.state.count === 0) {
@@ -54,7 +58,8 @@ export class LoadingIndicator extends Component {
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */
     responseCall({ detail }) {
-        if (detail.settings.silent) {
+        // Same defensive guard as requestCall (see comment there).
+        if (!detail?.data || detail.settings?.silent) {
             return;
         }
         this.rpcIds.delete(detail.data.id);

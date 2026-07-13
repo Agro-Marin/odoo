@@ -209,8 +209,13 @@ export function createNewFilters(searchModel, prefilters) {
 export function createNewGroupBy(searchModel, fieldName, { interval, invisible } = {}) {
     const field = searchModel.searchViewFields[fieldName];
     const { string, type: fieldType } = field;
+    // Match either group-by variant: the arch parser unifies groupBy and
+    // dateGroupBy items into a single group sharing one groupId (see
+    // search_arch_parser.reduceType/pushGroup), and one query group renders as
+    // one group-by facet. If only date group-bys pre-exist, matching just
+    // "groupBy" would mint a fresh groupId and split off a second facet.
     const firstGroupBy = Object.values(searchModel.searchItems).find(
-        (f) => f.type === "groupBy",
+        (f) => f.type === "groupBy" || f.type === "dateGroupBy",
     );
     const preSearchItem = {
         description: string || fieldName,

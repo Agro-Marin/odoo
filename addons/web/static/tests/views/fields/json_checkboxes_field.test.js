@@ -77,6 +77,38 @@ test("JsonCheckBoxesField", async () => {
     expect.verifySteps(["web_save", "web_save"]);
 });
 
+test("JsonCheckBoxesField (save flushes a pending toggle before its debounce fires)", async () => {
+    // Regression: a toggle whose 100ms debounced commit hasn't fired yet must
+    // still reach the record when the model asks fields for their local changes
+    // (before an onchange/save), otherwise it is silently lost.
+    onRpc("web_save", (args) => {
+        expect.step("web_save");
+        expect(args.args[1].json_checkboxes_field).toEqual({
+            key1: { checked: true, label: "First Key" },
+            key2: { checked: true, label: "Second Key" },
+        });
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <group>
+                    <field name="json_checkboxes_field" widget="json_checkboxes" />
+                </group>
+            </form>`,
+    });
+
+    // Toggle the second checkbox but do NOT run the timers: the debounced
+    // commitChanges is still pending.
+    await contains("div.o_field_widget div.form-check input:eq(1)").click();
+    // Saving must flush the pending toggle instead of dropping it.
+    await clickSave();
+    expect.verifySteps(["web_save"]);
+    expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
+});
+
 test("JsonCheckBoxesField (unset json value)", async () => {
     Partner._records[0].json_checkboxes_field = false;
     await mountView({

@@ -523,6 +523,52 @@ test(`handles many2one fields: value is an object with id only`, async () => {
     expect(`.o_field_many2one_selection input`).toHaveValue("bar1");
 });
 
+test(`handles many2one fields: target record is missing or inaccessible`, async () => {
+    // web_read silently omits ids that no longer exist / are inaccessible, so
+    // loadDisplayName can receive an empty result. The Record must degrade to a
+    // blank label instead of throwing and failing the whole render.
+    class Bar extends models.Model {
+        name = fields.Char();
+
+        _records = [{ id: 1, name: "bar1" }];
+    }
+    defineModels([Bar]);
+
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Record, Many2OneField };
+        static template = xml`
+            <Record resModel="'foo'" fieldNames="['foo']" fields="fields" values="values" t-slot-scope="data">
+                <Many2OneField name="'foo'" record="data.record"/>
+            </Record>
+        `;
+
+        setup() {
+            this.fields = {
+                foo: {
+                    name: "foo",
+                    type: "many2one",
+                    relation: "bar",
+                },
+            };
+            // Bare id pointing to a record that no longer exists.
+            this.values = {
+                foo: 999,
+            };
+        }
+    }
+
+    // Simulate the deleted/inaccessible target: web_read returns no record.
+    onRpc("bar", "web_read", () => {
+        expect.step("bar/web_read");
+        return [];
+    });
+    await mountWithCleanup(Parent);
+    expect.verifySteps(["bar/web_read"]);
+    // Rendered without crashing, with an empty display name.
+    expect(`.o_field_many2one_selection input`).toHaveValue("");
+});
+
 test(`handles x2many fields`, async () => {
     class Tag extends models.Model {
         name = fields.Char();

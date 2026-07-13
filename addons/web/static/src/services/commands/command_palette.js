@@ -227,8 +227,16 @@ export class CommandPalette extends Component {
      * @param {{ searchValue?: string, activeElement?: Element, sessionId?: number }} [options]
      */
     async setCommands(namespace, options = {}) {
-        this.categoryKeys = ["default"];
-        this.categoryNames = {};
+        // Compute the grouping into locals and only publish it to ``this.*``
+        // after the await, in the same tick ``state.commands`` is replaced.
+        // Mutating them synchronously here would let a loading render (search()
+        // flips the reactive state.isLoading before this await) pair the
+        // PREVIOUS search's commands with reset category keys — every non-default
+        // command would collapse into the "default" group, dropping the <hr>
+        // separators until the new results land (visible flicker on async
+        // providers).
+        let categoryKeys = ["default"];
+        let categoryNames = {};
         const proms = this.providersByNamespace[namespace].map((provider) => {
             const { provide } = provider;
             const result = provide(this.env, options);
@@ -263,16 +271,16 @@ export class CommandPalette extends Component {
                 // Copy: the config array is caller-owned — pushing "default"
                 // through the alias would permanently mutate the provider's
                 // registered categories (cf. ``default_providers.js``).
-                this.categoryKeys = [...namespaceConfig.categories];
-                this.categoryNames = namespaceConfig.categoryNames || {};
-                if (!this.categoryKeys.includes("default")) {
-                    this.categoryKeys.push("default");
+                categoryKeys = [...namespaceConfig.categories];
+                categoryNames = namespaceConfig.categoryNames || {};
+                if (!categoryKeys.includes("default")) {
+                    categoryKeys.push("default");
                 }
-                for (const category of this.categoryKeys) {
+                for (const category of categoryKeys) {
                     commandsSorted = [
                         ...commandsSorted,
                         ...commands.filter(
-                            commandsWithinCategory(category, this.categoryKeys),
+                            commandsWithinCategory(category, categoryKeys),
                         ),
                     ];
                 }
@@ -280,6 +288,10 @@ export class CommandPalette extends Component {
             }
         }
 
+        // Publish the grouping and the commands together so a render never sees
+        // them disagree.
+        this.categoryKeys = categoryKeys;
+        this.categoryNames = categoryNames;
         this.state.commands = markRaw(
             commands.slice(0, 100).map((command) => ({
                 ...command,

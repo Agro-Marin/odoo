@@ -31,33 +31,26 @@ export class DebugMenu extends DebugMenuBasic {
                     const items = await debugContext.getItems(
                         /** @type {import("@web/env").OdooEnv} */ (this.env),
                     );
-                    let index = 0;
-                    const defaultCategories = items
-                        .filter((/** @type {any} */ item) => item.type === "separator")
-                        .map(() => (index += 1));
+                    // Debug factories only ever emit `type: "item"` descriptors
+                    // (grouping is expressed via the `section` field, not
+                    // "separator" items), so the palette shows a flat command list.
                     const provider = {
                         async provide() {
-                            const categories = [...defaultCategories];
-                            let category = categories.shift();
-                            /** @type {{ name: string, action: any, category: any }[]} */
+                            /** @type {{ name: string, action: any }[]} */
                             const result = [];
-                            items.forEach((item) => {
+                            for (const item of items) {
                                 if (item.type === "item") {
                                     result.push({
                                         name: item.description.toString(),
                                         action: item.callback,
-                                        category,
                                     });
-                                } else if (item.type === "separator") {
-                                    category = categories.shift();
                                 }
-                            });
+                            }
                             return result;
                         },
                     };
                     const configByNamespace = {
                         default: {
-                            categories: defaultCategories,
                             emptyMessage: _t("No debug command found"),
                             placeholder: _t("Choose a debug command..."),
                         },

@@ -136,10 +136,22 @@ export class StatusBarField extends Component {
                     context,
                     // A status bar renders a bounded pipeline of stages; without
                     // a cap a cold form pulls the ENTIRE relation for the handful
-                    // of arrows it shows. The current value is already OR'd into
-                    // `domain` above, so it survives the cap even past the limit.
+                    // of arrows it shows.
                     limit: StatusBarField.RELATION_LIMIT,
                 });
+                if (value && !res.some((rec) => rec.id === value.id)) {
+                    // The cap (and, when no narrowing domain is set, the
+                    // relation's default order) can push the currently-selected
+                    // record past the fetched window. OR-ing it into `domain`
+                    // above only guarantees it *matches*, not that it lands
+                    // within the limit, so fetch it explicitly and append it;
+                    // otherwise getAllItems() yields no isSelected item and the
+                    // bar falls back to the "More" label with nothing highlighted.
+                    const current = await orm.read(relation, [value.id], fieldNames, {
+                        context,
+                    });
+                    res.push(...current);
+                }
                 forceRecomputeItems = true;
                 return res;
             });

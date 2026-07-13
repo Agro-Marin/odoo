@@ -1701,3 +1701,61 @@ test("a throwing command action closes the palette and surfaces the error", asyn
     expect(".o_command_palette").toHaveCount(0);
     expect.verifyErrors(["Error: action boom"]);
 });
+
+test("category grouping is preserved while an async provider reloads", async () => {
+    // Regression: setCommands used to reset categoryKeys to ["default"]
+    // synchronously (before awaiting the providers), while state.commands still
+    // held the previous results. A render fired during loading then collapsed
+    // every command into a single "default" group, dropping the <hr> category
+    // separators until the new results landed.
+    let provideDef = new Deferred();
+    const action = () => {};
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(CommandPalette, {
+        config: {
+            configByNamespace: {
+                "?": {
+                    categories: ["cat1", "cat2"],
+                },
+            },
+            providers: [
+                {
+                    namespace: "?",
+                    provide: async () => {
+                        await provideDef;
+                        return [
+                            { name: "Command1", action, category: "cat1" },
+                            { name: "Command2", action, category: "cat2" },
+                            { name: "Command3", action },
+                        ];
+                    },
+                },
+            ],
+        },
+    });
+
+    await animationFrame();
+    // Switch to the "?" namespace and let the first (async) search resolve.
+    await click(".o_command_palette_search input");
+    await edit("?");
+    await runAllTimers();
+    provideDef.resolve();
+    await animationFrame();
+    expect(".o_command_category").toHaveCount(3);
+    expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
+
+    // Trigger a second search whose provider stays pending. While loading, the
+    // still-displayed previous results must keep their category grouping.
+    provideDef = new Deferred();
+    await edit("? a");
+    await runAllTimers();
+    expect(".o_command_palette_search i.fa-solid.fa-circle-notch").toHaveCount(1);
+    expect(".o_command_category").toHaveCount(3);
+    expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
+
+    // New results land and replace the list, still grouped by category.
+    provideDef.resolve();
+    await animationFrame();
+    expect(".o_command_category").toHaveCount(3);
+    expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
+});

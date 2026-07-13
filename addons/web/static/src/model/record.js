@@ -135,7 +135,10 @@ class _Record extends Component {
                             [resId],
                             kwargs,
                         );
-                        return records[0].display_name;
+                        // webRead omits ids that no longer exist or are
+                        // inaccessible, so records may be empty: degrade to a
+                        // blank label instead of throwing and failing the render.
+                        return records[0]?.display_name ?? "";
                     };
                     if (typeof values[fieldName] === "number") {
                         const prom = loadDisplayName(values[fieldName]);
@@ -179,8 +182,10 @@ class _Record extends Component {
                         };
                     }
                 }
-                await Promise.all(proms);
             }
+            // Await all relational fetches together so they run in parallel
+            // (one wave of RPCs) rather than one sequential round-trip per field.
+            await Promise.all(proms);
             return values;
         };
         onWillStart(async () => {

@@ -32,6 +32,11 @@ test("range", () => {
     expect(range(4, -4, -1)).toEqual([4, 3, 2, 1, 0, -1, -2, -3]);
     expect(range(1, 4, -1)).toEqual([]);
     expect(range(1, -4, 1)).toEqual([]);
+    // fractional spans (span not an exact multiple of step): the last value
+    // still strictly inside [start, stop) must be kept.
+    expect(range(0, 5, 2)).toEqual([0, 2, 4]);
+    expect(range(0, 10, 3)).toEqual([0, 3, 6, 9]);
+    expect(range(0, -5, -2)).toEqual([0, -2, -4]);
 });
 
 describe("roundPrecision", () => {
