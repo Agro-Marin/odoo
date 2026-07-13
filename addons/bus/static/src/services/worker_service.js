@@ -17,12 +17,35 @@ export class WorkerService {
         this.worker = null;
         this.isUsingSharedWorker = Boolean(browser.SharedWorker);
         this._state = WORKER_STATE.UNINITIALIZED;
+        this._failureWarned = false;
         this.connectionInitializedDeferred = new Deferred();
+    }
+
+    /**
+     * What the service effectively ended up running, decided at RUNTIME (a
+     * SharedWorker can fail and fall back to a dedicated Worker, or fail
+     * entirely). Consumers that must adapt their strategy to the worker kind
+     * (e.g. the multi_tab election) should await `ensureWorkerStarted()` /
+     * `connectionInitializedDeferred` then read this — import-time feature
+     * detection (`browser.SharedWorker` presence) is NOT equivalent.
+     *
+     * @returns {"shared" | "dedicated" | "failed" | null} null while the
+     * outcome is not settled yet.
+     */
+    get workerKind() {
+        if (this._state === WORKER_STATE.FAILED) {
+            return "failed";
+        }
+        if (this._state !== WORKER_STATE.INITIALIZED) {
+            return null;
+        }
+        return this.isUsingSharedWorker ? "shared" : "dedicated";
     }
 
     async startWorker() {
         this._state = WORKER_STATE.INITIALIZING;
         let workerURL = `${this.params.serverURL}/bus/websocket_worker_bundle?v=${session.websocket_worker_version}`;
+        let blobURL = null;
         if (this.params.serverURL !== window.origin) {
             // Cross-origin scenario (e.g. prefork mode without a reverse proxy:
             // HTTP workers on port 8069, gevent on port 8072). Using importScripts
@@ -38,9 +61,10 @@ export class WorkerService {
                     );
                 }
                 const text = await response.text();
-                workerURL = URL.createObjectURL(
+                blobURL = URL.createObjectURL(
                     new Blob([text], { type: "application/javascript" }),
                 );
+                workerURL = blobURL;
             } catch (e) {
                 this._state = WORKER_STATE.FAILED;
                 this.connectionInitializedDeferred.resolve();
@@ -54,12 +78,30 @@ export class WorkerService {
         const workerClass = this.isUsingSharedWorker
             ? browser.SharedWorker
             : browser.Worker;
-        this.worker = new workerClass(workerURL, {
-            name: this.isUsingSharedWorker
-                ? "odoo:bus_shared_worker"
-                : "odoo:bus_worker",
-            type: "module",
-        });
+        try {
+            this.worker = new workerClass(workerURL, {
+                name: this.isUsingSharedWorker
+                    ? "odoo:bus_shared_worker"
+                    : "odoo:bus_worker",
+                type: "module",
+            });
+        } catch (e) {
+            // Worker construction can throw SYNCHRONOUSLY (CSP `worker-src`
+            // restrictions, blob: SecurityError, missing Worker class).
+            // Without this catch the rejection escapes `startWorker`,
+            // `connectionInitializedDeferred` never settles and every caller
+            // hangs forever. Route it through the same fallback/FAILED
+            // transitions as an async worker error.
+            this.onInitError(e);
+            return;
+        } finally {
+            // The browser resolved (or rejected) the script fetch at
+            // construction time: the blob URL served its purpose and keeping
+            // it alive would leak the whole bundle text.
+            if (blobURL) {
+                URL.revokeObjectURL(blobURL);
+            }
+        }
         const worker = this.worker;
         worker.onerror = (e) => {
             // The abandoned SharedWorker keeps this handler after the
@@ -139,7 +181,7 @@ export class WorkerService {
         }
         await this.connectionInitializedDeferred;
         if (this._state === WORKER_STATE.FAILED) {
-            console.warn("Worker service failed to initialize, cannot send message.");
+            this._warnFailedOnce();
             return;
         }
         this._send(action, data);
@@ -156,12 +198,26 @@ export class WorkerService {
         }
         await this.connectionInitializedDeferred;
         if (this._state === WORKER_STATE.FAILED) {
-            console.warn(
-                "Worker service failed to initialize, cannot register handler.",
-            );
+            this._warnFailedOnce();
             return;
         }
         this._registerHandler(handler);
+    }
+
+    /**
+     * Warn (once — the bus is chatty, one warning per send would flood the
+     * console) that the service runs in FAILED mode: sends and handler
+     * registrations are silently dropped.
+     */
+    _warnFailedOnce() {
+        if (this._failureWarned) {
+            return;
+        }
+        this._failureWarned = true;
+        console.warn(
+            "Worker service failed to initialize: worker messages are dropped" +
+                " (this warning is only shown once).",
+        );
     }
 
     get state() {

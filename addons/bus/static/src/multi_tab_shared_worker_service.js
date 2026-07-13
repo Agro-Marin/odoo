@@ -1,7 +1,9 @@
 /** @odoo-module native */
+import { WORKER_STATE } from "@bus/services/worker_service";
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
+
 const STATE = Object.freeze({
     INIT: "INIT",
     MASTER: "MASTER",
@@ -9,6 +11,12 @@ const STATE = Object.freeze({
     UNREGISTERED: "UNREGISTERED",
 });
 
+/**
+ * SharedWorker-based main-tab election strategy. Normally instantiated by the
+ * `multi_tab` facade (multi_tab_service.js) AFTER worker_service settled on an
+ * effectively shared worker; it still guards against a FAILED worker service
+ * for direct (test) usage.
+ */
 export const multiTabSharedWorkerService = {
     dependencies: ["worker_service"],
     start(env, { worker_service: workerService }) {
@@ -16,20 +24,20 @@ export const multiTabSharedWorkerService = {
         let responseDeferred = null;
         let state = STATE.INIT;
         // Memoizes the in-flight worker start so concurrent `isOnMainTab()`
-        // callers (common at boot) don't each run `startWorker` — which would
-        // send a duplicate `ELECTION:REGISTER`.
+        // callers (common at boot) don't each run the init sequence — which
+        // would register the message handler several times.
         let startPromise = null;
-        browser.addEventListener("pagehide", unregister);
-        browser.addEventListener("pageshow", (ev) => {
-            if (ev.persisted && state === STATE.UNREGISTERED) {
-                // Page restored from bfcache: `pagehide` unregistered us but
-                // the worker (and its port) is still alive. Re-join the
-                // election so main-tab tracking resumes instead of reporting
-                // `false` forever.
-                workerService.send("ELECTION:REGISTER");
-                state = STATE.REGISTERED;
-            }
-        });
+        // Degraded mode: the worker service ended FAILED (send/registerHandler
+        // are no-ops), so no election traffic can ever flow. `isOnMainTab()`
+        // then resolves `false` immediately: this tab takes no main-tab
+        // duties. The `multi_tab` facade normally prevents this case by
+        // selecting the localStorage election instead.
+        let failed = false;
+        // TERMINAL unregistration (public `unregister()`, e.g. bus_service on
+        // BUS:OUTDATED keeping stale-code tabs out of main-tab duties), as
+        // opposed to the TRANSIENT one of `pagehide`: a terminated tab must
+        // never re-register itself on `pageshow`.
+        let terminated = false;
 
         function messageHandler(messageEv) {
             const { type, data } = messageEv.data;
@@ -73,19 +81,57 @@ export const multiTabSharedWorkerService = {
             }
         }
 
-        function startWorker() {
-            return (startPromise ??= (async () => {
+        /**
+         * Idempotent registration entry point: performs the one-time worker
+         * init/handler setup, then (re-)joins the election if this tab is not
+         * currently registered. Used both by the first `isOnMainTab()` call
+         * and by the bfcache `pageshow` re-registration, so BOTH go through
+         * the INIT gate — a raw `send("ELECTION:REGISTER")` without the
+         * handler registered would leave the tab registered-but-deaf,
+         * hanging every `isOnMainTab()` caller.
+         */
+        async function ensureRegistered() {
+            startPromise ??= (async () => {
                 await workerService.ensureWorkerStarted();
+                if (workerService.state === WORKER_STATE.FAILED) {
+                    failed = true;
+                    return;
+                }
                 await workerService.registerHandler(messageHandler);
+            })();
+            await startPromise;
+            if (failed || terminated) {
+                return;
+            }
+            if (state === STATE.INIT || state === STATE.UNREGISTERED) {
                 workerService.send("ELECTION:REGISTER");
                 state = STATE.REGISTERED;
-            })());
+            }
         }
 
-        function unregister() {
+        /** Leave the election without giving up the right to come back. */
+        function unregisterTransiently() {
             workerService.send("ELECTION:UNREGISTER");
             state = STATE.UNREGISTERED;
         }
+
+        function unregister() {
+            terminated = true;
+            unregisterTransiently();
+        }
+
+        browser.addEventListener("pagehide", unregisterTransiently);
+        browser.addEventListener("pageshow", (ev) => {
+            if (ev.persisted && !terminated && startPromise) {
+                // Page restored from bfcache: `pagehide` unregistered us but
+                // the worker (and its port) is still alive. Re-join the
+                // election so main-tab tracking resumes instead of reporting
+                // `false` forever. Only tabs that had actually registered
+                // (`startPromise` set) re-join; terminated (outdated) tabs
+                // never do.
+                ensureRegistered();
+            }
+        });
 
         return {
             bus,
@@ -94,7 +140,10 @@ export const multiTabSharedWorkerService = {
                     return false;
                 }
                 if (state === STATE.INIT) {
-                    await startWorker();
+                    await ensureRegistered();
+                }
+                if (failed || state === STATE.UNREGISTERED) {
+                    return false;
                 }
                 if (!responseDeferred) {
                     responseDeferred = new Deferred();
