@@ -616,6 +616,67 @@ class TestAssociatedViewMissingActionRef(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestXmlidLookupCacheOrderingAfterWrite(TransactionCase):
+    """Lock the flush-before-clear ordering in ir.model.data.write().
+
+    ``_xmlid_lookup`` reads via raw SQL (``@tools.ormcache`` + ``cr.execute``,
+    no ORM autoflush): a concurrent reader between the two calls could
+    re-cache the pre-write row if the cache were busted before the UPDATE
+    reached the DB. Commit 117c4a6abea7 fixed the ordering in write(): was
+    ``clear_cache()`` then ``flush_recordset()``, now ``flush_recordset()``
+    then ``clear_cache()``. That race isn't observable sequentially in a
+    single-threaded test (both calls complete before write() returns either
+    way), so this locks the ORDER of the two calls directly via mock instead
+    of the end-visible cache content.
+    """
+
+    def test_db_row_reflects_write_before_cache_clear(self) -> None:
+        """The DB row must already carry the new value by clear_cache() time.
+
+        Asserted at the behavior level (what a concurrent raw-SQL reader
+        would observe), not by tracking which private methods get called in
+        what order: patch only ``clear_cache`` to probe the DB — via the
+        same raw SQL ``_xmlid_lookup`` uses — at the exact instant it fires.
+        Reintroducing the old order (clear then flush) must fail this test.
+        """
+        group_a = self.env["res.groups"].create({"name": "Audit Group A"})
+        group_b = self.env["res.groups"].create({"name": "Audit Group B"})
+        imd = self.env["ir.model.data"].create(
+            {
+                "module": "__test_imd_audit",
+                "name": "test_group_order",
+                "model": "res.groups",
+                "res_id": group_a.id,
+            }
+        )
+        self.env.flush_all()
+
+        observed_res_id = []
+
+        def _probe_db_on_clear_cache(*args: object, **kwargs: object) -> None:
+            self.env.cr.execute(
+                "SELECT res_id FROM ir_model_data WHERE module = %s AND name = %s",
+                ["__test_imd_audit", "test_group_order"],
+            )
+            observed_res_id.append(self.env.cr.fetchone()[0])
+
+        self.patch(self.env.registry, "clear_cache", _probe_db_on_clear_cache)
+        imd.write({"res_id": group_b.id})
+
+        # write() calls clear_cache() more than once here (once for the bare
+        # xmlid cache, once for "groups" since ir.model.data.model is itself
+        # "res.groups") — every one of those calls must see the post-write row.
+        self.assertTrue(observed_res_id)
+        self.assertEqual(
+            observed_res_id,
+            [group_b.id] * len(observed_res_id),
+            "the DB row must already reflect the write by the time "
+            "clear_cache() runs, else a concurrent raw-SQL lookup could "
+            "re-cache the pre-write row",
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestFetcherHttpFallback(TransactionCase):
     """OdooURLFetcher._fetch_via_http retries the stock WeasyPrint fetcher
     with the absolute URL (a relative path is unresolvable there) and the
