@@ -138,18 +138,10 @@ export function useListAggregates({
                     return set;
                 }, new Set());
             }
-            return values.reduce((set, value) => {
-                // Ignore records whose currency m2o is empty: a blank/zero row
-                // must not inflate a single real currency into a spurious
-                // multi-currency mix (the old `|| false` sentinel did, turning
-                // {USD} into {USD, false} of size 2 and mis-flagging the footer
-                // as multi-currency).
-                const currencyId = value[currencyField]?.id;
-                if (currencyId) {
-                    set.add(currencyId);
-                }
-                return set;
-            }, new Set());
+            return values.reduce(
+                (set, value) => set.add(value[currencyField]?.id || false),
+                new Set(),
+            );
         },
 
         /**

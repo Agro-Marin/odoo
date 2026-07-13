@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { Deferred } from "@web/core/utils/concurrency";
 import { registry } from "@web/core/registry";
+import { Deferred } from "@web/core/utils/concurrency";
 
 /**
  * Main-tab election over the Web Locks API.
@@ -88,8 +88,15 @@ export const multiTabService = {
             // Fast path: try to grab the lock immediately so our status settles
             // without waiting. If another tab already holds it, settle "not
             // main" now and queue a blocking request for when it is released.
+            //
+            // The Web Locks spec forbids combining `signal` with `ifAvailable`
+            // (it throws NotSupportedError), and it isn't needed here: an
+            // `ifAvailable` request never waits, so there is nothing to abort,
+            // and once granted the lock is held by `becomeMain`'s pending
+            // promise and released via `releaseHeld` — not via the signal. Only
+            // the blocking request below waits, so only it takes the signal.
             locks
-                .request(MAIN_TAB_LOCK, { ifAvailable: true, signal }, (lock) => {
+                .request(MAIN_TAB_LOCK, { ifAvailable: true }, (lock) => {
                     if (lock) {
                         return becomeMain();
                     }
