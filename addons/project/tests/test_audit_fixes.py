@@ -4,10 +4,10 @@ Each test pins a specific correctness bug found during the audit so it cannot
 silently regress. See doc/pm_excellence_investigation.md for the audit context.
 """
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from odoo import fields
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
@@ -455,3 +455,273 @@ class TestAuditFixesBatchB(TestProjectCommon):
         self.assertEqual(
             len(current.action_ids), 1, "carry-forward must be idempotent"
         )
+
+
+@tagged("-at_install", "post_install")
+class TestAuditFixesBatchC(TestProjectCommon):
+    """Batch C: correctness/security fixes from the 2026-07 deep audit.
+
+    Each test pins a bug that was reproduced on a disposable DB before the fix
+    (see doc/pm_excellence_investigation.md / audit probe harness).
+    """
+
+    def test_duplicate_current_baseline(self) -> None:
+        """C2: copying the current baseline must not hit the partial unique index."""
+        baseline = self.env["project.baseline"].create(
+            {"project_id": self.project_pigs.id, "name": "B1"})
+        baseline.action_set_current()
+        baseline.flush_recordset()
+        copy = baseline.copy()  # must not raise IntegrityError
+        copy.flush_recordset()
+        self.assertFalse(copy.is_current, "the copy must not also be current")
+
+    def test_confidential_child_models_not_leaked(self) -> None:
+        """S1: a plain project user who is not a follower of a follower-only
+        project must not see that project's risks (mirrors the task rule),
+        but must still see risks of an employees-visible project."""
+        Risk = self.env["project.risk"]
+        secret = Risk.create({
+            "project_id": self.project_goats.id,  # privacy_visibility='followers'
+            "name": "SECRET", "probability": "5", "impact": "5",
+        })
+        visible = Risk.create({
+            "project_id": self.project_pigs.id,  # privacy_visibility='employees'
+            "name": "OPEN", "probability": "1", "impact": "1",
+        })
+        as_user = Risk.with_user(self.user_projectuser)
+        self.assertNotIn(
+            secret, as_user.search([("project_id", "=", self.project_goats.id)]),
+            "follower-only project's risk must be hidden from non-follower user",
+        )
+        self.assertIn(
+            visible, as_user.search([("project_id", "=", self.project_pigs.id)]),
+            "employees-visible project's risk must remain readable",
+        )
+
+    def test_typed_dependency_write_resyncs_m2m(self) -> None:
+        """D1: editing a typed dependency's predecessor must re-sync the backing
+        predecessor_ids M2M."""
+        self.project_pigs.allow_dependencies = True
+        a, b, c = self.env["project.task"].create([
+            {"name": n, "project_id": self.project_pigs.id} for n in ("A", "B", "C")
+        ])
+        dep = self.env["project.task.dependency"].create(
+            {"task_id": b.id, "depends_on_id": a.id, "dependency_type": "fs"})
+        b.invalidate_recordset(["predecessor_ids"])
+        self.assertEqual(b.predecessor_ids, a)
+        dep.depends_on_id = c.id
+        b.invalidate_recordset(["predecessor_ids"])
+        self.assertEqual(
+            b.predecessor_ids, c,
+            "editing the dependency must move the M2M link from A to C",
+        )
+
+    def test_empty_milestone_mark_done_consistent(self) -> None:
+        """M1: an empty milestone must be non-markable in both the saved and
+        the onchange (NewId) computation."""
+        self.project_pigs.allow_milestones = True
+        saved = self.env["project.milestone"].create(
+            {"project_id": self.project_pigs.id, "name": "M"})
+        saved.invalidate_recordset(["can_be_marked_as_done"])
+        new_rec = self.env["project.milestone"].new(
+            {"project_id": self.project_pigs.id, "name": "Mnew"})
+        self.assertFalse(saved.can_be_marked_as_done)
+        self.assertEqual(
+            saved.can_be_marked_as_done, new_rec.can_be_marked_as_done,
+            "saved and onchange computation must agree for an empty milestone",
+        )
+
+    def test_resolved_risk_excluded_from_counts(self) -> None:
+        """H1: a resolved risk no longer counts toward risk_count / health."""
+        risk = self.env["project.risk"].create({
+            "project_id": self.project_pigs.id, "name": "R",
+            "probability": "5", "impact": "5",
+        })
+        self.project_pigs.invalidate_recordset(["risk_count"])
+        self.assertEqual(self.project_pigs.risk_count, 1)
+        risk.state = "resolved"
+        self.project_pigs.invalidate_recordset(["risk_count"])
+        self.assertEqual(
+            self.project_pigs.risk_count, 0,
+            "resolved risks must be excluded from the open-risk count",
+        )
+
+    def test_canceled_task_not_counted_as_throughput(self) -> None:
+        """F1: canceled tasks are not delivered work — excluded from throughput."""
+        task = self.env["project.task"].create(
+            {"name": "X", "project_id": self.project_pigs.id})
+        task.state = "canceled"
+        task.date_closed = fields.Datetime.now()
+        self.project_pigs.invalidate_recordset(["throughput_week"])
+        self.assertEqual(
+            self.project_pigs.throughput_week, 0.0,
+            "a canceled task must not count as delivered throughput",
+        )
+
+    def test_deadline_met_tristate(self) -> None:
+        """DM: deadline_met distinguishes 'no deadline / not closed' (empty) from
+        'missed' — a Boolean collapsed both to False."""
+        no_deadline = self.env["project.task"].create(
+            {"name": "no dl", "project_id": self.project_pigs.id})
+        now = fields.Datetime.now()
+        missed = self.env["project.task"].create({
+            "name": "missed", "project_id": self.project_pigs.id,
+            "date_end": now - timedelta(days=1), "state": "done",
+            "date_closed": now,
+        })
+        (no_deadline + missed).invalidate_recordset(["deadline_met"])
+        self.assertFalse(no_deadline.deadline_met, "no deadline → empty")
+        self.assertEqual(missed.deadline_met, "missed", "closed late → 'missed'")
+
+    def test_triage_bucket_must_belong_to_user(self) -> None:
+        """A personal triage bucket cannot be assigned to a different user's
+        task-triage entry (only the UI domain guarded this before)."""
+        bucket = self.env["project.triage"].create(
+            {"name": "Inbox", "user_id": self.user_projectuser.id})
+        with self.assertRaises(ValidationError):
+            self.env["project.task.triage"].create({
+                "task_id": self.task_1.id,
+                "user_id": self.user_projectmanager.id,  # different user
+                "triage_id": bucket.id,
+            })
+
+    def test_forecast_wizard_rejects_non_positive_sims(self) -> None:
+        """The Monte Carlo wizard must not IndexError on simulation_count <= 0."""
+        wizard = self.env["project.forecast.wizard"].create({
+            "project_id": self.project_pigs.id,
+            "simulation_count": 0,
+        })
+        with self.assertRaises(UserError):
+            wizard.action_run_forecast()
+
+    def test_rating_deadline_is_seeded_and_stable(self) -> None:
+        """rating_request_deadline is a plain field: seeded on enabling periodic
+        rating and NOT reset to now()+period by an unrelated recompute."""
+        step = self.env["project.workflow.step"].create({
+            "name": "Periodic",
+            "rating_active": True,
+            "rating_status": "periodic",
+            "rating_status_period": "weekly",
+        })
+        seeded = step.rating_request_deadline
+        self.assertTrue(seeded, "deadline must be seeded when periodic rating on")
+        step.invalidate_recordset(["rating_request_deadline"])
+        self.assertEqual(
+            step.rating_request_deadline, seeded,
+            "deadline must survive recompute (no now()-based reset)",
+        )
+
+    def test_history_duration_uses_completion_not_today(self) -> None:
+        """project.history actual duration must key off real completion (last
+        task closure), not the snapshot date."""
+        start = fields.Date.today() - timedelta(days=100)
+        project = self.env["project.project"].create(
+            {"name": "HistProj", "date_start": start})
+        task = self.env["project.task"].create(
+            {"name": "T", "project_id": project.id})
+        # Completed 90 days after start (10 days before "today").
+        task.write({"state": "done"})
+        task.date_closed = fields.Datetime.to_datetime(start) + timedelta(days=90)
+        hist = self.env["project.history"].create_from_project(project)
+        self.assertEqual(
+            hist.actual_duration_days, 90,
+            "duration must be start→last-closure (90d), not start→today (100d)",
+        )
+        self.assertEqual(hist.date_completed, (start + timedelta(days=90)))
+
+    def test_cpm_float_and_critical_path(self) -> None:
+        """CPM must compute correct float / critical-path on a diamond graph.
+
+        A(8)->B(4)->D(2) and A(8)->C(2)->D(2): path ABD=14 is critical, C has
+        2h of float. Pins the values so the iterative rewrite can't drift.
+        """
+        project = self.env["project.project"].create(
+            {"name": "CPM", "allow_dependencies": True})
+
+        def mk(name, hours):
+            return self.env["project.task"].create({
+                "name": name, "project_id": project.id, "allocated_hours": hours,
+            })
+
+        a, b, c, d = mk("A", 8), mk("B", 4), mk("C", 2), mk("D", 2)
+        b.predecessor_ids = a
+        c.predecessor_ids = a
+        d.predecessor_ids = b + c
+        project.action_compute_critical_path()
+        (a + b + c + d).invalidate_recordset(["total_float", "is_critical_path"])
+        self.assertTrue(a.is_critical_path and b.is_critical_path and d.is_critical_path)
+        self.assertFalse(c.is_critical_path)
+        self.assertAlmostEqual(c.total_float, 2.0, places=2)
+        for t in (a, b, d):
+            self.assertAlmostEqual(t.total_float, 0.0, places=2)
+
+    def test_cpm_long_chain_no_recursion_error(self) -> None:
+        """A dependency chain deeper than the Python recursion limit must not
+        raise RecursionError (the passes are iterative)."""
+        project = self.env["project.project"].create(
+            {"name": "DeepCPM", "allow_dependencies": True})
+        depth = 1200  # > default recursionlimit (1000)
+        tasks = self.env["project.task"].create([
+            {"name": f"T{i}", "project_id": project.id, "allocated_hours": 1.0}
+            for i in range(depth)
+        ]).sorted("id")
+        for i in range(1, depth):
+            tasks[i].predecessor_ids = tasks[i - 1]
+        project.action_compute_critical_path()  # must not raise
+        tasks[-1].invalidate_recordset(["is_critical_path"])
+        self.assertTrue(tasks[-1].is_critical_path, "the whole chain is critical")
+
+    def test_recurrence_until_respects_user_timezone(self) -> None:
+        """repeat_until (a naive calendar Date) must be compared in the user's
+        timezone, not UTC — otherwise a boundary occurrence is dropped a day
+        early in a negative-offset tz."""
+        self.env.user.tz = "Etc/GMT+6"  # UTC-6, no DST
+        step = self.env["project.workflow.step"].create(
+            {"name": "S", "project_ids": [(4, self.project_pigs.id)]})
+        until = fields.Date.today() + timedelta(days=30)
+        rec = self.env["project.task.recurrence"].create({
+            "repeat_type": "until",
+            "repeat_unit": "day",
+            "repeat_interval": 1,
+            "repeat_until": until,
+        })
+        # date_end + 1 day = until+1 @ 03:00 UTC = until @ 21:00 local (UTC-6).
+        # UTC .date() would be until+1 → skipped; local date is until → created.
+        task = self.env["project.task"].create({
+            "name": "Recur",
+            "project_id": self.project_pigs.id,
+            "step_id": step.id,
+            "recurrence_id": rec.id,
+            "date_end": datetime.combine(until, time(3, 0)),
+        })
+        created = self.env["project.task.recurrence"]._create_next_occurrences(task)
+        self.assertTrue(
+            created,
+            "boundary occurrence must be created (compared in user tz, not UTC)",
+        )
+
+    def test_forecast_throughput_excludes_canceled(self) -> None:
+        """Throughput forecasting must count delivered (done) work only — a
+        canceled task is not delivery."""
+        now = fields.Datetime.now()
+        self.env["project.task"].create({
+            "name": "done", "project_id": self.project_pigs.id,
+            "state": "done", "date_closed": now - timedelta(days=3)})
+        self.env["project.task"].create({
+            "name": "canceled", "project_id": self.project_pigs.id,
+            "state": "canceled", "date_closed": now - timedelta(days=3)})
+        wizard = self.env["project.forecast.wizard"].create(
+            {"project_id": self.project_pigs.id, "weeks_of_history": 8})
+        self.assertEqual(
+            sum(wizard._get_weekly_throughput()), 1,
+            "only the done task counts toward throughput",
+        )
+
+    def test_forecast_throughput_enforces_read_access(self) -> None:
+        """The raw-SQL throughput query must not leak a project the user cannot
+        read (record rules don't apply to raw SQL — an explicit check does)."""
+        wizard = self.env["project.forecast.wizard"].create(
+            {"project_id": self.project_goats.id, "weeks_of_history": 8})
+        # project_goats is follower-only; user_projectuser is not a follower.
+        with self.assertRaises(AccessError):
+            wizard.with_user(self.user_projectuser)._get_weekly_throughput()

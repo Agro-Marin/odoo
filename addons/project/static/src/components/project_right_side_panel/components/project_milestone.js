@@ -16,7 +16,11 @@ export class ProjectMilestone extends Component {
     setup() {
         this.orm = useService('orm');
         this.dialog = useService("dialog");
-        this.milestone = useState(this.props.milestone);
+        // Own reactive copy: updates below use Object.assign to mutate this
+        // proxy in place. Reassigning this.milestone to a plain object (as the
+        // code used to) would discard the reactive proxy; copying instead of
+        // wrapping props avoids mutating the parent's prop object.
+        this.milestone = useState({ ...this.props.milestone });
         this.state = useState({
             colorClass: this._getColorClass(),
             checkboxIcon: this._getCheckBoxIcon(),
@@ -43,7 +47,7 @@ export class ProjectMilestone extends Component {
 
     onWillUpdateProps(nextProps) {
         if (nextProps.milestone) {
-            this.milestone = nextProps.milestone;
+            Object.assign(this.milestone, nextProps.milestone);
             this.state.colorClass = this._getColorClass();
             this.state.checkboxIcon = this._getCheckBoxIcon();
         }
@@ -55,11 +59,11 @@ export class ProjectMilestone extends Component {
     async toggleIsReached() {
         if (!this.write_mutex) {
             this.write_mutex = true;
-            this.milestone = await this.orm.call(
+            Object.assign(this.milestone, await this.orm.call(
                 this.resModel,
                 'toggle_is_reached',
                 [[this.milestone.id], !this.milestone.is_reached],
-            );
+            ));
             this.state.colorClass = this._getColorClass();
             this.state.checkboxIcon = this._getCheckBoxIcon();
             this.write_mutex = false;

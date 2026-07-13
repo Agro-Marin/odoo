@@ -113,8 +113,13 @@ class ProjectMilestone(models.Model):
     def _compute_can_be_marked_as_done(self) -> None:
         if not any(self._ids):
             for milestone in self:
-                milestone.can_be_marked_as_done = not milestone.is_reached and all(
-                    milestone.task_ids.mapped(lambda t: t.is_closed)
+                # A milestone with no tasks is NOT markable-as-done — mirror the
+                # persisted branch's `closed_task_count > 0` guard (all([]) is
+                # True, which would otherwise disagree once the record is saved).
+                milestone.can_be_marked_as_done = (
+                    not milestone.is_reached
+                    and bool(milestone.task_ids)
+                    and all(milestone.task_ids.mapped(lambda t: t.is_closed))
                 )
             return
 

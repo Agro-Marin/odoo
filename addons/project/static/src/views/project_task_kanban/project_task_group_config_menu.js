@@ -17,9 +17,10 @@ export class ProjectTaskGroupConfigMenu extends GroupConfigMenu {
         });
     }
 
-    async deleteGroup() {
-        return this.props.deleteGroup(this.group);
-    }
+    // NB: deliberately no deleteGroup() override — inherit GroupConfigMenu's,
+    // which shows a confirmation dialog before deleting a column. A previous
+    // override called props.deleteGroup directly, deleting a relational group
+    // (assignee, milestone, …) on a single unconfirmed click.
 
     canEditGroup() {
         return super.canEditGroup() && (!this.props.list.isGroupedByStage || this.isProjectManager);

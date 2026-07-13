@@ -14,9 +14,18 @@ import { FormCompiler } from "@web/views/form/form_compiler";
  */
 function compileChatter(node, params) {
     const chatterContainerXml = createElement("Chatter");
-    const parentURLQuery = new URLSearchParams(window.parent.location.search);
+    let parentSearch = "";
+    try {
+        parentSearch = window.parent.location.search;
+    } catch {
+        // Cross-origin embed: reading the parent frame throws SecurityError.
+        parentSearch = window.location.search;
+    }
+    const accessToken = new URLSearchParams(parentSearch).get("access_token");
     setAttributes(chatterContainerXml, {
-        token: `'${parentURLQuery.get("access_token")}'` || "",
+        // Compile to a quoted string literal only when present; otherwise an
+        // empty-string literal. `\`'${null}'\`` would send the literal "null".
+        token: accessToken ? `'${accessToken}'` : "''",
         threadModel: params.resModel,
         threadId: params.resId,
         projectSharingId: params.projectSharingId,

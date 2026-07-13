@@ -50,8 +50,14 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
 
     getStaticActionMenuItems() {
         const actionMenuItems = super.getStaticActionMenuItems(...arguments);
-        if (actionMenuItems.archive.isAvailable) {
-            actionMenuItems.archive.isAvailable = () => this.isProjectManager;
+        const archive = actionMenuItems.archive;
+        if (archive) {
+            // Compose with the base condition (archiveEnabled && record active)
+            // instead of replacing it — otherwise "Archive" shows even on an
+            // already-archived project. isAvailable may be a bool or a function.
+            const base = archive.isAvailable;
+            archive.isAvailable = () =>
+                (typeof base === "function" ? base() : base) && this.isProjectManager;
         }
         return actionMenuItems;
     }

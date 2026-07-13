@@ -1,6 +1,6 @@
 import ast
 import json
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any, Self
 
 from odoo import api, fields, models
@@ -804,24 +804,35 @@ class ProjectProject(models.Model):
                     color[node] = _DONE
                     dfs_stack.pop()
 
-        # Forward pass
+        # Topological order (Kahn) so the forward/backward passes are iterative
+        # rather than recursive: a plain recursive DFS blows Python's recursion
+        # limit (~1000) on a long dependency chain, raising RecursionError →
+        # HTTP 500. Cycles are already rejected above, so Kahn consumes every
+        # node. Predecessors precede their successors in `topo`.
+        indegree = {tid: len(deps_on[tid]) for tid in task_set}
+        ready = deque(sorted(tid for tid in task_set if indegree[tid] == 0))
+        topo: list[int] = []
+        while ready:
+            tid = ready.popleft()
+            topo.append(tid)
+            for succ_id in successors_of[tid]:
+                indegree[succ_id] -= 1
+                if indegree[succ_id] == 0:
+                    ready.append(succ_id)
+
+        # Forward pass — earliest start/finish, predecessors first.
         es: dict[int, float] = {}
         ef: dict[int, float] = {}
-
-        def forward(tid: int) -> None:
-            """Compute earliest start/finish for a task."""
-            if tid in ef:
-                return
-            if not deps_on[tid]:
+        for tid in topo:
+            preds = deps_on[tid]
+            if not preds:
                 es[tid] = 0.0
                 ef[tid] = duration[tid]
-                return
-            for pred_id, _dtype, _lag in deps_on[tid]:
-                forward(pred_id)
+                continue
             max_es = 0.0
             max_ef_constraint = 0.0
             has_ef_constraint = False
-            for pred_id, dtype, lag in deps_on[tid]:
+            for pred_id, dtype, lag in preds:
                 if dtype == "fs":
                     max_es = max(max_es, ef[pred_id] + lag)
                 elif dtype == "ss":
@@ -833,48 +844,30 @@ class ProjectProject(models.Model):
                     max_ef_constraint = max(max_ef_constraint, es[pred_id] + lag)
                     has_ef_constraint = True
             if has_ef_constraint:
-                es_from_ef = max_ef_constraint - duration[tid]
-                max_es = max(max_es, es_from_ef)
+                max_es = max(max_es, max_ef_constraint - duration[tid])
             es[tid] = max_es
             ef[tid] = es[tid] + duration[tid]
 
-        for t in tasks:
-            forward(t.id)
-
         project_end = max(ef.values()) if ef else 0.0
 
-        # Backward pass
+        # Backward pass — latest start/finish, successors first (reverse topo).
         lf: dict[int, float] = {}
         ls_map: dict[int, float] = {}
-
-        def backward(tid: int) -> None:
-            """Compute latest start/finish for a task."""
-            if tid in ls_map:
-                return
-            if not successors_of[tid]:
-                lf[tid] = project_end
-            else:
-                for succ_id in successors_of[tid]:
-                    backward(succ_id)
-                lf[tid] = project_end
-                for succ_id in successors_of[tid]:
-                    for pred_id, dtype, lag in deps_on[succ_id]:
-                        if pred_id != tid:
-                            continue
-                        if dtype == "fs":
-                            lf[tid] = min(lf[tid], ls_map[succ_id] - lag)
-                        elif dtype == "ss":
-                            lf[tid] = min(
-                                lf[tid], ls_map[succ_id] - lag + duration[tid]
-                            )
-                        elif dtype == "ff":
-                            lf[tid] = min(lf[tid], lf[succ_id] - lag)
-                        elif dtype == "sf":
-                            lf[tid] = min(lf[tid], lf[succ_id] - lag + duration[tid])
+        for tid in reversed(topo):
+            lf[tid] = project_end
+            for succ_id in successors_of[tid]:
+                for pred_id, dtype, lag in deps_on[succ_id]:
+                    if pred_id != tid:
+                        continue
+                    if dtype == "fs":
+                        lf[tid] = min(lf[tid], ls_map[succ_id] - lag)
+                    elif dtype == "ss":
+                        lf[tid] = min(lf[tid], ls_map[succ_id] - lag + duration[tid])
+                    elif dtype == "ff":
+                        lf[tid] = min(lf[tid], lf[succ_id] - lag)
+                    elif dtype == "sf":
+                        lf[tid] = min(lf[tid], lf[succ_id] - lag + duration[tid])
             ls_map[tid] = lf[tid] - duration[tid]
-
-        for t in tasks:
-            backward(t.id)
 
         # Convert abstract hours to calendar dates and write results
         calendar = self.resource_calendar_id
@@ -908,10 +901,12 @@ class ProjectProject(models.Model):
         2. Build per-user timeline from planned_date_start/end.
         3. For each non-critical task (sorted by float descending):
            if assigned user is overloaded in the planned window,
-           shift planned_date_start forward to next available slot.
-        4. Recompute dependent tasks' dates after each shift.
+           shift planned_date_start forward to next available slot, but only
+           within the task's float so the project end date is preserved.
 
-        This is a heuristic, not an optimization solver.
+        This is a heuristic, not an optimization solver. Because shifts stay
+        within each task's float, successor dates remain valid without an
+        explicit re-propagation pass.
         """
         self.ensure_one()
         # Step 1: compute CPM to establish baseline dates
@@ -976,19 +971,28 @@ class ProjectProject(models.Model):
                     ),
                     default=task.planned_date_start,
                 )
-                # Shift task to start after the overlap, respecting float
+                # Shift task to *start* at the end of the overlap (snapped to the
+                # next working moment), respecting float. NB: plan_hours(h, t)
+                # returns the datetime after scheduling h hours of work from t —
+                # so the new *start* is plan_hours(0, latest_end), not
+                # plan_hours(allocated_hours, ...) which would overshoot the start
+                # by a full task duration and leave a spurious gap.
                 max_shift_hours = task.total_float or 0.0
+                if not latest_end:
+                    continue
                 new_start = (
-                    calendar.plan_hours(task.allocated_hours, latest_end)
-                    if latest_end
-                    else task.planned_date_start
+                    calendar.plan_hours(0.0, latest_end) if calendar else latest_end
                 )
                 # Only shift if within float allowance
                 shift_hours = (
                     new_start - task.planned_date_start
                 ).total_seconds() / 3600
                 if 0 < shift_hours <= max_shift_hours:
-                    new_end = calendar.plan_hours(task.allocated_hours, new_start)
+                    new_end = (
+                        calendar.plan_hours(task.allocated_hours, new_start)
+                        if calendar
+                        else new_start + (task.planned_date_end - task.planned_date_start)
+                    )
                     # Update slot tracking
                     user_slots[user.id] = [s for s in slots if s[3] != task.id] + [
                         (new_start, new_end, task.allocated_hours, task.id)
@@ -1132,6 +1136,7 @@ class ProjectProject(models.Model):
                 SELECT project_id, COALESCE(SUM(risk_score), 0)
                 FROM project_risk
                 WHERE project_id IN %(project_ids)s AND active = TRUE
+                  AND state != 'resolved'
                 GROUP BY project_id
                 """,
                     project_ids=tuple(self.ids),
@@ -1158,15 +1163,26 @@ class ProjectProject(models.Model):
             else:
                 project.health_status = "critical"
 
-    @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active")
+    @api.depends(
+        "risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state"
+    )
     def _compute_risk_count(self) -> None:
-        """Count active risks and high/critical risks per project."""
+        """Count open risks and high/critical risks per project.
+
+        Resolved risks are excluded — they are no longer live exposure. (An
+        'accepted' risk still counts: accepting a response does not remove the
+        underlying exposure.)
+        """
         if not self.ids:
             self.risk_count = 0
             self.high_risk_count = 0
             return
         risk_data = self.env["project.risk"]._read_group(
-            [("project_id", "in", self.ids), ("active", "=", True)],
+            [
+                ("project_id", "in", self.ids),
+                ("active", "=", True),
+                ("state", "!=", "resolved"),
+            ],
             ["project_id", "risk_level"],
             ["__count"],
         )
@@ -1222,36 +1238,36 @@ class ProjectProject(models.Model):
                 -- NOTE: date_closed is the actual completion timestamp; date_end
                 -- is the (renamed) deadline. Rolling windows must key off closure.
                 AVG(lead_time_hours) FILTER (
-                    WHERE state IN ('done', 'canceled')
+                    WHERE state = 'done'
                       AND date_closed >= %(now)s - INTERVAL '90 days'
                       AND lead_time_hours > 0
                 ) AS avg_lead_time,
                 -- Avg cycle time: assign→close (closed in last 90 days)
                 AVG(cycle_time_hours) FILTER (
-                    WHERE state IN ('done', 'canceled')
+                    WHERE state = 'done'
                       AND date_closed >= %(now)s - INTERVAL '90 days'
                       AND cycle_time_hours > 0
                 ) AS avg_cycle_time,
                 -- Throughput: tasks closed in last 28 days / 4
                 COUNT(*) FILTER (
-                    WHERE state IN ('done', 'canceled')
+                    WHERE state = 'done'
                       AND date_closed >= %(now)s - INTERVAL '28 days'
                 ) / 4.0 AS throughput_week,
                 -- Deadline compliance: pct of deadline-having closed tasks whose
                 -- actual closure (date_closed) landed on or before the deadline.
                 CASE
                     WHEN COUNT(*) FILTER (
-                        WHERE state IN ('done', 'canceled')
+                        WHERE state = 'done'
                           AND date_end IS NOT NULL
                           AND date_closed IS NOT NULL
                     ) = 0 THEN 0.0
                     ELSE 100.0 * COUNT(*) FILTER (
-                        WHERE state IN ('done', 'canceled')
+                        WHERE state = 'done'
                           AND date_end IS NOT NULL
                           AND date_closed IS NOT NULL
                           AND date_closed <= date_end
                     ) / COUNT(*) FILTER (
-                        WHERE state IN ('done', 'canceled')
+                        WHERE state = 'done'
                           AND date_end IS NOT NULL
                           AND date_closed IS NOT NULL
                     )

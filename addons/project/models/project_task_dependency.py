@@ -11,6 +11,8 @@ dependency_type and lag_hours. The M2M remains the backbone for backward
 compatibility; this model adds metadata for advanced scheduling.
 """
 
+from collections import defaultdict
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -89,29 +91,35 @@ class ProjectTaskDependency(models.Model):
 
     @api.constrains("task_id", "depends_on_id")
     def _check_no_cycle(self) -> None:
-        """Prevent circular dependencies via the typed dependency model."""
+        """Prevent circular dependencies via the typed dependency model.
+
+        Builds the predecessor→successor adjacency once (single query) and
+        traverses it in memory, instead of issuing one ``search`` per graph
+        node per dependency (a query storm on deep/wide graphs).
+        """
+        # depends_on_id -> [task_id, ...]: "tasks that depend on this one".
+        # Raw read bypasses ORM auto-flush, so flush the endpoints first.
+        self.flush_model(["task_id", "depends_on_id"])
+        self.env.cr.execute("SELECT depends_on_id, task_id FROM project_task_dependency")
+        downstream: dict[int, list[int]] = defaultdict(list)
+        for depends_on_id, task_id in self.env.cr.fetchall():
+            downstream[depends_on_id].append(task_id)
         for dep in self:
-            visited = set()
+            target = dep.depends_on_id.id
+            visited: set[int] = set()
             stack = [dep.task_id.id]
             while stack:
                 current = stack.pop()
-                if current == dep.depends_on_id.id:
-                    # We went from task_id through its successors and found
-                    # depends_on_id — creating this dependency would form a cycle.
+                if current == target:
+                    # Reached depends_on_id by following successors of task_id —
+                    # this dependency closes a cycle.
                     raise ValidationError(
                         _("Adding this dependency would create a circular reference.")
                     )
                 if current in visited:
                     continue
                 visited.add(current)
-                # Follow downstream: tasks that depend on `current`
-                downstream = self.search(
-                    [
-                        ("depends_on_id", "=", current),
-                        ("id", "!=", dep.id),
-                    ]
-                )
-                stack.extend(downstream.mapped("task_id.id"))
+                stack.extend(downstream.get(current, ()))
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]) -> ProjectTaskDependency:
@@ -119,6 +127,30 @@ class ProjectTaskDependency(models.Model):
         records = super().create(vals_list)
         records._sync_to_m2m()
         return records
+
+    def write(self, vals: dict) -> bool:
+        """Keep the backing M2M in sync when a dependency's endpoints move.
+
+        ``create``/``unlink`` cover their own cases; without this, editing an
+        existing dependency's ``task_id``/``depends_on_id`` would leave the old
+        ``predecessor_ids`` link in place and never add the new one, so the
+        blocked-state computation would track the wrong predecessor.
+        """
+        remap = "task_id" in vals or "depends_on_id" in vals
+        old_pairs = (
+            [(dep.task_id, dep.depends_on_id) for dep in self] if remap else []
+        )
+        res = super().write(vals)
+        if remap:
+            for (old_task, old_pred), dep in zip(old_pairs, self, strict=True):
+                if dep.task_id == old_task and dep.depends_on_id == old_pred:
+                    continue
+                if old_pred in old_task.predecessor_ids:
+                    old_task.write(
+                        {"predecessor_ids": [fields.Command.unlink(old_pred.id)]}
+                    )
+                dep._sync_to_m2m()
+        return res
 
     def unlink(self) -> bool:
         """Remove from M2M when typed dependency is deleted."""

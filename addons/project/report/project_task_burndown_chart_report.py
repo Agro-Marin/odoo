@@ -114,7 +114,9 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         )
         date_groupby = next(g for g in groupby if g.startswith("date"))
 
-        interval = date_groupby.split(":")[1]
+        # A bare "date" groupby (no granularity) defaults to month, as elsewhere
+        # in Odoo — without this, date_groupby.split(":")[1] raises IndexError.
+        interval = date_groupby.split(":")[1] if ":" in date_groupby else "month"
         sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 
         simple_date_groupby_sql = self._read_group_groupby(

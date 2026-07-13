@@ -4,7 +4,8 @@ Each (task, user) pair has exactly one triage bucket entry; the unique
 constraint at the database level enforces this.
 """
 
-from odoo import fields, models
+from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProjectTaskTriage(models.Model):
@@ -43,3 +44,19 @@ class ProjectTaskTriage(models.Model):
         "UNIQUE (task_id, user_id)",
         "A task can only have one triage bucket per user.",
     )
+
+    @api.constrains("user_id", "triage_id")
+    def _check_triage_owner(self) -> None:
+        """A triage bucket is personal — it must belong to this entry's user.
+
+        The UI ``domain`` on ``triage_id`` only filters the picker; direct
+        writes/imports could otherwise file a task into another user's bucket.
+        """
+        for rec in self:
+            if rec.triage_id and rec.triage_id.user_id != rec.user_id:
+                raise ValidationError(
+                    self.env._(
+                        "A personal triage bucket must belong to the same user "
+                        "as the task-triage entry."
+                    )
+                )

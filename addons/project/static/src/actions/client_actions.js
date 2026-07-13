@@ -14,7 +14,10 @@ export function showTemplateUndoNotification(
         undoCallback,
     }
 ) {
-    const undoNotification = env.services.notification.add(_t(message), {
+    // `message` is already translated by every caller (literal `_t(...)` at the
+    // call sites) or is a server-provided string — do not re-wrap in _t() here
+    // (double translation / non-extractable term).
+    const undoNotification = env.services.notification.add(message, {
         type: actionType,
         buttons: [
             {

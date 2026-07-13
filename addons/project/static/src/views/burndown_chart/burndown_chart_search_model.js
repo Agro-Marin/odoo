@@ -133,7 +133,10 @@ export class BurndownChartSearchModel extends SearchModel {
             if (isClosedIndex > dateIndex) {
                 dateIndex += 1;
             }
-            this.query.splice(0, 0, this.query.splice(stageIdIndex, 1)[0]);
+            // Burn-up mode groups by is_closed (stageIdIndex is -1 here); hoist
+            // the is_closed element, not stageIdIndex — splice(-1,1) would move
+            // the last query element to the front instead.
+            this.query.splice(0, 0, this.query.splice(isClosedIndex, 1)[0]);
         } else if (stageIdIndex > 0) {
             if (stageIdIndex > dateIndex) {
                 dateIndex += 1;

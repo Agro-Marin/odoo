@@ -19,17 +19,21 @@ export class ProjectTaskListRenderer extends ListRenderer {
      * Returns true if all selected tasks have the same value for the specified field.
      */
     haveAllSelectedTasksSameField(field) {
-        if (this._areSelectedTasksInSameProject === undefined) {
+        // Cache keyed by field: a single field-agnostic flag would return the
+        // first field's answer if this is called for two different fields in
+        // the same render/microtask window.
+        this._sameFieldCache ??= {};
+        if (!(field in this._sameFieldCache)) {
             const selection = this.props.list.selection;
-            const projectId = selection.length && getRawValue(selection[0], field);
-            this._areSelectedTasksInSameProject = selection.every(
-                (task) => getRawValue(task, field) === projectId
+            const value = selection.length && getRawValue(selection[0], field);
+            this._sameFieldCache[field] = selection.every(
+                (task) => getRawValue(task, field) === value
             );
             Promise.resolve().then(() => {
-                delete this._areSelectedTasksInSameProject;
+                delete this._sameFieldCache;
             });
         }
-        return this._areSelectedTasksInSameProject;
+        return this._sameFieldCache[field];
     }
     isCellReadonly(column, record) {
         let readonly = false;

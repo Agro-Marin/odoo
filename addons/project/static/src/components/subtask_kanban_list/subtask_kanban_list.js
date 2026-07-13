@@ -31,11 +31,6 @@ export class SubtaskKanbanList extends Component {
             open: false,
             name: "",
         });
-        this.state = useState({
-            subtasks: [],
-            isLoad: true,
-            prevSubtaskCount: 0,
-        });
     }
 
     get list() {
@@ -43,14 +38,13 @@ export class SubtaskKanbanList extends Component {
     }
 
     get closedList() {
-        const currentCount = this.list.records.length;
-        if (this.state.isLoad || currentCount !== this.state.prevSubtaskCount) {
-            this.state.prevSubtaskCount = currentCount;
-            this.state.isLoad = false;
-            this.state.subtasks = this.list.records
-                .filter((subtask) => !["done", "canceled"].includes(subtask.data.state));
-        }
-        return this.state.subtasks;
+        // Recompute on every render: a subtask toggling to done/canceled does
+        // not change the record count, so a count-keyed cache would keep the
+        // now-closed subtask in the open list. `records`/`data.state` are
+        // reactive, so OWL re-renders when a child's state changes.
+        return this.list.records.filter(
+            (subtask) => !["done", "canceled"].includes(subtask.data.state)
+        );
     }
 
     get fieldInfo() {
@@ -105,7 +99,7 @@ export class SubtaskKanbanList extends Component {
             }]);
             this.subtaskCreate.open = false;
             this.subtaskCreate.name = "";
-            this.props.record.load();
+            await this.props.record.load();
         }
     }
 }

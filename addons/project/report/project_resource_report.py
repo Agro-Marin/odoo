@@ -36,7 +36,11 @@ class ProjectResourceReport(models.Model):
     is_overallocated = fields.Boolean(
         "Overallocated",
         readonly=True,
-        help="True when total allocated hours across all projects exceed 40h/week.",
+        help=(
+            "True when the user's busiest single week exceeds 40 allocated "
+            "hours across all active projects (reservations are bucketed by "
+            "ISO week on their start date)."
+        ),
     )
 
     def init(self) -> None:
@@ -52,12 +56,13 @@ class ProjectResourceReport(models.Model):
         tools.drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
-                WITH user_project AS (
+                WITH reservations AS (
                     SELECT
                         res.user_id,
                         t.project_id,
-                        SUM(rr.allocated_hours) AS allocated_hours,
-                        COUNT(DISTINCT t.id) AS task_count
+                        t.id AS task_id,
+                        rr.allocated_hours,
+                        DATE_TRUNC('week', rr.date_start) AS week_start
                     FROM resource_reservation rr
                     JOIN resource_resource res ON res.id = rr.resource_id
                     JOIN project_task t
@@ -68,13 +73,30 @@ class ProjectResourceReport(models.Model):
                       AND t.is_template IS NOT TRUE
                       AND t.active = TRUE
                       AND res.user_id IS NOT NULL
-                    GROUP BY res.user_id, t.project_id
                 ),
-                user_totals AS (
+                user_project AS (
                     SELECT
                         user_id,
-                        COUNT(DISTINCT project_id) AS project_count,
-                        SUM(allocated_hours) AS total_hours
+                        project_id,
+                        SUM(allocated_hours) AS allocated_hours,
+                        COUNT(DISTINCT task_id) AS task_count
+                    FROM reservations
+                    GROUP BY user_id, project_id
+                ),
+                -- Peak weekly load per user: sum hours within each ISO week
+                -- (by reservation start date), then take the busiest week.
+                user_peak AS (
+                    SELECT user_id, MAX(week_hours) AS peak_week_hours
+                    FROM (
+                        SELECT user_id, week_start, SUM(allocated_hours) AS week_hours
+                        FROM reservations
+                        WHERE week_start IS NOT NULL
+                        GROUP BY user_id, week_start
+                    ) w
+                    GROUP BY user_id
+                ),
+                user_totals AS (
+                    SELECT user_id, COUNT(DISTINCT project_id) AS project_count
                     FROM user_project
                     GROUP BY user_id
                 )
@@ -85,8 +107,9 @@ class ProjectResourceReport(models.Model):
                     up.allocated_hours,
                     up.task_count,
                     ut.project_count,
-                    ut.total_hours > 40 AS is_overallocated
+                    COALESCE(pk.peak_week_hours, 0) > 40 AS is_overallocated
                 FROM user_project up
                 JOIN user_totals ut ON ut.user_id = up.user_id
+                LEFT JOIN user_peak pk ON pk.user_id = up.user_id
             )
         """)

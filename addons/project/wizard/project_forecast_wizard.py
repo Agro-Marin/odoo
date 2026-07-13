@@ -9,6 +9,7 @@ import random
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 from odoo.tools import SQL
 
 
@@ -58,6 +59,12 @@ class ProjectForecastWizard(models.TransientModel):
     def action_run_forecast(self) -> dict:
         """Run the Monte Carlo simulation and display results."""
         self.ensure_one()
+        if self.simulation_count < 1:
+            raise UserError(
+                self.env._("The number of simulations must be at least 1.")
+            )
+        # Cap iterations so a huge user-entered value can't stall the request.
+        sim_count = min(self.simulation_count, 100_000)
         if not self.remaining_items or self.remaining_items <= 0:
             self.result_text = "No remaining items to forecast."
             return self._reopen_wizard()
@@ -73,7 +80,7 @@ class ProjectForecastWizard(models.TransientModel):
 
         # Run simulation
         results = []
-        for _i in range(self.simulation_count):
+        for _i in range(sim_count):
             weeks = 0
             remaining = self.remaining_items
             while remaining > 0:
@@ -93,7 +100,7 @@ class ProjectForecastWizard(models.TransientModel):
 
         self.result_text = (
             f"Based on {len(throughput)} weeks of throughput data "
-            f"({self.simulation_count} simulations):\n\n"
+            f"({sim_count} simulations):\n\n"
             f"  50% chance of finishing in {self.p50_weeks:.0f} weeks or less\n"
             f"  85% chance of finishing in {self.p85_weeks:.0f} weeks or less\n"
             f"  95% chance of finishing in {self.p95_weeks:.0f} weeks or less\n\n"
@@ -114,6 +121,10 @@ class ProjectForecastWizard(models.TransientModel):
         text must be a literal, not a bind placeholder) and a bare ``NOW()``
         would be evaluated in the session timezone against a UTC column.
         """
+        # Raw SQL bypasses record rules, and project_id is user-settable on this
+        # transient — gate on ORM read access so a user can't read the throughput
+        # of a project they are not allowed to see.
+        self.project_id.check_access("read")
         since = self.env.cr.now() - timedelta(weeks=self.weeks_of_history)
         self.env.cr.execute(
             SQL(
@@ -123,7 +134,7 @@ class ProjectForecastWizard(models.TransientModel):
                 COUNT(*) AS closed_count
             FROM project_task
             WHERE project_id = %(project_id)s
-              AND state IN ('done', 'canceled')
+              AND state = 'done'
               AND date_closed >= %(since)s
               AND date_closed IS NOT NULL
               AND is_template IS NOT TRUE

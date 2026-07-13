@@ -105,11 +105,13 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     async planTask(taskId, date, timeSlotSelected = false) {
-        this.tasksToPlan.length -= 1;
         const taskToPlanIndex = this.tasksToPlan.records.findIndex((task) => task.id === taskId);
         if (taskToPlanIndex < 0) {
             return;
         }
+        // Decrement only once we know a record will actually be removed, so
+        // `length` stays in sync with `records` (drives the "Load more" count).
+        this.tasksToPlan.length -= 1;
         const [taskToPlan] = this.tasksToPlan.records.splice(taskToPlanIndex, 1);
         const context = this._getPlanTaskContext(taskToPlan, timeSlotSelected);
         await this.orm.call(this.meta.resModel, "plan_task_in_calendar", [[taskId], this._getPlanTaskVals(taskToPlan, date, timeSlotSelected)], {
