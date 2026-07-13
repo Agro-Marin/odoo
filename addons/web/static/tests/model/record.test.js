@@ -565,8 +565,10 @@ test(`handles many2one fields: target record is missing or inaccessible`, async 
     });
     await mountWithCleanup(Parent);
     expect.verifySteps(["bar/web_read"]);
-    // Rendered without crashing, with an empty display name.
-    expect(`.o_field_many2one_selection input`).toHaveValue("");
+    // Rendered without crashing. An unresolvable target has a blank
+    // display_name, which Many2OneField renders as its standard "Unnamed"
+    // placeholder — not a hard error.
+    expect(`.o_field_many2one_selection input`).toHaveValue("Unnamed");
 });
 
 test(`handles x2many fields`, async () => {
