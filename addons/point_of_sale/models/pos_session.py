@@ -482,21 +482,22 @@ class PosSession(models.Model):
 
     @api.constrains("config_id")
     def _check_pos_config(self):
-        onboarding_creation = self.env.context.get("onboarding_creation", False)
-        if (
-            not onboarding_creation
-            and self.search_count(
-                [
-                    ("state", "!=", "closed"),
-                    ("config_id", "=", self.config_id.id),
-                    ("rescue", "=", False),
-                ]
-            )
-            > 1
-        ):
-            raise ValidationError(
-                _("Another session is already opened for this point of sale.")
-            )
+        if self.env.context.get("onboarding_creation", False):
+            return
+        for session in self:
+            if (
+                session.search_count(
+                    [
+                        ("state", "!=", "closed"),
+                        ("config_id", "=", session.config_id.id),
+                        ("rescue", "=", False),
+                    ]
+                )
+                > 1
+            ):
+                raise ValidationError(
+                    _("Another session is already opened for this point of sale.")
+                )
 
     @api.constrains("start_at")
     def _check_start_date(self):
@@ -578,7 +579,6 @@ class PosSession(models.Model):
         for session in self.filtered(
             lambda session: session.state == "opening_control"
         ):
-            values = {}
             if session.config_id.cash_control and not session.rescue:
                 last_session = self.search(
                     [
@@ -590,7 +590,6 @@ class PosSession(models.Model):
                 session.cash_register_balance_start = (
                     last_session.cash_register_balance_end_real
                 )  # defaults to 0 if lastsession is empty
-            session.write(values)
         return True
 
     def get_session_orders(self):
@@ -1339,6 +1338,7 @@ class PosSession(models.Model):
         )
         currency_rounding = self.currency_id.rounding
         closed_orders = self._get_closed_orders()
+        partner_rank_increments = defaultdict(int)
         for order in closed_orders:
             order_is_invoiced = order.is_invoiced
             for payment in order.payment_ids:
@@ -1479,9 +1479,23 @@ class PosSession(models.Model):
                         rounding_difference, {"amount": diff}, order.date_order
                     )
 
-                # Increasing current partner's customer_rank
-                partners = order.partner_id | order.partner_id.commercial_partner_id
-                partners._increase_rank("customer_rank")
+                # Tally the customer_rank bump per partner; apply once after the
+                # loop (was a per-order _increase_rank call — a write storm for
+                # first-time customers whose rank is still 0).
+                for partner in (
+                    order.partner_id | order.partner_id.commercial_partner_id
+                ):
+                    partner_rank_increments[partner.id] += 1
+
+        # Group partners by their increment count so equal bumps share one call;
+        # this reproduces the original per-order totals with far fewer calls.
+        partners_by_increment = defaultdict(list)
+        for partner_id, increment in partner_rank_increments.items():
+            partners_by_increment[increment].append(partner_id)
+        for increment, partner_ids in partners_by_increment.items():
+            self.env["res.partner"].browse(partner_ids)._increase_rank(
+                "customer_rank", increment
+            )
 
         all_picking_ids = (
             self.order_ids.filtered(

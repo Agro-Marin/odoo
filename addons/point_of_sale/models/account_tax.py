@@ -45,30 +45,17 @@ class AccountTax(models.Model):
                 )
         return super().write(vals)
 
-    def _hook_compute_is_used(self, taxes_to_compute):
-        # OVERRIDE in order to fetch taxes used in pos
-
-        used_taxes = super()._hook_compute_is_used(taxes_to_compute)
-        taxes_to_compute -= used_taxes
-
-        if taxes_to_compute:
-            self.env["pos.order.line"].flush_model(["tax_ids"])
-            self.env.cr.execute(
-                """
-                SELECT id
-                FROM account_tax
-                WHERE EXISTS(
-                    SELECT 1
-                    FROM account_tax_pos_order_line_rel AS pos
-                    WHERE account_tax.id = pos.account_tax_id
-                ) AND id = ANY(%s)
-            """,
-                [list(taxes_to_compute)],
-            )
-
-            used_taxes.update([tax[0] for tax in self.env.cr.fetchall()])
-
-        return used_taxes
+    # NOTE: no `_hook_compute_is_used` override. `account.tax.is_used` (which
+    # gates deletion via `unlink_except_tax_used`) must reflect *finalized*
+    # accounting only. All posted POS accounting already lands in
+    # account.move.line — the combined session-closing move sets `tax_ids` on
+    # its sale lines (pos_session._get_sale_vals) and invoiced orders carry the
+    # tax on their invoice lines — so the base `_compute_is_used` scan of
+    # account_move_line_account_tax_rel covers every closed/invoiced POS order.
+    # A tax referenced only by a *non-posted* pos.order.line (draft/open
+    # session) must stay deletable: the order degrades gracefully (the m2m link
+    # cascades away and the closing entry is computed without it). Mutation of
+    # such a tax is still blocked by `write` above until the session closes.
 
     @api.model
     def _load_pos_data_domain(self, data, config):
@@ -87,7 +74,6 @@ class AccountTax(models.Model):
             "children_tax_ids",
             "amount",
             "company_id",
-            "id",
             "sequence",
             "tax_group_id",
             "fiscal_position_ids",

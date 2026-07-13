@@ -1661,7 +1661,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     pushSingleOrder(order) {
-        return this.pushOrderMutex.exec(() => this.syncAllOrders(order));
+        return this.pushOrderMutex.exec(() => this.syncAllOrders({ orders: [order] }));
     }
 
     async pay() {

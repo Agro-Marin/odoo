@@ -249,7 +249,7 @@ export class TicketScreen extends Component {
     }
     _setToRefundDetail(toRefundDetail, buffer) {
         // When already linked to an order, do not modify the to refund quantity.
-        if (toRefundDetail.destionation_order_id) {
+        if (toRefundDetail.destinationOrder) {
             return this.numberBuffer.reset();
         }
 
