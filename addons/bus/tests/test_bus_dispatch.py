@@ -1,17 +1,24 @@
 from unittest.mock import MagicMock, patch
 
-from odoo.tests import TransactionCase, tagged
+import psycopg
 
+from odoo.libs.json import loads as json_loads
+from odoo.tests import TransactionCase, tagged
+from odoo.tests.common import BaseCase
+
+from ..models import bus as bus_module
 from ..models.bus import (
     ImDispatch,
+    _send_pg_notify,
     channel_with_db,
     get_notify_payloads,
     hashable,
+    json_dump,
 )
 
 
 @tagged("-at_install", "post_install")
-class TestHashable(TransactionCase):
+class TestHashable(BaseCase):
     """Tests for the ``hashable()`` utility."""
 
     def test_list_to_tuple(self):
@@ -29,10 +36,19 @@ class TestHashable(TransactionCase):
         self.assertEqual(hashable(42), 42)
 
     def test_nested_list(self):
-        """Outer list is converted; inner lists remain (hashable isn't recursive)."""
-        result = hashable([[1], [2]])
-        self.assertIsInstance(result, tuple)
-        self.assertEqual(len(result), 2)
+        """Nested lists are recursively converted to tuples."""
+        self.assertEqual(hashable([[1], [2]]), ((1,), (2,)))
+
+    def test_deeply_nested_list(self):
+        self.assertEqual(hashable([1, [2, [3, []]]]), (1, (2, (3, ()))))
+
+    def test_json_roundtrip_produces_same_key(self):
+        """The subscribe side (channel objects) and the dispatch side (the
+        same channels after a JSON round trip through the NOTIFY payload)
+        must produce identical dict keys."""
+        channel = ["db", "model", 1, ["a", ["b"]]]
+        roundtripped = json_loads(json_dump(channel))
+        self.assertEqual(hashable(channel), hashable(roundtripped))
 
 
 @tagged("-at_install", "post_install")
@@ -60,17 +76,11 @@ class TestChannelWithDb(TransactionCase):
 
 
 @tagged("-at_install", "post_install")
-class TestGetNotifyPayloads(TransactionCase):
-    """Tests for ``get_notify_payloads()`` payload splitting."""
+class TestGetNotifyPayloads(BaseCase):
+    """Tests for ``get_notify_payloads()`` payload packing."""
 
     def test_empty_channels(self):
         self.assertEqual(get_notify_payloads([]), [])
-
-    def test_single_channel_never_split(self):
-        """A single channel is never split, even if large."""
-        fat_channel = ("db", "x" * 10000, 1)
-        payloads = get_notify_payloads([fat_channel])
-        self.assertEqual(len(payloads), 1)
 
     def test_small_payload_not_split(self):
         channels = [("db", "model", i) for i in range(5)]
@@ -78,16 +88,59 @@ class TestGetNotifyPayloads(TransactionCase):
         self.assertEqual(len(payloads), 1)
 
     def test_large_payload_split(self):
-        """Many channels exceeding the max length are split into multiple payloads."""
+        """Many channels exceeding the max length are split into multiple
+        payloads, each under the limit and all channels preserved in order."""
         channels = [("db", "model_name", i) for i in range(2000)]
         payloads = get_notify_payloads(channels)
         self.assertGreater(len(payloads), 1)
-        # All sub-payloads should be valid JSON
-        from ..tools import orjson
-
+        parsed = []
         for payload in payloads:
-            parsed = orjson.loads(payload)
-            self.assertIsInstance(parsed, list)
+            self.assertLess(len(payload.encode()), bus_module.NOTIFY_PAYLOAD_MAX_LENGTH)
+            chunk = json_loads(payload)
+            self.assertIsInstance(chunk, list)
+            parsed.extend(chunk)
+        self.assertEqual(parsed, json_loads(json_dump(channels)))
+
+    def test_exact_boundary(self):
+        """Packing switches payloads exactly when the encoded size would no
+        longer be strictly under the limit."""
+        # json_dump(("db", "ch", 1)) == '["db","ch",1]' -> 13 bytes; a payload
+        # of k such items encodes to (item_len+1)*k + 1 bytes ("[" + items
+        # joined by k-1 commas + "]").
+        item_len = len(json_dump(("db", "ch", 1)).encode())
+        self.assertEqual(item_len, 13)
+        channels = [("db", "ch", 1)] * 3
+        size_3 = (item_len + 1) * 3 + 1  # encoded size of a 3-item payload
+        # At the exact boundary, a 3-item payload is NOT strictly under the
+        # limit, so packing flushes after the 2nd item.
+        with patch.object(bus_module, "NOTIFY_PAYLOAD_MAX_LENGTH", size_3):
+            self.assertEqual(
+                [len(json_loads(p)) for p in get_notify_payloads(channels)], [2, 1]
+            )
+        # One byte more of headroom and all 3 fit in a single payload.
+        with patch.object(bus_module, "NOTIFY_PAYLOAD_MAX_LENGTH", size_3 + 1):
+            self.assertEqual(
+                [len(json_loads(p)) for p in get_notify_payloads(channels)], [3]
+            )
+
+    def test_single_oversized_channel_skipped(self):
+        """A channel that cannot fit in a payload on its own is dropped with
+        a warning instead of being emitted as a guaranteed-failing NOTIFY."""
+        fat_channel = ("db", "x" * 10000, 1)
+        with self.assertLogs("odoo.addons.bus.models.bus", "WARNING"):
+            self.assertEqual(get_notify_payloads([fat_channel]), [])
+
+    def test_oversized_channel_skipped_others_kept(self):
+        """Dropping an oversized channel does not affect its neighbours."""
+        small_before = ("db", "before", 1)
+        fat_channel = ("db", "x" * 10000, 1)
+        small_after = ("db", "after", 2)
+        with self.assertLogs("odoo.addons.bus.models.bus", "WARNING"):
+            payloads = get_notify_payloads([small_before, fat_channel, small_after])
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(
+            json_loads(payloads[0]), [["db", "before", 1], ["db", "after", 2]]
+        )
 
 
 @tagged("-at_install", "post_install")
@@ -168,6 +221,40 @@ class TestImDispatchChannelManagement(TransactionCase):
         self.assertEqual(len(d._channels_to_ws[key]), 1)
         self.assertIn(ws2, d._channels_to_ws[key])
 
+    def test_collect_websockets_matches_subscription(self):
+        """Dispatch-side channels (nested JSON lists) map to the same key as
+        subscribe-side channels."""
+        d = self._make_dispatch()
+        ws = self._make_ws()
+        d.subscribe(["ch1"], last=0, db="testdb", websocket=ws)
+        # The dispatch loop receives the channel as a JSON list.
+        self.assertEqual(d._collect_websockets([["testdb", "ch1"]]), {ws})
+        self.assertEqual(d._collect_websockets([["testdb", "other"]]), set())
+
+    def test_collect_websockets_nested_list_channel(self):
+        """A channel containing nested lists (from a NOTIFY payload) must not
+        raise and must match the equivalent subscription."""
+        d = self._make_dispatch()
+        ws = self._make_ws()
+        nested_channel = ["testdb", "res.partner", 1, ["sub", ["deep"]]]
+        # channel_with_db passes non-str/Model channels through unchanged, so
+        # the subscribe side stores hashable(nested_channel) as the key.
+        d.subscribe([nested_channel], last=0, db="testdb", websocket=ws)
+        roundtripped = json_loads(json_dump(nested_channel))
+        self.assertEqual(d._collect_websockets([roundtripped]), {ws})
+
+    def test_collect_websockets_unhashable_channel_skipped(self):
+        """A channel that cannot be hashed (e.g. contains a JSON object) is
+        warned about and skipped; the remaining channels still dispatch."""
+        d = self._make_dispatch()
+        ws = self._make_ws()
+        d.subscribe(["ch1"], last=0, db="testdb", websocket=ws)
+        with self.assertLogs("odoo.addons.bus.models.bus", "WARNING"):
+            websockets = d._collect_websockets(
+                [["testdb", {"bad": "channel"}], ["testdb", "ch1"]]
+            )
+        self.assertEqual(websockets, {ws})
+
     def test_dispatch_to_all_triggers_every_websocket_once(self):
         """``_dispatch_to_all`` (the LISTEN-reconnect catch-up) wakes each
         subscribed websocket exactly once, even when subscribed to several
@@ -188,6 +275,46 @@ class TestImDispatchChannelManagement(TransactionCase):
         d = self._make_dispatch()
         d._dispatch_to_all()
         self.assertEqual(d._channels_to_ws, {})
+
+    def test_dispatch_to_all_staggers_wakeups(self):
+        """``_dispatch_to_all`` pauses between chunks of websockets so a
+        reconnect catch-up cannot stampede the cursor pool."""
+        d = self._make_dispatch()
+        websockets = [self._make_ws() for _ in range(5)]
+        d._channels_to_ws = {
+            ("testdb", f"ch{i}"): {ws} for i, ws in enumerate(websockets)
+        }
+        mock_stop = MagicMock()
+        mock_stop.wait.return_value = False
+        with (
+            patch.object(bus_module, "DISPATCH_CATCHUP_CHUNK_SIZE", 2),
+            patch.object(bus_module, "stop_event", mock_stop),
+        ):
+            d._dispatch_to_all()
+        for ws in websockets:
+            ws.trigger_notification_dispatching.assert_called_once()
+        # 5 websockets in chunks of 2 -> a pause before the 3rd and 5th.
+        self.assertEqual(mock_stop.wait.call_count, 2)
+
+    def test_dispatch_to_all_aborts_on_shutdown(self):
+        """``_dispatch_to_all`` stops waking websockets when the server shuts
+        down mid-catch-up."""
+        d = self._make_dispatch()
+        websockets = [self._make_ws() for _ in range(5)]
+        d._channels_to_ws = {
+            ("testdb", f"ch{i}"): {ws} for i, ws in enumerate(websockets)
+        }
+        mock_stop = MagicMock()
+        mock_stop.wait.return_value = True  # stop_event set during the pause
+        with (
+            patch.object(bus_module, "DISPATCH_CATCHUP_CHUNK_SIZE", 2),
+            patch.object(bus_module, "stop_event", mock_stop),
+        ):
+            d._dispatch_to_all()
+        triggered = sum(
+            ws.trigger_notification_dispatching.call_count for ws in websockets
+        )
+        self.assertEqual(triggered, 2, "only the first chunk should have been woken")
 
 
 @tagged("-at_install", "post_install")
@@ -215,54 +342,187 @@ class TestImDispatchPayloadParsing(TransactionCase):
 
 
 @tagged("-at_install", "post_install")
-class TestSendPgNotify(TransactionCase):
-    """Tests for ``_send_pg_notify()`` retry logic."""
+class TestSendPgNotify(BaseCase):
+    """Tests for ``_send_pg_notify()`` error handling."""
 
-    def test_retry_on_first_failure(self):
-        """First failure closes connection and retries; second attempt succeeds."""
-        from ..models.bus import _send_pg_notify
+    def _run_with_conn(self, mock_conn, payloads):
+        with (
+            patch.object(bus_module, "_get_notify_conn_locked", return_value=mock_conn),
+            patch.object(bus_module, "_close_notify_conn_locked") as mock_close,
+        ):
+            _send_pg_notify(payloads)
+        return mock_close
 
+    def test_retry_on_connection_failure(self):
+        """A connection-level failure closes the connection and retries; the
+        second attempt succeeds."""
         call_count = 0
 
         def mock_execute(query, params):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("transient error")
+                raise psycopg.OperationalError("transient connection drop")
 
         mock_conn = MagicMock()
         mock_conn.closed = False
         mock_conn.execute = mock_execute
 
-        with (
-            patch(
-                "odoo.addons.bus.models.bus._get_notify_conn_locked",
-                return_value=mock_conn,
-            ),
-            patch("odoo.addons.bus.models.bus._close_notify_conn_locked") as mock_close,
-        ):
-            _send_pg_notify(["payload1"])
-            # Connection was closed on first failure
-            mock_close.assert_called_once()
-            # Second attempt succeeded
-            self.assertEqual(call_count, 2)
+        mock_close = self._run_with_conn(mock_conn, ["payload1"])
+        # Connection was closed on first failure
+        mock_close.assert_called_once()
+        # Second attempt succeeded
+        self.assertEqual(call_count, 2)
 
-    def test_raises_on_second_failure(self):
-        """If both attempts fail, the exception propagates."""
-        from ..models.bus import _send_pg_notify
+    def test_retry_resumes_at_failed_payload(self):
+        """On retry, already-sent payloads are not replayed: delivery resumes
+        at the payload that failed."""
+        executed = []
+        failed = False
+
+        def mock_execute(query, params):
+            nonlocal failed
+            if params[0] == "payload2" and not failed:
+                failed = True
+                raise psycopg.OperationalError("transient connection drop")
+            executed.append(params[0])
 
         mock_conn = MagicMock()
         mock_conn.closed = False
-        mock_conn.execute.side_effect = Exception("persistent error")
+        mock_conn.execute = mock_execute
+
+        self._run_with_conn(mock_conn, ["payload1", "payload2", "payload3"])
+        self.assertEqual(executed, ["payload1", "payload2", "payload3"])
+
+    def test_raises_on_second_connection_failure(self):
+        """If both attempts fail at the connection level, the exception
+        propagates (the postcommit ``notify()`` wrapper catches it)."""
+        mock_conn = MagicMock()
+        mock_conn.closed = False
+        mock_conn.execute.side_effect = psycopg.OperationalError("persistent error")
 
         with (
-            patch(
-                "odoo.addons.bus.models.bus._get_notify_conn_locked",
-                return_value=mock_conn,
-            ),
-            patch("odoo.addons.bus.models.bus._close_notify_conn_locked"),
+            patch.object(bus_module, "_get_notify_conn_locked", return_value=mock_conn),
+            patch.object(bus_module, "_close_notify_conn_locked"),
         ):
-            with self.assertRaisesRegex(Exception, "persistent error"):
+            with self.assertRaisesRegex(psycopg.OperationalError, "persistent error"):
                 _send_pg_notify(["payload1"])
         # Both attempts were made before giving up.
         self.assertEqual(mock_conn.execute.call_count, 2)
+
+    def test_poison_payload_skipped_others_sent(self):
+        """A payload PostgreSQL rejects is warned about and skipped; the
+        remaining payloads are still delivered and nothing is raised."""
+        executed = []
+
+        def mock_execute(query, params):
+            if params[0] == "poison":
+                raise psycopg.ProgrammingError("payload string too long")
+            executed.append(params[0])
+
+        mock_conn = MagicMock()
+        mock_conn.closed = False
+        mock_conn.execute = mock_execute
+
+        with self.assertLogs("odoo.addons.bus.models.bus", "WARNING"):
+            mock_close = self._run_with_conn(
+                mock_conn, ["payload1", "poison", "payload3"]
+            )
+        self.assertEqual(executed, ["payload1", "payload3"])
+        # The connection is fine; it must not have been cycled.
+        mock_close.assert_not_called()
+
+    def test_error_with_dead_connection_is_retried(self):
+        """A non-connection exception that leaves the connection closed is
+        treated as connection-level: cycle the connection and retry the same
+        payload instead of dropping it."""
+        executed = []
+        failed = False
+
+        def mock_execute(query, params):
+            nonlocal failed
+            if not failed:
+                failed = True
+                mock_conn.closed = True
+                raise psycopg.ProgrammingError("error that killed the connection")
+            executed.append(params[0])
+
+        mock_conn = MagicMock()
+        mock_conn.closed = False
+        mock_conn.execute = mock_execute
+
+        def close_side_effect():
+            mock_conn.closed = False  # simulate reconnect on next get
+
+        with (
+            patch.object(bus_module, "_get_notify_conn_locked", return_value=mock_conn),
+            patch.object(
+                bus_module,
+                "_close_notify_conn_locked",
+                side_effect=close_side_effect,
+            ),
+        ):
+            _send_pg_notify(["payload1"])
+        self.assertEqual(executed, ["payload1"])
+
+
+@tagged("-at_install", "post_install")
+class TestNotifyForkSafety(BaseCase):
+    """Tests for ``_reset_notify_state_in_child`` (fork safety of the
+    persistent notify connection)."""
+
+    def test_reset_drops_connection_without_closing(self):
+        old_conn = bus_module._notify_conn
+        old_lock = bus_module._notify_lock
+        mock_conn = MagicMock()
+        bus_module._notify_conn = mock_conn
+        try:
+            bus_module._reset_notify_state_in_child()
+            # The inherited connection is dropped, NOT closed: close() would
+            # send a libpq Terminate on the socket shared with the parent.
+            self.assertIsNone(bus_module._notify_conn)
+            mock_conn.close.assert_not_called()
+            # ... and parked so it can never be garbage collected.
+            self.assertIn(mock_conn, bus_module._notify_conns_inherited_from_parent)
+        finally:
+            bus_module._notify_conns_inherited_from_parent.remove(mock_conn)
+            bus_module._notify_conn = old_conn
+            bus_module._notify_lock = old_lock
+
+    def test_reset_recreates_potentially_held_lock(self):
+        """The lock may be held by a parent thread at fork time; the child
+        must get a fresh, unlocked one."""
+        old_conn = bus_module._notify_conn
+        old_lock = bus_module._notify_lock
+        try:
+            bus_module._notify_conn = None
+            bus_module._notify_lock.acquire()  # simulate lock held at fork
+            bus_module._reset_notify_state_in_child()
+            self.assertIsNot(bus_module._notify_lock, old_lock)
+            self.assertTrue(
+                bus_module._notify_lock.acquire(blocking=False),
+                "the recreated lock must be unlocked",
+            )
+            bus_module._notify_lock.release()
+        finally:
+            old_lock.release()
+            bus_module._notify_conn = old_conn
+            bus_module._notify_lock = old_lock
+
+
+@tagged("-at_install", "post_install")
+class TestNotifyPostcommit(TransactionCase):
+    """The postcommit ``notify()`` hook must never propagate an exception:
+    the transaction is already committed and ``Callbacks.run()`` would skip
+    every remaining postcommit hook."""
+
+    def test_postcommit_notify_never_raises(self):
+        Bus = self.env["bus.bus"]
+        Bus._sendone("resilience_channel", "test_type", {})
+        self.env.cr.precommit.run()
+        with patch.object(
+            bus_module, "_send_pg_notify", side_effect=Exception("NOTIFY down")
+        ):
+            with self.assertLogs("odoo.addons.bus.models.bus", "ERROR") as logs:
+                self.env.cr.postcommit.run()  # must not raise
+        self.assertTrue(any("imbus NOTIFY" in line for line in logs.output))

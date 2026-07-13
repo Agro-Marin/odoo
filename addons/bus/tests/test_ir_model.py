@@ -4,7 +4,7 @@ import time
 
 import odoo
 from odoo.http import STORED_SESSION_BYTES
-from odoo.tests import HttpCase
+from odoo.tests import HttpCase, new_test_user
 
 
 @odoo.tests.tagged("-at_install", "post_install")
@@ -34,6 +34,39 @@ class TestGetModelDefinitions(HttpCase):
             model_definitions["res.partner"]["fields"].keys(),
             {"active", "name", "user_ids"},
         )
+
+    def test_inaccessible_models_are_omitted(self):
+        """Models the user cannot read (model-level ACL) are silently omitted
+        from the definitions, so any authenticated user cannot enumerate the
+        schema of restricted models, while batch requests keep working."""
+        portal_user = new_test_user(
+            self.env, login="bus_portal_defs", groups="base.group_portal"
+        )
+        # Sanity: portal can read res.partner but not ir.cron.
+        self.assertTrue(
+            self.env["res.partner"].with_user(portal_user).has_access("read")
+        )
+        self.assertFalse(self.env["ir.cron"].with_user(portal_user).has_access("read"))
+
+        model_definitions = (
+            self.env["ir.model"]
+            .with_user(portal_user)
+            ._get_model_definitions(["res.partner", "res.users", "ir.cron"])
+        )
+        self.assertIn("res.partner", model_definitions)
+        self.assertIn("res.users", model_definitions)
+        self.assertNotIn(
+            "ir.cron",
+            model_definitions,
+            "restricted models must be omitted, not returned nor raised",
+        )
+        # Accessible models still expose their fields.
+        self.assertIn("name", model_definitions["res.partner"]["fields"])
+
+    def test_admin_can_read_restricted_models(self):
+        """A user allowed to read the model still gets its definition."""
+        model_definitions = self.env["ir.model"]._get_model_definitions(["ir.cron"])
+        self.assertIn("ir.cron", model_definitions)
 
     def _csrf_token(self, session):
         """Forge a CSRF token for ``session`` (same math as
