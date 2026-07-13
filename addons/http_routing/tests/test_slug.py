@@ -93,7 +93,7 @@ class TestSlug(TransactionCase):
     def test_unslug_url_only_touches_last_segment(self):
         self.assertEqual(self.IrHttp._unslug_url("/a/b-2/c-5"), "/a/b-2/5")
 
-    # NOTE: get_nearest_lang() is intentionally not unit-tested here. Once
-    # ``website`` is installed it overrides the method to read the (unbound in a
-    # TransactionCase) ``request`` proxy, so it is only meaningful inside a real
-    # frontend request -- that path is covered by website's test_lang_url.
+    # NOTE: get_nearest_lang() is covered in test_lang.py. In this module its
+    # base implementation is a pure function of the active languages (no
+    # ``request``), so it is unit-testable here; website's override (which reads
+    # ``request``) is exercised by website's test_lang_url.
