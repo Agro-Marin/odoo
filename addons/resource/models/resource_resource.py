@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, time, timedelta
-from typing import Self
+from typing import Any, Self
 
 from dateutil.relativedelta import relativedelta, weekdays
 from pytz import timezone
@@ -25,7 +25,7 @@ class ResourceResource(models.Model):
     _order = "name"
 
     @api.model
-    def default_get(self, fields: list[str]) -> dict[str, any]:
+    def default_get(self, fields: list[str]) -> dict[str, Any]:
         res = super().default_get(fields)
         if not res.get("calendar_id") and res.get("company_id"):
             company = self.env["res.company"].browse(res["company_id"])
