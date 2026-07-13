@@ -708,8 +708,12 @@ class HrVersion(models.Model):
         :param date date_from: the start of the period
         :param date date_to: the stop of the period
         """
-        if not (self.contract_date_start and date_from and date_to):
+        if not self.contract_date_start:
             return False
+        # An open-ended period is supported: a missing bound extends to
+        # -inf/+inf (date.min/date.max). Guarding on date_from/date_to here (as
+        # before) made those fallbacks dead and wrongly returned False for an
+        # open-ended query period.
         period_start = date_from or date.min
         period_end = date_to or date.max
         contract_end = self.date_end or date.max
@@ -923,6 +927,15 @@ class HrVersion(models.Model):
             else:
                 version.date_end = version.contract_date_end
 
+    # NOTE: these searches are APPROXIMATIONS. `date_start`/`date_end` compute
+    # from date_version AND the sibling versions bounding the interval
+    # (_compute_dates), so they diverge from the raw contract dates: e.g. a
+    # version whose contract has no end but is followed by a later version has a
+    # real computed `date_end` yet `contract_date_end = False`, so
+    # `search([("date_end", "=", False)])` wrongly returns it. A faithful search
+    # would need a correlated subquery over each employee's sibling date_versions.
+    # No shipped view filters on these (they use contract_date_start/end
+    # directly); do not rely on them for exact effective-window queries.
     def _search_start_date(self, operator, value):
         return [("contract_date_start", operator, value)]
 

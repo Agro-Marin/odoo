@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
+import { serializeDate } from "@web/core/l10n/dates";
 import { onWillUpdateProps, useComponent, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { Domain } from "@web/core/domain";
@@ -72,9 +73,12 @@ export class VersionsTimeline extends StatusBarField {
 
     async createVersion(date) {
         await this.props.record.save();
+        // Serialize the Luxon date to a plain "YYYY-MM-DD" string (like the
+        // sibling button_new_contract widget) rather than relying on the ORM
+        // truncating a locale/zone-dependent ISO datetime.
         const version_id = await this.orm.call("hr.employee", "create_version", [
             this.props.record.evalContext.id,
-            { date_version: date },
+            { date_version: serializeDate(date) },
         ]);
 
         await this.props.record.model.load({

@@ -40,7 +40,6 @@ HR_WRITABLE_FIELDS = [
     "display_name",
     "emergency_contact",
     "emergency_phone",
-    "employee_bank_account_ids",
     "job_title",
     "km_home_work",
     "mobile_phone",
@@ -153,6 +152,10 @@ class ResUsers(models.Model):
     )
     # res.users already have a field bank_account_id and country_id from the res.partner inheritance: don't redefine them
     # This field no longer appears to be in use. To avoid breaking anything it must only be removed after the freeze of v19.
+    # SECURITY: it MUST NOT be added back to HR_WRITABLE_FIELDS. res.users.write elevates
+    # a self-write to superuser when every key is self-writable, gating only on top-level
+    # key names — so a self-writable M2M to res.partner.bank lets an ordinary employee
+    # create/trust arbitrary bank accounts under sudo (vendor-payment fraud vector).
     employee_bank_account_ids = fields.Many2many(
         "res.partner.bank",
         related="employee_id.bank_account_ids",

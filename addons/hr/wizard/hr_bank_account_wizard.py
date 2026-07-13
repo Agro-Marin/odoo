@@ -19,7 +19,15 @@ class BankAccountAllocationWizard(models.TransientModel):
         self.ensure_one()
         wizard_lines = []
         distribution = self.employee_id.salary_distribution or {}
-        for order, ba in enumerate(self.employee_id.bank_account_ids):
+        # Seed sequences for not-yet-distributed accounts AFTER the largest
+        # persisted sequence. Using the raw enumerate index shared the sequence
+        # namespace with stored values, so a freshly-added (empty, 0%) account
+        # could sort ahead of real allocations and silently become the primary
+        # account (hr.employee._compute_primary_bank_account_id picks the min).
+        next_seq = max(
+            (entry.get("sequence", 0) for entry in distribution.values()), default=-1
+        )
+        for ba in self.employee_id.bank_account_ids:
             dist_entry = distribution.get(str(ba.id))
             if dist_entry:
                 amount = dist_entry.get("amount")
@@ -28,11 +36,12 @@ class BankAccountAllocationWizard(models.TransientModel):
             else:
                 # A bank account may not yet be present in the salary
                 # distribution (e.g. freshly added on the employee). Seed a
-                # default, empty percentage line derived from the bank account
-                # order instead of blocking the wizard from opening.
+                # default, empty percentage line after the existing sequences
+                # instead of blocking the wizard from opening.
                 amount = 0.0
                 is_percentage = True
-                sequence = order
+                next_seq += 1
+                sequence = next_seq
             wizard_lines.append(
                 Command.create(
                     {
