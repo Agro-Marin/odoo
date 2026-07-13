@@ -1,3 +1,4 @@
+import time
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
@@ -25,6 +26,7 @@ class TestTransportErrorTeardown(BaseCase):
 
     def _make_ws(self):
         ws = Websocket.__new__(Websocket)
+        ws._clock = time.monotonic
         ws.state = ConnectionState.OPEN
         ws._db = "somedb"
         ws._session = MagicMock()
