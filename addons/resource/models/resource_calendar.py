@@ -628,6 +628,11 @@ class ResourceCalendar(models.Model):
         if not (start_dt.tzinfo and end_dt.tzinfo):
             raise ValueError("start_dt and end_dt must be timezone-aware")
         self.ensure_one()
+        # The signature accepts a tz name as well as a tzinfo; normalise once so
+        # the ``.astimezone(tz)`` / dict-keying below never sees a bare string
+        # (which raises ``TypeError: tzinfo argument must be ...``).
+        if isinstance(tz, str):
+            tz = timezone(tz)
         if not resources:
             resources = self.env["resource.resource"]
             resources_list = [resources]
@@ -711,7 +716,7 @@ class ResourceCalendar(models.Model):
         }
         resource_calendars = resources._get_calendar_at(start_dt, tz)
         result_per_resource_id = {}
-        for tz, tz_resources in resources_per_tz.items():  # noqa: PLR1704
+        for tz, tz_resources in resources_per_tz.items():
             res = result_per_tz[tz]
 
             res_intervals = Intervals(res, keep_distinct=True)
@@ -756,7 +761,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resource: Self | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | None = None,
+        tz: BaseTzInfo | str | None = None,
     ) -> Intervals:
         if resource is None:
             resource = self.env["resource.resource"]
@@ -774,13 +779,17 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resources: Self | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | None = None,
+        tz: BaseTzInfo | str | None = None,
     ) -> dict[int | bool, Intervals]:
         """Return the leave intervals in the given datetime range.
         The returned intervals are expressed in specified tz or in the calendar's timezone.
         """
         if not (start_dt.tzinfo and end_dt.tzinfo):
             raise ValueError("start_dt and end_dt must be timezone-aware")
+
+        # Accept a tz name as well as a tzinfo (see _attendance_intervals_batch).
+        if isinstance(tz, str):
+            tz = timezone(tz)
 
         if domain is None:
             domain = [("time_type", "=", "leave")]
@@ -872,7 +881,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resource: Self | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | None = None,
+        tz: BaseTzInfo | str | None = None,
     ) -> list[tuple[datetime, datetime]]:
         if resource is None:
             resource = self.env["resource.resource"]
@@ -890,7 +899,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resources: Self | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | None = None,
+        tz: BaseTzInfo | str | None = None,
     ) -> dict[int | bool, list[tuple[datetime, datetime]]]:
         """Return the unavailable intervals between the given datetimes."""
         if not resources:

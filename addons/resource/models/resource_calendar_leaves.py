@@ -1,4 +1,5 @@
 from datetime import datetime, time
+from typing import Any
 
 from dateutil.relativedelta import relativedelta
 from pytz import timezone, utc
@@ -51,6 +52,7 @@ class ResourceCalendarLeaves(models.Model):
         readonly=False,
         required=True,
         store=True,
+        precompute=True,
     )
 
     @api.constrains("date_from", "date_to")
@@ -63,7 +65,7 @@ class ResourceCalendarLeaves(models.Model):
             )
 
     @api.model
-    def default_get(self, fields: list[str]) -> dict[str, any]:
+    def default_get(self, fields: list[str]) -> dict[str, Any]:
         res = super().default_get(fields)
         if (
             "date_from" in fields
@@ -97,16 +99,30 @@ class ResourceCalendarLeaves(models.Model):
 
     @api.depends("date_from")
     def _compute_date_to(self):
-        tz_name = self.env.user.tz or self.env.context.get("tz")
-        if not tz_name:
-            tz_name = self.company_id.resource_calendar_id.tz or "UTC"
-        user_tz = timezone(tz_name)
+        # Resolve the reference timezone *per leave*: the acting user's tz (or an
+        # explicit context tz) wins, otherwise fall back to this leave's own
+        # calendar.  The previous single ``self.company_id.resource_calendar_id``
+        # lookup was a multi-record hazard (``Expected singleton`` for a batch
+        # spanning several companies) and, during ``precompute`` on create,
+        # ``company_id`` still holds its default (``env.company``) rather than the
+        # leave's real company — so it end-dated every leave in the wrong tz.  The
+        # leave's own ``calendar_id`` is provided in vals and carries a required
+        # ``tz``, making it the reliable, correct source.
+        user_tz_name = self.env.user.tz or self.env.context.get("tz")
         for leave in self:
             if not leave.date_from or (
                 leave.date_to and leave.date_to > leave.date_from
             ):
                 continue
-            local_date_from = utc.localize(leave.date_from).astimezone(user_tz)
+            tz_name = (
+                user_tz_name
+                or leave.calendar_id.tz
+                or leave.company_id.resource_calendar_id.tz
+                or "UTC"
+            )
+            local_date_from = utc.localize(leave.date_from).astimezone(
+                timezone(tz_name)
+            )
             local_date_to = local_date_from + relativedelta(
                 hour=23, minute=59, second=59
             )
