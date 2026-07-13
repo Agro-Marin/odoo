@@ -3,6 +3,7 @@ import inspect
 import json
 import struct
 import unittest
+from queue import Empty, SimpleQueue
 from threading import Event
 from unittest.mock import patch
 
@@ -46,16 +47,48 @@ class WebsocketCase(HttpCase):
     def setUp(self):
         super().setUp()
         self._websockets = set()
-        # Used to ensure websocket connections have been closed
-        # properly.
-        self._websocket_events = set()
+        # Used to ensure websocket connections have been closed properly.
+        # One close event is registered per *accepted* connection, at
+        # handshake time rather than at serving time: a connection accepted
+        # but whose serving thread has not started yet by the time the test
+        # tears down must be waited on too.
+        self._websocket_close_events = []
+        self._pending_websocket_close_events = SimpleQueue()
+        original_open_connection = WebsocketConnectionHandler.open_connection
+
+        def _mocked_open_connection(*args, **kwargs):
+            response = original_open_connection(*args, **kwargs)
+            # Only register the event once the handshake succeeded: a
+            # rejected handshake never reaches `_serve_forever`.
+            websocket_closed_event = Event()
+            self._websocket_close_events.append(websocket_closed_event)
+            self._pending_websocket_close_events.put(websocket_closed_event)
+            return response
+
+        self.startPatcher(
+            patch.object(
+                WebsocketConnectionHandler, "open_connection", _mocked_open_connection
+            )
+        )
         original_serve_forever = WebsocketConnectionHandler._serve_forever
 
         def _mocked_serve_forever(*args):
-            websocket_closed_event = Event()
-            self._websocket_events.add(websocket_closed_event)
-            original_serve_forever(*args)
-            websocket_closed_event.set()
+            # `open_connection` queued the event before the 101 response was
+            # even sent, and `_serve_forever` runs on the same thread once
+            # the response closes: the queue cannot be empty here. Which
+            # event is paired with which connection does not matter, they
+            # are indistinguishable counters.
+            try:
+                websocket_closed_event = (
+                    self._pending_websocket_close_events.get_nowait()
+                )
+            except Empty:
+                websocket_closed_event = None
+            try:
+                original_serve_forever(*args)
+            finally:
+                if websocket_closed_event is not None:
+                    websocket_closed_event.set()
 
         self._serve_forever_patch = patch.object(
             WebsocketConnectionHandler, "_serve_forever", wraps=_mocked_serve_forever
@@ -154,7 +187,12 @@ class WebsocketCase(HttpCase):
                 sub["data"]["last"] = last
             websocket.send(json.dumps(sub))
             if wait_for_dispatch:
-                dispatch_bus_notification_done.wait(timeout=5)
+                self.assertTrue(
+                    dispatch_bus_notification_done.wait(timeout=5),
+                    "Subscription should have triggered a notification dispatch "
+                    "(use wait_for_dispatch=False for subscriptions expected to "
+                    "be rejected)",
+                )
 
     def trigger_notification_dispatching(self, channels):
         """Notify the websockets subscribed to the given channels that new
@@ -172,9 +210,16 @@ class WebsocketCase(HttpCase):
             websocket.trigger_notification_dispatching()
 
     def wait_remaining_websocket_connections(self):
-        """Wait for the websocket connections to terminate."""
-        for event in self._websocket_events:
-            event.wait(5)
+        """Wait for the websocket connections to terminate.
+
+        A connection that never terminates fails the test instead of
+        stalling silently: it would leak a serving thread past the test.
+        """
+        for event in self._websocket_close_events:
+            self.assertTrue(
+                event.wait(5),
+                "A websocket connection did not terminate within 5 seconds",
+            )
 
     def assert_close_with_code(self, websocket, expected_code, expected_reason=None):
         """
