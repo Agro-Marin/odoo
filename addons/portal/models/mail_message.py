@@ -164,7 +164,9 @@ class MailMessage(models.Model):
             if "is_message_subtype_note" in properties_names:
                 # ``subtype_id`` is read in classic format: ``[id, name]`` or False.
                 subtype = values.get("subtype_id")
-                values["is_message_subtype_note"] = bool(subtype) and subtype[0] == note_id
+                values["is_message_subtype_note"] = (
+                    bool(subtype) and subtype[0] == note_id
+                )
             if "published_date_str" in properties_names:
                 values["published_date_str"] = (
                     format_datetime(self.env, values["date"])

@@ -136,9 +136,9 @@ capabilities so portal pages can be rendered without the ``website`` module.
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    'esm': {
-        'bundles': [
-            'portal.assets_chatter',
+    "esm": {
+        "bundles": [
+            "portal.assets_chatter",
         ],
     },
 }
