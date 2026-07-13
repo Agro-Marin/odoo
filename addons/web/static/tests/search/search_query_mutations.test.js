@@ -483,6 +483,26 @@ describe("toggleDateFilter", () => {
 
         expect(model.query.length).toBe(0);
     });
+
+    test("non-custom add without optionsParams and no year selected: does not throw", () => {
+        // Regression: a bare searchItem with no optionsParams (e.g. a
+        // directly-toggled explicit generatorId, or a unit-test item) must
+        // not crash. The top validation call is guarded by
+        // `if (searchItem.optionsParams)`, but the defaultYearId lookup
+        // further down in this same branch calls getPeriodOptions()
+        // unconditionally whenever no year is yet selected — that call
+        // destructures optionsParams and throws when it is undefined.
+        const model = makeSearchModel();
+        addItem(model, 1, { type: "dateFilter" });
+        // No pre-existing "year" entry, so yearSelected() is false and the
+        // defaultYearId lookup branch runs.
+        expect(() => toggleDateFilter(model, 1, "third_quarter")).not.toThrow();
+
+        const generatorIds = model.query
+            .filter((q) => q.searchItemId === 1)
+            .map((q) => q.generatorId);
+        expect(generatorIds).toInclude("third_quarter");
+    });
 });
 
 // toggleDateFilter — generator id validation (fork-added, console.warn contract)
