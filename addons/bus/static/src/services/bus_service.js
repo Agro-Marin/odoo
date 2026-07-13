@@ -15,10 +15,23 @@ const INTERNAL_EVENTS = new Set([
     "BUS:OUTDATED",
     "BUS:NOTIFICATION",
     "BUS:PROVIDE_LOGS",
+    // Liveness probe, answered by worker_service — not an application event.
+    "BUS:PING",
 ]);
 // Slightly delay the reconnection when coming back online as the network is not
 // ready yet and the exponential backoff would delay the reconnection by a lot.
 export const BACK_ONLINE_RECONNECT_DELAY = 5000;
+/**
+ * Key of the cross-tab shared value holding the highest notification id seen.
+ *
+ * Scoped by database: `bus_bus.id` is a per-database sequence, so a watermark
+ * from another database on the same origin (common on dev/staging hosts) would
+ * seed a fresh worker with a bogus `last`, silently dropping every
+ * notification until the new database's sequence catches up.
+ */
+export function lastNotificationIdKey() {
+    return `${session.db}.last_notification_id`;
+}
 /**
  * Communicate with a SharedWorker in order to provide a single websocket
  * connection shared across multiple tabs.
@@ -88,9 +101,14 @@ export const busService = {
                     if (!notifications.length) {
                         break;
                     }
-                    state.lastNotificationId = notifications.at(-1).id;
+                    // Highest id of the batch, not `.at(-1)`: the worker
+                    // deliberately does not assume server batches arrive in
+                    // ascending id order (see `_onWebsocketMessage`).
+                    state.lastNotificationId = Math.max(
+                        ...notifications.map(({ id }) => id),
+                    );
                     legacyMultiTab.setSharedValue(
-                        "last_notification_id",
+                        lastNotificationIdKey(),
                         state.lastNotificationId,
                     );
                     for (const { id, type, payload } of notifications) {
@@ -166,7 +184,7 @@ export const busService = {
                     db: session.db,
                     debug: odoo.debug,
                     lastNotificationId: legacyMultiTab.getSharedValue(
-                        "last_notification_id",
+                        lastNotificationIdKey(),
                         0,
                     ),
                     uid,
@@ -176,11 +194,28 @@ export const busService = {
             await connectionInitializedDeferred;
         }
 
+        // Channels this tab forwarded to the worker. Needed to replay the
+        // subscription after a bfcache restore: a long-frozen tab may have
+        // been evicted by the worker's liveness sweep (its JS cannot answer
+        // BUS:PING while frozen), losing its channel list worker-side.
+        const tabChannels = new Set();
         browser.addEventListener("pagehide", ({ persisted }) => {
             if (!persisted) {
                 // Page is gonna be unloaded, disconnect this client
                 // from the worker.
                 workerService.send("BUS:LEAVE");
+            }
+        });
+        browser.addEventListener("pageshow", ({ persisted }) => {
+            if (persisted && state.isActive) {
+                // Restored from bfcache: re-send our channels. Harmless when
+                // the worker still knows us (per-client channel lists are
+                // deduplicated and an unchanged set sends no new subscribe);
+                // required when the liveness sweep evicted us while frozen.
+                for (const channel of tabChannels) {
+                    workerService.send("BUS:ADD_CHANNEL", channel);
+                }
+                workerService.send("BUS:START");
             }
         });
         browser.addEventListener(
@@ -211,12 +246,21 @@ export const busService = {
         const state = reactive({
             addEventListener: bus.addEventListener.bind(bus),
             addChannel: async (channel) => {
+                tabChannels.add(channel);
                 await ensureWorkerStarted();
+                if (!tabChannels.has(channel)) {
+                    // deleteChannel() was called while the worker was
+                    // initializing: its BUS:DELETE_CHANNEL was dropped by
+                    // `worker_service.send` (pre-init sends are ignored), so
+                    // sending the add now would subscribe a dead channel.
+                    return;
+                }
                 workerService.send("BUS:ADD_CHANNEL", channel);
                 workerService.send("BUS:START");
                 state.isActive = true;
             },
             deleteChannel: (channel) => {
+                tabChannels.delete(channel);
                 workerService.send("BUS:DELETE_CHANNEL", channel);
             },
             setLoggingEnabled: (isEnabled) =>

@@ -52,6 +52,20 @@ export class ElectionWorker {
         this.requestHeartbeat();
     }
 
+    /**
+     * Drop a candidate whose port was found dead by the websocket worker's
+     * liveness sweep (it cannot send ELECTION:UNREGISTER itself). Re-elect
+     * if it was the master.
+     *
+     * @param {MessagePort} messagePort
+     */
+    evictCandidate(messagePort) {
+        this.candidates.delete(messagePort);
+        if (this.masterTab === messagePort) {
+            this.startElection();
+        }
+    }
+
     finishElection(messagePort) {
         this.masterTab = messagePort;
         messagePort.postMessage({ type: "ELECTION:ASSIGN_MASTER" });
@@ -99,7 +113,12 @@ export class ElectionWorker {
                 });
                 break;
             case "ELECTION:HEARTBEAT":
-                if (this.electionDeferred) {
+                if (this.electionDeferred && this.candidates.has(event.target)) {
+                    // Only a registered candidate may win: a stale heartbeat
+                    // reply from a tab that unregistered while the request was
+                    // in flight would otherwise be crowned master — a master
+                    // that denies it client-side (its state is UNREGISTERED),
+                    // freezing the cluster with no acting main tab.
                     this.finishElection(event.target);
                 }
                 if (this.masterTab === event.target) {

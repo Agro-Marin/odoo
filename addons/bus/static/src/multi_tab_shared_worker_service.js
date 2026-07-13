@@ -42,7 +42,13 @@ export const multiTabSharedWorkerService = {
                     responseDeferred = null;
                     break;
                 case "ELECTION:HEARTBEAT_REQUEST":
-                    workerService.send("ELECTION:HEARTBEAT");
+                    // Never reply while unregistered: a heartbeat from a gone
+                    // tab keeps the worker's `lastHeartbeat` fresh (blocking
+                    // re-election) and, during an election, could crown this
+                    // tab master while it denies mastership client-side.
+                    if (state !== STATE.UNREGISTERED) {
+                        workerService.send("ELECTION:HEARTBEAT");
+                    }
                     break;
                 case "ELECTION:ASSIGN_MASTER":
                     // Ignore a stray/in-flight assignment for a tab that has

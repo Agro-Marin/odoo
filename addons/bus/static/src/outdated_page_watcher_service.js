@@ -3,6 +3,8 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { lastNotificationIdKey } from "@bus/services/bus_service";
+import { WORKER_STATE } from "@bus/workers/websocket_worker_constants";
 export class OutdatedPageWatcherService {
     constructor(env, services) {
         this.setup(env, services);
@@ -16,22 +18,24 @@ export class OutdatedPageWatcherService {
         this.notification = notification;
         this.multi_tab = multi_tab;
         this.legacy_multi_tab = legacy_multi_tab;
-        this.lastNotificationId =
-            legacy_multi_tab.getSharedValue("last_notification_id");
+        this.lastNotificationId = legacy_multi_tab.getSharedValue(
+            lastNotificationIdKey(),
+        );
         this.closeNotificationFn = undefined;
         let wasBusAlreadyConnected;
         bus_service.addEventListener(
             "BUS:WORKER_STATE_UPDATED",
             ({ detail: state }) => {
-                wasBusAlreadyConnected = state !== "IDLE";
+                wasBusAlreadyConnected = state !== WORKER_STATE.IDLE;
             },
             { once: true },
         );
         bus_service.addEventListener(
             "BUS:DISCONNECT",
             () =>
-                (this.lastNotificationId =
-                    legacy_multi_tab.getSharedValue("last_notification_id")),
+                (this.lastNotificationId = legacy_multi_tab.getSharedValue(
+                    lastNotificationIdKey(),
+                )),
         );
         bus_service.addEventListener("BUS:CONNECT", async () => {
             if (wasBusAlreadyConnected) {

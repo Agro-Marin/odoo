@@ -163,11 +163,14 @@ test("check connection health during inactivity", async () => {
             expect.step(`broadcast ${type}`);
         }
     });
-    await expect.waitForSteps(["broadcast BUS:CONNECT", "_restartConnectionCheckInterval"]);
+    await expect.waitForSteps([
+        "broadcast BUS:CONNECT",
+        "_restartConnectionCheckInterval",
+    ]);
     worker.websocket.dispatchEvent(
         new MessageEvent("message", {
             data: JSON.stringify([{ id: 70, message: { type: "foo" } }]),
-        })
+        }),
     );
     await expect.waitForSteps(["_restartConnectionCheckInterval"]);
     worker._sendToServer({ event_name: "foo" });
@@ -259,24 +262,8 @@ test("stale queued subscribe is not replayed on reconnect", async () => {
     // flushed: the flush only runs after `_updateChannels` sent a fresh
     // subscribe for the new connection. Replaying the stale one would rewind
     // the subscription (old `last`) and trigger a pointless server re-poll.
-    const sentFrames = [];
-    const ogSocket = window.WebSocket;
-    patchWithCleanup(window, {
-        WebSocket: function (...args) {
-            const ws = new ogSocket(...args);
-            const ogSend = ws.send.bind(ws);
-            ws.send = (message) => {
-                if (typeof message === "string") {
-                    sentFrames.push(JSON.parse(message));
-                }
-                ogSend(message);
-            };
-            return ws;
-        },
-    });
     const worker = await startWebSocketWorker();
     worker._stop();
-    sentFrames.length = 0;
     // Messages sent while offline are queued; subscribes go to the front.
     worker._sendToServer({ event_name: "some_event", data: 1 });
     worker._sendToServer({
@@ -284,6 +271,26 @@ test("stale queued subscribe is not replayed on reconnect", async () => {
         data: { channels: ["chA"], last: 42 },
     });
     worker._start();
+    // Intercept at the socket-instance level: everything the worker puts on
+    // the wire — the open-time subscribe from `_updateChannels` AND the
+    // queue flush (which calls `websocket.send` directly, bypassing
+    // `_sendToServer`) — goes through this instance. Patching the WebSocket
+    // constructor instead is unreliable here: the mock server installs its
+    // own constructor and the worker module may resolve `WebSocket` from a
+    // different realm than the test's `window`.
+    const sentFrames = [];
+    const ogSend = worker.websocket.send.bind(worker.websocket);
+    worker.websocket.send = (message) => {
+        if (typeof message === "string") {
+            sentFrames.push(JSON.parse(message));
+        }
+        ogSend(message);
+    };
+    // Two rounds: `runAllTimers` only advances to the horizon of timers armed
+    // when it is called. The first round fires the socket's `open`, which THEN
+    // arms the debounced `_updateChannels` (300ms); the second round fires it
+    // (fresh subscribe + queue flush).
+    await runAllTimers();
     await runAllTimers();
     const subscribes = sentFrames.filter((f) => f.event_name === "subscribe");
     // Only the fresh open-time subscribe went out; the stale one (last: 42)
@@ -310,4 +317,102 @@ test("pending message is requeued when subscribe deferred resolves while stopped
     expect(worker.messageWaitQueue).toEqual([
         JSON.stringify({ event_name: "some_event", data: 1 }),
     ]);
+});
+
+test("election traffic does not resurrect a client that sent BUS:LEAVE", async () => {
+    // The websocket worker sees EVERY message on the shared port, including
+    // ELECTION:*/BASE:* traffic. A client dropped via BUS:LEAVE
+    // (`bus_service.stop()`) must only be re-registered by a BUS action it
+    // sends itself — not by the election heartbeat the main tab emits every
+    // 1.5s, which would silently undo `stop()`.
+    const worker = await startWebSocketWorker();
+    const client = {
+        postMessage: () => {},
+        addEventListener: () => {},
+    };
+    worker._onClientMessage(client, { action: "BUS:ADD_CHANNEL", data: "chA" });
+    expect(worker.channelsByClient.has(client)).toBe(true);
+    worker._onClientMessage(client, { action: "BUS:LEAVE" });
+    expect(worker.channelsByClient.has(client)).toBe(false);
+    worker._onClientMessage(client, { action: "ELECTION:HEARTBEAT" });
+    expect(worker.channelsByClient.has(client)).toBe(false);
+    // A BUS action from the client itself re-registers it.
+    worker._onClientMessage(client, { action: "BUS:ADD_CHANNEL", data: "chB" });
+    expect(worker.channelsByClient.has(client)).toBe(true);
+});
+
+test("stop reports DISCONNECTED and re-queues sends pending on the first subscribe", async () => {
+    const worker = await startWebSocketWorker();
+    expect(worker.state).toBe("CONNECTED");
+    // Connected socket whose first subscribe has not been sent yet: the
+    // message below is chained on `firstSubscribeDeferred`.
+    worker.firstSubscribeDeferred = new Deferred();
+    worker._sendToServer({ event_name: "some_event", data: 1 });
+    worker._stop();
+    // `_stop` removed the socket listeners (no close event will fire), so it
+    // must itself resolve the deferred (re-queueing the pending message) and
+    // report DISCONNECTED to newly opened tabs.
+    await runAllTimers();
+    expect(worker.state).toBe("DISCONNECTED");
+    expect(worker.messageWaitQueue).toEqual([
+        JSON.stringify({ event_name: "some_event", data: 1 }),
+    ]);
+});
+
+test("liveness sweep pings silent clients and evicts dead ones", async () => {
+    // A crashed/OOM-killed tab never sends BUS:LEAVE: after
+    // CLIENT_LIVENESS_TIMEOUT of silence (with an unanswered BUS:PING at the
+    // halfway mark) the sweep must drop its port — and notify the election
+    // worker via `onClientEvicted` — while responsive clients stay.
+    const worker = await startWebSocketWorker();
+    const pings = [];
+    const evicted = [];
+    worker.onClientEvicted = (client) => evicted.push(client);
+    const liveClient = {
+        addEventListener: () => {},
+        postMessage: (message) => {
+            if (message.type === "BUS:PING") {
+                pings.push("live");
+                worker._onClientMessage(liveClient, { action: "BUS:PONG" });
+            }
+        },
+    };
+    const deadClient = {
+        addEventListener: () => {},
+        postMessage: (message) => {
+            if (message.type === "BUS:PING") {
+                pings.push("dead");
+            }
+        },
+    };
+    worker.registerClient(liveClient);
+    worker.registerClient(deadClient);
+    const pastPingThreshold = Date.now() - worker.CLIENT_LIVENESS_TIMEOUT / 2 - 1000;
+    worker.lastSeenByClient.set(liveClient, pastPingThreshold);
+    worker.lastSeenByClient.set(deadClient, pastPingThreshold);
+    worker._sweepClientLiveness();
+    // Both got pinged; the live one answered (BUS:PONG refreshed its
+    // lastSeen), the dead one stayed silent.
+    expect(pings.sort()).toEqual(["dead", "live"]);
+    worker.lastSeenByClient.set(
+        deadClient,
+        Date.now() - worker.CLIENT_LIVENESS_TIMEOUT - 1000,
+    );
+    worker._sweepClientLiveness();
+    expect(worker.channelsByClient.has(deadClient)).toBe(false);
+    expect(worker.lastSeenByClient.has(deadClient)).toBe(false);
+    expect(worker.channelsByClient.has(liveClient)).toBe(true);
+    expect(evicted).toEqual([deadClient]);
+});
+
+test("BUS:PONG proves liveness but does not resurrect an evicted client", async () => {
+    const worker = await startWebSocketWorker();
+    const client = { addEventListener: () => {}, postMessage: () => {} };
+    worker._onClientMessage(client, { action: "BUS:ADD_CHANNEL", data: "chA" });
+    expect(worker.channelsByClient.has(client)).toBe(true);
+    worker._unregisterClient(client);
+    // A pong racing the eviction must not re-register the client with an
+    // empty channel list while its tab still believes it is subscribed.
+    worker._onClientMessage(client, { action: "BUS:PONG" });
+    expect(worker.channelsByClient.has(client)).toBe(false);
 });

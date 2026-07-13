@@ -204,6 +204,13 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_malformed_subscribe_data_keeps_connection_alive(self):
         """Client-controlled garbage in the subscribe payload is rejected with
         a warning (no traceback) and must not kill the connection."""
+        # The test sends ~12 frames back to back (5 payloads x subscribe+ping,
+        # plus the connect ping and the final valid subscribe). On a fast
+        # machine that trips the default rate limiter (burst 10 / delay 0.2s)
+        # and the server closes with TRY_LATER instead of exercising the
+        # malformed-payload path. Raise the burst: rate limiting has its own
+        # dedicated tests (test_websocket_rate_limiting).
+        self.startPatcher(patch.object(Websocket, "RL_BURST", 100))
         websocket = self.websocket_connect()
         malformed_payloads = [
             "not-a-dict",
@@ -236,6 +243,12 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_subscribe_without_last_defaults_to_zero(self):
         """A subscribe without the optional ``last`` key is valid (the JS
         worker always sends it, but hand-rolled clients may not)."""
+        # last=0 makes `_poll` fall back to a create_date window (TIMEOUT
+        # seconds), which picks up any notification committed shortly before
+        # the test — e.g. the `bundle_changed` broadcasts emitted when assets
+        # were (re)generated during module install. Start from a clean table
+        # so the assertions below only see this test's notification.
+        self.env["bus.bus"].sudo().search([]).unlink()
         websocket = self.websocket_connect()
         self.subscribe(websocket, ["my_channel"])  # no "last" key sent
         self.env["bus.bus"]._sendone("my_channel", "notif_type", "message")

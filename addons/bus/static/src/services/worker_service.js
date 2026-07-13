@@ -33,7 +33,9 @@ export class WorkerService {
             try {
                 const response = await fetch(workerURL, { credentials: "include" });
                 if (!response.ok) {
-                    throw new Error(`Bundle fetch failed with status ${response.status}`);
+                    throw new Error(
+                        `Bundle fetch failed with status ${response.status}`,
+                    );
                 }
                 const text = await response.text();
                 workerURL = URL.createObjectURL(
@@ -58,11 +60,24 @@ export class WorkerService {
                 : "odoo:bus_worker",
             type: "module",
         });
-        this.worker.onerror = (e) => this.onInitError(e);
+        const worker = this.worker;
+        worker.onerror = (e) => {
+            // The abandoned SharedWorker keeps this handler after the
+            // fallback replaced `this.worker` with a dedicated Worker. A late
+            // second error from it must not mark the service FAILED while the
+            // replacement is still initializing.
+            if (worker === this.worker) {
+                this.onInitError(e);
+            }
+        };
         this._registerHandler((ev) => {
             if (ev.data.type === "BASE:INITIALIZED") {
                 this._state = WORKER_STATE.INITIALIZED;
                 this.connectionInitializedDeferred.resolve();
+            } else if (ev.data.type === "BUS:PING") {
+                // Liveness probe from the websocket worker's dead-client
+                // sweep: answering proves this tab is alive and unfrozen.
+                this._send("BUS:PONG");
             }
         });
         if (this.isUsingSharedWorker) {

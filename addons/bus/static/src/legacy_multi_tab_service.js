@@ -8,7 +8,32 @@ export const legacyMultiTabService = {
 
         // PROPERTIES
         const sanitizedOrigin = location.origin.replace(/:\/{0,2}/g, "_");
-        const localStoragePrefix = `${this.name}.${sanitizedOrigin}.`;
+        const localStoragePrefix = `bus.${sanitizedOrigin}.`;
+        // Historical accident: the prefix used to be built from `this.name`,
+        // which is undefined on a service value, yielding literal
+        // "undefined.<origin>." keys. Consumers persist real user
+        // preferences under it (e.g. mail.html_composer.enabled, RTC device
+        // choices), so migrate them once instead of silently resetting.
+        try {
+            const legacyPrefix = `undefined.${sanitizedOrigin}.`;
+            for (let i = browser.localStorage.length - 1; i >= 0; i--) {
+                const key = browser.localStorage.key(i);
+                if (!key || !key.startsWith(legacyPrefix)) {
+                    continue;
+                }
+                const newKey = localStoragePrefix + key.slice(legacyPrefix.length);
+                if (browser.localStorage.getItem(newKey) === null) {
+                    browser.localStorage.setItem(
+                        newKey,
+                        browser.localStorage.getItem(key),
+                    );
+                }
+                browser.localStorage.removeItem(key);
+            }
+        } catch {
+            // localStorage can be unavailable (privacy mode) — the service
+            // degrades the same way it always has, no migration needed.
+        }
 
         function generateLocalStorageKey(baseKey) {
             return localStoragePrefix + baseKey;
