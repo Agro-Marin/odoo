@@ -33,6 +33,50 @@ const MAXIMUM_RECONNECT_DELAY = 60000;
 const UUID = Date.now().toString(36) + Math.random().toString(36).substring(2);
 const logger = new Logger("bus_websocket_worker");
 
+// Client actions that (re)establish an evicted/departed client's participation
+// in the bus, and so may re-register it in `channelsByClient`. An allowlist
+// (not "any BUS:* except LEAVE/PONG"): actions that do NOT express intent to
+// receive notifications — BUS:STOP, BUS:SEND, BUS:DELETE_CHANNEL,
+// BUS:REQUEST_LOGS, BUS:SET_LOGGING_ENABLED, BUS:FORCE_UPDATE_CHANNELS — must
+// never resurrect a client that called stop() or was evicted, otherwise a
+// stopped tab silently starts receiving broadcasts again (an unguarded
+// `offline`→BUS:STOP was exactly such a resurrection).
+const REREGISTERING_ACTIONS = new Set([
+    "BUS:INITIALIZE_CONNECTION",
+    "BUS:START",
+    "BUS:ADD_CHANNEL",
+    "BUS:SET_CHANNELS",
+]);
+
+/**
+ * Per-connection state for one WebSocket lifetime.
+ *
+ * Bundling it here — rather than as loose worker fields (`websocket`,
+ * `firstSubscribeDeferred`, `lastChannelSubscription`) reset at four different
+ * sites — makes the invariant "no state from a previous connection leaks into
+ * the next one" structural instead of comment-enforced:
+ *
+ * - a new connection is a new ``Connection``, so its subscribe gate
+ *   (``subscribeDeferred``) and subscription cache (``lastSubscription``) start
+ *   fresh automatically — no open-time/close-time/stop-time resets needed;
+ * - a superseded connection is identified by ``epoch``, so a late event from a
+ *   replaced socket is ignored instead of acting on the current connection.
+ */
+class Connection {
+    constructor(socket, epoch) {
+        this.socket = socket;
+        this.epoch = epoch;
+        // Resolves once THIS connection has sent its own `subscribe`; queued
+        // messages flush only after it, so they never race ahead of the
+        // subscription. A fresh connection ⇒ a fresh (unresolved) gate.
+        this.subscribeDeferred = new Deferred();
+        // Last `subscribe` payload sent on THIS connection (dedup). Null ⇒ the
+        // next `_updateChannels` (re)subscribes — exactly the "always subscribe
+        // on a fresh connection" invariant, obtained for free.
+        this.lastSubscription = null;
+    }
+}
+
 /**
  * This class regroups the logic necessary in order for the
  * SharedWorker/Worker to work. Indeed, Safari and some minor browsers
@@ -88,9 +132,13 @@ export class WebsocketWorker {
         this.active = true;
         this.state = CONNECTION_STATE.IDLE;
         this.isReconnecting = false;
-        this.lastChannelSubscription = null;
         this.loggingEnabled = null;
-        this.firstSubscribeDeferred = new Deferred();
+        // Current WebSocket connection (socket + its subscribe gate and
+        // subscription cache), or null when no socket is live. See `Connection`.
+        this._connection = null;
+        // Monotonic id stamped on each connection, so a superseded socket's late
+        // events can be told apart from the current one's.
+        this._epoch = 0;
         // Highest notification id seen so far. NOT used for deduplication
         // (see `seenNotificationIds`): only sent as `last` on subscribe.
         this.lastNotificationId = 0;
@@ -124,6 +172,17 @@ export class WebsocketWorker {
                     : [reason];
             this._logDebug("Unhandled rejection", params);
         });
+    }
+
+    /**
+     * The current connection's socket, or null when none is live. Kept as an
+     * accessor so the many `this.websocket` read sites are unchanged while the
+     * socket's lifetime is owned by `this._connection`.
+     *
+     * @returns {WebSocket|null}
+     */
+    get websocket() {
+        return this._connection?.socket ?? null;
     }
 
     //--------------------------------------------------------------------------
@@ -200,27 +259,25 @@ export class WebsocketWorker {
         this._logDebug("_onClientMessage", action, data);
         // Any message proves the port's page is alive and unfrozen.
         this.lastSeenByClient.set(client, Date.now());
-        if (
-            !this.channelsByClient.has(client) &&
-            action?.startsWith("BUS:") &&
-            action !== "BUS:LEAVE" &&
-            action !== "BUS:PONG"
-        ) {
-            // (BUS:PONG is also excluded above: it proves liveness but does
-            // not re-register — a pong racing an eviction would otherwise
-            // resurrect the client with an EMPTY channel list while its tab
-            // still believes it is subscribed.)
-            // A client that previously sent BUS:LEAVE (`bus_service.stop()`,
-            // bfcache pagehide) was dropped from `channelsByClient` and no
-            // longer receives broadcasts. It messaging us again with a BUS
-            // action proves it participates in the bus again: re-register it,
-            // otherwise a `stop()`/`start()` cycle leaves the tab permanently
-            // deaf and a subsequent BUS:ADD_CHANNEL crashes on the missing
-            // channel list. The BUS: prefix check matters: this handler sees
-            // EVERY message on the shared port, including ELECTION:*/BASE:*
-            // traffic, and the election heartbeat (sent every 1.5s by the
-            // main tab) must not silently resurrect a stopped client.
+        if (!this.channelsByClient.has(client) && REREGISTERING_ACTIONS.has(action)) {
+            // This client is not (or no longer) registered but is issuing an
+            // action that re-establishes bus participation. Two cases produce
+            // an unregistered-but-live client: it called stop()/pagehide
+            // (BUS:LEAVE) or the liveness sweep evicted it while its tab was
+            // frozen. Re-register it with an empty channel map, otherwise a
+            // subsequent BUS:ADD_CHANNEL would operate on a missing map.
             this.channelsByClient.set(client, new Map());
+            if (action === "BUS:START" || action === "BUS:ADD_CHANNEL") {
+                // The client believes it is still subscribed (its page-side
+                // channel map survived) but our copy is gone. INITIALIZE and
+                // SET_CHANNELS already carry full state; START/ADD_CHANNEL do
+                // not, so ask the client to replay its full snapshot. This is
+                // the recovery path for a tab evicted while frozen by Page
+                // Lifecycle freeze or system suspend, which resume via
+                // `resume`/`visibilitychange` — never `pageshow` — so
+                // bus_service does not otherwise replay.
+                this.sendToClient(client, "BUS:RESYNC");
+            }
         }
         switch (action) {
             case "BUS:SEND": {
@@ -262,7 +319,7 @@ export class WebsocketWorker {
                             channels: this._getAllChannels(),
                             db: this.currentDB,
                             is_reconnecting: this.isReconnecting,
-                            last_subscription: this.lastChannelSubscription,
+                            last_subscription: this._connection?.lastSubscription ?? null,
                             name: this.name,
                             number_of_clients: this.channelsByClient.size,
                             reconnect_delay: this.connectRetryDelay,
@@ -383,6 +440,7 @@ export class WebsocketWorker {
      * every broadcast posts to a dead port.
      */
     _startClientLivenessSweep() {
+        this._lastLivenessSweepTs = Date.now();
         setInterval(
             () => this._sweepClientLiveness(),
             this.CLIENT_LIVENESS_SWEEP_DELAY,
@@ -391,14 +449,25 @@ export class WebsocketWorker {
 
     _sweepClientLiveness() {
         const now = Date.now();
+        const sinceLastSweep = now - this._lastLivenessSweepTs;
+        this._lastLivenessSweepTs = now;
+        if (sinceLastSweep > this.CLIENT_LIVENESS_TIMEOUT) {
+            // The wall clock jumped far more than one sweep interval: timers do
+            // not fire while the machine is asleep, so this is a system suspend,
+            // not genuine client silence. Every client's `lastSeen` predates the
+            // sleep; evicting on it would wrongly drop every live tab the instant
+            // the machine wakes, before any tab could send. Grant a fresh window
+            // instead — real dead tabs are caught on the next normal sweep.
+            for (const client of this.lastSeenByClient.keys()) {
+                this.lastSeenByClient.set(client, now);
+            }
+            return;
+        }
         for (const [client, lastSeen] of this.lastSeenByClient) {
             const age = now - lastSeen;
             if (age > this.CLIENT_LIVENESS_TIMEOUT) {
                 this._logDebug("liveness_evict", { age });
                 this._unregisterClient(client);
-                // Let composed handlers (the election worker) drop the port
-                // too; see `onClientEvicted` wiring in bus_worker_script.js.
-                this.onClientEvicted?.(client);
             } else if (age > this.CLIENT_LIVENESS_TIMEOUT / 2) {
                 // Silent for a while: ask for a sign of life. Live tabs
                 // answer BUS:PONG immediately; frozen (bfcache) or dead ones
@@ -431,8 +500,7 @@ export class WebsocketWorker {
         if (this.newestStartTs && this.newestStartTs > startTs) {
             this.debugModeByClient.set(client, debug);
             this.isDebug = [...this.debugModeByClient.values()].some(Boolean);
-            this.sendToClient(client, "BUS:WORKER_STATE_UPDATED", this.state);
-            this.sendToClient(client, "BUS:INITIALIZED");
+            this._finishClientInitialization(client);
             return;
         }
         this.newestStartTs = startTs;
@@ -469,13 +537,31 @@ export class WebsocketWorker {
             // (and likely higher / colliding) for the new one. Keeping them
             // would make the subscribe `last` bogus and the dedup filter drop
             // legitimate notifications whose ids happen to collide with
-            // recently seen ids of the old DB. Reset both (and drop now-stale
-            // queued messages that reference the old DB's channels) so the
-            // fresh subscribe re-fetches from the correct baseline.
-            this.lastNotificationId = 0;
+            // recently seen ids of the old DB. Adopt the incoming tab's
+            // watermark instead: it is read from the *new* DB's (db-scoped)
+            // localStorage key, so it is the correct baseline — resetting to 0
+            // would instead subscribe with `last: 0` ("from now") and silently
+            // skip notifications committed between that snapshot and the
+            // resubscribe. Clear the seen-id history (old-DB ids) and drop
+            // now-stale queued messages referencing the old DB's channels.
+            this.lastNotificationId = lastNotificationId ?? 0;
             this.seenNotificationIds.clear();
             this.messageWaitQueue = [];
         }
+        this._finishClientInitialization(client);
+    }
+
+    /**
+     * Send the initialization acknowledgements every client must receive,
+     * regardless of which `_initializeConnection` path handled it: the worker
+     * state, the INITIALIZED handshake, and — when the worker is running
+     * outdated code (the server closed it with OUTDATED_VERSION) — the
+     * OUTDATED signal, so even a late/lazy tab taking the older-startTs early
+     * return renounces main-tab duties and surfaces the reload notice.
+     *
+     * @param {MessagePort} client
+     */
+    _finishClientInitialization(client) {
         this.sendToClient(client, "BUS:WORKER_STATE_UPDATED", this.state);
         this.sendToClient(client, "BUS:INITIALIZED");
         if (!this.active) {
@@ -532,19 +618,22 @@ export class WebsocketWorker {
      * @param {string} reason reason indicating why the connection was
      * closed.
      */
-    _onWebsocketClose({ code, reason }) {
+    _onWebsocketClose(ev) {
+        if (this._isStaleSocketEvent(ev)) {
+            return;
+        }
+        const { code, reason } = ev;
         clearInterval(this._connectionCheckInterval);
         this._logDebug("_onWebsocketClose", code, reason);
         this._updateState(CONNECTION_STATE.DISCONNECTED);
-        this.lastChannelSubscription = null;
-        // Resolve before replacing: non-subscribe messages sent while the
-        // connection was open (but before its first subscribe went out) are
-        // chained on this deferred. Replacing an unresolved deferred would
-        // orphan those callbacks and silently lose the messages; resolving it
-        // is safe — the chained callback re-checks `_isWebsocketConnected()`
-        // (false here) and re-queues into `messageWaitQueue` for next open.
-        this.firstSubscribeDeferred.resolve();
-        this.firstSubscribeDeferred = new Deferred();
+        // Flush any callback chained on this connection's subscribe gate:
+        // non-subscribe messages sent while the socket was open (but before its
+        // first subscribe went out) wait on it. Resolving is safe — the chained
+        // callback re-checks `_isWebsocketConnected()` (false here) and
+        // re-queues into `messageWaitQueue` for the next open. No replacement
+        // gate is needed: the next `_start` brings a fresh Connection with its
+        // own, and `lastSubscription` dies with this connection too.
+        this._connection?.subscribeDeferred.resolve();
         if (this.isReconnecting) {
             // Connection was not established but the close event was
             // triggered anyway. Let the onWebsocketError method handle
@@ -582,9 +671,34 @@ export class WebsocketWorker {
     }
 
     /**
-     * Triggered when a connection failed or failed to established.
+     * Whether ``ev`` was fired by a socket that a newer connection has already
+     * superseded. A real DOM event carries its socket as ``currentTarget``;
+     * when that is not the current connection's socket, the event is a late
+     * straggler from a replaced socket and must be ignored. Synthetic events
+     * (built by ``_start`` for the current connection, with no ``currentTarget``)
+     * are trusted.
+     *
+     * @param {Event} [ev]
+     * @returns {boolean}
      */
-    _onWebsocketError() {
+    _isStaleSocketEvent(ev) {
+        const target = ev?.currentTarget;
+        if (target && target !== this.websocket) {
+            this._logDebug("ignoring stale socket event", ev.type);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Triggered when a connection failed or failed to established.
+     *
+     * @param {Event} [ev]
+     */
+    _onWebsocketError(ev) {
+        if (this._isStaleSocketEvent(ev)) {
+            return;
+        }
         this._logDebug("_onWebsocketError");
         this._retryConnectionWithDelay();
     }
@@ -595,6 +709,9 @@ export class WebsocketWorker {
      * @param {MessageEvent} messageEv
      */
     _onWebsocketMessage(messageEv) {
+        if (this._isStaleSocketEvent(messageEv)) {
+            return;
+        }
         this._restartConnectionCheckInterval();
         let payload;
         try {
@@ -689,28 +806,18 @@ export class WebsocketWorker {
      * Triggered on websocket open. Send message that were waiting for
      * the connection to open.
      */
-    _onWebsocketOpen() {
+    _onWebsocketOpen(ev) {
+        if (this._isStaleSocketEvent(ev)) {
+            return;
+        }
         this._logDebug("_onWebsocketOpen");
-        // Gate this connection's queued messages behind ITS OWN subscribe.
-        // `_onWebsocketClose` resets this deferred, but a `_stop()`/`_start()`
-        // cycle (e.g. offline→online) removes the socket listeners so close
-        // never runs, leaving a stale *resolved* deferred. Without this reset
-        // the queue would flush (next microtask) before the new subscribe is
-        // sent (~300ms later, debounced), violating the ordering guarantee.
-        // `_stop`/`_onWebsocketClose` both null `lastChannelSubscription`, so
-        // the subscribe below is always (re)sent and resolves this deferred.
-        this.firstSubscribeDeferred = new Deferred();
-        // Force a fresh subscribe on every (re)connect. `_onWebsocketClose` and
-        // `_stop` null this, but a channel add/remove *during* the disconnect
-        // re-populates it (the debounced `_updateChannels` runs while offline and
-        // sets it to the current channel set). The open-time
-        // `_debouncedUpdateChannels()` below would then find the channels
-        // unchanged, send no subscribe and never resolve `firstSubscribeDeferred`
-        // -- leaving the queued subscribe (and every queued app message) stuck in
-        // `messageWaitQueue` on a connected-but-unsubscribed socket, silently
-        // dropping all notifications until the next channel change. Nulling here
-        // restores the "always re-subscribe on open" invariant.
-        this.lastChannelSubscription = null;
+        // No deferred/subscription resets here: this is a fresh Connection (built
+        // in `_start`), so its `subscribeDeferred` is unresolved and its
+        // `lastSubscription` is null already. The open-time `_updateChannels`
+        // below therefore always (re)subscribes and resolves the gate — the
+        // "always subscribe on a fresh connection" invariant is structural now,
+        // not restored by nulling worker fields.
+        const connection = this._connection;
         this._updateState(CONNECTION_STATE.CONNECTED);
         this.broadcast(this.isReconnecting ? "BUS:RECONNECT" : "BUS:CONNECT");
         this._debouncedUpdateChannels();
@@ -722,20 +829,17 @@ export class WebsocketWorker {
         clearTimeout(this.connectTimeout);
         this.connectTimeout = null;
         this.isReconnecting = false;
-        this.firstSubscribeDeferred.then(() => {
-            if (!this._isWebsocketConnected()) {
-                // Socket already closed/replaced: keep the queue for the
-                // next open instead of writing to a dead socket.
+        connection.subscribeDeferred.then(() => {
+            if (this._connection !== connection || !this._isWebsocketConnected()) {
+                // Socket already closed/replaced: keep the queue for the next
+                // open instead of writing to a dead or superseded socket.
                 return;
             }
-            // Drop queued subscribes: the deferred only resolves once
-            // `_updateChannels` sent a fresh subscribe for THIS connection,
-            // so any subscribe still queued (from the offline period) is
-            // stale — replaying it would rewind the subscription and make
-            // the server re-poll for nothing.
-            const queue = this.messageWaitQueue.filter(
-                (msg) => JSON.parse(msg).event_name !== "subscribe",
-            );
+            // Flush the queued application messages after this connection's own
+            // subscribe. No subscribe can be queued: `_updateChannels` only ever
+            // subscribes while the socket is open (sending directly), so the
+            // queue holds application messages only.
+            const queue = this.messageWaitQueue;
             this.messageWaitQueue = [];
             queue.forEach((msg) => this.websocket.send(msg));
         });
@@ -804,34 +908,29 @@ export class WebsocketWorker {
         this._logDebug("_sendToServer", message);
         const payload = JSON.stringify(message);
         if (!this._isWebsocketConnected()) {
-            if (message["event_name"] === "subscribe") {
-                this.messageWaitQueue = this.messageWaitQueue.filter(
-                    (msg) => JSON.parse(msg).event_name !== "subscribe",
-                );
-                this.messageWaitQueue.unshift(payload);
-            } else {
-                this.messageWaitQueue.push(payload);
-            }
-        } else {
-            if (message["event_name"] === "subscribe") {
-                this.websocket.send(payload);
-            } else {
-                this.firstSubscribeDeferred.then(() => {
-                    // The deferred can resolve after the connection state
-                    // changed: `_updateChannels` also resolves it while
-                    // offline/stopped (queued subscribe), at which point
-                    // `this.websocket` may be null or closed. Re-queue the
-                    // message for the next open instead of crashing with an
-                    // unhandled rejection and losing it.
-                    if (this._isWebsocketConnected()) {
-                        this.websocket.send(payload);
-                    } else {
-                        this.messageWaitQueue.push(payload);
-                    }
-                });
-            }
-            this._restartConnectionCheckInterval();
+            // Not open: hold the message for the next connection's flush. Only
+            // application messages ever reach here while offline — subscribes
+            // are sent by `_updateChannels`, which no-ops unless the socket is
+            // open, so nothing stale can pile up in the queue.
+            this.messageWaitQueue.push(payload);
+            return;
         }
+        if (message["event_name"] === "subscribe") {
+            this.websocket.send(payload);
+        } else {
+            const connection = this._connection;
+            connection.subscribeDeferred.then(() => {
+                // The gate can resolve after the connection changed (e.g. this
+                // connection closed): re-queue for the next open instead of
+                // writing to a dead/superseded socket and losing the message.
+                if (this._connection === connection && this._isWebsocketConnected()) {
+                    this.websocket.send(payload);
+                } else {
+                    this.messageWaitQueue.push(payload);
+                }
+            });
+        }
+        this._restartConnectionCheckInterval();
     }
 
     _removeWebsocketListeners() {
@@ -858,12 +957,14 @@ export class WebsocketWorker {
             // The close event didn’t trigger. Trigger manually to maintain
             // correct state and lifecycle handling.
             const wasReconnecting = this.isReconnecting;
+            // Synthetic close for the CURRENT connection (no `currentTarget`, so
+            // it is not treated as a stale-socket event).
             this._onWebsocketClose(
                 new CloseEvent("close", {
                     code: WEBSOCKET_CLOSE_CODES.CLOSING_HANDSHAKE_ABORTED,
                 }),
             );
-            this.websocket = null;
+            this._connection = null;
             if (wasReconnecting) {
                 // `_onWebsocketClose` early-returns while reconnecting because
                 // it expects a real `error` event to drive the retry — but this
@@ -873,12 +974,13 @@ export class WebsocketWorker {
             }
             return;
         }
+        const socket = new WebSocket(this.websocketURL);
+        this._connection = new Connection(socket, ++this._epoch);
         this._updateState(CONNECTION_STATE.CONNECTING);
-        this.websocket = new WebSocket(this.websocketURL);
-        this.websocket.addEventListener("open", this._onWebsocketOpen);
-        this.websocket.addEventListener("error", this._onWebsocketError);
-        this.websocket.addEventListener("message", this._onWebsocketMessage);
-        this.websocket.addEventListener("close", this._onWebsocketClose);
+        socket.addEventListener("open", this._onWebsocketOpen);
+        socket.addEventListener("error", this._onWebsocketError);
+        socket.addEventListener("message", this._onWebsocketMessage);
+        socket.addEventListener("close", this._onWebsocketClose);
     }
 
     /**
@@ -892,29 +994,29 @@ export class WebsocketWorker {
         // to avoid leaking a timer on every stop cycle.
         clearInterval(this._connectionCheckInterval);
         // Cancel pending debounced work so it can't fire against the *next*
-        // connection: a trailing `_updateChannels` would enqueue a stray
-        // subscribe and prematurely resolve `firstSubscribeDeferred`, and a
-        // trailing `_sendToServer` would leak an app message into the queue.
+        // connection: a trailing `_updateChannels`/`_sendToServer` would act on
+        // a socket this stop is tearing down.
         this._debouncedUpdateChannels.cancel();
         this._debouncedSendToServer.cancel();
         this._forceUpdateChannels.cancel();
         this.connectRetryDelay = this.INITIAL_RECONNECT_DELAY;
         this.isReconnecting = false;
-        this.lastChannelSubscription = null;
+        const connection = this._connection;
         const shouldBroadcastClose =
-            this.websocket &&
-            this.websocket.readyState !== WEBSOCKET_READY_STATE.CLOSED;
-        this.websocket?.close();
+            connection &&
+            connection.socket.readyState !== WEBSOCKET_READY_STATE.CLOSED;
+        connection?.socket.close();
         this._removeWebsocketListeners();
-        this.websocket = null;
-        // `_stop` removed the socket listeners, so `_onWebsocketClose` (which
-        // resolves the deferred and reports DISCONNECTED) will not run. Do
-        // both here: an unresolved deferred would orphan pending sends
-        // chained on it (the socket is already nulled, so they re-queue into
-        // `messageWaitQueue`), and a state left on CONNECTED would make
-        // `_initializeConnection` report a live connection to tabs opened
-        // while stopped.
-        this.firstSubscribeDeferred.resolve();
+        // Drop the connection before resolving its gate: `_stop` removed the
+        // socket listeners, so `_onWebsocketClose` (which resolves the gate and
+        // reports DISCONNECTED) will not run. A pending send chained on the gate
+        // would otherwise be orphaned; with the connection dropped it re-checks
+        // `_isWebsocketConnected()` (false) and re-queues into `messageWaitQueue`.
+        // Dropping it also stops `_initializeConnection` from reporting a live
+        // connection to tabs opened while stopped. `lastSubscription` dies with
+        // the connection, so the next connect re-subscribes.
+        this._connection = null;
+        connection?.subscribeDeferred.resolve();
         this._updateState(CONNECTION_STATE.DISCONNECTED);
         if (shouldBroadcastClose) {
             this.broadcast("BUS:DISCONNECT", { code: WEBSOCKET_CLOSE_CODES.CLEAN });
@@ -929,17 +1031,24 @@ export class WebsocketWorker {
      * event if the channels haven't change since last subscription.
      */
     _updateChannels({ force = false } = {}) {
+        if (!this._isWebsocketConnected()) {
+            // Only subscribe on an open socket. While connecting/disconnected
+            // there is nothing to do: the (re)connect's open handler runs
+            // `_updateChannels` again with the current channels, so a channel
+            // change made in the meantime is picked up there. This is why no
+            // subscribe is ever queued (see `_sendToServer`).
+            return;
+        }
+        const connection = this._connection;
         const allTabsChannels = this._getAllChannels();
         const allTabsChannelsString = JSON.stringify(allTabsChannels);
-        const shouldUpdateChannelSubscription =
-            allTabsChannelsString !== this.lastChannelSubscription;
-        if (force || shouldUpdateChannelSubscription) {
-            this.lastChannelSubscription = allTabsChannelsString;
+        if (force || allTabsChannelsString !== connection.lastSubscription) {
+            connection.lastSubscription = allTabsChannelsString;
             this._sendToServer({
                 event_name: "subscribe",
                 data: { channels: allTabsChannels, last: this.lastNotificationId },
             });
-            this.firstSubscribeDeferred.resolve();
+            connection.subscribeDeferred.resolve();
         }
     }
     /**
