@@ -142,6 +142,10 @@ class PosPayment(models.Model):
             payments = self - change_payment
 
         for payment in payments:
+            # Idempotency: a payment that already booked a move must not be
+            # booked again (prevents double-booking on re-invoice).
+            if payment.account_move_id:
+                continue
             order = payment.pos_order_id
             payment_method = payment.payment_method_id
             if payment_method.type == "pay_later" or float_is_zero(
@@ -155,7 +159,7 @@ class PosPayment(models.Model):
             journal = pos_session.config_id.journal_id
             if change_payment and payment == payment_to_change:
                 pos_payment_ids = payment.ids + change_payment.ids
-                payment_amount = payment.amount + change_payment.amount
+                payment_amount = payment.amount + sum(change_payment.mapped("amount"))
             else:
                 pos_payment_ids = payment.ids
                 payment_amount = payment.amount

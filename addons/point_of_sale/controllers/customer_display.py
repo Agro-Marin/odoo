@@ -10,7 +10,18 @@ class PosCustomerDisplay(http.Controller):
         website=True,
     )
     def pos_customer_display(self, id_, device_uuid, **kw):
-        pos_config_sudo = request.env["pos.config"].sudo().browse(int(id_))
+        # This route is public and reachable by enumerable integer id. Reject
+        # non-numeric ids, non-existent configs, and configs without an active
+        # session so the access_token / customer-display payload is not handed
+        # out for arbitrary ids. The customer display is only opened from a
+        # running POS session, so requiring an active session is safe.
+        try:
+            config_id = int(id_)
+        except TypeError, ValueError:
+            return request.not_found()
+        pos_config_sudo = request.env["pos.config"].sudo().browse(config_id)
+        if not pos_config_sudo.exists() or not pos_config_sudo.has_active_session:
+            return request.not_found()
         return request.render(
             "point_of_sale.customer_display_index",
             {

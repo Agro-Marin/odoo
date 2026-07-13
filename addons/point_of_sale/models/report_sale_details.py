@@ -188,15 +188,23 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         for payment in payments:
             payment["count"] = False
 
+        # Batch-fetch account.payment for all sessions once and index by session
+        # id, instead of re-querying inside the per-payment loop below (N+1).
+        account_payments_by_session = (
+            self.env["account.payment"]
+            .search([("pos_session_id", "in", sessions.ids)])
+            .grouped(lambda p: p.pos_session_id.id)
+        )
+
         for session in sessions:
             cash_counted = 0
             if session.cash_register_balance_end_real:
                 cash_counted = session.cash_register_balance_end_real
             is_cash_method = False
+            account_payments = account_payments_by_session.get(
+                session.id, self.env["account.payment"]
+            )
             for payment in payments:
-                account_payments = self.env["account.payment"].search(
-                    [("pos_session_id", "=", session.id)]
-                )
                 if payment["session"] == session.id:
                     if not payment["cash"]:
                         ref_value = "Closing difference in %s (%s)" % (
@@ -255,7 +263,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                             "pos_payment_method_id.id"
                         ):
                             account_payment = account_payments.filtered(
-                                lambda p: p.pos_payment_method_id.id == payment["id"]
+                                lambda p, method_id=payment["id"]: (
+                                    p.pos_payment_method_id.id == method_id
+                                )
                             )
                             payment["final_count"] = payment["total"]
                             payment["money_counted"] = sum(

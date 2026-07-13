@@ -106,7 +106,7 @@ class PosCategory(models.Model):
                     )
                 )
 
-    @api.depends("has_image")
+    @api.depends("image_128")
     def _compute_has_image(self):
         for category in self:
             category.has_image = bool(category.image_128)

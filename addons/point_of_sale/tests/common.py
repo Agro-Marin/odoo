@@ -17,7 +17,9 @@ def archive_products(env):
     # Archive all existing product to avoid noise during the tours
     all_pos_product = env["product.template"].search([("available_in_pos", "=", True)])
     tip = env.ref("point_of_sale.product_product_tip").product_tmpl_id
-    (all_pos_product - tip)._write({"active": False})
+    # NB: use write() (not the removed low-level _write) to archive. The POS archive
+    # guard lives in action_archive(), not write(), so this bypasses it as intended.
+    (all_pos_product - tip).write({"active": False})
 
 
 class CommonPosTest(ValuationReconciliationTestCommon):

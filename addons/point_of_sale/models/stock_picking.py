@@ -136,6 +136,7 @@ class StockPicking(models.Model):
                     ):
                         move.write({"owner_id": keys[1]})
                         returnable_qty_by_product[keys] -= move.quantity
+                        break
 
     def _send_confirmation_email(self):
         # Avoid sending Mail/SMS for POS deliveries

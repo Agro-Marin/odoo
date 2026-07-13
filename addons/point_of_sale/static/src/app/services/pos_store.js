@@ -1452,7 +1452,9 @@ export class PosStore extends WithLazyGetterTrap {
                 this.pendingOrder["write"].delete(id);
             }
 
-            this.pendingOrder["delete"].add(...orderIds);
+            for (const id of orderIds) {
+                this.pendingOrder["delete"].add(id);
+            }
             return true;
         }
 
@@ -1573,7 +1575,7 @@ export class PosStore extends WithLazyGetterTrap {
         for (const order of orders) {
             const context = this.getSyncAllOrdersContext([order], options);
             await this.preSyncAllOrders([order]);
-            this.syncingOrders.add(order.id);
+            this.syncingOrders.add(order.uuid);
 
             try {
                 const serialized = order.serializeForORM();

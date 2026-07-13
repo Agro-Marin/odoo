@@ -68,6 +68,8 @@ class ProductTemplate(models.Model):
         for product in self:
             if product.pos_categ_ids:
                 product.color = product.pos_categ_ids[0].color
+            else:
+                product.color = product.color or 0
 
     def create_product_variant_from_pos(self, attribute_value_ids, config_id):
         """Create a product variant from the POS interface."""
@@ -389,15 +391,15 @@ class ProductTemplate(models.Model):
         product_data = {product["id"]: product for product in products}
         for product_tmpl in self.browse(product_data.keys()):
             product = product_data[product_tmpl.id]
+            if not product_tmpl.attribute_line_ids:
+                product["_archived_combinations"] = []
+                continue
             attribute_exclusions = product_tmpl._get_attribute_exclusions()
             product["_archived_combinations"] = attribute_exclusions[
                 "archived_combinations"
             ]
-            excluded = {}
             for ptav_id, ptav_ids in attribute_exclusions["exclusions"].items():
-                for ptav_id2 in set(ptav_ids) - excluded.keys():
-                    excluded[ptav_id] = ptav_id2
-            product["_archived_combinations"].extend(excluded.items())
+                product["_archived_combinations"].extend((ptav_id, t) for t in ptav_ids)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_open_session(self):

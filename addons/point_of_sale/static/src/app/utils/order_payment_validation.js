@@ -144,7 +144,7 @@ export default class OrderPaymentValidation {
 
         this.order.date_order = serializeDateTime(luxon.DateTime.now());
         for (const line of this.paymentLines) {
-            if (!line.amount === 0) {
+            if (line.amount === 0) {
                 this.order.removePaymentline(line);
             }
         }
@@ -238,7 +238,7 @@ export default class OrderPaymentValidation {
     handleValidationError(error) {
         if (error instanceof ConnectionLostError) {
             this.afterOrderValidation();
-            Promise.reject(error);
+            return Promise.reject(error);
         } else if (error instanceof RPCError) {
             this.order.state = "draft";
             handleRPCError(error, this.pos.dialog);
@@ -255,7 +255,7 @@ export default class OrderPaymentValidation {
         }
 
         const cashRounding = this.pos.config.rounding_method;
-        const order = this.pos.getOrder();
+        const order = this.order;
         const currency = this.pos.currency;
         for (const payment of order.payment_ids) {
             if (!payment.payment_method_id.is_cash_count) {

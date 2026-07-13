@@ -54,7 +54,7 @@ class PosPreset(models.Model):
     def _check_slots(self):
         for preset in self:
             for attendance in preset.attendance_ids:
-                if attendance.hour_from % 24 >= attendance.hour_to % 24:
+                if attendance.hour_from >= attendance.hour_to:
                     raise ValidationError(
                         _("The start time must be before the end time.")
                     )
@@ -98,7 +98,7 @@ class PosPreset(models.Model):
                 ]
             )
 
-    @api.depends("has_image")
+    @api.depends("image_512")
     def _compute_has_image(self):
         for record in self:
             record.has_image = bool(record.image_512)
