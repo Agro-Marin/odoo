@@ -19,9 +19,8 @@ class TestBusSend(TransactionCase):
 
     def test_send_multiple_records(self):
         """Sending on a multi-record set dispatches one notification per record."""
-        partners = self.env["res.partner"].search([], limit=3)
-        self.assertGreaterEqual(
-            len(partners), 2, "Need at least 2 partners for this test"
+        partners = self.env["res.partner"].create(
+            [{"name": f"bus multi {i}"} for i in range(3)]
         )
         with patch.object(type(self.env["bus.bus"]), "_sendone") as mock_sendone:
             partners._bus_send("multi_notif", {})
@@ -59,23 +58,19 @@ class TestBusSend(TransactionCase):
 
     def test_channel_chain_cycle_detection(self):
         """A cycle in _bus_channel() overrides raises RecursionError."""
-        partner = self.env.user.partner_id
-        # Make _bus_channel return a *different* record each time to prevent
-        # the equality check from terminating the loop.
-        call_count = 0
+        # Own test data: independent of pre-existing partner count/order.
+        partner_a, partner_b = self.env["res.partner"].create(
+            [{"name": "bus cycle a"}, {"name": "bus cycle b"}]
+        )
 
         def cyclic_bus_channel(self_rec):
-            nonlocal call_count
-            call_count += 1
-            # Return a different partner each time to avoid equality termination
-            other = self_rec.env["res.partner"].search(
-                [("id", "!=", self_rec.id)], limit=1
-            )
-            return other or self_rec
+            # Alternate between two records so the equality check never
+            # terminates the hop loop.
+            return partner_b if self_rec == partner_a else partner_a
 
-        with patch.object(type(partner), "_bus_channel", cyclic_bus_channel):
+        with patch.object(type(partner_a), "_bus_channel", cyclic_bus_channel):
             with self.assertRaises(RecursionError):
-                partner._bus_send("cycle_test", {})
+                partner_a._bus_send("cycle_test", {})
 
     def test_empty_channel_record_skipped(self):
         """If _bus_channel() resolves to an empty recordset, the record is skipped."""

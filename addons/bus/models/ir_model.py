@@ -5,6 +5,16 @@ class IrModel(models.Model):
     _inherit = "ir.model"
 
     def _get_model_definitions(self, model_names_to_fetch):
+        # Model-level ACL: silently omit models the current user cannot read.
+        # Without this, any authenticated user (including portal) could
+        # enumerate the schema of arbitrary models.  Omitting (rather than
+        # erroring) keeps batch requests from the web client working when a
+        # subset of the requested models is restricted.
+        model_names_to_fetch = [
+            model_name
+            for model_name in model_names_to_fetch
+            if self.env[model_name].has_access("read")
+        ]
         model_definitions = {}
         for model_name in model_names_to_fetch:
             model = self.env[model_name]

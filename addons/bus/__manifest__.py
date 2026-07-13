@@ -7,8 +7,6 @@
     "data": [
         "security/ir.model.access.csv",
     ],
-    "installable": True,
-    "auto_install": True,
     "assets": {
         "web.assets_backend": [
             "bus/static/src/*.js",
@@ -44,4 +42,6 @@
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

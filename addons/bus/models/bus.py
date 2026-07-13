@@ -1,7 +1,6 @@
 import contextlib
 import datetime
 import logging
-import math
 import os
 import selectors
 import threading
@@ -14,12 +13,11 @@ from psycopg import InterfaceError
 import odoo
 from odoo import api, fields, models
 from odoo.libs.json import dumps as json_dumps
+from odoo.libs.json import loads as json_loads
 from odoo.service.server import CommonServer
 from odoo.tools import SQL
 from odoo.tools.json import orjson_default
 from odoo.tools.misc import OrderedSet
-
-from ..tools import orjson
 
 _logger = logging.getLogger(__name__)
 
@@ -47,9 +45,53 @@ def get_notify_payload_max_length(default=8000):
 # max length in bytes for the NOTIFY query payload
 NOTIFY_PAYLOAD_MAX_LENGTH = get_notify_payload_max_length()
 
+# Number of websockets woken per batch, and pause between batches, when
+# catching up after a LISTEN reconnect (see ImDispatch._dispatch_to_all).
+DISPATCH_CATCHUP_CHUNK_SIZE = 50
+DISPATCH_CATCHUP_CHUNK_DELAY = 0.1  # seconds
+
 
 _notify_conn: psycopg.Connection | None = None
 _notify_lock = threading.Lock()
+# Notify connections inherited from a parent process across fork() are parked
+# here forever so they are never garbage collected in the child (see
+# _reset_notify_state_in_child).
+_notify_conns_inherited_from_parent = []
+
+
+def _reset_notify_state_in_child():
+    """Reset the notify-connection module state in a forked child process.
+
+    The prefork master may have opened ``_notify_conn`` during preload (any
+    ``_sendone`` postcommit); forked workers then inherit the same libpq
+    socket, and using or closing it from one process corrupts the protocol
+    stream / kills the shared backend for all the others.
+
+    The inherited connection must therefore be *dropped without closing it*:
+    ``close()`` would send a libpq Terminate message on the shared socket,
+    terminating the backend the parent is still using.  Merely dropping the
+    reference is safe at the libpq level — psycopg's ``PGconn.__del__`` has a
+    pid guard (``self._procpid``) that skips ``PQfinish`` when the object is
+    collected in a process other than the one that created it — but we
+    additionally park the object in ``_notify_conns_inherited_from_parent``
+    so it is never collected at all: this silences the ResourceWarning from
+    ``Connection.__del__`` and stays safe even if psycopg's GC behavior
+    changes.  The cost is one leaked fd per fork, and workers fork once.
+
+    ``_notify_lock`` is recreated as well: another thread of the parent may
+    have held it at fork time, in which case the child would inherit it
+    locked forever.
+    """
+    global _notify_conn, _notify_lock  # noqa: PLW0603
+    if _notify_conn is not None:
+        _notify_conns_inherited_from_parent.append(_notify_conn)
+        _notify_conn = None
+    _notify_lock = threading.Lock()
+
+
+# Registered once at module import (modules are only imported once per
+# process, and forked children inherit the parent's registration).
+os.register_at_fork(after_in_child=_reset_notify_state_in_child)
 
 
 def _get_notify_conn_locked():
@@ -102,9 +144,18 @@ def _send_pg_notify(payloads):
     the pool) so NOTIFY is sent immediately regardless of the caller's
     transaction state and without pool contention.
 
-    Retries once on any exception (e.g. transient connection drop) with a
-    fresh connection.  Re-raises on the second failure so the caller can
-    decide how to handle it; notifications will be lost in that case.
+    Error handling distinguishes two failure classes:
+
+    - *connection-level* errors (``OperationalError``/``InterfaceError``, or
+      any error that left the connection closed): the connection is cycled
+      and delivery is retried once on a fresh connection.  A second
+      connection-level failure (or a failed reconnect) propagates to the
+      caller; the undelivered wake-ups are lost, but the notifications
+      themselves are committed in ``bus_bus`` and will be picked up on the
+      next NOTIFY or dispatcher catch-up.
+    - *per-payload* errors (e.g. a payload PostgreSQL rejects): logged as a
+      warning and skipped, so one poison payload cannot drop the remaining
+      payloads of the batch.
 
     Because the connection is in autocommit mode, each ``execute`` delivers its
     NOTIFY immediately, so already-sent payloads are not replayed on retry: the
@@ -122,7 +173,25 @@ def _send_pg_notify(payloads):
             conn = _get_notify_conn_locked()
             try:
                 while sent < len(payloads):
-                    conn.execute(_query, (payloads[sent],))
+                    try:
+                        conn.execute(_query, (payloads[sent],))
+                    except InterfaceError, psycopg.OperationalError:
+                        raise
+                    except Exception:
+                        if conn.closed:
+                            # The failure took the connection down: treat it
+                            # as connection-level so this payload is retried
+                            # on a fresh connection.
+                            raise
+                        # Poison payload: the connection is fine (autocommit:
+                        # no aborted transaction to roll back), so skip it
+                        # and keep sending the remaining payloads.
+                        _logger.warning(
+                            "Skipping imbus NOTIFY payload rejected by "
+                            "PostgreSQL: %.200s",
+                            payloads[sent],
+                            exc_info=True,
+                        )
                     sent += 1
                 return
             except Exception:
@@ -142,11 +211,14 @@ def json_dump(v):
 def hashable(key):
     """Convert ``key`` to a hashable form suitable for use in a dict/set.
 
-    Lists are converted to tuples; all other types are returned unchanged.
-    Callers must ensure the value is actually hashable after conversion.
+    Lists are recursively converted to tuples: channels arrive as (possibly
+    nested) JSON arrays on both the NOTIFY-payload side (``ImDispatch.loop``)
+    and the websocket subscribe side, and both must produce identical keys.
+    All other types are returned unchanged; callers must ensure the value is
+    actually hashable after conversion.
     """
     if isinstance(key, list):
-        key = tuple(key)
+        return tuple(hashable(item) for item in key)
     return key
 
 
@@ -173,24 +245,47 @@ def channel_with_db(dbname, channel):
 
 
 def get_notify_payloads(channels):
-    """
-    Generates the json payloads for the imbus NOTIFY.
-    Splits recursively payloads that are too large.
+    """Serialize ``channels`` into JSON-array payloads for the imbus NOTIFY.
+
+    Each channel is serialized exactly once, then the serialized channels are
+    greedily packed (in order, linear time) into as few payloads as possible
+    while keeping every payload's encoded size strictly under
+    ``NOTIFY_PAYLOAD_MAX_LENGTH`` (PostgreSQL rejects larger NOTIFY payloads).
+
+    A single channel whose payload cannot fit under the limit on its own is
+    dropped with a warning: emitting it would produce a NOTIFY that is
+    guaranteed to fail, and it can never succeed no matter how it is split.
 
     :param list channels:
-    :return: list of payloads of json dumps
+    :return: list of JSON-array payloads
     :rtype: list[str]
     """
-    if not channels:
-        return []
-    payload = json_dump(channels)
-    if len(channels) == 1 or len(payload.encode()) < NOTIFY_PAYLOAD_MAX_LENGTH:
-        return [payload]
-    else:
-        pivot = math.ceil(len(channels) / 2)
-        return get_notify_payloads(channels[:pivot]) + get_notify_payloads(
-            channels[pivot:]
-        )
+    payloads = []
+    items = []  # serialized channels of the payload being built
+    items_len = 0  # sum of the encoded lengths of ``items``
+    for channel in channels:
+        item = json_dump(channel)
+        item_len = len(item.encode())
+        # A payload of n items encodes to: "[" + items + n-1 "," + "]",
+        # i.e. items_len + len(items) + 1 bytes.
+        if item_len + 2 >= NOTIFY_PAYLOAD_MAX_LENGTH:
+            _logger.warning(
+                "Dropping imbus channel whose %d-byte NOTIFY payload exceeds "
+                "the %d-byte limit: %.200s",
+                item_len + 2,
+                NOTIFY_PAYLOAD_MAX_LENGTH,
+                item,
+            )
+            continue
+        if items and items_len + len(items) + item_len + 2 >= NOTIFY_PAYLOAD_MAX_LENGTH:
+            payloads.append(f"[{','.join(items)}]")
+            items = []
+            items_len = 0
+        items.append(item)
+        items_len += item_len
+    if items:
+        payloads.append(f"[{','.join(items)}]")
+    return payloads
 
 
 class BusBus(models.Model):
@@ -208,17 +303,23 @@ class BusBus(models.Model):
     def _gc_messages(self):
         """Delete bus messages older than the configured retention window.
 
-        Falls back to ``DEFAULT_GC_RETENTION_SECONDS`` if the parameter is
-        absent, non-numeric, or non-positive (a zero or negative value would
-        wipe the entire table by making timeout_ago >= now).
+        Falls back to ``DEFAULT_GC_RETENTION_SECONDS`` (with a warning) if the
+        parameter is absent, non-numeric, or non-positive (a zero or negative
+        value would wipe the entire table by making timeout_ago >= now).
         """
+        param_value = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
+        )
         try:
-            gc_retention_seconds = int(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
-            )
+            gc_retention_seconds = int(param_value)
         except ValueError, TypeError:
+            _logger.warning(
+                "bus.gc_retention_seconds is %r (must be an integer); using default %d seconds.",
+                param_value,
+                DEFAULT_GC_RETENTION_SECONDS,
+            )
             gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
         if gc_retention_seconds <= 0:
             _logger.warning(
@@ -289,7 +390,21 @@ class BusBus(models.Model):
                         "The imbus notification payload was too large, it's been split into %d payloads.",
                         len(payloads),
                     )
-                _send_pg_notify(payloads)
+                try:
+                    _send_pg_notify(payloads)
+                except Exception:
+                    # A postcommit hook must never raise: the transaction is
+                    # already committed, and Callbacks.run() has no per-callback
+                    # error handling, so raising would skip every remaining
+                    # postcommit hook (mail sending, attachment GC, ...) and
+                    # fail a request whose work is already committed.  The
+                    # notifications themselves are safely committed in bus_bus;
+                    # only the NOTIFY wake-up is lost, and websockets recover on
+                    # the next NOTIFY or dispatcher catch-up.
+                    _logger.exception(
+                        "Failed to send imbus NOTIFY; delivery of the committed "
+                        "bus notifications will be delayed."
+                    )
 
     @api.model
     def _poll(self, channels, last=0, ignore_ids=None):
@@ -311,7 +426,7 @@ class BusBus(models.Model):
             )
         )
         return [
-            {"id": row[0], "message": orjson.loads(row[1])}
+            {"id": row[0], "message": json_loads(row[1])}
             for row in self.env.cr.fetchall()
         ]
 
@@ -333,6 +448,10 @@ class ImDispatch(threading.Thread):
         # snapshot read, preventing races between the dispatch loop and
         # concurrent subscribe/unsubscribe calls from websocket threads.
         self._lock = threading.Lock()
+        # True until the first LISTEN of this process is established; used to
+        # skip the pointless (and wake-up-storm-prone) catch-up dispatch on
+        # process start, when no notification can have been missed yet.
+        self._first_listen = True
 
     def subscribe(self, channels, last, db, websocket):
         """Subscribe to bus notifications.
@@ -380,26 +499,23 @@ class ImDispatch(threading.Thread):
         ):
             conn.execute("LISTEN imbus")
             sel.register(conn, selectors.EVENT_READ)
-            # NOTIFYs emitted while the LISTEN connection was down (first
-            # start is a harmless no-op) were lost: without a catch-up, a
-            # notification created during the gap is never dispatched until
-            # its channel receives another one. Websockets track their own
-            # ``last_id``, so waking them all is a cheap incremental poll.
-            self._dispatch_to_all()
+            if self._first_listen:
+                # First LISTEN of this process: there is no gap to catch up
+                # on, and each websocket already polls when it subscribes.
+                self._first_listen = False
+            else:
+                # NOTIFYs emitted while the LISTEN connection was down were
+                # lost: without a catch-up, a notification created during the
+                # gap is never dispatched until its channel receives another
+                # one. Websockets track their own ``last_id``, so waking them
+                # all is a cheap incremental poll.
+                self._dispatch_to_all()
             while not stop_event.is_set():
                 if sel.select(TIMEOUT):
                     channels = []
                     for notif in conn.notifies(timeout=0):
                         channels.extend(self._parse_imbus_payload(notif.payload))
-                    # Snapshot websockets under lock, then dispatch outside
-                    # to avoid holding the lock while calling websocket code.
-                    with self._lock:
-                        websockets = set()
-                        for channel in channels:
-                            websockets.update(
-                                self._channels_to_ws.get(hashable(channel), [])
-                            )
-                    for websocket in websockets:
+                    for websocket in self._collect_websockets(channels):
                         websocket.trigger_notification_dispatching()
 
     @staticmethod
@@ -411,7 +527,7 @@ class ImDispatch(threading.Thread):
         every database: it is logged and skipped instead.
         """
         try:
-            channels = orjson.loads(payload)
+            channels = json_loads(payload)
         except ValueError:
             _logger.warning("Bus.loop ignoring malformed imbus payload: %r", payload)
             return []
@@ -420,11 +536,43 @@ class ImDispatch(threading.Thread):
             return []
         return channels
 
+    def _collect_websockets(self, channels):
+        """Snapshot the websockets subscribed to any of ``channels``.
+
+        The snapshot is taken under lock, so the caller can dispatch outside
+        the lock without racing subscribe/unsubscribe.  A channel that cannot
+        be converted to a hashable key (e.g. it contains a JSON object) is
+        logged and skipped: a single bad NOTIFY payload must not kill the
+        dispatch loop (defense in depth on top of ``_parse_imbus_payload``).
+        """
+        websockets = set()
+        with self._lock:
+            for channel in channels:
+                try:
+                    websockets.update(self._channels_to_ws.get(hashable(channel), ()))
+                except TypeError:
+                    _logger.warning("Bus.loop ignoring unhashable channel: %r", channel)
+        return websockets
+
     def _dispatch_to_all(self):
-        """Trigger notification dispatching on every subscribed websocket."""
+        """Trigger notification dispatching on every subscribed websocket.
+
+        Used to catch up after the LISTEN connection was re-established.
+        Websockets are woken in chunks of ``DISPATCH_CATCHUP_CHUNK_SIZE`` with
+        a ``DISPATCH_CATCHUP_CHUNK_DELAY`` pause in between: waking thousands
+        of websockets at once right after a database hiccup exhausts the
+        cursor pool (mass TRY_LATER disconnects, then a reconnect storm at the
+        worst possible moment).  Pausing loses nothing: notifications stay in
+        ``bus_bus`` and each websocket polls from its own ``last_id`` once
+        woken, while new NOTIFYs accumulate on the already-established LISTEN
+        connection and are processed right after this catch-up.
+        """
         with self._lock:
             websockets = set().union(*self._channels_to_ws.values())
-        for websocket in websockets:
+        for count, websocket in enumerate(websockets):
+            if count and count % DISPATCH_CATCHUP_CHUNK_SIZE == 0:
+                if stop_event.wait(DISPATCH_CATCHUP_CHUNK_DELAY):
+                    return  # server is shutting down
             websocket.trigger_notification_dispatching()
 
     def run(self):
