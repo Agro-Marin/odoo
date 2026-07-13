@@ -105,6 +105,12 @@ export class CalendarCommonRenderer extends Component {
         // once at setup would go stale when scale/date props change.
         this.fc = useFullCalendar("fullCalendar", () => this.options);
         this.clickTimeoutId = null;
+        // Identity of the event whose single-click timer is currently pending,
+        // and the deferred single-click callback itself. Double-click detection
+        // is per-event (see onEventClick), so we must remember which event armed
+        // the timer rather than treating ANY second click as a double-click.
+        this.pendingClickEventId = null;
+        this.pendingClick = null;
         // The single-click timer (250ms, see onEventClick) would otherwise
         // fire on a destroyed renderer when scale/date changes remount it
         // within the window.
@@ -429,29 +435,59 @@ export class CalendarCommonRenderer extends Component {
         }
         this.props.editRecord(record);
     }
-    onEventClick(info) {
-        if (this.clickTimeoutId) {
-            this.onDblClick(info);
-            browser.clearTimeout(this.clickTimeoutId);
-            this.clickTimeoutId = null;
-        } else {
-            this.clickTimeoutId = browser.setTimeout(() => {
-                // An FC re-render inside the 250ms window (event refetch,
-                // filter toggle) can detach info.el; re-resolve the anchor so
-                // the popover doesn't position against a dead node. Only when
-                // actually detached — the event may have several segments
-                // (e.g. one in the "+N more" popover) and a blind
-                // querySelector would swap the clicked one for the first.
-                if (!info.el.isConnected) {
-                    info.el =
-                        this.fc.api.el.querySelector(
-                            this.computeEventSelector(info.event),
-                        ) || info.el;
-                }
-                this.onClick(info);
-                this.clickTimeoutId = null;
-            }, 250);
+    /**
+     * Flush or discard the pending single-click, then clear all timer state.
+     *
+     * @param {boolean} fire - when true, run the deferred single-click (open
+     *   the popover); when false, drop it silently (used when the click turned
+     *   out to be a double-click on the same event).
+     */
+    cancelPendingClick(fire) {
+        browser.clearTimeout(this.clickTimeoutId);
+        this.clickTimeoutId = null;
+        this.pendingClickEventId = null;
+        const pending = this.pendingClick;
+        this.pendingClick = null;
+        if (fire) {
+            pending?.();
         }
+    }
+    onEventClick(info) {
+        // Double-click detection is per-event: a second click is only a
+        // double-click when it targets the SAME event whose single-click timer
+        // is still pending. Two fast single-clicks on DIFFERENT events must
+        // stay two single-clicks — otherwise the second event would wrongly get
+        // an edit form and the first event's popover would be swallowed.
+        if (this.clickTimeoutId) {
+            if (info.event.id === this.pendingClickEventId) {
+                this.cancelPendingClick(false);
+                this.onDblClick(info);
+                return;
+            }
+            // Different event: flush the first event's pending single-click
+            // (open its popover) before arming a fresh timer below for this one.
+            this.cancelPendingClick(true);
+        }
+        this.pendingClickEventId = info.event.id;
+        this.pendingClick = () => {
+            // An FC re-render inside the 250ms window (event refetch,
+            // filter toggle) can detach info.el; re-resolve the anchor so
+            // the popover doesn't position against a dead node. Only when
+            // actually detached — the event may have several segments
+            // (e.g. one in the "+N more" popover) and a blind
+            // querySelector would swap the clicked one for the first.
+            if (!info.el.isConnected) {
+                info.el =
+                    this.fc.api.el.querySelector(
+                        this.computeEventSelector(info.event),
+                    ) || info.el;
+            }
+            this.onClick(info);
+        };
+        this.clickTimeoutId = browser.setTimeout(
+            () => this.cancelPendingClick(true),
+            250,
+        );
     }
     onEventContent(arg) {
         const { event } = arg;

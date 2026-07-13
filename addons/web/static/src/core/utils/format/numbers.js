@@ -32,7 +32,10 @@ export function range(start, stop, step = 1) {
         throw new Error("range() step argument must not be zero");
     }
     const array = [];
-    const nsteps = Math.floor((stop - start) / step);
+    // `ceil` (not `floor`) enforces the "stop exclusive" contract for spans that
+    // are not an exact multiple of `step`: e.g. range(0, 5, 2) must yield
+    // [0, 2, 4] since 4 < 5. It is a no-op for exact-multiple/unit spans.
+    const nsteps = Math.ceil((stop - start) / step);
     for (let i = 0; i < nsteps; i++) {
         array.push(start + step * i);
     }

@@ -20,8 +20,11 @@ import { getFieldDomain } from "@web/model/relational_model/utils";
  * Subclasses must implement:
  *   - static template
  *   - static props
- *   - get options()
  *   - onChange()
+ *   - their own option-list accessor for their template (`get options()` for
+ *     SelectionField/BadgeSelectionField, `get items()` for RadioField). The
+ *     base class deliberately does NOT depend on it — `get string()` resolves
+ *     labels from the field's `selection` metadata directly.
  */
 export class SelectionLikeField extends Component {
     setup() {
@@ -53,9 +56,15 @@ export class SelectionLikeField extends Component {
                     ? this.props.record.data[this.props.name].display_name
                     : "";
             case "selection":
+                // Resolve the label from the field's canonical `selection`
+                // metadata rather than a subclass `get options()` accessor: the
+                // base class must not depend on an option-list getter that not
+                // every subclass provides (RadioField exposes `get items()`,
+                // not `options`). Filtering applied by subclasses' option lists
+                // is irrelevant here — we look up the current value's label.
                 return this.props.record.data[this.props.name] !== false
                     ? /** @type {any} */ (
-                          this.options.find(
+                          this.props.record.fields[this.props.name].selection.find(
                               (o) => o[0] === this.props.record.data[this.props.name],
                           )?.[1] ?? ""
                       )

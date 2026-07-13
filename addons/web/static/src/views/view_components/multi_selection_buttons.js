@@ -98,7 +98,12 @@ export class MultiSelectionButtons extends Component {
                 const left = Math.floor((parentWidth - width) / 2);
                 el.style.setProperty("left", `${left}px`);
             },
-            () => [rootRef.el],
+            // `nbSelected` is in the deps because the toolbar width is data-driven:
+            // the selected-count text grows/shrinks and the Delete button
+            // (t-if="nbSelected > 0") appears/disappears. OWL patches the same
+            // persistent root node across renders, so `rootRef.el` alone is a
+            // stable reference and the effect would never re-center on width change.
+            () => [rootRef.el, this.props.reactive.nbSelected],
         );
 
         useHotkey("escape", () => {

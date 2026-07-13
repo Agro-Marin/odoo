@@ -383,7 +383,11 @@ class SetDefaultDialog extends Component {
             displayed = value.display_name;
             value = value.id;
         } else if (value && fieldInfo.type === "selection") {
-            displayed = fieldInfo.selection.find((option) => option[0] === value)[1];
+            // A stored value may no longer be in the field's selection options
+            // (e.g. a key was removed/renamed by a module upgrade). Fall back to
+            // the raw value instead of throwing so the dialog still opens.
+            const option = fieldInfo.selection.find((opt) => opt[0] === value);
+            displayed = option ? option[1] : value;
         }
         if (
             (typeof displayed === "string" || displayed instanceof String) &&

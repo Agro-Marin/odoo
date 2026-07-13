@@ -106,9 +106,13 @@ export class BottomSheet extends Component {
         //    not wasted on a no-op.
         this._historyStatePushed = false;
         this.handlePopState = () => {
+            // Any popstate means the browser has ALREADY popped our synthetic
+            // entry, so mark it consumed unconditionally — even while dismissing.
+            // Otherwise a hardware Back pressed during the close animation would
+            // leave the flag set and onWillUnmount would call history.back()
+            // again, popping a REAL page entry and navigating the user away.
+            this._historyStatePushed = false;
             if (this.state.isPositionedReady && !this.state.isDismissing) {
-                // Browser already popped our entry; do not re-push.
-                this._historyStatePushed = false;
                 this.slideOut();
             }
         };

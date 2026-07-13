@@ -1,7 +1,13 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { animationFrame, queryAllTexts, queryFirst, queryRect } from "@odoo/hoot-dom";
+import {
+    animationFrame,
+    click,
+    queryAllTexts,
+    queryFirst,
+    queryRect,
+} from "@odoo/hoot-dom";
 import { mockDate, runAllTimers } from "@odoo/hoot-mock";
 import {
     mockService,
@@ -17,6 +23,7 @@ import {
     clickEvent,
     DEFAULT_DATE,
     FAKE_MODEL,
+    findEvent,
     selectTimeRange,
 } from "./calendar_test_helpers.js";
 
@@ -133,6 +140,54 @@ test(`Day: click on event`, async () => {
     await clickEvent(1);
     await runAllTimers();
     expect.verifySteps(["popover"]);
+});
+
+test.tags("desktop");
+test(`two fast single-clicks on DIFFERENT events open both popovers, no edit`, async () => {
+    // Regression: double-click detection must be per-event. A single-click on
+    // event 1 followed within the 250ms window by a single-click on event 2
+    // used to be treated as a double-click on event 2 (opening its edit form
+    // and swallowing event 1's popover), because the click timer was shared
+    // with no target-identity check.
+    mockService("popover", () => ({
+        add(target, component, { record }) {
+            expect.step(`popover-${record.id}`);
+            return () => {};
+        },
+    }));
+    await start({
+        editRecord(record) {
+            expect.step(`edit-${record.id}`);
+        },
+    });
+    // Click event 1 then event 2 WITHOUT flushing the timer in between.
+    await click(findEvent(1));
+    await click(findEvent(2));
+    await runAllTimers();
+    // Event 1's popover is flushed synchronously when event 2 is clicked;
+    // event 2's popover opens once its own timer elapses. No edit form.
+    expect.verifySteps(["popover-1", "popover-2"]);
+});
+
+test.tags("desktop");
+test(`two fast clicks on the SAME event still open the edit form`, async () => {
+    mockService("popover", () => ({
+        add() {
+            expect.step("popover");
+            return () => {};
+        },
+    }));
+    await start({
+        editRecord(record) {
+            expect.step(`edit-${record.id}`);
+        },
+    });
+    await click(findEvent(1));
+    await click(findEvent(1));
+    await runAllTimers();
+    // Second click on the same event is a real double-click: edit form opens
+    // and the pending popover is cancelled.
+    expect.verifySteps(["edit-1"]);
 });
 
 test(`Week: check week number`, async () => {

@@ -4,6 +4,7 @@
 /** @module @web/components/record_selectors/base_record_selector - Base class for record selector components with display name loading infrastructure */
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 /**
  * Base class for single/multi-record selectors: sets up nameService and the
@@ -13,6 +14,10 @@ import { useService } from "@web/core/utils/hooks";
 export class BaseRecordSelector extends Component {
     setup() {
         this.nameService = useService("name");
+        // Route every load through the same KeepLast so a slow (uncached, RPC)
+        // load can't resolve after a newer (cached, microtask) props-driven load
+        // and overwrite state with display names for records no longer selected.
+        this.keepLast = new KeepLast();
         onWillStart(() => this.computeDerivedParams());
         onWillUpdateProps((nextProps) => this.computeDerivedParams(nextProps));
     }
@@ -32,7 +37,7 @@ export class BaseRecordSelector extends Component {
      * @param {Object} [props] - component props to use (defaults to this.props)
      */
     async computeDerivedParams(props = this.props) {
-        const displayNames = await this.getDisplayNames(props);
+        const displayNames = await this.keepLast.add(this.getDisplayNames(props));
         this.applyDisplayNames(props, displayNames);
     }
 

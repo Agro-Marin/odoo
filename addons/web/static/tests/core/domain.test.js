@@ -973,6 +973,25 @@ describe("combine does not alias its input", () => {
         combined.ast.value.length = 0;
         expect(d.toString()).toBe(`[("a", "=", 1)]`);
     });
+
+    test("single-domain combine copies the AST without a toString round-trip", () => {
+        const d = new Domain([["a", "=", 1]]);
+        // The single-non-empty branch must not serialize+reparse the domain to
+        // obtain its defensive copy: it clones the AST array directly. Guard the
+        // hot path by asserting toString() is never invoked on the source.
+        patchWithCleanup(d, {
+            toString() {
+                throw new Error("combine must not round-trip through toString()");
+            },
+        });
+        const combined = Domain.and([d]);
+        expect(combined).not.toBe(d);
+        expect(combined.ast.value).not.toBe(d.ast.value);
+        // The copy is functionally identical and independently mutable.
+        expect(combined.contains({ a: 1 })).toBe(true);
+        combined.ast.value.length = 0;
+        expect(d.ast.value.length).toBe(1);
+    });
 });
 
 describe("x2many emptiness", () => {

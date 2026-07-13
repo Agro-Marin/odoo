@@ -185,6 +185,37 @@ test("Upload button is disabled if attachment upload is not finished", async () 
     });
 });
 
+test("a rejecting onWillUploadFiles still clears the input value (same-file retry)", async () => {
+    // The pre-upload hook used to reject before the finally that clears the input
+    // value ran, so re-selecting the identical file wouldn't re-fire onChange.
+    expect.errors(1);
+    await createFileInput({
+        props: {
+            onWillUploadFiles() {
+                expect.step("rejected");
+                throw new Error("invalid file");
+            },
+        },
+        mockPost: (route, params) => JSON.stringify([{ name: params.ufile[0].name }]),
+    });
+
+    const input = /** @type {HTMLInputElement} */ (
+        document.querySelector(".o_file_input input")
+    );
+    await contains(".o_file_input input", { visible: false }).click();
+    await setInputFiles([new File(["test"], "fake_file.txt", { type: "text/plain" })]);
+    await animationFrame();
+
+    expect.verifySteps(["rejected"]);
+    expect(input.value).toBe("", {
+        message: "input value must be reset even when the pre-upload hook rejects",
+    });
+    expect(".o_file_input input").toBeEnabled({
+        message: "the upload button must be re-enabled after a pre-upload rejection",
+    });
+    expect.verifyErrors(["invalid file"]);
+});
+
 test("support preprocessing of files via props", async () => {
     await createFileInput({
         props: {

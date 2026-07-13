@@ -55,8 +55,12 @@ const BLOCKED_PROPERTIES = new Set([
     "__lookupSetter__",
 ]);
 
-/** Maximum AST evaluation depth to prevent stack overflow from crafted expressions. */
-const MAX_EVAL_DEPTH = 100;
+// Maximum AST evaluation depth to prevent stack overflow from crafted
+// expressions. Kept in lock-step with MAX_PARSE_DEPTH (py_parser.js): the
+// evaluator walks the AST recursively, so anything the parser's own recursion
+// guard accepts (≤ MAX_PARSE_DEPTH nested nodes) must also be evaluable — a
+// lower cap here would reject genuinely nested input the parser produced.
+const MAX_EVAL_DEPTH = 200;
 
 /**
  * @param {Function} obj
@@ -818,9 +822,28 @@ function _applyBinaryOp(ast, recurse) {
                 );
             }
             return Math.floor(left / right);
-        case "**":
+        case "**": {
             assertNumericOperands("**", left, right);
-            return left ** right;
+            if (Number(left) === 0 && Number(right) < 0) {
+                // Python: 0 ** negative → ZeroDivisionError (JS yields
+                // Infinity), matching the guards on / // %.
+                throw new EvaluationError(
+                    "ZeroDivisionError: 0.0 cannot be raised to a negative power",
+                );
+            }
+            const power = left ** right;
+            if (!Number.isNaN(left) && !Number.isNaN(right) && Number.isNaN(power)) {
+                // Negative base with a non-integer exponent → a complex number
+                // in Python, which this evaluator does not model; JS yields NaN.
+                // Raise instead of letting NaN flow silently through the rest of
+                // the expression (the guard only fires when the NaN is produced
+                // by ** itself, not when an operand was already NaN).
+                throw new EvaluationError(
+                    "negative number cannot be raised to a fractional power",
+                );
+            }
+            return power;
+        }
         case "==":
             return isEqual(left, right);
         case "<>":

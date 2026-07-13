@@ -1130,6 +1130,19 @@ test("properties: many2many", async () => {
         message: "Should have selected the third user",
     });
 
+    // Reopen the dropdown: the already-selected "Eve" must be excluded even
+    // though this many2many property has no domain. Regression guard for
+    // property_value.js `propertyDomain`, which used to `return []` early
+    // when no domain was set and thus skipped the "not in selected" filter.
+    await click(".o_property_field:nth-child(2) input");
+    await animationFrame();
+    expect(".o_property_field:nth-child(2) .ui-menu-item:contains(Eve)").toHaveCount(
+        0,
+        {
+            message: "Already-selected 'Eve' should not appear in the dropdown",
+        },
+    );
+
     // Add Bob in the list
     await click(".o_property_field:nth-child(2) input");
     await animationFrame();

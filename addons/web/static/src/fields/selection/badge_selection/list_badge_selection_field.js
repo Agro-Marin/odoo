@@ -3,6 +3,7 @@
 
 /** @module @web/fields/selection/badge_selection/list_badge_selection_field - List-view variant of the badge selection field with color support */
 
+import { badgeColorClass } from "@web/core/badge/badge_colors";
 import { _t } from "@web/core/l10n/translation";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { registerField } from "@web/fields/_registry";
@@ -21,11 +22,12 @@ export class ListBadgeSelectionField extends BadgeSelectionField {
      */
     getBadgeClassNames(option = false) {
         if (this.props.readonly) {
-            if (
-                this.props.colorField &&
-                Number.isInteger(this.props.record.data[this.props.colorField])
-            ) {
-                return `o_badge_color_${this.props.record.data[this.props.colorField]}`;
+            const colorClass = badgeColorClass(
+                this.props.record,
+                this.props.colorField,
+            );
+            if (colorClass) {
+                return colorClass;
             }
             return mergeClasses({ "btn btn-secondary": this.value });
         }

@@ -130,6 +130,10 @@ export class ExportDataDialog extends Component {
         // Guards the export-template namelist fetch: rapid template switches
         // must not leave state.exportList out of sync with state.templateId.
         this.exportListKeepLast = new KeepLast();
+        // Guards the compat-toggle field reload: only the latest fetchFields run
+        // may repopulate the default export list / template, so overlapping
+        // toggles can't apply stale post-load steps.
+        this.fetchFieldsKeepLast = new KeepLast();
 
         this.state = useState({
             exportList: [],
@@ -268,7 +272,9 @@ export class ExportDataDialog extends Component {
     async fetchFields() {
         this.knownFields = {};
         this.expandedFields = {};
-        await this.loadFields();
+        // Only the latest overlapping run resolves past this await, so a
+        // superseded toggle never runs the post-load steps below.
+        await this.fetchFieldsKeepLast.add(this.loadFields());
         await this.setDefaultExportList();
         this.state.search = [];
         if (this.searchRef.el) {
@@ -338,10 +344,17 @@ export class ExportDataDialog extends Component {
         if (preventLoad) {
             return;
         }
-        const fields = await this.props.getExportedFields(
-            this.isCompatible,
-            parentParams,
-        );
+        // Capture the compat mode this request is for: a rapid toggle of the
+        // "import-compatible" checkbox can flip this.isCompatible while the RPC
+        // is in flight. The two modes return different field sets, so a stale
+        // response must not be merged into the shared knownFields/expandedFields
+        // caches of the (now current) opposite mode — that would mix them.
+        const isCompatible = this.isCompatible;
+        const fields = await this.props.getExportedFields(isCompatible, parentParams);
+        if (isCompatible !== this.isCompatible) {
+            // Superseded by a later toggle: drop the result without caching it.
+            return fields;
+        }
         for (const field of fields) {
             field.parent = parentField;
             if (!this.knownFields[field.id]) {
@@ -494,9 +507,9 @@ export class ExportDataDialog extends Component {
         return lookupResult;
     }
 
-    onToggleCompatibleExport(value) {
+    async onToggleCompatibleExport(value) {
         this.isCompatible = value;
-        this.fetchFields();
+        await this.fetchFields();
     }
 
     async setDefaultExportList() {

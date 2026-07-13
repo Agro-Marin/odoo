@@ -165,7 +165,25 @@ export const tooltipService = {
                         target,
                         Tooltip,
                         { tooltip, template, info },
-                        { position },
+                        {
+                            position,
+                            // The popover can close through its own mechanisms
+                            // (escape hotkey, click-away) without a mouseleave
+                            // ever reaching the target. Without this callback the
+                            // service is never notified, so target/closeTooltip
+                            // stay set and the cleanup interval keeps polling an
+                            // already-closed tooltip. Null closeTooltip first so
+                            // cleanup() doesn't call the (already invoked) remover
+                            // again; the `target === el` guard makes this a no-op
+                            // when cleanup() itself triggered the removal (it
+                            // clears target before invoking closeTooltip).
+                            onClose: () => {
+                                if (target === el) {
+                                    closeTooltip = null;
+                                    cleanup();
+                                }
+                            },
+                        },
                     );
                 }
             }, timeoutDelay);
@@ -245,7 +263,7 @@ export const tooltipService = {
         }
 
         function cleanupTooltip(/** @type {Event} */ ev) {
-            if (target == ev.target) {
+            if (target === ev.target) {
                 cleanup();
             }
         }

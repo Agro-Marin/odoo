@@ -8,7 +8,7 @@ import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { Transition } from "@web/components/transition";
 import { _t } from "@web/core/l10n/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { getColor } from "@web/views/calendar/calendar_utils";
+import { getColor, sortCalendarFilters } from "@web/views/calendar/calendar_utils";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 
 let nextId = 1;
@@ -93,24 +93,7 @@ export class CalendarFilterSection extends Component {
 
     /** @returns {Object[]} filters sorted by type priority (user, record, dynamic) then label */
     getSortedFilters() {
-        const types = ["user", "record", "dynamic"];
-        return this.section.filters.toSorted((a, b) => {
-            if (a.type === b.type) {
-                const va = a.value ? -1 : 0;
-                const vb = b.value ? -1 : 0;
-                //Condition to put unvaluable item (eg: Open Shifts) at the end of the sorted list.
-                if (a.type === "dynamic" && va !== vb) {
-                    return va - vb;
-                }
-                return a.label.localeCompare(b.label, undefined, {
-                    numeric: true,
-                    sensitivity: "base",
-                    ignorePunctuation: true,
-                });
-            } else {
-                return types.indexOf(a.type) - types.indexOf(b.type);
-            }
-        });
+        return sortCalendarFilters(this.section.filters, ["user", "record", "dynamic"]);
     }
 
     /**

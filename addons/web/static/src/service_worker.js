@@ -257,6 +257,22 @@ const storeDataOnCache = async (url, response) => {
 };
 
 /**
+ * Splices the session info back into a scrubbed app-shell body.  Uses a
+ * replacer FUNCTION (not a string) so that ``$``-sequences inside ``info``
+ * (``$$``, ``$&``, ``$'``, `` $` ``, ``$n`` — reachable via user/company
+ * free-text fields in ``__session_info__``) are inserted verbatim instead
+ * of being interpreted by ``String.prototype.replaceAll`` as substitution
+ * patterns, which would corrupt the restored JSON and white-screen the
+ * offline shell.
+ *
+ * @param {string} htmlBody
+ * @param {string} info
+ * @returns {string}
+ */
+const restoreSessionInfo = (htmlBody, info) =>
+    htmlBody.replaceAll("@@@session_info_secret@@@", () => info);
+
+/**
  * Reads a cached response and restores the session info placeholder.
  *
  * @param {string} url
@@ -282,7 +298,7 @@ const readDataOnCache = async (url) => {
         // with a corrupt placeholder — treat as uncacheable.
         return undefined;
     }
-    return new Response(htmlBody.replaceAll("@@@session_info_secret@@@", info), {
+    return new Response(restoreSessionInfo(htmlBody, info), {
         // Minimal headers: the restored body differs in length from what the
         // original network headers describe (see storeDataOnCache).
         headers: { "Content-Type": "text/html" },
@@ -387,6 +403,15 @@ const serveShareTarget = (event) => {
             const client = await /** @type {any} */ (self).clients.get(
                 event.resultingClientId || event.clientId,
             );
+            if (!client) {
+                // ``clients.get`` resolves to ``undefined`` when the target
+                // client closed or performed a full-document navigation (a
+                // new client id makes the captured ``resultingClientId``
+                // stale) before the ready message settled. Dereferencing it
+                // would throw an unhandled rejection inside ``waitUntil``;
+                // drop the share instead.
+                return;
+            }
             const data = await event.request.formData();
             client.postMessage({
                 shared_files: data.getAll("externalMedia") || [],
@@ -472,6 +497,7 @@ self.addEventListener("message", (event) => {
 self.__ODOO_SW_TEST_HOOKS__ = {
     extractSessionInfo,
     isStaleWhileRevalidateURL,
+    restoreSessionInfo,
 };
 
 // Service workers run as classic scripts (not ES modules).

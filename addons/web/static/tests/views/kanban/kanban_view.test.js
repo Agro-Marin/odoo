@@ -10,6 +10,7 @@ import {
     keyDown,
     keyUp,
     leave,
+    manuallyDispatchProgrammaticEvent,
     on,
     pointerDown,
     press,
@@ -90,6 +91,7 @@ import {
 import { FileInput } from "@web/components/file_input/file_input";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import { Record } from "@web/model/relational_model/record";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { SampleServer } from "@web/model/sample_server";
 import { currencies } from "@web/services/currency";
@@ -14385,6 +14387,43 @@ test("selection can be enabled by long touch with drag & drop enabled", async ()
     expect(".o_record_selected").toHaveCount(2);
     await contains(".o_kanban_record:nth-of-type(1)").click();
     expect(".o_record_selected").toHaveCount(1);
+});
+
+test("pending long-touch timer is cleared when the card is destroyed", async () => {
+    // Regression: onTouchStart schedules a long-press timer that calls
+    // record.toggleSelection(true). If the card is unmounted (here: paging to
+    // another page) before the threshold elapses and before any touchend, the
+    // timer must be cancelled by the component's onWillDestroy - otherwise it
+    // fires against a destroyed component and mutates selection out of band.
+    mockTouch(true);
+    patchWithCleanup(Record.prototype, {
+        toggleSelection(selected) {
+            expect.step("toggleSelection");
+            return super.toggleSelection(selected);
+        },
+    });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+                <kanban>
+                    <templates>
+                        <t t-name="card">
+                            <field name="foo"/>
+                        </t>
+                    </templates>
+                </kanban>`,
+        limit: 1,
+    });
+    // Start a long press on the only visible card (schedules the timer) without
+    // releasing it, then destroy that card by paging to the next record.
+    await manuallyDispatchProgrammaticEvent(queryOne(".o_kanban_record"), "touchstart");
+    await pagerNext();
+    await runAllTimers();
+    // The orphaned timer must not have fired: no toggleSelection, no selection.
+    expect.verifySteps([]);
+    expect(".o_selection_box").toHaveCount(0);
+    expect(".o_record_selected").toHaveCount(0);
 });
 
 test.tags("desktop");

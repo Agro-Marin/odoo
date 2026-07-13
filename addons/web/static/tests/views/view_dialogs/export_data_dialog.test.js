@@ -1195,6 +1195,68 @@ test("Export dialog: rapid template switch keeps the last selection", async () =
     expect(queryAllTexts(".o_fields_list .o_export_field")).toEqual(["Bar"]);
 });
 
+test("Export dialog: rapid compat toggle does not mix field sets", async () => {
+    // Non-compat and import-compat modes return different field sets. A rapid
+    // double toggle runs two fetchFields concurrently; the late (superseded)
+    // response must not be merged into the shared knownFields cache.
+    const compatFields = [
+        {
+            children: false,
+            field_type: "char",
+            id: "comp_a",
+            relation_field: null,
+            required: false,
+            string: "CompA",
+            value: "comp_a",
+        },
+        {
+            children: false,
+            field_type: "char",
+            id: "comp_b",
+            relation_field: null,
+            required: false,
+            string: "CompB",
+            value: "comp_b",
+        },
+    ];
+    const slowCompat = new Deferred();
+    onRpc("/web/export/formats", () => [{ tag: "csv", label: "CSV" }]);
+    onRpc("/web/export/get_fields", async (request) => {
+        const { params } = await request.json();
+        if (params.import_compat) {
+            await slowCompat; // the import-compatible field set arrives late
+            return compatFields;
+        }
+        return [...fetchedFields.root];
+    });
+
+    await mountView({
+        type: "list",
+        resModel: "partner",
+        arch: `<list><field name="foo"/></list>`,
+        loadActionMenus: true,
+    });
+
+    await openExportDialog();
+    expect(".o_export_tree_item").toHaveCount(3);
+
+    // Toggle to import-compatible (RPC delayed), then immediately back off.
+    await contains(".o_import_compat input").click();
+    await contains(".o_import_compat input").click();
+    await animationFrame();
+    expect(".o_import_compat input").not.toBeChecked();
+    expect(queryAllTexts(".o_export_tree_item")).toEqual(["Activities", "Foo", "Bar"]);
+
+    // The late import-compatible response resolves last: it must be discarded,
+    // not merged into the non-compat field set now on screen.
+    slowCompat.resolve();
+    await animationFrame();
+    expect(".o_import_compat input").not.toBeChecked();
+    expect(queryAllTexts(".o_export_tree_item")).toEqual(["Activities", "Foo", "Bar"], {
+        message: "stale import-compatible fields must not leak into the field tree",
+    });
+});
+
 test("Export dialog: no column_invisible fields in default export list", async () => {
     onRpc("/web/export/formats", () => [{ tag: "xls", label: "Excel" }]);
     onRpc("/web/export/get_fields", () => fetchedFields.root);

@@ -639,6 +639,35 @@ test("swipeInvalid prop prevents swiping", async () => {
     expect.verifySteps(["swipeInvalid"]);
 });
 
+test("rapid consecutive swipes only fire the action once", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { ActionSwiper };
+        static template = xml`
+            <div class="d-flex">
+                <ActionSwiper onRightSwipe = "{
+                    action: () => this.onRightSwipe(),
+                    icon: 'fa-circle',
+                    bgColor: 'bg-warning'
+                }">
+                    <div class="target-component" style="width: 200px; height: 80px">Test</div>
+                </ActionSwiper>
+            </div>
+        `;
+        onRightSwipe() {
+            expect.step("onRightSwipe");
+        }
+    }
+    await mountWithCleanup(Parent);
+    // Two threshold-crossing swipes complete within the 500ms bounce window,
+    // before the first scheduled action fires. The action pending from the
+    // first swipe must be cancelled so it runs only once, not twice.
+    await swipeRight(".o_actionswiper");
+    await swipeRight(".o_actionswiper");
+    await advanceTime(500);
+    expect.verifySteps(["onRightSwipe"]);
+});
+
 test("action should be done before a new render", async () => {
     let executingAction = false;
     const prom = new Deferred();

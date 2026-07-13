@@ -7,6 +7,7 @@ import {
     Component,
     onMounted,
     onWillStart,
+    onWillUnmount,
     onWillUpdateProps,
     reactive,
     useEffect,
@@ -119,6 +120,14 @@ export class SearchPanel extends Component {
 
         onMounted(() => {
             this.updateGroupHeadersChecked();
+        });
+
+        // If the panel unmounts mid-drag (programmatic action/reload with no
+        // intervening pointerup/keydown), tear down the global resize listeners
+        // so an orphaned capture-phase pointermove handler can't keep firing on
+        // a null root ref across the whole app.
+        onWillUnmount(() => {
+            this._removeResizeListeners?.();
         });
     }
 
@@ -423,7 +432,13 @@ export class SearchPanel extends Component {
 
     /** Update each group header's checked/indeterminate state from its values. */
     updateGroupHeadersChecked() {
-        const container = this.root.el;
+        // On desktop the group headers render inline under root.el, but on
+        // mobile each section is mounted in a Dropdown popover in the overlay
+        // container, OUTSIDE root.el — so scanning root.el would miss them and
+        // the header checkbox would never reflect its selection. Scan the owning
+        // document instead. Each header's state is derived solely from its own
+        // descendant value inputs, so scanning unrelated groups is harmless.
+        const container = this.root.el?.ownerDocument;
         if (!container) {
             return;
         }
@@ -460,7 +475,25 @@ export class SearchPanel extends Component {
         const initialWidth = this.root.el.offsetWidth;
         const resizeStoppingEvents = ["keydown", "pointerdown", "pointerup"];
 
+        const removeListeners = () => {
+            document.removeEventListener("pointermove", resizePanel, true);
+            resizeStoppingEvents.forEach((stoppingEvent) => {
+                document.removeEventListener(stoppingEvent, stopResize, true);
+            });
+            this._removeResizeListeners = null;
+        };
+        // Exposed so onWillUnmount can tear the drag down if the panel is
+        // destroyed before a pointerup/keydown ends it.
+        this._removeResizeListeners = removeListeners;
+
         const resizePanel = (ev) => {
+            // The panel can be unmounted while the drag is still active; the
+            // stale listener would then hit a null root ref. Self-clean instead
+            // of throwing.
+            if (!this.root.el) {
+                removeListeners();
+                return;
+            }
             ev.preventDefault();
             ev.stopPropagation();
             const maxWidth = Math.max(0.5 * window.innerWidth, initialWidth);
@@ -479,13 +512,10 @@ export class SearchPanel extends Component {
             ev.preventDefault();
             ev.stopPropagation();
 
-            document.removeEventListener("pointermove", resizePanel, true);
-            resizeStoppingEvents.forEach((stoppingEvent) => {
-                document.removeEventListener(stoppingEvent, stopResize, true);
-            });
+            removeListeners();
             // Remove focus from inside the panel: a lingering focus triggers a
             // CSS darken-on-hover style that looks wrong here.
-            /** @type {HTMLElement} */ (document.activeElement).blur();
+            /** @type {HTMLElement} */ (document.activeElement)?.blur();
         };
         // Listen for several events to reliably stop resizing:
         // - pointerdown (e.g. pressing right click)

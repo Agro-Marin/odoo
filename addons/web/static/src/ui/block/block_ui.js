@@ -3,10 +3,11 @@
 
 /** @module @web/ui/block/block_ui - Full-screen overlay component that blocks UI during long-running operations */
 
-import { Component, EventBus, useState } from "@odoo/owl";
+import { Component, EventBus, onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
+import { useBus } from "@web/core/utils/hooks";
 /**
  * Full-screen overlay that blocks UI interaction during long-running operations.
  *
@@ -58,8 +59,17 @@ export class BlockUI extends Component {
             line2: "",
         });
 
-        this.props.bus.addEventListener(AppEvent.BLOCK, this.block.bind(this));
-        this.props.bus.addEventListener(AppEvent.UNBLOCK, this.unblock.bind(this));
+        // Use useBus so the listeners are removed on teardown; the bus is a
+        // module-level singleton shared across mounts, so raw addEventListener
+        // with .bind(this) would leak an unremovable handler per instance.
+        useBus(this.props.bus, AppEvent.BLOCK, this.block);
+        useBus(this.props.bus, AppEvent.UNBLOCK, this.unblock);
+
+        // Ensure no pending timer fires on a destroyed instance.
+        onWillDestroy(() => {
+            browser.clearTimeout(this.showBlockedUITimer);
+            browser.clearTimeout(this.msgTimer);
+        });
     }
 
     /** @param {number} index - message index in `messagesByDuration` */

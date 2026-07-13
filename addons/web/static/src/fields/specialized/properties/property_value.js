@@ -203,10 +203,12 @@ export class PropertyValue extends Component {
      * @returns {array}
      */
     get propertyDomain() {
-        if (!this.props.domain || !this.props.domain.length) {
-            return [];
-        }
-        let domain = new Domain(this.props.domain);
+        // Base domain from the property definition (may be empty).
+        let domain = new Domain(this.props.domain || []);
+        // Exclude already-selected records from the many2many autocomplete.
+        // This must run even when no definition domain is set (the common
+        // case): previously the early `return []` skipped it, so selected
+        // records still appeared in the dropdown.
         if (this.props.type === "many2many" && this.props.value) {
             domain = Domain.and([
                 domain,

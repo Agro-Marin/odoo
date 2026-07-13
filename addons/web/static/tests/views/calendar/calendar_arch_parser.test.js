@@ -216,6 +216,16 @@ test("scales", () => {
         "week",
     ]);
 
+    // Whitespaced segments must be trimmed, not dropped.
+    expect(parseWith({ scales: "day, month" }).scales).toEqual(["day", "month"]);
+    expect(parseWith({ scales: " week , month " }).scales).toEqual(["week", "month"]);
+    // A whitespaced scale named by `mode` must not wrongly throw.
+    expect(
+        parseArch(
+            `<calendar date_start="start_date" scales="day, month" mode="month"/>`,
+        ).scale,
+    ).toBe("month");
+
     expect(() =>
         parseArch(`<calendar date_start="start_date" scales="month" mode="day"/>`),
     ).toThrow();
