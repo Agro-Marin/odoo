@@ -168,8 +168,15 @@ class WebCwvMetric(models.Model):
         # Use raw SQL: model has no audit columns and no automatic write/unlink
         # hooks worth invoking; the table is append-only by design.  Avoids the
         # ORM cost of materialising and unlinking potentially-large recordsets.
+        # ``recorded_at`` is a stored Odoo Datetime: naive ``timestamp`` in UTC.
+        # ``now()`` is ``timestamptz``; comparing the two coerces ``recorded_at``
+        # via the *session* TimeZone (which Odoo never sets to UTC), shifting the
+        # cutoff by the server's UTC offset. Anchor the cutoff in UTC — matching
+        # ``cr.now()`` (``now() AT TIME ZONE 'UTC'``) — so the retention window is
+        # exact regardless of the cluster timezone.
         self.env.cr.execute(
-            "DELETE FROM web_cwv_metric WHERE recorded_at < now() - (%s * interval '1 day')",
+            "DELETE FROM web_cwv_metric"
+            " WHERE recorded_at < (now() AT TIME ZONE 'UTC') - (%s * interval '1 day')",
             (days,),
         )
         deleted = self.env.cr.rowcount

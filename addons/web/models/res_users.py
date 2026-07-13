@@ -76,6 +76,24 @@ class ResUsers(models.Model):
                 )
             )
 
+        # parse_contact_from_email yields "" when it can't extract an address.
+        # Such an entry would flow into create({"login": "", ...}) and abort the
+        # WHOLE batch on the required-field / unique-login constraint, and would
+        # pollute the ("login"/"email_normalized", "in", ...) domains below.
+        # Reject up front with a clear message naming the offending input(s).
+        invalid = [
+            email
+            for email, normalized in zip(emails, emails_normalized, strict=True)
+            if not normalized
+        ]
+        if invalid:
+            raise UserError(
+                self.env._(
+                    "The following email address(es) could not be parsed: %s",
+                    ", ".join(map(repr, invalid)),
+                )
+            )
+
         # active_test=False: also match deactivated users so they get
         # reactivated below. A search limited to active users would miss
         # them, and create() would then hit the unique constraint on login.

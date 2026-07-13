@@ -63,8 +63,11 @@ errorNotificationRegistry.addValidation({
  * action service's KeepLast rejects superseded awaiters with it so their
  * ``finally`` runs and their ``await`` throws instead of hanging forever;
  * without this handler the resulting unhandled rejection would raise an error
- * dialog and log a traceback. Runs first (low sequence) so no later handler
- * ever sees it.
+ * dialog and log a traceback. Runs first (lowest sequence) so no later handler
+ * ever sees it -- in particular it must precede the portal/public
+ * ``swallowAllVisitorErrors`` handler (sequence 0), which swallows the error
+ * WITHOUT ``preventDefault``: were it to win, ``shouldLogError()`` would still
+ * console.error this control-flow signal's traceback for visitor users.
  *
  * @param {OdooEnv} env
  * @param {UncaughtError} error
@@ -83,7 +86,7 @@ export function supersededErrorHandler(env, error, originalError) {
 errorHandlerRegistry.add(
     "supersededErrorHandler",
     /** @type {any} */ (supersededErrorHandler),
-    { sequence: 1 },
+    { sequence: -1 },
 );
 
 // -----------------------------------------------------------------------------
@@ -152,6 +155,11 @@ errorHandlerRegistry.add("rpcErrorHandler", /** @type {any} */ (rpcErrorHandler)
 // -----------------------------------------------------------------------------
 
 let connectionLostNotifRemove = null;
+// Guards against stacking duplicate SessionExpiredDialog modals: an expired
+// session typically fails several concurrent RPCs at once (bus poll, systray,
+// view load), each surfacing its own InvalidResponseError. Mirrors the
+// connectionLostNotifRemove dedup used by the notification path below.
+let sessionExpiredDialogOpen = false;
 /**
  * @param {OdooEnv} env
  * @param {UncaughtError} error
@@ -177,12 +185,36 @@ export function lostConnectionHandler(env, error, originalError) {
             // ConnectionLostError (a non-JSON body: session expired -> POST
             // redirected to the HTML login page with a 200, a captive portal,
             // an HTML 404, ...). It is never retryable (rpc.js isRetryable
-            // excludes it), so the reconnect-poll below is wrong here: the
-            // /web/webclient/version_info probe (auth=none) would succeed and
-            // announce "Connection restored" while every real RPC keeps
-            // failing. Surface the actual cause -- almost always an expired
-            // session -- so the user re-authenticates instead of looping.
-            env.services.dialog.add(SessionExpiredDialog);
+            // excludes it), so the reconnect-poll below is always wrong here:
+            // the /web/webclient/version_info probe (auth=none) would succeed
+            // and announce "Connection restored" while every real RPC keeps
+            // failing. Route by HTTP status instead:
+            //   * 200 -- the POST was redirected to the HTML login page (fetch
+            //     follows redirects), i.e. an expired session. Prompt a
+            //     re-authentication via SessionExpiredDialog.
+            //   * non-200 (HTML 404, captive portal, ...) -- reloading /
+            //     re-authenticating can't help and "session expired" would be
+            //     misleading, so surface a generic network error dialog.
+            if (originalError.status === 200) {
+                if (sessionExpiredDialogOpen) {
+                    // A modal is already up from a sibling concurrent failure;
+                    // don't stack another identical one.
+                    return true;
+                }
+                sessionExpiredDialogOpen = true;
+                env.services.dialog.add(SessionExpiredDialog, {}, {
+                    onClose: () => {
+                        sessionExpiredDialogOpen = false;
+                    },
+                });
+                return true;
+            }
+            env.services.dialog.add(NetworkErrorDialog, {
+                traceback: error.traceback,
+                message: originalError.message,
+                name: originalError.name,
+                serverHost: /** @type {any} */ (error).event?.target?.location?.host,
+            });
             return true;
         }
         if (connectionLostNotifRemove) {

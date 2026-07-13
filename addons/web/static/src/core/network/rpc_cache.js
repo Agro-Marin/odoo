@@ -472,9 +472,17 @@ export class RPCCache {
                     // Cache bookkeeping runs BEFORE subscriber callbacks so a
                     // throwing callback can't wedge the key (leave a dead
                     // ``pendingRequests`` entry that swallows future refreshes).
-                    if (!request.invalidated) {
+                    if (
+                        !request.invalidated &&
+                        this.pendingRequests[requestKey] === request
+                    ) {
                         // If invalidated mid-flight, invalidate()/
                         // invalidateByModel() already cleared the caches.
+                        // Identity guard (mirrors the dedup layer in rpc.js):
+                        // only evict/overwrite while WE still own the slot — a
+                        // silent abort (abortPending) may already have dropped
+                        // this entry and a newer read replaced it, and our
+                        // stale result must not clobber that newer request.
                         delete this.pendingRequests[requestKey];
                         this.ramCache.write(table, key, Promise.resolve(result), model);
                         if (type === "disk") {
@@ -547,7 +555,14 @@ export class RPCCache {
                 };
                 const onRejected = async (/** @type {any} */ error) => {
                     await fromCache;
-                    if (!request.invalidated) {
+                    if (
+                        !request.invalidated &&
+                        this.pendingRequests[requestKey] === request
+                    ) {
+                        // Identity guard (see onFulfilled): only evict while
+                        // WE still own the slot, so a settled rejection can't
+                        // tear down a newer request that replaced this one
+                        // after a silent abort.
                         delete this.pendingRequests[requestKey];
                         if (!hasCacheValue) {
                             this.ramCache.delete(table, key);

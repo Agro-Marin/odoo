@@ -104,8 +104,14 @@ class WebJsonController(http.Controller):
                 return redirect
             if not record_id:
                 raise BadRequest(env._("Missing record id"))
-            res = model.browse(int(record_id)).web_read(spec)[0]
-            return request.make_json_response(res)
+            record = model.browse(int(record_id))
+            # ``record_id`` is attacker-controlled from the URL path: a
+            # well-formed but non-existent/inaccessible id makes ``web_read``
+            # return ``[]``. Surface a 404 instead of an IndexError-driven 500.
+            res = record.web_read(spec)
+            if not res:
+                raise NotFound
+            return request.make_json_response(res[0])
 
         domains = [safe_eval(action.domain or "[]", eval_context)]
         if "domain" in kwargs:

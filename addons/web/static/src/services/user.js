@@ -55,9 +55,8 @@ function getCookieCompanyIds() {
     if (typeof cids === "string") {
         return cids.split("-").map(Number);
     }
-    if (typeof cids === "number") {
-        return [cids];
-    }
+    // cookie.get() only ever returns string | undefined (core/browser/cookie.js),
+    // so no numeric branch is reachable here.
     return [];
 }
 

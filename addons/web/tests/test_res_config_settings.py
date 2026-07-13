@@ -1,7 +1,8 @@
 from odoo.fields import Command
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 
+@tagged("web_unit", "web_settings")
 class TestResConfigSettings(TransactionCase):
     """Tests for web-layer res.config.settings fields and group management."""
 

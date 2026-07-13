@@ -16,7 +16,7 @@ import { modelLog } from "@web/core/utils/asset_log";
 
 import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { FetchRecordError } from "./errors.js";
-import { getBasicEvalContext } from "./field_context.js";
+import { getBasicEvalContext, isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -33,7 +33,7 @@ import { getFieldsSpec } from "./field_spec.js";
 function collectPendingCommandsPromises(record, proms, seen) {
     for (const fieldName of Object.keys(record.activeFields)) {
         const field = record.fields[fieldName];
-        if (!field || !["one2many", "many2many"].includes(field.type)) {
+        if (!isX2Many(field)) {
             continue;
         }
         const list = record.data[fieldName];
@@ -119,10 +119,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     // before saving, abandon new invalid, untouched records in x2manys
     for (const fieldName of Object.keys(record.activeFields)) {
         const field = record.fields[fieldName];
-        if (
-            ["one2many", "many2many"].includes(field.type) &&
-            !field.relatedPropertyField
-        ) {
+        if (isX2Many(field) && !field.relatedPropertyField) {
             record.data[fieldName]._abandonRecords();
         }
     }
@@ -151,9 +148,13 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         record.data = { ...record._values };
         // ``_changes`` may have held entries that serialize to nothing
         // (readonly-field edits, x2many lists without commands): ``data`` is
-        // visibly reverted above, so the eval contexts must follow — or
-        // modifier expressions keep evaluating against the discarded values
-        // (compare record_savepoint.discard, which always re-runs it).
+        // visibly reverted above, so the char/text/html false-vs-"" tracking
+        // and the eval contexts must follow — or ``_setEvalContext`` (→
+        // ``computeDataContext`` reads ``_textValues``) keeps evaluating
+        // modifiers against the discarded value (mirror
+        // ``record_savepoint.discard``'s no-savepoint branch, which reverts
+        // both before re-running the context).
+        record._textValues = markRaw({ ...record._initialTextValues });
         record._setEvalContext();
         return true;
     }
@@ -200,10 +201,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             // run before ``_clearChanges()`` empties ``_changes``.
             for (const fieldName of Object.keys(record.activeFields)) {
                 const field = record.fields[fieldName];
-                if (
-                    ["one2many", "many2many"].includes(field.type) &&
-                    !field.relatedPropertyField
-                ) {
+                if (isX2Many(field) && !field.relatedPropertyField) {
                     record._changes[fieldName]?._clearCommands();
                 }
             }
@@ -216,7 +214,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             // evaluate against stale pre-save values.
             record.data = { ...record._values };
             record._setEvalContext();
-            record._initialTextValues = { ...record._textValues };
+            record._initialTextValues = markRaw({ ...record._textValues });
         } else {
             record.model._closeUrgentSaveNotification =
                 record.model.hooks.ui.onDisplayUrgentSave(
@@ -254,7 +252,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         const orderBys = {};
         if (!nextId) {
             for (const fieldName of record.fieldNames) {
-                if (["one2many", "many2many"].includes(record.fields[fieldName].type)) {
+                if (isX2Many(record.fields[fieldName])) {
                     orderBys[fieldName] = record.data[fieldName].orderBy;
                 }
             }
@@ -328,10 +326,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             }
             for (const fieldName of Object.keys(record.activeFields)) {
                 const field = record.fields[fieldName];
-                if (
-                    ["one2many", "many2many"].includes(field.type) &&
-                    !field.relatedPropertyField
-                ) {
+                if (isX2Many(field) && !field.relatedPropertyField) {
                     record._changes[fieldName]?._clearCommands();
                 }
             }

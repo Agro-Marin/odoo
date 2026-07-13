@@ -37,6 +37,7 @@
 import { _t } from "@web/core/l10n/translation";
 
 import { createPropertyActiveField } from "./field_metadata.js";
+import { invalidateModifierDependencies } from "./record_utils.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
@@ -124,6 +125,13 @@ export function processProperties(
         } else {
             data[propertyFieldName] = property.value ?? false;
         }
+    }
+
+    // The property fields spliced into ``record.activeFields`` above may carry
+    // modifier expressions, so drop any stale memoised dependency map keyed on
+    // this (mutated-in-place) activeFields object.
+    if (properties.length) {
+        invalidateModifierDependencies(record.activeFields);
     }
 
     return data;

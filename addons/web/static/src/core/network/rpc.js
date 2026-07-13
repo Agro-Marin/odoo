@@ -590,7 +590,17 @@ rpc._rpc = function (url, params, settings) {
             // cache's own settle-time bookkeeping never runs — evict the
             // cache-miss slot synchronously (mirrors the dedup layer) so the
             // key can be fetched fresh next time instead of wedging.
-            if (!rejectError) {
+            //
+            // Identity guard: only the INITIATOR of the cache-miss fetch may
+            // evict. ``innerAbort`` is set exactly when THIS caller's
+            // ``fallback`` ran (a real miss or ``update: "always"`` refresh)
+            // and is null for a joiner that shared the initiator's still
+            // in-flight request (a hit on a pending entry). A joiner calling
+            // ``abortPending`` would tear down the initiator's live
+            // pendingRequests/RAM slot — defeating stampede protection and
+            // orphaning the initiator's fetch — so gate on ``innerAbort``,
+            // the cache layer's analogue of the dedup layer's identity guard.
+            if (!rejectError && innerAbort) {
                 _rpcState.rpcCache?.abortPending(cacheTable, cacheKey);
             }
             innerAbort?.(rejectError);
@@ -705,6 +715,17 @@ function _rpcOnce(url, params, settings) {
             try {
                 parsed = await response.json();
             } catch {
+                // ``abort()`` can land after the headers pass the guard above
+                // but while the body is still streaming: it cancels the body
+                // read, so ``response.json()`` rejects with an AbortError.
+                // That is caller intent, not a malformed response — ``abort()``
+                // already fired its own RPC:RESPONSE and decided the outer
+                // promise's fate, so bail out here instead of fabricating an
+                // InvalidResponseError (which would reject a silently-aborted
+                // promise and pop a false "Session Expired" dialog).
+                if (aborted) {
+                    return;
+                }
                 // Malformed JSON body (or missing content-type). On a 5xx,
                 // treat as transient connectivity failure — a retry with
                 // default backoff is reasonable. Otherwise the response is
@@ -716,6 +737,12 @@ function _rpcOnce(url, params, settings) {
                         : new InvalidResponseError(url, response.status);
                 rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
                 settleReject(error);
+                return;
+            }
+            if (aborted) {
+                // Body finished parsing but an abort raced in during the await;
+                // honor the abort's terminal decision rather than double-emitting
+                // a success RPC:RESPONSE for this data.id.
                 return;
             }
             if (!parsed.error) {

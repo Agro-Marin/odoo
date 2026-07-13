@@ -7,6 +7,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t, translationIsReady } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getOrigin } from "@web/core/utils/urls";
+import { user } from "@web/services/user";
 export const scssErrorNotificationService = {
     dependencies: ["notification"],
     /**
@@ -17,6 +18,14 @@ export const scssErrorNotificationService = {
         const origin = getOrigin();
         // Iframe with src "about:blank" origin isn't a valid base URL.
         if (browser.location.origin === "null") {
+            return;
+        }
+        // A failed SCSS compilation is an administrator/developer problem to
+        // fix database-wide, so the sticky, un-actionable notification only
+        // makes sense for users who can act on it: administrators, or anyone
+        // in developer/debug mode. Bail early for everyone else so regular
+        // users never get a "Style error" toast they can't resolve.
+        if (!user.isAdmin && !odoo.debug) {
             return;
         }
         const assets = [...document.styleSheets].filter(

@@ -4,7 +4,7 @@ from odoo.release import url, version
 from odoo.tests import HttpCase, tagged
 
 
-@tagged("-standard", "external", "post_install", "-at_install")
+@tagged("-standard", "external", "post_install", "-at_install", "web_settings")
 class TestResConfigDocLinks(HttpCase):
     """Verify that all documentation links in the Settings view are reachable."""
 

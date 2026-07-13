@@ -244,7 +244,12 @@ export const fieldService = {
             const modelInfo = modelsInfo.at(-1);
             return {
                 resModel: modelInfo.resModel,
-                fieldDef: modelInfo.fieldDefs[name],
+                // A path ending in "*" (e.g. "user_id.*", legal per loadPath's
+                // docstring) resolves to no concrete field def — it's a
+                // load-all-fields marker, not a selectable field. Normalise the
+                // resulting ``undefined`` to the documented ``null`` sentinel
+                // (as the bare "*" branch above already returns).
+                fieldDef: modelInfo.fieldDefs[name] ?? null,
             };
         }
 
@@ -280,9 +285,16 @@ export const fieldService = {
                 const lastName = names.at(-1);
                 const lastFieldDef = modelsInfo.at(-1).fieldDefs[lastName];
                 if (
+                    !lastFieldDef ||
                     ["properties", "properties_definition"].includes(lastFieldDef.type)
                 ) {
-                    // there is no known case where we want to select a 'properties' field directly
+                    // A trailing "*" (e.g. "user_id.*") passes _loadPath as valid
+                    // but has no concrete field def — it's a load-all-fields
+                    // marker, not a selectable field — so treat it as invalid
+                    // (as the bare "*" guard above already does), and guard the
+                    // undefined lastFieldDef so ``.type`` can't throw. There is
+                    // also no known case where we want to select a 'properties'
+                    // field directly.
                     result.isInvalid = true;
                 }
             }

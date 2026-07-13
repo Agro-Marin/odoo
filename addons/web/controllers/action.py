@@ -96,6 +96,20 @@ class Action(Controller):
                             act = (
                                 request.env["ir.actions.server"].browse(act["id"]).run()
                             )
+                            # ``run()`` returns ``dict | bool``: a server action
+                            # whose python/code branch performs work without
+                            # returning a follow-up action yields ``False`` (or a
+                            # non-window dict lacking the keys read below). Guard
+                            # before dereferencing so one such entry degrades to an
+                            # error breadcrumb instead of raising an uncaught
+                            # AttributeError/KeyError for the whole batch.
+                            if not isinstance(act, dict):
+                                results.append(
+                                    {
+                                        "error": "Server action did not return a restorable action"
+                                    }
+                                )
+                                continue
                         else:
                             results.append(
                                 {

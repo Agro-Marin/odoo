@@ -51,7 +51,11 @@ export class RecordEditState {
         // Non-reactive: server empty-string-vs-NULL tracking for char/text/html
         // fields, and the initial snapshot used by a no-savepoint discard.
         this.textValues = markRaw({});
-        this.initialTextValues = {};
+        // markRaw like ``textValues``: a non-reactive bag whose wholesale
+        // writers (record.js ``_setData``, record_save.js) also markRaw, so an
+        // ``Object.assign(this._initialTextValues, …)`` (record.js
+        // ``_applyValues``) never runs through the reactive proxy.
+        this.initialTextValues = markRaw({});
 
         // Savepoint snapshot (set by record_savepoint.addSavePoint); single-use.
         this.savePoint = undefined;

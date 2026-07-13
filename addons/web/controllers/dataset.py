@@ -13,12 +13,16 @@ from .utils import clean_action
 class DataSet(http.Controller):
 
     def _call_kw_readonly(self, rule: Any, args: Any) -> bool:
-        params = request.get_json_data()["params"]
+        # Guard the whole param extraction uniformly: a malformed body missing
+        # ``params``/``model``/``method`` (or naming an unknown model) should
+        # resolve to a clean 404 during routing, not a raw 500 from a
+        # half-guarded KeyError.
         try:
+            params = request.get_json_data()["params"]
             model_class = request.registry[params["model"]]
+            method_name = params["method"]
         except KeyError as e:
             raise NotFound from e
-        method_name = params["method"]
         for cls in model_class.mro():
             method = getattr(cls, method_name, None)
             if method is not None and hasattr(method, "_readonly"):

@@ -84,6 +84,25 @@ class Base(models.AbstractModel):
                 return {}
 
         if first_call:
+            # field_names is rebuilt from the client-supplied ``values`` keys, so
+            # the guard above (which only saw an empty field_names on first_call)
+            # hasn't screened them. A stale/cached view may still carry a field
+            # removed by a module upgrade; drop those keys from ``values`` too, or
+            # record._update_cache(values) below raises ValueError on the unknown
+            # field name — the exact scenario that guard exists to survive.
+            stale_names = [
+                fname
+                for fname in values
+                if fname != "id" and fname not in self._fields
+            ]
+            if stale_names:
+                _logger.warning(
+                    "onchange on %s: ignoring unknown field(s) %s from values",
+                    self._name,
+                    stale_names,
+                )
+                for fname in stale_names:
+                    del values[fname]
             field_names = [fname for fname in values if fname != "id"]
             missing_names = [fname for fname in fields_spec if fname not in values]
             defaults = self.default_get(missing_names)

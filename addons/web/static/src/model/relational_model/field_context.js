@@ -86,3 +86,14 @@ export function getId(prefix = "") {
 export function isRelational(field) {
     return field && ["one2many", "many2many", "many2one"].includes(field.type);
 }
+
+/**
+ * Whether ``field`` is an x2many (one2many / many2many). Null-safe, so it
+ * subsumes the ``!field || ...`` guards at some call sites.
+ *
+ * @param {any} field
+ * @returns {boolean}
+ */
+export function isX2Many(field) {
+    return field && (field.type === "one2many" || field.type === "many2many");
+}

@@ -53,13 +53,22 @@ export async function resequence(list, movedId, targetId) {
     const order = list.orderBy.find((o) => o.name === list.handleField);
     const asc = !order || order.asc;
 
-    const { toReorder, offset } = computeResequencePlan({
+    const { toReorder, offset, fromIndex } = computeResequencePlan({
         records: list.records,
         movedId,
         targetId,
         getSequence: (rec) => rec?.data[list.handleField],
         asc,
     });
+
+    // ``movedId`` no longer in ``list.records`` (e.g. a post-save compute
+    // dropped it) gives ``fromIndex === -1``: computeResequencePlan's internal
+    // ``splice(-1, 1)`` then displaced the WRONG record, so the plan would
+    // write shifted handle values onto the wrong rows. Bail before the _update
+    // loop, matching the sibling guards in resequence.js / record_lifecycle.js.
+    if (fromIndex < 0) {
+        return;
+    }
 
     const proms = [];
     for (const [i, record] of Object.entries(toReorder)) {

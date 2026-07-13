@@ -9,9 +9,10 @@ import { deepEqual, omit } from "@web/core/utils/collections/objects";
 import { serializeCommands } from "./command_builder.js";
 import { x2ManyCommands } from "./commands.js";
 import { DataPoint } from "./datapoint.js";
-import { getBasicEvalContext, getId } from "./field_context.js";
+import { getBasicEvalContext, getId, isX2Many } from "./field_context.js";
 import { completeActiveFields, patchActiveFields } from "./field_metadata.js";
 import { fromUnityToServerValues } from "./field_values.js";
+import { invalidateModifierDependencies } from "./record_utils.js";
 import { applyCommands } from "./static_list_command_engine.js";
 import { resequence, sort as sortRecords, sortBy } from "./static_list_sort.js";
 import { copyRecordData } from "./static_list_utils.js";
@@ -226,6 +227,10 @@ export class StaticList extends DataPoint {
         return this.model.mutex.exec(async () => {
             // extend fields and activeFields of the list with those given in params
             completeActiveFields(this.config.activeFields, params.activeFields);
+            // ``completeActiveFields`` mutates ``this.config.activeFields`` in
+            // place (adding the dialog's fields), so drop any stale memoised
+            // modifier-dependency map keyed on it.
+            invalidateModifierDependencies(this.config.activeFields);
             Object.assign(this.fields, params.fields);
             const activeFields = { ...params.activeFields };
             for (const fieldName of Object.keys(this.activeFields)) {
@@ -282,11 +287,7 @@ export class StaticList extends DataPoint {
                 this.model._patchConfig(record.config, config);
                 record._applyDefaultValues();
                 for (const fieldName of Object.keys(record.activeFields)) {
-                    if (
-                        ["one2many", "many2many"].includes(
-                            record.fields[fieldName].type,
-                        )
-                    ) {
+                    if (isX2Many(record.fields[fieldName])) {
                         const list = record.data[fieldName];
                         const patch = {
                             activeFields: activeFields[fieldName].related.activeFields,
@@ -380,10 +381,19 @@ export class StaticList extends DataPoint {
     }
 
     /** @param {{ limit?: number, offset?: number, orderBy?: object[] }} [options] */
-    load({ limit, offset, orderBy } = {}) {
+    async load({ limit, offset, orderBy } = {}) {
+        // Flush pending edits BEFORE taking the mutex (mirror ``leaveEditMode``'s
+        // prelude): the public ``editedRecord.checkValidity()`` awaits
+        // ``model._askChanges()`` (``mutex.getUnlockedDef``) and then re-takes
+        // ``model.mutex`` itself — calling it from inside our own
+        // ``mutex.exec`` would deadlock the non-reentrant mutex. Use the
+        // protected ``_checkValidity`` (no mutex re-entry) inside the callback.
+        if (this.editedRecord) {
+            await this.model._askChanges();
+        }
         return this.model.mutex.exec(async () => {
             const editedRecord = this.editedRecord;
-            if (editedRecord && !(await editedRecord.checkValidity())) {
+            if (editedRecord && !editedRecord._checkValidity()) {
                 return;
             }
             limit = limit !== undefined ? limit : this.limit;
@@ -572,7 +582,16 @@ export class StaticList extends DataPoint {
             this._cache[id]._addSavePoint();
         }
         this._savePoint = markRaw({
-            _commands: [...this._commands],
+            // Deep-copy each command tuple (and any inner array, e.g. a SET
+            // command's id list at index 2): a shallow ``[...this._commands]``
+            // shares the tuple objects by reference, so an in-place mutation
+            // like ``absorbUnlinkIntoSet`` (which rewrites a SET tuple's id
+            // array) would corrupt this snapshot too — and a later ``_discard``
+            // would then restore a SET missing the unlinked id, silently
+            // dropping that row from the next web_save.
+            _commands: this._commands.map((c) =>
+                c.map((el) => (Array.isArray(el) ? [...el] : el)),
+            ),
             _currentIds: [...this._currentIds],
             count: this.count,
         });

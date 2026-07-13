@@ -28,9 +28,11 @@ import { SignalStore } from "@web/core/utils/reactive";
  * Allowed status transitions. ``_transition`` looks up
  * ``TRANSITIONS[status]?.[event]``; ``undefined`` throws
  * {@link InvalidUrgentSaveTransitionError} instead of corrupting state
- * silently. Nested ``run()`` calls (re-entering ``begin`` from ``active``)
- * are treated as a programming error — urgent-save is tab-close-scoped, and
- * the browser never fires two concurrent tab-close handlers.
+ * silently. There is deliberately no ``active -> begin``: a re-entrant
+ * ``run()`` (a second ``urgentSave()`` on the SAME model) is NOT a
+ * transition — ``run`` short-circuits it before ``_transition`` (see
+ * ``run``), so the flag is only ever raised and lowered once, by the
+ * outermost entry.
  *
  * @type {Record<UrgentSaveStatus, Partial<Record<UrgentSaveEvent, UrgentSaveStatus>>>}
  */
@@ -96,6 +98,19 @@ export class UrgentSaveCoordinator extends SignalStore {
      * @returns {Promise<T>}
      */
     async run(fn) {
+        if (this.isActive) {
+            // Re-entrant call: a second ``urgentSave()`` on the SAME model
+            // (e.g. an edited row and a running timer datapoint both calling
+            // ``.urgentSave()`` inside a ``Promise.all`` on tab close) arrives
+            // while urgent mode is already active. The mode flag is set and
+            // ``WILL_SAVE_URGENTLY`` already fired for the outermost entry, so
+            // just run ``fn`` under the active mode. Re-transitioning ``begin``
+            // would throw {@link InvalidUrgentSaveTransitionError}, rejecting
+            // this call so its beacon never fires (lost edits) and failing the
+            // whole ``Promise.all`` during unload. Only the outermost entry
+            // owns the try/finally that resets the flag.
+            return fn();
+        }
         this._transition("begin");
         // Await consumer flushes BEFORE ``fn`` runs: a field whose onchange is
         // still in flight re-commits its value on this event, but async (mutex-

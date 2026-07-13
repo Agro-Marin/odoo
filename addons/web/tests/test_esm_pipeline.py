@@ -29,7 +29,7 @@ from psycopg.errors import ReadOnlySqlTransaction
 import odoo
 from odoo.db import db_connect
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
@@ -37,6 +37,7 @@ from odoo.addons.base.models.assetsbundle import AssetsBundle, _parse_odoo_modul
 from odoo.addons.base.models.ir_qweb_assets import _EsmFallbackError
 
 
+@tagged("web_unit", "web_assets")
 class TestAssetLogHelper(TransactionCase):
     """Structured-logging helper: logger hierarchy + event format."""
 
@@ -74,6 +75,7 @@ class TestAssetLogHelper(TransactionCase):
         mocked_log.assert_not_called()
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildCircuitBreaker(TransactionCase):
     """Class-level circuit breaker for esbuild failures."""
 
@@ -195,6 +197,7 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(reason, "ScopeCheck")
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildAdvisoryLock(TransactionCase):
     """Postgres advisory lock for serializing bundle compilation."""
 
@@ -247,6 +250,7 @@ class TestEsbuildAdvisoryLock(TransactionCase):
         self.assertTrue(got, msg="lock must release at transaction commit")
 
 
+@tagged("web_unit", "web_assets")
 class TestContentAddressableUrl(TransactionCase):
     """The ESM bundle URL is derived from the bundle's SHA256."""
 
@@ -309,6 +313,7 @@ class TestContentAddressableUrl(TransactionCase):
         self.assertEqual(remaining.mapped("url"), [url_b])
 
 
+@tagged("web_unit", "web_assets")
 class TestMetafileSidecar(TransactionCase):
     """Metafile attachment is created alongside the bundle."""
 
@@ -360,6 +365,7 @@ class TestMetafileSidecar(TransactionCase):
         )
 
 
+@tagged("web_unit", "web_assets")
 class TestParentSelfBridge(TransactionCase):
     """The parent-self bridge exports an esbuild-compiled bundle's own
     specifiers to satellite bundles that load individual source files.
@@ -443,6 +449,7 @@ class TestParentSelfBridge(TransactionCase):
         )
 
 
+@tagged("web_unit", "web_assets")
 class TestPipelineIntegration(TransactionCase):
     """End-to-end: circuit + admin override route through fallback."""
 
@@ -571,6 +578,7 @@ class TestPipelineIntegration(TransactionCase):
         )
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildIntegration(TransactionCase):
     """End-to-end: spawn real esbuild on a real bundle and assert output shape.
 
@@ -674,6 +682,7 @@ class TestEsbuildIntegration(TransactionCase):
         self.assertIn("odoo.loader.registerNativeModules", result.code)
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildSettingLoader(TransactionCase):
     """``_get_esbuild_setting`` reads ir.config_parameter with cast + fallback."""
 
@@ -730,6 +739,7 @@ class TestEsbuildSettingLoader(TransactionCase):
             IrQweb._get_esbuild_setting("totally_made_up", default=0)
 
 
+@tagged("web_unit", "web_assets")
 class TestExternalLibsValidator(TransactionCase):
     """Cross-file validator catches drift between ODOO_EXTERNAL_LIBS,
     EXTERNAL_BARE_SPECIFIERS and _LIB_CANDIDATES."""
@@ -824,6 +834,7 @@ class TestExternalLibsValidator(TransactionCase):
         )
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildSourceMaps(TransactionCase):
     """``--sourcemap=<mode>`` plumbing through esbuild + sidecar persistence."""
 
@@ -1017,6 +1028,7 @@ def _fake_native_module(url="", raw_content="", module_path="", filename=None):
     )
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildHelpers(TransactionCase):
     """Unit tests for the esbuild subprocess-layer helpers.
 
@@ -1162,6 +1174,7 @@ class TestEsbuildHelpers(TransactionCase):
         self.assertIn("output file missing", str(ctx.exception))
 
 
+@tagged("web_unit", "web_assets")
 class TestBridgeHelpers(TransactionCase):
     """Unit tests for the helpers extracted from ``_build_native_to_legacy_bridge``."""
 
@@ -1303,6 +1316,7 @@ class TestBridgeHelpers(TransactionCase):
         self.assertIn("export default _d;", shim)
 
 
+@tagged("web_unit", "web_assets")
 class TestEsmLexer(TransactionCase):
     """The es-module-lexer worker and its wiring into export extraction.
 
@@ -1419,6 +1433,7 @@ class TestEsmLexer(TransactionCase):
         self.assertIn("__default__", discovered["@other/mixed"])
 
 
+@tagged("web_unit", "web_assets")
 class TestQwebAssetHelpers(TransactionCase):
     """Unit tests for the pure ``ir.qweb`` asset helpers.
 
@@ -1547,6 +1562,7 @@ class TestQwebAssetHelpers(TransactionCase):
         self.assertIn("TPL;", out)
 
 
+@tagged("web_unit", "web_assets")
 class TestNativeNodesDispatch(TransactionCase):
     """Dispatch matrix of ``_get_native_module_nodes``: readonly x debug x
     forced-fallback (audit finding — readonly renders must use the cache).
@@ -1647,6 +1663,7 @@ class TestNativeNodesDispatch(TransactionCase):
                 impl_mock.assert_called_once()
 
 
+@tagged("web_unit", "web_assets")
 class TestEsbuildLockCursor(TransactionCase):
     """``_esbuild_lock_cursor`` / the advisory lock's legal-cursor contract.
 
@@ -1706,6 +1723,7 @@ class TestEsbuildLockCursor(TransactionCase):
         self.assertEqual(child_bundles, [])
 
 
+@tagged("web_unit", "web_assets")
 class TestProdNodesDeclineNotCached(TransactionCase):
     """``_esm_prod_nodes(raise_on_decline=True)`` must raise instead of
     inlining when no writable cursor is reachable for the attachment persist:
@@ -1768,6 +1786,7 @@ class TestProdNodesDeclineNotCached(TransactionCase):
         self.assertNotIn("src", module_nodes[0])
 
 
+@tagged("web_unit", "web_assets")
 class TestImportMapMergeHelpers(TransactionCase):
     """Direct unit tests for the shared import-map assembly helpers extracted
     from the prod/debug node builders (previously three diverging inline
@@ -1995,6 +2014,7 @@ class TestImportMapMergeHelpers(TransactionCase):
         )
 
 
+@tagged("web_unit", "web_assets")
 class TestGeneratedAssetDomains(TransactionCase):
     """``_generated_asset_domain`` matches ALL server-generated
     ``/web/assets/`` rows (classic ``.min.js`` included) while
