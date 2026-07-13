@@ -5,6 +5,7 @@ silently regress. See doc/pm_excellence_investigation.md for the audit context.
 """
 
 from datetime import datetime, time, timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -725,3 +726,392 @@ class TestAuditFixesBatchC(TestProjectCommon):
         # project_goats is follower-only; user_projectuser is not a follower.
         with self.assertRaises(AccessError):
             wizard.with_user(self.user_projectuser)._get_weekly_throughput()
+
+
+@tagged("-at_install", "post_install")
+class TestAuditFixesBatchD(TestProjectCommon):
+    """Batch D: correctness/security/perf fixes from the 2026-07 full-module audit.
+
+    Each test pins a bug reproduced on a disposable DB before the fix.
+    """
+
+    def test_milestone_markable_reacts_to_task_state(self) -> None:
+        """can_be_marked_as_done must recompute when a task's state changes.
+
+        Bug: the compute had no @api.depends, so the cached value went stale.
+        """
+        project = self.env["project.project"].create(
+            {"name": "MSReact", "allow_milestones": True}
+        )
+        milestone = self.env["project.milestone"].create(
+            {"name": "M", "project_id": project.id}
+        )
+        task = self.env["project.task"].create(
+            {"name": "mt", "project_id": project.id, "milestone_id": milestone.id}
+        )
+        self.assertFalse(milestone.can_be_marked_as_done, "open task → not markable")
+        task.state = "done"
+        # No manual invalidate: @api.depends must trigger the recompute.
+        self.assertTrue(
+            milestone.can_be_marked_as_done,
+            "closing the only task must make the milestone markable (depends)",
+        )
+
+    def test_successor_count_on_new_record(self) -> None:
+        """_compute_successor_count must not feed NewId values to _read_group in
+        an onchange (new, unsaved record)."""
+        project = self.env["project.project"].create(
+            {"name": "NewSucc", "allow_dependencies": True}
+        )
+        existing = self.env["project.task"].create(
+            {"name": "existing", "project_id": project.id}
+        )
+        new_task = self.env["project.task"].new(
+            {"name": "new", "project_id": project.id, "successor_ids": [(4, existing.id)]}
+        )
+        # Reading the count on an unsaved record must not raise.
+        self.assertEqual(new_task.successor_count, 1)
+
+    def test_workflow_step_clear_command_keeps_owner(self) -> None:
+        """Creating a step with a clear/empty project command must keep it a
+        personal stage (user_id set), not orphan it.
+
+        Bug: `if vals.get("project_ids")` treated [(5,)] / [(6,0,[])] as truthy
+        and wiped user_id."""
+        Step = self.env["project.workflow.step"]
+        for command in ([(5,)], [(6, 0, [])]):
+            step = Step.create({"name": "Personal", "project_ids": command})
+            self.assertTrue(step.user_id, f"{command}: must remain a personal stage")
+            self.assertFalse(step.project_ids, f"{command}: must have no project")
+        # A real project assignment still clears the owner.
+        proj_step = Step.create(
+            {"name": "Proj", "project_ids": [(4, self.project_pigs.id)]}
+        )
+        self.assertFalse(proj_step.user_id, "a project stage must not have an owner")
+
+    def test_task_count_archived_project_in_mixed_recordset(self) -> None:
+        """task_count of an archived project must not read 0 just because the
+        batch also contains an active project.
+
+        Bug: __compute_task_count applied a single batch-wide active_test."""
+        active = self.env["project.project"].create({"name": "ActiveP"})
+        archived = self.env["project.project"].create({"name": "ArchP"})
+        self.env["project.task"].create({"name": "a", "project_id": active.id})
+        self.env["project.task"].create(
+            [
+                {"name": "b1", "project_id": archived.id},
+                {"name": "b2", "project_id": archived.id},
+            ]
+        )
+        archived.active = False
+        batch = active | archived
+        batch.invalidate_recordset(["task_count"])
+        self.assertEqual(active.task_count, 1)
+        self.assertEqual(
+            archived.task_count, 2, "archived project must still count its tasks"
+        )
+
+    def test_unlink_keeps_shared_analytic_account(self) -> None:
+        """Deleting one project must not delete an analytic account another
+        project still references (ondelete=set null would orphan the sibling)."""
+        plan = self.env["account.analytic.plan"].search([], limit=1)
+        account = self.env["account.analytic.account"].create(
+            {"name": "Shared", "plan_id": plan.id}
+        )
+        p1 = self.env["project.project"].create(
+            {"name": "S1", "account_id": account.id}
+        )
+        p2 = self.env["project.project"].create(
+            {"name": "S2", "account_id": account.id}
+        )
+        p1.unlink()
+        self.assertTrue(
+            account.exists(), "shared account must survive while a sibling uses it"
+        )
+        self.assertEqual(p2.account_id, account, "sibling must keep its account")
+        p2.unlink()
+        self.assertFalse(
+            account.exists(), "account must be removed once no project uses it"
+        )
+
+    def test_message_subscribe_none_safe_and_no_mutation(self) -> None:
+        """message_subscribe must tolerate partner_ids=None and never mutate the
+        caller's list."""
+        task = self.env["project.task"].create(
+            {"name": "sub", "project_id": self.project_pigs.id}
+        )
+        # No crash with a None partner list.
+        task.message_subscribe(subtype_ids=None)
+        # Caller's list is not mutated.
+        partners = [self.user_projectmanager.partner_id.id]
+        original = list(partners)
+        task.message_subscribe(partner_ids=partners)
+        self.assertEqual(partners, original, "caller's list must not be mutated")
+
+    def test_step_delete_wizard_count_depends_on_steps(self) -> None:
+        """The delete wizard's tasks_count must recompute when step_ids changes
+        (the field it actually reads), not only when project_ids changes."""
+        step = self.env["project.workflow.step"].create(
+            {"name": "Zap", "project_ids": [(4, self.project_pigs.id)]}
+        )
+        self.env["project.task"].create(
+            {"name": "in step", "project_id": self.project_pigs.id, "step_id": step.id}
+        )
+        wizard = self.env["project.workflow.step.delete.wizard"].create(
+            {"step_ids": [(6, 0, step.ids)]}
+        )
+        self.assertEqual(wizard.tasks_count, 1)
+        # Clearing step_ids must recompute the count to 0 (the bug left it stale
+        # because the compute depended on project_ids instead).
+        wizard.step_ids = [(5,)]
+        self.assertEqual(
+            wizard.tasks_count, 0, "tasks_count must react to step_ids changes"
+        )
+
+    def test_triage_user_cannot_edit_another_users_bucket(self) -> None:
+        """Personal triage buckets are per-user: any internal user manages their
+        own, but the own-bucket record rule blocks editing someone else's.
+
+        (project.triage keeps base.group_user CRUD — it is a personal model like
+        vanilla personal stages — and the global rule scopes access to
+        user_id in (False, self).)"""
+        Triage = self.env["project.triage"]
+        own = Triage.with_user(self.user_projectuser).create(
+            {"name": "Mine", "user_id": self.user_projectuser.id}
+        )
+        own.write({"name": "Renamed"})
+        self.assertEqual(own.name, "Renamed")
+        other = Triage.sudo().create(
+            {"name": "Other", "user_id": self.user_projectmanager.id}
+        )
+        with self.assertRaises(AccessError):
+            other.with_user(self.user_projectuser).write({"name": "Hijacked"})
+
+
+@tagged("-at_install", "post_install")
+class TestAuditFixesBatchE(TestProjectCommon):
+    """Batch E: behaviour/perf fixes from the 2026-07 full-module audit
+    (follower propagation, benefit re-nag, batched syncs)."""
+
+    def test_benefit_cron_does_not_renag_after_completion(self) -> None:
+        """Once a reminder is scheduled for a review_date, the cron must not
+        re-create it on later runs (even after the user completes it). It
+        re-arms only when review_date moves forward."""
+        Benefit = self.env["project.benefit"]
+        today = fields.Date.context_today(Benefit)
+        benefit = Benefit.create({
+            "name": "Reduce cost",
+            "project_id": self.project_pigs.id,
+            "accountable_id": self.user_projectmanager.id,
+            "review_date": today - timedelta(days=5),
+            "state": "tracking",
+        })
+        Benefit._cron_check_review_dates()
+        acts = self.env["mail.activity"].search(
+            [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
+        )
+        self.assertEqual(len(acts), 1, "first run schedules one reminder")
+        self.assertEqual(benefit.review_reminder_date, benefit.review_date)
+        # User completes (deletes) the activity, then the cron runs again.
+        acts.unlink()
+        Benefit._cron_check_review_dates()
+        self.assertEqual(
+            self.env["mail.activity"].search_count(
+                [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
+            ),
+            0,
+            "cron must NOT re-nag for the same review_date after completion",
+        )
+        # Moving review_date forward re-arms the reminder.
+        benefit.review_date = today - timedelta(days=1)
+        Benefit._cron_check_review_dates()
+        self.assertEqual(
+            self.env["mail.activity"].search_count(
+                [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
+            ),
+            1,
+            "a new review_date must schedule a fresh reminder",
+        )
+
+    def test_unsubscribe_removes_follower_from_closed_task(self) -> None:
+        """Removing a project follower must drop them from CLOSED tasks too,
+        not just open ones (portal access hinges on task followers)."""
+        project = self.env["project.project"].create({"name": "FollowP"})
+        closed = self.env["project.task"].create(
+            {"name": "closed", "project_id": project.id, "state": "done"}
+        )
+        self.assertTrue(closed.is_closed)
+        closed.message_subscribe(partner_ids=self.partner_2.ids)
+        self.assertIn(self.partner_2, closed.message_partner_ids)
+        project.message_unsubscribe(partner_ids=self.partner_2.ids)
+        self.assertNotIn(
+            self.partner_2,
+            closed.message_partner_ids,
+            "follower must be removed from the closed task as well",
+        )
+
+    def test_add_followers_covers_closed_tasks(self) -> None:
+        """A partner added to the project must follow their CLOSED tasks too."""
+        project = self.env["project.project"].create(
+            {"name": "AddF", "partner_id": self.partner_1.id}
+        )
+        closed = self.env["project.task"].create({
+            "name": "closed",
+            "project_id": project.id,
+            "partner_id": self.partner_1.id,
+            "state": "done",
+        })
+        self.assertTrue(closed.is_closed)
+        project._add_followers(self.partner_1)
+        self.assertIn(
+            self.partner_1,
+            closed.message_partner_ids,
+            "partner must follow their closed task after being added",
+        )
+
+    def test_batch_typed_dependencies_sync_all(self) -> None:
+        """Creating several typed dependencies at once must sync every
+        predecessor_ids link (batched _sync_to_m2m), with no cycle false-positive."""
+        project = self.env["project.project"].create(
+            {"name": "BatchDep", "allow_dependencies": True}
+        )
+        a, b, c, d = self.env["project.task"].create(
+            [{"name": n, "project_id": project.id} for n in ("A", "B", "C", "D")]
+        )
+        self.env["project.task.dependency"].create([
+            {"task_id": b.id, "depends_on_id": a.id},
+            {"task_id": c.id, "depends_on_id": a.id},
+            {"task_id": d.id, "depends_on_id": b.id},
+        ])
+        (b + c + d).invalidate_recordset(["predecessor_ids"])
+        self.assertEqual(b.predecessor_ids, a)
+        self.assertEqual(c.predecessor_ids, a)
+        self.assertEqual(d.predecessor_ids, b)
+
+    def test_batch_create_populates_triage_for_all_assignees(self) -> None:
+        """Batch-creating tasks with different assignees must give each
+        (task, user) a triage bucket (batched _populate_missing_triages)."""
+        project = self.env["project.project"].create({"name": "TriageBatch"})
+        tasks = self.env["project.task"].create([
+            {
+                "name": "t1",
+                "project_id": project.id,
+                "user_ids": [(6, 0, self.user_projectuser.ids)],
+            },
+            {
+                "name": "t2",
+                "project_id": project.id,
+                "user_ids": [(6, 0, self.user_projectmanager.ids)],
+            },
+        ])
+        rows = self.env["project.task.triage"].sudo().search(
+            [("task_id", "in", tasks.ids)]
+        )
+        self.assertEqual(len(rows), 2, "each assignee gets a triage row")
+        self.assertTrue(
+            all(row.triage_id for row in rows),
+            "every triage row must get a default bucket",
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestAuditFixesBatchF(TestProjectCommon):
+    """Batch F: coverage for previously-untested fork models/paths
+    (project.phase.write, project.role, project.gate.criterion, rating cron)."""
+
+    def test_phase_write_company_switch_guard(self) -> None:
+        """Switching a phase's company must raise while a project of a different
+        company is still assigned to it."""
+        company_a = self.env["res.company"].create({"name": "Co A"})
+        company_b = self.env["res.company"].create({"name": "Co B"})
+        phase = self.env["project.phase"].create(
+            {"name": "Planning", "company_id": company_a.id}
+        )
+        self.env["project.project"].create({
+            "name": "In phase",
+            "phase_id": phase.id,
+            "company_id": company_a.id,
+        })
+        with self.assertRaises(UserError):
+            phase.company_id = company_b.id
+        # No conflicting project → the switch is allowed.
+        empty_phase = self.env["project.phase"].create(
+            {"name": "Empty", "company_id": company_a.id}
+        )
+        empty_phase.company_id = company_b.id
+        self.assertEqual(empty_phase.company_id, company_b)
+
+    def test_phase_archive_cascades_to_projects(self) -> None:
+        """Archiving a phase archives every project assigned to it."""
+        phase = self.env["project.phase"].create({"name": "Closing"})
+        project = self.env["project.project"].create(
+            {"name": "Cascade", "phase_id": phase.id}
+        )
+        self.assertTrue(project.active)
+        phase.active = False
+        self.assertFalse(
+            project.active, "archiving the phase must archive its projects"
+        )
+
+    def test_role_defaults_and_task_assignment(self) -> None:
+        """project.role gets a color in range and can be assigned to a task."""
+        role = self.env["project.role"].create({"name": "Reviewer"})
+        self.assertTrue(1 <= role.color <= 11, "default color must be in [1, 11]")
+        self.task_1.role_ids = [(4, role.id)]
+        self.assertIn(role, self.task_1.role_ids)
+        # copy suffix from the shared mixin.
+        self.assertEqual(role.copy().name, "Reviewer (copy)")
+
+    def test_gate_criterion_counts(self) -> None:
+        """criteria_met_count / criteria_total_count must reflect the criteria
+        and react to a criterion being marked met."""
+        gate = self.env["project.gate"].create(
+            {"name": "G1", "project_id": self.project_pigs.id}
+        )
+        c1 = self.env["project.gate.criterion"].create(
+            {"gate_id": gate.id, "name": "Budget ok"}
+        )
+        self.env["project.gate.criterion"].create(
+            {"gate_id": gate.id, "name": "Scope ok"}
+        )
+        self.assertEqual(gate.criteria_total_count, 2)
+        self.assertEqual(gate.criteria_met_count, 0)
+        c1.met = True
+        self.assertEqual(
+            gate.criteria_met_count, 1, "met count must react to criterion.met"
+        )
+
+    def test_gate_criterion_milestone_cross_project_guard(self) -> None:
+        """A gate's trigger milestone must belong to the gate's project."""
+        self.project_goats.allow_milestones = True
+        other_ms = self.env["project.milestone"].create(
+            {"name": "Other", "project_id": self.project_goats.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["project.gate"].create({
+                "name": "BadGate",
+                "project_id": self.project_pigs.id,
+                "milestone_id": other_ms.id,
+            })
+
+    def test_send_rating_all_advances_deadline(self) -> None:
+        """The rating cron must process an overdue periodic step and push its
+        rating_request_deadline into the future (idempotent per day)."""
+        step = self.env["project.workflow.step"].create({
+            "name": "Periodic",
+            "project_ids": [(4, self.project_pigs.id)],
+            "rating_active": True,
+            "rating_status": "periodic",
+            "rating_status_period": "weekly",
+        })
+        # Force the step overdue.
+        step.rating_request_deadline = fields.Datetime.now() - timedelta(days=1)
+        # The cron commits per step for idempotency; neutralise commit inside the
+        # test transaction (commits are forbidden in tests).
+        with patch.object(self.env.cr, "commit", lambda: None):
+            self.env["project.workflow.step"]._send_rating_all()
+        self.assertGreater(
+            step.rating_request_deadline,
+            fields.Datetime.now(),
+            "cron must advance the deadline of an overdue periodic step",
+        )

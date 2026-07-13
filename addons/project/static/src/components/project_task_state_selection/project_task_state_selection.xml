@@ -12,7 +12,7 @@
         </xpath>
         <!-- Waiting state button -->
         <xpath expr="//t[@t-if='props.readonly']" position="after">
-            <t t-elif="currentValue == 'waiting' and isView(['activity', 'kanban', 'list', 'calendar'])">
+            <t t-elif="currentValue == 'blocked' and isView(['activity', 'kanban', 'list', 'calendar'])">
                 <button class="d-flex align-items-center btn fw-normal p-0 justify-content-center " title="This task is blocked by another unfinished task" t-att-class="{'o_task_state_list_view': isView(['list'])}">
                     <i class="fa-solid fa-hourglass fa-lg text-info"></i>
                 </button>
@@ -52,11 +52,11 @@
         <!-- Normal dropdown mode toggle button (displayed on the card/record by default) -->
         <xpath expr="//Dropdown/button/div" position="replace">
             <div t-if="isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall" class="d-flex align-items-center" t-att-class="{'o_task_state_list_view': isView(['list'])}" t-att-title="label">
-                <i t-if="currentValue == 'waiting'" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }}" style="color: #4A4F59;"/>
+                <i t-if="currentValue == 'blocked'" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }}" style="color: #4A4F59;"/>
                 <i t-else="" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }} {{ ['done', 'canceled'].includes(currentValue) and isView(['activity', 'kanban']) ? 'opacity-50' : '' }}"/>
             </div>
             <div t-else="" class="d-flex align-items-center">
-                <t t-if="currentValue == 'waiting'">
+                <t t-if="currentValue == 'blocked'">
                     <i class="fa-solid fa-hourglass"/>
                     <span class="o_status_label" title="This task is blocked by another unfinished task">
                         Waiting
@@ -83,7 +83,7 @@
         </xpath>
         <!-- Dropdown divider -->
         <xpath expr="//CheckboxItem" position="before">
-            <div t-if="option[0] == 'canceled' and (currentValue != 'waiting' or this.env.isSmall)" role="separator" class="dropdown-divider"/>
+            <div t-if="option[0] == 'canceled' and (currentValue != 'blocked' or this.env.isSmall)" role="separator" class="dropdown-divider"/>
         </xpath>
         <!-- Approval mode dropdown button (class)-->
         <xpath expr="//CheckboxItem/span[1]" position="attributes">

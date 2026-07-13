@@ -58,17 +58,24 @@ class ProjectProject(models.Model):
             raise ValueError(
                 f"Parameter 'count_field' can only be one of {count_fields}, got {count_field} instead."
             )
-        domain = Domain("project_id", "in", self.ids) & Domain(
-            "is_template", "=", False
-        )
+        base_domain = Domain("is_template", "=", False)
         if additional_domain:
-            domain &= Domain(additional_domain)
-        ProjectTask = self.env["project.task"].with_context(
-            active_test=any(project.active for project in self)
-        )
-        tasks_count_by_project = dict(
-            ProjectTask._read_group(domain, ["project_id"], ["__count"])
-        )
+            base_domain &= Domain(additional_domain)
+        # Archiving a project cascade-archives its tasks, so counting them
+        # requires active_test=False. Split the recordset by active flag and
+        # read each half with the matching context; a single batch-wide
+        # active_test would make the minority (e.g. archived projects mixed in
+        # with active ones) report 0.
+        active_projects = self.filtered("active")
+        tasks_count_by_project = {}
+        for subset, active_test in ((active_projects, True), (self - active_projects, False)):
+            if not subset:
+                continue
+            domain = Domain("project_id", "in", subset.ids) & base_domain
+            ProjectTask = self.env["project.task"].with_context(active_test=active_test)
+            tasks_count_by_project.update(
+                dict(ProjectTask._read_group(domain, ["project_id"], ["__count"]))
+            )
         for project in self:
             project.update({count_field: tasks_count_by_project.get(project, 0)})
 
@@ -1874,20 +1881,21 @@ class ProjectProject(models.Model):
         if vals.get("privacy_visibility"):
             self._change_privacy_visibility(vals["privacy_visibility"])
 
-        date_start = vals.get("date_start", True)
-        date_end = vals.get("date", True)
-        if not date_start or not date_end:
-            vals["date_start"] = False
-            vals["date"] = False
-        else:
-            no_current_date_begin = not all(project.date_start for project in self)
-            no_current_date_end = not all(project.date for project in self)
-            date_start_update = "date_start" in vals
-            date_end_update = "date" in vals
-            if date_start_update and no_current_date_end and not date_end_update:
-                del vals["date_start"]
-            elif date_end_update and no_current_date_begin and not date_start_update:
-                del vals["date"]
+        # A project's start date and expiration date form a pair: a project has
+        # both or neither (the timeline/Gantt range needs both ends). Rather than
+        # silently wiping the counterpart or dropping the user's input, reject a
+        # write that would leave exactly one side set, telling the user what to do.
+        if "date_start" in vals or "date" in vals:
+            for project in self:
+                new_start = vals.get("date_start", project.date_start)
+                new_end = vals.get("date", project.date)
+                if bool(new_start) != bool(new_end):
+                    raise UserError(
+                        self.env._(
+                            "A project's start date and expiration date must be set "
+                            "together: define both or clear both."
+                        )
+                    )
 
         res = super().write(vals) if vals else True
 
@@ -1928,11 +1936,19 @@ class ProjectProject(models.Model):
         self.env["res.users.settings.embedded.action"].sudo().search(
             domain=[("res_id", "in", self.ids), ("res_model", "=", self._name)],
         ).unlink()
-        # Delete the empty related analytic account
-        analytic_accounts_to_delete = self.env["account.analytic.account"]
+        # Delete the empty related analytic account, but only when it has no
+        # analytic lines AND no *other* project still references it. Analytic
+        # accounts can be shared across projects (see _inverse_company_id); with
+        # ondelete="set null" on account_id, deleting a shared account here would
+        # silently strip it from the surviving sibling projects.
+        deleted_per_account = defaultdict(int)
         for project in self:
-            if project.account_id and not project.account_id.line_ids:
-                analytic_accounts_to_delete |= project.account_id
+            if project.account_id:
+                deleted_per_account[project.account_id] += 1
+        analytic_accounts_to_delete = self.env["account.analytic.account"]
+        for account, deleted_count in deleted_per_account.items():
+            if not account.line_ids and account.project_count <= deleted_count:
+                analytic_accounts_to_delete |= account
         self.with_context(active_test=False).tasks.unlink()
         result = super().unlink()
         analytic_accounts_to_delete.unlink()
@@ -1987,20 +2003,33 @@ class ProjectProject(models.Model):
                 | project_subtypes.filtered(lambda sub: sub.internal or sub.default)
             ).ids
             if task_subtypes:
-                for task in self.task_ids:
-                    partners = set(task.message_partner_ids.ids) & set(partner_ids)
+                # Propagate the preference change to every task the partner
+                # already follows, including CLOSED ones (self.tasks, not the
+                # open-only task_ids). Batch the subscribe per distinct partner
+                # set instead of one write per task (N+1).
+                partner_set = set(partner_ids)
+                tasks_by_partners = defaultdict(
+                    lambda: self.env["project.task"]
+                )
+                for task in self.tasks:
+                    partners = frozenset(task.message_partner_ids.ids) & partner_set
                     if partners:
-                        task.message_subscribe(
-                            partner_ids=list(partners),
-                            subtype_ids=task_subtypes,
-                        )
+                        tasks_by_partners[partners] |= task
+                for partners, tasks in tasks_by_partners.items():
+                    tasks.message_subscribe(
+                        partner_ids=list(partners),
+                        subtype_ids=task_subtypes,
+                    )
                 self.update_ids.message_subscribe(
                     partner_ids=partner_ids, subtype_ids=subtype_ids
                 )
         return res
 
     def message_unsubscribe(self, partner_ids: list[int] | None = None) -> bool:
-        self.task_ids.message_unsubscribe(partner_ids=partner_ids)
+        # Remove the follower from ALL tasks, including closed ones — otherwise a
+        # partner removed from the project keeps following (and, via the portal,
+        # keeps access to) every closed task. Mirrors the privacy-downgrade path.
+        self.tasks.message_unsubscribe(partner_ids=partner_ids)
         super().message_unsubscribe(partner_ids=partner_ids)
         if partner_ids:
             self.env["project.collaborator"].search(
@@ -2764,7 +2793,9 @@ class ProjectProject(models.Model):
 
         dict_tasks_per_partner = {}
         dict_partner_ids_to_subscribe_per_partner = {}
-        for task in self.task_ids:
+        # Include closed tasks: a customer added to the project should follow all
+        # of their tasks, not only the still-open ones.
+        for task in self.tasks:
             if task.partner_id in dict_tasks_per_partner:
                 dict_tasks_per_partner[task.partner_id] |= task
             else:

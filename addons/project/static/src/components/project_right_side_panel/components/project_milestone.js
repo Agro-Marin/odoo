@@ -59,14 +59,19 @@ export class ProjectMilestone extends Component {
     async toggleIsReached() {
         if (!this.write_mutex) {
             this.write_mutex = true;
-            Object.assign(this.milestone, await this.orm.call(
-                this.resModel,
-                'toggle_is_reached',
-                [[this.milestone.id], !this.milestone.is_reached],
-            ));
-            this.state.colorClass = this._getColorClass();
-            this.state.checkboxIcon = this._getCheckBoxIcon();
-            this.write_mutex = false;
+            try {
+                Object.assign(this.milestone, await this.orm.call(
+                    this.resModel,
+                    'toggle_is_reached',
+                    [[this.milestone.id], !this.milestone.is_reached],
+                ));
+                this.state.colorClass = this._getColorClass();
+                this.state.checkboxIcon = this._getCheckBoxIcon();
+            } finally {
+                // Always release the lock, even if the RPC rejects, otherwise a
+                // single transient failure permanently disables the checkbox.
+                this.write_mutex = false;
+            }
         }
     }
 }

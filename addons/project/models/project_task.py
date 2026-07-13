@@ -1256,29 +1256,36 @@ class ProjectTask(models.Model):
         for task_triage in triages_without_bucket:
             triage_by_user[task_triage.user_id] |= task_triage
 
+        Triage = self.env["project.triage"].sudo()
+        # One query for every user's buckets instead of a search per user (N+1).
+        # setdefault keeps the first bucket per user in _order (matches the old
+        # search(limit=1) semantics).
+        bucket_by_user = {}
+        for bucket in Triage.search([("user_id", "in", [u.id for u in triage_by_user])]):
+            bucket_by_user.setdefault(bucket.user_id.id, bucket)
+
+        # Group junction writes by target bucket to minimise write() calls.
+        triages_by_bucket = defaultdict(self.env["project.task.triage"].sudo)
         for user_id, user_triages in triage_by_user.items():
-            bucket = (
-                self.env["project.triage"]
-                .sudo()
-                .search([("user_id", "=", user_id.id)], limit=1)
-            )
+            bucket = bucket_by_user.get(user_id.id)
             if not bucket:
-                buckets = (
-                    self.env["project.triage"]
-                    .sudo()
-                    .with_context(lang=user_id.partner_id.lang)
-                    .create(
-                        self.with_context(
-                            lang=user_id.partner_id.lang
-                        )._get_default_triage_vals(user_id.id)
-                    )
-                )
-                bucket = buckets[0]
-            user_triages.sudo().write({"triage_id": bucket.id})
+                bucket = Triage.with_context(lang=user_id.partner_id.lang).create(
+                    self.with_context(
+                        lang=user_id.partner_id.lang
+                    )._get_default_triage_vals(user_id.id)
+                )[0]
+                bucket_by_user[user_id.id] = bucket
+            triages_by_bucket[bucket] |= user_triages
+
+        for bucket, user_triages in triages_by_bucket.items():
+            user_triages.write({"triage_id": bucket.id})
 
     def message_subscribe(self, partner_ids=None, subtype_ids=None) -> bool:
-        # Set task notification based on project notification preference if user follow the project
-        if not subtype_ids:
+        # Set task notification based on project notification preference if user follow the project.
+        # Work on a local copy: never mutate the caller's list, and tolerate a
+        # None partner_ids (e.g. message_subscribe(subtype_ids=...)).
+        partner_ids = list(partner_ids or [])
+        if not subtype_ids and partner_ids:
             project_followers = self.project_id.sudo().message_follower_ids.filtered(
                 lambda f: f.partner_id.id in partner_ids
             )
@@ -1384,6 +1391,12 @@ class ProjectTask(models.Model):
     def _compute_successor_count(self) -> None:
         tasks_with_dependency = self.filtered("allow_dependencies")
         (self - tasks_with_dependency).successor_count = 0
+        # New (unsaved) records carry NewId values that cannot be fed to
+        # _read_group; count in-memory instead, mirroring _compute_predecessor_count.
+        if not any(self._ids):
+            for task in tasks_with_dependency:
+                task.successor_count = len(task.successor_ids)
+            return
         if tasks_with_dependency:
             group_dependent = self.env["project.task"]._read_group(
                 [
@@ -1397,7 +1410,9 @@ class ProjectTask(models.Model):
                 depend_on.id: count for depend_on, count in group_dependent
             }
             for task in tasks_with_dependency:
-                task.successor_count = successor_count_dict.get(task.id, 0)
+                task.successor_count = successor_count_dict.get(
+                    task._origin.id or task.id, 0
+                )
 
     @api.constrains("parent_id")
     def _check_parent_id(self) -> None:
@@ -2307,9 +2322,19 @@ class ProjectTask(models.Model):
                 mail_notrack=not self_ctx.env.su and self_ctx.env.user._is_portal(),
             ),
         ).create(vals_list)
+        # Write the sudo-only computed vals grouped by identical content, so a
+        # batch create issues one write per distinct vals set instead of one
+        # write (and one recompute cascade) per task.
+        grouped_tasks = defaultdict(self.env["project.task"].sudo)
+        vals_by_key = {}
         for task, computed_vals in zip(tasks.sudo(), additional_vals_list, strict=True):
-            if computed_vals:
-                task.write(computed_vals)
+            if not computed_vals:
+                continue
+            key = repr(sorted(computed_vals.items(), key=lambda kv: kv[0]))
+            grouped_tasks[key] |= task
+            vals_by_key[key] = computed_vals
+        for key, group_tasks in grouped_tasks.items():
+            group_tasks.write(vals_by_key[key])
         tasks.sudo()._populate_missing_triages()
         self_ctx._task_message_auto_subscribe_notify(
             {task: task.user_ids - self_ctx.env.user for task in tasks}

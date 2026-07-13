@@ -23,9 +23,11 @@ function compileChatter(node, params) {
     }
     const accessToken = new URLSearchParams(parentSearch).get("access_token");
     setAttributes(chatterContainerXml, {
-        // Compile to a quoted string literal only when present; otherwise an
-        // empty-string literal. `\`'${null}'\`` would send the literal "null".
-        token: accessToken ? `'${accessToken}'` : "''",
+        // This value becomes the *source text* of a compiled OWL expression, so
+        // the token must be emitted as a safely-escaped JS string literal.
+        // JSON.stringify quotes and escapes it (and yields "" for a missing
+        // token), preventing template/DOM injection via the URL parameter.
+        token: JSON.stringify(accessToken ?? ""),
         threadModel: params.resModel,
         threadId: params.resId,
         projectSharingId: params.projectSharingId,
