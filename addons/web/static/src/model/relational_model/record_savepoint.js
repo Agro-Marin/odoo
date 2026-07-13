@@ -22,6 +22,8 @@
 
 import { markRaw } from "@odoo/owl";
 
+import { isX2Many } from "./field_context.js";
+
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
@@ -40,7 +42,7 @@ export function addSavePoint(record) {
         invalidFields: [...record._invalidFields],
     });
     for (const fieldName of Object.keys(record._changes)) {
-        if (["one2many", "many2many"].includes(record.fields[fieldName].type)) {
+        if (isX2Many(record.fields[fieldName])) {
             record._changes[fieldName]._addSavePoint();
         }
     }
@@ -97,7 +99,7 @@ export function restoreFromSavePoint(record) {
  */
 export function discard(record) {
     for (const fieldName of Object.keys(record._changes)) {
-        if (["one2many", "many2many"].includes(record.fields[fieldName].type)) {
+        if (isX2Many(record.fields[fieldName])) {
             record._changes[fieldName]._discard();
         }
     }

@@ -43,8 +43,15 @@ class Base(models.AbstractModel):
         if len(specification) == 1 and "display_name" in specification:
             # Batch-browse all IDs so singletons share one prefetch group,
             # reducing N isolated field reads to 1 batched SQL query.
-            records = self.with_context(formatted_display_name=True).browse(
-                [id for id, _ in id_name_pairs]
+            # ``.exists()`` so a record unlinked between name_search and this
+            # browse is dropped here rather than raising MissingError on the
+            # ``rec.display_name`` read below — which would 500 the whole RPC
+            # before the graceful ``formatted_map.get(id, name)`` fallback could
+            # apply.
+            records = (
+                self.with_context(formatted_display_name=True)
+                .browse([id for id, _ in id_name_pairs])
+                .exists()
             )
             formatted_map = {rec.id: rec.display_name for rec in records}
             return [
@@ -169,10 +176,18 @@ class Base(models.AbstractModel):
             # it with several ids (dynamic_list._multiSave -> webSave, non-x2many
             # branch). Only the concurrency-checked paths below require a singleton.
             if known_values is not None:
-                # Shape is disambiguated by record count (no key-type sniffing):
-                # a singleton carries a flat ``{field: baseline}``; a mass-edit
-                # carries per-record ``{id: {field: baseline}}``.
-                if len(self) == 1:
+                # Disambiguate by SHAPE, not record count. The flat singleton
+                # form ``{field: baseline}`` has field names as keys; the
+                # per-record mass-edit form ``{id: {field: baseline}}`` has
+                # record ids. Keying off ``len(self) == 1`` misrouted a
+                # single-SELECTED-row list mass-edit — which always sends the
+                # per-record shape, even for one row (dynamic_list._multiSave) —
+                # into the singleton check, where the record-id key matches no
+                # field name so the guard silently no-opped and a concurrent
+                # edit was lost. Field names are identifiers and record ids are
+                # numeric, so membership in ``self._fields`` separates the two
+                # shapes unambiguously.
+                if known_values and all(k in self._fields for k in known_values):
                     self._check_concurrent_field_changes(vals, known_values)
                 else:
                     self._check_concurrent_field_changes_multi(vals, known_values)
@@ -183,7 +198,7 @@ class Base(models.AbstractModel):
                 # Read directly from DB to avoid ORM cache (which may be stale
                 # if another user's write happened in a different transaction).
                 self.env.cr.execute(
-                    "SELECT write_date FROM %s WHERE id = %%s" % self._table,
+                    'SELECT write_date FROM "%s" WHERE id = %%s' % self._table,
                     (self.id,),
                 )
                 row = self.env.cr.fetchone()
@@ -355,7 +370,15 @@ class Base(models.AbstractModel):
         if not checkable:
             return
         # JSON serializes integer dict keys as strings; normalize back to ints.
-        baselines = {int(rec_id): base for rec_id, base in known_values.items()}
+        # ``known_values`` is client-supplied: skip any key that cannot be
+        # int-coerced rather than raise (a 500) — consistent with this check's
+        # documented fail-open contract.
+        baselines = {}
+        for rec_id, base in known_values.items():
+            try:
+                baselines[int(rec_id)] = base
+            except (TypeError, ValueError):
+                continue
         cols = ", ".join('"%s"' % n for n in checkable)
         # ``= ANY(%s)`` with a list (psycopg3 adapts it to a Postgres array) —
         # one bulk read for the whole set, no N+1.
@@ -537,16 +560,12 @@ class Base(models.AbstractModel):
                 # used to abort instead of degrading to a name-only fallback.
                 # Only filter sub-fields (extra_fields); display_name is read
                 # under sudo() below and stays available for every target.
-                accessible_ids = None
                 if extra_fields and co_records:
-                    accessible_ids = set(
-                        co_records.with_context(active_test=False)
-                        ._filtered_access("read")
-                        .ids
-                    )
-                    readable_records = co_records.browse(
-                        id_ for id_ in co_records.ids if id_ in accessible_ids
-                    )
+                    # _filtered_access already returns an order-preserving
+                    # accessible subset, so no manual browse rebuild is needed.
+                    readable_records = co_records.with_context(
+                        active_test=False
+                    )._filtered_access("read")
                 else:
                     readable_records = co_records
 
@@ -567,7 +586,10 @@ class Base(models.AbstractModel):
                     vals = many2one_data.get(values[field_name])
                     # A target with no sub-field data (inaccessible, sub-fields
                     # dropped) still resolves to at least its id/display_name.
-                    values[field_name] = vals and vals["id"] and vals
+                    # ``or False`` so an inaccessible target with no display_name
+                    # yields False (empty m2o), matching every other empty path,
+                    # rather than None (JSON null).
+                    values[field_name] = (vals and vals["id"] and vals) or False
 
             elif field.type in ("one2many", "many2many"):
                 if not field_spec:

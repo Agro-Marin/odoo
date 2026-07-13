@@ -9,6 +9,7 @@ import { unique } from "@web/core/utils/collections/arrays";
 import { x2ManyCommands } from "./commands.js";
 import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { DataPoint } from "./datapoint.js";
+import { isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { Operation } from "./operation.js";
 import { RelationalRecord } from "./record.js";
@@ -203,14 +204,17 @@ export class DynamicList extends DataPoint {
             // be held by the very save urgent mode is bypassing.
             return this._leaveEditMode({ discard });
         }
+        // Hoist the costly ``editedRecord`` find (see the getter docstring):
+        // stable until the first ``_askChanges`` flush, which can change it.
+        const editedRecord = this.editedRecord;
         if (discard) {
             // Set BEFORE flushing pending edits: a field commit drained by
             // _askChanges must not multi-edit-dispatch changes that belong
             // to the row being discarded (see _isRecordToDiscard).
-            this._recordToDiscard = this.editedRecord;
+            this._recordToDiscard = editedRecord;
         }
         try {
-            if (this.editedRecord) {
+            if (editedRecord) {
                 await this.model._askChanges();
             }
             if (!discard && this.editedRecord) {
@@ -418,7 +422,7 @@ export class DynamicList extends DataPoint {
         // special treatment for x2manys: apply commands on all selected record's static lists
         const proms = [];
         for (const fieldName of Object.keys(changes)) {
-            if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
+            if (isX2Many(this.fields[fieldName])) {
                 const list = editedRecord.data[fieldName];
                 let commands = list._getCommands();
                 if ("display_name" in list.activeFields) {
@@ -451,7 +455,7 @@ export class DynamicList extends DataPoint {
         selectedRecords.forEach((record) => {
             const _changes = { ...changes };
             for (const fieldName of Object.keys(_changes)) {
-                if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
+                if (isX2Many(this.fields[fieldName])) {
                     _changes[fieldName] = record.data[fieldName];
                 }
             }

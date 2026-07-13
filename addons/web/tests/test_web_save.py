@@ -268,6 +268,38 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual([r["phone"] for r in result], ["target", "target"])
 
+    def test_single_selected_row_massedit_still_checked(self):
+        """A list mass-edit of exactly ONE selected row sends the per-record
+        shape ``{id: {field: baseline}}`` (dynamic_list._multiSave always does,
+        regardless of selection size). The server must key off the SHAPE, not
+        ``len(self) == 1`` — otherwise the record-id key matches no field name
+        in the singleton path and the concurrency guard silently no-ops,
+        losing a concurrent edit. Regression: this must still raise."""
+        self._server_set_on(self.c1, phone="999")
+        with self.assertRaises(UserError):
+            self.c1.web_save(
+                {"phone": "new"},
+                specification={"phone": {}},
+                known_values={self.c1.id: {"phone": "start"}},  # server moved to 999
+            )
+        # Nothing persisted — the guard raised before write().
+        self.env.cr.execute(
+            "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "999")
+
+    def test_single_selected_row_massedit_no_false_conflict(self):
+        """The single-row per-record shape must also NOT false-conflict when the
+        baseline matches the server's current value."""
+        self.c1.phone = "start"
+        self.env.flush_all()
+        result = self.c1.web_save(
+            {"phone": "new"},
+            specification={"phone": {}},
+            known_values={self.c1.id: {"phone": "start"}},
+        )
+        self.assertEqual(result[0]["phone"], "new")
+
     # -- web_save_multi: per-record vals (relative Field Operation path) ------
     # Unlike the mass-edit web_save (same vals to every record), web_save_multi
     # carries a DISTINCT vals per record, so each is checked against its own

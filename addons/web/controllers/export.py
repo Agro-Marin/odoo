@@ -318,6 +318,26 @@ class ExportFormat:
     ) -> str | bytes:
         raise NotImplementedError
 
+    def base_response(self, data: str) -> Response:
+        """Run :meth:`base`, wrapping any error as an ``InternalServerError``.
+
+        Shared by the CSV and XLSX HTTP routes: on failure the exception is
+        logged and re-raised as a 500 carrying a serialized-exception payload
+        the web client can surface.
+        """
+        try:
+            return self.base(data)
+        except Exception as exc:
+            _logger.exception("Exception during request handling.")
+            payload = json_dumps(
+                {
+                    "code": 0,
+                    "message": "Odoo Server Error",
+                    "data": http.serialize_exception(exc),
+                }
+            )
+            raise InternalServerError(payload) from exc
+
     def base(self, data: str) -> Response:
         """Core export logic shared by CSV and XLSX controllers."""
         params = json_loads(data)
@@ -436,18 +456,7 @@ class ExportFormat:
 class CSVExport(ExportFormat, http.Controller):
     @http.route("/web/export/csv", type="http", auth="user")
     def web_export_csv(self, data: str) -> Response:
-        try:
-            return self.base(data)
-        except Exception as exc:
-            _logger.exception("Exception during request handling.")
-            payload = json_dumps(
-                {
-                    "code": 0,
-                    "message": "Odoo Server Error",
-                    "data": http.serialize_exception(exc),
-                }
-            )
-            raise InternalServerError(payload) from exc
+        return self.base_response(data)
 
     @property
     def content_type(self) -> str:
@@ -479,18 +488,7 @@ class CSVExport(ExportFormat, http.Controller):
 class ExcelExport(ExportFormat, http.Controller):
     @http.route("/web/export/xlsx", type="http", auth="user")
     def web_export_xlsx(self, data: str) -> Response:
-        try:
-            return self.base(data)
-        except Exception as exc:
-            _logger.exception("Exception during request handling.")
-            payload = json_dumps(
-                {
-                    "code": 0,
-                    "message": "Odoo Server Error",
-                    "data": http.serialize_exception(exc),
-                }
-            )
-            raise InternalServerError(payload) from exc
+        return self.base_response(data)
 
     @property
     def content_type(self) -> str:

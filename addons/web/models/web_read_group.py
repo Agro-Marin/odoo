@@ -226,7 +226,11 @@ class Base(models.AbstractModel):
             # the old form materialised (and post-processed — incl. building a
             # recordset for a relational groupby) all trailing groups just to
             # count them, which is O(number of groups) rows on the wire.
-            length = self._read_group_count(domain, groupby)
+            # ``_read_group_count`` only counts REAL DB groups, but group_expand
+            # can pad ``groups`` up to exactly ``limit`` with empty groups (which
+            # ARE returned/rendered); take the max so the pager never reports
+            # fewer groups than were handed back.
+            length = max(self._read_group_count(domain, groupby), len(groups) + offset)
         else:
             length = len(groups) + offset
 

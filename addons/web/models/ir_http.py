@@ -334,15 +334,21 @@ class IrHttp(models.AbstractModel):
             user_context = {}
 
         info = self._base_session_info()
-        version_info = odoo.service.common.exp_version()
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
+
+        # _base_session_info() already sets the server version, but only for an
+        # authenticated session; the backend session_info always exposes it.
+        # Fill it in only when absent so exp_version() runs at most once and the
+        # two paths can't diverge.
+        if "server_version" not in info:
+            version_info = odoo.service.common.exp_version()
+            info["server_version"] = version_info.get("server_version")
+            info["server_version_info"] = version_info.get("server_version_info")
 
         info.update(
             self._get_config_limits(ir_config_sudo),
             user_context=user_context,
             db=self.env.cr.dbname,
-            server_version=version_info.get("server_version"),
-            server_version_info=version_info.get("server_version_info"),
             user_settings=(
                 self.env["res.users.settings"]
                 ._find_or_create_for_user(user)

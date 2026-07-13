@@ -235,9 +235,16 @@ class Observability(Controller):
         spot post-deploy regressions via the existing log pipeline.
 
         ``csrf=False`` because ``navigator.sendBeacon`` cannot carry a CSRF
-        token; the endpoint is purely write-only and rate-limited at the
-        JS side (one beacon per ``(message,line,col)`` per page lifetime).
+        token; the endpoint is purely write-only. The first-party client
+        rate-limits itself (one beacon per ``(message,line,col)`` per page
+        lifetime), but a hostile caller ignores that, so the server also
+        applies the same per-client fixed-window cap as ``cwv`` — each beacon
+        emits a WARNING log line and must not be amplifiable without bound.
         """
+        client_key = request.httprequest.remote_addr or "anon"
+        if _rate_limited(client_key):
+            return Response("", status=429, mimetype="text/plain")
+
         try:
             payload = json_loads(request.httprequest.data or b"{}")
         except ValueError, TypeError:

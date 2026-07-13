@@ -6,11 +6,17 @@
 /**
  * Field types whose value cannot be safely compared for the field-scoped
  * optimistic lock, so they never contribute a baseline:
- * - x2many/binary/html/json/properties/reference: no stable scalar to compare;
+ * - x2many/binary/html/json/properties/properties_definition/reference/
+ *   many2one_reference: no stable scalar to compare;
  * - date/datetime: client (Luxon, tz/ms) vs raw DB value risks a
  *   timezone-boundary FALSE conflict.
- * Mirrors the server's `_CONCURRENCY_SAFE_TYPES` exclusion set
- * (models/web_read.py) — kept in one place on each side so they can't drift.
+ * This denylist is the exact complement of the server's allowlist
+ * `_CONCURRENCY_SAFE_TYPES` (models/web_read.py:
+ * integer/boolean/char/text/selection/float/monetary/many2one) over all field
+ * types — every type NOT in that allowlist must appear here, or the JS ships a
+ * baseline the server can never check (the sets would no longer mirror).
+ * ``many2one_reference`` / ``properties_definition`` were the two the server
+ * excludes but this set previously did not.
  */
 const NON_COMPARABLE_TYPES = new Set([
     "one2many",
@@ -21,7 +27,9 @@ const NON_COMPARABLE_TYPES = new Set([
     "datetime",
     "json",
     "properties",
+    "properties_definition",
     "reference",
+    "many2one_reference",
 ]);
 
 /**

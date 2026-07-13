@@ -205,3 +205,47 @@ class TestResUsersSettings(TransactionCase):
             expected_settings,
             "The settings should be correctly formatted after the update with the new values.",
         )
+
+    def test_set_embedded_actions_ignores_non_whitelisted_keys(self):
+        """Only whitelisted content fields may be written. A client must not be
+        able to smuggle identity keys (e.g. ``user_setting_id``) into ``vals``
+        to re-point its config row onto another user's settings."""
+        other_user = self.env["res.users"].create(
+            {"name": "Mallory", "login": "mallory@mail.com", "password": "mallory@mail.com"}
+        )
+        other_settings = self.env["res.users.settings"]._find_or_create_for_user(
+            other_user
+        )
+        # Create a config row on our own settings, but try to point it at the
+        # other user's settings and set an arbitrary extra column.
+        self.user_settings.set_embedded_actions_setting(
+            action_id=self.window_action.id,
+            res_id=self.user.id,
+            vals={
+                "res_model": "res.users",
+                "embedded_visibility": True,
+                "user_setting_id": other_settings.id,  # must be ignored
+            },
+        )
+        config = self.user_settings.embedded_actions_config_ids
+        self.assertEqual(len(config), 1)
+        self.assertEqual(
+            config.user_setting_id,
+            self.user_settings,
+            "The row must stay bound to the caller's own settings.",
+        )
+        self.assertFalse(
+            other_settings.embedded_actions_config_ids,
+            "The victim's settings must not have gained a config row.",
+        )
+        # The write path must reject the injected identity key too.
+        self.user_settings.set_embedded_actions_setting(
+            action_id=self.window_action.id,
+            res_id=self.user.id,
+            vals={
+                "embedded_visibility": False,
+                "user_setting_id": other_settings.id,  # must be ignored on write
+            },
+        )
+        self.assertEqual(config.user_setting_id, self.user_settings)
+        self.assertFalse(other_settings.embedded_actions_config_ids)

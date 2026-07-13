@@ -110,6 +110,22 @@ export function extractFieldNamesFromExpr(expr) {
 const _modifierDependencyCache = new WeakMap();
 
 /**
+ * Drop the memoised dependency map for ``activeFields``. MUST be called
+ * whenever an ``activeFields`` object is mutated IN PLACE after the map may
+ * have been built (splicing property fields in ``record_properties.js``,
+ * ``completeActiveFields`` in ``static_list.extendRecord``) — otherwise
+ * {@link getModifierDependencies} keeps returning the pre-mutation map and a
+ * newly added field's modifier dependencies are missed by the scoped
+ * re-validation. (A wholesale-replaced ``activeFields`` object needs no
+ * invalidation: it's a fresh key with no cache entry.)
+ *
+ * @param {Object} activeFields
+ */
+export function invalidateModifierDependencies(activeFields) {
+    _modifierDependencyCache.delete(activeFields);
+}
+
+/**
  * Build (and memoise) the inverse dependency map for a view's ``activeFields``:
  * for each field ``X``, the fields ``B`` whose ``invisible``/``required``/
  * ``readonly`` modifier references ``X``. ``readonly`` doesn't itself drive

@@ -16,6 +16,8 @@
 
 import { toRaw } from "@odoo/owl";
 
+import { isX2Many } from "./field_context.js";
+
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
@@ -174,8 +176,7 @@ export function checkValidity(
                 continue;
             }
             const field = record.fields[fieldName];
-            const isX2many =
-                field && (field.type === "one2many" || field.type === "many2many");
+            const isX2many = isX2Many(field);
             if (scopedFields && !scopedFields.has(fieldName) && !isX2many) {
                 continue;
             }

@@ -1,10 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import {
-    InvalidUrgentSaveTransitionError,
-    UrgentSaveCoordinator,
-} from "@web/model/relational_model/urgent_save_coordinator";
+import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
 describe.current.tags("headless");
 
@@ -45,13 +42,29 @@ test("run() fires WILL_SAVE_URGENTLY on the bus at entry", async () => {
     expect(events[0].event).toBe("WILL_SAVE_URGENTLY");
 });
 
-test("nested run() throws InvalidUrgentSaveTransitionError", async () => {
-    const coord = new UrgentSaveCoordinator();
-    await expect(
-        coord.run(async () => {
-            await coord.run(async () => {});
-        }),
-    ).rejects.toBeInstanceOf(InvalidUrgentSaveTransitionError);
+test("nested run() is re-entrant: joins the active run without throwing", async () => {
+    // Two urgentSave() calls on the SAME model can race on tab close (an edited
+    // row + a running timer datapoint, both inside a Promise.all). A nested
+    // run() must run its fn under the already-active mode rather than throw
+    // InvalidUrgentSaveTransitionError (which would reject the second call, drop
+    // its beacon, and fail the whole Promise.all during unload).
+    const events = [];
+    const bus = { trigger: (event) => events.push(event) };
+    const coord = new UrgentSaveCoordinator(bus);
+    let innerActive;
+    const result = await coord.run(async () => {
+        const inner = await coord.run(async () => {
+            innerActive = coord.isActive;
+            return "inner";
+        });
+        return `outer+${inner}`;
+    });
+    expect(result).toBe("outer+inner");
+    expect(innerActive).toBe(true);
+    // Mode reset once the outermost entry's finally runs.
+    expect(coord.isActive).toBe(false);
+    // WILL_SAVE_URGENTLY fires once (outermost entry only), not per nested call.
+    expect(events.filter((e) => e === "WILL_SAVE_URGENTLY").length).toBe(1);
 });
 
 test("awaitUnlessUrgent resolves promise normally when idle", async () => {

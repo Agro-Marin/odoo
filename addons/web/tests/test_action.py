@@ -61,6 +61,21 @@ class TestLoadBreadcrumbs(HttpCase):
             }
         )
 
+        # A server action that has a path (so it is eligible for restoration)
+        # but whose code performs work without returning a follow-up ``action``.
+        # ``run()`` then returns ``False``; the controller must not dereference
+        # it (regression: previously raised an uncaught AttributeError/500 for
+        # the whole breadcrumb batch).
+        cls.server_action_returning_nothing = cls.env["ir.actions.server"].create(
+            {
+                "name": "Breadcrumb Server Action Returning Nothing",
+                "model_id": model_id,
+                "state": "code",
+                "path": "test_path_no_return",
+                "code": "action = False",
+            }
+        )
+
         cls.server_action_with_form_view = cls.env["ir.actions.server"].create(
             {
                 "name": "Breadcrumb Server Action With Path",
@@ -256,6 +271,38 @@ class TestLoadBreadcrumbs(HttpCase):
             "Window Action From Server",
         )
         self.assertEqual(resp.json()["result"][1]["display_name"], None)
+
+    def test_breadcrumbs_server_action_returning_nothing(self):
+        # A restorable server action whose run() returns a falsy value must
+        # degrade to an error breadcrumb, not crash the whole batch. The
+        # following entry (a plain window action) must still resolve.
+        self.authenticate("admin", "admin")
+        resp = self.url_open(
+            "/web/action/load_breadcrumbs",
+            headers={"Content-Type": "application/json"},
+            data=json_dumps(
+                {
+                    "params": {
+                        "actions": [
+                            {
+                                "action": self.server_action_returning_nothing.id,
+                                "resId": None,
+                            },
+                            {
+                                "action": self.window_action.id,
+                                "resId": None,
+                            },
+                        ],
+                    },
+                }
+            ),
+        )
+        result = resp.json()["result"]
+        self.assertEqual(
+            result[0]["error"],
+            "Server action did not return a restorable action",
+        )
+        self.assertEqual(result[1]["display_name"], "Test Partners")
 
     def test_breadcrumbs_get_model(self):
         self.authenticate("admin", "admin")

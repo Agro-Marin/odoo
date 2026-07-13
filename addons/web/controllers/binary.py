@@ -503,6 +503,12 @@ class Binary(http.Controller):
         fonts = []
         fonts_dir = Path(file_path("web/static/fonts/sign"))
         if fontname:
+            # ``fontname`` is caller-supplied from the URL path: constrain it to
+            # a bare filename so it cannot walk out of ``fonts/sign`` via
+            # separators or ``..`` (file_open still sandboxes to the addons
+            # root, but the intent here is a single directory).
+            if Path(fontname).name != fontname:
+                raise request.not_found()
             with file_open(
                 str(fonts_dir / fontname), "rb", filter_ext=supported_exts
             ) as font_file:

@@ -132,6 +132,46 @@ test("check connection aborted", async () => {
     expect.verifySteps(["RPC:REQUEST", "RPC:RESPONSE"]);
 });
 
+test("abort during body streaming stays silent, no InvalidResponseError", async () => {
+    // Regression: abort() can land after the response headers pass the guards
+    // but while the body is still streaming. Cancelling the body makes
+    // response.json() reject; the rpc must treat that as caller intent (the
+    // abort already decided the promise's fate) rather than fabricating an
+    // InvalidResponseError — which would reject a silently-aborted promise and
+    // pop a false "Session Expired" dialog on a healthy session.
+    // Headers pass every guard (200 + application/json), but the body read is
+    // held open via a json() we resolve/reject by hand — modeling a body that
+    // is still streaming when abort() lands.
+    let rejectJson;
+    const response = new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    });
+    response.json = () => new Promise((_resolve, reject) => (rejectJson = reject));
+    mockFetch(() => response);
+    onRpcResponse(() => expect.step("RPC:RESPONSE"));
+
+    const connection = rpc("/test/");
+    connection.then(
+        () => expect.step("resolved"),
+        () => expect.step("rejected"),
+    );
+    // Let fetch resolve so execution parks on `await response.json()`.
+    await tick();
+    await tick();
+    // Silent abort: the outer promise must stay pending, exactly one
+    // RPC:RESPONSE (the abort's) must be emitted.
+    connection.abort(false);
+    // Now fail the still-pending body read with the abort in flight.
+    rejectJson(new DOMException("The user aborted a request.", "AbortError"));
+    await tick();
+    await tick();
+
+    // Only the abort's RPC:RESPONSE — no second (InvalidResponseError) event and
+    // no rejection of the caller-orphaned promise.
+    expect.verifySteps(["RPC:RESPONSE"]);
+});
+
 test("trigger a ServerOverloadError when response carries a non-JSON content-type", async () => {
     // Server returned an HTML error page (typical werkzeug PoolError /
     // OperationalError traceback).  Caught by content-type sniff BEFORE

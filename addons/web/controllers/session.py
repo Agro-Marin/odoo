@@ -71,9 +71,12 @@ class Session(http.Controller):
     def get_lang_list(self) -> list[list[str]] | dict[str, str]:
         try:
             return http.dispatch_rpc("db", "list_lang", []) or []
-        except Exception as e:
+        except Exception:
+            # auth="none": do not echo the raw exception text (which can carry
+            # DB/config internals) back to an unauthenticated caller — log it
+            # server-side and return a generic message.
             _logger.exception("Failed to fetch language list")
-            return {"error": str(e), "title": _("Languages")}
+            return {"error": _("Could not fetch the language list."), "title": _("Languages")}
 
     @http.route("/web/session/modules", type="jsonrpc", auth="user", readonly=True)
     def modules(self) -> list[str]:

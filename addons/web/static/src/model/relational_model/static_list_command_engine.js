@@ -18,7 +18,7 @@ import {
     shouldEmitUnlink,
 } from "./command_builder.js";
 import { x2ManyCommands } from "./commands.js";
-import { getId } from "./field_context.js";
+import { getId, isX2Many } from "./field_context.js";
 
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
@@ -100,11 +100,7 @@ export function applyCommands(
                     /** @type {Record<string, any> | null} */
                     let deferredChanges = null;
                     for (const fieldName of Object.keys(command[2])) {
-                        if (
-                            ["one2many", "many2many"].includes(
-                                list.fields[fieldName].type,
-                            )
-                        ) {
+                        if (isX2Many(list.fields[fieldName])) {
                             const invisible = record.activeFields[fieldName]?.invisible;
                             if (
                                 invisible === "True" ||

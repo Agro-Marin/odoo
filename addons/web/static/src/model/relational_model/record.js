@@ -7,7 +7,7 @@ import { markRaw, toRaw } from "@odoo/owl";
 import { omit } from "@web/core/utils/collections/objects";
 
 import { DataPoint } from "./datapoint.js";
-import { getBasicEvalContext, getFieldContext } from "./field_context.js";
+import { getBasicEvalContext, getFieldContext, isX2Many } from "./field_context.js";
 import { Operation } from "./operation.js";
 import { RecordEditState } from "./record_edit_state.js";
 import {
@@ -212,8 +212,22 @@ export class RelationalRecord extends DataPoint {
             this._assertChangeSetInvariant();
         }
         this.data = { ...this._values, ...this._changes };
+        // ``_initialTextValues`` is the server-truth snapshot a no-savepoint
+        // discard reverts to, so capture it from the freshly merged server text
+        // values BEFORE overlaying any pending edit. markRaw for parity with
+        // ``_textValues`` (both are non-reactive bags; the wholesale writers in
+        // record_save.js also markRaw).
+        this._initialTextValues = markRaw({ ...this._textValues });
+        if (keepChanges) {
+            // The server text values merged into ``_textValues`` above clobbered
+            // the pending-edit layer's char/text/html values (this reload path
+            // — stale-while-revalidate cache callbacks — refreshes only the
+            // server layer). Re-overlay the pending edits so the eval context
+            // matches what the user still sees in the inputs (mirrors
+            // ``_applyValues``); ``_initialTextValues`` above stays server-truth.
+            Object.assign(this._textValues, this._getTextValues(this._changes));
+        }
         this._setEvalContext();
-        this._initialTextValues = { ...this._textValues };
 
         if (!keepChanges) {
             this._invalidFields.clear();
@@ -687,11 +701,7 @@ export class RelationalRecord extends DataPoint {
         const x2manyMerges = [];
         for (const fieldName of Object.keys(values)) {
             const field = this.fields[fieldName];
-            if (
-                field &&
-                (field.type === "one2many" || field.type === "many2many") &&
-                this._changes[fieldName]?._commands?.length
-            ) {
+            if (isX2Many(field) && this._changes[fieldName]?._commands?.length) {
                 x2manyMerges.push(fieldName);
             }
         }
@@ -707,7 +717,7 @@ export class RelationalRecord extends DataPoint {
         for (const fieldName of Object.keys(newValues)) {
             this._loadedFieldNames.add(fieldName);
             if (fieldName in this._changes) {
-                if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
+                if (isX2Many(this.fields[fieldName])) {
                     this._changes[fieldName] = newValues[fieldName];
                 }
             }
@@ -930,7 +940,7 @@ export class RelationalRecord extends DataPoint {
 
         if (!this._parentRecord || this._parentRecord._isEvalContextReady) {
             for (const [fieldName, value] of Object.entries(toRaw(this.data))) {
-                if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
+                if (isX2Many(this.fields[fieldName])) {
                     value._updateContext(getFieldContext(this, fieldName));
                 }
             }

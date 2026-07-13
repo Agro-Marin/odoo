@@ -468,7 +468,13 @@ export class ORM {
 }
 
 /**
- * To hide RPC errors:
+ * ``orm.silent`` sets ``settings.silent`` on the RPC, which ONLY suppresses
+ * the request's UI *progress* affordances: the loading indicator
+ * (loading_indicator.js) and the slow-RPC notification (slow_rpc_service.js).
+ * It does NOT suppress error dialogs -- nothing in the error pipeline
+ * (error_service.js / error_handlers.js) inspects ``silent`` -- so a failing
+ * ``orm.silent`` call still surfaces its error. Use it for background/polling
+ * reads that shouldn't flash the spinner:
  *
  * this.orm = useService('orm');
  * ...
