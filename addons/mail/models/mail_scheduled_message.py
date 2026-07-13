@@ -226,7 +226,12 @@ class MailScheduledMessage(models.Model):
         This is useful when scheduled messages are sent from the _post_messages_cron.
         """
         notification_parameters_whitelist = self._notification_parameters_whitelist()
-        auto_commit = not modules.module.current_test
+        # Only the cron (raise_exception=False) may commit per message: it owns
+        # its transaction and needs incremental commits so a mid-batch crash
+        # cannot repost. The interactive "Send Now" (raise_exception=True) runs
+        # inside the user's request transaction, where committing here would
+        # flush unrelated pending work as a side effect of the button.
+        auto_commit = not raise_exception and not modules.module.current_test
         for scheduled_message in self:
             message_creator = scheduled_message.create_uid
             try:

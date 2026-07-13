@@ -868,8 +868,16 @@ class MailActivity(models.Model):
             "summary",
             # sudo on user_id: same reasoning as create_uid above — multi-
             # company-restricted readers must not crash on activities
-            # assigned to a user from another company.
-            Store.One("user_id", Store.One("partner_id"), sudo=True),
+            # assigned to a user from another company. Restrict the sudo'd
+            # nested partner to display-only fields: an unrestricted
+            # Store.One("partner_id") pulls res.partner._to_store_defaults
+            # (email, im_status + its presence access token, avatar token, …)
+            # under sudo, leaking those across the company boundary to any user
+            # who can merely read the activity. The avatar card fetches the
+            # rest on demand under normal ACLs.
+            Store.One(
+                "user_id", Store.One("partner_id", ["name", "avatar_128"]), sudo=True
+            ),
             Store.Many("attachment_ids", ["name"]),
             Store.Many("mail_template_ids", ["name"]),
         ]

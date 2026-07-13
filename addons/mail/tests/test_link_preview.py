@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import requests
 from markupsafe import Markup
+from requests.utils import get_encoding_from_headers
 
 from odoo.tests.common import tagged
 
@@ -94,6 +95,84 @@ class TestLinkPreview(MailCommon):
         </html>
         """
         return self._patched_get_html("text/html", content)
+
+    def _patch_utf8_without_charset_header(self, *args, **kwargs):
+        # UTF-8 page declaring its charset only via <meta charset>, with NO
+        # charset in the Content-Type header: requests then sets
+        # response.encoding to its text/* default (ISO-8859-1), which would
+        # decode the UTF-8 bytes as latin-1 (mojibake) if trusted blindly.
+        content = (
+            "<html><head><title>Réunion café à Montréal — décembre</title>"
+            '<meta charset="utf-8">'
+            '<meta property="og:title" content="Café ☕ déjà vu à Genève">'
+            "</head></html>"
+        ).encode()
+        response = requests.Response()
+        response.status_code = 200
+        response._content = content
+        response.raw = io.BytesIO(content)
+        response.headers["Content-Type"] = "text/html"  # no charset param
+        # mirror what requests derives from that header
+        response.encoding = get_encoding_from_headers(response.headers)
+        return response
+
+    def test_link_preview_utf8_without_charset_header(self):
+        """A UTF-8 page whose charset is only in <meta> (Content-Type header
+        has none) must not be decoded as latin-1."""
+        self.assertEqual(
+            self._patch_utf8_without_charset_header().encoding, "ISO-8859-1",
+            "precondition: requests defaults header-less text/html to latin-1",
+        )
+        session = requests.Session()
+        with patch.object(
+            requests.Session, "get", self._patch_utf8_without_charset_header
+        ):
+            preview = link_preview.get_link_preview_from_url(self.source_url, session)
+        self.assertEqual(preview["og_title"], "Café ☕ déjà vu à Genève")
+
+    def test_link_preview_redirect_budget(self):
+        """A redirect chain longer than MAX_REDIRECTS yields no preview instead
+        of being followed forever."""
+        hops = []
+
+        def _get(_self, url, **kwargs):
+            hops.append(url)
+            response = requests.Response()
+            response.status_code = 302
+            response.headers["location"] = "https://redir.nothing/%d" % len(hops)
+            response.url = url
+            response.raw = io.BytesIO(b"")
+            return response
+
+        session = requests.Session()
+        with patch.object(requests.Session, "get", _get):
+            preview = link_preview.get_link_preview_from_url(self.source_url, session)
+        self.assertFalse(preview)
+        self.assertLessEqual(
+            len(hops), link_preview.MAX_REDIRECTS + 1,
+            "must stop after the redirect budget, not follow indefinitely",
+        )
+
+    def test_link_preview_relative_redirect(self):
+        """A relative Location is resolved against the current URL and the final
+        page is previewed."""
+        final_url = "https://thisdomainedoentexist.nothing/final"
+
+        def _get(_self, url, **kwargs):
+            if url == self.source_url:
+                response = requests.Response()
+                response.status_code = 302
+                response.headers["location"] = "/final"  # relative
+                response.url = url
+                response.raw = io.BytesIO(b"")
+                return response
+            self.assertEqual(url, final_url, "relative Location must be urljoin'd")
+            return self._patch_without_og_properties()
+
+        session = requests.Session()
+        with patch.object(requests.Session, "get", _get):
+            preview = link_preview.get_link_preview_from_url(self.source_url, session)
+        self.assertEqual(preview["og_title"], self.title)
 
     def test_get_link_preview_from_url(self):
         test_cases = [

@@ -18,12 +18,14 @@ import {
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { Deferred, advanceTime } from "@odoo/hoot-mock";
+import { Deferred, advanceTime, animationFrame } from "@odoo/hoot-mock";
 import {
     asyncStep,
     defineActions,
     getService,
+    makeServerError,
     mockService,
+    onRpc,
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
@@ -108,6 +110,30 @@ test("can post a message on a record thread", async () => {
     await click(".o-mail-Composer button[aria-label='Send']:enabled");
     await contains(".o-mail-Message");
     await waitForSteps(["/mail/message/post"]);
+});
+
+test("composer stays usable after a failed message post (not bricked)", async () => {
+    // Regression: processMessage disabled the composer before awaiting the post
+    // RPC; on a record thread that RPC rethrows on failure, so without a
+    // try/finally the composer stayed disabled forever. After a failure the
+    // send button must re-enable and the draft must be preserved.
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    onRpc("/mail/message/post", () => {
+        throw makeServerError({ message: "post boom" });
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click("button", { text: "Send message" });
+    await insertText(".o-mail-Composer-input", "hey");
+    expect.errors(1);
+    await click(".o-mail-Composer button[aria-label='Send']:enabled");
+    // the failed post must re-enable the composer and keep the draft (before
+    // the fix the button stayed disabled forever and every later send no-oped)
+    await contains(".o-mail-Composer button[aria-label='Send']:enabled");
+    await contains(".o-mail-Composer-input", { value: "hey" });
+    await animationFrame(); // let the propagated rejection surface
+    expect.verifyErrors([/post boom/]);
 });
 
 test("can post a note on a record thread", async () => {

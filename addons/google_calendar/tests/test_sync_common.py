@@ -2,17 +2,22 @@
 
 from collections import defaultdict
 from contextlib import contextmanager
-from datetime import datetime
-from freezegun import freeze_time
+from datetime import UTC, datetime
 from unittest.mock import patch
 
+from freezegun import freeze_time
+
 from odoo import fields
-from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
-from odoo.addons.google_account.models.google_service import GoogleService
-from odoo.addons.google_calendar.models.res_users import ResUsers
-from odoo.addons.google_calendar.models.google_sync import google_calendar_token, GoogleCalendarSync
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.tests.common import HttpCase
+
+from odoo.addons.google_account.models.google_service import GoogleService
+from odoo.addons.google_calendar.models.google_sync import (
+    GoogleCalendarSync,
+    google_calendar_token,
+)
+from odoo.addons.google_calendar.models.res_users import ResUsers
+from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 def patch_api(func):
@@ -42,7 +47,13 @@ class TestSyncGoogle(HttpCase):
         # cr.now() is contractually a datetime; coerce a string so consumers
         # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
         now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
-        with freeze_time(mock_dt), \
+        # cr.now() is naive UTC in production; normalize a tz-aware freeze
+        # point so it (and freeze_time) stay on that convention, else
+        # naive/aware comparisons (e.g. ir.cron._now) crash. Mirrors mail
+        # freeze_all_time.
+        if now_dt.tzinfo is not None:
+            now_dt = now_dt.astimezone(UTC).replace(tzinfo=None)
+        with freeze_time(now_dt), \
                 patch.object(self.env.cr, 'now', lambda: now_dt):
             yield
 

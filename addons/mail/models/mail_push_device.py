@@ -63,18 +63,28 @@ class MailPushDevice(models.Model):
         browser_keys = kw.get("keys")
         if not endpoint or not browser_keys:
             return
-        search_endpoint = kw.get("previousEndpoint", endpoint)
+        # Accept both spellings of the previous-endpoint hint: the web client
+        # sends snake_case (previous_endpoint) while the service worker's
+        # pushsubscriptionchange handler sends camelCase (previousEndpoint).
+        search_endpoint = (
+            kw.get("previousEndpoint") or kw.get("previous_endpoint") or endpoint
+        )
         mail_push_device = self.sudo().search([("endpoint", "=", search_endpoint)])
         if mail_push_device:
+            # Always refresh the subscription payload: this is also the
+            # endpoint-rotation path (the previous endpoint located the old
+            # row, new endpoint/keys supplied), so skipping the write when the
+            # owner is unchanged would leave the row pointing at the dead
+            # endpoint until a delivery failure GCs the device and the user
+            # silently loses web push. Only reassign the owner when it changed.
+            vals = {
+                "endpoint": endpoint,
+                "expiration_time": kw.get("expirationTime"),
+                "keys": json.dumps(browser_keys),
+            }
             if mail_push_device.partner_id != self.env.user.partner_id:
-                mail_push_device.write(
-                    {
-                        "endpoint": endpoint,
-                        "expiration_time": kw.get("expirationTime"),
-                        "keys": json.dumps(browser_keys),
-                        "partner_id": self.env.user.partner_id,
-                    }
-                )
+                vals["partner_id"] = self.env.user.partner_id
+            mail_push_device.write(vals)
         else:
             self.sudo().create(
                 [

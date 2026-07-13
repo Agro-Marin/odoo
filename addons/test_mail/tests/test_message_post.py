@@ -1192,7 +1192,9 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
     def test_message_post_schedule(self):
         """ Test delaying notifications through scheduled_date usage """
         cron_id = self.env.ref('mail.ir_cron_send_scheduled_message').id
-        now = datetime.now(UTC).replace(second=0, microsecond=0)
+        # naive UTC: Odoo stores datetimes as naive UTC, so the frozen clock
+        # and every value compared against a stored/DB datetime below must be naive
+        now = datetime.now(UTC).replace(tzinfo=None, second=0, microsecond=0)
         scheduled_datetime = now + timedelta(days=5)
         self.user_admin.write({'notification_type': 'inbox'})
 
@@ -1294,7 +1296,9 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
     def test_message_post_schedule_update(self):
         """ Test tools to update scheduled notifications """
         cron = self.env.ref('mail.ir_cron_send_scheduled_message')
-        now = datetime.now(UTC).replace(second=0, microsecond=0)
+        # naive UTC: Odoo stores datetimes as naive UTC, so the frozen clock
+        # and every value compared against a stored/DB datetime below must be naive
+        now = datetime.now(UTC).replace(tzinfo=None, second=0, microsecond=0)
         scheduled_datetime = now + timedelta(days=5)
         self.user_admin.write({'notification_type': 'inbox'})
 
@@ -1334,6 +1338,66 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
 
         self.assertFalse(self.env['mail.message.schedule'].sudo()._update_message_scheduled_datetime(msg, now - timedelta(hours=1)),
                          'Mail scheduler: should return False when no schedule is found')
+
+    @mute_logger('odoo.addons.mail.models.mail_message_schedule')
+    def test_message_schedule_cron_isolates_failures(self):
+        """The scheduled-notification cron must not let one failing
+        notification roll back and block the rest of the due batch: the poison
+        row is dropped, the healthy ones are still sent (regression)."""
+        Schedule = self.env['mail.message.schedule'].sudo()
+        test_records = self.test_records_simple.with_env(self.env)
+        test_records.message_subscribe((self.partner_1 | self.partner_admin).ids)
+        good_msg = test_records[0].message_post(
+            body='<p>good</p>', message_type='comment', subtype_xmlid='mail.mt_comment')
+        bad_msg = test_records[1].message_post(
+            body='<p>bad</p>', message_type='comment', subtype_xmlid='mail.mt_comment')
+        past = datetime(2020, 1, 1, 0, 0, 0)
+        Schedule.create([
+            {'mail_message_id': good_msg.id, 'scheduled_datetime': past},
+            {'mail_message_id': bad_msg.id, 'scheduled_datetime': past},
+        ])
+
+        record_cls = type(self.env['mail.test.simple'])
+        origin = record_cls._notify_thread
+
+        def _notify_thread(self, message, *args, **kwargs):
+            if message.id == bad_msg.id:
+                raise ValueError('boom')
+            return origin(self, message, *args, **kwargs)
+
+        with patch.object(record_cls, '_notify_thread', _notify_thread):
+            # must not raise even though bad_msg's notification fails
+            Schedule._send_notifications_cron()
+
+        self.assertFalse(
+            Schedule.search([('mail_message_id', 'in', (good_msg + bad_msg).ids)]),
+            'both schedules consumed: the healthy one sent, the poison one dropped',
+        )
+
+    @mute_logger('odoo.addons.mail.models.mail_message_schedule')
+    def test_message_schedule_cron_batches(self):
+        """The cron processes at most one batch and re-triggers itself when
+        more scheduled notifications remain due."""
+        cron = self.env.ref('mail.ir_cron_send_scheduled_message')
+        Schedule = self.env['mail.message.schedule'].sudo()
+        self.env['ir.config_parameter'].sudo().set_param(
+            'mail.scheduled_notification.batch.size', 1)
+        test_records = self.test_records_simple.with_env(self.env)
+        test_records.message_subscribe((self.partner_1 | self.partner_admin).ids)
+        past = datetime(2020, 1, 1, 0, 0, 0)
+        for test_record in test_records[:2]:
+            msg = test_record.message_post(
+                body='<p>batch</p>', message_type='comment',
+                subtype_xmlid='mail.mt_comment')
+            Schedule.create({'mail_message_id': msg.id, 'scheduled_datetime': past})
+
+        remaining_before = Schedule.search_count([('scheduled_datetime', '<=', past)])
+        self.assertEqual(remaining_before, 2)
+        with self.capture_triggers(cron.id) as capt:
+            Schedule._send_notifications_cron()
+        # one processed this run, one still due -> a follow-up trigger created
+        self.assertEqual(Schedule.search_count([('scheduled_datetime', '<=', past)]), 1)
+        self.assertTrue(capt.records, 'a follow-up cron trigger must be created')
 
     @mute_logger('odoo.addons.mail.models.mail_mail', 'odoo.addons.mail.models.mail_message_schedule')
     def test_message_post_w_attachments_filtering(self):
@@ -1758,6 +1822,44 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                             'subtype': 'mail.mt_comment',
                         }],
                     )
+
+    def test_post_with_out_of_office_distinct_recipients(self):
+        """An OOO already sent to one message author must NOT suppress the OOO
+        reply owed to a *different* author within the 4-day window: the dedup
+        must key on the actual recipient, not merely on a null
+        outgoing_email_to (regression)."""
+        test_record = self.env['mail.test.simple'].browse(self.test_record.ids)
+        # user_admin is the sole OOO recipient (a direct recipient of each post)
+        self._setup_out_of_office(self.user_admin)
+        self.user_admin.notification_type = 'email'
+        self.assertTrue(self.user_admin.is_out_of_office)
+
+        def _post_as(author_user, post_dt):
+            with self.mock_mail_gateway(), self.mock_mail_app(), \
+                    self.mock_datetime_and_now(post_dt):
+                test_record.with_user(author_user).with_context(
+                    mail_post_autofollow_author_skip=True,
+                ).message_post(
+                    body="ping",
+                    message_type='email',
+                    partner_ids=self.user_admin.partner_id.ids,
+                    subtype_id=self.env.ref('mail.mt_comment').id,
+                )
+            return self._new_msgs[1:]  # drop the posted message, keep OOO replies
+
+        # author A -> admin OOO-replies to A
+        ooo_a = _post_as(self.user_employee, datetime(2025, 6, 17, 10, 0, 0))
+        self.assertEqual(ooo_a.author_id, self.user_admin.partner_id)
+        self.assertEqual(ooo_a.partner_ids, self.partner_employee)
+
+        # author B the next day (well within 4 days) -> admin must STILL reply
+        ooo_b = _post_as(self.user_employee_c2, datetime(2025, 6, 18, 10, 0, 0))
+        self.assertEqual(
+            ooo_b.author_id, self.user_admin.partner_id,
+            "OOO to a new recipient must not be suppressed by an earlier OOO "
+            "to a different recipient",
+        )
+        self.assertEqual(ooo_b.partner_ids, self.partner_employee_c2)
 
 
 @tagged('mail_post')

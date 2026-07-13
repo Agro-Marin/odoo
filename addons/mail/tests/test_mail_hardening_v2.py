@@ -138,6 +138,36 @@ class TestMailHardeningV2(MailCommon):
         with self.assertRaises(ValueError):
             jwt_tool.sign(claims, key, ttl=0, algorithm=jwt_tool.Algorithm.HS256)
 
+    def test_jwt_es256_sign_verifies_with_vapid_public_key(self):
+        """An ES256-signed VAPID token must verify against the generated public
+        key (the contract every push service checks): raw-key derivation and the
+        r||s -> DSS signature encoding must round-trip."""
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+        private_key, public_key = jwt_tool.generate_vapid_keys()
+        token = jwt_tool.sign(
+            {"aud": "https://push.test", "sub": "mailto:a@b.c"},
+            private_key,
+            ttl=12 * 60 * 60,
+            algorithm=jwt_tool.Algorithm.ES256,
+        )
+        header_b64, payload_b64, sig_b64 = token.split(".")
+        signing_input = f"{header_b64}.{payload_b64}".encode()
+        raw_sig = jwt_tool.base64_decode_with_padding(sig_b64)
+        self.assertEqual(len(raw_sig), 64, "P-256 signature is r||s, 32 bytes each")
+        dss = utils.encode_dss_signature(
+            int.from_bytes(raw_sig[:32], "big"), int.from_bytes(raw_sig[32:], "big")
+        )
+        pub = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(), jwt_tool.base64_decode_with_padding(public_key)
+        )
+        # raises InvalidSignature on mismatch; no exception == verified
+        pub.verify(dss, signing_input, ec.ECDSA(hashes.SHA256()))
+        with self.assertRaises(InvalidSignature):
+            pub.verify(dss, signing_input + b"tampered", ec.ECDSA(hashes.SHA256()))
+
     def test_detect_is_bounce_delivery_status_report(self):
         """A delivery-status report must be detected via the Content-Type
         ``report-type`` parameter, which ``get_content_type()`` strips."""

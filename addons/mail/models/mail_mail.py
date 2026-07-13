@@ -307,8 +307,11 @@ class MailMail(models.Model):
             )
             or batch_size
         )
+        # No limit for an explicit email_ids request: the domain already bounds
+        # the result to those ids, so the caller's full set must be honoured
+        # rather than truncated at a batch multiple.
         send_ids = self.search(
-            domain, limit=batch_size if not email_ids else batch_size * 10
+            domain, limit=None if email_ids else batch_size
         ).ids
         if not email_ids:
             ids_done = set()
@@ -328,7 +331,8 @@ class MailMail(models.Model):
                         len(processed), remaining=total - len(ids_done)
                     )
         else:
-            send_ids = list(set(send_ids) & set(email_ids))
+            # send_ids is already exactly the requested outgoing/due ids (the
+            # domain filters id in email_ids), so no post-filter is needed.
             post_send_callback = None
 
         send_ids.sort()

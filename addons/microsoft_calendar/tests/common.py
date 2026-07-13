@@ -1,17 +1,18 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import pytz
-from datetime import datetime, timedelta
-from markupsafe import Markup
-from unittest.mock import patch, MagicMock
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+
+import pytz
 from freezegun import freeze_time
+from markupsafe import Markup
 
 from odoo import fields
-
 from odoo.tests.common import HttpCase
 
 from odoo.addons.microsoft_calendar.models.microsoft_sync import MicrosoftCalendarSync
+
 
 def mock_get_token(user):
     return f"TOKEN_FOR_USER_{user.id}"
@@ -429,7 +430,13 @@ class TestCommon(HttpCase):
         # cr.now() is contractually a datetime; coerce a string so consumers
         # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
         now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
-        with freeze_time(mock_dt), \
+        # cr.now() is naive UTC in production; normalize a tz-aware freeze
+        # point so it (and freeze_time) stay on that convention, else
+        # naive/aware comparisons (e.g. ir.cron._now) crash. Mirrors mail
+        # freeze_all_time.
+        if now_dt.tzinfo is not None:
+            now_dt = now_dt.astimezone(UTC).replace(tzinfo=None)
+        with freeze_time(now_dt), \
                 patch.object(self.env.cr, 'now', lambda: now_dt):
             yield
 

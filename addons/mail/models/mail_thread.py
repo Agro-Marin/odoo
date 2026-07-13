@@ -57,6 +57,7 @@ from odoo.addons.mail.tools.web_push import (
     ENCRYPTION_HEADER_SIZE,
     MAX_PAYLOAD_SIZE,
     DeviceUnreachableError,
+    PushEndpointUnresolvableError,
     push_to_end_point,
 )
 
@@ -1318,25 +1319,25 @@ class MailThread(models.AbstractModel):
         if email_from_localpart == "mailer-daemon":
             return True
 
-        # detection based on content type. get_content_type() strips parameters
-        # and lowercases, so the report-type is read from the structured header
-        # param (RFC 3462) rather than substring-matched against content_type.
+        # detection based on content type (RFC 3462). A bounce is a
+        # multipart/report; the report-type param on its own is NOT a bounce
+        # signal (read receipts carry report-type=disposition-notification, and
+        # an attacker can set an arbitrary report-type param on a text/plain body
+        # sent to a public alias to get it silently dropped as a bounce). Some
+        # MTAs emit a slightly malformed Content-Type (e.g. "multipart/report:"
+        # with a trailing colon) that defeats structured parsing and makes
+        # get_content_type() fall back to text/plain; guard that by also
+        # checking the raw header, but still require the multipart/report
+        # maintype so the broadening cannot match an arbitrary payload.
         content_type = message.get_content_type()
-        report_type = (message.get_param("report-type") or "").lower()
-        # Some MTAs emit a slightly malformed Content-Type (e.g.
-        # "multipart/report:" with a colon) that defeats structured param
-        # parsing; fall back to scanning the raw header for the RFC 3462
-        # report-type token so those bounces are still detected.
         raw_content_type = (
             (message.get("Content-Type") or "")
             .lower()
             .replace(" ", "")
             .replace('"', "")
         )
-        return (
-            content_type == "multipart/report"
-            or report_type == "delivery-status"
-            or "report-type=delivery-status" in raw_content_type
+        return content_type == "multipart/report" or raw_content_type.startswith(
+            "multipart/report"
         )
 
     @api.model
@@ -2352,8 +2353,13 @@ class MailThread(models.AbstractModel):
 
         bounced_email = False
         bounced_partner = self.env["res.partner"].sudo()
-        if dsn_part and len(dsn_part.get_payload()) > 1:
-            dsn = dsn_part.get_payload()[1]
+        dsn_payload = dsn_part.get_payload() if dsn_part else None
+        # A well-formed message/delivery-status is multipart (per-message +
+        # per-recipient parts); a malformed one may decode to a bare string,
+        # whose [1] is a single character that crashes decode_message_header's
+        # get_all() with AttributeError and loses the whole inbound mail.
+        if isinstance(dsn_payload, list) and len(dsn_payload) > 1:
+            dsn = dsn_payload[1]
             final_recipient_data = decode_message_header(dsn, "Final-Recipient")
             # old servers may hold void or invalid Final-Recipient header
             if final_recipient_data and ";" in final_recipient_data:
@@ -2377,13 +2383,18 @@ class MailThread(models.AbstractModel):
                 )
             else:
                 # Guard the payload index: a malformed multipart/report (or
-                # message/rfc822) bounce with an empty payload used to raise
-                # IndexError here (reproduced end-to-end at this line),
-                # propagating out of message_process and losing the whole
-                # inbound message (deleted on POP). get_payload() may return []
-                # or "" for such parts; skip extraction when there is nothing.
+                # message/rfc822) bounce propagating out of message_process
+                # loses the whole inbound message (deleted on POP). An empty
+                # payload used to raise IndexError; a NON-multipart part
+                # (MultipartInvariantViolationDefect) makes get_payload() return
+                # a str whose [0] is a single character that then crashes
+                # _get_bounced_message_data -> decode_message_header (.get_all
+                # on a str). Only a list payload holds sub-messages; anything
+                # else has nothing to extract.
                 payload = email_part.get_payload()
-                email_payload = payload[0] if payload else None
+                email_payload = (
+                    payload[0] if isinstance(payload, list) and payload else None
+                )
             if email_payload is not None:
                 bounced_message, bounced_msg_ids = self._get_bounced_message_data(
                     email_payload, message_dict
@@ -5104,6 +5115,13 @@ class MailThread(models.AbstractModel):
                     )
                 except DeviceUnreachableError:
                     devices_to_unlink.add(device.id)
+                except PushEndpointUnresolvableError:
+                    # transient (DNS blip / proxy-only egress): keep the device
+                    # and retry on the next notification rather than deleting it
+                    _logger.info(
+                        "Push endpoint temporarily unresolvable, keeping device %s",
+                        device.id,
+                    )
                 except Exception as e:  # pylint: disable=broad-except
                     # Avoid blocking the whole request just for a notification
                     _logger.error(
@@ -5652,19 +5670,29 @@ class MailThread(models.AbstractModel):
         if not ooo_users:
             return ooo_messages
 
-        # limit number of real author / recipient exchanges to 1 every 4 days
+        # limit number of real author / recipient exchanges to 1 every 4 days.
+        # Match only on the identifier we actually have for this exchange:
+        # when the author resolved to a partner, email_to is False, and a bare
+        # ("outgoing_email_to", "=", False) leaf would match EVERY prior OOO
+        # with a null outgoing_email_to (i.e. any OOO ever sent to any partner),
+        # wrongly suppressing this recipient's reply. Build the OR from the
+        # applicable leaves only (mirrors _routing_handle_bounce).
+        exchange_domain = Domain.OR(
+            ([Domain("partner_ids", "in", recipient.ids)] if recipient else [])
+            + ([Domain("outgoing_email_to", "=", email_to)] if email_to else [])
+        )
         sent_su = (
             self.env["mail.message"]
             .sudo()
             .search(
-                [
-                    ("author_id", "in", ooo_users.partner_id.ids),
-                    ("message_type", "=", "out_of_office"),
-                    "|",
-                    ("partner_ids", "in", recipient.ids),
-                    ("outgoing_email_to", "=", email_to),
-                    ("date", ">=", "-4d"),
-                ]
+                Domain(
+                    [
+                        ("author_id", "in", ooo_users.partner_id.ids),
+                        ("message_type", "=", "out_of_office"),
+                        ("date", ">=", "-4d"),
+                    ]
+                )
+                & exchange_domain
             )
         )
         already_mailed = sent_su.author_id
@@ -6217,20 +6245,22 @@ class MailThread(models.AbstractModel):
             if updated_relation:
                 records_with_relations[record_id] = (updated_values, updated_relation)
 
-        # ONE query for all parent-doc subscription data (instead of N)
-        parent_subscription_data = {}  # {parent_doc_id: [(partner_id, sids, pshare, active)]}
-        if all_parent_ids_by_model:
-            doc_data = [
-                (model, list(pids)) for model, pids in all_parent_ids_by_model.items()
-            ]
+        # One query per parent model for its subscription data. Keyed by
+        # (res_model, res_id), NOT res_id alone: _get_subscription_data does not
+        # return res_model, so two parent models sharing a numeric id (possible
+        # whenever a child model has auto-subscription subtypes on >1 parent
+        # model) would otherwise collide and cross-apply followers to the wrong
+        # records. Models per child are typically 1, so this stays ~1 query.
+        parent_subscription_data = {}  # {(res_model, res_id): [(pid, sids, pshare, active)]}
+        for model, pids in all_parent_ids_by_model.items():
             res = self.env["mail.followers"]._get_subscription_data(
-                doc_data,
+                [(model, list(pids))],
                 None,
                 include_pshare=True,
                 include_active=True,
             )
             for _fol_id, _res_id, partner_id, subtype_ids, pshare, active in res:
-                parent_subscription_data.setdefault(_res_id, []).append(
+                parent_subscription_data.setdefault((model, _res_id), []).append(
                     (partner_id, subtype_ids, pshare, active)
                 )
 
@@ -6247,7 +6277,7 @@ class MailThread(models.AbstractModel):
             # 3a: partner subtypes from parent-doc followers
             if record_id in records_with_relations:
                 _vals, rec_updated_relation = records_with_relations[record_id]
-                for fnames in rec_updated_relation.values():
+                for res_model, fnames in rec_updated_relation.items():
                     for fname in fnames:
                         parent_doc_id = updated_values[fname]
                         for (
@@ -6255,7 +6285,9 @@ class MailThread(models.AbstractModel):
                             subtype_ids,
                             pshare,
                             active,
-                        ) in parent_subscription_data.get(parent_doc_id, []):
+                        ) in parent_subscription_data.get(
+                            (res_model, parent_doc_id), []
+                        ):
                             sids = [
                                 parent[sid] for sid in subtype_ids if parent.get(sid)
                             ]
@@ -6313,6 +6345,16 @@ class MailThread(models.AbstractModel):
                 if followers_existing_policy == "force":
                     self.env["mail.followers"].sudo().browse(data_fols.keys()).unlink()
 
+            # Index existing followers by (record, partner) once. data_fols
+            # spans the whole batch, so the per-pair next() scan this replaces
+            # was O(pairs x batch_followers) — quadratic on large batch creates
+            # (e.g. importing N records that each auto-subscribe the same user).
+            # (res_model, res_id, partner_id) is unique, so each key maps to one
+            # follower.
+            fols_by_key = {
+                (rid, pid): (fid, sids) for fid, (rid, pid, sids) in data_fols.items()
+            }
+
             # Build batch create values and per-follower updates
             new_vals_list = []
             updates = {}
@@ -6328,13 +6370,8 @@ class MailThread(models.AbstractModel):
                             }
                         )
                     elif followers_existing_policy in ("replace", "update"):
-                        fol_id, existing_sids = next(
-                            (
-                                (key, val[2])
-                                for key, val in data_fols.items()
-                                if val[0] == record_id and val[1] == partner_id
-                            ),
-                            (False, []),
+                        fol_id, existing_sids = fols_by_key.get(
+                            (record_id, partner_id), (False, [])
                         )
                         if not fol_id:
                             continue

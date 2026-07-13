@@ -722,22 +722,37 @@ export class Thread extends Record {
         // without waiting for the bus notification.
         const inbox = this.store.inbox;
         const messages = [...this.needactionMessages];
+        const previousCounter = this.message_needaction_counter;
         for (const message of messages) {
             message.needaction = false;
             inbox.messages.delete(message);
             inbox.counter--;
         }
         this.message_needaction_counter = 0;
-        await this.store.env.services.orm.silent.call(
-            "mail.message",
-            "mark_all_as_read",
-            [
+        try {
+            await this.store.env.services.orm.silent.call(
+                "mail.message",
+                "mark_all_as_read",
                 [
-                    ["model", "=", this.model],
-                    ["res_id", "=", this.id],
+                    [
+                        ["model", "=", this.model],
+                        ["res_id", "=", this.id],
+                    ],
                 ],
-            ],
-        );
+            );
+        } catch (e) {
+            // Roll back the optimistic update (see Message.setDone): no
+            // correcting bus notification arrives on failure, so the inbox and
+            // counters would otherwise stay wrong until reload. Fire-and-forget
+            // caller -> swallow rather than raise an unhandled rejection.
+            for (const message of messages) {
+                message.needaction = true;
+                inbox.messages.add(message);
+                inbox.counter++;
+            }
+            this.message_needaction_counter = previousCounter;
+            console.warn("Failed to mark all messages as read", e);
+        }
     }
 
     async markAsFetched() {

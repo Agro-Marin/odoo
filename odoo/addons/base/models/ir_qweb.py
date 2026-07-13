@@ -674,13 +674,19 @@ class IrQweb(models.AbstractModel):
             values.pop(0, None)
 
         irQweb = self.with_context(**options)._prepare_environment(values)
+        # Render-local memo of `_compile` results, keyed by (view_ref, cache-key
+        # signature). Avoids re-entering `_compile` on every `t-call`/content
+        # frame (see `_render_iterall`). A caller rendering the same template
+        # repeatedly (batch/mass rendering of an etree template, which is NOT
+        # ormcached) may pass a persistent cache in context to compile once and
+        # reuse it across calls; ``is None`` (not falsy) so an initially-empty
+        # shared cache is reused in place rather than replaced. Absent the key,
+        # each render gets its own fresh cache exactly as before.
+        _compiled_cache = irQweb.env.context.get("__qweb_compiled_cache")
         irQweb = irQweb.with_context(
             # List of generated and/or used functions, used for optimal performance
             __qweb_loaded_functions={},
-            # Render-local memo of `_compile` results, keyed by (view_ref,
-            # cache-key signature). Avoids re-entering `_compile` on every
-            # `t-call`/content frame (see `_render_iterall`).
-            __qweb_compiled_cache={},
+            __qweb_compiled_cache={} if _compiled_cache is None else _compiled_cache,
             # List of codes generated during compilation. It is mainly used for debugging and displaying error messages.
             __qweb_loaded_codes={},
             __qweb_loaded_options={},

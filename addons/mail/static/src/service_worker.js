@@ -19,6 +19,18 @@ const PUSH_NOTIFICATION_ACTION = {
 
 const { Store, set, get } = idbKeyval;
 const LOG_AGE_LIMIT = 24 * 60 * 60 * 1000; // 24h
+
+// base64url (unpadded) encoding of the VAPID applicationServerKey, matching
+// WebClient._arrayBufferToBase64 so register_devices' _verify_vapid_public_key
+// accepts it.
+function arrayBufferToBase64Url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
 let db;
 const unread_store = new Store("odoo-mail-unread-db", "odoo-mail-unread-store");
 let interactionSinceCleanupCount = 0;
@@ -318,6 +330,13 @@ self.addEventListener("pushsubscriptionchange", async (event) => {
     const subscription = await self.registration.pushManager.subscribe(
         event.oldSubscription.options,
     );
+    // register_devices rejects with InvalidVapidError unless it receives the
+    // current VAPID public key; the key is the applicationServerKey the old
+    // subscription was created with. Without it this rotation call is dropped
+    // and the device row keeps the dead endpoint.
+    const applicationServerKey =
+        event.oldSubscription.options?.applicationServerKey ||
+        subscription.options?.applicationServerKey;
     await fetch("/web/dataset/call_kw/mail.push.device/register_devices", {
         headers: {
             "Content-type": "application/json",
@@ -333,6 +352,9 @@ self.addEventListener("pushsubscriptionchange", async (event) => {
                 kwargs: {
                     ...subscription.toJSON(),
                     previousEndpoint: event.oldSubscription.endpoint,
+                    ...(applicationServerKey
+                        ? { vapid_public_key: arrayBufferToBase64Url(applicationServerKey) }
+                        : {}),
                 },
                 context: {},
             },

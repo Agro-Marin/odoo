@@ -8,7 +8,7 @@ import re
 import time
 from ast import literal_eval
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import UTC, timedelta
 from functools import partial
 from random import randint
 from unittest.mock import patch
@@ -2774,5 +2774,17 @@ def freeze_all_time(dt=None):
     """
     if not dt:
         dt = fields.Datetime.now()
+    # Odoo stores and manipulates datetimes as naive UTC; both cr.now() and
+    # fields.Datetime.now() honour that in production. Normalize a tz-aware
+    # freeze point (e.g. datetime.now(UTC)) to naive UTC so BOTH frozen clocks
+    # stay on that convention and agree with each other. Otherwise:
+    #   - cr.now() would be tz-aware, and comparing it against a naive Datetime
+    #     field (ir.cron._now() vs scheduled_datetime, mail.message.schedule, …)
+    #     raises "can't compare offset-naive and offset-aware datetimes";
+    #   - freezing cr.now() to naive UTC while leaving freeze_time on the aware
+    #     value would desync cr.now() (naive UTC) from datetime.now() (naive
+    #     local under freezegun) on any non-UTC host.
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
     with patch("odoo.db.BaseCursor.now", return_value=dt), freeze_time(dt):
         yield

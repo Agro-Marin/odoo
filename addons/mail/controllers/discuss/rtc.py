@@ -155,6 +155,12 @@ class RtcController(http.Controller):
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             raise NotFound
+        # Require the caller to be a member: read access alone is too weak here
+        # (any internal user can read a group-open channel), which would let a
+        # non-participant cancel other members' ringing invitations. Membership
+        # is the correct gate — a participant managing a call is a member.
+        if not channel.self_member_id:
+            raise NotFound
         # sudo: discuss.channel.rtc.session - can cancel invitations in accessible channel
         channel.sudo()._rtc_cancel_invitations(member_ids=member_ids)
 

@@ -1284,6 +1284,29 @@ class TestMailgateway(MailGatewayCommon):
         self.assertEqual(self.partner_1.message_bounce, 0)
         self.assertEqual(self.test_record.message_bounce, 2)
 
+    @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.models')
+    def test_message_process_not_bounce_spoofed_report_type(self):
+        """A non-report content-type carrying a report-type=delivery-status
+        param (or a boundary embedding that token) must NOT be treated as a
+        bounce: an attacker could otherwise get any mail to a public alias
+        silently dropped. Only the multipart/report maintype is a bounce
+        signal; the report-type param on its own is not (read receipts carry
+        report-type=disposition-notification on multipart/report).
+        """
+        # a normal message whose Content-Type gained a spoofed report-type param
+        spoofed = MAIL_TEMPLATE.replace(
+            'Content-Type: multipart/alternative;',
+            'Content-Type: multipart/alternative; report-type=delivery-status;',
+        )
+        self.assertIn('report-type=delivery-status', spoofed)
+        record = self.format_and_process(
+            spoofed, self.email_from, f'groups@{self.alias_domain}',
+            subject='Not a bounce',
+        )
+        self.assertEqual(len(record), 1, 'spoofed report-type must not suppress record creation')
+        self.assertEqual(self.partner_1.message_bounce, 0)
+        self.assertEqual(self.test_record.message_bounce, 0)
+
     @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.models.unlink')
     def test_message_process_bounce_records_channel(self):
         """ Test blacklist allow to multi-bounce and auto update of discuss.channel """

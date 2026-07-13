@@ -353,14 +353,17 @@ class MailComposeMessage(models.TransientModel):
                     and composer.composition_mode == "comment"
                     and not composer.composition_batch
                 ):
+                    # guard empty res_ids: a composer created with a model but
+                    # no active_ids (e.g. via RPC/automation) yields [], and
+                    # browse([])._message_compute_subject() raises ensure_one().
                     res_ids = composer._evaluate_res_ids()
-                    if composer.model_is_thread:
+                    if res_ids and composer.model_is_thread:
                         subject = (
                             self.env[composer.model]
                             .browse(res_ids)
                             ._message_compute_subject()
                         )
-                    else:
+                    elif res_ids:
                         subject = self.env[composer.model].browse(res_ids).display_name
                 composer.subject = subject
 
@@ -944,7 +947,12 @@ class MailComposeMessage(models.TransientModel):
             # _prepare_mail_values does ensure_one() and would raise on a
             # multi-wizard recordset.
             wizard = wizard.with_context(clean_context(wizard.env.context))
-            res_id = wizard._evaluate_res_ids()[0]
+            res_ids = wizard._evaluate_res_ids()
+            if not res_ids:
+                raise UserError(
+                    _("A scheduled message needs a target record.")
+                )
+            res_id = res_ids[0]
             post_values = wizard._manage_mail_values(
                 wizard._prepare_mail_values([res_id])
             ).get(res_id)
@@ -1050,11 +1058,9 @@ class MailComposeMessage(models.TransientModel):
         sudo as it is considered as a technical model."""
         mails_sudo = self.env["mail.mail"].sudo()
 
-        batch_size = (
-            int(self.env["ir.config_parameter"].sudo().get_param("mail.batch_size"))
-            or self._batch_size
-            or 50
-        )  # be sure to not have 0, as otherwise no iteration is done
+        # shared helper: tolerates a malformed 'mail.batch_size' ICP that a bare
+        # int() here used to crash on (the template path already guarded it)
+        batch_size = self._get_mail_batch_size(self._batch_size or 50)
         counter_mails_done = 0
         for res_ids_iter in itertools.batched(res_ids, batch_size, strict=False):
             prepared_mail_values_filtered = self._manage_mail_values(
@@ -1734,8 +1740,6 @@ class MailComposeMessage(models.TransientModel):
                 for mail_to in recipients["mail_to_normalized"]:
                     sent_emails_mapping.setdefault(mail_to, []).append(mail_values)
 
-        done_emails += sent_emails_mapping.keys()
-
         return mail_values_dict
 
     def _generate_template_for_composer(
@@ -1899,7 +1903,7 @@ class MailComposeMessage(models.TransientModel):
 
             domain = Domain(domain)
             domain.validate(self.env[self.model])
-        except ValueError as e:
+        except (ValueError, SyntaxError) as e:
             raise ValidationError(
                 _(
                     "Invalid domain “%(domain)s” (type “%(domain_type)s”)",

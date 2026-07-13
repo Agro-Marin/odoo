@@ -305,9 +305,23 @@ class MailTemplate(models.Model):
                 )
 
     def _check_can_be_rendered(self, fnames=None, render_options=None):
+        # Skip during module install/upgrade: data-file templates are written
+        # via _load_records_write, and rendering a dynamic field against an
+        # arbitrary sample record could raise (e.g. the oldest record lacks the
+        # relation the expression walks), which would abort the whole upgrade.
+        # Render correctness is the template author's responsibility, not the
+        # installer's.
+        if self.env.context.get("install_mode"):
+            return
         dynamic_fnames = self._get_dynamic_field_names()
 
         for template in self:
+            # Compute the fields to check before touching the DB: a write that
+            # changes no dynamic field (e.g. bulk archiving) must not pay a
+            # search([], limit=1) + render per template.
+            template_fnames = fnames & dynamic_fnames if fnames else dynamic_fnames
+            if not template_fnames:
+                continue
             model = template.sudo().model_id.model
             if not model:
                 continue
@@ -315,7 +329,6 @@ class MailTemplate(models.Model):
             if not record:
                 continue
 
-            template_fnames = fnames & dynamic_fnames if fnames else dynamic_fnames
             for fname in template_fnames:
                 try:
                     template._render_field(fname, record.ids, options=render_options)
@@ -635,7 +648,6 @@ class MailTemplate(models.Model):
 
         # create partners from emails if asked to
         if find_or_create_partners:
-            email_to_res_ids = {}
             records_emails = {}
             for record in Model.browse(res_ids):
                 record_values = render_results.setdefault(record.id, {})
@@ -643,8 +655,6 @@ class MailTemplate(models.Model):
                     record_values.pop("email_to", "")
                 ) + tools.email_split(record_values.pop("email_cc", ""))
                 records_emails[record] = mails
-                for mail in mails:
-                    email_to_res_ids.setdefault(mail, []).append(record.id)
 
             if hasattr(Model, "_partner_find_from_emails"):
                 records_partners = Model.browse(res_ids)._partner_find_from_emails(
@@ -894,16 +904,7 @@ class MailTemplate(models.Model):
         sending_email_layout_xmlid = email_layout_xmlid or self.email_layout_xmlid
 
         mails_sudo = self.env["mail.mail"].sudo()
-        try:
-            batch_size = int(
-                self.env["ir.config_parameter"].sudo().get_param("mail.batch_size") or 0
-            )
-        except ValueError:
-            _logger.warning(
-                "Malformed ICP 'mail.batch_size', falling back to default 50"
-            )
-            batch_size = 0
-        batch_size = batch_size or 50  # avoid 0 -> would skip all iterations
+        batch_size = self._get_mail_batch_size()
         RecordModel = self.env[self.model].with_prefetch(res_ids)
         record_ir_model = self.env["ir.model"]._get(self.model)
 

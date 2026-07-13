@@ -109,6 +109,30 @@ class TestMailTemplate(MailCommon):
                 }
             )
 
+    @users("admin")
+    @mute_logger("odoo.addons.mail.models.mail_template")
+    @mute_logger("odoo.addons.mail.models.mail_render_mixin")
+    def test_invalid_template_skipped_during_install(self):
+        """During module install/upgrade (install_mode) the render check is
+        skipped: data-file templates are written via _load_records_write and a
+        render failure against an arbitrary sample record must not abort the
+        upgrade (regression)."""
+        mail_template = self.env["mail.template"].create(
+            {
+                "name": "Installed template",
+                "model_id": self.env["ir.model"]._get_id("res.users"),
+                "subject": "ok",
+            }
+        )
+        # a dynamic field that cannot render against a real record
+        mail_template.with_context(install_mode=True).write(
+            {"subject": "{{ object.unknown_field }}"}
+        )
+        self.assertEqual(mail_template.subject, "{{ object.unknown_field }}")
+        # outside install_mode the same write is still rejected
+        with self.assertRaises(ValidationError):
+            mail_template.write({"subject": "{{ object.another_unknown }}"})
+
     @users("employee")
     def test_mail_compose_message_content_from_template(self):
         form = Form(
