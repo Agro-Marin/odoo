@@ -141,6 +141,12 @@ class IrHttp(models.AbstractModel):
             lang = request.lang
         else:
             lang = request.env["res.lang"]._get_data(code=lang_code)
+            if not lang.url_code:
+                # An unknown/inactive code makes ``_get_data`` return a dummy
+                # LangData whose fields are all ``False``; localizing with it
+                # would splice a literal "/False/..." into the path. Fall back
+                # to the request's active language instead of emitting garbage.
+                lang = request.lang
 
         if not url:
             qs = keep_query()
@@ -163,8 +169,21 @@ class IrHttp(models.AbstractModel):
                         args[key] = val = val.with_context(prefetch_langs=True)
             router = http.root.get_db_router(request.db).bind("")
             path = router.build(rule.endpoint, args)
-        except NotFound, AccessError, MissingError:
-            # The build method returns a quoted URL so convert in this case for consistency.
+        except (
+            NotFound,
+            AccessError,
+            MissingError,
+            werkzeug.routing.BuildError,
+            ValueError,
+        ):
+            # Rebuilding the path failed, so fall back to the URL as given. The
+            # catch is deliberately wide: besides the match itself (NotFound) and
+            # reading translated ``<model(...)>`` args (AccessError/MissingError),
+            # ``router.build`` raises BuildError when the args no longer satisfy
+            # the rule, and the slug builder raises ValueError for a record whose
+            # id went falsy (e.g. deleted between match and localize). All mean
+            # "cannot rebuild" and must degrade, not 500.
+            # ``build`` returns a quoted URL, so quote here too for consistency.
             path = urllib.parse.quote_plus(url, safe="/")
         if force_default_lang or lang != request.env["ir.http"]._get_default_lang():
             path = f"/{lang.url_code}{path if path != '/' else ''}"
@@ -252,19 +271,21 @@ class IrHttp(models.AbstractModel):
                 lg.url_code for lg in request.env["res.lang"]._get_frontend().values()
             ]
         spath = local_url.split("/")
-        # if a language is already in the path, remove it
-        if spath[1] in lang_url_codes:
+        # if a language is already in the path, remove it (guard the index: a
+        # slashless ``local_url`` has no segment [1])
+        if len(spath) > 1 and spath[1] in lang_url_codes:
             spath.pop(1)
             local_url = "/".join(spath)
 
-        url = local_url.partition("#")[0].split("?")
-        path = url[0]
+        # Split off the fragment, then the query. ``partition`` keeps the whole
+        # query -- ``split("?")`` would silently truncate at a second '?'.
+        path, _, query_string = local_url.partition("#")[0].partition("?")
 
         # Consider /static/ and /web/ files as non-multilang
         if "/static/" in path or path.startswith("/web/"):
             return False
 
-        query_string = url[1] if len(url) > 1 else None
+        query_string = query_string or None
 
         # Try to match an endpoint in werkzeug's routing table
         try:
@@ -412,7 +433,11 @@ class IrHttp(models.AbstractModel):
             if not request.is_frontend:
                 return rule, args
         except NotFound:
-            _, url_lang_str, *rest = path.split("/", 2)
+            # HTTP-dispatched paths always start with "/" (>=2 segments), but
+            # internal callers (e.g. _url_localized) may hand us a slashless or
+            # empty path; pad so the unpack degrades to a clean 404 instead of
+            # raising ValueError.
+            _, url_lang_str, *rest = path.split("/", 2) + ["", ""]
             path_no_lang = "/" + (rest[0] if rest else "")
         else:
             url_lang_str = ""
@@ -427,7 +452,14 @@ class IrHttp(models.AbstractModel):
         # slashes that must be merged.
         if allow_redirect and "//" in path:
             new_url = path.replace("//", "/")
-            werkzeug.exceptions.abort(request.redirect(new_url, code=301, local=True))
+            # Carry the query string over: ``redirect`` (unlike ``redirect_query``)
+            # drops it, so a bare slash-merge on ``/a//b?x=1`` would silently lose
+            # ``?x=1``. Every other branch of this ladder preserves it.
+            werkzeug.exceptions.abort(
+                request.redirect_query(
+                    new_url, request.httprequest.args, code=301, local=True
+                )
+            )
 
         default_lang, nearest_url_lang = cls._resolve_frontend_lang(url_lang_str)
         if not nearest_url_lang:
