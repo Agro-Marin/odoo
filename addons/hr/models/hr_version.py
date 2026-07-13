@@ -397,7 +397,13 @@ class HrVersion(models.Model):
 
     @api.depends("job_id.name")
     def _compute_job_title(self):
-        for version in self.filtered("job_id"):
+        for version in self:
+            if not version.job_id:
+                # Job cleared: drop a title that merely mirrored the job name;
+                # keep a title the user typed themselves (is_custom_job_title).
+                if not version.is_custom_job_title:
+                    version.job_title = False
+                continue
             if (
                 version._origin.job_id != version.job_id
                 or not version.is_custom_job_title
@@ -410,7 +416,9 @@ class HrVersion(models.Model):
 
     @api.depends("job_id")
     def _compute_is_custom_job_title(self):
-        for version in self.filtered("job_id"):
+        for version in self:
+            # Reset the custom flag whenever the job changes (including when it is
+            # cleared), so a stale flag can't keep an orphaned title around.
             if version._origin.job_id != version.job_id:
                 version.is_custom_job_title = False
 
@@ -635,7 +643,10 @@ class HrVersion(models.Model):
         if self.employee_id:
             user = self.env.user
             if access_uid:
-                user = self.env["res.users"].browse(access_uid)
+                # sudo: reading another user's group membership (mirrors the
+                # res.users.get_formview_action override) — a non-privileged
+                # current user may not read res.users otherwise.
+                user = self.env["res.users"].browse(access_uid).sudo()
             res["res_model"] = (
                 "hr.employee"
                 if user.has_group("hr.group_hr_user")
@@ -650,7 +661,7 @@ class HrVersion(models.Model):
         return res
 
     @api.depends_context("lang")
-    @api.depends("date_version")
+    @api.depends("date_version", "name", "employee_id")
     def _compute_display_name(self):
         for version in self:
             version.display_name = (
@@ -671,7 +682,7 @@ class HrVersion(models.Model):
     def _compute_is_past(self):
         today = fields.Date.today()
         for version in self:
-            version.is_past = version.date_end and version.date_end < today
+            version.is_past = bool(version.date_end and version.date_end < today)
 
     @api.depends("date_start", "date_end")
     def _compute_is_future(self):
@@ -736,7 +747,12 @@ class HrVersion(models.Model):
             return {}
         company = contract_template_id.company_id or self.env.company
         whitelist = self.with_company(company)._get_whitelist_fields_from_template()
-        contract_template_vals = contract_template_id.copy_data()[0]
+        # sudo: copy_data() reads every copyable field on the template, including
+        # manager-only ones (wage, structure_type_id). An HR *officer* who is
+        # allowed to pick a template but not read those fields would otherwise hit
+        # an AccessError here, even though the restricted values are filtered out
+        # by the whitelist below.
+        contract_template_vals = contract_template_id.sudo().copy_data()[0]
         return {
             field: value
             for field, value in contract_template_vals.items()
@@ -816,7 +832,7 @@ class HrVersion(models.Model):
             return [("id", "in", user_employee.ids)]
         return [("department_id", "child_of", user_employee.department_id.ids)]
 
-    @api.depends("company_id")
+    @api.depends("company_id", "company_id.country_id")
     def _compute_structure_type_id(self):
 
         default_structure_by_country = {}

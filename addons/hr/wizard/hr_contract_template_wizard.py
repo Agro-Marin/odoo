@@ -3,7 +3,7 @@
 from odoo import fields, models
 
 
-class HrDepartureWizard(models.TransientModel):
+class HrContractTemplateWizard(models.TransientModel):
     _name = "hr.version.wizard"
     _description = "Contract Template Wizard"
 
@@ -20,18 +20,16 @@ class HrDepartureWizard(models.TransientModel):
     )
 
     def action_load_template(self):
+        self.ensure_one()
         employee_id = self.env.context.get("active_id")
         if not employee_id or not self.contract_template_id:
             return
         employee = self.env["hr.employee"].browse(employee_id)
-        Version = self.env["hr.version"]
-        whitelist = Version._get_whitelist_fields_from_template()
-        contract_template_vals = self.contract_template_id.copy_data()[0]
-        val_list = {
-            field: value
-            for field, value in contract_template_vals.items()
-            if field in whitelist and not self.env["hr.version"]._fields[field].related
-        }
+        # Reuse the single source of truth (applies the template's company context
+        # and sudo's the restricted-field read) instead of re-deriving it here.
+        val_list = self.env["hr.version"].get_values_from_contract_template(
+            self.contract_template_id
+        )
         employee.write(val_list)
         employee.version_id.contract_template_id = self.contract_template_id
         return

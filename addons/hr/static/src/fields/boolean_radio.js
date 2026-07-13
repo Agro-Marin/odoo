@@ -29,7 +29,7 @@ export class BooleanRadio extends RadioField {
 
     get value() {
         if (this.type === "boolean") return this.props.record.data[this.props.name].toString();
-        return super.items;
+        return super.value;
     }
 
     /**

@@ -21,7 +21,10 @@ registerThreadAction("open-hr-profile", {
         let employeeId;
         if (thread?.correspondent?.partner_id && !thread.correspondent.partner_id.employeeId) {
             const employees = await this.store.env.services.orm.silent.searchRead(
-                "hr.employee",
+                // Regular internal users can only read hr.employee.public (the
+                // `open` handler and store_service_patch already use it); querying
+                // hr.employee here would raise AccessError for non-HR users.
+                "hr.employee.public",
                 [["user_partner_id", "=", thread.correspondent.partner_id.id]],
                 ["id"]
             );

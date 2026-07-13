@@ -47,15 +47,19 @@ class MailActivitySchedule(models.TransientModel):
 
     @api.depends("res_model", "res_ids")
     def _compute_plan_date(self):
-        todo = self.filtered(lambda s: s.res_model == "hr.employee")
-        for scheduler in todo:
+        handled = self.env["mail.activity.schedule"]
+        for scheduler in self.filtered(lambda s: s.res_model == "hr.employee"):
             selected_employees = scheduler._get_applied_on_records()
             start_dates = selected_employees.filtered("date_start").mapped("date_start")
-            if start_dates:
-                today = fields.Date.today()
-                planned_due_date = min(start_dates)
-                if planned_due_date < today or (planned_due_date - today).days < 30:
-                    scheduler.plan_date = today + relativedelta(days=+30)
-                else:
-                    scheduler.plan_date = planned_due_date
-        super(MailActivitySchedule, self - todo)._compute_plan_date()
+            if not start_dates:
+                # No contract start to anchor on: let the base compute assign a
+                # value (must not leave plan_date unassigned).
+                continue
+            today = fields.Date.today()
+            planned_due_date = min(start_dates)
+            if planned_due_date < today or (planned_due_date - today).days < 30:
+                scheduler.plan_date = today + relativedelta(days=+30)
+            else:
+                scheduler.plan_date = planned_due_date
+            handled |= scheduler
+        super(MailActivitySchedule, self - handled)._compute_plan_date()

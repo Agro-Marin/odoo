@@ -158,9 +158,15 @@ class HrEmployeePublic(models.Model):
     @api.depends_context("uid")
     @api.depends("parent_id")
     def _compute_is_manager(self):
+        user_employee = self.env.user.employee_id
+        if not user_employee:
+            # No linked employee -> ``child_of False`` is an ill-defined domain;
+            # nobody reports to a non-existent manager.
+            self.is_manager = False
+            return
         all_reports = (
             self.env["hr.employee.public"]
-            .search([("id", "child_of", self.env.user.employee_id.id)])
+            .search([("id", "child_of", user_employee.id)])
             .ids
         )
         for employee in self:
@@ -176,8 +182,8 @@ class HrEmployeePublic(models.Model):
         self._compute_from_employee("hr_presence_state")
 
     def _compute_presence_icon(self):
-        self._compute_from_employee("hr_icon_display")
-        self._compute_from_employee("show_hr_icon_display")
+        # Both fields come from the same sudo employee map — fetch it once.
+        self._compute_from_employee(["hr_icon_display", "show_hr_icon_display"])
 
     def _compute_member_of_department(self):
         self._compute_from_employee("member_of_department")

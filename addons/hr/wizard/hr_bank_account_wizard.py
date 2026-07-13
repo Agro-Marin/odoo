@@ -56,15 +56,22 @@ class BankAccountAllocationWizard(models.TransientModel):
     def action_save(self):
         self.ensure_one()
 
-        # Use a single precision for both rounding line amounts and comparing
-        # the percentage total, matching hr.employee._check_salary_distribution.
+        # Line amounts are captured at 2 decimals (the wizard-line ``amount``
+        # field precision); the percentage total is checked at the same
+        # precision. Note hr.employee._check_salary_distribution itself compares
+        # at 4 digits, but here the inputs never carry more than 2.
         precision_digits = 2
 
         distribution = {}
         percentage_total = 0.0
         has_percentage = False
         seen_accounts = set()
+        trust_by_account = {}
 
+        # Validate everything first and only mutate persistent records (the
+        # ``allow_out_payment`` trust flag, the employee's distribution) once all
+        # checks have passed — otherwise a later validation failure would leave
+        # early lines' trust flags written while the distribution is not saved.
         for line in self.allocation_ids:
             bank_account = line.bank_account_id
             if bank_account.id in seen_accounts:
@@ -91,10 +98,7 @@ class BankAccountAllocationWizard(models.TransientModel):
             if is_percentage:
                 has_percentage = True
                 percentage_total += line_amount
-            # NOTE: writing allow_out_payment with sudo() bypasses the
-            # accounting "trusted account" control on res.partner.bank; kept
-            # as-is (out of scope).
-            bank_account.sudo().write({"allow_out_payment": line.trusted})
+            trust_by_account[bank_account] = line.trusted
 
         if has_percentage:
             # Mirror hr.employee._check_salary_distribution: when percentage
@@ -108,5 +112,20 @@ class BankAccountAllocationWizard(models.TransientModel):
                 raise ValidationError(
                     self.env._("Total percentage allocation must equal 100%.")
                 )
+
+        # Side effects, batched by value. NOTE: writing allow_out_payment with
+        # sudo() bypasses the accounting "trusted account" control on
+        # res.partner.bank; kept as-is (out of scope).
+        trusted = self.env["res.partner.bank"]
+        untrusted = self.env["res.partner.bank"]
+        for account, is_trusted in trust_by_account.items():
+            if is_trusted:
+                trusted |= account
+            else:
+                untrusted |= account
+        if trusted:
+            trusted.sudo().write({"allow_out_payment": True})
+        if untrusted:
+            untrusted.sudo().write({"allow_out_payment": False})
 
         self.employee_id.salary_distribution = distribution

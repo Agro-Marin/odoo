@@ -277,6 +277,7 @@ class HrDepartment(models.Model):
     def get_department_hierarchy(self):
         if not self:
             return {}
+        self.ensure_one()
 
         return {
             "parent": {
