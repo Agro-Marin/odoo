@@ -13,6 +13,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
+
 import {
     addBusServiceListeners,
     defineBusModels,
@@ -74,4 +75,22 @@ test("reconnect after going offline after bus gc should ask for reload", async (
     expect(".o_notification_content:first").toHaveText(
         "The page is out of date. Save your work and refresh to get the latest updates and avoid potential issues.",
     );
+});
+
+test("J9: joining while connecting does not probe missed notifications on the first connect", async () => {
+    // On a browser session restore every tab joins a worker connecting for the
+    // first time; treating that as "already connected" would compare a stale
+    // watermark against a GC'd server bus and show a sticky false "out of date".
+    onRpc("/bus/has_missed_notifications", () => {
+        asyncStep("probe");
+        return false;
+    });
+    addBusServiceListeners(["BUS:CONNECT", () => asyncStep("BUS:CONNECT")]);
+    await mountWithCleanup(WebClient);
+    getService("legacy_multi_tab").setSharedValue(lastNotificationIdKey(), 1);
+    startBusService();
+    expect(await getService("multi_tab").isOnMainTab()).toBe(true);
+    await runAllTimers();
+    // The first connect must NOT trigger the missed-notification probe.
+    await waitForSteps(["BUS:CONNECT"]);
 });

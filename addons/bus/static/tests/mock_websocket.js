@@ -1,7 +1,6 @@
+import { WebsocketWorker } from "@bus/workers/websocket_worker";
 import { after, Deferred, mockWorker } from "@odoo/hoot";
 import { MockServer } from "@web/../tests/web_test_helpers";
-
-import { WebsocketWorker } from "@bus/workers/websocket_worker";
 import { patch } from "@web/core/utils/patch";
 
 //-----------------------------------------------------------------------------
@@ -109,7 +108,12 @@ patch(MockServer.prototype, {
 });
 
 patch(WebsocketWorker.prototype, {
-    INITIAL_RECONNECT_DELAY: 0,
+    // Non-zero on purpose: with `INITIAL_RECONNECT_DELAY: 0` the exponential
+    // base `connectRetryDelay` stayed 0 forever (`(0 || 0) * 1.5 === 0`), so
+    // backoff growth/cap/jitter and the "delay-0 fast path advances the base to
+    // INITIAL" protection were never exercised. Kept small so `runAllTimers`
+    // stays cheap while the backoff math still runs under the mocked clock.
+    INITIAL_RECONNECT_DELAY: 1000,
     RECONNECT_JITTER: 5,
     // `runAllTimers` advances time based on the longest registered timeout.
     // Some tests rely on the fragile assumption that time won’t advance too much.
@@ -142,8 +146,12 @@ patch(WebsocketWorker.prototype, {
                     im_status_ids_by_model,
                 );
             } else if (message.event_name === "subscribe") {
-                const { channels } = message.data;
+                const { channels, last } = message.data;
                 env["bus.bus"].channelsByUser[env.uid] = channels;
+                // Replay notifications missed since `last` (reconnect id-gap
+                // recovery); a no-op unless there is a genuine gap, since the
+                // worker dedups by seen id.
+                env["bus.bus"]._replayForSubscribe?.(last);
             }
         }
 
