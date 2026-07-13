@@ -11,6 +11,7 @@ from freezegun import freeze_time
 
 from odoo import http
 from odoo.api import Environment
+from odoo.service.security import check_session
 from odoo.tests import common, new_test_user
 from odoo.tools import mute_logger
 
@@ -26,6 +27,19 @@ from ..websocket import (
     WebsocketConnectionHandler,
 )
 from .common import WebsocketCase
+
+
+class ManualClock:
+    """Deterministic, injectable clock for timeout/dispatch-state tests."""
+
+    def __init__(self, now=0.0):
+        self.now = now
+
+    def __call__(self):
+        return self.now
+
+    def tick(self, seconds):
+        self.now += seconds
 
 
 @common.tagged("post_install", "-at_install")
@@ -66,60 +80,57 @@ class TestWebsocketCaryall(WebsocketCase):
             self.assertEqual(len(websocket_module._websocket_instances), 0)
 
     def test_timeout_manager_no_response_timeout(self):
-        with freeze_time("2022-08-19") as frozen_time:
-            timeout_manager = TimeoutManager()
-            # A PING frame was just sent, if no pong has been received
-            # within TIMEOUT seconds, the connection should have timed out.
-            timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
-            frozen_time.tick(delta=timedelta(seconds=TimeoutManager.TIMEOUT / 2))
-            self.assertFalse(timeout_manager.has_frame_response_timed_out())
-            frozen_time.tick(delta=timedelta(seconds=TimeoutManager.TIMEOUT / 2))
-            self.assertTrue(timeout_manager.has_frame_response_timed_out())
+        clock = ManualClock()
+        timeout_manager = TimeoutManager(clock=clock)
+        # A PING frame was just sent, if no pong has been received
+        # within TIMEOUT seconds, the connection should have timed out.
+        timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
+        clock.tick(TimeoutManager.TIMEOUT / 2)
+        self.assertFalse(timeout_manager.has_frame_response_timed_out())
+        clock.tick(TimeoutManager.TIMEOUT / 2)
+        self.assertTrue(timeout_manager.has_frame_response_timed_out())
 
-            timeout_manager = TimeoutManager()
-            # A CLOSE frame was just sent, if no close has been received
-            # within TIMEOUT seconds, the connection should have timed out.
-            timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
-            frozen_time.tick(delta=timedelta(seconds=TimeoutManager.TIMEOUT / 2))
-            self.assertFalse(timeout_manager.has_frame_response_timed_out())
-            frozen_time.tick(delta=timedelta(seconds=TimeoutManager.TIMEOUT / 2))
-            self.assertTrue(timeout_manager.has_frame_response_timed_out())
+        clock = ManualClock()
+        timeout_manager = TimeoutManager(clock=clock)
+        # A CLOSE frame was just sent, if no close has been received
+        # within TIMEOUT seconds, the connection should have timed out.
+        timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
+        clock.tick(TimeoutManager.TIMEOUT / 2)
+        self.assertFalse(timeout_manager.has_frame_response_timed_out())
+        clock.tick(TimeoutManager.TIMEOUT / 2)
+        self.assertTrue(timeout_manager.has_frame_response_timed_out())
 
     def test_timeout_manager_overlapping_timeouts(self):
-        with freeze_time("2022-08-19") as frozen_time:
-            timeout_manager = TimeoutManager()
-            timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
-            timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
-            timeout_manager.acknowledge_frame_receipt(Frame(Opcode.PONG))
-            frozen_time.tick(delta=timedelta(seconds=timeout_manager.TIMEOUT + 1))
-            self.assertTrue(timeout_manager.has_frame_response_timed_out())
+        clock = ManualClock()
+        timeout_manager = TimeoutManager(clock=clock)
+        timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
+        timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
+        timeout_manager.acknowledge_frame_receipt(Frame(Opcode.PONG))
+        clock.tick(timeout_manager.TIMEOUT + 1)
+        self.assertTrue(timeout_manager.has_frame_response_timed_out())
 
     def test_timeout_manager_keep_alive_timeout(self):
-        with freeze_time("2022-08-19") as frozen_time:
-            timeout_manager = TimeoutManager()
-            frozen_time.tick(
-                delta=timedelta(seconds=timeout_manager._keep_alive_timeout / 2)
-            )
-            self.assertFalse(timeout_manager.has_keep_alive_timed_out())
-            frozen_time.tick(
-                delta=timedelta(seconds=timeout_manager._keep_alive_timeout / 2 + 1)
-            )
-            self.assertTrue(timeout_manager.has_keep_alive_timed_out())
+        clock = ManualClock()
+        timeout_manager = TimeoutManager(clock=clock)
+        clock.tick(timeout_manager._keep_alive_timeout / 2)
+        self.assertFalse(timeout_manager.has_keep_alive_timed_out())
+        clock.tick(timeout_manager._keep_alive_timeout / 2 + 1)
+        self.assertTrue(timeout_manager.has_keep_alive_timed_out())
 
     def test_timeout_manager_reset_wait_for(self):
-        with freeze_time("2022-08-19") as frozen_time:
-            timeout_manager = TimeoutManager()
-            # PING frame
-            timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
-            timeout_manager.acknowledge_frame_receipt(Frame(Opcode.PONG))
-            frozen_time.tick(delta=timedelta(seconds=timeout_manager.TIMEOUT + 1))
-            self.assertFalse(timeout_manager.has_frame_response_timed_out())
+        clock = ManualClock()
+        timeout_manager = TimeoutManager(clock=clock)
+        # PING frame
+        timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
+        timeout_manager.acknowledge_frame_receipt(Frame(Opcode.PONG))
+        clock.tick(timeout_manager.TIMEOUT + 1)
+        self.assertFalse(timeout_manager.has_frame_response_timed_out())
 
-            # CLOSE frame
-            timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
-            timeout_manager.acknowledge_frame_receipt(Frame(Opcode.CLOSE))
-            frozen_time.tick(delta=timedelta(seconds=timeout_manager.TIMEOUT + 1))
-            self.assertFalse(timeout_manager.has_frame_response_timed_out())
+        # CLOSE frame
+        timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
+        timeout_manager.acknowledge_frame_receipt(Frame(Opcode.CLOSE))
+        clock.tick(timeout_manager.TIMEOUT + 1)
+        self.assertFalse(timeout_manager.has_frame_response_timed_out())
 
     def test_user_login(self):
         websocket = self.websocket_connect()
@@ -143,6 +154,11 @@ class TestWebsocketCaryall(WebsocketCase):
         self.assert_close_with_code(websocket, CloseCode.SESSION_EXPIRED)
 
     def test_user_logout_outgoing_message(self):
+        # Session validity is cached between dispatches (see
+        # ``Websocket.SESSION_VALIDITY_TTL``): with the default TTL the
+        # logout below would only be detected up to a TTL later. Disable the
+        # cache to keep the exact session-expired semantics under test.
+        self.startPatcher(patch.object(Websocket, "SESSION_VALIDITY_TTL", 0))
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
@@ -340,36 +356,152 @@ class TestWebsocketCaryall(WebsocketCase):
                 self.websocket_connect()
                 self.assertFalse(mock.called)
 
-    @patch.dict(os.environ, {"ODOO_BUS_PUBLIC_SAMESITE_WS": "True"})
-    def test_public_configuration(self):
-        new_test_user(self.env, login="test_user", password="Password!1")
-        user_session = self.authenticate("test_user", "Password!1")
+    def _connect_and_capture_server_session(self, cookie, **connect_kwargs):
+        """Open a websocket and return ``(client_ws, server_session)`` where
+        ``server_session`` is the session the server attached to the
+        websocket instance. The capture happens on the serving thread; all
+        assertions must run on the test thread.
+        """
+        captured_sessions = []
         serve_forever_called_event = Event()
         original_serve_forever = WebsocketConnectionHandler._serve_forever
 
         def serve_forever(websocket, *args):
-            original_serve_forever(websocket, *args)
-            self.assertNotEqual(websocket._session.sid, user_session.sid)
-            self.assertNotEqual(websocket._session.uid, user_session.uid)
+            captured_sessions.append(websocket._session)
             serve_forever_called_event.set()
+            original_serve_forever(websocket, *args)
 
-        with (
-            patch.object(
-                WebsocketConnectionHandler, "_serve_forever", side_effect=serve_forever
-            ) as mock,
-            mute_logger("odoo.addons.bus.websocket"),
+        with patch.object(
+            WebsocketConnectionHandler, "_serve_forever", side_effect=serve_forever
         ):
-            ws = self.websocket_connect(
-                cookie=f"session_id={user_session.sid};", origin="http://example.com"
-            )
+            ws = self.websocket_connect(cookie=cookie, **connect_kwargs)
             self.assertTrue(
-                ws.getheaders()
-                .get("set-cookie")
-                .startswith(f"session_id={user_session.sid}"),
-                "The set-cookie response header must be the origin request session rather than the websocket session",
+                serve_forever_called_event.wait(timeout=5),
+                "The websocket should have been served",
             )
-            serve_forever_called_event.wait(timeout=5)
-            self.assertTrue(mock.called)
+        return ws, captured_sessions[0]
+
+    def test_mismatched_origin_downgrades_to_public_session(self):
+        """Cross-origin handshakes are downgraded to a public session by
+        default (CSWSH protection), without any opt-in environment variable.
+        """
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        with mute_logger("odoo.addons.bus.websocket"):
+            ws, server_session = self._connect_and_capture_server_session(
+                cookie=f"session_id={user_session.sid};",
+                origin="http://attacker.example.com",
+            )
+        self.assertNotEqual(server_session.sid, user_session.sid)
+        self.assertFalse(server_session.uid)
+        self.assertTrue(
+            ws.getheaders()
+            .get("set-cookie")
+            .startswith(f"session_id={user_session.sid}"),
+            "The set-cookie response header must be the origin request session "
+            "rather than the websocket session",
+        )
+
+    @patch.dict(os.environ, {"ODOO_BUS_PUBLIC_SAMESITE_WS": "True"})
+    def test_mismatched_origin_downgrades_with_legacy_env_var(self):
+        """The legacy opt-in flag is still accepted (and redundant)."""
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        with mute_logger("odoo.addons.bus.websocket"):
+            _ws, server_session = self._connect_and_capture_server_session(
+                cookie=f"session_id={user_session.sid};",
+                origin="http://attacker.example.com",
+            )
+        self.assertNotEqual(server_session.sid, user_session.sid)
+        self.assertFalse(server_session.uid)
+
+    def test_matching_origin_keeps_session(self):
+        """A same-origin handshake keeps the request's authenticated session
+        (websocket-client sends a matching Origin header by default)."""
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        _ws, server_session = self._connect_and_capture_server_session(
+            cookie=f"session_id={user_session.sid};",
+        )
+        self.assertEqual(server_session.sid, user_session.sid)
+        self.assertEqual(server_session.uid, user_session.uid)
+
+    @patch.dict(
+        os.environ,
+        {
+            "ODOO_BUS_TRUSTED_ORIGINS": "https://cdn.example.com, http://trusted.example.com:8080"
+        },
+    )
+    def test_trusted_origin_allowlist_keeps_session(self):
+        """An origin allowlisted in ODOO_BUS_TRUSTED_ORIGINS is not
+        downgraded even though it does not match the request host."""
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        _ws, server_session = self._connect_and_capture_server_session(
+            cookie=f"session_id={user_session.sid};",
+            origin="http://trusted.example.com:8080",
+        )
+        self.assertEqual(server_session.sid, user_session.sid)
+        self.assertEqual(server_session.uid, user_session.uid)
+
+    def test_session_validity_cached_between_dispatches(self):
+        """`_dispatch_bus_notifications` re-validates the session at most
+        once per SESSION_VALIDITY_TTL; a (re)subscribe forces an immediate
+        re-validation."""
+        self.startPatcher(patch.object(Websocket, "SESSION_VALIDITY_TTL", 1000))
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
+        with patch(
+            "odoo.addons.bus.websocket.check_session", wraps=check_session
+        ) as check_session_spy:
+            self.subscribe(
+                websocket, ["ttl_channel"], self.env["bus.bus"]._bus_last_id()
+            )
+            self.assertEqual(
+                check_session_spy.call_count,
+                1,
+                "The post-subscribe dispatch should have validated the session",
+            )
+            self.env["bus.bus"]._sendone("ttl_channel", "notif_type", "message")
+            self.trigger_notification_dispatching(["ttl_channel"])
+            notifications = json.loads(websocket.recv())
+            self.assertEqual(len(notifications), 1)
+            self.assertEqual(
+                check_session_spy.call_count,
+                1,
+                "A dispatch within the TTL should reuse the cached validation",
+            )
+            self.subscribe(
+                websocket, ["ttl_channel"], self.env["bus.bus"]._bus_last_id()
+            )
+            self.assertEqual(
+                check_session_spy.call_count,
+                2,
+                "A resubscribe should force an immediate re-validation",
+            )
+
+    def test_session_validity_ttl_zero_validates_every_dispatch(self):
+        """With a zero TTL every dispatch re-validates: the exact (uncached)
+        session-expiry semantics used by the session-expired tests."""
+        self.startPatcher(patch.object(Websocket, "SESSION_VALIDITY_TTL", 0))
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
+        with patch(
+            "odoo.addons.bus.websocket.check_session", wraps=check_session
+        ) as check_session_spy:
+            self.subscribe(
+                websocket, ["ttl_channel"], self.env["bus.bus"]._bus_last_id()
+            )
+            self.env["bus.bus"]._sendone("ttl_channel", "notif_type", "message")
+            self.trigger_notification_dispatching(["ttl_channel"])
+            json.loads(websocket.recv())
+            self.assertEqual(
+                check_session_spy.call_count,
+                2,
+                "Each dispatch should re-validate the session when the TTL is 0",
+            )
 
     def test_trigger_on_websocket_closed(self):
         with patch(

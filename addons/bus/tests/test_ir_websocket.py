@@ -17,9 +17,20 @@ class TestIrWebsocket(WebsocketCase):
         # (no traceback), see `WebsocketConnectionHandler._serve_forever`.
         with self.assertLogs("odoo.addons.bus.websocket", level="WARNING") as log:
             ws = self.websocket_connect()
+            # The invalid channel is rejected before any dispatch is
+            # triggered: waiting for one would just burn the 5s timeout (and
+            # now fail loudly).
             self.subscribe(
-                ws, [("odoo", "discuss.channel", 5)], self.env["bus.bus"]._bus_last_id()
+                ws,
+                [("odoo", "discuss.channel", 5)],
+                self.env["bus.bus"]._bus_last_id(),
+                wait_for_dispatch=False,
             )
+            # The rejection is asynchronous: wait until the subscribe message
+            # has been processed (frames are handled in order, so a completed
+            # ping/pong round-trip implies it was).
+            ws.ping()
+            ws.recv_data_frame(control_frame=True)  # pong
         self.assertIn("bus.Bus only string channels are allowed.", log.output[0])
 
     def test_build_bus_channel_list(self):
