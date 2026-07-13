@@ -320,15 +320,18 @@ export function toggleDateFilter(searchModel, searchItemId, generatorId) {
         return;
     }
     let generatorIds = generatorId ? [generatorId] : searchItem.defaultGeneratorIds;
+    // Computed once and reused below (auto-year lookup): both consumers want
+    // the same options for the same (referenceMoment, optionsParams) pair.
+    // null when there's no optionsParams to check against (e.g. explicit
+    // generatorId, unit tests) — getPeriodOptions destructures it and would
+    // throw.
+    const knownOptions = searchItem.optionsParams
+        ? getPeriodOptions(searchModel.referenceMoment, searchItem.optionsParams)
+        : null;
     // defaultGeneratorIds are unvalidated arch/context strings; an unknown id
     // used to silently produce an ACTIVE filter with an empty facet and a
-    // match-all domain, so drop it loudly instead. Skip validation when there's
-    // no optionsParams to check against (e.g. explicit generatorId, unit tests).
-    if (searchItem.optionsParams) {
-        const knownOptions = getPeriodOptions(
-            searchModel.referenceMoment,
-            searchItem.optionsParams,
-        );
+    // match-all domain, so drop it loudly instead.
+    if (knownOptions) {
         const validGeneratorIds = generatorIds.filter(
             (gid) => gid.startsWith("custom") || knownOptions.some((o) => o.id === gid),
         );
@@ -368,11 +371,14 @@ export function toggleDateFilter(searchModel, searchItemId, generatorId) {
                     !queryElem.generatorId.startsWith("custom"),
             );
             searchModel.query.push({ searchItemId, generatorId });
-            if (!yearSelected(searchModel._getSelectedGeneratorIds(searchItemId))) {
-                const periodOption = getPeriodOptions(
-                    searchModel.referenceMoment,
-                    searchItem.optionsParams,
-                ).find((o) => o.id === generatorId);
+            // Reuses knownOptions computed above: without optionsParams
+            // there is nothing to resolve a defaultYearId against, so skip
+            // the auto-year lookup entirely.
+            if (
+                knownOptions &&
+                !yearSelected(searchModel._getSelectedGeneratorIds(searchItemId))
+            ) {
+                const periodOption = knownOptions.find((o) => o.id === generatorId);
                 if (!periodOption) {
                     break;
                 }
