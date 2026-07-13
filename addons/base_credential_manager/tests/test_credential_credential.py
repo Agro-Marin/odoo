@@ -1849,3 +1849,114 @@ class TestBinaryWireFormatCompat(TransactionCase):
         # Plaintext survives the format transition.
         got_b64 = cred.with_context(bin_size=False).certificate_content
         self.assertEqual(base64.b64decode(got_b64), plaintext)
+
+
+class TestOAuthClientCredentials(TransactionCase):
+    """OAuth client_id/client_secret JSON accessors and oauth2 validation (t23878)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.test_key = Fernet.generate_key().decode()
+        cls.env_patcher = patch.dict(
+            os.environ, {"ODOO_API_ENCRYPTION_KEY": cls.test_key}
+        )
+        cls.env_patcher.start()
+        cls.env["credential.credential"]._invalidate_key_version_cache()
+        cls.category_oauth2 = cls.env.ref(
+            "base_credential_manager.credential_category_oauth2"
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.env_patcher.stop()
+        super().tearDownClass()
+
+    def test_client_accessors_roundtrip(self):
+        """client_id/client_secret persist through the encrypted JSON blob."""
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "OAuth App",
+                "category_id": self.category_oauth2.id,
+                "oauth_client_id": "my-app-id",
+                "oauth_client_secret": "s3cr3t-value",
+            }
+        )
+        self.assertTrue(credential.credential_value_encrypted)
+        credential.invalidate_recordset()
+        reread = self.env["credential.credential"].browse(credential.id)
+        self.assertEqual(reread.oauth_client_id, "my-app-id")
+        self.assertEqual(reread.oauth_client_secret, "s3cr3t-value")
+
+    def test_oauth2_client_secret_alone_satisfies_validator(self):
+        """A pre-authorization credential (secret, no token yet) is valid."""
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Pre-authorization OAuth App",
+                "category_id": self.category_oauth2.id,
+                "oauth_client_secret": "s3cr3t-value",
+            }
+        )
+        self.assertTrue(credential.id)
+        self.assertFalse(credential.oauth_access_token)
+
+    def test_oauth2_access_token_alone_still_valid(self):
+        """The pre-existing shape (token only) keeps working."""
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Token-only OAuth",
+                "category_id": self.category_oauth2.id,
+                "oauth_access_token": "tok-123",
+            }
+        )
+        self.assertTrue(credential.id)
+
+    def test_oauth2_without_token_or_secret_rejected(self):
+        """Neither alternative present → ValidationError, as before."""
+        with self.assertRaises(ValidationError) as cm:
+            self.env["credential.credential"].create(
+                {
+                    "name": "Empty OAuth",
+                    "category_id": self.category_oauth2.id,
+                    # Only a non-required key: blob exists but neither
+                    # alternative slot is satisfied.
+                    "oauth_client_id": "id-without-secret",
+                }
+            )
+        self.assertIn("access token or a client secret", str(cm.exception))
+
+    def test_rotation_preserves_client_secret(self):
+        """New accessors ride credential_value_encrypted: rotation covers them."""
+        old_key = Fernet.generate_key().decode()
+        new_key = Fernet.generate_key().decode()
+
+        # The rotation action is gated to Credential Manager administrators.
+        self.env.user.group_ids = [
+            (4, self.env.ref("base_credential_manager.group_credential_admin").id)
+        ]
+
+        with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": old_key}, clear=True):
+            self.env["credential.credential"]._invalidate_key_version_cache()
+            credential = self.env["credential.credential"].create(
+                {
+                    "name": "Rotating OAuth App",
+                    "category_id": self.category_oauth2.id,
+                    "oauth_client_secret": "rotate-me",
+                }
+            )
+            credential_id = credential.id
+
+        env_vars = {
+            "ODOO_API_ENCRYPTION_KEY": new_key,
+            "ODOO_API_ENCRYPTION_KEY_V1": old_key,
+        }
+        with patch.dict(os.environ, env_vars, clear=True):
+            self.env["credential.credential"]._invalidate_key_version_cache()
+            self.env["credential.credential"].action_migrate_encryption_keys()
+
+        # Retire the old key entirely: only re-encrypted data survives.
+        with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": new_key}, clear=True):
+            self.env["credential.credential"]._invalidate_key_version_cache()
+            credential = self.env["credential.credential"].browse(credential_id)
+            credential.invalidate_recordset()
+            self.assertEqual(credential.oauth_client_secret, "rotate-me")
