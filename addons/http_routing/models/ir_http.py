@@ -114,7 +114,7 @@ class IrHttp(models.AbstractModel):
         cls,
         url: str | None = None,
         lang_code: str | None = None,
-        canonical_domain: str | tuple[str, str, str, str, str] | None = None,
+        canonical_domain: str | None = None,
         prefetch_langs: bool = False,
         force_default_lang: bool = False,
     ) -> str:
@@ -436,9 +436,10 @@ class IrHttp(models.AbstractModel):
             # HTTP-dispatched paths always start with "/" (>=2 segments), but
             # internal callers (e.g. _url_localized) may hand us a slashless or
             # empty path; pad so the unpack degrades to a clean 404 instead of
-            # raising ValueError.
+            # raising ValueError. The padding also guarantees ``rest`` holds at
+            # least one element, so ``rest[0]`` is always safe.
             _, url_lang_str, *rest = path.split("/", 2) + ["", ""]
-            path_no_lang = "/" + (rest[0] if rest else "")
+            path_no_lang = "/" + rest[0]
         else:
             url_lang_str = ""
             path_no_lang = path
