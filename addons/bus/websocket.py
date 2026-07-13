@@ -60,7 +60,7 @@ def acquire_cursor(db):
     """
     delay = DELAY_ON_POOL_ERROR
     try:
-        for _ in range(MAX_TRY_ON_POOL_ERROR):
+        for attempt in range(1, MAX_TRY_ON_POOL_ERROR + 1):
             # Yield before trying to acquire the cursor to let other
             # threads release their cursor.
             time.sleep(0)
@@ -68,7 +68,10 @@ def acquire_cursor(db):
                 cm = Registry(db).cursor()
                 cr = cm.__enter__()
             except PoolError:
-                pass
+                if attempt == MAX_TRY_ON_POOL_ERROR:
+                    raise PoolError(
+                        f"Failed to acquire cursor after {MAX_TRY_ON_POOL_ERROR} retries"
+                    ) from None
             else:
                 try:
                     yield cr
@@ -77,9 +80,6 @@ def acquire_cursor(db):
                     cm.__exit__(*sys.exc_info())
             time.sleep(delay + random.uniform(0, JITTER_ON_POOL_ERROR))
             delay *= 1.5
-        raise PoolError(
-            f"Failed to acquire cursor after {MAX_TRY_ON_POOL_ERROR} retries"
-        )
     finally:
         # Yield after releasing the cursor to let waiting threads
         # immediately pick up the freed connection.
@@ -274,12 +274,27 @@ class Frame:
 class CloseFrame(Frame):
     __slots__ = ("code", "reason")
 
+    # Control frames are limited to a 125 byte payload (RFC 6455 §5.5); the
+    # close code takes 2 bytes, leaving 123 bytes for the reason.
+    MAX_REASON_LENGTH = 123
+
     def __init__(self, code, reason):
         if code not in VALID_CLOSE_CODES and code not in RESERVED_CLOSE_CODES:
             raise InvalidCloseCodeError(code)
         payload = struct.pack("!H", code)
         if reason:
-            payload += reason.encode("utf-8")
+            encoded_reason = reason.encode("utf-8")
+            if len(encoded_reason) > self.MAX_REASON_LENGTH:
+                # Truncate on a codepoint boundary: a hard byte cut could
+                # split a multi-byte sequence and produce invalid UTF-8,
+                # which peers reject with INCONSISTENT_DATA. Reasons are
+                # free-form diagnostics (often ``str(exc)``), truncation is
+                # preferable to failing to close cleanly.
+                reason = encoded_reason[: self.MAX_REASON_LENGTH].decode(
+                    "utf-8", errors="ignore"
+                )
+                encoded_reason = reason.encode("utf-8")
+            payload += encoded_reason
         self.code = code
         self.reason = reason
         super().__init__(Opcode.CLOSE, payload)
@@ -457,10 +472,15 @@ class Websocket:
     def close(self, code, reason=None):
         """Notify the socket to initiate closure. The closing handshake
         will start in the subsequent iteration of the event loop.
+
+        Callers may race with the serving thread terminating the
+        connection (which closes the command queue): a close request for
+        an already-terminated socket is a no-op, not an error.
         """
-        self._send_control_command(
-            ControlCommand.CLOSE, {"code": code, "reason": reason}
-        )
+        with suppress(OSError):
+            self._send_control_command(
+                ControlCommand.CLOSE, {"code": code, "reason": reason}
+            )
 
     @classmethod
     def onopen(cls, func):
@@ -714,10 +734,22 @@ class Websocket:
         self.__socket.close()
         self.__cmd_queue.close()
         dispatch.unsubscribe(self)
-        self._trigger_lifecycle_event(LifecycleEvent.CLOSE)
-        with acquire_cursor(self._db) as cr:
-            env = self.new_env(cr, self._session)
-            env["ir.websocket"]._on_websocket_closed(self._cookies)
+        # Application-level teardown (CLOSE callbacks and the ir.websocket
+        # `_on_websocket_closed` hook) is best-effort: it acquires a cursor and
+        # may raise — most notably ``PoolError`` under connection-pool
+        # exhaustion, exactly when many sockets terminate at once. Such a
+        # failure must not escape ``_terminate``: doing so would propagate out
+        # of the event loop (killing the serving thread) and, more importantly,
+        # skip ``_on_websocket_closed`` inconsistently (leaving e.g. presence
+        # state stale). The socket/selector are already closed above, so it is
+        # safe to swallow and log here.
+        try:
+            self._trigger_lifecycle_event(LifecycleEvent.CLOSE)
+            with acquire_cursor(self._db) as cr:
+                env = self.new_env(cr, self._session)
+                env["ir.websocket"]._on_websocket_closed(self._cookies)
+        except Exception:
+            _logger.warning("Error during websocket teardown cleanup", exc_info=True)
 
     def _handle_control_frame(self, frame):
         if frame.opcode is Opcode.PING:
@@ -757,15 +789,37 @@ class Websocket:
             code = CloseCode.SESSION_EXPIRED
         if code is CloseCode.SERVER_ERROR:
             reason = None
-            registry = Registry(self._session.db)
-            sequence = registry.registry_sequence
-            registry = registry.check_signaling()
-            if sequence != registry.registry_sequence:
+            try:
+                registry = Registry(self._session.db)
+                sequence = registry.registry_sequence
+                registry = registry.check_signaling()
+                registry_reloaded = sequence != registry.registry_sequence
+            except Exception:
+                # Loading the registry itself can fail (database dropped,
+                # connection refused, ...). This method runs inside the event
+                # loop's exception handler: letting a second exception escape
+                # would kill the serving thread without `_terminate`, leaking
+                # the channel registrations in `ImDispatch`.
+                registry_reloaded = False
+            if registry_reloaded:
                 _logger.warning("Bus operation aborted; registry has been reloaded")
             else:
                 _logger.exception("Unhandled exception in websocket handler")
         if self.state is ConnectionState.OPEN:
-            self._disconnect(code, reason)
+            try:
+                self._disconnect(code, reason)
+            except Exception:
+                # Emitting the close frame writes to the socket and can fail
+                # (e.g. BrokenPipeError) precisely when the peer misbehaved and
+                # then vanished -- the common trigger for a non-abnormal
+                # transport error. This handler runs *outside* the ``get_messages``
+                # try/except, so an escape here would propagate out of the event
+                # loop, kill the serving thread and skip ``_terminate`` -- leaving
+                # the websocket registered in ``ImDispatch._channels_to_ws`` (a
+                # dispatch-to-dead-socket leak) and ``_on_websocket_closed``
+                # uncalled. Fall back to a hard close, which is idempotent.
+                _logger.debug("Failed to emit close frame, terminating", exc_info=True)
+                self._terminate()
         else:
             self._terminate()
 
@@ -1064,7 +1118,7 @@ class WebsocketConnectionHandler:
     # Latest version of the websocket worker. This version should be incremented
     # every time `websocket_worker.js` is modified to force the browser to fetch
     # the new worker bundle.
-    _VERSION = "19.0-3"
+    _VERSION = "19.0-4"
 
     @classmethod
     def websocket_allowed(cls, request):
@@ -1227,6 +1281,12 @@ class WebsocketConnectionHandler:
                     websocket.close(CloseCode.SESSION_EXPIRED)
                 except PoolError:
                     websocket.close(CloseCode.TRY_LATER)
+                except (InvalidWebsocketRequestError, ValueError) as exc:
+                    # Client-controlled input (malformed JSON, bad subscribe
+                    # payload shape, non-string channels, ...): reject the
+                    # message without the log noise of a full traceback --
+                    # any anonymous peer can send garbage at will.
+                    _logger.warning("Invalid websocket request: %s", exc)
                 except Exception:
                     _logger.exception(
                         "Exception occurred during websocket request handling"
@@ -1235,7 +1295,10 @@ class WebsocketConnectionHandler:
 
 def _kick_all(code=CloseCode.GOING_AWAY):
     """Disconnect all the websocket instances."""
-    for websocket in _websocket_instances:
+    # Snapshot the WeakSet: serving threads keep opening/terminating
+    # websockets concurrently and mutating a set during iteration raises
+    # RuntimeError, which would abort the kick for the remaining sockets.
+    for websocket in list(_websocket_instances):
         if websocket.state is ConnectionState.OPEN:
             websocket.close(code)
 

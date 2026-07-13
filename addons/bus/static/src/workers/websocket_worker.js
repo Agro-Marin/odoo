@@ -168,6 +168,15 @@ export class WebsocketWorker {
      */
     _onClientMessage(client, { action, data }) {
         this._logDebug("_onClientMessage", action, data);
+        if (!this.channelsByClient.has(client) && action !== "BUS:LEAVE") {
+            // A client that previously sent BUS:LEAVE (`bus_service.stop()`,
+            // bfcache pagehide) was dropped from `channelsByClient` and no
+            // longer receives broadcasts. It messaging us again proves the
+            // port is alive: re-register it, otherwise a `stop()`/`start()`
+            // cycle leaves the tab permanently deaf and a subsequent
+            // BUS:ADD_CHANNEL crashes on the missing channel list.
+            this.channelsByClient.set(client, []);
+        }
         switch (action) {
             case "BUS:SEND": {
                 if (data["event_name"] === "update_presence") {
@@ -331,6 +340,16 @@ export class WebsocketWorker {
             this.channelsByClient.forEach((_, key) =>
                 this.channelsByClient.set(key, []),
             );
+            // `bus_bus.id` is a per-database sequence, so the high-watermark from
+            // the previous DB is meaningless (and likely higher) for the new one.
+            // Keeping it would make `_onWebsocketMessage`'s
+            // `notification.id > lastNotificationId` filter drop every legitimate
+            // notification from the new DB until its sequence overtakes the old
+            // value. Reset the watermark (and drop now-stale queued messages that
+            // reference the old DB's channels) so the fresh subscribe re-fetches
+            // from the correct baseline.
+            this.lastNotificationId = 0;
+            this.messageWaitQueue = [];
         }
         this.sendToClient(client, "BUS:WORKER_STATE_UPDATED", this.state);
         this.sendToClient(client, "BUS:INITIALIZED");
@@ -447,6 +466,14 @@ export class WebsocketWorker {
             this._logDebug("_onWebsocketMessage: ignored non-JSON frame");
             return;
         }
+        if (!Array.isArray(payload)) {
+            // The server delivers notification batches as a JSON array. A frame
+            // that is valid JSON but not an array (e.g. an echoed control frame)
+            // is not a notification batch: ignore it rather than throwing out of
+            // the message listener on `payload.filter`.
+            this._logDebug("_onWebsocketMessage: ignored non-array frame");
+            return;
+        }
         // Drop any notification we have already processed. This makes the
         // pipeline robust against duplicate delivery (server resend on
         // reconnect, a rewound `last`, ...) instead of relying solely on the
@@ -496,6 +523,17 @@ export class WebsocketWorker {
         // `_stop`/`_onWebsocketClose` both null `lastChannelSubscription`, so
         // the subscribe below is always (re)sent and resolves this deferred.
         this.firstSubscribeDeferred = new Deferred();
+        // Force a fresh subscribe on every (re)connect. `_onWebsocketClose` and
+        // `_stop` null this, but a channel add/remove *during* the disconnect
+        // re-populates it (the debounced `_updateChannels` runs while offline and
+        // sets it to the current channel set). The open-time
+        // `_debouncedUpdateChannels()` below would then find the channels
+        // unchanged, send no subscribe and never resolve `firstSubscribeDeferred`
+        // -- leaving the queued subscribe (and every queued app message) stuck in
+        // `messageWaitQueue` on a connected-but-unsubscribed socket, silently
+        // dropping all notifications until the next channel change. Nulling here
+        // restores the "always re-subscribe on open" invariant.
+        this.lastChannelSubscription = null;
         this._updateState(WORKER_STATE.CONNECTED);
         this.broadcast(this.isReconnecting ? "BUS:RECONNECT" : "BUS:CONNECT");
         this._debouncedUpdateChannels();
@@ -503,11 +541,21 @@ export class WebsocketWorker {
         this.connectTimeout = null;
         this.isReconnecting = false;
         this.firstSubscribeDeferred.then(() => {
-            if (!this.websocket) {
+            if (!this._isWebsocketConnected()) {
+                // Socket already closed/replaced: keep the queue for the
+                // next open instead of writing to a dead socket.
                 return;
             }
-            this.messageWaitQueue.forEach((msg) => this.websocket.send(msg));
+            // Drop queued subscribes: the deferred only resolves once
+            // `_updateChannels` sent a fresh subscribe for THIS connection,
+            // so any subscribe still queued (from the offline period) is
+            // stale — replaying it would rewind the subscription and make
+            // the server re-poll for nothing.
+            const queue = this.messageWaitQueue.filter(
+                (msg) => JSON.parse(msg).event_name !== "subscribe",
+            );
             this.messageWaitQueue = [];
+            queue.forEach((msg) => this.websocket.send(msg));
         });
         this._restartConnectionCheckInterval();
     }
@@ -584,7 +632,19 @@ export class WebsocketWorker {
             if (message["event_name"] === "subscribe") {
                 this.websocket.send(payload);
             } else {
-                this.firstSubscribeDeferred.then(() => this.websocket.send(payload));
+                this.firstSubscribeDeferred.then(() => {
+                    // The deferred can resolve after the connection state
+                    // changed: `_updateChannels` also resolves it while
+                    // offline/stopped (queued subscribe), at which point
+                    // `this.websocket` may be null or closed. Re-queue the
+                    // message for the next open instead of crashing with an
+                    // unhandled rejection and losing it.
+                    if (this._isWebsocketConnected()) {
+                        this.websocket.send(payload);
+                    } else {
+                        this.messageWaitQueue.push(payload);
+                    }
+                });
             }
             this._restartConnectionCheckInterval();
         }

@@ -20,6 +20,12 @@ class BusController(Controller):
 
     @route("/bus/has_missed_notifications", type="jsonrpc", auth="public")
     def has_missed_notifications(self, last_notification_id):
+        # A non-integer id (client-controlled JSON) would make the query
+        # crash with a 500; reject it explicitly instead.
+        if not isinstance(last_notification_id, int) or isinstance(
+            last_notification_id, bool
+        ):
+            raise BadRequest("last_notification_id must be an integer")
         # sudo - bus.bus: checking if a notification still exists is allowed
         # to detect missed notifications during disconnect.
         request.env.cr.execute(

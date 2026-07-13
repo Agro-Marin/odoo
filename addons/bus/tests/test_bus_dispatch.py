@@ -168,6 +168,51 @@ class TestImDispatchChannelManagement(TransactionCase):
         self.assertEqual(len(d._channels_to_ws[key]), 1)
         self.assertIn(ws2, d._channels_to_ws[key])
 
+    def test_dispatch_to_all_triggers_every_websocket_once(self):
+        """``_dispatch_to_all`` (the LISTEN-reconnect catch-up) wakes each
+        subscribed websocket exactly once, even when subscribed to several
+        channels."""
+        d = self._make_dispatch()
+        ws1 = self._make_ws()
+        ws2 = self._make_ws()
+        d._channels_to_ws = {
+            ("testdb", "ch1"): {ws1, ws2},
+            ("testdb", "ch2"): {ws1},
+        }
+        d._dispatch_to_all()
+        ws1.trigger_notification_dispatching.assert_called_once()
+        ws2.trigger_notification_dispatching.assert_called_once()
+
+    def test_dispatch_to_all_without_subscribers(self):
+        """``_dispatch_to_all`` on an empty subscription map is a no-op."""
+        d = self._make_dispatch()
+        d._dispatch_to_all()
+        self.assertEqual(d._channels_to_ws, {})
+
+
+@tagged("-at_install", "post_install")
+class TestImDispatchPayloadParsing(TransactionCase):
+    """Tests for ``ImDispatch._parse_imbus_payload`` robustness.
+
+    A malformed NOTIFY payload on the imbus channel (foreign NOTIFY,
+    custom ``ODOO_NOTIFY_FUNCTION``, ...) must be skipped, not kill the
+    dispatch loop for every database.
+    """
+
+    def test_valid_payload(self):
+        self.assertEqual(
+            ImDispatch._parse_imbus_payload('[["db", "ch1"], ["db", "ch2"]]'),
+            [["db", "ch1"], ["db", "ch2"]],
+        )
+
+    def test_malformed_json_is_skipped(self):
+        with self.assertLogs("odoo.addons.bus.models.bus", "WARNING"):
+            self.assertEqual(ImDispatch._parse_imbus_payload("{not json"), [])
+
+    def test_non_list_payload_is_skipped(self):
+        with self.assertLogs("odoo.addons.bus.models.bus", "WARNING"):
+            self.assertEqual(ImDispatch._parse_imbus_payload('{"foo": 1}'), [])
+
 
 @tagged("-at_install", "post_install")
 class TestSendPgNotify(TransactionCase):

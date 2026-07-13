@@ -9,6 +9,7 @@ from odoo.http import SessionExpiredException
 from odoo.tests.common import BaseCase, tagged
 
 from ..websocket import (
+    MAX_TRY_ON_POOL_ERROR,
     CloseCode,
     CloseFrame,
     ConnectionClosedError,
@@ -202,6 +203,23 @@ class TestFrameClasses(BaseCase):
         frame = CloseFrame(CloseCode.CLEAN, None)
         self.assertFalse(hasattr(frame, "__dict__"))
 
+    def test_close_frame_reason_truncated(self):
+        """An oversized reason (e.g. ``str(exc)``) is truncated so the control
+        payload fits the 125-byte RFC 6455 limit instead of making the close
+        frame unsendable."""
+        frame = CloseFrame(CloseCode.CLEAN, "x" * 500)
+        self.assertEqual(len(frame.payload), 2 + CloseFrame.MAX_REASON_LENGTH)
+        self.assertEqual(frame.reason, "x" * CloseFrame.MAX_REASON_LENGTH)
+
+    def test_close_frame_reason_truncation_keeps_utf8_valid(self):
+        """Truncation must not split a multi-byte UTF-8 sequence (peers reject
+        invalid UTF-8 close reasons with INCONSISTENT_DATA)."""
+        frame = CloseFrame(CloseCode.CLEAN, "é" * 100)  # 200 bytes encoded
+        self.assertLessEqual(len(frame.payload), 125)
+        # 123 // 2 = 61 whole chars; the dangling half-é byte is dropped.
+        self.assertEqual(frame.reason, "é" * 61)
+        frame.payload[2:].decode("utf-8")  # must not raise
+
 
 @tagged("-at_install", "post_install")
 class TestFollowSessionChain(BaseCase):
@@ -326,6 +344,27 @@ class TestAcquireCursor(BaseCase):
             with self.assertRaises(PoolError):
                 with acquire_cursor("testdb"):
                     pass  # pragma: no cover
+
+    def test_no_backoff_sleep_after_final_attempt(self):
+        """When every attempt fails, no backoff sleep runs after the last one:
+        the delays grow exponentially and the final sleep alone would stall
+        the caller for several extra seconds before raising."""
+        mock_registry = MagicMock()
+        mock_registry.cursor.side_effect = PoolError("always busy")
+
+        with (
+            patch("odoo.addons.bus.websocket.Registry", return_value=mock_registry),
+            patch("time.sleep") as mock_sleep,
+        ):
+            with self.assertRaises(PoolError):
+                with acquire_cursor("testdb"):
+                    pass  # pragma: no cover
+        # Only the sleeps *between* attempts remain (the sleep(0) thread
+        # yields are filtered out).
+        backoff_sleeps = [
+            call for call in mock_sleep.call_args_list if call.args[0] > 0
+        ]
+        self.assertEqual(len(backoff_sleeps), MAX_TRY_ON_POOL_ERROR - 1)
 
     def test_pool_error_from_body_not_swallowed(self):
         """A PoolError raised by the caller *after* the cursor is yielded must
@@ -478,9 +517,7 @@ class TestFrameCodec(BaseCase):
 
     def test_oversized_control_frame_raises(self):
         # Control frame declaring a 7-bit length > 125.
-        ws, _ = self._make_ws(
-            _client_frame(Opcode.CLOSE, b"", seven_bit_len=126)
-        )
+        ws, _ = self._make_ws(_client_frame(Opcode.CLOSE, b"", seven_bit_len=126))
         with self.assertRaises(ProtocolError):
             ws._process_next_message()
 

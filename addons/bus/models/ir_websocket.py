@@ -49,10 +49,17 @@ class IrWebsocket(models.AbstractModel):
             - channels (set of str): The list of channels to subscribe to.
             - last (int): The last known notification id.
 
-        :raise ValueError: If the list of channels is not a list of strings.
+        :raise ValueError: If the arguments do not have the expected
+            types/shape. Both the websocket `subscribe` event and the
+            `/websocket/peek_notifications` route feed this method raw
+            client-controlled data, so validation must not assume anything.
         """
-        if not all(isinstance(c, str) for c in channels):
+        if not isinstance(channels, (list, tuple)) or not all(
+            isinstance(c, str) for c in channels
+        ):
             raise ValueError("bus.Bus only string channels are allowed.")
+        if not isinstance(last, int) or isinstance(last, bool):
+            raise ValueError("bus.Bus subscription 'last' must be an integer.")
         # sudo - bus.bus: reading non-sensitive last bus id.
         # Clamp to [0, max_id]: negative values would match all rows, values
         # beyond max_id skip all existing notifications (reset to 0 instead).
@@ -68,7 +75,11 @@ class IrWebsocket(models.AbstractModel):
         Modules can override this method to add custom behavior."""
 
     def _subscribe(self, og_data):
-        data = self._prepare_subscribe_data(og_data["channels"], og_data["last"])
+        if not isinstance(og_data, dict) or "channels" not in og_data:
+            raise ValueError(
+                "bus.Bus subscribe data must be a dict with a 'channels' key."
+            )
+        data = self._prepare_subscribe_data(og_data["channels"], og_data.get("last", 0))
         dispatch.subscribe(
             data["channels"], data["last"], self.env.registry.db_name, wsrequest.ws
         )

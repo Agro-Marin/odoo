@@ -201,6 +201,49 @@ class TestWebsocketCaryall(WebsocketCase):
         self.assertEqual(notifications[0]["message"]["type"], "notif_type")
         self.assertEqual(notifications[0]["message"]["payload"], "another_message")
 
+    def test_malformed_subscribe_data_keeps_connection_alive(self):
+        """Client-controlled garbage in the subscribe payload is rejected with
+        a warning (no traceback) and must not kill the connection."""
+        websocket = self.websocket_connect()
+        malformed_payloads = [
+            "not-a-dict",
+            {"last": 0},  # missing channels
+            {"channels": "not-a-list"},
+            {"channels": [1, 2]},
+            {"channels": [], "last": "not-an-int"},
+        ]
+        for data in malformed_payloads:
+            with self.assertLogs(
+                "odoo.addons.bus.websocket", level="WARNING"
+            ) as capture:
+                websocket.send(json.dumps({"event_name": "subscribe", "data": data}))
+                # Frames are handled in order: once the pong arrives, the
+                # malformed subscribe above has been processed.
+                websocket.ping()
+                websocket.recv_data_frame(control_frame=True)  # pong
+            self.assertTrue(
+                any("Invalid websocket request" in line for line in capture.output),
+                f"payload {data!r} should be rejected with a warning",
+            )
+        # The connection survived and a valid subscription still works.
+        self.subscribe(websocket, ["my_channel"], self.env["bus.bus"]._bus_last_id())
+        self.env["bus.bus"]._sendone("my_channel", "notif_type", "message")
+        self.trigger_notification_dispatching(["my_channel"])
+        notifications = json.loads(websocket.recv())
+        self.assertEqual(1, len(notifications))
+        self.assertEqual(notifications[0]["message"]["payload"], "message")
+
+    def test_subscribe_without_last_defaults_to_zero(self):
+        """A subscribe without the optional ``last`` key is valid (the JS
+        worker always sends it, but hand-rolled clients may not)."""
+        websocket = self.websocket_connect()
+        self.subscribe(websocket, ["my_channel"])  # no "last" key sent
+        self.env["bus.bus"]._sendone("my_channel", "notif_type", "message")
+        self.trigger_notification_dispatching(["my_channel"])
+        notifications = json.loads(websocket.recv())
+        self.assertEqual(1, len(notifications))
+        self.assertEqual(notifications[0]["message"]["type"], "notif_type")
+
     def test_trigger_notification_unsupported_language(self):
         websocket = self.websocket_connect()
         # set session lang to what a websitor visitor could have (based on their

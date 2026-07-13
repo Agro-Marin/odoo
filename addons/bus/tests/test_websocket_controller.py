@@ -1,5 +1,6 @@
 from odoo.http import SESSION_ROTATION_INTERVAL, root
 from odoo.tests import JsonRpcException
+from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
@@ -107,3 +108,24 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         root.session_store.save(original_session_obj)
         self.make_jsonrpc_request("/websocket/on_closed")
         self.assertEqual(self.opener.cookies["session_id"], original_session)
+
+    def test_has_missed_notifications_rejects_non_integer(self):
+        """`last_notification_id` is client-controlled JSON: anything but an
+        integer must be rejected instead of crashing the SQL query."""
+        for bad_value in ("1", None, 1.5, [1], {"id": 1}, True):
+            with (
+                self.subTest(bad_value=bad_value),
+                mute_logger("odoo.http"),
+                self.assertRaises(JsonRpcException),
+            ):
+                self.make_jsonrpc_request(
+                    "/bus/has_missed_notifications",
+                    {"last_notification_id": bad_value},
+                )
+
+    def test_has_missed_notifications_with_integer(self):
+        # id 0 can never exist (serial starts at 1): reported as missed.
+        result = self.make_jsonrpc_request(
+            "/bus/has_missed_notifications", {"last_notification_id": 0}
+        )
+        self.assertTrue(result)
