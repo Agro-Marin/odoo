@@ -71,6 +71,7 @@ class HrEmployee(models.Model):
     current_version_id = fields.Many2one(
         "hr.version",
         compute="_compute_current_version_id",
+        compute_sudo=True,
         store=True,
         bypass_search_access=True,
     )
@@ -503,9 +504,16 @@ class HrEmployee(models.Model):
 
     @api.depends(
         "bank_account_ids.allow_out_payment",
-        "primary_bank_account_id.allow_out_payment",
+        "salary_distribution",
     )
     def _compute_is_trusted_bank_account(self):
+        # NB: depend on the *stored* inputs that determine the primary account
+        # (bank_account_ids + salary_distribution) and on those accounts'
+        # allow_out_payment — never on ``primary_bank_account_id.allow_out_payment``.
+        # ``primary_bank_account_id`` is a non-stored compute, so that dependency
+        # path makes the ORM reverse-search hr.employee by a non-stored field when
+        # allow_out_payment changes (e.g. action_toggle_primary_bank_account_trust)
+        # and raise "Cannot convert ... to SQL because it is not stored".
         for employee in self:
             employee.is_trusted_bank_account = (
                 employee.primary_bank_account_id.allow_out_payment
@@ -710,6 +718,7 @@ class HrEmployee(models.Model):
     def _get_new_hire_field(self):
         return "create_date"
 
+    @api.depends(lambda self: [self._get_new_hire_field()])
     def _compute_newly_hired(self):
         new_hire_field = self._get_new_hire_field()
         new_hire_date = fields.Datetime.now() - timedelta(days=90)
@@ -797,7 +806,7 @@ class HrEmployee(models.Model):
         )
 
         for employee in self:
-            if context_version.employee_id == self:
+            if context_version and context_version.employee_id == employee:
                 version = context_version
             else:
                 version = employee.current_version_id
@@ -1254,9 +1263,13 @@ class HrEmployee(models.Model):
         This method is overritten in several other modules which add additional
         presence criterions. e.g. hr_attendance, hr_holidays
         """
-        # sudo: res.users - can access presence of accessible user
+        # sudo: res.users - can access presence of accessible user.
+        # Only employees whose company uses login-based presence control consult
+        # ``working_now_list`` below, so restrict the (expensive) schedule
+        # computation to them instead of running it for the whole recordset.
         employee_to_check_working = self.filtered(
-            lambda e: (e.user_id.sudo().presence_ids.status or "offline") == "offline"
+            lambda e: e.company_id.sudo().hr_presence_control_login
+            and (e.user_id.sudo().presence_ids.status or "offline") == "offline"
         )
         working_now_list = employee_to_check_working._get_employee_working_now()
         for employee in self:
@@ -1330,7 +1343,7 @@ class HrEmployee(models.Model):
             avatar_field, image_field
         )
 
-    @api.depends("birthday_public_display")
+    @api.depends("birthday", "birthday_public_display")
     def _compute_birthday_public_display_string(self):
         for employee in self:
             if employee.birthday and employee.birthday_public_display:
@@ -1437,6 +1450,9 @@ class HrEmployee(models.Model):
                     ("login", "in", employee_emails),
                 ]
             )
+        # Hoist the set of conflicting emails out of the per-employee loop below
+        # (membership test instead of re-``mapped()`` on every iteration).
+        conflicting_emails = set(conflicting_users.mapped("email_normalized"))
         old_users = []
         new_users = []
         users_without_emails = []
@@ -1452,9 +1468,7 @@ class HrEmployee(models.Model):
             if not tools.email_normalize(employee.work_email):
                 users_with_invalid_emails.append(employee.name)
                 continue
-            if email_normalize(employee.work_email) in conflicting_users.mapped(
-                "email_normalized"
-            ):
+            if email_normalize(employee.work_email) in conflicting_emails:
                 users_with_existing_email.append(employee.name)
                 continue
             new_users.append(
@@ -1625,16 +1639,19 @@ class HrEmployee(models.Model):
         employees_contract_expiring = self.env["hr.employee"]
         employees_work_permit_expiring = self.env["hr.employee"]
 
+        # Anchor the whole run on a single "today" so every per-company window is
+        # computed against the same date.
+        today = fields.Date.today()
         for company in companies:
             employees_contract_expiring += self.env["hr.employee"].search(
                 [
                     ("company_id", "=", company.id),
                     ("contract_date_start", "!=", False),
-                    ("contract_date_start", "<", fields.Date.today()),
+                    ("contract_date_start", "<", today),
                     (
                         "contract_date_end",
                         "=",
-                        fields.Date.today()
+                        today
                         + relativedelta(days=company.contract_expiration_notice_period),
                     ),
                 ]
@@ -1647,7 +1664,7 @@ class HrEmployee(models.Model):
                     (
                         "work_permit_expiration_date",
                         "=",
-                        fields.Date.today()
+                        today
                         + relativedelta(
                             days=company.work_permit_expiration_notice_period
                         ),
@@ -1841,7 +1858,7 @@ We can redirect you to the public employee list."""
 
     def _prepare_resource_values(self, vals, tz):
         resource_vals = super()._prepare_resource_values(vals, tz)
-        vals.pop("name")  # Already considered by super call but no popped
+        vals.pop("name", None)  # Already considered by super call but not popped
         # We need to pop it to avoid useless resource update (& write) call
         # on every newly created resource (with the correct name already)
         user_id = vals.pop("user_id", None)
@@ -1886,8 +1903,11 @@ We can redirect you to the public employee list."""
                 vals["name"] = vals.get("name", user.name)
                 self._remove_work_contact_id(user, vals.get("company_id"))
             # Having one create per company is necessary to pass the company in the context to correctly set it in
-            # the underlying version created by the framework
-            vals_per_company[vals.get("company_id", self.env.company)].append(
+            # the underlying version created by the framework. Group by a normalized
+            # company *id* so an explicit ``company_id`` and the ``env.company``
+            # fallback for the same company land in the same batch (a record key and
+            # an int key would otherwise split them).
+            vals_per_company[vals.get("company_id") or self.env.company.id].append(
                 (idx, vals)
             )
         index_per_employee = {}
@@ -2061,13 +2081,16 @@ We can redirect you to the public employee list."""
                 for field in user_fields_to_empty
             )
             employees = self.env["hr.employee"].search(employee_domain | user_domain)
-            for employee in employees:
-                for field in employee_fields_to_empty:
-                    if employee[field] in archived_employees:
-                        employee[field] = False
-                for field in user_fields_to_empty:
-                    if employee[field] in archived_employees.user_id:
-                        employee[field] = False
+            # Clear each back-reference in a single grouped write per field instead
+            # of one write per (record, field) pair.
+            for field in employee_fields_to_empty:
+                employees.filtered(
+                    lambda e, f=field: e[f] in archived_employees
+                ).write({field: False})
+            for field in user_fields_to_empty:
+                employees.filtered(
+                    lambda e, f=field: e[f] in archived_employees.user_id
+                ).write({field: False})
 
             if len(archived_employees) == 1 and not self.env.context.get(
                 "no_wizard", False
@@ -2244,8 +2267,13 @@ We can redirect you to the public employee list."""
 
     def _get_unusual_days(self, date_from, date_to=None):
         date_from_date = datetime.strptime(date_from, "%Y-%m-%d %H:%M:%S").date()
+        # ``date_to`` is optional; fall back to a single-day window so neither the
+        # per-version branch nor the no-version branch feeds ``None`` into
+        # ``datetime.combine`` (which raises).
         date_to_date = (
-            datetime.strptime(date_to, "%Y-%m-%d %H:%M:%S").date() if date_to else None
+            datetime.strptime(date_to, "%Y-%m-%d %H:%M:%S").date()
+            if date_to
+            else date_from_date
         )
         employee_versions = (
             self.env["hr.version"]
@@ -2259,10 +2287,10 @@ We can redirect you to the public employee list."""
             return (
                 self.resource_calendar_id or self.env.company.resource_calendar_id
             )._get_unusual_days(
-                datetime.combine(fields.Date.from_string(date_from), time.min).replace(
-                    tzinfo=UTC
-                ),
-                datetime.combine(fields.Date.from_string(date_to), time.max).replace(
+                datetime.combine(date_from_date, time.min).replace(tzinfo=UTC),
+                # ``date_to`` is optional: fall back to a single-day window rather
+                # than feeding ``None`` into ``datetime.combine`` (which raises).
+                datetime.combine(date_to_date or date_from_date, time.max).replace(
                     tzinfo=UTC
                 ),
                 self.company_id,
@@ -2465,7 +2493,7 @@ We can redirect you to the public employee list."""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": self.employee_id.name + self.env._(" Records"),
+            "name": self.name + self.env._(" Records"),
             "path": "versions",
             "res_model": "hr.version",
             "view_mode": "list,graph,pivot",
@@ -2474,7 +2502,7 @@ We can redirect you to the public employee list."""
                 (False, "graph"),
                 (False, "pivot"),
             ],
-            "domain": [("employee_id", "=", self.employee_id.id)],
+            "domain": [("employee_id", "=", self.id)],
             "search_view_id": self.env.ref("hr.hr_version_search_view").id,
         }
 

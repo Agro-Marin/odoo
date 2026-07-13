@@ -16,18 +16,24 @@ export class RadioFollowedByElement extends RadioField {
         onMounted(() => {
             this.moveElement();
             this.observer = new MutationObserver((mutations) => {
-                if ([...mutations].map(mutation =>
+                const addedLinkedNode = [...mutations].map(mutation =>
                     [...mutation.addedNodes].map(node => node.id))
                     .flat()
-                    .filter(id => Object.values(this.props.links).includes(id))) this.moveElement();
+                    .some(id => Object.values(this.props.links).includes(id));
+                if (addedLinkedNode) {
+                    this.moveElement();
+                }
             });
 
-            this.observer.observe(document.getElementsByName(this.props.observe).item(0), {
-                childList: true,
-                subtree: true,
-                attributes: false,
-                characterData: false,
-            });
+            const target = document.getElementsByName(this.props.observe).item(0);
+            if (target) {
+                this.observer.observe(target, {
+                    childList: true,
+                    subtree: true,
+                    attributes: false,
+                    characterData: false,
+                });
+            }
         });
 
         onWillUnmount(() => {

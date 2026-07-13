@@ -107,7 +107,7 @@ export class VersionsTimeline extends StatusBarField {
             return luxon.DateTime.fromISO(dateString).toFormat("MMM dd, yyyy");
         }
         const items = super.getAllItems();
-        if (!this.displayContractLines) {
+        if (!this.displayContractLines()) {
             return items;
         }
         const dataById = new Map(this.specialData.data.map((d) => [d.id, d]));
@@ -139,8 +139,8 @@ export function useSpecialDataNoCache(loadFn) {
     const component = useComponent();
     const orm = component.env.services.orm;
 
-    /** @type {{ data: Record<string, T> }} */
-    const result = useState({ data: {} });
+    /** @type {{ data: T[] }} */
+    const result = useState({ data: [] });
     useRecordObserver(async (record, props) => {
         result.data = await loadFn(orm, { ...props, record });
     });

@@ -12,7 +12,10 @@ class MailActivityPlan(models.Model):
         check_company=True,
         index="btree_not_null",
         compute="_compute_department_id",
-        ondelete="cascade",
+        # ``department_id`` is only a visibility filter, not an owner: deleting a
+        # department must not cascade-delete the whole plan (and its activity
+        # templates). Clear the filter instead.
+        ondelete="set null",
         readonly=False,
         store=True,
     )

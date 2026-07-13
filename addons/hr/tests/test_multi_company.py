@@ -102,9 +102,15 @@ class TestMultiCompany(TestHrCommon):
     def test_read_manager_employee(self):
         # UserB should be able to read its manager's record - without being connected
         # on company A
-        self.employee_a.with_user(self.user_b).with_company(self.company_b).name
+        self.assertEqual(
+            self.employee_a.with_user(self.user_b).with_company(self.company_b).name,
+            "Employee A",
+        )
 
-        self.employee_b.with_user(self.user_a).with_company(self.company_a).name
+        self.assertEqual(
+            self.employee_b.with_user(self.user_a).with_company(self.company_a).name,
+            "Employee B",
+        )
 
         # UserB should not be able to read other employees in that company
         with self.assertRaises(AccessError):
@@ -121,9 +127,18 @@ class TestMultiCompany(TestHrCommon):
     def test_compute_presence_state(self):
         self.user_a.company_ids = self.company_a
         # user A should still read the employee since he is the manager of that employee
-        self.employee_b.with_user(self.user_a).with_company(self.company_a).name
+        self.assertEqual(
+            self.employee_b.with_user(self.user_a).with_company(self.company_a).name,
+            "Employee B",
+        )
 
         # user A should still read hr_presence_state even if he does not have access to the company of the employee
-        self.employee_b.with_user(self.user_a).with_company(
-            self.company_a
-        ).hr_presence_state
+        presence_state = (
+            self.employee_b.with_user(self.user_a)
+            .with_company(self.company_a)
+            .hr_presence_state
+        )
+        self.assertIn(
+            presence_state,
+            {"present", "absent", "out_of_working_hour", "archive"},
+        )

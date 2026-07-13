@@ -12,6 +12,13 @@ class Base(models.AbstractModel):
         if alias.alias_contact == "employees":
             email_from = tools.mail.decode_message_header(message, "From")
             email_address = tools.email_normalize(email_from, strict=False)
+            if not email_address:
+                # An unparseable sender can't match any employee; searching with
+                # ``ilike False`` would be meaningless (and risk matching an
+                # arbitrary row), so reject it outright.
+                return AliasError(
+                    "error_hr_employee_restricted", _("restricted to employees")
+                )
             employee = self.env["hr.employee"].search(
                 [("work_email", "ilike", email_address)], limit=1
             )

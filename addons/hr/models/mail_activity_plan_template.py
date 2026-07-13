@@ -114,6 +114,6 @@ class MailActivityPlanTemplate(models.Model):
                     ),
                 )
 
-        if result["error"] or result["responsible"]:
-            return result
-        return None
+        # Always return the well-formed dict (callers subscript ["responsible"] /
+        # ["error"]); never None, which would raise TypeError.
+        return result

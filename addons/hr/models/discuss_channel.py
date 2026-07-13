@@ -33,16 +33,17 @@ class DiscussChannel(models.Model):
         """Auto-subscribe members of a department to a channel"""
         new_members = super()._subscribe_users_automatically_get_members()
         for channel in self:
+            # sudo: department members are hr.employee records (ACL-restricted);
+            # a non-HR user editing the channel must still resolve them to
+            # subscribe. Only ids are used from the traversal.
+            department_partners = (
+                channel.subscription_department_ids.sudo().member_ids.user_id.partner_id.filtered(
+                    lambda p: p.active
+                )
+            )
             new_members[channel.id] = list(
                 set(new_members[channel.id])
-                | set(
-                    (
-                        channel.subscription_department_ids.member_ids.user_id.partner_id.filtered(
-                            lambda p: p.active
-                        )
-                        - channel.channel_partner_ids
-                    ).ids
-                )
+                | set((department_partners - channel.channel_partner_ids).ids)
             )
         return new_members
 

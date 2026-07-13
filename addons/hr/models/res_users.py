@@ -260,7 +260,9 @@ class ResUsers(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         employee_create_vals = []
-        for user, vals in zip(res, vals_list, strict=False):
+        # create() is 1:1 with vals_list; fail loudly on any mismatch rather than
+        # silently binding create_employee flags to the wrong user.
+        for user, vals in zip(res, vals_list, strict=True):
             if not vals.get("create_employee") and not vals.get("create_employee_id"):
                 continue
             if vals.get("create_employee_id"):

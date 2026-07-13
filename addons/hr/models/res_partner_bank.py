@@ -38,14 +38,19 @@ class ResPartnerBank(models.Model):
     @api.depends("employee_id.salary_distribution")
     def _compute_salary_amount(self):
         for bank in self:
-            if bank.employee_id and bank.employee_id.salary_distribution:
+            distribution = bank.employee_id.salary_distribution or {}
+            if str(bank.id) in distribution:
+                # This account participates in the employee's distribution:
+                # report its own allocated amount.
                 (
                     bank.employee_salary_amount,
                     bank.employee_salary_amount_is_percentage,
                 ) = bank.employee_id.get_bank_account_salary_allocation(bank.id)
                 continue
             bank.employee_salary_amount_is_percentage = True
-            if bank.employee_id.salary_distribution:
+            if distribution:
+                # Employee has a distribution but this account isn't in it yet:
+                # show the still-allocatable percentage.
                 bank.employee_salary_amount = (
                     bank.employee_id.get_remaining_percentage()
                 )
@@ -62,11 +67,15 @@ class ResPartnerBank(models.Model):
         self.ensure_one()
         return self.employee_id.action_open_allocation_wizard()
 
-    @api.depends("partner_id")
+    @api.depends("partner_id", "partner_id.employee_ids")
     def _compute_employee_id(self):
         for bank in self:
-            if bank.partner_id.employee:
-                bank.employee_id = bank.partner_id.employee_ids.filtered(
+            # sudo: partner.employee_ids is gated behind hr.group_hr_user, but
+            # ``employee_id`` itself carries no group, so it must compute for any
+            # user who reads the bank account (mirrors _search_employee_id).
+            partner = bank.partner_id.sudo()
+            if partner.employee:
+                bank.employee_id = partner.employee_ids.filtered(
                     lambda e: e.company_id in self.env.companies
                 )[:1]
             else:

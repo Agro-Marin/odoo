@@ -28,12 +28,22 @@ class ResPartner(models.Model):
     )
 
     def _compute_employees_count(self):
-        for partner in self:
-            partner.employees_count = len(
-                partner.sudo().employee_ids.filtered(
-                    lambda e: e.company_id in self.env.companies
-                )
+        # sudo + a single grouped read instead of one query per partner (the
+        # per-record ``partner.sudo()`` broke batch prefetch entirely).
+        counts = dict(
+            self.env["hr.employee"]
+            .sudo()
+            ._read_group(
+                [
+                    ("work_contact_id", "in", self.ids),
+                    ("company_id", "in", self.env.companies.ids),
+                ],
+                groupby=["work_contact_id"],
+                aggregates=["__count"],
             )
+        )
+        for partner in self:
+            partner.employees_count = counts.get(partner, 0)
 
     def action_open_employees(self):
         self.ensure_one()
