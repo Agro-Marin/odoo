@@ -229,6 +229,10 @@ export class RelationalModel extends Model {
         this.useSendBeaconToSaveUrgently = params.useSendBeaconToSaveUrgently || false;
         this.withCache = this.Class.withCache && this.env.config?.cache;
         this.initialSampleGroups = undefined; // real groups to populate with sample records
+        // Whether sample data can ever activate for this model (see
+        // useModelWithSampleData). Gates the initialSampleGroups snapshot in
+        // _webReadGroup so non-sample grouped views skip the deep clone.
+        this.canUseSampleModel = Boolean(params.canUseSampleModel);
 
         /**
          * Observable urgent-save mode state.  When ``urgentSave.isActive``
@@ -800,12 +804,13 @@ export class RelationalModel extends Model {
             aggregates,
             params,
         );
-        if (!this.initialSampleGroups) {
+        if (this.canUseSampleModel && !this.initialSampleGroups) {
             // Consumed only in sample-data mode (see ``load()`` above): SampleServer
             // reads just the group headers + presence of ``__records`` and regenerates
             // record payloads itself (``_mockWebReadGroup`` in sample_server.js). Strip
-            // the heavy ``__records`` payload before deep copying — this runs on every
-            // first grouped load, sample mode or not.
+            // the heavy ``__records`` payload before deep copying. Gated on
+            // canUseSampleModel so a view that can never show sample data skips this
+            // clone entirely on its first grouped load (the common case).
             this.initialSampleGroups = deepCopy(
                 result.groups.map((group) =>
                     "__records" in group ? { ...group, __records: [] } : group,

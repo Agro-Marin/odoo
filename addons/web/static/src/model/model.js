@@ -302,6 +302,14 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         params.isAlive = () => status(component) !== "destroyed";
     }
 
+    // Sample-data *capability* (not the runtime ``model.useSampleModel`` state):
+    // whether sample data can ever activate for this model. It is the necessary
+    // condition for the sample branch below (``component.props.useSampleModel &&
+    // ...``), so RelationalModel uses it to skip snapshotting initialSampleGroups
+    // on the first (real) load of the overwhelmingly common non-sample view —
+    // that snapshot is a deep clone consumed only when the sample branch runs.
+    params.canUseSampleModel = Boolean(component.props.useSampleModel);
+
     const model = new ModelClass(/** @type {any} */ (component.env), params, services);
 
     // Legacy deep-render listener. CAUTION: still load-bearing for any
