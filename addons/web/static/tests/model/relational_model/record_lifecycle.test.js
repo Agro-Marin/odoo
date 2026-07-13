@@ -231,6 +231,27 @@ describe("deleteRecord navigation", () => {
         // length-1=2, so we navigate to 7.
         expect(loadArgs).toEqual({ resId: 7, resIds: [3, 5, 7] });
     });
+
+    test("resId absent from resIds: navigates to the first remaining record, no data loss", async () => {
+        // Config drift / a standalone Record built with caller-supplied ids
+        // that don't actually include its own resId. Pre-fix:
+        // `resIds.splice(-1, 1)` silently dropped the LAST id (unrelated to
+        // the deleted record) and `resIds[min(-1, n)]` (-1) resolved to the
+        // last element too, so the form blanked to a record that still
+        // existed instead of navigating to a real remaining one.
+        let loadArgs = null;
+        const rec = makeRecord({
+            resId: 999, // not present in resIds
+            resIds: [3, 5, 7],
+            load: async (args) => {
+                loadArgs = args;
+            },
+        });
+        await deleteRecord(rec);
+        // No id was dropped from resIds (999 wasn't in it to begin with);
+        // navigation lands on the first remaining record.
+        expect(loadArgs).toEqual({ resId: 3, resIds: [3, 5, 7] });
+    });
 });
 
 describe("deleteRecord state reset (last record)", () => {
