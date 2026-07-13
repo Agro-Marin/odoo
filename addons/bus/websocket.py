@@ -477,7 +477,12 @@ class Websocket:
     # session-expiry semantics).
     SESSION_VALIDITY_TTL = 60
 
-    def __init__(self, sock, session, cookies):
+    def __init__(self, sock, session, cookies, *, clock=None):
+        # Injectable monotonic clock (unit tests). Shared with the
+        # TimeoutManager and used by every time-based decision on this instance
+        # (rate limiting, session-validity caching, terminate drain deadline)
+        # so a single manual clock drives the whole connection deterministically.
+        self._clock = clock if clock is not None else time.monotonic
         # Session linked to the current websocket connection.
         self._session = session
         # Cookies linked to the current websocket connection.
@@ -486,7 +491,7 @@ class Websocket:
         self.__socket = sock
         self._close_sent = False
         self._close_received = False
-        self._timeout_manager = TimeoutManager()
+        self._timeout_manager = TimeoutManager(clock=self._clock)
         # Used for rate limiting: message-starting data frames on one side,
         # control/continuation frames on the other (see RL_CONTROL_FACTOR).
         self._incoming_frame_timestamps = deque(maxlen=self.RL_BURST)
@@ -819,9 +824,9 @@ class Websocket:
             # loop (and the serving thread) alive indefinitely. Give the
             # orderly-shutdown wait a hard deadline and cut the connection
             # loose past it.
-            drain_deadline = time.monotonic() + 5
+            drain_deadline = self._clock() + 5
             while self.__socket.recv(4096):
-                if time.monotonic() > drain_deadline:
+                if self._clock() > drain_deadline:
                     break
         with suppress(KeyError):
             self.__selector.unregister(self.__socket)
@@ -955,7 +960,7 @@ class Websocket:
         else:
             timestamps = self._incoming_control_frame_timestamps
             delay = self.RL_DELAY / self.RL_CONTROL_FACTOR
-        now = time.monotonic()
+        now = self._clock()
         if (
             len(timestamps) == timestamps.maxlen
             and now - timestamps[0] < delay * timestamps.maxlen
@@ -1015,7 +1020,7 @@ class Websocket:
         session is still disconnected, at worst one TTL after invalidation
         (see ``SESSION_VALIDITY_TTL`` for the trade-off).
         """
-        now = time.monotonic()
+        now = self._clock()
         must_validate = (
             now >= self._session_validated_until
             or self._session.sid != self._validated_session_sid
@@ -1270,7 +1275,7 @@ class WebsocketConnectionHandler:
     # Latest version of the websocket worker. This version should be incremented
     # every time `websocket_worker.js` is modified to force the browser to fetch
     # the new worker bundle.
-    _VERSION = "19.0-5"
+    _VERSION = "19.0-8"
 
     @classmethod
     def websocket_allowed(cls, request):
