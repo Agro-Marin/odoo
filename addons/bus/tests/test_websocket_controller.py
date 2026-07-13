@@ -129,3 +129,64 @@ class TestWebsocketController(HttpCaseWithUserDemo):
             "/bus/has_missed_notifications", {"last_notification_id": 0}
         )
         self.assertTrue(result)
+
+    def test_has_missed_notifications_semantics(self):
+        """An existing watermark id means nothing was missed; once the
+        notification is gone (garbage-collected), the client must be told it
+        missed notifications so it performs a full resync."""
+        self.env["bus.bus"]._sendone("some_channel", "notif_type", "message")
+        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        notification = self.env["bus.bus"].sudo().search([], order="id desc", limit=1)
+        self.assertTrue(notification)
+        self.assertFalse(
+            self.make_jsonrpc_request(
+                "/bus/has_missed_notifications",
+                {"last_notification_id": notification.id},
+            ),
+            "An existing watermark id must not be reported as missed",
+        )
+        notification_id = notification.id
+        notification.unlink()  # simulate the GC having dropped the watermark
+        self.assertTrue(
+            self.make_jsonrpc_request(
+                "/bus/has_missed_notifications",
+                {"last_notification_id": notification_id},
+            ),
+            "A GC'd watermark id must be reported as missed",
+        )
+
+
+class TestWebsocketWorkerBundle(HttpCaseWithUserDemo):
+    def _get_bundle(self, headers=None):
+        return self.url_open(
+            "/bus/websocket_worker_bundle", headers=headers, allow_redirects=False
+        )
+
+    def test_etag_revalidation(self):
+        """The bundle is served with an ETag and no max-age: a conditional
+        request with a matching If-None-Match must be answered 304."""
+        response = self._get_bundle()
+        if response.status_code in (301, 302, 303, 307, 308):
+            self.skipTest("esbuild unavailable: degraded raw-file path in use")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/javascript", response.headers["Content-Type"])
+        etag = response.headers.get("ETag")
+        self.assertTrue(etag, "The bundle response must carry an ETag")
+        conditional = self._get_bundle(headers={"If-None-Match": etag})
+        self.assertEqual(conditional.status_code, 304)
+        self.assertFalse(conditional.content)
+
+    def test_cors_headers_echoed_only_with_origin(self):
+        """The credentialed-CORS headers are added when (and only when) the
+        request carries an Origin header; the origin is echoed back since
+        `Access-Control-Allow-Origin: *` is forbidden with credentials."""
+        origin = "http://other-origin.example.com:8072"
+        response = self._get_bundle(headers={"Origin": origin})
+        self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), origin)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Credentials"), "true"
+        )
+        self.assertIn("Origin", response.headers.get("Vary", ""))
+        response = self._get_bundle()
+        self.assertNotIn("Access-Control-Allow-Origin", response.headers)
+        self.assertNotIn("Access-Control-Allow-Credentials", response.headers)

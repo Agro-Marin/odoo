@@ -1,24 +1,34 @@
 import base64
+import json
+import os
 import struct
 from unittest.mock import MagicMock, patch
 
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, ServiceUnavailable
 
 from odoo.db import PoolError
 from odoo.http import SessionExpiredException
 from odoo.tests.common import BaseCase, tagged
 
+try:
+    from websocket import ABNF, WebSocketConnectionClosedException
+except ImportError:
+    ABNF = WebSocketConnectionClosedException = None
+
+from .. import websocket as websocket_module
 from ..websocket import (
     MAX_TRY_ON_POOL_ERROR,
     CloseCode,
     CloseFrame,
     ConnectionClosedError,
     ConnectionState,
+    ControlCommand,
     Frame,
     InvalidCloseCodeError,
     NotificationDispatchState,
     Opcode,
     PayloadTooLargeError,
+    PollablePriorityQueue,
     ProtocolError,
     TimeoutManager,
     UpgradeRequired,
@@ -27,6 +37,17 @@ from ..websocket import (
     _follow_session_chain,
     acquire_cursor,
 )
+from .common import WebsocketCase
+
+
+class _ManualClock:
+    """Deterministic, injectable clock for dispatch-state tests."""
+
+    def __init__(self, now=0.0):
+        self.now = now
+
+    def __call__(self):
+        return self.now
 
 
 class _FakeSocket:
@@ -401,8 +422,12 @@ class TestNotificationDispatchState(BaseCase):
     ``Websocket.MAX_NOTIFICATION_HISTORY_SEC``.
     """
 
+    def _make_state(self, retention_sec=10, now=100.0):
+        clock = _ManualClock(now)
+        return NotificationDispatchState(retention_sec, clock=clock), clock
+
     def test_initialize_last_id_only_adopts_client_value_once(self):
-        state = NotificationDispatchState(10)
+        state, _clock = self._make_state()
         state.initialize_last_id(5)
         self.assertEqual(state.last_id, 5)
         # Later client values are ignored: the server is authoritative.
@@ -410,43 +435,75 @@ class TestNotificationDispatchState(BaseCase):
         self.assertEqual(state.last_id, 5)
 
     def test_dispatched_ids_are_held_as_ignore_ids(self):
-        state = NotificationDispatchState(10)
-        state.record_dispatched([3, 7], now=100.0)
+        state, _clock = self._make_state()
+        state.record_dispatched([3, 7])
         self.assertEqual(state.last_id, 0)
         self.assertEqual(state.ignore_ids, [3, 7])
 
     def test_out_of_order_lower_id_is_still_held(self):
         """A lower id arriving after a higher one is inserted in id order and
         held; last_id does not advance while any id is still fresh."""
-        state = NotificationDispatchState(10)
-        state.record_dispatched([3, 7], now=100.0)
-        state.record_dispatched([6], now=101.0)
+        state, clock = self._make_state()
+        state.record_dispatched([3, 7])
+        clock.now = 101.0
+        state.record_dispatched([6])
         self.assertEqual(state.ignore_ids, [3, 6, 7])
         self.assertEqual(state.last_id, 0)
 
     def test_last_id_advances_past_contiguous_expired_prefix(self):
-        state = NotificationDispatchState(10)
-        state.record_dispatched([3, 6, 7], now=100.0)
+        state, clock = self._make_state()
+        state.record_dispatched([3, 6, 7])
         # 11s later, every id has aged past the 10s retention.
-        state.record_dispatched([], now=111.0)
+        clock.now = 111.0
+        state.record_dispatched([])
         self.assertEqual(state.last_id, 7)
         self.assertEqual(state.ignore_ids, [])
 
     def test_recent_low_id_blocks_trimming_of_older_higher_id(self):
         """The key invariant: an id cannot be forgotten while a *smaller* id is
         still held, otherwise ``id > last_id`` would re-fetch it."""
-        state = NotificationDispatchState(10)
-        state.record_dispatched([6], now=100.0)  # id 6, old
-        state.record_dispatched([3], now=108.0)  # id 3, recent, lower
-        state.record_dispatched([], now=109.0)
+        state, clock = self._make_state()
+        state.record_dispatched([6])  # id 6, old
+        clock.now = 108.0
+        state.record_dispatched([3])  # id 3, recent, lower
+        clock.now = 109.0
+        state.record_dispatched([])
         # id 3 is still fresh -> the scan stops at it -> nothing trimmed, even
         # though id 6 is old.
         self.assertEqual(state.last_id, 0)
         self.assertEqual(state.ignore_ids, [3, 6])
         # Once id 3 also expires, both are dropped and last_id jumps to 6.
-        state.record_dispatched([], now=200.0)
+        clock.now = 200.0
+        state.record_dispatched([])
         self.assertEqual(state.last_id, 6)
         self.assertEqual(state.ignore_ids, [])
+
+    def test_history_is_capped(self):
+        """The history is bounded: when more than MAX_HISTORY_LENGTH ids are
+        dispatched within the retention window, the oldest (lowest) ids are
+        dropped and last_id advances past them so they cannot be re-fetched.
+        """
+        state, _clock = self._make_state()
+        with patch.object(NotificationDispatchState, "MAX_HISTORY_LENGTH", 4):
+            state.record_dispatched([1, 2, 3, 4])
+            self.assertEqual(state.ignore_ids, [1, 2, 3, 4])
+            with self.assertLogs("odoo.addons.bus.websocket", level="DEBUG") as log:
+                state.record_dispatched([5, 6])
+            self.assertIn("history capped", log.output[0])
+            # The two lowest ids were dropped and last_id advanced past them.
+            self.assertEqual(state.ignore_ids, [3, 4, 5, 6])
+            self.assertEqual(state.last_id, 2)
+
+    def test_cap_does_not_bite_below_limit(self):
+        """Ids within the retention window are never dropped while the
+        history is below the cap."""
+        state, clock = self._make_state()
+        with patch.object(NotificationDispatchState, "MAX_HISTORY_LENGTH", 4):
+            state.record_dispatched([1, 2, 3])
+            clock.now = 105.0
+            state.record_dispatched([4])
+            self.assertEqual(state.ignore_ids, [1, 2, 3, 4])
+            self.assertEqual(state.last_id, 0)
 
 
 @tagged("-at_install", "post_install")
@@ -466,7 +523,8 @@ class TestFrameCodec(BaseCase):
         ws.state = ConnectionState.OPEN
         ws._close_sent = False
         ws._close_received = False
-        ws._limit_rate = lambda: None  # bypass rate limiting for codec tests
+        # Bypass rate limiting for codec tests.
+        ws._limit_rate = lambda opcode: None
         return ws, sock
 
     # --- successful parsing / reassembly ---
@@ -566,3 +624,303 @@ class TestFrameCodec(BaseCase):
         ws, _ = self._make_ws(truncated)
         with self.assertRaises(ConnectionClosedError):
             ws._process_next_message()
+
+
+def _parse_server_frame(data):
+    """Parse the first (unmasked) server frame from ``data``, returning
+    ``(opcode, payload)``."""
+    first_byte, second_byte = data[0], data[1]
+    opcode = Opcode(first_byte & 0x0F)
+    length = second_byte & 0x7F
+    offset = 2
+    if length == 126:
+        length = struct.unpack("!H", data[2:4])[0]
+        offset = 4
+    elif length == 127:
+        length = struct.unpack("!Q", data[2:10])[0]
+        offset = 10
+    return opcode, bytes(data[offset : offset + length])
+
+
+@tagged("-at_install", "post_install")
+class TestCloseFrameHandling(BaseCase):
+    """Unit tests for the close-handshake answer in ``_handle_control_frame``
+    (RFC 6455 §5.5.1 / §7.4), driven through a fake socket."""
+
+    def _make_ws(self, incoming=b""):
+        ws = Websocket.__new__(Websocket)
+        sock = _FakeSocket(incoming)
+        ws._Websocket__socket = sock
+        ws._timeout_manager = TimeoutManager()
+        ws.state = ConnectionState.OPEN
+        ws._close_sent = False
+        ws._close_received = False
+        ws._limit_rate = lambda opcode: None
+        # ``_send_frame`` terminates right after answering a received close;
+        # stub the TCP teardown out, it needs the real selector/queue.
+        ws._terminate = MagicMock()
+        return ws, sock
+
+    def _assert_close_answer(self, sock, expected_code, expected_reason=None):
+        opcode, payload = _parse_server_frame(sock.sent)
+        self.assertEqual(opcode, Opcode.CLOSE)
+        self.assertEqual(struct.unpack("!H", payload[:2])[0], expected_code)
+        if expected_reason is not None:
+            self.assertEqual(payload[2:].decode(), expected_reason)
+
+    def test_legal_close_is_echoed(self):
+        """A legal close code and reason are echoed back to the peer."""
+        payload = struct.pack("!H", CloseCode.CLEAN) + b"bye"
+        ws, sock = self._make_ws(_client_frame(Opcode.CLOSE, payload))
+        ws._process_next_message()
+        self._assert_close_answer(sock, CloseCode.CLEAN, "bye")
+        ws._terminate.assert_called_once()
+
+    def test_reserved_range_close_code_is_echoed(self):
+        """Codes in the 3000-4999 reserved range are legal on the wire."""
+        payload = struct.pack("!H", 4242)
+        ws, sock = self._make_ws(_client_frame(Opcode.CLOSE, payload))
+        ws._process_next_message()
+        self._assert_close_answer(sock, 4242)
+
+    def test_invalid_close_code_answered_with_protocol_error(self):
+        """An illegal close code (here: below 1000) must be answered with
+        1002 PROTOCOL_ERROR, not echoed (the echo would raise
+        InvalidCloseCodeError and hard-terminate the connection)."""
+        for bad_code in (999, 1005, 1006, 1015, 2999):
+            ws, sock = self._make_ws(
+                _client_frame(Opcode.CLOSE, struct.pack("!H", bad_code))
+            )
+            ws._process_next_message()
+            self._assert_close_answer(sock, CloseCode.PROTOCOL_ERROR)
+            ws._terminate.assert_called_once()
+
+    def test_one_byte_close_payload_answered_with_protocol_error(self):
+        """A 1-byte close payload is malformed per RFC 6455 §5.5.1 and must
+        be answered with 1002 PROTOCOL_ERROR instead of hard-terminating."""
+        ws, sock = self._make_ws(_client_frame(Opcode.CLOSE, b"\x01"))
+        ws._process_next_message()
+        self._assert_close_answer(sock, CloseCode.PROTOCOL_ERROR)
+
+    def test_invalid_utf8_close_reason_answered_with_inconsistent_data(self):
+        """A close reason that is not valid UTF-8 is answered with 1007."""
+        payload = struct.pack("!H", CloseCode.CLEAN) + b"\xff\xfe"
+        ws, sock = self._make_ws(_client_frame(Opcode.CLOSE, payload))
+        ws._process_next_message()
+        self._assert_close_answer(sock, CloseCode.INCONSISTENT_DATA)
+
+    def test_empty_close_payload_answered_with_clean(self):
+        ws, sock = self._make_ws(_client_frame(Opcode.CLOSE))
+        ws._process_next_message()
+        self._assert_close_answer(sock, CloseCode.CLEAN)
+
+
+@tagged("-at_install", "post_install")
+class TestOpenConnection(BaseCase):
+    """Unit tests for ``WebsocketConnectionHandler.open_connection`` ordering
+    and gating (no HTTP stack)."""
+
+    def test_service_unavailable_when_websocket_disabled(self):
+        """When ``websocket_allowed`` is False (e.g. test mode) the handshake
+        is refused with 503 before any processing."""
+        request = MagicMock()
+        with patch.object(
+            WebsocketConnectionHandler, "websocket_allowed", return_value=False
+        ):
+            with self.assertRaises(ServiceUnavailable):
+                WebsocketConnectionHandler.open_connection(request, "19.0-5")
+
+    def test_public_configuration_runs_after_handshake_validation(self):
+        """Regression for the orphaned-session leak: the public-session
+        downgrade (and its session-store save) must run only *after* the
+        handshake was validated, so a malformed handshake persists nothing.
+        """
+        request = MagicMock()
+        with (
+            patch.object(
+                WebsocketConnectionHandler, "websocket_allowed", return_value=True
+            ),
+            patch.object(
+                WebsocketConnectionHandler,
+                "_get_handshake_response",
+                side_effect=BadRequest("bad handshake"),
+            ),
+            patch.object(
+                WebsocketConnectionHandler, "_handle_public_configuration"
+            ) as public_config_mock,
+        ):
+            with self.assertRaises(BadRequest):
+                WebsocketConnectionHandler.open_connection(request, "19.0-5")
+        public_config_mock.assert_not_called()
+
+
+@tagged("-at_install", "post_install")
+class TestTrustedOrigin(BaseCase):
+    """Unit tests for the CSWSH origin policy (``_is_trusted_origin`` /
+    ``_normalize_origin``)."""
+
+    def _request(self, scheme, host):
+        request = MagicMock()
+        request.httprequest.scheme = scheme
+        request.httprequest.host = host
+        return request
+
+    def test_matching_origin_is_trusted(self):
+        request = self._request("http", "example.com:8069")
+        self.assertTrue(
+            WebsocketConnectionHandler._is_trusted_origin(
+                "http://example.com:8069", request
+            )
+        )
+
+    def test_default_port_is_normalized(self):
+        request = self._request("https", "example.com")
+        self.assertTrue(
+            WebsocketConnectionHandler._is_trusted_origin(
+                "https://example.com:443", request
+            )
+        )
+
+    def test_mismatched_origin_is_not_trusted(self):
+        request = self._request("http", "example.com:8069")
+        self.assertFalse(
+            WebsocketConnectionHandler._is_trusted_origin(
+                "http://attacker.example.com", request
+            )
+        )
+
+    def test_scheme_mismatch_is_not_trusted(self):
+        request = self._request("https", "example.com")
+        self.assertFalse(
+            WebsocketConnectionHandler._is_trusted_origin("http://example.com", request)
+        )
+
+    def test_allowlisted_origin_is_trusted(self):
+        request = self._request("http", "example.com:8069")
+        with patch.dict(
+            os.environ,
+            {"ODOO_BUS_TRUSTED_ORIGINS": "https://cdn.example.com, http://x.test:9000"},
+        ):
+            self.assertTrue(
+                WebsocketConnectionHandler._is_trusted_origin(
+                    "http://x.test:9000", request
+                )
+            )
+            self.assertFalse(
+                WebsocketConnectionHandler._is_trusted_origin(
+                    "http://not-listed.test", request
+                )
+            )
+
+
+@tagged("-at_install", "post_install")
+class TestControlCommandPriority(BaseCase):
+    def test_queued_close_beats_pending_dispatch(self):
+        """A queued CLOSE command is processed before an earlier-queued
+        DISPATCH: closing must never be delayed by pending notification
+        work."""
+        queue = PollablePriorityQueue()
+        try:
+            queue.put((ControlCommand.DISPATCH, 1, None))
+            queue.put((ControlCommand.CLOSE, 2, {"code": CloseCode.CLEAN}))
+            command, _, data = queue.get()
+            self.assertIs(command, ControlCommand.CLOSE)
+            self.assertEqual(data["code"], CloseCode.CLEAN)
+            command, _, _data = queue.get()
+            self.assertIs(command, ControlCommand.DISPATCH)
+        finally:
+            queue.close()
+
+
+@tagged("post_install", "-at_install")
+class TestCloseCodesOverWire(WebsocketCase):
+    """Close-code matrix asserted over a real socket: the documented close
+    code must reach the peer for each error family (the JS worker's
+    reconnection strategy keys off these codes, see
+    ``websocket_worker_constants.js``)."""
+
+    def test_invalid_utf8_text_frame_closes_1007(self):
+        ws = self.websocket_connect()
+        ws.send(b"\xff\xfe\xfd", opcode=ABNF.OPCODE_TEXT)
+        self.assert_close_with_code(ws, CloseCode.INCONSISTENT_DATA)
+
+    def test_oversized_frame_closes_1009(self):
+        self.startPatcher(patch.object(Websocket, "MESSAGE_MAX_SIZE", 1024))
+        ws = self.websocket_connect()
+        ws.send("x" * 2048)
+        self.assert_close_with_code(ws, CloseCode.MESSAGE_TOO_BIG)
+
+    def test_protocol_violation_closes_1002(self):
+        # RSV1 set without any negotiated extension is a protocol error.
+        ws = self.websocket_connect()
+        ws.sock.sendall(_client_frame(Opcode.TEXT, b"x", rsv1=True))
+        self.assert_close_with_code(ws, CloseCode.PROTOCOL_ERROR)
+
+    def test_invalid_close_code_answered_with_1002(self):
+        ws = self.websocket_connect()
+        ws.sock.sendall(_client_frame(Opcode.CLOSE, struct.pack("!H", 999)))
+        self.assert_close_with_code(ws, CloseCode.PROTOCOL_ERROR, "Invalid close code")
+
+    def test_one_byte_close_payload_answered_with_1002(self):
+        ws = self.websocket_connect()
+        ws.sock.sendall(_client_frame(Opcode.CLOSE, b"\x01"))
+        self.assert_close_with_code(
+            ws, CloseCode.PROTOCOL_ERROR, "Malformed closing frame"
+        )
+
+    def test_legal_close_code_and_reason_echoed(self):
+        ws = self.websocket_connect()
+        ws.sock.sendall(
+            _client_frame(Opcode.CLOSE, struct.pack("!H", CloseCode.CLEAN) + b"bye")
+        )
+        self.assert_close_with_code(ws, CloseCode.CLEAN, "bye")
+
+    def test_malformed_envelope_keeps_connection_alive(self):
+        """Non-JSON text, top-level non-dict JSON and a missing event_name
+        are rejected on the quiet warning path and must not kill the
+        connection (see ``WebsocketConnectionHandler._serve_forever``)."""
+        self.startPatcher(patch.object(Websocket, "RL_BURST", 100))
+        ws = self.websocket_connect()
+        for message in ("not-json{", json.dumps(["top-level-list"]), json.dumps({})):
+            with self.assertLogs(
+                "odoo.addons.bus.websocket", level="WARNING"
+            ) as capture:
+                ws.send(message)
+                # Frames are handled in order: once the pong arrives, the
+                # malformed message above has been processed.
+                ws.ping()
+                ws.recv_data_frame(control_frame=True)  # pong
+            self.assertTrue(
+                any("Invalid websocket request" in line for line in capture.output),
+                f"message {message!r} should be rejected with a warning",
+            )
+        # The connection survived: a ping/pong round-trip still works.
+        ws.ping()
+        opcode, _ = ws.recv_data_frame(control_frame=True)
+        self.assertEqual(opcode, ABNF.OPCODE_PONG)
+
+    def test_kill_now_terminates_without_close_handshake(self):
+        ws = self.websocket_connect()
+        server_ws = next(
+            websocket
+            for websocket in list(websocket_module._websocket_instances)
+            if websocket.state is ConnectionState.OPEN
+        )
+        server_ws.close(CloseCode.KILL_NOW)
+        # No close frame: the TCP connection is dropped outright.
+        with self.assertRaises(WebSocketConnectionClosedException):
+            ws.recv_data_frame(control_frame=True)
+
+    def test_kick_all_sends_going_away(self):
+        ws = self.websocket_connect()
+        websocket_module._kick_all()
+        self.assert_close_with_code(ws, CloseCode.GOING_AWAY)
+
+    def test_server_pings_after_inactivity_timeout(self):
+        self.startPatcher(patch.object(TimeoutManager, "INACTIVITY_TIMEOUT", 0))
+        # TIMEOUT also bounds the selector poll: keep it small so the idle
+        # loop notices the elapsed inactivity quickly.
+        self.startPatcher(patch.object(TimeoutManager, "TIMEOUT", 0.2))
+        ws = self.websocket_connect(ping_after_connect=False)
+        opcode, _ = ws.recv_data_frame(control_frame=True)
+        self.assertEqual(opcode, ABNF.OPCODE_PING)
