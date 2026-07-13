@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pytz import timezone, utc
 
@@ -27,8 +27,14 @@ class ResourceCalendarLeaves(models.Model):
         for contract, leaves in leaves_by_contract.items():
             tz = timezone(contract.resource_calendar_id.tz or "UTC")
             start_dt = date2datetime(contract.date_start, tz)
+            # ``date_end`` is the version's *inclusive* last valid day (see
+            # hr.version._compute_dates: date_end = next_date_version - 1 day), so
+            # the exclusive upper bound is midnight of the following day. Using
+            # midnight of ``date_end`` itself dropped every leave falling on that
+            # last day (it matched neither this version's window nor the next),
+            # leaving those leaves with no calendar assigned.
             end_dt = (
-                date2datetime(contract.date_end, tz)
+                date2datetime(contract.date_end + timedelta(days=1), tz)
                 if contract.date_end
                 else datetime.max
             )

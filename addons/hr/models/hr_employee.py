@@ -634,9 +634,8 @@ class HrEmployee(models.Model):
         ):
             version = self.env["hr.version"].browse(version_id)
             version.employee_id = employee.id
-            version.write(
-                {**vals.get("inherited", {})["hr.version"], "employee_id": employee.id}
-            )
+            inherited = (vals.get("inherited") or {}).get("hr.version", {})
+            version.write({**inherited, "employee_id": employee.id})
         return result
 
     @api.model
@@ -912,7 +911,28 @@ class HrEmployee(models.Model):
         if isinstance(contract_date_end, str):
             contract_date_end = fields.Date.to_date(contract_date_end)
 
-        if contract_date_start == date_from and contract_date_end != date_to:
+        # A contract end without a start is invalid (hr_version enforces
+        # check_contract_start_date_defined at the DB level). Reject it here with
+        # a clear message instead of letting it surface as an opaque
+        # CheckViolation deep in the create/sync below — this happens when a
+        # caller passes ``contract_date_end`` for a ``date`` at which the employee
+        # is not in contract (so ``date_from`` is False).
+        if contract_date_end and not contract_date_start:
+            raise UserError(
+                self.env._("A contract end date requires a contract start date.")
+            )
+
+        # Only propagate a changed end date to sibling versions that share the
+        # SAME contract. When the employee is not in contract at ``date``,
+        # ``date_from`` is False; guarding on it prevents the search below from
+        # matching *every* non-contract version (contract_date_start = False) and
+        # stamping an end date onto versions that have no start (which then trips
+        # the hr_version_check_contract_start_date_defined constraint).
+        if (
+            date_from
+            and contract_date_start == date_from
+            and contract_date_end != date_to
+        ):
             versions_sudo_to_sync = (
                 self.env["hr.version"]
                 .with_context(sync_contract_dates=True)
@@ -1268,8 +1288,10 @@ class HrEmployee(models.Model):
         # ``working_now_list`` below, so restrict the (expensive) schedule
         # computation to them instead of running it for the whole recordset.
         employee_to_check_working = self.filtered(
-            lambda e: e.company_id.sudo().hr_presence_control_login
-            and (e.user_id.sudo().presence_ids.status or "offline") == "offline"
+            lambda e: (
+                e.company_id.sudo().hr_presence_control_login
+                and (e.user_id.sudo().presence_ids.status or "offline") == "offline"
+            )
         )
         working_now_list = employee_to_check_working._get_employee_working_now()
         for employee in self:
@@ -2084,9 +2106,9 @@ We can redirect you to the public employee list."""
             # Clear each back-reference in a single grouped write per field instead
             # of one write per (record, field) pair.
             for field in employee_fields_to_empty:
-                employees.filtered(
-                    lambda e, f=field: e[f] in archived_employees
-                ).write({field: False})
+                employees.filtered(lambda e, f=field: e[f] in archived_employees).write(
+                    {field: False}
+                )
             for field in user_fields_to_empty:
                 employees.filtered(
                     lambda e, f=field: e[f] in archived_employees.user_id
@@ -2188,6 +2210,20 @@ We can redirect you to the public employee list."""
                 )
         return res
 
+    @staticmethod
+    def _combine_tz(day, moment, tz):
+        """Build an aware datetime at ``day``/``moment`` in the pytz zone ``tz``
+        (naive if ``tz`` is falsy).
+
+        Uses ``tz.localize(...)`` — NEVER ``datetime(..., tzinfo=tz)`` /
+        ``.replace(tzinfo=tz)`` / ``datetime.combine(..., tzinfo=tz)``, all of
+        which attach the zone's *historical LMT* offset (e.g. +00:09 for
+        Europe/Paris, and America/Mexico_City lands ~37 min off) instead of the
+        correct DST/standard offset, shifting period boundaries.
+        """
+        naive = datetime.combine(day, moment)
+        return tz.localize(naive) if tz else naive
+
     def _get_version_periods(self, start, stop, field=None, check_contract=False):
         if field and field not in self:
             raise UserError(
@@ -2217,21 +2253,14 @@ We can redirect you to the public employee list."""
                 if version.resource_calendar_id
                 else timezone(version.employee_id.resource_id.tz)
             )
-            date_start = (
-                datetime.combine(version.date_start, time.min)
-                .replace(tzinfo=calendar_tz)
-                .astimezone(utc)
-            )
+            date_start = self._combine_tz(
+                version.date_start, time.min, calendar_tz
+            ).astimezone(utc)
             end_date = version.date_end
             if end_date:
-                date_end = (
-                    datetime.combine(
-                        end_date + relativedelta(days=1),
-                        time.min,
-                    )
-                    .replace(tzinfo=calendar_tz)
-                    .astimezone(utc)
-                )
+                date_end = self._combine_tz(
+                    end_date + relativedelta(days=1), time.min, calendar_tz
+                ).astimezone(utc)
             else:
                 date_end = stop
             version_periods_by_employee[version.employee_id].append(
@@ -2288,11 +2317,8 @@ We can redirect you to the public employee list."""
                 self.resource_calendar_id or self.env.company.resource_calendar_id
             )._get_unusual_days(
                 datetime.combine(date_from_date, time.min).replace(tzinfo=UTC),
-                # ``date_to`` is optional: fall back to a single-day window rather
-                # than feeding ``None`` into ``datetime.combine`` (which raises).
-                datetime.combine(date_to_date or date_from_date, time.max).replace(
-                    tzinfo=UTC
-                ),
+                # date_to_date already falls back to date_from_date above.
+                datetime.combine(date_to_date, time.max).replace(tzinfo=UTC),
                 self.company_id,
             )
         unusual_days = {}
@@ -2336,10 +2362,10 @@ We can redirect you to the public employee list."""
             employee_tz = timezone(self.tz) if self.tz else None
             duration_data = Intervals()
             for version in valid_versions:
-                version_start = datetime.combine(
+                version_start = self._combine_tz(
                     version.date_start, time.min, employee_tz
                 )
-                version_end = datetime.combine(
+                version_end = self._combine_tz(
                     version.date_end or date.max, time.max, employee_tz
                 )
                 calendar = (
@@ -2372,15 +2398,15 @@ We can redirect you to the public employee list."""
                 domain=[("company_id", "in", [False, self.company_id.id])],
             )[self.resource_id.id]
         duration_data = Intervals()
-        version_prev = datetime.combine(
+        version_prev = self._combine_tz(
             valid_versions[0].date_start, time.min, employee_tz
         )
         for version in valid_versions:
-            version_start = datetime.combine(version.date_start, time.min, employee_tz)
-            contract_start = datetime.combine(
+            version_start = self._combine_tz(version.date_start, time.min, employee_tz)
+            contract_start = self._combine_tz(
                 version.contract_date_start, time.min, employee_tz
             )
-            version_end = datetime.combine(
+            version_end = self._combine_tz(
                 version.date_end or date.max, time.max, employee_tz
             )
             calendar = (
@@ -2420,8 +2446,8 @@ We can redirect you to the public employee list."""
             )
         duration_data = {"days": 0, "hours": 0}
         for version in valid_versions:
-            version_start = datetime.combine(version.date_start, time.min, employee_tz)
-            version_end = datetime.combine(
+            version_start = self._combine_tz(version.date_start, time.min, employee_tz)
+            version_end = self._combine_tz(
                 version.date_end or date.max, time.max, employee_tz
             )
             calendar = (
@@ -2532,11 +2558,12 @@ We can redirect you to the public employee list."""
     def _compute_primary_bank_account_id(self):
         for employee in self:
             if employee.bank_account_ids:
+                distribution = employee.salary_distribution or {}
                 primary_account = min(
                     employee.bank_account_ids,
-                    key=lambda acc: employee.salary_distribution.get(
-                        str(acc.id), {}
-                    ).get("sequence", float("inf")),
+                    key=lambda acc: distribution.get(str(acc.id), {}).get(
+                        "sequence", float("inf")
+                    ),
                 )
                 employee.primary_bank_account_id = primary_account
             else:
@@ -2544,17 +2571,18 @@ We can redirect you to the public employee list."""
 
     def get_accounts_with_fixed_allocations(self):
         self.ensure_one()
+        distribution = self.salary_distribution or {}
         return self.bank_account_ids.filtered(
             lambda a: (
-                not self.salary_distribution.get(str(a.id), {}).get(
-                    "amount_is_percentage", True
-                )
+                not distribution.get(str(a.id), {}).get("amount_is_percentage", True)
             )
         )
 
     def get_bank_account_salary_allocation(self, account_id):
-        ba_info = self.salary_distribution.get(str(account_id), {})
-        return ba_info.get("amount", 0), ba_info.get("amount_is_percentage")
+        ba_info = (self.salary_distribution or {}).get(str(account_id), {})
+        # Default to percentage (True), consistent with the other getters and
+        # _sync_salary_distribution, rather than None for a missing entry.
+        return ba_info.get("amount", 0), ba_info.get("amount_is_percentage", True)
 
     def get_remaining_percentage(self):
         self.ensure_one()

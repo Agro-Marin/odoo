@@ -81,17 +81,38 @@ class ResPartnerBank(models.Model):
             else:
                 bank.employee_id = False
 
+    @staticmethod
+    def _mask_account_number(acc_number):
+        """Mask an employee bank account number for non-HR users.
+
+        Reveals at most the last 4 characters, plus a 2-char prefix hint when the
+        number is long enough (>= 7) for the middle to still be masked. NEVER falls
+        through to the raw number: the base ``_compute_display_name`` renders the
+        full ``acc_number``, so anything not masked here is fully exposed.
+
+        The previous ``acc_number[:2] + "*" * len(acc_number[2:-4]) + acc_number[-4:]``
+        slice broke for short numbers: length 6 produced zero stars (full number),
+        and length 5 produced a corrupted, digit-duplicated string (``"12345"`` ->
+        ``"122345"``). This form is correct for every length.
+        """
+        tail = acc_number[-4:]
+        n = len(acc_number)
+        if n <= 4:
+            return "*" * n
+        if n >= 7:
+            return acc_number[:2] + "*" * (n - 6) + tail
+        return "*" * (n - 4) + tail
+
     def _compute_display_name(self):
         account_employee = self.browse()
         if not self.env.user.has_group("hr.group_hr_user"):
             for account in self.sudo().filtered("partner_id.employee_ids"):
                 acc_number = account.acc_number
-                if not acc_number or len(acc_number) <= 4:
-                    # Nothing safe to mask (missing or too short): fall through
-                    # to the default display name instead of slicing.
+                if not acc_number:
+                    # Nothing to mask; let the base compute build the name.
                     continue
-                account.sudo(self.env.su).display_name = (
-                    acc_number[:2] + "*" * len(acc_number[2:-4]) + acc_number[-4:]
+                account.sudo(self.env.su).display_name = self._mask_account_number(
+                    acc_number
                 )
                 account_employee |= account
         super(ResPartnerBank, self - account_employee)._compute_display_name()

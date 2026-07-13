@@ -16,10 +16,22 @@ export class BooleanRadio extends RadioField {
     }
 
     moveElement() {
-        document.querySelectorAll("[data-value='true']")[0]
-            .labels[0].textContent = document.getElementById(this.props.yes_label_element_id).innerText;
-        document.querySelectorAll("[data-value='false']")[0]
-            .labels[0].textContent = document.getElementById(this.props.no_label_element_id).innerText;
+        // Guard every lookup: the label source elements may be absent (hidden by
+        // `invisible=`, which removes them from the DOM, or a mistyped option id),
+        // in which case `getElementById` returns null and `.innerText` would throw
+        // and take down the whole form render.
+        // NB: the `[data-value=...]` query is document-wide; with two boolean_radio
+        // widgets on one view the first match wins. Kept as-is (single-instance use).
+        const setLabel = (value, sourceId) => {
+            const input = document.querySelector(`[data-value='${value}']`);
+            const source = sourceId && document.getElementById(sourceId);
+            const label = input?.labels?.[0];
+            if (label && source) {
+                label.textContent = source.innerText;
+            }
+        };
+        setLabel("true", this.props.yes_label_element_id);
+        setLabel("false", this.props.no_label_element_id);
     }
 
     get items() {
