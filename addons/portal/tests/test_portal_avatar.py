@@ -15,24 +15,26 @@ Covers four bugs discovered during the controller audit:
   surface as HTTP 500 — same existence-leak shape as above.
 * The no-credentials branch must still serve a 200 with image bytes.
 """
+
 from odoo.tests import HttpCase, tagged
 
 
 @tagged("post_install", "-at_install")
 class TestPortalAvatarFallback(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         # An existing mail.message so the controller's `candidate_su` is truthy
         # and we exercise the credentialed branch (where the int(pid) crash lived).
         partner = cls.env["res.partner"].create({"name": "Avatar Audit Partner"})
-        cls.existing_message = cls.env["mail.message"].create({
-            "model": "res.partner",
-            "res_id": partner.id,
-            "body": "test",
-            "message_type": "comment",
-        })
+        cls.existing_message = cls.env["mail.message"].create(
+            {
+                "model": "res.partner",
+                "res_id": partner.id,
+                "body": "test",
+                "message_type": "comment",
+            }
+        )
 
     def test_no_credentials_serves_image(self):
         """No token / hash / pid → 200, placeholder image bytes."""
