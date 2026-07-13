@@ -56,9 +56,7 @@ class TestWorkingHoursFreshness(TransactionCase):
         monday = date(2025, 1, 6)
         self.assertTrue(self.calendar._works_on_date(monday))
 
-        self.calendar.attendance_ids.filtered(
-            lambda a: a.dayofweek == "0"
-        ).unlink()
+        self.calendar.attendance_ids.filtered(lambda a: a.dayofweek == "0").unlink()
         self.assertFalse(
             self.calendar._works_on_date(monday),
             "removing every Monday attendance must make _works_on_date False",
