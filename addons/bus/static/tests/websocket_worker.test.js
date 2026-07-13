@@ -1,4 +1,6 @@
 import { getWebSocketWorker, onWebsocketEvent } from "@bus/../tests/mock_websocket";
+import { WebsocketWorker } from "@bus/workers/websocket_worker";
+import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker_constants";
 import { advanceTime, Deferred, describe, expect, test } from "@odoo/hoot";
 import { runAllTimers } from "@odoo/hoot-dom";
 import {
@@ -8,8 +10,6 @@ import {
     patchWithCleanup,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-
-import { WEBSOCKET_CLOSE_CODES, WebsocketWorker } from "@bus/workers/websocket_worker";
 
 describe.current.tags("headless");
 
@@ -252,7 +252,8 @@ test("client that sent BUS:LEAVE can come back", async () => {
     expect(worker.channelsByClient.has(client)).toBe(false);
     worker._onClientMessage(client, { action: "BUS:ADD_CHANNEL", data: "chA" });
     await runAllTimers();
-    expect(worker.channelsByClient.get(client)).toEqual(["chA"]);
+    // `channelsByClient` values are now `Map<channel, refcount>`, not string[].
+    expect(worker.channelsByClient.get(client)).toEqual(new Map([["chA", 1]]));
     worker.broadcast("BUS:NOTIFICATION", []);
     expect(received.some(({ type }) => type === "BUS:NOTIFICATION")).toBe(true);
 });
@@ -415,4 +416,210 @@ test("BUS:PONG proves liveness but does not resurrect an evicted client", async 
     // empty channel list while its tab still believes it is subscribed.
     worker._onClientMessage(client, { action: "BUS:PONG" });
     expect(worker.channelsByClient.has(client)).toBe(false);
+});
+
+/**
+ * Feed a raw notification batch to the worker as if the server sent it, and
+ * return the ids that got broadcast to the clients (deduped/filtered ones are
+ * absent).
+ *
+ * @param {ReturnType<getWebSocketWorker>} worker
+ * @param {number[]} broadcastIds sink the broadcast collector pushes into
+ * @param {{ id: number }[]} batch
+ */
+function feedNotifications(worker, batch) {
+    worker.websocket.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(batch) }),
+    );
+}
+
+test("J1: a lower unseen id after a higher one is still broadcast", async () => {
+    // The server may re-deliver LOWER ids in LATER batches (its hold-back
+    // window for out-of-order commits). A monotonic watermark filter would
+    // silently drop them; the id-level seen check must let them through.
+    const broadcast = [];
+    const worker = await startWebSocketWorker((type, data) => {
+        if (type === "BUS:NOTIFICATION") {
+            broadcast.push(data.map((n) => n.id));
+        }
+    });
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    feedNotifications(worker, [{ id: 3, message: { type: "t" } }]);
+    expect(broadcast).toEqual([[5], [3]]);
+});
+
+test("J1: an exact-duplicate id within the retention window is dropped", async () => {
+    const broadcast = [];
+    const worker = await startWebSocketWorker((type, data) => {
+        if (type === "BUS:NOTIFICATION") {
+            broadcast.push(data.map((n) => n.id));
+        }
+    });
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    // Same id again, still within SEEN_NOTIFICATION_RETENTION_MS: dropped, so
+    // no second broadcast.
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    expect(broadcast).toEqual([[5]]);
+});
+
+test("J1: the seen-id set is cleared on a database change", async () => {
+    const broadcast = [];
+    const worker = await startWebSocketWorker((type, data) => {
+        if (type === "BUS:NOTIFICATION") {
+            broadcast.push(data.map((n) => n.id));
+        }
+    });
+    const client = { postMessage() {}, addEventListener() {} };
+    worker.registerClient(client);
+    worker._initializeConnection(client, {
+        db: "db1",
+        uid: 1,
+        websocketURL: worker.websocketURL,
+        startTs: 1,
+    });
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    expect(worker.seenNotificationIds.has(5)).toBe(true);
+    // Switching DB invalidates the per-DB id sequence: the seen-set must reset
+    // so a colliding id from the new DB is not wrongly dropped.
+    worker._initializeConnection(client, {
+        db: "db2",
+        uid: 1,
+        websocketURL: worker.websocketURL,
+        startTs: 2,
+    });
+    expect(worker.seenNotificationIds.size).toBe(0);
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    expect(broadcast).toEqual([[5], [5]]);
+});
+
+test("J1: seen ids older than the retention window are pruned", async () => {
+    const broadcast = [];
+    const worker = await startWebSocketWorker((type, data) => {
+        if (type === "BUS:NOTIFICATION") {
+            broadcast.push(data.map((n) => n.id));
+        }
+    });
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    // Age id 5 past the retention window, then feed another frame (which prunes
+    // at its start). Id 5 can no longer be legitimately re-sent, so it is
+    // forgotten — a later id 5 would be treated as fresh again.
+    await advanceTime(worker.SEEN_NOTIFICATION_RETENTION_MS + 1000);
+    feedNotifications(worker, [{ id: 9, message: { type: "t" } }]);
+    expect(worker.seenNotificationIds.has(5)).toBe(false);
+    feedNotifications(worker, [{ id: 5, message: { type: "t" } }]);
+    expect(broadcast).toEqual([[5], [9], [5]]);
+});
+
+test("J1: the seen-id set is capped at SEEN_NOTIFICATION_MAX_COUNT", async () => {
+    const worker = await startWebSocketWorker();
+    patchWithCleanup(worker, { SEEN_NOTIFICATION_MAX_COUNT: 3 });
+    // One batch overflows the cap; the prune only runs at the NEXT frame start,
+    // trimming the oldest back down to the cap BEFORE that frame's ids are
+    // added (so the size settles at cap + latest-batch-size, never unbounded).
+    feedNotifications(
+        worker,
+        [1, 2, 3, 4, 5].map((id) => ({ id, message: { type: "t" } })),
+    );
+    expect(worker.seenNotificationIds.size).toBe(5);
+    feedNotifications(worker, [{ id: 6, message: { type: "t" } }]);
+    // Pruned back to cap (3) then id 6 added -> 4; the oldest ids were evicted.
+    expect(worker.seenNotificationIds.size).toBe(4);
+    expect(worker.seenNotificationIds.has(1)).toBe(false);
+    expect(worker.seenNotificationIds.has(2)).toBe(false);
+    expect(worker.seenNotificationIds.has(6)).toBe(true);
+});
+
+test("J2: per-client channel refcount keeps the channel until fully released", async () => {
+    const worker = await startWebSocketWorker();
+    const client = { postMessage() {}, addEventListener() {} };
+    worker.registerClient(client);
+    worker._addChannel(client, "chA");
+    worker._addChannel(client, "chA");
+    expect(worker.channelsByClient.get(client)).toEqual(new Map([["chA", 2]]));
+    worker._deleteChannel(client, "chA");
+    // One claim remains: the channel stays.
+    expect(worker._getAllChannels()).toEqual(["chA"]);
+    worker._deleteChannel(client, "chA");
+    expect(worker._getAllChannels()).toEqual([]);
+});
+
+test("J2: BUS:SET_CHANNELS replaces the map atomically and drops count<=0", async () => {
+    const worker = await startWebSocketWorker();
+    const client = { postMessage() {}, addEventListener() {} };
+    worker.registerClient(client);
+    worker._addChannel(client, "old");
+    worker._setChannels(client, [
+        ["chA", 2],
+        ["chB", 1],
+        ["dropped", 0],
+        ["negative", -3],
+    ]);
+    // "old" is gone (atomic replace), count<=0 entries are not kept.
+    expect(worker.channelsByClient.get(client)).toEqual(
+        new Map([
+            ["chA", 2],
+            ["chB", 1],
+        ]),
+    );
+});
+
+test("J4: BUS:STOP after a scheduled retry prevents the reconnect", async () => {
+    const worker = await startWebSocketWorker((type) => {
+        if (["BUS:CONNECT", "BUS:RECONNECT", "BUS:RECONNECTING"].includes(type)) {
+            asyncStep(type);
+        }
+    });
+    await waitForSteps(["BUS:CONNECT"]);
+    // Abnormal close schedules an exponential-backoff retry.
+    worker.websocket.close(WEBSOCKET_CLOSE_CODES.ABNORMAL_CLOSURE);
+    await waitForSteps(["BUS:RECONNECTING"]);
+    // A BUS:STOP (e.g. going offline) must cancel that pending timer.
+    worker._stop();
+    await runAllTimers();
+    // The retry never fired: no reconnection, socket stays down.
+    await waitForSteps([]);
+    expect(worker.websocket).toBe(null);
+    expect(worker.state).toBe("DISCONNECTED");
+});
+
+test("S3: reconnect delay backs off from the 0 fast-path to INITIAL then x1.5, capped", async () => {
+    const worker = await startWebSocketWorker();
+    // Isolate the backoff math from an actual (re)connection, which would reset
+    // the base to INITIAL on open.
+    patchWithCleanup(worker, { _start() {} });
+    expect(worker.INITIAL_RECONNECT_DELAY).toBeGreaterThan(0);
+    // 0 fast-path (set on keep-alive / aborted closes): the base advances to
+    // INITIAL rather than hot-looping at 0.
+    worker.connectRetryDelay = 0;
+    worker._retryConnectionWithDelay();
+    expect(worker.connectRetryDelay).toBe(worker.INITIAL_RECONNECT_DELAY);
+    // Exponential growth x1.5 from there.
+    worker._retryConnectionWithDelay();
+    expect(worker.connectRetryDelay).toBe(worker.INITIAL_RECONNECT_DELAY * 1.5);
+    worker._retryConnectionWithDelay();
+    expect(worker.connectRetryDelay).toBe(worker.INITIAL_RECONNECT_DELAY * 1.5 * 1.5);
+    // Cap at MAXIMUM_RECONNECT_DELAY (60_000).
+    worker.connectRetryDelay = 50_000;
+    worker._retryConnectionWithDelay();
+    expect(worker.connectRetryDelay).toBe(60_000);
+    worker._retryConnectionWithDelay();
+    expect(worker.connectRetryDelay).toBe(60_000);
+});
+
+test("worker answers BUS:PING probes... only pings silent clients", async () => {
+    // Guardrail companion to the liveness-sweep test: a freshly-seen client is
+    // NOT pinged (only clients silent past half the timeout are).
+    const worker = await startWebSocketWorker();
+    const pinged = [];
+    const client = {
+        addEventListener: () => {},
+        postMessage: (message) => {
+            if (message.type === "BUS:PING") {
+                pinged.push(client);
+            }
+        },
+    };
+    worker.registerClient(client);
+    worker._sweepClientLiveness();
+    expect(pinged).toEqual([]);
 });
