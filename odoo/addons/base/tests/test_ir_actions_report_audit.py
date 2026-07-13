@@ -560,6 +560,62 @@ class TestHtmlToImageTestMode(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestAssociatedViewMissingActionRef(TransactionCase):
+    """Lock associated_view()'s graceful-False behaviour on a missing action ref.
+
+    Commit b4ed4ad92d76 changed ``env.ref("base.action_ui_view")`` from its
+    default ``raise_if_not_found=True`` to ``raise_if_not_found=False``,
+    labeling the change a "dead guard removal" — it is not: before the fix,
+    a missing xmlid raised instead of hitting the ``if not action_ref``
+    guard below it. This locks the corrected (graceful False) behaviour.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Create a dummy report with a valid two-part report_name."""
+        super().setUpClass()
+        cls.report = cls.env["ir.actions.report"].create(
+            {
+                "name": "Audit Associated View Report",
+                "model": "res.partner",
+                "report_name": "base.audit_associated_view_dummy",
+            }
+        )
+
+    def test_returns_action_data_when_action_ref_exists(self) -> None:
+        """Baseline: an existing xmlid returns a domain-filtered action dict.
+
+        Asserted functionally (search the resulting domain) rather than by
+        exact structural equality, since installed addons (e.g. web_studio)
+        may combine the base domain with extra terms via their own override.
+        """
+        data = self.report.associated_view()
+        self.assertIsInstance(data, dict)
+        matching_view, other_view = self.env["ir.ui.view"].create(
+            [
+                {"name": "audit_associated_view_dummy", "type": "qweb", "arch": "<t/>"},
+                {"name": "audit_unrelated_view", "type": "qweb", "arch": "<t/>"},
+            ]
+        )
+        found = self.env["ir.ui.view"].search(data["domain"])
+        self.assertIn(matching_view, found)
+        self.assertNotIn(other_view, found)
+
+    def test_returns_false_when_action_ref_missing(self) -> None:
+        """A missing ``base.action_ui_view`` returns False, never raises."""
+        imd = self.env["ir.model.data"].search(
+            [("module", "=", "base"), ("name", "=", "action_ui_view")]
+        )
+        imd.unlink()
+        self.assertFalse(self.report.associated_view())
+
+    def test_returns_false_when_report_name_has_no_module_part(self) -> None:
+        """A ``report_name`` with no ``module.name`` split (< 2 parts) short-circuits to False."""
+        self.report.report_name = "audit_no_module_part"
+        self.assertFalse(self.report.associated_view())
+
+
+@tagged("post_install", "-at_install")
 class TestFetcherHttpFallback(TransactionCase):
     """OdooURLFetcher._fetch_via_http retries the stock WeasyPrint fetcher
     with the absolute URL (a relative path is unresolvable there) and the
