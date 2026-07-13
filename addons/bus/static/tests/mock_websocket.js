@@ -1,6 +1,7 @@
 import { WebsocketWorker } from "@bus/workers/websocket_worker";
-import { after, Deferred, mockWorker } from "@odoo/hoot";
-import { MockServer } from "@web/../tests/web_test_helpers";
+import { after, mockWorker } from "@odoo/hoot";
+import { MockServer, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 
 //-----------------------------------------------------------------------------
@@ -23,12 +24,17 @@ function cleanupWebSocketWorker() {
     if (!currentWebSocketWorker) {
         return;
     }
+    // Fully tear the worker down so nothing it armed leaks into the next test:
+    // a reconnect test can leave a scheduled retry, a connection-check interval,
+    // or pending debounced work that would otherwise fire during a later test's
+    // `runAllTimers` and act on a half-torn-down worker.
     if (currentWebSocketWorker.connectTimeout) {
         clearTimeout(currentWebSocketWorker.connectTimeout);
     }
 
-    currentWebSocketWorker.firstSubscribeDeferred = new Deferred();
-    currentWebSocketWorker.websocket = null;
+    // Drop the live connection: this discards the socket and its subscribe gate
+    // in one step (per-connection state lives on `_connection` now).
+    currentWebSocketWorker._connection = null;
     currentWebSocketWorker = null;
 }
 
@@ -44,10 +50,99 @@ function getWebSocketCallbacks() {
 
 function setupWebSocketWorker() {
     currentWebSocketWorker = new WebsocketWorker();
+    // `multi_tab_service` (a `bus_service` dependency, so started by nearly every
+    // bus test) elects the main tab via `navigator.locks`. Install a fresh
+    // deterministic mock for the test here — this runs per test in the correct
+    // suite scope (via the `MockServer.prototype.start` patch below), unlike a
+    // top-level `beforeEach`, and is shared across every tab the test simulates.
+    installMockLocks();
 
     mockWorker(function onWorkerConnected(worker) {
         currentWebSocketWorker.registerClient(worker._messageChannel.port2);
     });
+}
+
+/**
+ * Minimal, deterministic in-memory mock of the Web Locks API
+ * (`navigator.locks`) used by `multi_tab_service` for main-tab election.
+ *
+ * The real API is a browser primitive not driven by hoot's fake timers, and its
+ * lock state persists across tests in the single-context runner, so a lock held
+ * by one test would leak into the next (hanging later tests). This mock is
+ * entirely microtask-driven (deterministic under `await`/`runAllTimers`) and
+ * installed fresh per test. Supported surface: `request(name, options, callback)`
+ * with `options.ifAvailable` and `options.signal`, exclusive semantics, and a
+ * FIFO waiter queue with abort support.
+ */
+class MockLockManager {
+    constructor() {
+        this._heldNames = new Set();
+        /** @type {Map<string, Array<object>>} */
+        this._queues = new Map();
+    }
+
+    request(name, options, callback) {
+        if (typeof options === "function") {
+            callback = options;
+            options = {};
+        }
+        const { ifAvailable = false, signal } = options || {};
+        if (signal?.aborted) {
+            return Promise.reject(this._abortError());
+        }
+        if (!this._heldNames.has(name)) {
+            return this._runWithLock(name, callback);
+        }
+        if (ifAvailable) {
+            // Unavailable and the caller does not want to wait: run with `null`.
+            return Promise.resolve().then(() => callback(null));
+        }
+        // Held: queue until released (or the request is aborted).
+        return new Promise((resolve, reject) => {
+            const entry = { callback, resolve, reject, signal, onAbort: null };
+            entry.onAbort = () => {
+                const queue = this._queues.get(name);
+                const index = queue ? queue.indexOf(entry) : -1;
+                if (index >= 0) {
+                    queue.splice(index, 1);
+                    reject(this._abortError());
+                }
+            };
+            signal?.addEventListener("abort", entry.onAbort, { once: true });
+            if (!this._queues.has(name)) {
+                this._queues.set(name, []);
+            }
+            this._queues.get(name).push(entry);
+        });
+    }
+
+    async _runWithLock(name, callback) {
+        this._heldNames.add(name);
+        try {
+            return await callback({ name, mode: "exclusive" });
+        } finally {
+            this._heldNames.delete(name);
+            this._grantNext(name);
+        }
+    }
+
+    _grantNext(name) {
+        const queue = this._queues.get(name);
+        if (!queue || queue.length === 0) {
+            return;
+        }
+        const entry = queue.shift();
+        entry.signal?.removeEventListener("abort", entry.onAbort);
+        this._runWithLock(name, entry.callback).then(entry.resolve, entry.reject);
+    }
+
+    _abortError() {
+        return new DOMException("The request was aborted.", "AbortError");
+    }
+}
+
+function installMockLocks() {
+    patchWithCleanup(browser.navigator, { locks: new MockLockManager() });
 }
 
 /** @type {WebsocketWorker | null} */
@@ -90,7 +185,7 @@ export function onWebsocketEvent(eventName, callback) {
 // hook of that suite. Once that suite ends, ``MockServer.start`` would
 // silently lose the websocket-worker wiring for every later suite —
 // ``getWebSocketWorker()`` returns null and all bus tests cascade-fail.
-// Same pattern as ``mock_base_worker.js`` / ``mock_election_worker.js``.
+// Same pattern as ``mock_base_worker.js``.
 patch(MockServer.prototype, {
     start() {
         setupWebSocketWorker();

@@ -10,9 +10,8 @@ import { session } from "@web/session";
 
 // Worker events consumed internally by this service and NOT re-triggered on
 // the public bus. Everything else is only rebroadcast when it is an
-// application-level `BUS:` event: the worker port also carries ELECTION:*
-// (main-tab election heartbeats, every 1.5s) and BASE:* traffic, which must
-// never leak onto the app bus as events.
+// application-level `BUS:` event: the worker port also carries BASE:* init
+// traffic, which must never leak onto the app bus as events.
 const INTERNAL_EVENTS = new Set([
     "BUS:INITIALIZED",
     "BUS:NOTIFICATION",
@@ -20,6 +19,8 @@ const INTERNAL_EVENTS = new Set([
     "BUS:PROVIDE_LOGS",
     // Liveness probe, answered by worker_service — not an application event.
     "BUS:PING",
+    // Worker lost our channel map and asks us to replay it — internal.
+    "BUS:RESYNC",
 ]);
 // Trailing delay before persisting the notification watermark to
 // localStorage. Writing on every batch in every tab costs N synchronous
@@ -93,23 +94,37 @@ export const busService = {
          * others find the stored value up to date and skip their own write
          * (reads don't fire cross-tab `storage` events).
          */
+        function writeWatermarkIfNewer() {
+            const stored = legacyMultiTab.getSharedValue(lastNotificationIdKey(), 0);
+            if (stored < state.lastNotificationId) {
+                legacyMultiTab.setSharedValue(
+                    lastNotificationIdKey(),
+                    state.lastNotificationId,
+                );
+            }
+        }
         function scheduleWatermarkWrite() {
             if (watermarkWriteTimeout) {
                 return;
             }
             watermarkWriteTimeout = browser.setTimeout(() => {
                 watermarkWriteTimeout = null;
-                const stored = legacyMultiTab.getSharedValue(
-                    lastNotificationIdKey(),
-                    0,
-                );
-                if (stored < state.lastNotificationId) {
-                    legacyMultiTab.setSharedValue(
-                        lastNotificationIdKey(),
-                        state.lastNotificationId,
-                    );
-                }
+                writeWatermarkIfNewer();
             }, WATERMARK_WRITE_DELAY);
+        }
+        /**
+         * Persist a pending watermark write immediately. Called on `pagehide`:
+         * a debounced write orphaned by unload would let the next fresh worker
+         * seed a stale `last` and the server re-deliver already-seen
+         * notifications as duplicates.
+         */
+        function flushWatermarkWrite() {
+            if (!watermarkWriteTimeout) {
+                return;
+            }
+            browser.clearTimeout(watermarkWriteTimeout);
+            watermarkWriteTimeout = null;
+            writeWatermarkIfNewer();
         }
 
         /**
@@ -174,10 +189,19 @@ export const busService = {
                     // which listens to the rebroadcast below.
                     multiTab.unregister();
                     break;
+                case "BUS:RESYNC":
+                    // The worker evicted this client (liveness sweep while this
+                    // tab was frozen/suspended) and re-registered it with an
+                    // empty channel map. Replay our claims so the server
+                    // subscription is restored. Page Lifecycle freeze/resume and
+                    // system suspend resume via `resume`/`visibilitychange`,
+                    // never `pageshow`, so this worker-driven request is the only
+                    // recovery signal in those cases.
+                    replayChannelsToWorker();
+                    break;
             }
-            // Allowlist rebroadcast: the port also carries ELECTION:*/BASE:*
-            // frames (election heartbeats every 1.5s), which must not surface
-            // as application events.
+            // Allowlist rebroadcast: the port also carries BASE:* init frames,
+            // which must not surface as application events.
             if (type?.startsWith("BUS:") && !INTERNAL_EVENTS.has(type)) {
                 bus.trigger(type, data);
             }
@@ -248,7 +272,23 @@ export const busService = {
             workerService.send("BUS:SET_CHANNELS", [...tabChannels]);
         }
 
+        /**
+         * Replay this tab's channel claims to the worker after a desync (the
+         * worker dropped our client: stop()/BUS:LEAVE, or a liveness eviction
+         * while this tab was frozen/suspended). A snapshot is atomic and
+         * idempotent, so it is harmless when the worker already knows us.
+         */
+        function replayChannelsToWorker() {
+            if (!workerInitialized) {
+                return;
+            }
+            sendChannelsSnapshot();
+            hasLeftWorker = false;
+        }
+
         browser.addEventListener("pagehide", ({ persisted }) => {
+            // Persist any pending watermark before this tab may stop running.
+            flushWatermarkWrite();
             if (!persisted) {
                 // Page is gonna be unloaded, disconnect this client
                 // from the worker.
@@ -261,7 +301,19 @@ export const busService = {
                 // refcounts. Harmless when the worker still knows us (an
                 // unchanged aggregate set sends no new subscribe); required
                 // when the liveness sweep evicted us while frozen.
-                sendChannelsSnapshot();
+                replayChannelsToWorker();
+                workerService.send("BUS:START");
+            }
+        });
+        document.addEventListener("visibilitychange", () => {
+            if (state.isActive && document.visibilityState === "visible") {
+                // A tab frozen by Page Lifecycle (Chromium Memory Saver) or a
+                // system suspend resumes via `visibilitychange`, never
+                // `pageshow`. If the worker evicted this client while it was
+                // frozen, BUS:START re-registers it and the worker answers with
+                // BUS:RESYNC to replay our channels; when the socket is already
+                // connected the worker ignores it. Cheap and idempotent, so no
+                // freeze-detection heuristic is required.
                 workerService.send("BUS:START");
             }
         });
@@ -286,7 +338,13 @@ export const busService = {
             "offline",
             () => {
                 browser.clearTimeout(backOnlineTimeout);
-                workerService.send("BUS:STOP");
+                // Guard on isActive like the `online`/`pageshow` handlers: an
+                // unconditional BUS:STOP from a tab that already called stop()
+                // would, combined with the worker re-registering on some
+                // actions, silently resurrect the stopped client.
+                if (state.isActive) {
+                    workerService.send("BUS:STOP");
+                }
             },
             {
                 capture: true,
@@ -342,11 +400,15 @@ export const busService = {
                 } else {
                     tabChannels.set(channel, count - 1);
                 }
-                if (!workerInitialized) {
+                if (!workerInitialized || hasLeftWorker) {
                     // Released before/during worker init: the release is
                     // already reflected in the BUS:SET_CHANNELS snapshot the
                     // init handshake sends (or nothing was ever sent for this
-                    // channel if the worker never starts).
+                    // channel if the worker never starts). Also skip after a
+                    // stop() (hasLeftWorker): the worker dropped this client's
+                    // whole map, so there is nothing to release worker-side, and
+                    // the local decrement above already keeps the next replay
+                    // snapshot correct.
                     return;
                 }
                 workerService.send("BUS:DELETE_CHANNEL", channel);
