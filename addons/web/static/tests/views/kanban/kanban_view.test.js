@@ -91,7 +91,7 @@ import {
 import { FileInput } from "@web/components/file_input/file_input";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { Record } from "@web/model/relational_model/record";
+import { RelationalRecord } from "@web/model/relational_model/record";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { SampleServer } from "@web/model/sample_server";
 import { currencies } from "@web/services/currency";
@@ -14396,7 +14396,7 @@ test("pending long-touch timer is cleared when the card is destroyed", async () 
     // timer must be cancelled by the component's onWillDestroy - otherwise it
     // fires against a destroyed component and mutates selection out of band.
     mockTouch(true);
-    patchWithCleanup(Record.prototype, {
+    patchWithCleanup(RelationalRecord.prototype, {
         toggleSelection(selected) {
             expect.step("toggleSelection");
             return super.toggleSelection(selected);
