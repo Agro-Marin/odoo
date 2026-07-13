@@ -1,5 +1,6 @@
 import json
 import time
+from collections import deque
 from unittest.mock import patch
 
 try:
@@ -10,10 +11,68 @@ except ImportError:
     pass
 
 from odoo.tests import common
+from odoo.tests.common import BaseCase
 
-from ..websocket import CloseCode, Opcode, Websocket
+from ..websocket import CloseCode, Opcode, RateLimitExceededError, Websocket
 from .common import WebsocketCase
 from .test_websocket_protocol import _client_frame
+
+
+@common.tagged("-at_install", "post_install")
+class TestRateLimiterUnit(BaseCase):
+    """Deterministic unit tests for ``Websocket._limit_rate``, driven by an
+    injected clock so the limiter arithmetic is covered without real
+    ``time.sleep`` calls or socket round-trips (the over-the-wire tests below
+    remain as end-to-end smoke tests). This is what the ``clock`` injection on
+    ``Websocket`` was added for.
+    """
+
+    BURST = 4
+    DELAY = 1.0
+
+    def _make_ws(self, clock):
+        ws = Websocket.__new__(Websocket)
+        ws._clock = clock
+        # Instance attributes shadow the config-derived class attributes so the
+        # test is independent of the deployment's configured limits.
+        ws.RL_DELAY = self.DELAY
+        ws.RL_CONTROL_FACTOR = Websocket.RL_CONTROL_FACTOR
+        ws._incoming_frame_timestamps = deque(maxlen=self.BURST)
+        ws._incoming_control_frame_timestamps = deque(
+            maxlen=self.BURST * Websocket.RL_CONTROL_FACTOR
+        )
+        return ws
+
+    def test_burst_is_allowed_then_blocks_within_the_window(self):
+        now = [0.0]
+        ws = self._make_ws(lambda: now[0])
+        # A full burst at the same instant is accepted.
+        for _ in range(self.BURST):
+            ws._limit_rate(Opcode.TEXT)
+        # One more within ``DELAY * BURST`` trips the limiter.
+        with self.assertRaises(RateLimitExceededError):
+            ws._limit_rate(Opcode.TEXT)
+
+    def test_respecting_the_rate_never_blocks(self):
+        now = [0.0]
+        ws = self._make_ws(lambda: now[0])
+        # Exactly one data frame per ``DELAY`` is the sustainable rate.
+        for _ in range(self.BURST * 3):
+            ws._limit_rate(Opcode.TEXT)
+            now[0] += self.DELAY
+
+    def test_control_frames_use_a_separate_larger_budget(self):
+        now = [0.0]
+        ws = self._make_ws(lambda: now[0])
+        # Exhaust the data budget: it must not affect the control budget.
+        for _ in range(self.BURST):
+            ws._limit_rate(Opcode.TEXT)
+        for _ in range(self.BURST * Websocket.RL_CONTROL_FACTOR):
+            ws._limit_rate(Opcode.PING)
+        # The control budget is ``RL_CONTROL_FACTOR`` times larger, but a flood
+        # beyond it still trips the (separate) control limiter.
+        with self.assertRaises(RateLimitExceededError):
+            ws._limit_rate(Opcode.PING)
 
 
 @common.tagged("post_install", "-at_install")
