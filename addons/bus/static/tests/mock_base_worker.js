@@ -1,6 +1,6 @@
+import { BaseWorker } from "@bus/workers/base_worker";
 import { mockWorker } from "@odoo/hoot-mock";
 import { MockServer } from "@web/../tests/web_test_helpers";
-import { BaseWorker } from "@bus/workers/base_worker";
 import { patch } from "@web/core/utils/patch";
 
 /**

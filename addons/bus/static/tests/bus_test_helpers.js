@@ -1,25 +1,25 @@
+import { busService } from "@bus/services/bus_service";
+import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker_constants";
 import { after, expect, registerDebugInfo } from "@odoo/hoot";
+import { on, runAllTimers, waitUntil } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
 import {
-    MockServer,
     asyncStep,
     defineModels,
     getMockEnv,
     getService,
+    MockServer,
     mockService,
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { BusBus } from "./mock_server/mock_models/bus_bus.js";
-import { IrWebSocket } from "./mock_server/mock_models/ir_websocket.js";
-import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket.js";
-
-import { busService } from "@bus/services/bus_service";
-import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker";
-import { on, runAllTimers, waitUntil } from "@odoo/hoot-dom";
 import { registry } from "@web/core/registry";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
+
+import { BusBus } from "./mock_server/mock_models/bus_bus.js";
+import { IrWebSocket } from "./mock_server/mock_models/ir_websocket.js";
+import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket.js";
 
 /**
  * @typedef {[
@@ -62,35 +62,82 @@ patch(busService, {
 });
 
 /**
+ * Normalize the `[env?, type, payload, options]` tuple (the leading `env` is
+ * optional and defaults to the current mock env).
+ *
  * @param {ExpectedNotification} notification
- * @param {boolean} [crashOnFail]
  */
-const expectNotification = ([env, type, payload, options], crashOnFail) => {
+const normalizeExpected = ([env, type, payload, options]) => {
     if (typeof env === "string") {
         [env, type, payload, options] = [getMockEnv(), env, type, payload];
     }
-    const shouldHaveReceived = Boolean(options?.received ?? true);
+    return {
+        env,
+        type,
+        payload,
+        shouldHaveReceived: Boolean(options?.received ?? true),
+    };
+};
+
+/**
+ * The first delivered notification matching `type` (and `payload`, when one is
+ * expected). Does NOT consume it.
+ *
+ * @param {ReturnType<typeof normalizeExpected>} expected
+ */
+const findNotification = ({ env, type, payload }) => {
     const envNotifications = busNotifications.get(env) || [];
     const hasPayload = payload !== null && payload !== undefined;
-    const found = envNotifications.find(
-        (n) => n.type === type && (!hasPayload || matchPayload(n.payload, payload))
+    return envNotifications.find(
+        (n) => n.type === type && (!hasPayload || matchPayload(n.payload, payload)),
     );
-    const message = (pass) =>
-        `Notification of type ${type} ${payload ? `with payload ${payload} ` : ""}${
-            pass && shouldHaveReceived ? "" : "not "
-        }received.`;
+};
+
+/**
+ * Human-readable description of an expected notification.
+ *
+ * @param {ReturnType<typeof normalizeExpected>} expected
+ */
+const describeExpected = ({ type, payload }) =>
+    `Notification of type ${type}${
+        payload !== null && payload !== undefined
+            ? ` with payload ${JSON.stringify(payload)}`
+            : ""
+    }`;
+
+/**
+ * Assert that a positive expectation was received; compares the ACTUAL payload
+ * to the expected one (a real, non-vacuous check).
+ *
+ * @param {ReturnType<typeof normalizeExpected>} expected
+ * @param {object} [found] the notification consumed while waiting, if any.
+ */
+const assertReceived = (expected, found) => {
+    const message = `${describeExpected(expected)} not received.`;
+    expect(Boolean(found)).toBe(true, { message });
     if (found) {
-        envNotifications.splice(envNotifications.indexOf(found), 1);
-        expect(payload).toEqual(payload, { message });
-    } else if (!shouldHaveReceived) {
-        expect(shouldHaveReceived).toBe(false, { message });
-    } else {
-        if (crashOnFail) {
-            throw new Error(message(false, String.raw).join(" "));
+        const { payload } = expected;
+        if (payload !== null && payload !== undefined) {
+            if (typeof payload === "function") {
+                expect(payload(found.payload)).toBe(true, { message });
+            } else {
+                expect(found.payload).toEqual(payload, { message });
+            }
         }
-        return false;
     }
-    return true;
+};
+
+/**
+ * Assert that a negative expectation was NOT received. Called only after the
+ * delivery window has settled (see `waitNotifications`).
+ *
+ * @param {ReturnType<typeof normalizeExpected>} expected
+ */
+const assertNotReceived = (expected) => {
+    const found = findNotification(expected);
+    expect(found).toBe(undefined, {
+        message: `${describeExpected(expected)} was received but should NOT have been.`,
+    });
 };
 
 /**
@@ -123,10 +170,12 @@ viewsRegistry.category("activity").add(
     "default",
     /* xml */ `
         <activity><templates /></activity>
-    `
+    `,
 );
 viewsRegistry.category("form").add("default", /* xml */ `<form />`);
-viewsRegistry.category("kanban").add("default", /* xml */ `<kanban><templates /></kanban>`);
+viewsRegistry
+    .category("kanban")
+    .add("default", /* xml */ `<kanban><templates /></kanban>`);
 viewsRegistry.category("list").add("default", /* xml */ `<list />`);
 viewsRegistry.category("search").add("default", /* xml */ `<search />`);
 
@@ -138,7 +187,7 @@ viewsRegistry.category("form").add(
             <field name="name" />
         </sheet>
         <chatter/>
-    </form>`
+    </form>`,
 );
 
 // should be enough to decide whether or not notifications/channel
@@ -229,7 +278,7 @@ export async function waitForChannels(channels, { operation = "add" } = {}) {
         }
         const userChannels = new Set(env["bus.bus"].channelsByUser[env.uid]);
         const success = channels.every((c) =>
-            operation === "add" ? userChannels.has(c) : !userChannels.has(c)
+            operation === "add" ? userChannels.has(c) : !userChannels.has(c),
         );
         if (!success && !crashOnFail) {
             return;
@@ -270,25 +319,46 @@ export async function waitForChannels(channels, { operation = "add" } = {}) {
  * @returns {Promise<void>}
  */
 export async function waitNotifications(...expectedNotifications) {
-    const remaining = new Set(expectedNotifications);
+    const normalized = expectedNotifications.map(normalizeExpected);
+    const positives = normalized.filter((n) => n.shouldHaveReceived);
+    const negatives = normalized.filter((n) => !n.shouldHaveReceived);
 
+    // Wait for every POSITIVE to be delivered (postMessage delivery is async).
+    // Consume matches as they arrive so a single notification cannot satisfy
+    // two distinct expectations.
+    const found = new Map();
+    const remaining = new Set(positives);
     await waitUntil(
         () => {
-            for (const notification of remaining) {
-                if (expectNotification(notification, false)) {
-                    remaining.delete(notification);
+            for (const expected of remaining) {
+                const match = findNotification(expected);
+                if (match) {
+                    const envNotifications = busNotifications.get(expected.env);
+                    envNotifications.splice(envNotifications.indexOf(match), 1);
+                    found.set(expected, match);
+                    remaining.delete(expected);
                 }
             }
             return remaining.size === 0;
         },
-        { timeout: TIMEOUT }
-    )
-        .then(() => busNotifications.clear())
-        .catch(() => {
-            for (const notification of remaining) {
-                expectNotification(notification, true);
-            }
-        });
+        { timeout: TIMEOUT },
+    ).catch(() => {});
+    for (const expected of positives) {
+        assertReceived(expected, found.get(expected));
+    }
+    // Negatives are asserted only AFTER a settling window: an erroneous
+    // delivery to a stopped/left tab is an async postMessage (preceded by the
+    // worker's debounced sends), so it would not yet be visible on the first
+    // waitUntil tick. Flush the mocked clock and microtasks first, then assert
+    // the notification genuinely never arrived — so a regression that keeps
+    // delivering to a stopped tab now fails instead of passing vacuously.
+    if (negatives.length) {
+        await runAllTimers();
+        for (const expected of negatives) {
+            assertNotReceived(expected);
+        }
+    }
+    busNotifications.clear();
 }
 
 /**
