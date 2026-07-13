@@ -1,4 +1,29 @@
-#!/home/marin/Odoo/venv/p314o19marin/bin/python
+#!/bin/sh
+''':'
+# Self-locating trampoline (sh/python polyglot): re-exec this file with the
+# workspace venv interpreter so no venv path is ever hardcoded. The workspace
+# root is 6 levels up (<ws>/addons/odoo/addons/web/tooling/scripts). Override
+# with $ODOO_VENV_PYTHON when the workspace holds several venvs.
+# NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
+here="$(cd "$(dirname "$0")" && pwd)"
+ws="$(cd "$here/../../../../../.." && pwd)"
+py="${ODOO_VENV_PYTHON:-}"
+if [ -z "$py" ]; then
+    for cand in "$ws"/venv/*/bin/python; do
+        [ -x "$cand" ] || continue
+        if [ -n "$py" ]; then
+        echo "$(basename "$0"): several venvs under $ws/venv; set ODOO_VENV_PYTHON" >&2
+            exit 1
+        fi
+        py="$cand"
+    done
+    if [ -z "$py" ]; then
+        echo "$(basename "$0"): no venv python under $ws/venv; set ODOO_VENV_PYTHON" >&2
+        exit 1
+    fi
+fi
+exec "$py" "$0" "$@"
+'''
 """Print the minimal set of @web/... HOOT suites affected by changed JS files.
 
 With no arguments, uses ``git diff --name-only HEAD`` inside addons/odoo and
@@ -16,7 +41,6 @@ Examples
   hoot --affected      # run them
 """
 
-from __future__ import annotations
 
 # CLI tool: print() is the user-facing output channel.
 # ruff: noqa: T201

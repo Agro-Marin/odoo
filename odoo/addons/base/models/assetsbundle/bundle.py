@@ -483,6 +483,7 @@ class AssetsBundle:
             self.javascripts,
             import_map_included=self.name in registry.import_map_included_bundles,
             skip_legacy_test_imports=self.name in registry.import_map_includes,
+            standalone=self.name in registry.standalone_bundles,
             addon_flags_provider=self._get_esbuild_addon_flags,
         )
 
