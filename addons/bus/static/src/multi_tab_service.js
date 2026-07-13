@@ -1,65 +1,129 @@
 /** @odoo-module native */
-import { multiTabFallbackService } from "@bus/multi_tab_fallback_service";
-import { multiTabSharedWorkerService } from "@bus/multi_tab_shared_worker_service";
 import { EventBus } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
+import { Deferred } from "@web/core/utils/concurrency";
 import { registry } from "@web/core/registry";
 
 /**
- * Facade in charge of electing the main tab, choosing the election strategy
- * at RUNTIME, once `worker_service` has settled on what it effectively runs:
+ * Main-tab election over the Web Locks API.
  *
- * - effective SharedWorker -> worker-based election (one worker arbitrates
- *   all tabs);
- * - dedicated per-tab Worker or FAILED worker -> localStorage election.
+ * A single exclusive lock arbitrates the one "main tab" per origin: whichever
+ * tab holds it is main, and when it releases the lock (tab closed, `pagehide`,
+ * or `unregister()`) the browser hands it to the next waiter, which becomes
+ * main. The browser does the arbitration, race-free, with no heartbeats.
  *
- * Import-time feature detection (`browser.SharedWorker` presence) is NOT
- * enough: SharedWorker construction can fail at runtime and worker_service
- * then falls back to a dedicated per-tab Worker. A per-tab "shared" election
- * would crown EVERY tab main (duplicate notifications/sounds); the
- * localStorage election is the correct strategy there.
+ * This replaces the previous three-part design — a `SharedWorker` `ElectionWorker`
+ * (strategy A), a localStorage heartbeat election (strategy B), and a facade
+ * that picked between them at runtime based on the effective worker kind. That
+ * split had a real failure mode: when one tab's `SharedWorker` construction
+ * failed and it fell back to the localStorage strategy while its siblings used
+ * the worker strategy, two tabs could each believe they were main (duplicate
+ * notifications/sounds/ringing). One lock removes that split-brain and behaves
+ * identically for shared, dedicated, and failed workers, so `multi_tab` no
+ * longer depends on `worker_service` at all.
  *
- * The strategy is only instantiated on the first `isOnMainTab()` call (which
- * is also what triggered the election in the previous, import-time design):
- * starting the worker just to elect a main tab nobody asked about would be
- * wasted work on worker-less pages.
- *
- * Public API (kept identical to both strategies — consumers: mail
- * out_of_focus/discuss_core_web/rtc thread patch, survey form, voip
- * user_agent, bus outdated_page_watcher/bus_service):
+ * Public API (unchanged — consumers: mail out_of_focus / discuss_core_web / rtc,
+ * survey form, voip user_agent, bus outdated_page_watcher / bus_service):
  * - `isOnMainTab(): Promise<boolean>`
- * - `unregister()`: terminal — the tab permanently gives up main-tab duties.
+ * - `unregister(): void` — terminal: the tab permanently gives up main-tab duties.
  * - `bus`: EventBus emitting "become_main_tab" / "no_longer_main_tab".
  */
-export const multiTabService = {
-    dependencies: ["worker_service"],
-    start(env, services) {
-        const { worker_service: workerService } = services;
-        const bus = new EventBus();
-        // Set by `unregister()`: also honoured when the strategy is not
-        // instantiated yet (the strategy is then unregistered right after
-        // its creation, before any election message can crown this tab).
-        let terminated = false;
-        /** @type {Promise<{isOnMainTab: () => Promise<boolean>, unregister: () => void}>} */
-        let strategyPromise = null;
+const MAIN_TAB_LOCK = "odoo.bus.main_tab";
 
-        function ensureStrategy() {
-            return (strategyPromise ??= (async () => {
-                await workerService.ensureWorkerStarted();
-                const useSharedWorkerElection = workerService.workerKind === "shared";
-                const strategy = useSharedWorkerElection
-                    ? multiTabSharedWorkerService.start(env, services)
-                    : multiTabFallbackService.start(env, services);
-                // Relay so consumers can subscribe on the facade before (and
-                // independently of) strategy instantiation.
-                for (const type of ["become_main_tab", "no_longer_main_tab"]) {
-                    strategy.bus.addEventListener(type, () => bus.trigger(type));
-                }
-                if (terminated) {
-                    strategy.unregister();
-                }
-                return strategy;
-            })());
+export const multiTabService = {
+    start() {
+        const bus = new EventBus();
+        const locks = browser.navigator?.locks;
+        let isMain = false;
+        // Terminal (public `unregister()`, e.g. bus_service on BUS:OUTDATED
+        // keeping stale-code tabs out of main-tab duties): a terminated tab must
+        // never re-acquire, not even after a bfcache restore.
+        let terminated = false;
+        // Resolves once the current acquisition attempt has settled our status
+        // (main, or queued behind another tab). Recreated on each attempt so
+        // `isOnMainTab()` reflects the latest attempt after a bfcache re-acquire.
+        let settled = new Deferred();
+        // Resolves the held-lock promise to release the lock (give up main).
+        // Null when this tab does not hold the lock.
+        let releaseHeld = null;
+        // Aborts a pending (queued) acquisition; fresh per attempt.
+        let abortController = null;
+
+        function becomeMain() {
+            isMain = true;
+            settled.resolve();
+            bus.trigger("become_main_tab");
+            // Keeping this promise pending is what holds the lock; resolving it
+            // (releaseHeld) releases the lock so the next waiter can take over.
+            const held = new Deferred();
+            releaseHeld = () => held.resolve();
+            return held;
         }
+
+        function ignoreAbort(error) {
+            if (error?.name !== "AbortError") {
+                throw error;
+            }
+        }
+
+        function acquire() {
+            if (terminated) {
+                settled.resolve();
+                return;
+            }
+            if (!locks) {
+                // No Web Locks API (very old browser): degrade to "this tab is
+                // main" so a single-tab user still gets notifications/sounds.
+                // The rare no-locks multi-tab case may duplicate them — an
+                // acceptable fallback for a browser this fork does not target.
+                if (!isMain) {
+                    isMain = true;
+                    bus.trigger("become_main_tab");
+                }
+                settled.resolve();
+                return;
+            }
+            abortController = new AbortController();
+            const { signal } = abortController;
+            // Fast path: try to grab the lock immediately so our status settles
+            // without waiting. If another tab already holds it, settle "not
+            // main" now and queue a blocking request for when it is released.
+            locks
+                .request(MAIN_TAB_LOCK, { ifAvailable: true, signal }, (lock) => {
+                    if (lock) {
+                        return becomeMain();
+                    }
+                    settled.resolve();
+                    locks
+                        .request(MAIN_TAB_LOCK, { signal }, () => becomeMain())
+                        .catch(ignoreAbort);
+                })
+                .catch(ignoreAbort);
+        }
+
+        function deactivate() {
+            // Give up main (or stop waiting), but keep the right to re-acquire
+            // on a bfcache `pageshow`. `no_longer_main_tab` fires synchronously
+            // so `isOnMainTab()` reflects the change immediately.
+            if (isMain) {
+                isMain = false;
+                bus.trigger("no_longer_main_tab");
+            }
+            releaseHeld?.();
+            releaseHeld = null;
+            abortController?.abort();
+            abortController = null;
+        }
+
+        browser.addEventListener("pagehide", deactivate);
+        browser.addEventListener("pageshow", (ev) => {
+            if (ev.persisted && !terminated) {
+                settled = new Deferred();
+                acquire();
+            }
+        });
+
+        acquire();
 
         return {
             bus,
@@ -67,12 +131,13 @@ export const multiTabService = {
                 if (terminated) {
                     return false;
                 }
-                const strategy = await ensureStrategy();
-                return strategy.isOnMainTab();
+                await settled;
+                return isMain;
             },
             unregister() {
                 terminated = true;
-                strategyPromise?.then((strategy) => strategy.unregister());
+                deactivate();
+                settled.resolve();
             },
         };
     },
