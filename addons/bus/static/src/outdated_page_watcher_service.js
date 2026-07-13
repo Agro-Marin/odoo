@@ -75,9 +75,19 @@ export class OutdatedPageWatcherService {
             }
             wasBusAlreadyConnected = true;
         });
-        bus_service.addEventListener("BUS:RECONNECT", () =>
-            this.checkHasMissedNotifications(),
-        );
+        bus_service.addEventListener("BUS:RECONNECT", () => {
+            // Same guard as BUS:CONNECT: the worker broadcasts BUS:RECONNECT
+            // whenever `isReconnecting` is set, which ANY failed attempt sets —
+            // including the retry of a first-ever connection. Probing then would
+            // compare a stale (possibly GC'd) watermark against the server and
+            // raise a sticky false "page is out of date". A genuine reconnect
+            // always had a prior BUS:CONNECT, so `wasBusAlreadyConnected` is the
+            // right discriminator.
+            if (wasBusAlreadyConnected) {
+                this.checkHasMissedNotifications();
+            }
+            wasBusAlreadyConnected = true;
+        });
         legacy_multi_tab.bus.addEventListener(
             "shared_value_updated",
             ({ detail: { key } }) => {

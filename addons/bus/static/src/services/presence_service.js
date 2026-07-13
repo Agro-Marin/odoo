@@ -14,7 +14,12 @@ export const presenceService = {
     start(env) {
         const LOCAL_STORAGE_PREFIX = "presence";
         const bus = new EventBus();
-        let isOdooFocused = true;
+        // Initialize from the real focus state, not an optimistic `true`: a tab
+        // opened in the background (middle-click, target=_blank) never receives
+        // a `blur` (it never had focus), so a hardcoded `true` would report it
+        // focused until the first real focus transition — suppressing mail's
+        // out-of-focus counters/sounds on exactly the tab type they exist for.
+        let isOdooFocused = document.hasFocus();
         // Stored as a number by onPresence/onStorage; localStorage returns it
         // as a string (or null when absent). Parse so getLastPresence() always
         // yields a number, not a string on first load.
