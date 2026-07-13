@@ -744,7 +744,7 @@ class PosConfig(models.Model):
                 pos_config.pos_session_duration = 0
                 pos_config.current_user_id = False
 
-    @api.constrains("rounding_method")
+    @api.constrains("rounding_method", "cash_rounding")
     def _check_rounding_method_strategy(self):
         for config in self:
             if (
@@ -802,6 +802,7 @@ class PosConfig(models.Model):
         "journal_id",
         "invoice_journal_id",
         "payment_method_ids",
+        "company_id",
     )
     def _check_currencies(self):
         for config in self:

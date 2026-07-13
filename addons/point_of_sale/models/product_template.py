@@ -498,7 +498,14 @@ class ProductTemplate(models.Model):
             )
             if not tax_to_use:
                 company = company.sudo().parent_id
-        taxes = tax_to_use.compute_all(price, config.currency_id, quantity, self)
+        # sudo: this is a read-only price/tax info popup. Computing the taxes
+        # touches company accounting config (company_price_include ->
+        # account_price_include) that a plain pos_user cannot read, especially on
+        # a parent/branch company. The cashier is already authorized to see the
+        # product price, so elevate only this pure computation (values unchanged).
+        taxes = tax_to_use.sudo().compute_all(
+            price, config.currency_id, quantity, self.sudo()
+        )
         grouped_taxes = {}
         for tax in taxes["taxes"]:
             if tax["id"] in grouped_taxes:
@@ -532,26 +539,25 @@ class ProductTemplate(models.Model):
             for pl in pricelists
         ]
 
-        # Warehouses
-        warehouse_list = [
-            {
-                "id": w.id,
-                "name": w.name,
-                "available_quantity": template_or_variant.with_context(
-                    {"warehouse_id": w.id}
-                ).qty_available,
-                "qty_free": template_or_variant.with_context(
-                    {"warehouse_id": w.id}
-                ).qty_free,
-                "forecasted_quantity": template_or_variant.with_context(
-                    {"warehouse_id": w.id}
-                ).qty_available_virtual,
-                "uom": template_or_variant.uom_name,
-            }
-            for w in self.env["stock.warehouse"].search(
-                [("company_id", "=", config.company_id.id)]
+        # Warehouses. Read all three quantity fields off a single
+        # warehouse-scoped record so they are computed together once, instead of
+        # via three separate with_context() records (which recomputed the stock
+        # quantities three times per warehouse).
+        warehouse_list = []
+        for w in self.env["stock.warehouse"].search(
+            [("company_id", "=", config.company_id.id)]
+        ):
+            product_in_wh = template_or_variant.with_context(warehouse_id=w.id)
+            warehouse_list.append(
+                {
+                    "id": w.id,
+                    "name": w.name,
+                    "available_quantity": product_in_wh.qty_available,
+                    "qty_free": product_in_wh.qty_free,
+                    "forecasted_quantity": product_in_wh.qty_available_virtual,
+                    "uom": template_or_variant.uom_name,
+                }
             )
-        ]
 
         if config.picking_type_id.warehouse_id:
             # Sort the warehouse_list, prioritizing config.picking_type_id.warehouse_id

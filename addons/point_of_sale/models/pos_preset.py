@@ -114,7 +114,7 @@ class PosPreset(models.Model):
         }
 
     def _compute_slots_usage(self):
-        usage = defaultdict(int)
+        usage = defaultdict(list)
         orders = self.env["pos.order"].search(
             [
                 ("preset_id", "=", self.id),
@@ -126,10 +126,6 @@ class PosPreset(models.Model):
         )
         for order in orders:
             sql_datetime_str = order.preset_time.strftime("%Y-%m-%d %H:%M:%S")
-
-            if not usage[sql_datetime_str]:
-                usage[sql_datetime_str] = []
-
             usage[sql_datetime_str].append(order.id)
 
         return usage

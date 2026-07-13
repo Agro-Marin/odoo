@@ -535,7 +535,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             "invoiceList": invoiceList,
             "invoiceTotal": invoiceTotal,
             "total_paid": totalPaymentsAmount,
-            "payments_per_method": payments_per_method.values(),
+            "payments_per_method": list(payments_per_method.values()),
             "show_payment_per_method": not session_ids,
         }
 
@@ -613,16 +613,19 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                 total_cat += product["base_amount"]
             category_dict["total"] = round(total_cat, price_precision)
             category_dict["qty"] = round(qty_cat, qty_precision)
-        # IMPROVEMENT: It would be better if the `products` are grouped by pos.order.line.id.
-        unique_products = list(
-            {
-                tuple(sorted(product.items())): product
-                for category in categories
-                for product in category["products"]
-            }.values()
+        # Grand total is the sum over every product row. It must NOT deduplicate
+        # by value: two distinct rows that happen to share the same
+        # (product, price, discount, qty, totals) are legitimate separate sales,
+        # and collapsing them understated the report's grand total.
+        all_products = [
+            product for category in categories for product in category["products"]
+        ]
+        all_qty = round(
+            sum(product["quantity"] for product in all_products), qty_precision
         )
-        all_qty = sum(product["quantity"] for product in unique_products)
-        all_total = sum(product["base_amount"] for product in unique_products)
+        all_total = round(
+            sum(product["base_amount"] for product in all_products), price_precision
+        )
 
         return categories, {"total": all_total, "qty": all_qty}
 

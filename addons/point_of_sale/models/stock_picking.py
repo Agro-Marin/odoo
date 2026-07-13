@@ -1,11 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import logging
 from collections import defaultdict
 from itertools import groupby
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_is_zero
+
+_logger = logging.getLogger(__name__)
 
 
 class StockPicking(models.Model):
@@ -57,8 +60,16 @@ class StockPicking(models.Model):
             try:
                 with self.env.cr.savepoint():
                     positive_picking._action_done()
-            except UserError, ValidationError:
-                pass
+            except (UserError, ValidationError) as e:
+                # The POS order must still finalize; the picking stays
+                # recoverable, but a silent swallow hides why a delivery is
+                # left not-done and diverges stock from sales.
+                _logger.warning(
+                    "POS could not auto-validate delivery picking %s for order %s: %s",
+                    positive_picking.name,
+                    positive_picking.pos_order_id.name or positive_picking.origin,
+                    e,
+                )
 
             pickings |= positive_picking
         if negative_lines:
@@ -79,8 +90,15 @@ class StockPicking(models.Model):
             try:
                 with self.env.cr.savepoint():
                     negative_picking._action_done()
-            except UserError, ValidationError:
-                pass
+            except (UserError, ValidationError) as e:
+                # See positive-picking branch: keep the order finalizing but
+                # surface why the return picking was not auto-validated.
+                _logger.warning(
+                    "POS could not auto-validate return picking %s for order %s: %s",
+                    negative_picking.name,
+                    negative_picking.pos_order_id.name or negative_picking.origin,
+                    e,
+                )
             pickings |= negative_picking
         return pickings
 
@@ -257,7 +275,9 @@ class StockMove(models.Model):
                 ):
                     missing_lot_values.append(
                         {
-                            "company_id": self.company_id.id,
+                            # Use the same company the existing-lot search above
+                            # scoped on, so a created lot is findable next time.
+                            "company_id": moves[0].picking_type_id.company_id.id,
                             "product_id": lot_product_id,
                             "name": lot_name,
                         }

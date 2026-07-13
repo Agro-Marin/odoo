@@ -184,8 +184,6 @@ export class PosData extends SignalStore {
                 }
             }
 
-            await this.indexedDB.delete(model, remove);
-            await this.indexedDB.create(model, put);
             data[model] = put;
 
             if (remove.length) {

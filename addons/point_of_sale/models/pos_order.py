@@ -96,8 +96,10 @@ class PosOrder(models.Model):
                     }
                 )
 
-        if not order.get("company_id"):
-            order["company_id"] = pos_session.config_id.company_id.id
+        # The company always derives from the server-validated session, never
+        # from the client payload: a tampered company_id must not be able to
+        # redirect an order's journal entries into another company.
+        order["company_id"] = pos_session.config_id.company_id.id
 
         if (
             self.env.context.get("current_order_uuid")
@@ -865,6 +867,22 @@ class PosOrder(models.Model):
         return values
 
     def write(self, vals):
+        vals = dict(vals)  # never mutate the caller's dict (name/mobile below)
+        # `name`, `mobile`, the has_deleted_line guard and the payment-change log
+        # are all derived from the individual order. On a multi-record write they
+        # would be applied through the single shared `vals` (or read a multi
+        # `self.currency_id`), giving every record the last order's value. Route
+        # such writes per record; plain bulk writes stay a single query.
+        if len(self) > 1 and (
+            vals.get("mobile")
+            or vals.get("payment_ids")
+            or (vals.get("state") == "paid" and any(o.name == "/" for o in self))
+            or (
+                vals.get("has_deleted_line") is not None
+                and any(o.has_deleted_line for o in self)
+            )
+        ):
+            return all(order.write(dict(vals)) for order in self)
         for order in self:
             if vals.get("state") and vals["state"] == "paid" and order.name == "/":
                 session = (
@@ -880,7 +898,7 @@ class PosOrder(models.Model):
                 )
             if vals.get("has_deleted_line") is not None and order.has_deleted_line:
                 del vals["has_deleted_line"]
-            allowed_vals = ["paid", "done", "invoiced"]
+            allowed_vals = ["paid", "done"]
             if (
                 vals.get("state")
                 and vals["state"] not in allowed_vals
