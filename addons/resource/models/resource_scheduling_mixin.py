@@ -127,15 +127,15 @@ class ResourceSchedulingMixin(models.AbstractModel):
 
     def write(self, vals):
         result = super().write(vals)
-        triggers = self._get_sync_trigger_fields()
-        if triggers and triggers.intersection(vals.keys()):
-            self._sync_reservations()
         start_field, end_field = self._get_reservation_date_fields()
-        if "active" in vals and start_field and end_field:
-            # Mirror archive state: a record's reservations are no longer
-            # claims on the resource once the record is archived, and they come
-            # back when it is restored.  Skipped for consumers that never
-            # create reservations (no scheduling date fields).
+        has_dates = bool(start_field and end_field)
+
+        if "active" in vals and has_dates:
+            # Mirror archive state: a record's reservations are no longer claims
+            # on the resource once the record is archived, and they come back
+            # when it is restored.  Done BEFORE the sync below so a reactivated
+            # record's existing (now-active) reservations are found and
+            # reconciled instead of being duplicated by fresh creates.
             self.env["resource.reservation"].sudo().with_context(
                 active_test=False
             ).search(
@@ -144,6 +144,22 @@ class ResourceSchedulingMixin(models.AbstractModel):
                     ("res_id", "in", self.ids),
                 ]
             ).write({"active": vals["active"]})
+
+        # Re-sync when a scheduling field changed, or when the record is being
+        # reactivated (its reservations must reflect edits made while archived).
+        triggers = self._get_sync_trigger_fields()
+        sync_needed = bool(triggers and triggers.intersection(vals.keys()))
+        reactivating = vals.get("active") is True and has_dates
+        if sync_needed or reactivating:
+            # Never let an *archived* record sync: doing so would create active
+            # reservations — live claims on the resource — for a record that no
+            # longer exists to the user.  ``_get_reservation_vals_list`` still
+            # returns rows for an archived record, so this guard, not the vals,
+            # is what enforces the invariant.
+            records_to_sync = self
+            if "active" in self._fields:
+                records_to_sync = self.filtered("active")
+            records_to_sync._sync_reservations()
         return result
 
     def unlink(self):

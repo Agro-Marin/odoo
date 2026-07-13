@@ -14,7 +14,7 @@ from odoo.fields import Command, Domain
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers.float_utils import float_round
 from odoo.models import ValuesType
-from odoo.tools import SQL, date_utils, float_compare, ormcache
+from odoo.tools import SQL, date_utils, float_compare
 from odoo.tools.date_utils import float_to_time, localized, to_timezone
 
 from odoo.addons.base.models.res_partner import _tz_get
@@ -453,6 +453,13 @@ class ResourceCalendar(models.Model):
         else:
             return NotImplemented
 
+        # This reads the stored ``hours_per_week`` / ``full_time_required_hours``
+        # columns straight from the table during domain optimisation, before the
+        # ORM would flush them for the outer query.  Flush pending recomputes
+        # first, otherwise a freshly created/edited calendar whose rate hasn't
+        # hit the DB yet would be silently mis-filtered (same guard as the
+        # reservation overlap sweep).
+        self.flush_model(["hours_per_week", "full_time_required_hours"])
         self.env.cr.execute(SQL("SELECT id FROM resource_calendar WHERE %s", condition))
         return [("id", "in", [row[0] for row in self.env.cr.fetchall()])]
 
@@ -1508,8 +1515,13 @@ class ResourceCalendar(models.Model):
 
         return (hour_from, hour_to)
 
-    @ormcache("self.id")
     def _get_working_hours(self):
+        # NOT ormcached: the result is derived from ``attendance_ids``, and an
+        # ``@ormcache('self.id')`` would never be invalidated when a calendar's
+        # attendances change (nothing in this module clears ormcaches), so
+        # ``_works_on_date`` and downstream leave/planning consumers would read
+        # stale working days for the lifetime of the worker.  Rebuilding the
+        # dict is O(#attendances) over already-prefetched records — negligible.
         self.ensure_one()
 
         working_days = defaultdict(lambda: defaultdict(lambda: False))
