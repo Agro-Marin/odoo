@@ -47,13 +47,14 @@ export const multiTabFallbackService = {
             }
             // Check who's next.
             const now = new Date().getTime();
-            // ``JSON.parse(localStorage.getItem(missingKey))`` returns
+            // ``JSON.parse(browser.localStorage.getItem(missingKey))`` returns
             // ``null`` on real localStorage but throws ``"undefined" is
             // not valid JSON`` when test patches return ``undefined``.
             // ``?? {}`` only catches null/undefined, not exceptions.
             // Coerce the raw value before parsing.
             const lastPresenceByTab = JSON.parse(
-                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+                browser.localStorage.getItem("multi_tab_service.lastPresenceByTab") ||
+                    "{}",
             );
             const heartbeatKillOld = now - HEARTBEAT_KILL_OLD_PERIOD;
             let newMain;
@@ -68,13 +69,16 @@ export const multiTabFallbackService = {
             if (newMain === tabId) {
                 // We're next in queue. Electing as main.
                 lastHeartbeat = now;
-                localStorage.setItem("multi_tab_service.heartbeat", lastHeartbeat);
-                localStorage.setItem("multi_tab_service.main", true);
+                browser.localStorage.setItem(
+                    "multi_tab_service.heartbeat",
+                    lastHeartbeat,
+                );
+                browser.localStorage.setItem("multi_tab_service.main", true);
                 _isOnMainTab = true;
                 bus.trigger("become_main_tab");
                 // Removing main peer from queue.
                 delete lastPresenceByTab[newMain];
-                localStorage.setItem(
+                browser.localStorage.setItem(
                     "multi_tab_service.lastPresenceByTab",
                     JSON.stringify(lastPresenceByTab),
                 );
@@ -84,21 +88,22 @@ export const multiTabFallbackService = {
         function heartbeat() {
             const now = new Date().getTime();
             let heartbeatValue = parseInt(
-                localStorage.getItem("multi_tab_service.heartbeat") ?? 0,
+                browser.localStorage.getItem("multi_tab_service.heartbeat") ?? 0,
             );
-            // ``JSON.parse(localStorage.getItem(missingKey))`` returns
+            // ``JSON.parse(browser.localStorage.getItem(missingKey))`` returns
             // ``null`` on real localStorage but throws ``"undefined" is
             // not valid JSON`` when test patches return ``undefined``.
             // ``?? {}`` only catches null/undefined, not exceptions.
             // Coerce the raw value before parsing.
             const lastPresenceByTab = JSON.parse(
-                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+                browser.localStorage.getItem("multi_tab_service.lastPresenceByTab") ||
+                    "{}",
             );
             if (heartbeatValue + HEARTBEAT_OUT_OF_DATE_PERIOD < now) {
                 // Heartbeat is out of date. Electing new main.
                 startElection();
                 heartbeatValue = parseInt(
-                    localStorage.getItem("multi_tab_service.heartbeat") ?? 0,
+                    browser.localStorage.getItem("multi_tab_service.heartbeat") ?? 0,
                 );
             }
             if (_isOnMainTab) {
@@ -115,15 +120,15 @@ export const multiTabFallbackService = {
                     _isOnMainTab = false;
                     lastHeartbeat = 0;
                     lastPresenceByTab[tabId] = now;
-                    localStorage.setItem(
+                    browser.localStorage.setItem(
                         "multi_tab_service.lastPresenceByTab",
                         JSON.stringify(lastPresenceByTab),
                     );
                     bus.trigger("no_longer_main_tab");
                 } else {
                     lastHeartbeat = now;
-                    localStorage.setItem("multi_tab_service.heartbeat", now);
-                    localStorage.setItem(
+                    browser.localStorage.setItem("multi_tab_service.heartbeat", now);
+                    browser.localStorage.setItem(
                         "multi_tab_service.lastPresenceByTab",
                         JSON.stringify(cleanedTabs),
                     );
@@ -131,7 +136,7 @@ export const multiTabFallbackService = {
             } else {
                 // Update own heartbeat.
                 lastPresenceByTab[tabId] = now;
-                localStorage.setItem(
+                browser.localStorage.setItem(
                     "multi_tab_service.lastPresenceByTab",
                     JSON.stringify(lastPresenceByTab),
                 );
@@ -155,16 +160,17 @@ export const multiTabFallbackService = {
          */
         function unregister() {
             clearTimeout(heartbeatTimeout);
-            // ``JSON.parse(localStorage.getItem(missingKey))`` returns
+            // ``JSON.parse(browser.localStorage.getItem(missingKey))`` returns
             // ``null`` on real localStorage but throws ``"undefined" is
             // not valid JSON`` when test patches return ``undefined``.
             // ``?? {}`` only catches null/undefined, not exceptions.
             // Coerce the raw value before parsing.
             const lastPresenceByTab = JSON.parse(
-                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+                browser.localStorage.getItem("multi_tab_service.lastPresenceByTab") ||
+                    "{}",
             );
             delete lastPresenceByTab[tabId];
-            localStorage.setItem(
+            browser.localStorage.setItem(
                 "multi_tab_service.lastPresenceByTab",
                 JSON.stringify(lastPresenceByTab),
             );
@@ -188,10 +194,11 @@ export const multiTabFallbackService = {
             // presence and resume the heartbeat loop (unregister cleared the
             // pending timeout, so this doesn't double-schedule).
             const lastPresenceByTab = JSON.parse(
-                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+                browser.localStorage.getItem("multi_tab_service.lastPresenceByTab") ||
+                    "{}",
             );
             lastPresenceByTab[tabId] = new Date().getTime();
-            localStorage.setItem(
+            browser.localStorage.setItem(
                 "multi_tab_service.lastPresenceByTab",
                 JSON.stringify(lastPresenceByTab),
             );
@@ -207,15 +214,15 @@ export const multiTabFallbackService = {
         // exceptions. Coerce to a known-safe fallback string before
         // parsing.
         const lastPresenceByTab = JSON.parse(
-            localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+            browser.localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
         );
         lastPresenceByTab[tabId] = now;
-        localStorage.setItem(
+        browser.localStorage.setItem(
             "multi_tab_service.lastPresenceByTab",
             JSON.stringify(lastPresenceByTab),
         );
 
-        if (!localStorage.getItem("multi_tab_service.main")) {
+        if (!browser.localStorage.getItem("multi_tab_service.main")) {
             startElection();
         }
         heartbeat();

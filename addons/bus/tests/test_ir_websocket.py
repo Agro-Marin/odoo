@@ -13,7 +13,9 @@ from .common import WebsocketCase
 )
 class TestIrWebsocket(WebsocketCase):
     def test_only_allow_string_channels_from_frontend(self):
-        with self.assertLogs("odoo.addons.bus.websocket", level="ERROR") as log:
+        # Client-controlled garbage is rejected on the quiet warning path
+        # (no traceback), see `WebsocketConnectionHandler._serve_forever`.
+        with self.assertLogs("odoo.addons.bus.websocket", level="WARNING") as log:
             ws = self.websocket_connect()
             self.subscribe(
                 ws, [("odoo", "discuss.channel", 5)], self.env["bus.bus"]._bus_last_id()

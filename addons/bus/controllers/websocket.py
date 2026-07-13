@@ -55,23 +55,55 @@ class WebsocketController(Controller):
     @route("/bus/websocket_worker_bundle", type="http", auth="public")
     def get_websocket_worker_bundle(self, v=None):  # pylint: disable=unused-argument
         """
-        Serve the compiled websocket worker bundle.
+        Serve the compiled, self-contained websocket worker bundle.
 
         :param str v: Cache-busting version token (ignored server-side).
 
-        CORS: We handle CORS manually rather than via the route ``cors='*'``
+        The response is served with ETag revalidation (no ``max-age``): the
+        worker graph's individual static files are cached for a week by the
+        browser, so serving raw files here would keep tabs booting week-old
+        worker code after an upgrade — invisible to the OUTDATED_VERSION
+        check, whose version comes from the fresh page session, not from the
+        stale worker. A worker boots once per browser session, so the
+        conditional request is negligible.
+
+        CORS: handled manually rather than via the route ``cors='*'``
         decorator because ``Access-Control-Allow-Origin: *`` is forbidden by
         the CORS spec when the request carries credentials (session cookie).
         In prefork mode the HTTP workers (port 8069) and the gevent/WebSocket
         server (port 8072) have different origins, so the JS client fetches
-        this bundle cross-origin *with* credentials so the gevent server can
-        resolve the active database.  When an ``Origin`` header is present we
-        echo it back and add ``Access-Control-Allow-Credentials: true``.
-        Note: ``cors='*'`` writes to ``future_response`` in ``pre_dispatch``
-        and is merged via ``extend`` in ``post_dispatch`` — it cannot be
-        overridden from within a controller, hence the manual approach here.
+        this bundle cross-origin *with* credentials and boots the worker from
+        a blob: URL — which is also why the bundle must be a SINGLE file:
+        module workers cannot resolve relative imports against a blob URL.
+        When an ``Origin`` header is present we echo it back and add
+        ``Access-Control-Allow-Credentials: true``. ``cors='*'`` writes to
+        ``future_response`` in ``pre_dispatch`` and is merged via ``extend``
+        in ``post_dispatch`` — it cannot be overridden from within a
+        controller, hence the manual approach here.
         """
-        # Serve the worker entry point directly as an ES module.
-        # The browser resolves relative imports (./base_worker.js etc.)
-        # from the static file path.
-        return request.redirect("/bus/static/src/workers/bus_worker_script.js")
+        bundle = request.env["ir.qweb"]._get_websocket_worker_bundle()
+        if bundle:
+            url, code = bundle
+            response = request.make_response(
+                code,
+                [
+                    ("Content-Type", "text/javascript; charset=utf-8"),
+                    ("Cache-Control", "no-cache"),
+                ],
+            )
+            # The URL's path segment is the content hash — a ready-made,
+            # build-stable ETag.
+            response.set_etag(url.rsplit("/", 2)[-2])
+            response.make_conditional(request.httprequest)
+        else:
+            # Degraded path (esbuild declined): serve the raw ESM entry point;
+            # the browser resolves its relative imports from the static file
+            # path. Same-origin workers only — the cross-origin blob path
+            # cannot work without a bundled file.
+            response = request.redirect("/bus/static/src/workers/bus_worker_script.js")
+        origin = request.httprequest.headers.get("Origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
+        return response

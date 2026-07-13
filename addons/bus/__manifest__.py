@@ -33,6 +33,15 @@
             "bus/static/src/workers/*",
         ],
     },
+    # The worker bundle is esbuild-compiled into ONE self-contained file (see
+    # ir.qweb._get_websocket_worker_bundle_url): module workers booted from a
+    # blob: URL (cross-origin prefork setup) cannot resolve relative imports.
+    # standalone: workers have no import map and no `odoo` global, so the
+    # page-context glue (owl external, odoo.loader registration) is skipped.
+    "esm": {
+        "bundles": ["bus.websocket_worker_assets"],
+        "standalone_bundles": ["bus.websocket_worker_assets"],
+    },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
 }

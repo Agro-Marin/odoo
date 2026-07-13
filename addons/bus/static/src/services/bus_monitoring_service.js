@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { WORKER_STATE } from "@bus/workers/websocket_worker";
+import { WORKER_STATE } from "@bus/workers/websocket_worker_constants";
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";

@@ -1,43 +1,21 @@
 /** @odoo-module native */
 import { debounce, Deferred, Logger } from "./bus_worker_utils.js";
+import { WEBSOCKET_CLOSE_CODES, WORKER_STATE } from "./websocket_worker_constants.js";
+
+export { WEBSOCKET_CLOSE_CODES, WORKER_STATE };
 
 /**
  * Type of events that can be sent from the worker to its clients.
  *
- * @typedef { 'BUS:CONNECT' | 'BUS:RECONNECT' | 'BUS:DISCONNECT' | 'BUS:RECONNECTING' | 'BUS:NOTIFICATION' | 'BUS:INITIALIZED' | 'BUS:OUTDATED'| 'BUS:WORKER_STATE_UPDATED' | 'BUS:PROVIDE_LOGS' } WorkerEvent
+ * @typedef { 'BUS:CONNECT' | 'BUS:RECONNECT' | 'BUS:DISCONNECT' | 'BUS:RECONNECTING' | 'BUS:NOTIFICATION' | 'BUS:INITIALIZED' | 'BUS:OUTDATED'| 'BUS:WORKER_STATE_UPDATED' | 'BUS:PROVIDE_LOGS' | 'BUS:PING' } WorkerEvent
  */
 
 /**
  * Type of action that can be sent from the client to the worker.
  *
- * @typedef {'BUS:ADD_CHANNEL' | 'BUS:DELETE_CHANNEL' | 'BUS:FORCE_UPDATE_CHANNELS' | 'BUS:INITIALIZE_CONNECTION' | 'BUS:REQUEST_LOGS' | 'BUS:SEND' | 'BUS:SET_LOGGING_ENABLED' | 'BUS:LEAVE' | 'BUS:STOP' | 'BUS:START'} WorkerAction
+ * @typedef {'BUS:ADD_CHANNEL' | 'BUS:DELETE_CHANNEL' | 'BUS:FORCE_UPDATE_CHANNELS' | 'BUS:INITIALIZE_CONNECTION' | 'BUS:REQUEST_LOGS' | 'BUS:SEND' | 'BUS:SET_LOGGING_ENABLED' | 'BUS:LEAVE' | 'BUS:STOP' | 'BUS:START' | 'BUS:PONG'} WorkerAction
  */
 
-export const WEBSOCKET_CLOSE_CODES = Object.freeze({
-    CLEAN: 1000,
-    GOING_AWAY: 1001,
-    PROTOCOL_ERROR: 1002,
-    INCORRECT_DATA: 1003,
-    ABNORMAL_CLOSURE: 1006,
-    INCONSISTENT_DATA: 1007,
-    MESSAGE_VIOLATING_POLICY: 1008,
-    MESSAGE_TOO_BIG: 1009,
-    EXTENSION_NEGOTIATION_FAILED: 1010,
-    SERVER_ERROR: 1011,
-    RESTART: 1012,
-    TRY_LATER: 1013,
-    BAD_GATEWAY: 1014,
-    SESSION_EXPIRED: 4001,
-    KEEP_ALIVE_TIMEOUT: 4002,
-    RECONNECTING: 4003,
-    CLOSING_HANDSHAKE_ABORTED: 4004,
-});
-export const WORKER_STATE = Object.freeze({
-    CONNECTED: "CONNECTED",
-    DISCONNECTED: "DISCONNECTED",
-    IDLE: "IDLE",
-    CONNECTING: "CONNECTING",
-});
 const MAXIMUM_RECONNECT_DELAY = 60000;
 const UUID = Date.now().toString(36) + Math.random().toString(36).substring(2);
 const logger = new Logger("bus_websocket_worker");
@@ -53,6 +31,13 @@ export class WebsocketWorker {
     INITIAL_RECONNECT_DELAY = 1000;
     RECONNECT_JITTER = 1000;
     CONNECTION_CHECK_DELAY = 60_000;
+    // How often dead clients are looked for, and how long a client may stay
+    // silent before it is pinged (half the timeout) then evicted (full
+    // timeout). Deliberately generous: a bfcache-frozen tab cannot answer
+    // pings, and while `bus_service` replays its channels on `pageshow`, an
+    // aggressive timeout would churn subscriptions for nothing.
+    CLIENT_LIVENESS_SWEEP_DELAY = 120_000;
+    CLIENT_LIVENESS_TIMEOUT = 600_000;
 
     constructor(name) {
         this.name = name;
@@ -63,6 +48,13 @@ export class WebsocketWorker {
         this.currentDB = null;
         this.isWaitingForNewUID = true;
         this.channelsByClient = new Map();
+        // Last time each client was heard from — feeds the liveness sweep: a
+        // tab that crashed or was OOM-killed never sends BUS:LEAVE, and its
+        // port would otherwise stay in `channelsByClient` forever, keeping
+        // the server subscribed to channels no live tab wants and receiving
+        // every broadcast.
+        this.lastSeenByClient = new Map();
+        this._startClientLivenessSweep();
         this.connectRetryDelay = this.INITIAL_RECONNECT_DELAY;
         this.connectTimeout = null;
         this.debugModeByClient = new Map();
@@ -114,11 +106,12 @@ export class WebsocketWorker {
      */
     broadcast(type, data) {
         this._logDebug("broadcast", type, data);
+        // Normalize to plain JSON once — postMessage structured-clones per
+        // client anyway, so re-running the JSON round-trip inside the loop
+        // would only add O(clients × payload) work on every notification.
+        const plainData = data != null ? JSON.parse(JSON.stringify(data)) : undefined;
         for (const client of this.channelsByClient.keys()) {
-            client.postMessage({
-                type,
-                data: data != null ? JSON.parse(JSON.stringify(data)) : undefined,
-            });
+            client.postMessage({ type, data: plainData });
         }
     }
 
@@ -132,6 +125,7 @@ export class WebsocketWorker {
             this._onClientMessage(messagePort, ev.data);
         });
         this.channelsByClient.set(messagePort, []);
+        this.lastSeenByClient.set(messagePort, Date.now());
     }
 
     /**
@@ -168,13 +162,28 @@ export class WebsocketWorker {
      */
     _onClientMessage(client, { action, data }) {
         this._logDebug("_onClientMessage", action, data);
-        if (!this.channelsByClient.has(client) && action !== "BUS:LEAVE") {
+        // Any message proves the port's page is alive and unfrozen.
+        this.lastSeenByClient.set(client, Date.now());
+        if (
+            !this.channelsByClient.has(client) &&
+            action?.startsWith("BUS:") &&
+            action !== "BUS:LEAVE" &&
+            action !== "BUS:PONG"
+        ) {
+            // (BUS:PONG is also excluded above: it proves liveness but does
+            // not re-register — a pong racing an eviction would otherwise
+            // resurrect the client with an EMPTY channel list while its tab
+            // still believes it is subscribed.)
             // A client that previously sent BUS:LEAVE (`bus_service.stop()`,
             // bfcache pagehide) was dropped from `channelsByClient` and no
-            // longer receives broadcasts. It messaging us again proves the
-            // port is alive: re-register it, otherwise a `stop()`/`start()`
-            // cycle leaves the tab permanently deaf and a subsequent
-            // BUS:ADD_CHANNEL crashes on the missing channel list.
+            // longer receives broadcasts. It messaging us again with a BUS
+            // action proves it participates in the bus again: re-register it,
+            // otherwise a `stop()`/`start()` cycle leaves the tab permanently
+            // deaf and a subsequent BUS:ADD_CHANNEL crashes on the missing
+            // channel list. The BUS: prefix check matters: this handler sees
+            // EVERY message on the shared port, including ELECTION:*/BASE:*
+            // traffic, and the election heartbeat (sent every 1.5s by the
+            // main tab) must not silently resurrect a stopped client.
             this.channelsByClient.set(client, []);
         }
         switch (action) {
@@ -202,29 +211,38 @@ export class WebsocketWorker {
                 this.loggingEnabled = data;
                 break;
             case "BUS:REQUEST_LOGS":
-                logger.getLogs().then((logs) => {
-                    const workerInfo = {
-                        UUID,
-                        active: this.active,
-                        channels: [
-                            ...new Set(
-                                [].concat.apply(
-                                    [],
-                                    [...this.channelsByClient.values()],
+                logger
+                    .getLogs()
+                    // IndexedDB can be unavailable (private browsing, quota):
+                    // still answer with the worker info instead of leaving an
+                    // unhandled rejection and a download that never arrives.
+                    .catch((error) => [`getLogs failed: ${error}`])
+                    .then((logs) => {
+                        const workerInfo = {
+                            UUID,
+                            active: this.active,
+                            channels: [
+                                ...new Set(
+                                    [].concat.apply(
+                                        [],
+                                        [...this.channelsByClient.values()],
+                                    ),
                                 ),
-                            ),
-                        ].sort(),
-                        db: this.currentDB,
-                        is_reconnecting: this.isReconnecting,
-                        last_subscription: this.lastChannelSubscription,
-                        name: this.name,
-                        number_of_clients: this.channelsByClient.size,
-                        reconnect_delay: this.connectRetryDelay,
-                        uid: this.currentUID,
-                        websocket_url: this.websocketURL,
-                    };
-                    this.sendToClient(client, "BUS:PROVIDE_LOGS", { workerInfo, logs });
-                });
+                            ].sort(),
+                            db: this.currentDB,
+                            is_reconnecting: this.isReconnecting,
+                            last_subscription: this.lastChannelSubscription,
+                            name: this.name,
+                            number_of_clients: this.channelsByClient.size,
+                            reconnect_delay: this.connectRetryDelay,
+                            uid: this.currentUID,
+                            websocket_url: this.websocketURL,
+                        };
+                        this.sendToClient(client, "BUS:PROVIDE_LOGS", {
+                            workerInfo,
+                            logs,
+                        });
+                    });
                 break;
             case "BUS:INITIALIZE_CONNECTION":
                 return this._initializeConnection(client, data);
@@ -279,9 +297,42 @@ export class WebsocketWorker {
      */
     _unregisterClient(client) {
         this.channelsByClient.delete(client);
+        this.lastSeenByClient.delete(client);
         this.debugModeByClient.delete(client);
         this.isDebug = [...this.debugModeByClient.values()].some(Boolean);
         this._debouncedUpdateChannels();
+    }
+
+    /**
+     * Periodically look for dead clients. A tab that crashed or was
+     * OOM-killed never sends BUS:LEAVE; without a sweep its port stays
+     * registered forever — its channels pad every server subscription and
+     * every broadcast posts to a dead port.
+     */
+    _startClientLivenessSweep() {
+        setInterval(
+            () => this._sweepClientLiveness(),
+            this.CLIENT_LIVENESS_SWEEP_DELAY,
+        );
+    }
+
+    _sweepClientLiveness() {
+        const now = Date.now();
+        for (const [client, lastSeen] of this.lastSeenByClient) {
+            const age = now - lastSeen;
+            if (age > this.CLIENT_LIVENESS_TIMEOUT) {
+                this._logDebug("liveness_evict", { age });
+                this._unregisterClient(client);
+                // Let composed handlers (the election worker) drop the port
+                // too; see `onClientEvicted` wiring in bus_worker_script.js.
+                this.onClientEvicted?.(client);
+            } else if (age > this.CLIENT_LIVENESS_TIMEOUT / 2) {
+                // Silent for a while: ask for a sign of life. Live tabs
+                // answer BUS:PONG immediately; frozen (bfcache) or dead ones
+                // cannot and reach the eviction branch on a later sweep.
+                this.sendToClient(client, "BUS:PING");
+            }
+        }
     }
 
     /**
@@ -404,6 +455,13 @@ export class WebsocketWorker {
         this._logDebug("_onWebsocketClose", code, reason);
         this._updateState(WORKER_STATE.DISCONNECTED);
         this.lastChannelSubscription = null;
+        // Resolve before replacing: non-subscribe messages sent while the
+        // connection was open (but before its first subscribe went out) are
+        // chained on this deferred. Replacing an unresolved deferred would
+        // orphan those callbacks and silently lose the messages; resolving it
+        // is safe — the chained callback re-checks `_isWebsocketConnected()`
+        // (false here) and re-queues into `messageWaitQueue` for next open.
+        this.firstSubscribeDeferred.resolve();
         this.firstSubscribeDeferred = new Deferred();
         if (this.isReconnecting) {
             // Connection was not established but the close event was
@@ -722,6 +780,15 @@ export class WebsocketWorker {
         this.websocket?.close();
         this._removeWebsocketListeners();
         this.websocket = null;
+        // `_stop` removed the socket listeners, so `_onWebsocketClose` (which
+        // resolves the deferred and reports DISCONNECTED) will not run. Do
+        // both here: an unresolved deferred would orphan pending sends
+        // chained on it (the socket is already nulled, so they re-queue into
+        // `messageWaitQueue`), and a state left on CONNECTED would make
+        // `_initializeConnection` report a live connection to tabs opened
+        // while stopped.
+        this.firstSubscribeDeferred.resolve();
+        this._updateState(WORKER_STATE.DISCONNECTED);
         if (shouldBroadcastClose) {
             this.broadcast("BUS:DISCONNECT", { code: WEBSOCKET_CLOSE_CODES.CLEAN });
         }

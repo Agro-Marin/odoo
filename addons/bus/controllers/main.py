@@ -12,6 +12,11 @@ class BusController(Controller):
             isinstance(name, str) for name in model_names
         ):
             raise BadRequest("model_names_to_fetch must be a JSON array of strings")
+        # An unknown model would raise KeyError deep in _get_model_definitions
+        # — a 500 with a full traceback for what is client-controlled input.
+        unknown = [name for name in model_names if name not in request.env]
+        if unknown:
+            raise BadRequest(f"Unknown models: {', '.join(sorted(unknown))}")
         return request.make_response(
             dumps(
                 request.env["ir.model"]._get_model_definitions(model_names),

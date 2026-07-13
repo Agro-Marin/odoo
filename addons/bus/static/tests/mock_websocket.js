@@ -122,6 +122,12 @@ patch(WebsocketWorker.prototype, {
         }
     },
 
+    _startClientLivenessSweep() {
+        // Same reasoning as `enableCheckInterval`: a permanent interval makes
+        // `runAllTimers` advance by the sweep delay in every test. Tests
+        // exercise the sweep by calling `_sweepClientLiveness()` directly.
+    },
+
     _sendToServer(message) {
         const { env } = MockServer;
         if (!env) {
@@ -131,7 +137,10 @@ patch(WebsocketWorker.prototype, {
         if ("bus.bus" in env && "ir.websocket" in env) {
             if (message.event_name === "update_presence") {
                 const { inactivity_period, im_status_ids_by_model } = message.data;
-                env["ir.websocket"]._update_presence(inactivity_period, im_status_ids_by_model);
+                env["ir.websocket"]._update_presence(
+                    inactivity_period,
+                    im_status_ids_by_model,
+                );
             } else if (message.event_name === "subscribe") {
                 const { channels } = message.data;
                 env["bus.bus"].channelsByUser[env.uid] = channels;

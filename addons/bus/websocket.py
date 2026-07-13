@@ -400,7 +400,10 @@ class Websocket:
     # at the end, as close as possible to their commit.
     MAX_NOTIFICATION_HISTORY_SEC = 10
     # How many requests can be made in excess of the given rate.
-    RL_BURST = int(config["websocket_rate_limit_burst"])
+    # Clamped to >= 1: `_limit_rate` indexes the timestamp deque, and a
+    # zero-length deque (burst 0) would raise IndexError on every frame
+    # instead of the intended RateLimitExceededError.
+    RL_BURST = max(1, int(config["websocket_rate_limit_burst"]))
     # How many seconds between each request.
     RL_DELAY = float(config["websocket_rate_limit_delay"])
 
@@ -726,8 +729,15 @@ class Websocket:
             # is set to ensure the connection will be closed even if
             # the other end does not close the socket properly.
             self.__socket.settimeout(1)
+            # The per-recv timeout does not bound the drain as a whole: a
+            # peer that keeps streaming after our shutdown would keep this
+            # loop (and the serving thread) alive indefinitely. Give the
+            # orderly-shutdown wait a hard deadline and cut the connection
+            # loose past it.
+            drain_deadline = time.monotonic() + 5
             while self.__socket.recv(4096):
-                pass
+                if time.monotonic() > drain_deadline:
+                    break
         with suppress(KeyError):
             self.__selector.unregister(self.__socket)
         self.__selector.close()
@@ -1036,6 +1046,13 @@ class WebsocketRequest:
     def serve_websocket_message(self, message):
         try:
             jsonrequest = orjson.loads(message)
+            if not isinstance(jsonrequest, dict):
+                # A top-level scalar/list would raise TypeError below and land
+                # in the generic exception-with-traceback handler; reject it on
+                # the same quiet path as any other client-controlled garbage.
+                raise InvalidWebsocketRequestError(
+                    "Websocket request must be a JSON object"
+                )
             event_name = jsonrequest["event_name"]  # mandatory
         except KeyError as exc:
             raise InvalidWebsocketRequestError(
@@ -1118,7 +1135,7 @@ class WebsocketConnectionHandler:
     # Latest version of the websocket worker. This version should be incremented
     # every time `websocket_worker.js` is modified to force the browser to fetch
     # the new worker bundle.
-    _VERSION = "19.0-4"
+    _VERSION = "19.0-5"
 
     @classmethod
     def websocket_allowed(cls, request):
