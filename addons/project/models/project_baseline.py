@@ -41,6 +41,7 @@ class ProjectBaseline(models.Model):
     is_current = fields.Boolean(
         "Current Baseline",
         default=False,
+        copy=False,
         help="Only one baseline per project can be marked as current.",
     )
     line_ids = fields.One2many(

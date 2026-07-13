@@ -242,8 +242,7 @@ class ProjectUpdate(models.Model):
                              PARTITION BY pm.id
                              ORDER BY mm.date ASC
                             )
-                   ORDER BY pm.deadline ASC
-                   LIMIT 1;
+                   ORDER BY pm.deadline ASC;
         """
         )
         query_params = {"project_id": project.id}

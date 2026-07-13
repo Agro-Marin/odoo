@@ -20,17 +20,21 @@ export class ProjectProjectListRenderer extends ListRenderer {
      *      the given field.
      */
     haveAllSelectedProjectsSameField(field) {
-        if (this._areSelectedProjectsInSameCompany === undefined) {
+        // Cache keyed by field (see project_task_list_renderer): a single
+        // field-agnostic flag would return the first field's answer if called
+        // for two different fields in the same render/microtask window.
+        this._sameFieldCache ??= {};
+        if (!(field in this._sameFieldCache)) {
             const selection = this.props.list.selection;
-            const companyId = selection.length && getRawValue(selection[0], field);
-            this._areSelectedProjectsInSameCompany = selection.every(
-                (project) => getRawValue(project, field) === companyId
+            const value = selection.length && getRawValue(selection[0], field);
+            this._sameFieldCache[field] = selection.every(
+                (project) => getRawValue(project, field) === value
             );
             Promise.resolve().then(() => {
-                delete this._areSelectedProjectsInSameCompany;
+                delete this._sameFieldCache;
             });
         }
-        return this._areSelectedProjectsInSameCompany;
+        return this._sameFieldCache[field];
     }
 
     isCellReadonly(column, record) {

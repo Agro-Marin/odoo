@@ -141,7 +141,6 @@ class ReportProjectTaskUser(models.Model):
                 t.state,
                 t.milestone_id,
                 CASE WHEN t.state IN ('done', 'canceled') THEN True ELSE False END AS is_closed,
-                CASE WHEN pm.id IS NOT NULL THEN true ELSE false END as has_late_and_unreached_milestone,
                 t.description,
                 NULLIF(t.rating_last_value, 0) as rating_last_value,
                 AVG(rt.rating) as rating_avg,
@@ -150,7 +149,6 @@ class ReportProjectTaskUser(models.Model):
                 NULLIF(t.queue_time_hours, 0) as queue_time_hours,
                 NULLIF(t.lead_time_hours, 0) as lead_time_hours,
                 (extract('epoch' from (t.date_end-(now() at time zone 'UTC'))))/(3600*24) as delay_endings_days,
-                COUNT(td.task_id) as successor_ids_count,
                 t.is_template,
                 t.has_template_ancestor
         """
@@ -176,9 +174,7 @@ class ReportProjectTaskUser(models.Model):
                 t.queue_time_days,
                 t.queue_time_hours,
                 t.lead_time_hours,
-                t.milestone_id,
-                pm.id,
-                td.depends_on_id
+                t.milestone_id
         """
 
     def _from(self) -> str:
@@ -188,10 +184,6 @@ class ReportProjectTaskUser(models.Model):
                           AND rt.res_model = 'project.task'
                           AND rt.consumed = True
                           AND rt.rating >= {RATING_LIMIT_MIN}
-                    LEFT JOIN project_milestone pm ON pm.id = t.milestone_id
-                          AND pm.is_reached = False
-                          AND pm.deadline <= CAST(now() AS DATE)
-                    LEFT JOIN project_task_dependency_rel td ON td.depends_on_id = t.id
                     LEFT JOIN project_project p ON p.id = t.project_id
         """
 

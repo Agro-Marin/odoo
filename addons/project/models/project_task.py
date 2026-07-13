@@ -691,13 +691,15 @@ class ProjectTask(models.Model):
     )
 
     # Deadline compliance — foundation for estimation improvement
-    deadline_met = fields.Boolean(
-        "Deadline Met",
+    deadline_met = fields.Selection(
+        [("met", "Met"), ("missed", "Missed")],
+        "Deadline Result",
         compute="_compute_deadline_met",
         store=True,
         help=(
-            "Whether this task was closed before or on its deadline. "
-            "Null if no deadline set or task not yet closed."
+            "Whether this task was closed on or before its deadline. "
+            "Empty when the task has no deadline or is not yet closed — a "
+            "distinct case from 'missed', which a Boolean could not represent."
         ),
         export_string_translation=False,
     )
@@ -1428,7 +1430,12 @@ class ProjectTask(models.Model):
                 (6, 0, list(set(attachment_ids) - set(message_attachment_ids)))
             ]
 
-    @api.depends("create_date", "date_closed", "date_assign")
+    @api.depends(
+        "create_date",
+        "date_closed",
+        "date_assign",
+        "project_id.resource_calendar_id",
+    )
     def _compute_elapsed(self) -> None:
         """Compute queue time, lead time, and cycle time (calendar-adjusted)."""
         task_linked_to_calendar = self.filtered(
@@ -1504,14 +1511,19 @@ class ProjectTask(models.Model):
 
     @api.depends("date_closed", "date_end", "state")
     def _compute_deadline_met(self) -> None:
-        """Determine whether a closed task met its deadline."""
+        """Determine whether a closed task met its deadline.
+
+        Tri-state: empty (no deadline, or not yet closed), 'met', or 'missed'.
+        The empty case must stay distinct from 'missed' so reports don't count
+        deadline-less closed tasks as late.
+        """
         for task in self:
             if not task.date_end or task.state not in CLOSED_STATES:
-                task.deadline_met = None
+                task.deadline_met = False
+            elif task.date_closed and task.date_closed <= task.date_end:
+                task.deadline_met = "met"
             else:
-                task.deadline_met = bool(
-                    task.date_closed and task.date_closed <= task.date_end
-                )
+                task.deadline_met = "missed"
 
     @api.depends("cost_of_delay", "planned_hours")
     def _compute_cd3_score(self) -> None:
@@ -2515,16 +2527,14 @@ class ProjectTask(models.Model):
             )._send_task_rating_mail(force_send=True)
 
         if "state" in vals:
+            # Stamp the status-change date once for the whole batch (single UPDATE)
+            # rather than per record inside the loop below.
+            self.sudo().date_last_status_change = now
             # specific use case: when the blocked task goes from 'forced' done state to a not closed state, we fix the state back to waiting
-            for task in self.sudo():
-                if task.allow_dependencies:
-                    if (
-                        task.is_blocked_by_predecessors()
-                        and vals["state"] not in CLOSED_STATES
-                        and vals["state"] != "blocked"
-                    ):
+            if vals["state"] not in CLOSED_STATES and vals["state"] != "blocked":
+                for task in self.sudo():
+                    if task.allow_dependencies and task.is_blocked_by_predecessors():
                         task.state = "blocked"
-                task.date_last_status_change = now
         elif "project_id" in vals:
             # Re-homing a task into another project drops it onto that project's
             # default *non-folded* step (_compute_step_id → step_find fold=False).
@@ -3819,7 +3829,10 @@ class ProjectTask(models.Model):
                 ("triage_ids" if fname == "triage_id" else fname) for fname in groupby
             ]
             if order:
-                order = order.replace("triage_id", "triage_ids")
+                # Word-boundary replace so an order already referencing
+                # "triage_ids" isn't mangled into "triage_idss" (\b does not
+                # match between the 'd' and 's' of the plural form).
+                order = re.sub(r"\btriage_id\b", "triage_ids", order)
         return super()._read_group(
             domain, groupby, aggregates, having, offset, limit, order
         )

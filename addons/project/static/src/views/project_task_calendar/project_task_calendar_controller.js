@@ -85,8 +85,15 @@ export class ProjectTaskCalendarController extends CalendarController {
         const date = DateTime.fromISO(dateStr);
         if (date.isValid) {
             element.hidden = true;
-            await this.model.planTask(taskId, date, Boolean(timeSlotElement));
-            element.hidden = false;
+            try {
+                await this.model.planTask(taskId, date, Boolean(timeSlotElement));
+            } finally {
+                // planTask reloads the list; only unhide if this node is still
+                // in the DOM, and always unhide it even if planTask threw.
+                if (element.isConnected) {
+                    element.hidden = false;
+                }
+            }
         }
     }
 }

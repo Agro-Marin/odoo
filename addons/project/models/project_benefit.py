@@ -95,7 +95,15 @@ class ProjectBenefit(models.Model):
         activity_type = self.env.ref(
             "mail.mail_activity_data_todo", raise_if_not_found=False
         )
-        activity_type_id = activity_type.id if activity_type else False
+        if not activity_type:
+            # mail.activity requires an activity type; without the default To-Do
+            # type there is nothing valid to schedule — skip rather than crash
+            # the daily cron with a NOT NULL violation.
+            _logger.warning(
+                "Benefit review cron: default activity type missing, skipping."
+            )
+            return
+        activity_type_id = activity_type.id
         # Batch the dedup lookup: one search over all candidate benefits instead
         # of one query per benefit. Existing reminders are keyed on
         # (res_id, user_id) — the same pair used when creating below.

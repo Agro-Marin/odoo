@@ -122,9 +122,19 @@ class ProjectHistory(models.Model):
         if project.date_start and project.date:
             planned_days = (project.date - project.date_start).days
 
+        # Actual completion = when the project's work really finished (latest
+        # task closure), NOT when this snapshot happens to be taken. Otherwise a
+        # project archived months after it ended records an inflated duration,
+        # corrupting the reference-class forecasting this model feeds.
+        closed_tasks = tasks.filtered(lambda t: t.state in ("done", "canceled"))
+        closed_dates = closed_tasks.filtered("date_closed").mapped("date_closed")
+        completion_date = (
+            max(closed_dates).date() if closed_dates else fields.Date.today()
+        )
+
         actual_days = 0
         if project.date_start:
-            actual_days = (fields.Date.today() - project.date_start).days
+            actual_days = (completion_date - project.date_start).days
 
         # Aggregate hours (PMI: scope baseline = sum of estimates).
         planned_hours = sum(tasks.mapped("planned_hours"))
@@ -133,9 +143,6 @@ class ProjectHistory(models.Model):
         actual_hours = 0.0
         if "effective_hours" in Task._fields:
             actual_hours = sum(tasks.mapped("effective_hours"))
-
-        # Lead time, cycle time, and deadline compliance from task data
-        closed_tasks = tasks.filtered(lambda t: t.state in ("done", "canceled"))
         avg_lt = 0.0
         avg_ct = 0.0
         if closed_tasks:
@@ -156,7 +163,7 @@ class ProjectHistory(models.Model):
             {
                 "project_id": project.id,
                 "name": project.name,
-                "date_completed": fields.Date.today(),
+                "date_completed": completion_date,
                 "date_start": project.date_start,
                 "planned_duration_days": planned_days,
                 "actual_duration_days": actual_days,

@@ -31,6 +31,10 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
         if (response.error) {
             this.services.notification.add(response.error, { type: "danger" });
             el.remove();
+            // Abort: the base saveB64Image treats a falsy return as "no
+            // attachment". Without this the error object falls through and is
+            // returned as a bogus attachment (src="/web/image/undefined-...").
+            return;
         }
         const attachment = response;
         attachment.image_src = "/web/image/" + attachment.id + "-" + attachment.name;
@@ -38,9 +42,19 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
     }
 }
 
-MAIN_PLUGINS.splice(MAIN_PLUGINS.indexOf(MediaPlugin), 1);
-MAIN_PLUGINS.push(ProjectSharingMediaPlugin);
-MAIN_PLUGINS.splice(MAIN_PLUGINS.indexOf(ImageSavePlugin), 1);
-MAIN_PLUGINS.push(ProjectSharingImageSavePlugin);
+// Swap the base media plugins for the project-sharing variants. Guard each
+// indexOf: a bare splice(indexOf(...), 1) would remove the LAST element when
+// the target plugin is absent (indexOf → -1 → splice(-1, 1)).
+function replacePlugin(oldPlugin, newPlugin) {
+    const index = MAIN_PLUGINS.indexOf(oldPlugin);
+    if (index !== -1) {
+        MAIN_PLUGINS.splice(index, 1);
+    }
+    if (newPlugin) {
+        MAIN_PLUGINS.push(newPlugin);
+    }
+}
 
-MAIN_PLUGINS.splice(MAIN_PLUGINS.indexOf(ImageCropPlugin), 1);
+replacePlugin(MediaPlugin, ProjectSharingMediaPlugin);
+replacePlugin(ImageSavePlugin, ProjectSharingImageSavePlugin);
+replacePlugin(ImageCropPlugin, null);

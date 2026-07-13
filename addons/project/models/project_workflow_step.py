@@ -98,9 +98,13 @@ class ProjectWorkflowStep(models.Model):
         ),
     )
     rating_request_deadline = fields.Datetime(
-        compute="_compute_rating_request_deadline",
-        store=True,
         export_string_translation=False,
+        help=(
+            "Next scheduled periodic rating request. Seeded when periodic "
+            "rating is enabled and advanced after each send — deliberately a "
+            "plain field, not a now()-based compute that would reset on every "
+            "module upgrade or unrelated recompute."
+        ),
     )
     rating_active = fields.Boolean("Send a Customer Rating Request")
     rating_status = fields.Selection(
@@ -143,7 +147,9 @@ class ProjectWorkflowStep(models.Model):
                 vals.pop("user_id", None)
             elif "user_id" not in vals:
                 vals["user_id"] = self.env.uid
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records._seed_rating_deadlines()
+        return records
 
     def write(self, vals: dict) -> bool:
         """Enforce mutual exclusivity between personal and project stages.
@@ -152,7 +158,9 @@ class ProjectWorkflowStep(models.Model):
         step that already has ``project_ids`` (without clearing them) raises.
         """
         if vals.get("project_ids"):
-            # project_ids takes precedence — always clear user_id
+            # project_ids takes precedence — always clear user_id. Emptying
+            # project_ids intentionally leaves user_id False (a project stage is
+            # NOT turned into a personal stage — see test_modify_existing_stage).
             vals["user_id"] = False
         elif vals.get("user_id") and "project_ids" not in vals:
             for step in self:
@@ -163,7 +171,10 @@ class ProjectWorkflowStep(models.Model):
                             "Remove the project association first."
                         )
                     )
-        return super().write(vals)
+        res = super().write(vals)
+        if {"rating_active", "rating_status", "rating_status_period"} & vals.keys():
+            self._seed_rating_deadlines()
+        return res
 
     def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
         """Open the delete/archive confirmation wizard for these workflow steps."""
@@ -190,21 +201,31 @@ class ProjectWorkflowStep(models.Model):
             "context": context,
         }
 
-    @api.depends("rating_status", "rating_status_period")
-    def _compute_rating_request_deadline(self) -> None:
-        """Compute the next scheduled rating request deadline."""
-        periods = {
-            "daily": 1,
-            "weekly": 7,
-            "bimonthly": 15,
-            "monthly": 30,
-            "quarterly": 90,
-            "yearly": 365,
-        }
+    _RATING_PERIOD_DAYS = {
+        "daily": 1,
+        "weekly": 7,
+        "bimonthly": 15,
+        "monthly": 30,
+        "quarterly": 90,
+        "yearly": 365,
+    }
+
+    def _next_rating_deadline(self):
+        """Return now + the step's configured rating period."""
+        self.ensure_one()
+        return fields.Datetime.now() + timedelta(
+            days=self._RATING_PERIOD_DAYS.get(self.rating_status_period, 0)
+        )
+
+    def _seed_rating_deadlines(self) -> None:
+        """Set the first deadline for steps that just became periodic raters."""
         for step in self:
-            step.rating_request_deadline = fields.Datetime.now() + timedelta(
-                days=periods.get(step.rating_status_period, 0)
-            )
+            if (
+                step.rating_active
+                and step.rating_status == "periodic"
+                and not step.rating_request_deadline
+            ):
+                step.rating_request_deadline = step._next_rating_deadline()
 
     @api.model
     def _send_rating_all(self) -> None:
@@ -227,5 +248,5 @@ class ProjectWorkflowStep(models.Model):
             step.project_ids.task_ids.filtered(
                 lambda t, step=step: t.step_id == step
             )._send_task_rating_mail()
-            step._compute_rating_request_deadline()
+            step.rating_request_deadline = step._next_rating_deadline()
             self.env.cr.commit()

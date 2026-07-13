@@ -90,7 +90,13 @@ class ProjectTaskRecurrence(models.Model):
                 or not task.date_end
                 or (
                     rec.repeat_until
-                    and (task.date_end + rec._get_recurrence_delta()).date()
+                    # repeat_until is a naive user-calendar Date; date_end is a
+                    # UTC Datetime. Compare in the user's timezone so a boundary
+                    # occurrence isn't dropped (or kept) one day early in a
+                    # non-UTC tz.
+                    and fields.Datetime.context_timestamp(
+                        rec, task.date_end + rec._get_recurrence_delta()
+                    ).date()
                     <= rec.repeat_until
                 )
             )
