@@ -20,7 +20,11 @@ export class PortalDetails extends Interaction {
 
     adaptAddressForm() {
         const countryEl = this.el.querySelector("select[name=country_id]");
-        const countryID = countryEl.value || 0;
+        // Keep this a string: `el.dataset.country_id` is always a string, and
+        // mixing in a numeric 0 sentinel made the `===` below type-inconsistent.
+        // "0" matches no real state option, preserving the "clear all" behavior
+        // when no country is selected.
+        const countryID = countryEl.value || "0";
         let nb = 0;
         for (const el of this.stateOptionEls) {
             if (el.dataset.country_id === countryID) {

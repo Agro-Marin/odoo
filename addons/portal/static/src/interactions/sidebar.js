@@ -47,7 +47,10 @@ export class Sidebar extends Interaction {
         if (!this.printContent) {
             const iframeEl = document.createElement("iframe");
             iframeEl.setAttribute("id", "print_iframe_content");
-            iframeEl.setAttribute("href", href);
+            // An <iframe> loads its document from ``src``, not ``href`` (which
+            // is not a valid iframe attribute). Using ``href`` left the frame on
+            // about:blank, so the ``load`` handler below printed a blank page.
+            iframeEl.setAttribute("src", href);
             iframeEl.style.display = "none";
             this.printContent = iframeEl;
             this.insert(this.printContent, this.el);
@@ -101,7 +104,9 @@ export class Sidebar extends Interaction {
                     const linkEl = document.createElement("a");
                     linkEl.classList.add("nav-link", "p-0");
                     linkEl.href = `#${id}`;
-                    linkEl.style = Object.assign(linkEl.style, linkStyle);
+                    // Object.assign already mutates the live CSSStyleDeclaration;
+                    // assigning its return back into `.style` was a dead no-op.
+                    Object.assign(linkEl.style, linkStyle);
                     linkEl.innerText = text;
 
                     const liEl = document.createElement("li");
@@ -132,7 +137,7 @@ export class Sidebar extends Interaction {
                         const linkEl = document.createElement("a");
                         linkEl.classList.add("nav-link", "p-0");
                         linkEl.href = `#${id}`;
-                        linkEl.style = Object.assign(linkEl.style, linkStyle);
+                        Object.assign(linkEl.style, linkStyle);
                         linkEl.innerText = text;
 
                         const liEl = document.createElement("li");
@@ -144,7 +149,7 @@ export class Sidebar extends Interaction {
                     break;
                 }
             }
-            quoteHeaderEl.setAttribute("data-anchor", true);
+            quoteHeaderEl.setAttribute("data-anchor", "true");
         }
     }
 

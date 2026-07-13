@@ -20,7 +20,7 @@ export class PortalHomeCounters extends Interaction {
     }
 
     async updateCounters() {
-        const needed = Object.values(this.el.querySelectorAll("[data-placeholder_count]")).map(
+        const needed = [...this.el.querySelectorAll("[data-placeholder_count]")].map(
             (documentsCounterEl) => documentsCounterEl.dataset["placeholder_count"]
         );
         const numberRpc = Math.min(Math.ceil(needed.length / 5), 3); // max 3 rpc, up to 5 counters by rpc ideally
@@ -28,26 +28,37 @@ export class PortalHomeCounters extends Interaction {
         const countersAlwaysDisplayed = this.getCountersAlwaysDisplayed();
 
         const proms = [...Array(Math.min(numberRpc, needed.length)).keys()].map(async (i) => {
-            const documentsCountersData = await rpc("/my/counters", {
-                counters: needed.slice(i * counterByRpc, (i + 1) * counterByRpc),
-            });
+            // waitFor: track the RPC against teardown so the .then DOM writes
+            // below don't run on a destroyed interaction (detached this.el).
+            const documentsCountersData = await this.waitFor(
+                rpc("/my/counters", {
+                    counters: needed.slice(i * counterByRpc, (i + 1) * counterByRpc),
+                })
+            );
             Object.keys(documentsCountersData).forEach((counterName) => {
                 const documentsCounterEl = this.el.querySelector(
                     `[data-placeholder_count='${counterName}']`
                 );
+                if (!documentsCounterEl) {
+                    // Server returned a counter with no matching placeholder in
+                    // this page's DOM; nothing to render for it.
+                    return;
+                }
                 documentsCounterEl.textContent = documentsCountersData[counterName];
                 // The element is hidden by default, only show it if its counter is > 0 or if it's in the list of counters always shown
                 if (
                     documentsCountersData[counterName] !== 0 ||
                     countersAlwaysDisplayed.includes(counterName)
                 ) {
-                    documentsCounterEl.closest(".o_portal_index_card").classList.remove("d-none");
+                    documentsCounterEl.closest(".o_portal_index_card")?.classList.remove("d-none");
                 }
             });
             return documentsCountersData;
         });
         return Promise.all(proms).then((results) => {
-            this.el.querySelector(".o_portal_doc_spinner").remove();
+            // Optional chaining: some portal-home template variants omit the
+            // spinner, and a bare .remove() on the null result would throw.
+            this.el.querySelector(".o_portal_doc_spinner")?.remove();
         });
     }
 }

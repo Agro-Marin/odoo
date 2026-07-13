@@ -2,8 +2,9 @@ from datetime import datetime, timedelta
 
 from odoo import Command
 from odoo.http import Request
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.tests.common import HttpCase, tagged
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged('-at_install', 'post_install')

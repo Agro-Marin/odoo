@@ -56,15 +56,25 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
             _url = f"{_url}?{urlencode(url_args)}"
         return _url
 
-    # Build page list based on conditions
-    if page_count <= 5:
+    # Build page list based on conditions. ``scope`` is the target width of the
+    # dense page window; the constants below are the scope=5 originals rewritten
+    # as functions of ``scope`` (page_count<=5 -> <=scope, page<=3 -> <=scope-2,
+    # [1,2,3,4] -> range(1, scope), page_count-2 -> page_count-(scope-3),
+    # page_count-3 -> page_count-(scope-2), the ±1 middle window -> ±half). For
+    # scope=5 this reproduces the previous output byte-for-byte (exhaustively
+    # verified); other values now actually take effect instead of being ignored.
+    scope = max(scope, 3)  # below 3 the centred window degenerates
+    if page_count <= scope:
         page_list = list(range(1, page_count + 1))
-    elif page <= 3:
-        page_list = [1, 2, 3, 4, "…", page_count]
-    elif page >= page_count - 2:
-        page_list = [1, "…"] + list(range(page_count - 3, page_count + 1))
+    elif page <= scope - 2:
+        page_list = list(range(1, scope)) + ["…", page_count]
+    elif page >= page_count - (scope - 3):
+        page_list = [1, "…"] + list(range(page_count - (scope - 2), page_count + 1))
     else:
-        page_list = [1, "…", page - 1, page, page + 1, "…", page_count]
+        half = (scope - 3) // 2
+        page_list = (
+            [1, "…"] + list(range(page - half, page + half + 1)) + ["…", page_count]
+        )
 
     pages = [
         {"num": p, "url": get_url(p) if p != "…" else None, "is_current": p == page}
@@ -169,7 +179,10 @@ class CustomerPortal(Controller):
         # skipped on both candidates.
         sales_user_sudo = request.env["res.users"]
         partner_sudo = request.env.user.partner_id
-        for candidate in (partner_sudo.user_id, partner_sudo.commercial_partner_id.user_id):
+        for candidate in (
+            partner_sudo.user_id,
+            partner_sudo.commercial_partner_id.user_id,
+        ):
             if candidate and not candidate._is_public():
                 sales_user_sudo = candidate
                 break
@@ -625,7 +638,11 @@ class CustomerPortal(Controller):
                 partner_sudo._onchange_phone_validation()
         elif not self._are_same_addresses(address_values, partner_sudo):
             # If name is not changed then pop it from the address_values, as it affects the bank account holder name
-            if address_values.get("name", "").strip() == (partner_sudo.name or "").strip():
+            # `... or ""`: a Char field's cache value can be None (not ""), which
+            # would make `.strip()` raise AttributeError.
+            if (address_values.get("name") or "").strip() == (
+                partner_sudo.name or ""
+            ).strip():
                 address_values.pop("name", None)
             partner_sudo.write(
                 address_values
@@ -863,12 +880,8 @@ class CustomerPortal(Controller):
                 partner_sudo[commercial_field_name],
                 partner_sudo,
             )
-            if (
-                partner_sudo_value != address_values[commercial_field_name]
-                and (
-                    bool(partner_sudo_value)
-                    or bool(address_values[commercial_field_name])
-                )
+            if partner_sudo_value != address_values[commercial_field_name] and (
+                bool(partner_sudo_value) or bool(address_values[commercial_field_name])
             ):
                 invalid_fields.add(commercial_field_name)
                 field_description = partner_sudo_field._description_string(request.env)
@@ -1312,7 +1325,9 @@ class CustomerPortal(Controller):
         headers = {
             "Content-Type": "application/pdf" if report_type == "pdf" else "text/html",
             "Content-Length": (
-                len(report) if isinstance(report, bytes) else len(report.encode("utf-8"))
+                len(report)
+                if isinstance(report, bytes)
+                else len(report.encode("utf-8"))
             ),
         }
         if report_type == "pdf":

@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests.common import tagged
+
 from odoo.addons.web.tests.test_login import TestWebLoginCommon
 
 

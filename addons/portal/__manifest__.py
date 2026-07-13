@@ -56,9 +56,15 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "portal/static/src/interactions/**/*",
             "portal/static/src/js/components/input_confirmation_dialog/*",
             "portal/static/src/xml/**/*",
+            # Source under test for the hoot suites below.
+            "portal/static/src/signature_form/**/*",
         ],
+        "web.assets_unit_tests": [
+            "portal/static/tests/**/*.test.js",
+        ],
+        # Tours only (the hoot *.test.js files belong to web.assets_unit_tests).
         "web.assets_tests": [
-            "portal/static/tests/**/*",
+            "portal/static/tests/tours/**/*",
         ],
         "portal.assets_chatter_helpers": [
             "web/static/src/views/view_dialogs/form_view_dialog.js",

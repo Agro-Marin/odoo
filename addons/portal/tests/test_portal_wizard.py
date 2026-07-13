@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
-from odoo.exceptions import UserError, AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import users
+
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 
 
 class TestPortalWizard(MailCommon):
     def setUp(self):
-        super(TestPortalWizard, self).setUp()
+        super().setUp()
 
         # for those tests, consider user_employee cannot manager partners for acl testse
         self.user_employee.write({'group_ids': [(3, self.env.ref('base.group_partner_manager').id)]})
@@ -48,10 +48,11 @@ class TestPortalWizard(MailCommon):
             self.env['portal.wizard'].with_context(active_ids=[self.partner.id]).with_user(self.user_employee).create({})
 
         with self.assertRaises(AccessError, msg='Standard users should not be able to open the portal wizard'):
-            portal_wizard.with_user(self.user_employee).welcome_message
+            # Reading the field is what triggers the ACL check we assert on.
+            _ = portal_wizard.with_user(self.user_employee).welcome_message
 
         with self.assertRaises(AccessError, msg='Standard users should not be able to open the portal wizard'):
-            portal_wizard.user_ids.with_user(self.user_employee).email
+            _ = portal_wizard.user_ids.with_user(self.user_employee).email
 
     @users('admin')
     def test_portal_wizard_partner(self):
