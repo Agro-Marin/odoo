@@ -7,7 +7,7 @@
  *   `RecordList`s whose `data` is an array of localIds). Internal code works
  *   on `_raw` to avoid reactivity costs and re-entrancy.
  * - `_proxyInternal`: a `Proxy` over `_raw` implementing field semantics
- *   (relation get/set, commands, lazy compute/sort bookkeeping). It is NOT an
+ *   (relation get/set, commands). It is NOT an
  *   OWL reactive: reading through it does not subscribe an observer, but
  *   writing through it still notifies observers of `_proxy`.
  * - `_proxy`: `reactive(_proxyInternal)`, the object handed to business code
@@ -23,6 +23,9 @@
  *   → FD (field onDelete hooks) → FU (field onUpdate hooks)
  *   → RO (record onChange observers) → RD (record deletes)
  *   → RHD (record hard-deletes).
+ * Computed and sorted fields are always eager: they (re)run through the
+ * FC/FS queues at record creation and whenever a dependency changes,
+ * whether or not anything observes the field.
  * RD unregisters the record from `recordByLocalId` and `Model.records` and
  * detaches all relations; the record stays addressable through the local
  * `deletingRecordsByLocalId` map until RHD, so cleanups of the same flush

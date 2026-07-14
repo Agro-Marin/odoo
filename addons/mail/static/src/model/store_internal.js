@@ -188,8 +188,13 @@ export class StoreInternal extends RecordInternal {
         }
         if (shouldChange) {
             record._.updatingAttrs.set(fieldName, true);
-            targetRecord[fieldName] = newValue;
-            record._.updatingAttrs.delete(fieldName);
+            try {
+                targetRecord[fieldName] = newValue;
+            } finally {
+                // a leaked flag would make the next write to this field
+                // bypass updateFields entirely (see the proxy set trap)
+                record._.updatingAttrs.delete(fieldName);
+            }
         }
     }
     /**

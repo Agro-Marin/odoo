@@ -24,7 +24,10 @@ const messagePatch = {
             compute() {
                 return this.thread?.channel_member_ids.some(
                     (m) =>
-                        m.persona.notEq(this.author) &&
+                        // persona can be unset while the member's partner or
+                        // guest is not inserted yet (computes run eagerly on
+                        // insert): such a member cannot count as "fetched"
+                        m.persona?.notEq(this.author) &&
                         m.fetched_message_id?.id >= this.id,
                 );
             },
@@ -32,9 +35,13 @@ const messagePatch = {
         this.hasSomeoneSeen = fields.Attr(false, {
             /** @this {import("models").Message} */
             compute() {
-                return this.thread?.membersThatCanSeen
-                    .filter((member) => member.persona.notEq(this.author))
-                    .some((m) => m.hasSeen(this));
+                return (
+                    this.thread?.membersThatCanSeen
+                        // persona can be unset while the member's partner or
+                        // guest is not inserted yet: exclude such members
+                        .filter((member) => member.persona?.notEq(this.author))
+                        .some((m) => m.hasSeen(this))
+                );
             },
         });
         this.isMessagePreviousToLastSelfMessageSeenByEveryone = fields.Attr(false, {

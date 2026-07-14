@@ -302,7 +302,10 @@ test("mark channel as fetched when a new message is loaded", async () => {
     setupChatHub({ opened: [channelId] });
     listenStoreFetch(["init_messaging", "discuss.channel"]);
     await start();
-    await waitStoreFetch(["init_messaging", "discuss.channel"]);
+    // chat hub restore fetches its channels at store-service start, before
+    // the WebClient mount triggers init_messaging (fields are always eager:
+    // store.chatHub no longer waits for a first read to come alive)
+    await waitStoreFetch(["discuss.channel", "init_messaging"]);
     await contains(".o_menu_systray i[aria-label='Messages']");
     // send after init_messaging because bus subscription is done after init_messaging
     withUser(userId, () =>

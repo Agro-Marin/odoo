@@ -16,8 +16,13 @@ export class ModelInternal {
     fieldsTargetModel = new Map();
     /** @type {Map<string, () => any>} */
     fieldsCompute = new Map();
-    /** @type {Map<string, boolean>} */
-    fieldsEager = new Map();
+    /**
+     * Default values of attr fields, interned once per Model at registration
+     * so record construction never reads the per-instance definition objects.
+     *
+     * @type {Map<string, any>}
+     */
+    fieldsDefault = new Map();
     /** @type {Map<string, string>} */
     fieldsInverse = new Map();
     /** @type {Map<string, () => void>} */
@@ -68,11 +73,8 @@ export class ModelInternal {
                     this.fieldsCompute.set(fieldName, value);
                     break;
                 }
-                case "eager": {
-                    if (!value) {
-                        break;
-                    }
-                    this.fieldsEager.set(fieldName, value);
+                case "default": {
+                    this.fieldsDefault.set(fieldName, value);
                     break;
                 }
                 case "sort": {
