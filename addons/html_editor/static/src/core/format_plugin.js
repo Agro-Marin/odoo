@@ -186,10 +186,13 @@ export class FormatPlugin extends Plugin {
      * @param {Node[]} targetedNodes
      */
     removeFormats(formats, targetedNodes) {
+        const editableTargetedNodes = targetedNodes.filter(
+            this.dependencies.selection.isNodeEditable
+        );
         for (const format of formats) {
             if (
                 !formatsSpecs[format].removeStyle ||
-                !this.hasSelectionFormat(format, targetedNodes)
+                !this.hasSelectionFormat(format, editableTargetedNodes)
             ) {
                 continue;
             }
@@ -225,7 +228,14 @@ export class FormatPlugin extends Plugin {
     }
 
     removeFontSizeFormat(el) {
-        this.removeFormats(["fontSize", "setFontSizeClassName"], [el, ...descendants(el)]);
+        // Node-based removal on the element and its descendants, NOT
+        // ``removeFormats``: that helper is selection-based (formatSelection),
+        // which splits formatting around the current selection instead of
+        // stripping the given nodes (upstream parity).
+        for (const node of [el, ...descendants(el)]) {
+            removeFormat(node, formatsSpecs.fontSize);
+            removeFormat(node, formatsSpecs.setFontSizeClassName);
+        }
     }
 
     /**
