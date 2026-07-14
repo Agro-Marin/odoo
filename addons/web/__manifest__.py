@@ -480,6 +480,16 @@ This module provides the core of the Odoo Web Client.
             'web.assets_frontend': [
                 'web.assets_tests',
             ],
+            # Frontend pages using the minimal/lazy split render
+            # web.assets_frontend_lazy FIRST (webclient_templates.xml), and
+            # only the first ESM bundle's import map is honoured per document.
+            # Without this entry, web.assets_tests specifiers (e.g.
+            # "@account/../tests/tours/...") are absent from the served map and
+            # every tour on such a page dies at pre-boot with "Failed to
+            # resolve module specifier".
+            'web.assets_frontend_lazy': [
+                'web.assets_tests',
+            ],
         },
     },
 }
