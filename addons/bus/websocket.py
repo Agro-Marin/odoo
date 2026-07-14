@@ -324,6 +324,17 @@ class CloseFrame(Frame):
         super().__init__(Opcode.CLOSE, payload)
 
 
+# Origin-downgraded (CSWSH) connections are all unauthenticated and carry no
+# per-user state, so they share a single persisted public session per database
+# instead of minting (and saving) one session file per handshake. ``/websocket``
+# is ``auth="public"``, so without this a cross-origin peer could exhaust the
+# session filestore (reclaimed only by the ~weekly mtime vacuum) by repeatedly
+# reconnecting. Guarded by a lock: several serving threads open connections
+# concurrently.
+_public_session_lock = threading.Lock()
+_public_session_sid_by_db = {}
+
+
 _websocket_instances = WeakSet()
 # ``WeakSet`` iteration is guarded against GC removals, but a concurrent
 # ``add`` from a serving thread while another thread snapshots the set
@@ -1319,9 +1330,15 @@ class WebsocketConnectionHandler:
                     version,
                 )
             )
-            # Force save the session. Session must be persisted to handle
-            # WebSocket authentication.
-            request.session.is_dirty = True
+            if public_session is None:
+                # Force save the session so the serving thread can look it up
+                # for WebSocket authentication. On the downgrade path this is
+                # skipped: the shared public session is already persisted, and
+                # persisting the (often anonymous/throwaway) request session
+                # would mint one session file per cross-origin handshake. The
+                # client keeps its own session cookie either way — it is not
+                # switched to the public session.
+                request.session.is_dirty = True
             return response
         except KeyError as err:
             raise ServiceUnavailable(
@@ -1387,10 +1404,28 @@ class WebsocketConnectionHandler:
                 "scheme": request.httprequest.scheme,
             },
         )
-        session = root.session_store.new()
-        session.update(get_default_session(), db=request.session.db)
-        root.session_store.save(session)
-        return session
+        return cls._get_shared_public_session(request.session.db)
+
+    @staticmethod
+    def _get_shared_public_session(db):
+        """Return the shared, persisted anonymous public session for ``db``.
+
+        All origin-downgraded connections reuse it (see
+        ``_public_session_sid_by_db``): they are unauthenticated and hold no
+        per-user state, so one persisted session per db suffices and no session
+        file is minted per handshake. The session is recreated transparently if
+        it was reclaimed by the session vacuum in the meantime (a missing sid
+        loads as an empty, falsy session).
+        """
+        with _public_session_lock:
+            sid = _public_session_sid_by_db.get(db)
+            session = root.session_store.get(sid) if sid else None
+            if not session:
+                session = root.session_store.new()
+                session.update(get_default_session(), db=db)
+                root.session_store.save(session)
+                _public_session_sid_by_db[db] = session.sid
+            return session
 
     @staticmethod
     def _normalize_origin(origin):

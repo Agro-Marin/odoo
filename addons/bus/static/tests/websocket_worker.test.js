@@ -222,6 +222,41 @@ test("last notification id adopts the new DB's watermark on a database change", 
     expect(worker.lastNotificationId).toBe(0);
 });
 
+test("a uid/db switch asks every client to replay its channels", async () => {
+    // Switching uid (logout/login) or db wipes every client's worker-side
+    // channel map. The other tabs keep their page-side claims but are not
+    // re-initialized, so without a broadcast RESYNC their channels vanish from
+    // the next subscribe and never come back — a silently dead bus for those
+    // tabs. Every registered client must be asked to replay its snapshot.
+    const worker = await startWebSocketWorker();
+    const receivedByOther = [];
+    const other = {
+        addEventListener: () => {},
+        postMessage: (message) => receivedByOther.push(message),
+    };
+    const switcher = { addEventListener: () => {}, postMessage() {} };
+    worker.registerClient(other);
+    worker.registerClient(switcher);
+    // Establish the first uid/db and give the other tab a channel claim.
+    worker._initializeConnection(switcher, {
+        db: "db1",
+        uid: 1,
+        websocketURL: worker.websocketURL,
+        startTs: 1,
+    });
+    worker._addChannel(other, "chA");
+    receivedByOther.length = 0;
+    // The switcher re-initializes as a different user.
+    worker._initializeConnection(switcher, {
+        db: "db1",
+        uid: 2,
+        websocketURL: worker.websocketURL,
+        startTs: 2,
+    });
+    expect(worker.currentUID).toBe(2);
+    expect(receivedByOther.some(({ type }) => type === "BUS:RESYNC")).toBe(true);
+});
+
 test("every reconnect re-subscribes with the current channels", async () => {
     // A new connection is a fresh `Connection` whose `lastSubscription` starts
     // null, so the open-time `_updateChannels` always (re)subscribes — even when
@@ -452,6 +487,9 @@ test("BUS:PONG proves liveness but does not resurrect an evicted client", async 
     // empty channel list while its tab still believes it is subscribed.
     worker._onClientMessage(client, { action: "BUS:PONG" });
     expect(worker.channelsByClient.has(client)).toBe(false);
+    // Nor recreate a ghost liveness entry: the sweep iterates lastSeenByClient,
+    // so a ghost would be pinged (and auto-ponged) forever, never reclaimed.
+    expect(worker.lastSeenByClient.has(client)).toBe(false);
 });
 
 test("non-participatory actions do not resurrect an evicted/stopped client", async () => {
@@ -526,6 +564,31 @@ test("a wall-clock jump (system suspend) does not mass-evict live clients", asyn
     const now = Date.now();
     worker.lastSeenByClient.set(client, now - worker.CLIENT_LIVENESS_TIMEOUT - 1000);
     worker._lastLivenessSweepTs = now - worker.CLIENT_LIVENESS_TIMEOUT - 5000;
+    worker._sweepClientLiveness();
+    expect(worker.channelsByClient.has(client)).toBe(true);
+    expect(worker.lastSeenByClient.get(client)).toBe(now);
+});
+
+test("a moderate suspend (under the liveness timeout) does not evict live clients", async () => {
+    // A laptop sleep of a few minutes skips sweeps without exceeding
+    // CLIENT_LIVENESS_TIMEOUT. Ages still inflate by the lost time and no tab
+    // could answer a ping while asleep, so a tab already past TIMEOUT/2 would
+    // jump past TIMEOUT and be evicted in a single post-wake sweep. Any skipped
+    // sweep interval must be treated as lost time and grant a fresh window.
+    const worker = await startWebSocketWorker();
+    const client = { addEventListener: () => {}, postMessage: () => {} };
+    worker.registerClient(client);
+    const now = Date.now();
+    // Gap between one sweep interval and the full timeout: the old
+    // `> CLIENT_LIVENESS_TIMEOUT` guard missed it.
+    const gap = worker.CLIENT_LIVENESS_TIMEOUT - worker.CLIENT_LIVENESS_SWEEP_DELAY;
+    expect(gap).toBeGreaterThan(worker.CLIENT_LIVENESS_SWEEP_DELAY * 2);
+    // The client was past the half-timeout (ping) mark just before the sleep.
+    worker.lastSeenByClient.set(
+        client,
+        now - gap - worker.CLIENT_LIVENESS_TIMEOUT / 2 - 1000,
+    );
+    worker._lastLivenessSweepTs = now - gap;
     worker._sweepClientLiveness();
     expect(worker.channelsByClient.has(client)).toBe(true);
     expect(worker.lastSeenByClient.get(client)).toBe(now);

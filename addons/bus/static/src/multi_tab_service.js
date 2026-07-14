@@ -48,8 +48,24 @@ export const multiTabService = {
         let releaseHeld = null;
         // Aborts a pending (queued) acquisition; fresh per attempt.
         let abortController = null;
+        // Monotonic token identifying the current acquisition attempt. Bumped by
+        // every `acquire()` and by `deactivate()`, so a lock grant that lands
+        // after its attempt was superseded (a bfcache re-acquire) or torn down
+        // (`deactivate`/`unregister`) can be recognised and dropped. The
+        // fast-path `ifAvailable` request carries no abort signal (the spec
+        // forbids combining it with `ifAvailable`), so this token is the only
+        // thing that can stop its callback from seizing the lock on a dead tab.
+        let attempt = 0;
 
-        function becomeMain() {
+        function becomeMain(myAttempt) {
+            if (terminated || myAttempt !== attempt) {
+                // The attempt was terminated or superseded before the browser
+                // granted the lock. Returning without a pending promise releases
+                // the lock synchronously so the next waiter can take over;
+                // seizing it here would wedge the election (the tab never runs
+                // main-tab duties yet holds the lock forever).
+                return;
+            }
             isMain = true;
             settled.resolve();
             bus.trigger("become_main_tab");
@@ -83,6 +99,7 @@ export const multiTabService = {
                 settled.resolve();
                 return;
             }
+            const myAttempt = ++attempt;
             abortController = new AbortController();
             const { signal } = abortController;
             // Fast path: try to grab the lock immediately so our status settles
@@ -98,11 +115,14 @@ export const multiTabService = {
             locks
                 .request(MAIN_TAB_LOCK, { ifAvailable: true }, (lock) => {
                     if (lock) {
-                        return becomeMain();
+                        return becomeMain(myAttempt);
+                    }
+                    if (terminated || myAttempt !== attempt) {
+                        return;
                     }
                     settled.resolve();
                     locks
-                        .request(MAIN_TAB_LOCK, { signal }, () => becomeMain())
+                        .request(MAIN_TAB_LOCK, { signal }, () => becomeMain(myAttempt))
                         .catch(ignoreAbort);
                 })
                 .catch(ignoreAbort);
@@ -116,6 +136,10 @@ export const multiTabService = {
                 isMain = false;
                 bus.trigger("no_longer_main_tab");
             }
+            // Invalidate the in-flight attempt: a fast-path (`ifAvailable`) grant
+            // cannot be aborted via the signal, so bumping the token is what
+            // stops its callback from re-seizing the lock on this torn-down tab.
+            attempt++;
             releaseHeld?.();
             releaseHeld = null;
             abortController?.abort();

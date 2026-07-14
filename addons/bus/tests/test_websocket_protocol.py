@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import struct
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from werkzeug.exceptions import BadRequest, ServiceUnavailable
@@ -507,6 +508,102 @@ class TestNotificationDispatchState(BaseCase):
 
 
 @tagged("-at_install", "post_install")
+class TestSessionValidityCache(BaseCase):
+    """Unit tests for the ``SESSION_VALIDITY_TTL`` cache in
+    ``_dispatch_bus_notifications``.
+
+    The integration tests pin the cached (TTL=1000) and always-validate
+    (TTL=0) extremes; these cover the security-relevant *transitions*: the
+    cache must expire once the TTL elapses, and a session swap (rotation)
+    must force an immediate re-validation regardless of the TTL.
+    """
+
+    def _make_ws(self, clock, session):
+        ws = Websocket.__new__(Websocket)
+        ws._clock = clock
+        ws._session = session
+        ws._session_validated_until = 0.0
+        ws._validated_session_sid = None
+        ws._waiting_for_dispatch = True
+        ws._channels = set()
+        ws._dispatch_state = NotificationDispatchState(10, clock=clock)
+        return ws
+
+    @contextmanager
+    def _dispatch_env(self, check_session_return=True):
+        """Patch the collaborators of ``_dispatch_bus_notifications``: the
+        session chain is the identity, the cursor is fake, ``_poll`` returns
+        no notification (so ``_send`` is never reached)."""
+        env = MagicMock()
+        env.__getitem__.return_value._poll.return_value = []
+
+        @contextmanager
+        def fake_acquire_cursor(db):
+            yield MagicMock()
+
+        with (
+            patch(
+                "odoo.addons.bus.websocket._follow_session_chain",
+                side_effect=lambda session: session,
+            ),
+            patch(
+                "odoo.addons.bus.websocket.check_session",
+                return_value=check_session_return,
+            ) as check_session_mock,
+            patch("odoo.addons.bus.websocket.acquire_cursor", fake_acquire_cursor),
+            patch.object(Websocket, "new_env", return_value=env),
+        ):
+            yield check_session_mock
+
+    def test_cache_expires_after_ttl(self):
+        clock = _ManualClock(100.0)
+        session = MagicMock(sid="sid-A", uid=1, db="testdb")
+        ws = self._make_ws(clock, session)
+        with self._dispatch_env() as check_session_mock:
+            ws._dispatch_bus_notifications()
+            self.assertEqual(check_session_mock.call_count, 1)
+            # Within the TTL, with the same sid: the validation is cached.
+            clock.now += Websocket.SESSION_VALIDITY_TTL - 1
+            ws._dispatch_bus_notifications()
+            self.assertEqual(check_session_mock.call_count, 1)
+            # Once the TTL elapses, the session is re-validated.
+            clock.now += 1
+            ws._dispatch_bus_notifications()
+            self.assertEqual(check_session_mock.call_count, 2)
+
+    def test_session_swap_forces_revalidation_before_ttl(self):
+        clock = _ManualClock(100.0)
+        session = MagicMock(sid="sid-A", uid=1, db="testdb")
+        ws = self._make_ws(clock, session)
+        with self._dispatch_env() as check_session_mock:
+            ws._dispatch_bus_notifications()
+            self.assertEqual(check_session_mock.call_count, 1)
+            # The session rotated (e.g. ``_get_session`` followed a
+            # ``next_sid`` chain): same clock, different sid.
+            ws._session = MagicMock(sid="sid-B", uid=1, db="testdb")
+            ws._dispatch_bus_notifications()
+            self.assertEqual(check_session_mock.call_count, 2)
+
+    def test_invalid_session_raises_session_expired(self):
+        clock = _ManualClock(100.0)
+        session = MagicMock(sid="sid-A", uid=1, db="testdb")
+        ws = self._make_ws(clock, session)
+        with self._dispatch_env(check_session_return=False):
+            with self.assertRaises(SessionExpiredException):
+                ws._dispatch_bus_notifications()
+
+    def test_waiting_for_dispatch_reset_even_without_notifications(self):
+        """``_waiting_for_dispatch`` must reset on every dispatch, otherwise
+        ``trigger_notification_dispatching`` would skip all future wake-ups."""
+        clock = _ManualClock(100.0)
+        session = MagicMock(sid="sid-A", uid=1, db="testdb")
+        ws = self._make_ws(clock, session)
+        with self._dispatch_env():
+            ws._dispatch_bus_notifications()
+        self.assertFalse(ws._waiting_for_dispatch)
+
+
+@tagged("-at_install", "post_install")
 class TestFrameCodec(BaseCase):
     """Tests for frame parsing, protocol errors and fragmented reassembly.
 
@@ -624,6 +721,30 @@ class TestFrameCodec(BaseCase):
         ws, _ = self._make_ws(truncated)
         with self.assertRaises(ConnectionClosedError):
             ws._process_next_message()
+
+    def test_close_interleaved_in_fragmented_message_abandons_message(self):
+        """A CLOSE arriving mid-fragment answers the close handshake and
+        abandons the partial message: ``_recover_fragmented_message`` returns
+        ``None`` and ``_process_next_message`` must not try to decode it
+        (``None.decode`` would turn a clean close into SERVER_ERROR)."""
+        data = _client_frame(Opcode.TEXT, b"Hello ", fin=False) + _client_frame(
+            Opcode.CLOSE, struct.pack("!H", CloseCode.CLEAN)
+        )
+        ws, sock = self._make_ws(data)
+        ws._terminate = MagicMock()
+        self.assertIsNone(ws._process_next_message())
+        opcode, payload = _parse_server_frame(sock.sent)
+        self.assertEqual(opcode, Opcode.CLOSE)
+        self.assertEqual(struct.unpack("!H", payload[:2])[0], CloseCode.CLEAN)
+        # close received + close sent -> the connection is torn down.
+        ws._terminate.assert_called_once()
+
+    def test_data_frame_received_while_closing_is_discarded(self):
+        """RFC 6455: after the close handshake started, further data frames
+        are discarded (returned as None), not processed and not an error."""
+        ws, _ = self._make_ws(_client_frame(Opcode.TEXT, b"late data"))
+        ws.state = ConnectionState.CLOSING
+        self.assertIsNone(ws._process_next_message())
 
 
 def _parse_server_frame(data):
