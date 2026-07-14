@@ -31,7 +31,11 @@ class TestDoc(HttpCaseWithUserDemo):
                     res = self.url_open(path)
                 self.assertEqual(res.status_code, 403)
                 self.assertIn(e, res.text)
-                self.assertEqual(capture.output, [f'WARNING:odoo.http:{e}'])
+                # dispatch-error logging lives in the odoo.http.application
+                # submodule since the http package split
+                self.assertEqual(
+                    capture.output, [f'WARNING:odoo.http.application:{e}']
+                )
 
     def test_doc_web_client(self):
         self.authenticate('demo', 'demo')
