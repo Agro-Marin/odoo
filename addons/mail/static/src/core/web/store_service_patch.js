@@ -164,9 +164,28 @@ const StorePatch = {
     },
     async unstarAll() {
         // apply the change immediately for faster feedback
-        this.store.starred.counter = 0;
-        this.store.starred.messages = [];
-        await this.env.services.orm.call("mail.message", "unstar_all");
+        const starredBox = this.store.starred;
+        const messages = starredBox.messages.slice();
+        const counter = starredBox.counter;
+        for (const message of messages) {
+            // keep message state in sync so the echoed
+            // `mail.message/toggle_star` notification sees no transition and
+            // does not decrement the already-zeroed counter.
+            message.starred = false;
+        }
+        starredBox.counter = 0;
+        starredBox.messages = [];
+        try {
+            await this.env.services.orm.call("mail.message", "unstar_all");
+        } catch (error) {
+            // rollback the optimistic update
+            for (const message of messages) {
+                message.starred = true;
+            }
+            starredBox.counter = counter;
+            starredBox.messages = messages;
+            throw error;
+        }
     },
     handleClickOnLink(ev, thread) {
         const model = ev.target.dataset.oeModel;

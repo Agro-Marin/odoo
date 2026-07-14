@@ -31,7 +31,12 @@ export class ChatHub extends Record {
         });
         chatHub
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
-            .then(() => chatHub.initPromise.resolve());
+            .catch(() => {
+                // failing to restore saved chat windows (e.g. transient
+                // network error at boot) must not block the chat hub: every
+                // open/close/fold operation awaits initPromise.
+            })
+            .finally(() => chatHub.initPromise.resolve());
         return chatHub;
     }
     _recomputeCompact = 0;

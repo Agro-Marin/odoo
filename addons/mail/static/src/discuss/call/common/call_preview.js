@@ -244,11 +244,13 @@ export class CallPreview extends Component {
         this.state.videoStream = await navigator.mediaDevices.getUserMedia({
             video: this.store.settings.cameraConstraints,
         });
-        if (!this.videoRef.el) {
-            return;
-        }
+        // destroyed check must come first: on a dismissed popup the stream
+        // must be closed, not leaked with the camera LED on.
         if (status(this) === "destroyed") {
             closeStream(this.state.videoStream);
+            return;
+        }
+        if (!this.videoRef.el) {
             return;
         }
         if (this.videoRef.el) {

@@ -687,10 +687,11 @@ export class Thread extends Record {
         try {
             this.phantomMessages = this.messages;
             this.messages = await this.fetchMessages({ around: messageId });
-            this.phantomMessages = [];
         } catch {
             this.isLoaded = true;
             return;
+        } finally {
+            this.phantomMessages = [];
         }
         this.isLoaded = true;
         this.loadNewer = messageId !== undefined ? true : false;

@@ -51,6 +51,7 @@ export class AutoresizeInput extends Component {
             case "Escape":
                 ev.stopPropagation();
                 this.state.value = this.props.value;
+                this.cancelled = true;
                 this.inputRef.el.blur();
                 break;
         }
@@ -58,6 +59,12 @@ export class AutoresizeInput extends Component {
 
     onBlurInput() {
         this.state.isFocused = false;
+        if (this.cancelled) {
+            // Escape restores the original value: don't validate (a rename
+            // RPC on every cancelled edit otherwise).
+            this.cancelled = false;
+            return;
+        }
         this.props.onValidate(this.state.value);
     }
 }

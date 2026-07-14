@@ -471,7 +471,7 @@ const threadPatch = {
                     throw e;
                 }
             });
-        }).then(() => (this.markingAsRead = false));
+        }).finally(() => (this.markingAsRead = false));
     },
     /**
      * To be overridden.
