@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
+import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { useSequential } from "@mail/utils/common/hooks";
 import { assignDefined } from "@mail/utils/common/misc";
@@ -786,15 +787,15 @@ export class Thread extends Record {
         // notification item disappears and the systray counter decreases
         // without waiting for the bus notification.
         const inbox = this.store.inbox; // absent outside the web bundles
-        const inboxCounterBusId = inbox?.counter_bus_id;
-        const needactionCounterBusId = this.message_needaction_counter_bus_id;
+        const inboxSnapshot = inbox && snapshotCounter(inbox, "counter");
+        const needactionSnapshot = snapshotCounter(this, "message_needaction_counter");
         const messages = [...this.needactionMessages];
-        const previousCounter = this.message_needaction_counter;
+        let inboxApplied = 0;
         for (const message of messages) {
             message.needaction = false;
             if (inbox) {
                 inbox.messages.delete(message);
-                inbox.counter--;
+                inboxApplied += applyCounterDelta(inbox, "counter", -1);
             }
         }
         this.message_needaction_counter = 0;
@@ -821,14 +822,10 @@ export class Thread extends Record {
                 message.needaction = true;
                 if (inbox) {
                     inbox.messages.add(message);
-                    if (inbox.counter_bus_id === inboxCounterBusId) {
-                        inbox.counter++;
-                    }
                 }
             }
-            if (this.message_needaction_counter_bus_id === needactionCounterBusId) {
-                this.message_needaction_counter = previousCounter;
-            }
+            inboxSnapshot?.restoreDelta(-inboxApplied);
+            needactionSnapshot.restore();
             console.warn("Failed to mark all messages as read", e);
         }
     }

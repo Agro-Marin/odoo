@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { DiscussCoreCommon } from "@mail/discuss/core/common/discuss_core_common_service";
+import { applyCounterDelta } from "@mail/utils/common/counters";
 import { patch } from "@web/core/utils/patch";
 patch(DiscussCoreCommon.prototype, {
     _handleNotificationChannelDelete(thread, metadata) {
@@ -14,15 +15,18 @@ patch(DiscussCoreCommon.prototype, {
             }
         }
         this.store.starred.messages = filteredStarredMessages;
-        if (notifId > this.store.starred.counter_bus_id) {
-            this.store.starred.counter -= starredCounter;
-        }
+        applyCounterDelta(this.store.starred, "counter", -starredCounter, {
+            busId: notifId,
+        });
         this.store.inbox.messages = this.store.inbox.messages.filter(
             (msg) => !msg.thread?.eq(thread),
         );
-        if (notifId > this.store.inbox.counter_bus_id) {
-            this.store.inbox.counter -= thread.message_needaction_counter;
-        }
+        applyCounterDelta(
+            this.store.inbox,
+            "counter",
+            -thread.message_needaction_counter,
+            { busId: notifId },
+        );
         this.store.history.messages = this.store.history.messages.filter(
             (msg) => !msg.thread?.eq(thread),
         );

@@ -2,6 +2,7 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { fields, Record } from "@mail/core/common/record";
+import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import {
     convertBrToLineBreak,
     decorateEmojis,
@@ -766,16 +767,23 @@ export class Message extends Record {
         // the bus notification.
         const wasNeedaction = this.needaction;
         const inbox = this.store.inbox; // absent outside the web bundles
-        const inboxCounterBusId = inbox?.counter_bus_id;
-        const needactionCounterBusId = this.thread?.message_needaction_counter_bus_id;
+        const inboxSnapshot = inbox && snapshotCounter(inbox, "counter");
+        const threadSnapshot =
+            this.thread && snapshotCounter(this.thread, "message_needaction_counter");
+        let inboxApplied = 0;
+        let threadApplied = 0;
         if (wasNeedaction) {
             this.needaction = false;
             if (inbox) {
                 inbox.messages.delete(this);
-                inbox.counter--;
+                inboxApplied = applyCounterDelta(inbox, "counter", -1);
             }
             if (this.thread) {
-                this.thread.message_needaction_counter--;
+                threadApplied = applyCounterDelta(
+                    this.thread,
+                    "message_needaction_counter",
+                    -1,
+                );
             }
         }
         try {
@@ -797,17 +805,9 @@ export class Message extends Record {
                 this.needaction = true;
                 if (inbox) {
                     inbox.messages.add(this);
-                    if (inbox.counter_bus_id === inboxCounterBusId) {
-                        inbox.counter++;
-                    }
+                    inboxSnapshot.restoreDelta(-inboxApplied);
                 }
-                if (
-                    this.thread &&
-                    this.thread.message_needaction_counter_bus_id ===
-                        needactionCounterBusId
-                ) {
-                    this.thread.message_needaction_counter++;
-                }
+                threadSnapshot?.restoreDelta(-threadApplied);
             }
             console.warn("Failed to mark message as read", e);
         }

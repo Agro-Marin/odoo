@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { MailCoreCommon } from "@mail/core/common/mail_core_common_service";
+import { applyCounterDelta } from "@mail/utils/common/counters";
 import { patch } from "@web/core/utils/patch";
 patch(MailCoreCommon.prototype, {
     _handleNotificationToggleStar(payload, metadata) {
@@ -23,13 +24,13 @@ patch(MailCoreCommon.prototype, {
             const message = this.store["mail.message"].get({ id });
             const wasStarred = wasStarredById.get(id);
             if (starred) {
-                if (notifId > starredBox.counter_bus_id && wasStarred !== true) {
-                    starredBox.counter++;
+                if (wasStarred !== true) {
+                    applyCounterDelta(starredBox, "counter", 1, { busId: notifId });
                 }
                 starredBox.messages.add(message);
             } else {
-                if (notifId > starredBox.counter_bus_id && wasStarred !== false) {
-                    starredBox.counter--;
+                if (wasStarred !== false) {
+                    applyCounterDelta(starredBox, "counter", -1, { busId: notifId });
                 }
                 starredBox.messages.delete(message);
             }

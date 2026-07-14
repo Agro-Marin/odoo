@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { applyCounterDelta } from "@mail/utils/common/counters";
 import { markup, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 export class DiscussCoreCommon {
@@ -65,11 +66,14 @@ export class DiscussCoreCommon {
                         self_member_id &&
                         // no seen message means nothing was seen yet: the
                         // deleted message was necessarily unread.
-                        message.id > (self_member_id.seen_message_id?.id ?? 0) &&
-                        notifId > self_member_id.message_unread_counter_bus_id &&
-                        self_member_id.message_unread_counter > 0
+                        message.id > (self_member_id.seen_message_id?.id ?? 0)
                     ) {
-                        self_member_id.message_unread_counter--;
+                        applyCounterDelta(
+                            self_member_id,
+                            "message_unread_counter",
+                            -1,
+                            { busId: notifId },
+                        );
                     }
                 }
             },
@@ -125,11 +129,13 @@ export class DiscussCoreCommon {
                 if (!channel.isDisplayed && channel.self_member_id) {
                     channel.scrollUnread = true;
                 }
-                if (
-                    notifId > channel.self_member_id?.message_unread_counter_bus_id &&
-                    !message.isNotification
-                ) {
-                    channel.self_member_id.message_unread_counter++;
+                if (channel.self_member_id && !message.isNotification) {
+                    applyCounterDelta(
+                        channel.self_member_id,
+                        "message_unread_counter",
+                        1,
+                        { busId: notifId },
+                    );
                 }
             }
         }

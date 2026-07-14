@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
+import { snapshotCounter } from "@mail/utils/common/counters";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
@@ -166,8 +167,7 @@ const StorePatch = {
         // apply the change immediately for faster feedback
         const starredBox = this.store.starred;
         const messages = starredBox.messages.slice();
-        const counter = starredBox.counter;
-        const counterBusId = starredBox.counter_bus_id;
+        const counterSnapshot = snapshotCounter(starredBox, "counter");
         for (const message of messages) {
             // keep message state in sync so the echoed
             // `mail.message/toggle_star` notification sees no transition and
@@ -179,15 +179,14 @@ const StorePatch = {
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
-            // rollback the optimistic update; only restore the counter when
-            // its bus id did not advance in the meantime: a newer absolute
-            // bus snapshot must not be overwritten by a stale local value.
+            // rollback the optimistic update; the counter is only restored
+            // when its bus id did not advance in the meantime: a newer
+            // absolute bus snapshot must not be overwritten by a stale local
+            // value.
             for (const message of messages) {
                 message.starred = true;
             }
-            if (starredBox.counter_bus_id === counterBusId) {
-                starredBox.counter = counter;
-            }
+            counterSnapshot.restore();
             starredBox.messages = messages;
             throw error;
         }
