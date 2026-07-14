@@ -215,15 +215,25 @@
 
     <template id="minimal_layout">
         &lt;!DOCTYPE html&gt;
-        <html>
+        <!-- lang enables hyphens:auto, language-correct casing/quotes and the
+             PDF /Lang entry; it is the record's language (context lang), set
+             per article by _prepare_weasyprint_html. BCP 47 wants a hyphen. -->
+        <html t-att-lang="(lang or env.user.lang or 'en_US').replace('_', '-')">
             <head>
                 <base t-att-href="base_url" />
                 <t t-call-assets="web.report_assets_pdf" t-js="false" />
                 <t t-call-assets="web.report_assets_common" t-js="false" />
                 <meta charset="utf-8" />
-                <!-- WeasyPrint reads <title> into DocumentMetadata.title,
-                     which becomes the PDF /Title metadata field. -->
+                <!-- WeasyPrint maps these into the PDF document metadata:
+                     <title> becomes /Title (the record name, e.g. INV/2026/00001),
+                     description becomes /Subject (the print action's label),
+                     author becomes /Author, generator becomes /Creator and
+                     dcterms.created becomes /CreationDate. -->
                 <title><t t-out="title or 'Odoo Report'" /></title>
+                <meta name="author" t-att-content="res_company.display_name" />
+                <meta name="generator" content="Odoo" />
+                <meta t-if="subject and subject != title" name="description" t-att-content="subject" />
+                <meta name="dcterms.created" t-att-content="datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')" />
             </head>
             <body t-attf-class="o_body_pdf {{env['ir.actions.report'].get_paperformat_by_xmlid(report_xml_id).css_margins and 'o_css_margins'}} container" t-att-data-report-id="report_xml_id" t-att-dir="env['res.lang']._get_data(code=lang or env.user.lang).direction or 'ltr'">
                 <t t-out="body" />

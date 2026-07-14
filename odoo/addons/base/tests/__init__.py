@@ -55,6 +55,7 @@ from . import test_base_module_wizards
 from . import test_change_password_wizard_audit
 from . import test_decimal_precision_audit
 from . import test_report_layout_audit
+from . import test_report_modernization
 from . import test_report_paperformat_audit
 from . import test_menu
 from . import test_mimetypes

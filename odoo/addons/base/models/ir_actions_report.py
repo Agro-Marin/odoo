@@ -7,6 +7,7 @@ import re
 import threading
 from ast import literal_eval
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Self
@@ -114,6 +115,93 @@ def _inject_page_css(html: str, css: str) -> str:
     return f"{style_tag}{html_str}"
 
 
+def _css_string_escape(text: str) -> str:
+    """Escape ``text`` for use inside a double-quoted CSS string.
+
+    Backslashes and quotes are CSS-escaped; newlines (illegal in CSS strings)
+    collapse to spaces. Used for user-supplied values such as the watermark
+    text, where a stray quote must not break out of the declaration.
+    """
+    collapsed = " ".join(str(text).split())
+    return collapsed.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _watermark_css(text: str) -> str:
+    """CSS stamping ``text`` diagonally across every page of the document.
+
+    WeasyPrint repeats ``position: fixed`` boxes on each page, which makes a
+    single element a true per-page watermark — no per-page markup needed.
+    Rendered as a translucent overlay so it never reflows the document, and
+    inherits the report font. Requested per print via the
+    ``report_watermark`` context key (see ``_render_html_to_pdf``).
+    """
+    return (
+        "\nbody::before {"
+        f' content: "{_css_string_escape(text)}";'
+        " position: fixed;"
+        " top: 50%; left: 50%;"
+        " transform: translate(-50%, -50%) rotate(-35deg);"
+        " font-size: 6rem; font-weight: 700; letter-spacing: 0.1em;"
+        " white-space: nowrap; text-transform: uppercase;"
+        " color: rgba(33, 37, 41, 0.08);"
+        " z-index: 1000;"
+        " }\n"
+    )
+
+
+class _ListHandler(logging.Handler):
+    """Logging handler appending formatted records to a caller-owned list."""
+
+    def __init__(self, sink: list[str]) -> None:
+        super().__init__(level=logging.WARNING)
+        self._sink = sink
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._sink.append(record.getMessage())
+
+
+class _WeasyWarningCapture:
+    """Scoped capture of WeasyPrint CSS/HTML warnings.
+
+    The process-wide setup silences the ``weasyprint`` logger to ERROR (its
+    warnings are per-declaration and would flood production logs). During a
+    render we still want them: they name the exact unsupported property or
+    broken rule, which is the difference between "PDF rendering failed" and a
+    fixable template diagnosis. The logger level is lowered to WARNING for the
+    duration; refcounted so overlapping captures (threaded dev server) restore
+    the original level only when the outermost capture exits. Captured messages
+    can cross-talk between concurrent renders — acceptable, they only enrich
+    error messages and debug logs.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._depth = 0
+        self._saved_level = logging.NOTSET
+
+    @contextmanager
+    def capture(self, sink: list[str]):
+        logger = logging.getLogger("weasyprint")
+        handler = _ListHandler(sink)
+        with self._lock:
+            self._depth += 1
+            if self._depth == 1:
+                self._saved_level = logger.level
+                logger.setLevel(logging.WARNING)
+            logger.addHandler(handler)
+        try:
+            yield
+        finally:
+            with self._lock:
+                logger.removeHandler(handler)
+                self._depth -= 1
+                if self._depth == 0:
+                    logger.setLevel(self._saved_level)
+
+
+_weasy_warning_capture = _WeasyWarningCapture()
+
+
 # Bound of the process-wide decoded-image cache (_WeasySharedState); when full,
 # the oldest half is evicted (dicts preserve insertion order).
 _WEASY_IMAGE_CACHE_MAX = 256
@@ -147,7 +235,13 @@ _NATIVE_MERGE_MAX_BODIES = 50
 # channel: top-level ``data`` keys are plain template variables, never PDF
 # options (passing them there used to leak invoice XML/XMP into the context).
 PDF_OPTIONS_DATA_KEY = "__pdf_options__"
-_PDF_OPTION_KEYS = ("pdf_variant", "attachments", "xmp_metadata")
+_PDF_OPTION_KEYS = (
+    "pdf_variant",
+    "attachments",
+    "xmp_metadata",
+    "dpi",
+    "jpeg_quality",
+)
 
 # Serializes the fontTools setUnicodeRanges monkey-patch in
 # _write_pdf_tolerant_fonts.  The patch mutates a process-global class method;
@@ -861,9 +955,17 @@ class WeasyPrintEngine:
             # appended last to win the cascade.
             page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
 
+        # Captured for the whole render: on failure they carry the exact
+        # unsupported property / broken rule into the UserError (see
+        # _pdf_render_error); on success the caller may log them at DEBUG.
+        self._captured_warnings: list[str] = []
+
         # The injected factory is the model's fetcher builder, so downstream
         # overrides of _build_url_fetcher still apply.
-        with self._fetcher_factory() as fetcher:
+        with (
+            _weasy_warning_capture.capture(self._captured_warnings),
+            self._fetcher_factory() as fetcher,
+        ):
             # Single pass per body: inject @page CSS, parse each distinct
             # stylesheet once for the batch (memoized in parsed_css_by_url),
             # strip the parsed <link> tags. Bodies render independently so
@@ -1115,13 +1217,21 @@ class WeasyPrintEngine:
         return self._merge_pdfs(streams).getvalue()
 
     def _pdf_render_error(self, detail: str) -> UserError:
-        """Build the user-facing error for a WeasyPrint layout/serialization failure."""
-        return UserError(
-            _(
-                "PDF rendering failed. Please check the report template.\n\nDetails: %s",
-                detail,
-            )
+        """Build the user-facing error for a WeasyPrint layout/serialization failure.
+
+        Appends the CSS/HTML warnings captured during this render (see
+        :func:`_capture_weasyprint_warnings`): they usually name the exact
+        broken rule, turning "rendering failed" into a fixable diagnosis.
+        """
+        message = _(
+            "PDF rendering failed. Please check the report template.\n\nDetails: %s",
+            detail,
         )
+        warnings = getattr(self, "_captured_warnings", None)
+        if warnings:
+            message += _("\n\nRenderer warnings (last %s):\n", len(warnings[-5:]))
+            message += "\n".join(warnings[-5:])
+        return UserError(message)
 
 
 class IrActionsReport(models.Model):
@@ -1597,10 +1707,18 @@ class IrActionsReport(models.Model):
             res_ids.append(None)
             return bodies, res_ids, specific_paperformat_args
 
+        # Record-specific PDF titles: the /Title metadata of "INV/2026/00001"
+        # should be the document's name, not the print action's label.
+        titles_by_res_id = self._get_document_titles(articles, report_model)
+
         for i, article_node in enumerate(articles):
             # Pair each article with its header and footer by index
             header_node = headers[i] if i < len(headers) else None
             footer_node = footers[i] if i < len(footers) else None
+
+            article_res_id = None
+            if article_node.get("data-oe-model") == report_model:
+                article_res_id = int(article_node.get("data-oe-id", 0))
 
             # Combined body: header + footer + article. Running elements
             # (position: running()) must appear BEFORE the content they display
@@ -1627,19 +1745,53 @@ class IrActionsReport(models.Model):
                     "body": Markup(combined_html),
                     "base_url": base_url,
                     "report_xml_id": self.xml_id,
-                    "title": self.name or "",
+                    "title": titles_by_res_id.get(article_res_id) or self.name or "",
+                    "subject": self.name or "",
                     "debug": self.env.context.get("debug"),
                 },
                 raise_if_not_found=False,
             )
             bodies.append(body)
-
-            if article_node.get("data-oe-model") == report_model:
-                res_ids.append(int(article_node.get("data-oe-id", 0)))
-            else:
-                res_ids.append(None)
+            res_ids.append(article_res_id)
 
         return bodies, res_ids, specific_paperformat_args
+
+    def _get_document_titles(
+        self, articles: list, report_model: str | bool
+    ) -> dict[int, str]:
+        """Evaluate ``print_report_name`` for each record in the batch.
+
+        Returns ``{res_id: name}`` used as the per-document PDF ``<title>`` (and
+        thus the /Title metadata). Same expression the download controller uses
+        for the filename, so the PDF is titled exactly like its file. Evaluation
+        errors skip the record — a broken expression must never block printing.
+        """
+        if not (self.print_report_name and report_model):
+            return {}
+        res_ids = [
+            int(node.get("data-oe-id", 0))
+            for node in articles
+            if node.get("data-oe-model") == report_model and node.get("data-oe-id")
+        ]
+        titles = {}
+        for record in self.env[report_model].browse(res_ids).exists():
+            try:
+                name = safe_eval(
+                    self.print_report_name, {"object": record, "time": time}
+                )
+            except Exception:
+                _logger.debug(
+                    "print_report_name %r failed for %s(%s); falling back to the "
+                    "report label as PDF title.",
+                    self.print_report_name,
+                    report_model,
+                    record.id,
+                    exc_info=True,
+                )
+                continue
+            if name and isinstance(name, str):
+                titles[record.id] = name
+        return titles
 
     @staticmethod
     def _has_duplicated_ids(res_ids: list[int] | None) -> bool:
@@ -1651,6 +1803,8 @@ class IrActionsReport(models.Model):
         pdf_variant: str | None = None,
         attachments: list[Any] | None = None,
         xmp_metadata: list[bytes | str] | None = None,
+        dpi: int | None = None,
+        jpeg_quality: int | None = None,
     ) -> dict[str, Any] | None:
         """Translate high-level PDF/A parameters into WeasyPrint ``write_pdf`` kwargs.
 
@@ -1665,12 +1819,19 @@ class IrActionsReport(models.Model):
             self-contained ``<rdf:RDF>…</rdf:RDF>`` block WeasyPrint appends
             inside its ``<x:xmpmeta>`` (how the Factur-X extension schema is
             added); each is wrapped as a ``data:`` URI.
+        :param dpi: cap embedded raster images at this resolution — the main
+            lever on file size for image-heavy reports (catalogs, photo labels).
+        :param jpeg_quality: re-encode embedded JPEGs at this quality (0-95).
         :return: a ``write_pdf`` kwargs dict, or ``None`` when nothing was
             requested.
         """
-        if not (pdf_variant or attachments or xmp_metadata):
+        if not (pdf_variant or attachments or xmp_metadata or dpi or jpeg_quality):
             return None
         options: dict[str, Any] = {}
+        if dpi:
+            options["dpi"] = int(dpi)
+        if jpeg_quality:
+            options["jpeg_quality"] = int(jpeg_quality)
         if pdf_variant:
             options["pdf_variant"] = pdf_variant
             options["custom_metadata"] = True
@@ -1708,6 +1869,8 @@ class IrActionsReport(models.Model):
         pdf_variant: str | None = None,
         attachments: list[Any] | None = None,
         xmp_metadata: list[bytes | str] | None = None,
+        dpi: int | None = None,
+        jpeg_quality: int | None = None,
     ) -> bytes | list[bytes]:
         """Render HTML bodies to PDF using WeasyPrint.
 
@@ -1726,7 +1889,13 @@ class IrActionsReport(models.Model):
         :param attachments: files to embed (Factur-X XML etc.); see
             :meth:`_build_pdf_options`
         :param xmp_metadata: extra XMP RDF fragments (e.g. Factur-X schema)
+        :param dpi: cap embedded raster images at this resolution
+        :param jpeg_quality: re-encode embedded JPEGs at this quality (0-95)
         :return: PDF content as bytes, or list[bytes] when ``_split=True``
+
+        The ``report_watermark`` context key stamps its text diagonally across
+        every page (e.g. ``with_context(report_watermark="DRAFT")``) without
+        touching the template.
         """
         if not bodies:
             raise UserError(_("No content to render as PDF."))
@@ -1738,11 +1907,24 @@ class IrActionsReport(models.Model):
             landscape=landscape,
             specific_paperformat_args=specific_paperformat_args,
         )
-        pdf_options = self._build_pdf_options(pdf_variant, attachments, xmp_metadata)
-        start = perf_counter()
-        result = self._build_weasyprint_engine().render(
-            bodies, page_css, split=_split, pdf_options=pdf_options
+        watermark = self.env.context.get("report_watermark")
+        if watermark:
+            page_css += _watermark_css(watermark)
+        pdf_options = self._build_pdf_options(
+            pdf_variant, attachments, xmp_metadata, dpi, jpeg_quality
         )
+        start = perf_counter()
+        engine = self._build_weasyprint_engine()
+        result = engine.render(bodies, page_css, split=_split, pdf_options=pdf_options)
+        if engine._captured_warnings:
+            # One line per print, not per declaration: enough to spot a template
+            # producing warnings without flooding the log.
+            _logger.debug(
+                "WeasyPrint emitted %d warning(s) rendering %s; first: %s",
+                len(engine._captured_warnings),
+                report.report_name if report else "(no report ref)",
+                engine._captured_warnings[0],
+            )
         size = sum(len(pdf) for pdf in result) if _split else len(result)
         # The one render-latency datapoint per print: the only way to see which
         # reports are slow in production, so keep it at INFO.
