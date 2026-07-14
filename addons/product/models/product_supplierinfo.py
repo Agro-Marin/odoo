@@ -1,4 +1,5 @@
 from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProductSupplierinfo(models.Model):
@@ -115,7 +116,9 @@ class ProductSupplierinfo(models.Model):
                     else rec.product_tmpl_id.uom_id
                 )
 
-    @api.depends("discount", "price")
+    @api.depends(
+        "discount", "price", "product_uom_id", "product_id", "product_tmpl_id.uom_id"
+    )
     def _compute_price_discounted(self):
         for rec in self:
             product_uom_id = (rec.product_id or rec.product_tmpl_id).uom_id
@@ -130,11 +133,51 @@ class ProductSupplierinfo(models.Model):
             if rec.product_id:
                 rec.product_tmpl_id = rec.product_id.product_tmpl_id
 
-    @api.depends("product_id", "product_tmpl_id", "product_variant_count")
+    @api.depends("product_tmpl_id")
     def _compute_product_id(self):
+        # Only seed the variant from the context default, and only when it is
+        # empty and the default variant actually belongs to this row's
+        # template. Assigning unconditionally would let a later recompute stamp
+        # a variant of a *different* template onto the row (and the outcome
+        # would depend on which env flushes it).
+        default_product = self.env["product.product"].browse(
+            self.env.context.get("default_product_id")
+        )
         for rec in self:
-            if self.env.context.get("default_product_id"):
-                rec.product_id = self.env.context.get("default_product_id")
+            if (
+                not rec.product_id
+                and default_product
+                and default_product.product_tmpl_id == rec.product_tmpl_id
+            ):
+                rec.product_id = default_product
+
+    @api.constrains("product_id", "product_tmpl_id")
+    def _check_product_variant_consistency(self):
+        for rec in self:
+            if (
+                rec.product_id
+                and rec.product_id.product_tmpl_id != rec.product_tmpl_id
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "The product variant %(variant)s does not belong to the"
+                        " product %(product)s.",
+                        variant=rec.product_id.display_name,
+                        product=rec.product_tmpl_id.display_name,
+                    )
+                )
+
+    @api.constrains("date_start", "date_end")
+    def _check_date_range(self):
+        for rec in self:
+            if rec.date_start and rec.date_end and rec.date_start > rec.date_end:
+                raise ValidationError(
+                    self.env._(
+                        "The end date of vendor %(vendor)s must be after its"
+                        " start date.",
+                        vendor=rec.partner_id.display_name,
+                    )
+                )
 
     @api.onchange("product_tmpl_id")
     def _onchange_product_tmpl_id(self):

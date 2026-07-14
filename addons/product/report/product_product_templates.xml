@@ -166,7 +166,7 @@
                                             <t t-else="">
                                                 <t t-set="make_invisible" t-value="True"/>
                                             </t>
-                                            <t t-set="table_style" t-value="'border: 1px solid %s;' % (product.env.user.company_id.primary_color or 'black')"/>
+                                            <t t-set="table_style" t-value="'border: 1px solid %s;' % (product.env.company.primary_color or 'black')"/>
                                             <!-- IMPORTANT: explictly call templates in place of {{template}} otherwise studio won't load report correctly -->
                                             <t t-if="report_to_call == '2x7'">
                                                 <t t-call="product.report_simple_label2x7"/>

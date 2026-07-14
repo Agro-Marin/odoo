@@ -68,10 +68,14 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
     _updateQuantityAndGetPrice() {
         // Chain RPC calls to ensure that each request is completed before starting the next one.
         // This prevents race conditions and ensures the server processes updates sequentially.
-        this._pendingUpdate = this._pendingUpdate.then(() => rpc(
-            "/product/catalog/update_order_line_info",
-            this._getUpdateQuantityAndGetPriceParams(),
-        ));
+        // The `.catch` resets the chain after a failed call so a single rejected
+        // request doesn't permanently block every subsequent update on this card.
+        this._pendingUpdate = this._pendingUpdate
+            .catch(() => {})
+            .then(() => rpc(
+                "/product/catalog/update_order_line_info",
+                this._getUpdateQuantityAndGetPriceParams(),
+            ));
         return this._pendingUpdate;
     }
 

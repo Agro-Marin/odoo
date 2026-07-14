@@ -146,3 +146,60 @@ class TestProductCombo(ProductCommon):
             combo_in_company_a.write({
                 'company_id': False,
             })
+
+    def test_combo_template_requires_combo_choices(self):
+        """A combo-type product template must have at least one combo."""
+        with self.assertRaises(ValidationError):
+            self._create_product(type='combo')
+
+        combo = self.env['product.combo'].create({
+            'name': "Test combo",
+            'combo_item_ids': [Command.create({'product_id': self._create_product().id})],
+        })
+        combo_template = self._create_product(
+            type='combo',
+            combo_ids=[Command.link(combo.id)],
+        )
+        # Emptying the combos afterwards must be blocked too.
+        with self.assertRaises(ValidationError):
+            combo_template.combo_ids = [Command.clear()]
+
+    def test_sellable_combo_requires_sellable_products(self):
+        """A sellable combo template cannot contain non-sellable products."""
+        non_sellable = self._create_product(sale_ok=False)
+        combo = self.env['product.combo'].create({
+            'name': "Test combo",
+            'combo_item_ids': [Command.create({'product_id': non_sellable.id})],
+        })
+        with self.assertRaises(ValidationError):
+            self._create_product(
+                type='combo',
+                sale_ok=True,
+                combo_ids=[Command.link(combo.id)],
+            )
+        # Fine as long as the combo product itself is not sellable.
+        combo_template = self._create_product(
+            type='combo',
+            sale_ok=False,
+            combo_ids=[Command.link(combo.id)],
+        )
+        # Making it sellable afterwards must be blocked.
+        with self.assertRaises(ValidationError):
+            combo_template.sale_ok = True
+
+    def test_combo_base_price(self):
+        """base_price is the minimum item list price (extra_price excluded),
+        and follows product price changes."""
+        product_a = self._create_product(list_price=100.0)
+        product_b = self._create_product(list_price=80.0)
+        combo = self.env['product.combo'].create({
+            'name': "Test combo",
+            'combo_item_ids': [
+                Command.create({'product_id': product_a.id, 'extra_price': 5.0}),
+                Command.create({'product_id': product_b.id, 'extra_price': 0.0}),
+            ],
+        })
+        self.assertEqual(combo.base_price, 80.0)
+        # The compute must follow an item's product price change.
+        product_b.list_price = 120.0
+        self.assertEqual(combo.base_price, 100.0)

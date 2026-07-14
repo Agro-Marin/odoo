@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime
 import time
+from datetime import datetime
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import Form
 from odoo.tools import float_compare
@@ -373,3 +372,78 @@ class TestProductPricelist(ProductCommon):
         form = Form(self.product.product_tmpl_id)
         with self.assertRaises(ValidationError):
             form.standard_price = -5
+
+    def test_unlink_pricelist_used_as_rule_base(self):
+        """A pricelist referenced as another pricelist's rule base cannot be
+        deleted alone, but can be deleted together with its dependent."""
+        base_pricelist = self._create_pricelist(name="Base PL")
+        dependent_pricelist = self._create_pricelist(
+            name="Dependent PL",
+            item_ids=[Command.create({
+                'compute_price': 'percentage',
+                'percent_price': 10,
+                'base': 'pricelist',
+                'base_pricelist_id': base_pricelist.id,
+            })],
+        )
+        with self.assertRaises(UserError):
+            base_pricelist.unlink()
+        # Deleting both together must not be blocked.
+        (base_pricelist | dependent_pricelist).unlink()
+        self.assertFalse(base_pricelist.exists())
+        self.assertFalse(dependent_pricelist.exists())
+
+    def test_batched_chained_pricing_matches_per_product(self):
+        """Batch pricing through a chained pricelist (in another currency) must
+        return exactly what per-product pricing returns.
+
+        Locks the `_compute_chained_base_prices` batching: a product dropped
+        from the batch, or a base price converted with the wrong currency,
+        would make the two paths diverge.
+        """
+        currency_mxn = self.env['res.currency'].create({
+            'name': 'MX2',
+            'symbol': '$',
+            'rounding': 0.01,
+            'rate_ids': [Command.create({
+                'rate': 17.0,
+                'name': time.strftime('%Y-%m-%d'),
+            })],
+        })
+        base_pricelist = self._create_pricelist(
+            name="Base MXN",
+            currency_id=currency_mxn.id,
+            item_ids=[Command.create({
+                'compute_price': 'percentage',
+                'percent_price': 20,
+            })],
+        )
+        chained_pricelist = self._create_pricelist(
+            name="Chained",
+            item_ids=[Command.create({
+                'compute_price': 'formula',
+                'base': 'pricelist',
+                'base_pricelist_id': base_pricelist.id,
+                'price_discount': -10,  # 10% markup on the chained base
+            })],
+        )
+        products = (
+            self.computer_SC234 | self.ipad_retina_display | self.ipad_mini
+        )
+        products[0].list_price = 100.0
+        products[1].list_price = 55.55
+        products[2].list_price = 0.0
+
+        batched = chained_pricelist._get_products_price(products, quantity=1)
+        for product in products:
+            self.assertAlmostEqual(
+                batched[product.id],
+                chained_pricelist._get_product_price(product, quantity=1),
+                places=6,
+                msg=f"Batched price diverges for {product.display_name}",
+            )
+        # And the maths itself: list price → -20% (in MXN) → +10% markup,
+        # converted back to the chained pricelist's currency (company one).
+        self.assertAlmostEqual(
+            batched[products[0].id], 100.0 * 0.8 * 1.1, places=6
+        )

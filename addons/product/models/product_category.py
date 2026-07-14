@@ -21,7 +21,10 @@ class ProductCategory(models.Model):
     parent_id = fields.Many2one(
         comodel_name="product.category",
         string="Parent Category",
-        ondelete="cascade",
+        # `restrict`, not `cascade`: a cascade would silently delete whole
+        # subtrees at the SQL level (skipping the Python unlink hooks and mail
+        # cleanup) and detach every product under them.
+        ondelete="restrict",
         index=True,
     )
     parent_path = fields.Char(index=True)
@@ -33,7 +36,7 @@ class ProductCategory(models.Model):
     product_count = fields.Integer(
         string="# Products",
         compute="_compute_product_count",
-        help="The number of products under this category (Does not consider the children categories)",
+        help="The number of products under this category and its children.",
     )
     product_properties_definition = fields.PropertiesDefinition("Product Properties")
 
@@ -52,24 +55,18 @@ class ProductCategory(models.Model):
         read_group_res = self.env["product.template"]._read_group(
             [("categ_id", "child_of", self.ids)], ["categ_id"], ["__count"]
         )
-        group_data = {categ.id: count for categ, count in read_group_res}
-        # Pre-compute all child category IDs per category using parent_path
-        all_sub_categs = self.search([("id", "child_of", self.ids)])
-        children_by_parent = {}
-        for sub_categ in all_sub_categs:
-            for parent_id in self.ids:
-                parent = self.browse(parent_id)
-                if (
-                    sub_categ.parent_path
-                    and parent.parent_path
-                    and sub_categ.parent_path.startswith(parent.parent_path)
-                ):
-                    children_by_parent.setdefault(parent_id, []).append(sub_categ.id)
+        # Attribute each counted category's products to all its ancestors in
+        # `self`, derived from parent_path (O(count groups × depth)).
+        self_ids = set(self.ids)
+        count_by_categ = {}
+        for categ, count in read_group_res:
+            for ancestor_id in map(int, categ.parent_path.split("/")[:-1]):
+                if ancestor_id in self_ids:
+                    count_by_categ[ancestor_id] = (
+                        count_by_categ.get(ancestor_id, 0) + count
+                    )
         for categ in self:
-            product_count = 0
-            for sub_categ_id in children_by_parent.get(categ.id, [categ.id]):
-                product_count += group_data.get(sub_categ_id, 0)
-            categ.product_count = product_count
+            categ.product_count = count_by_categ.get(categ.id, 0)
 
     @api.constrains("parent_id")
     def _check_category_recursion(self):

@@ -1,18 +1,24 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import csv
 import io
 import json
+
+from werkzeug.exceptions import BadRequest
 
 from odoo import _
 from odoo.http import Controller, content_disposition, request, route
 
 
 class ProductPricelistExportController(Controller):
-
     @route("/product/export/pricelist/", type="http", auth="user", readonly=True)
     def export_pricelist(self, report_data, export_format):
-        json_data = json.loads(report_data)
+        if export_format not in ("csv", "xlsx"):
+            raise BadRequest("Invalid export format")
+        try:
+            json_data = json.loads(report_data)
+        except ValueError:
+            raise BadRequest("Invalid report data") from None
+        if not isinstance(json_data, dict):
+            raise BadRequest("Invalid report data")
         report_data = request.env["report.product.report_pricelist"]._get_report_data(
             json_data
         )
@@ -58,7 +64,7 @@ class ProductPricelistExportController(Controller):
 
     def _generate_xlsx(self, pricelist_name, quantities, products, headers):
         buffer = io.BytesIO()
-        import xlsxwriter  # noqa: PLC0415
+        import xlsxwriter
 
         with xlsxwriter.Workbook(buffer, {"in_memory": True}) as workbook:
             worksheet = workbook.add_worksheet()

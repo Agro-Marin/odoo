@@ -24,7 +24,9 @@
                 <div class="col-12">
                     <table class="table table-sm">
                         <thead>
-                            <th class="text-end px-1" colspan="100%">Quantities (Price)</th>
+                            <tr>
+                                <th class="text-end px-1" colspan="100%">Quantities (Price)</th>
+                            </tr>
                             <tr>
                                 <th class="px-1">Products</th>
                                 <th class="px-1" groups="uom.group_uom">UOM</th>

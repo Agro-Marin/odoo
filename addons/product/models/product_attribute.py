@@ -110,9 +110,9 @@ class ProductAttribute(models.Model):
             )
         }
         for pa in self:
-            pa.with_context(active_test=False).product_tmpl_ids = (
-                templates_by_attribute.get(pa.id, False)
-            )
+            pa.with_context(
+                active_test=False
+            ).product_tmpl_ids = templates_by_attribute.get(pa.id, False)
 
     # === ONCHANGE METHODS === #
 
@@ -193,7 +193,7 @@ class ProductAttribute(models.Model):
             "view_mode": "list,form",
             "domain": [
                 ("attribute_id", "=", self.id),
-                ("product_tmpl_id.active", "=", "True"),
+                ("product_tmpl_id.active", "=", True),
             ],
         }
 

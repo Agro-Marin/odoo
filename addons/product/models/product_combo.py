@@ -57,23 +57,19 @@ class ProductCombo(models.Model):
                 combo.company_id.sudo().currency_id or main_company.currency_id
             )
 
-    @api.depends("combo_item_ids")
+    @api.depends("combo_item_ids.lst_price", "currency_id")
     def _compute_base_price(self):
         for combo in self:
-            combo.base_price = (
-                min(
-                    combo.combo_item_ids.mapped(
-                        lambda item: item.currency_id._convert(
-                            from_amount=item.lst_price,
-                            to_currency=combo.currency_id,
-                            company=combo.company_id or self.env.company,
-                            date=self.env.cr.now(),
-                        )
-                    )
+            prices = [
+                item.currency_id._convert(
+                    from_amount=item.lst_price,
+                    to_currency=combo.currency_id,
+                    company=combo.company_id or self.env.company,
+                    date=self.env.cr.now(),
                 )
-                if combo.combo_item_ids
-                else 0
-            )
+                for item in combo.combo_item_ids
+            ]
+            combo.base_price = min(prices) if prices else 0
 
     @api.constrains("combo_item_ids")
     def _check_combo_item_ids_not_empty(self):

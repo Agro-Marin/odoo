@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.exceptions import ValidationError
@@ -72,12 +71,12 @@ class TestProductBarcode(TransactionCase):
             {'name': 'BC6', 'barcode': '4'},
             {'name': 'BC7', 'barcode': '1'},
         ]
-        try:
+        with self.assertRaises(ValidationError) as capture:
             self.env['product.product'].create(batch)
-        except ValidationError as exc:
-            assert 'Barcode "3" already assigned to product(s): BC3 and BC4' in exc.args[0]
-            assert 'Barcode "4" already assigned to product(s): BC5 and BC6' in exc.args[0]
-            assert 'Barcode "1" already assigned to product(s): BC1' in exc.args[0]
+        message = capture.exception.args[0]
+        self.assertIn('Barcode "3" already assigned to product(s): BC3 and BC4', message)
+        self.assertIn('Barcode "4" already assigned to product(s): BC5 and BC6', message)
+        self.assertIn('Barcode "1" already assigned to product(s): BC1', message)
 
     def test_delete_packaging_and_use_its_barcode_in_product(self):
         """ Test that the barcode of the packaging can be used when the packaging is removed from the product."""
