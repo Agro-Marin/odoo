@@ -31,6 +31,12 @@ export class ProjectStatusWithColorSelectionField extends SelectionField {
 export const projectStatusWithColorSelectionField = {
     ...selectionField,
     component: ProjectStatusWithColorSelectionField,
+    // The hideStatusName variant renders `update_count`: declare the
+    // dependency instead of relying on the arch happening to load the field
+    // next to the widget. Conditional: project.update archs also use this
+    // widget and have no update_count field.
+    fieldDependencies: (fieldInfo) =>
+        fieldInfo.attrs.hideStatusName ? [{ name: "update_count", type: "integer" }] : [],
     extractProps: (fieldInfo, dynamicInfo) => {
         const props = selectionField.extractProps(fieldInfo, dynamicInfo);
         props.statusLabel = fieldInfo.attrs.status_label;

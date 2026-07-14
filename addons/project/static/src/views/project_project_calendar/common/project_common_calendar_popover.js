@@ -13,12 +13,13 @@ export class ProjectCalendarCommonPopover extends CalendarCommonPopover {
         this.actionService = useService("action");
     }
 
-    onClickViewTasks() {
-        this.actionService.doActionButton({
+    async onClickViewTasks() {
+        await this.actionService.doActionButton({
             type: "object",
             resId: this.props.record.id,
             name: "action_view_tasks",
             resModel: "project.project",
         });
+        this.props.close();
     }
 }

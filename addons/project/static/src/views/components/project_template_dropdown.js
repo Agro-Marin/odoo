@@ -65,7 +65,7 @@ export class ProjectTemplateDropdown extends Component {
             .searchRead("project.project", this.projectTemplatesDomain, this.readFields);
     }
 
-    contextPreprocess(templateId) {
+    contextPreprocess() {
         const context = { ...this.props.context };
         if (this.props.getAdditionalContext) {
             Object.assign(context, this.props.getAdditionalContext());
@@ -81,7 +81,7 @@ export class ProjectTemplateDropdown extends Component {
             [],
             {
                 context: {
-                    ...this.contextPreprocess(templateId),
+                    ...this.contextPreprocess(),
                     template_id: templateId,
                     template_name: templateName,
                 },

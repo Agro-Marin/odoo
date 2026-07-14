@@ -12,9 +12,7 @@ const hookParams = {
         const onElementPointerEnter = (ev) => {
             const element = ev.currentTarget;
             current.calendarCell = element;
-            if (current.timeSlotElement) {
-                current.timeSlotElement = null;
-            }
+            current.timeSlotElement = null;
             callHandler("onElementEnter", { element });
         };
 
@@ -37,6 +35,14 @@ const hookParams = {
         }
 
         const { ref, current } = ctx;
+        // The drag builder just set `pe-none` on <body> (before calling this
+        // handler), which pointer-events-disables every descendant: without
+        // re-enabling our own subtree, the pointerenter/pointermove listeners
+        // below can never fire and `elementsFromPoint` skips the calendar, so
+        // no cell could ever highlight or receive the drop (the dragged ghost
+        // itself stays inert through `.o_dragged { pointer-events: none }`).
+        // Same compensation as web's square_selection_hook.
+        addClass(ref.el, "pe-auto");
         const containerSelector = ".o_calendar_renderer .o_calendar_widget";
         let selector = `${containerSelector} .fc-timegrid-slot.fc-timegrid-slot-lane`;
         const slotElements = ref.el.querySelectorAll(selector);
@@ -44,16 +50,11 @@ const hookParams = {
             const eventContainer = ref.el.querySelector(".o_calendar_renderer .o_task_event_to_plan_container");
 
             const onTimeGridPointerMove = (ev) => {
-                current.calendarCell = null;
+                // In the time grid, `.fc-day` columns sit under the slot lanes
+                // and never receive pointerenter, so hit-test them explicitly.
                 const nodes = document.elementsFromPoint(ev.clientX, ev.clientY);
-                for (const node of nodes) {
-                    if (node.classList.contains("fc-day")) {
-                        if (!(current.calendarCell && node.isEqualNode(current.calendarCell))) {
-                            current.calendarCell = node;
-                        }
-                        break;
-                    }
-                }
+                current.calendarCell =
+                    nodes.find((node) => node.classList.contains("fc-day")) || null;
                 if (eventContainer && current.calendarCell && current.timeSlotElement) {
                     const { bottom, height } = getRect(current.timeSlotElement, { adjust: true });
                     const { left, width } = getRect(current.calendarCell, { adjust: true });
@@ -70,8 +71,9 @@ const hookParams = {
                 }
             }
 
-            const onTimeGridPointerCancel = (ev) => {
+            const onTimeGridPointerCancel = () => {
                 current.calendarCell = null;
+                current.timeSlotElement = null;
                 if (eventContainer) {
                     removeStyle(eventContainer, "bottom", "width", "left", "height");
                     addClass(eventContainer, "d-none");

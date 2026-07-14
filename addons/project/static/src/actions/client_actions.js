@@ -17,6 +17,7 @@ export function showTemplateUndoNotification(
     // `message` is already translated by every caller (literal `_t(...)` at the
     // call sites) or is a server-provided string — do not re-wrap in _t() here
     // (double translation / non-extractable term).
+    let undoing = false;
     const undoNotification = env.services.notification.add(message, {
         type: actionType,
         buttons: [
@@ -24,6 +25,13 @@ export function showTemplateUndoNotification(
                 name: _t("Undo"),
                 icon: "fa-undo",
                 onClick: async () => {
+                    if (undoing) {
+                        // A second click while the first undo RPC is in
+                        // flight would replay it on an already-reverted (or
+                        // unlinked) record.
+                        return;
+                    }
+                    undoing = true;
                     const res = await env.services.orm.call(model, undoMethod, [recordId]);
                     if (undoCallback) {
                         await env.services.orm.call(model, undoCallback.method, undoCallback.args);
@@ -31,10 +39,17 @@ export function showTemplateUndoNotification(
                     if (res && undoMethod !== "unlink") {
                         env.services.action.doAction(res);
                     } else if (undoMethod === "unlink") {
-                        // Taking out the controller to be restored after unlinking the record
-                        const restoreController =
-                            env.services.action.currentController.config.breadcrumbs?.at(-2);
-                        await restoreController?.onSelected();
+                        // Restore the previous controller after unlinking the
+                        // record; with no history (e.g. form opened by URL),
+                        // fall back to going back instead of staying on the
+                        // form of a deleted record.
+                        const controller = env.services.action.currentController;
+                        const restoreController = controller.config.breadcrumbs?.at(-2);
+                        if (restoreController) {
+                            await restoreController.onSelected();
+                        } else {
+                            controller.config.historyBack();
+                        }
                         const postAction = undoCallback?.post_action;
                         if (postAction) {
                             env.services.action.doAction(postAction);
@@ -63,7 +78,9 @@ export function showTemplateUndoConfirmationDialog(
         confirmLabel: confirmLabel,
         confirm: async () => {
             const action = await env.services.orm.call(model, undoMethod, [recordId]);
-            await env.services.action.doAction(action);
+            if (action) {
+                await env.services.action.doAction(action);
+            }
             if (confirmationCallback) {
                 await env.services.orm.call(
                     model,

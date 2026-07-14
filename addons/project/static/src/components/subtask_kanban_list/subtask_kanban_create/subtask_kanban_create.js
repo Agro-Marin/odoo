@@ -8,14 +8,12 @@ export class SubtaskCreate extends Component {
     static template = "project.SubtaskCreate";
     static props = {
         name: String,
-        isReadonly: { type: Boolean, optional: true },
         onSubtaskCreateNameChanged: { type: Function },
         onBlur: { type: Function },
     };
     setup() {
         this.placeholder = _t("Write a task name");
         this.state = useState({
-            inputSize: 1,
             name: this.props.name,
             isFieldInvalid: false,
         });
@@ -24,12 +22,19 @@ export class SubtaskCreate extends Component {
     }
 
     /**
+     * Close the create row when focus leaves the component (click-away),
+     * matching the kanban quick-create UX. The `change` event fired just
+     * before this one, so a typed name has already been submitted.
+     *
      * @private
-     * @param {InputEvent} ev
+     * @param {FocusEvent} ev
      */
-    _onFocus(ev) {
-        ev.target.value = this.placeholder;
-        ev.target.select();
+    _onBlur(ev) {
+        if (ev.relatedTarget?.closest(".subtask_create_input")) {
+            // Focus moved inside the component (e.g. onto the SAVE button).
+            return;
+        }
+        this.props.onBlur();
     }
 
     /**
@@ -59,6 +64,9 @@ export class SubtaskCreate extends Component {
     }
 
     _onSaveClick() {
+        // Only the empty case needs handling: pressing SAVE with a non-empty
+        // name already blurred the input, whose `change` event submitted it
+        // (submitting again here would create the subtask twice).
         if (this.input.el.value.trim() === "") {
             this.props.onSubtaskCreateNameChanged(this.input.el.value.trim());
             this.state.isFieldInvalid = true;

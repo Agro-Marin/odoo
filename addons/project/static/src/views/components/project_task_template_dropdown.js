@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { clearUncommittedChanges } from "@web/webclient/actions/action_service";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 
@@ -65,16 +66,19 @@ export class ProjectTaskTemplateDropdown extends Component {
         if (this.props.getAdditionalContext) {
             Object.assign(context, this.props.getAdditionalContext());
         }
-        this.action.switchView("form", {
-            resId: await this.orm.call(
-                "project.task",
-                "action_create_from_template",
-                [templateId],
-                {
-                    context: context,
-                }
-            ),
-            focusTitle: true,
-        });
+        // Run the navigation guards BEFORE creating the record server-side:
+        // switchView aborts silently when they fail (dirty form, refused
+        // leave), which would strand a freshly created task the user never
+        // sees — and each retry would create another one.
+        if (!(await clearUncommittedChanges(this.env))) {
+            return;
+        }
+        const resId = await this.orm.call(
+            "project.task",
+            "action_create_from_template",
+            [templateId],
+            { context }
+        );
+        await this.action.switchView("form", { resId, focusTitle: true });
     }
 }

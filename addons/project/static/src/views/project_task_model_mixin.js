@@ -1,11 +1,26 @@
 /** @odoo-module native */
-import { browser } from "@web/core/browser/browser";
 import { Domain } from "@web/core/domain";
+import { getShowSubtasks } from "../utils/project_utils.js";
 
 export const ProjectTaskModelMixin = (T) => class ProjectTaskModelMixin extends T {
+    /**
+     * Process the search domain only when the caller actually provides one
+     * (search-driven loads). Parameterless reloads (view buttons, archive
+     * refresh, calendar navigation) reuse the domain the base class already
+     * stores — which is the OUTPUT of a previous _processSearchDomain call:
+     * re-processing it would append a duplicate injected leaf per reload, and
+     * a truthy params.domain needlessly resets pagination to offset 0.
+     */
+    async load(params = {}) {
+        if (params.domain) {
+            params.domain = this._processSearchDomain(params.domain);
+        }
+        return super.load(params);
+    }
+
     _processSearchDomain(domain) {
         const { my_tasks, subtask_action } = this.env.searchModel.globalContext;
-        const showSubtasks = my_tasks || subtask_action || JSON.parse(browser.localStorage.getItem("showSubtasks"));
+        const showSubtasks = my_tasks || subtask_action || getShowSubtasks();
         if (['project.task', 'report.project.task.user'].includes(this.env.searchModel.resModel) && !showSubtasks) {
             domain = Domain.and([
                 domain,

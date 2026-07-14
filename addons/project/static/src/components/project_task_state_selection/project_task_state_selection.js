@@ -80,7 +80,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
                 {
                     category: "smart_action",
                     hotkey: "alt+f",
-                    isAvailable: () => !this.props.readonly && !this.props.isDisabled,
+                    isAvailable: () => !this.props.readonly,
                 }
             );
         }
@@ -96,13 +96,8 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         return states.map((state) => [state, labels.get(state)]);
     }
 
-    get availableOptions() {
-        // overrided because we need the currentOption in the dropdown as well
-        return this.options;
-    }
-
     get label() {
-        const waitOption = super.options.findLast(([state, _]) => state === "blocked");
+        const waitOption = super.options.findLast(([state]) => state === "blocked");
         const fullSelection = [...this.options, waitOption];
         return formatSelection(this.currentValue, {
             selection: fullSelection,
@@ -153,26 +148,17 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     }
 
     async updateRecord(value) {
-        const result = await super.updateRecord(value);
+        await super.updateRecord(value);
         this.state.isStateButtonHighlighted = false;
-        if (result) {
-            return result;
-        }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
-    onMouseEnterStateButton(ev) {
+    onMouseEnterStateButton() {
         if (!this.env.isSmall) {
             this.state.isStateButtonHighlighted = true;
         }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
-    onMouseLeaveStateButton(ev) {
+    onMouseLeaveStateButton() {
         this.state.isStateButtonHighlighted = false;
     }
 }

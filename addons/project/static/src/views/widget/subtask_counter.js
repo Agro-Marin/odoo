@@ -11,7 +11,10 @@ export class SubtaskCounter extends Component {
     };
 
     onClick() {
-        this.props.record.toggleSubtasksList();
+        // toggleSubtasksList only exists on the task kanban model's records;
+        // the same card arch is reused as an x2many mobile kanban, whose
+        // records are plain RelationalRecords.
+        this.props.record.toggleSubtasksList?.();
     }
 
     get closedSubtaskCount() {

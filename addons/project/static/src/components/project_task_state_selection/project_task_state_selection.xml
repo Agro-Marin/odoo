@@ -52,7 +52,7 @@
         <!-- Normal dropdown mode toggle button (displayed on the card/record by default) -->
         <xpath expr="//Dropdown/button/div" position="replace">
             <div t-if="isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall" class="d-flex align-items-center" t-att-class="{'o_task_state_list_view': isView(['list'])}" t-att-title="label">
-                <i t-if="currentValue == 'blocked'" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }}" style="color: #4A4F59;"/>
+                <i t-if="currentValue == 'blocked'" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }}"/>
                 <i t-else="" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }} {{ ['done', 'canceled'].includes(currentValue) and isView(['activity', 'kanban']) ? 'opacity-50' : '' }}"/>
             </div>
             <div t-else="" class="d-flex align-items-center">
@@ -72,7 +72,6 @@
         </xpath>
         <!-- Tooltip for the dropdown toggler -->
         <xpath expr="//Dropdown" position="attributes">
-            <!-- <attribute name="class">toggle_dropdown</attribute> -->
             <attribute name="position">`${ getDropdownPosition() }`</attribute>
             <attribute name="menuClass" separator=" + " add="' project_task_state_selection_menu'"></attribute>
         </xpath>

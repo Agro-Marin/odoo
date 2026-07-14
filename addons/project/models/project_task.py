@@ -3670,7 +3670,7 @@ class ProjectTask(models.Model):
             },
         }
 
-    def action_undo_convert_to_template(self) -> None:
+    def action_undo_convert_to_template(self) -> dict:
         self.ensure_one()
         self.is_template = False
         self.message_post(body=_("Template converted back to regular task"))
@@ -3876,7 +3876,7 @@ class ProjectTask(models.Model):
     # Project Sharing
     # ---------------------------------------------------
 
-    def project_sharing_toggle_is_follower(self) -> None:
+    def project_sharing_toggle_is_follower(self) -> bool:
         self.ensure_one()
         self.check_access("write")
         is_follower = self.message_is_follower

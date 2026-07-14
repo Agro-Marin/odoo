@@ -16,10 +16,6 @@ export class SubtaskKanbanList extends Component {
     };
     static props = {
         ...standardWidgetProps,
-        isReadonly: {
-            type: Boolean,
-            optional: true,
-        },
     };
     static template = "project.SubtaskKanbanList";
 
@@ -37,7 +33,7 @@ export class SubtaskKanbanList extends Component {
         return this.props.record.data.child_ids;
     }
 
-    get closedList() {
+    get openSubtasks() {
         // Recompute on every render: a subtask toggling to done/canceled does
         // not change the record count, so a count-keyed cache would keep the
         // now-closed subtask in the open list. `records`/`data.state` are
@@ -73,7 +69,7 @@ export class SubtaskKanbanList extends Component {
         });
     }
 
-    async onSubTaskCreated(ev) {
+    openSubtaskCreate() {
         this.subtaskCreate.open = true;
     }
 
@@ -82,25 +78,40 @@ export class SubtaskKanbanList extends Component {
     }
 
     async _onSubtaskCreateNameChanged(name) {
+        if (this._createInFlight) {
+            // A second change event (e.g. blur racing the SAVE button) must
+            // not create the subtask twice.
+            return;
+        }
         if (name.trim() === "") {
             this.notification.add(_t("Invalid Display Name"), {
                 type: "danger",
             });
         } else {
-            const sequences = this.list.records.map(r => r.data.sequence);
-            const nextSequence = (sequences.length ? Math.max(...sequences) : 0) + 1;
-
-            await this.orm.create("project.task", [{
-                display_name: name,
-                parent_id: this.props.record.resId,
-                project_id: this.props.record.data.project_id.id,
-                user_ids: this.props.record.data.user_ids.resIds,
-                sequence: nextSequence,
-            }]);
-            this.subtaskCreate.open = false;
-            this.subtaskCreate.name = "";
-            await this.props.record.load();
+            this._createInFlight = true;
+            try {
+                await this._createSubtask(name);
+            } finally {
+                this._createInFlight = false;
+            }
         }
+    }
+
+    async _createSubtask(name) {
+        const sequences = this.list.records.map(r => r.data.sequence);
+        const nextSequence = (sequences.length ? Math.max(...sequences) : 0) + 1;
+
+        await this.orm.create("project.task", [{
+            display_name: name,
+            parent_id: this.props.record.resId,
+            // Private parent task: project_id is false, not a record.
+            project_id: this.props.record.data.project_id?.id ?? false,
+            user_ids: this.props.record.data.user_ids.resIds,
+            sequence: nextSequence,
+        }]);
+        this.subtaskCreate.open = false;
+        this.subtaskCreate.name = "";
+        await this.props.record.load();
     }
 }
 
