@@ -151,8 +151,12 @@ class WebClient(http.Controller):
 
         use_esm = bundle_name in esm_registry().dynamic_bundle_names
         log_event(
-            _http_log, logging.DEBUG, "bundle_request",
-            bundle=bundle_name, debug=bool(debug), is_esm=use_esm,
+            _http_log,
+            logging.DEBUG,
+            "bundle_request",
+            bundle=bundle_name,
+            debug=bool(debug),
+            is_esm=use_esm,
             params=sorted(bundle_params),
         )
 
@@ -165,6 +169,14 @@ class WebClient(http.Controller):
                 "src": attrs.get("src") or attrs.get("data-src") or attrs.get("href"),
             }
             for tag, attrs in files
+            # Only stylesheet <link>s are loadable resources for the lazy-load
+            # client. ``<link rel="modulepreload">`` hints (emitted per native
+            # module when esbuild declines, e.g. on a read-only test cursor)
+            # must not be forwarded: the client would inject them as
+            # stylesheets, and the failing .js-as-CSS load rejects the whole
+            # loadBundle() call. The ESM payload below already carries those
+            # modules as import() specifiers.
+            if tag != "link" or attrs.get("rel") == "stylesheet"
         ]
 
         if use_esm:
@@ -193,21 +205,25 @@ class WebClient(http.Controller):
             # bundle response with any ``[asset.js] loadESMBundle``
             # logs on the browser side (which now emit fresh/dup/total
             # counts) without cross-referencing the full JSON payload.
-            _n_data_uri = sum(
-                1 for v in import_map.values() if v.startswith("data:")
-            )
+            _n_data_uri = sum(1 for v in import_map.values() if v.startswith("data:"))
             _n_real_url = len(import_map) - _n_data_uri
             log_event(
-                _http_log, logging.INFO, "served_esm",
-                bundle=bundle_name, specs=len(specifiers),
+                _http_log,
+                logging.INFO,
+                "served_esm",
+                bundle=bundle_name,
+                specs=len(specifiers),
                 imports=len(import_map),
-                url=_n_real_url, data=_n_data_uri,
+                url=_n_real_url,
+                data=_n_data_uri,
                 files=len(data["files"]),
                 tpl=bool(tpl_url),
             )
         else:
             log_event(
-                _http_log, logging.INFO, "served_legacy",
+                _http_log,
+                logging.INFO,
+                "served_legacy",
                 bundle=bundle_name,
                 files=len(data) if isinstance(data, list) else 0,
             )
