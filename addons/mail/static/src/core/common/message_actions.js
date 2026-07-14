@@ -71,7 +71,7 @@ registerMessageAction("reply-to", {
         const thread = toRaw(thr);
         return (
             message.canReplyTo(thread) ||
-            (!["discuss.channel", "mail.box"].includes(thread?.model) &&
+            (!(thread?.isChannelKind || thread?.model === "mail.box") &&
                 message.isNote &&
                 !message.isSelfAuthored)
         );
@@ -86,14 +86,17 @@ registerMessageAction("reply-to", {
             composer.replyToMessage = undefined;
             return;
         }
-        if (["discuss.channel", "mail.box"].includes(thread.model)) {
+        if (thread.isChannelKind || thread.model === "mail.box") {
             composer.replyToMessage = message;
         }
-        if (thread.model === "discuss.channel") {
+        if (thread.isChannelKind) {
             return;
         }
         if (
             !message.isSelfAuthored &&
+            // "discuss.channel" literal: `message.model` is the server-sent
+            // res_model of the message, compared independently of any loaded
+            // Thread record.
             message.model !== "discuss.channel" &&
             message.author
         ) {

@@ -86,10 +86,7 @@ export class ChatWindow extends Component {
     }
 
     get composerType() {
-        if (this.thread.model !== "discuss.channel") {
-            return "note";
-        }
-        return undefined;
+        return this.thread.chatWindowComposerType;
     }
 
     get hasActionsMenu() {
@@ -106,7 +103,7 @@ export class ChatWindow extends Component {
     }
 
     get showImStatus() {
-        return this.thread?.channel_type === "chat" && this.thread.correspondent;
+        return Boolean(this.thread?.imStatusMember);
     }
 
     get attClass() {

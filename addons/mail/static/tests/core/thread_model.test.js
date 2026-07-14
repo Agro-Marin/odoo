@@ -167,3 +167,54 @@ test("markAllMessagesAsRead rollback is skipped when a newer absolute snapshot l
     expect(store.inbox.counter).toBe(5);
     expect(thread.message_needaction_counter).toBe(0);
 });
+
+test("plain document threads answer the channel-behavior hooks with neutral defaults", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John" });
+    await start();
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ id: partnerId, model: "res.partner" });
+    expect(thread.isChannelKind).toBe(false);
+    expect(thread.isChatChannel).toBe(false);
+    expect(thread.isDirectChat).toBe(false);
+    expect(thread.canLeave).toBe(false);
+    expect(thread.canUnpin).toBe(false);
+    expect(thread.allowCalls).toBe(false);
+    expect(thread.allowDescription).toBe(false);
+    expect(thread.hasAttachmentPanel).toBe(false);
+    expect(thread.supportsCustomChannelName).toBe(false);
+    expect(thread.invitationLink).toBe(undefined);
+    expect(thread.hasOptimisticPost).toBe(false);
+    expect(thread.hasStartOfConversationBanner).toBe(false);
+    expect(thread.chatWindowComposerType).toBe("note");
+    expect(thread.computeDisplayToSelf()).toBe(false);
+    expect(thread.computeCorrespondent()).toBe(undefined);
+    expect(thread.membersThatCanSeen).toHaveLength(0);
+    expect(thread.showCorrespondentCountry).toBe(false);
+    expect(thread.imStatusMember).toBe(undefined);
+    expect(thread.isChatWith(store.self)).toBe(false);
+    expect(thread.newMessageSeparatorId).toBe(undefined);
+    expect(thread.openChannel()).toBe(false);
+    expect(thread.fullNameWithParent).toBe(thread.displayName);
+    expect(thread._getActualModelName()).toBe("mail.thread");
+    // no rename endpoint for document threads: the request is ignored
+    await thread.rename("new name");
+    expect(thread.displayName).toBe(thread.display_name);
+});
+
+test("channel threads answer the channel-behavior hooks channel-wise", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    await start();
+    const store = getService("mail.store");
+    const thread = await store.Thread.getOrFetch({
+        id: channelId,
+        model: "discuss.channel",
+    });
+    expect(thread.isChannelKind).toBe(true);
+    expect(thread.hasOptimisticPost).toBe(true);
+    expect(thread.hasAttachmentPanel).toBe(true);
+    expect(thread.hasStartOfConversationBanner).toBe(true);
+    expect(thread.chatWindowComposerType).toBe(undefined);
+    expect(thread._getActualModelName()).toBe("discuss.channel");
+});

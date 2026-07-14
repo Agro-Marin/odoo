@@ -30,6 +30,8 @@ export class OutOfFocusService {
     }
 
     async notify(message, thread) {
+        // "discuss.channel" literal: push-payload model names handled by the
+        // service worker, not a Thread-record conditional.
         const modelsHandleByPush = ["mail.thread", "discuss.channel"];
         if (
             modelsHandleByPush.includes(message.thread?.model) &&
@@ -44,21 +46,16 @@ export class OutOfFocusService {
             notificationTitle = _t("New message");
         } else {
             icon = author.avatarUrl;
-            if (message.thread?.channel_type === "channel") {
-                notificationTitle = _t("%(author name)s from %(channel name)s", {
-                    "author name": message.authorName,
-                    "channel name": message.thread.displayName,
-                });
-            } else {
-                notificationTitle = message.authorName;
-            }
+            notificationTitle =
+                message.thread?.outOfFocusNotificationTitle(message) ??
+                message.authorName;
         }
         const notificationContent = htmlToTextContentInline(
             message.previewText,
         ).substring(0, PREVIEW_MSG_MAX_SIZE);
         await this.sendNotification({
             message: notificationContent,
-            sound: message.thread?.model === "discuss.channel",
+            sound: Boolean(message.thread?.isChannelKind),
             title: notificationTitle,
             type: "info",
             icon,

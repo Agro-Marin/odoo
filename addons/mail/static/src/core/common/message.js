@@ -453,7 +453,7 @@ export class Message extends Component {
         if (this.message.isSelfAuthored) {
             return false;
         }
-        if (this.props.thread.channel_type === "chat") {
+        if (this.props.thread.isDirectChat) {
             return false;
         }
         return true;

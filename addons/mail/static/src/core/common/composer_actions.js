@@ -72,7 +72,7 @@ registerComposerAction("send-message", {
     name: ({ composer, owner }) =>
         composer.message
             ? _t("Save editing")
-            : composer.targetThread?.model === "discuss.channel"
+            : composer.targetThread?.isChannelKind
               ? _t("Send")
               : owner.props.type === "note"
                 ? _t("Log")
@@ -130,7 +130,7 @@ registerComposerAction("open-full-composer", {
         !composer.message &&
         owner.props.showFullComposer &&
         composer.targetThread &&
-        composer.targetThread.model !== "discuss.channel" &&
+        !composer.targetThread.isChannelKind &&
         !owner.env.inFrontendPortalChatter,
     hasBtnBg: ({ composer, owner }) =>
         (composer.restoredFromFullComposer && !owner.fullComposer.isOpen) || undefined,

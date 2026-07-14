@@ -75,7 +75,7 @@ export function restoreComposerDraft(composer) {
         return;
     }
     if (!isHtmlEmpty(config.composerHtml)) {
-        if (composer.thread && composer.thread?.model !== "discuss.channel") {
+        if (composer.thread && !composer.thread.isChannelKind) {
             composer.restoredFromFullComposer = config.fromFullComposer;
         }
         composer.emailAddSignature = config.emailAddSignature;

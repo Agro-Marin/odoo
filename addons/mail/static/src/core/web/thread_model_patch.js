@@ -56,12 +56,13 @@ const threadPatch = {
         );
         this.store.insert(data);
     },
-    /** @override */
-    open(options) {
-        const res = super.open(...arguments);
-        if (res) {
-            return res;
-        }
+    /**
+     * @override
+     * Web-client seam of `open()` (@see Thread.open): mailboxes open in the
+     * Discuss app, document threads open their record's form view. The chat
+     * seam (discuss layer) has already declined when this runs.
+     */
+    openWebClientUI(options) {
         const actionService = this.store.env.services.action;
         if (this.model === "mail.box") {
             if (this.store.discuss.isActive) {

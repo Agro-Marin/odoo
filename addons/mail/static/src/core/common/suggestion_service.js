@@ -87,12 +87,12 @@ export class SuggestionService {
      */
     async fetchPartnersRoles(term, thread, { abortSignal } = {}) {
         const kwargs = { search: term };
-        if (thread?.model === "discuss.channel") {
+        if (thread?.isChannelKind) {
             kwargs.channel_id = thread.id;
         }
         const data = await this.makeOrmCall(
             "res.partner",
-            thread?.model === "discuss.channel"
+            thread?.isChannelKind
                 ? "get_mention_suggestions_from_channel"
                 : "get_mention_suggestions",
             [],
@@ -106,6 +106,8 @@ export class SuggestionService {
      * @param {string} term
      */
     async fetchThreads(term, { abortSignal } = {}) {
+        // "discuss.channel" literal: ORM model name of the "#" channel
+        // mention endpoint (RPC payload, not a Thread-record conditional).
         const data = await this.makeOrmCall(
             "discuss.channel",
             "get_mention_suggestions",

@@ -2,6 +2,7 @@
 import { Thread } from "@mail/core/common/thread_model";
 import { fields } from "@mail/model/misc";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";
 /** @type {import("models").Thread} */
@@ -49,6 +50,45 @@ const threadPatch = {
     },
     get canLeave() {
         return !this.parent_channel_id && super.canLeave;
+    },
+    /** @override */
+    get canUnpin() {
+        return Boolean(this.parent_channel_id) || super.canUnpin;
+    },
+    /** @override */
+    get fullNameWithParent() {
+        if (this.parent_channel_id) {
+            return `${this.parent_channel_id.displayName} > ${this.displayName}`;
+        }
+        return super.fullNameWithParent;
+    },
+    /** @override */
+    get composerPlaceholder() {
+        if (this.channel_type === "channel" && this.parent_channel_id) {
+            return _t('Message "%(subChannelName)s"', {
+                subChannelName: this.displayName,
+            });
+        }
+        return super.composerPlaceholder;
+    },
+    /** @override */
+    get conversationStartTitle() {
+        if (this.parent_channel_id) {
+            return this.name;
+        }
+        return super.conversationStartTitle;
+    },
+    /** @override */
+    get conversationStartSubtitle() {
+        if (this.parent_channel_id) {
+            const authorName = Object.values(this.store["res.partner"].records).find(
+                (partner) => partner.main_user_id?.eq(this.create_uid),
+            )?.name;
+            if (authorName) {
+                return _t("Started by %(authorName)s", { authorName });
+            }
+        }
+        return super.conversationStartSubtitle;
     },
     _computeDisplayInSidebar() {
         return (

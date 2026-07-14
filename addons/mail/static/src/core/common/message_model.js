@@ -316,7 +316,7 @@ export class Message extends Record {
     }
 
     get isHighlightedFromMention() {
-        return this.isSelfMentioned && this.thread?.model === "discuss.channel";
+        return this.isSelfMentioned && this.thread?.isChannelKind;
     }
 
     isSelfAuthored = fields.Attr(false, {
@@ -333,8 +333,7 @@ export class Message extends Record {
 
     get isNotification() {
         return (
-            this.message_type === "notification" &&
-            this.thread?.model === "discuss.channel"
+            this.message_type === "notification" && Boolean(this.thread?.isChannelKind)
         );
     }
 
@@ -374,7 +373,7 @@ export class Message extends Record {
             !this.isBodyEmpty &&
             !this.hasMailNotificationSummary &&
             this.store.hasMessageTranslationFeature &&
-            !["discuss.channel", "mail.box"].includes(thread?.model)
+            !(thread?.isChannelKind || thread?.model === "mail.box")
         );
     }
 
@@ -561,7 +560,7 @@ export class Message extends Record {
     /** @param {import("models").Thread} thread the thread where the message is shown */
     canReplyTo(thread) {
         return (
-            ["discuss.channel", "mail.box"].includes(thread?.model) &&
+            (thread?.isChannelKind || thread?.model === "mail.box") &&
             this.message_type !== "user_notification"
         );
     }
@@ -650,6 +649,9 @@ export class Message extends Record {
     /** @param {import("models").Thread} thread the thread where the message is being viewed when starting edition */
     async enterEditMode(thread) {
         const doc = createDocumentFragmentFromContent(this.body);
+        // "discuss.channel" literals: `data-oe-model` is part of the mention
+        // markup protocol embedded in message bodies (server-rendered HTML),
+        // not a Thread-record conditional.
         const validChannels = (
             await Promise.all(
                 Array.from(

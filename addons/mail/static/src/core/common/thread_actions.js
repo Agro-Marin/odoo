@@ -49,7 +49,7 @@ registerThreadAction("rename-thread", {
     condition: ({ owner, thread }) =>
         thread &&
         owner.props.chatWindow?.isOpen &&
-        (thread.is_editable || thread.channel_type === "chat") &&
+        (thread.is_editable || thread.isDirectChat) &&
         !owner.isDiscussSidebarChannelActions,
     icon: "fa-solid fa-pencil",
     name: _t("Rename Thread"),
@@ -69,7 +69,7 @@ registerThreadAction("close", {
 registerThreadAction("search-messages", {
     actionPanelComponent: SearchMessagesPanel,
     condition: ({ owner, thread }) =>
-        ["discuss.channel", "mail.box"].includes(thread?.model) &&
+        (thread?.isChannelKind || thread?.model === "mail.box") &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
         !owner.isDiscussSidebarChannelActions,
     hotkey: "f",
