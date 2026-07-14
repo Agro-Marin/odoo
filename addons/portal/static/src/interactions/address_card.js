@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/l10n/translation';
+import { rpc, RPCError } from '@web/core/network/rpc';
 
 export class AddressCard extends Interaction {
     static selector = '.o_portal_addresses';
     dynamicContent = {
-        '.o_remove_address': { 't-on-click.prevent': this.removeAddress },
+        '.o_remove_address': { 't-on-click.prevent': this.locked(this.removeAddress, true) },
         '#use_delivery_as_billing': { 't-on-change': this.toggleBillingAddressRow },
     };
 
@@ -21,9 +22,23 @@ export class AddressCard extends Interaction {
      * @param {Event} ev
      */
     async removeAddress(ev) {
-        await this.waitFor(rpc('/my/address/archive', {
-            partner_id: ev.currentTarget.dataset.partnerId,
-        }));
+        try {
+            await this.waitFor(rpc('/my/address/archive', {
+                partner_id: ev.currentTarget.dataset.partnerId,
+            }));
+        } catch (error) {
+            // The route raises UserError (archiving the main address) or
+            // Forbidden (not the customer's address); surface it instead of
+            // failing silently, and don't reload on failure.
+            if (error instanceof RPCError) {
+                this.services.notification.add(
+                    error.data?.message || _t("The address could not be removed."),
+                    { type: 'danger' }
+                );
+                return;
+            }
+            throw error;
+        }
         location.reload();
     }
 

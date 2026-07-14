@@ -84,6 +84,23 @@ class TestPortalAddresses(BaseCommon, HttpCase):
     def _submit_address_values(self, values):
         return self._make_http_post_request(self.submit_url, values).json()
 
+    def test_country_info_includes_state_required(self):
+        """``/my/address/country_info`` must expose ``state_required``.
+
+        ``address.js`` reads ``data.state_required`` to decide whether to show
+        (and require) the state input; a state-mandatory country with no defined
+        states would otherwise get a hidden-but-required select the user cannot
+        fill, making the form unsubmittable.
+        """
+        self.authenticate(self.portal_user.login, self.portal_user.login)
+        country = self.quick_ref("base.us")
+        result = self.make_jsonrpc_request(
+            f"/my/address/country_info/{country.id}",
+            params={"address_type": "billing"},
+        )
+        self.assertIn("state_required", result)
+        self.assertEqual(result["state_required"], country.state_required)
+
     def test_required_values(self):
         """Check that empty values for required fields are correctly caught."""
         self.authenticate(self.portal_user.login, self.portal_user.login)

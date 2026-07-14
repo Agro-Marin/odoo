@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { addLoadingEffect } from '@web/core/utils/dom/ui';
 import { rpc } from "@web/core/network/rpc";
@@ -44,19 +44,24 @@ export class SignatureForm extends Component {
         }
 
         // Correctly set up the signature area if it is inside a modal
+        this.onModalShown = () => {
+            this.signature.resetSignature();
+            this.toggleSignatureFormVisibility();
+        };
         onMounted(() => {
-            const modal_el = this.rootRef.el.closest('.modal');
-            if (modal_el !== null) {
-                modal_el.addEventListener('shown.bs.modal', () => {
-                    this.signature.resetSignature();
-                    this.toggleSignatureFormVisibility();
-                });
-            }
+            this.modalEl = this.rootRef.el.closest('.modal');
+            this.modalEl?.addEventListener('shown.bs.modal', this.onModalShown);
+        });
+        // The modal can outlive this component (it lives outside the mount
+        // point); without removing the listener, a later modal open would run
+        // toggleSignatureFormVisibility() against a torn-down rootRef.
+        onWillUnmount(() => {
+            this.modalEl?.removeEventListener('shown.bs.modal', this.onModalShown);
         });
     }
 
     toggleSignatureFormVisibility() {
-        this.rootRef.el.classList.toggle('d-none', document.querySelector('.editor_enable'));
+        this.rootRef.el?.classList.toggle('d-none', document.querySelector('.editor_enable'));
     }
 
     get sendLabel() {

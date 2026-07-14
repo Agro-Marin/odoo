@@ -381,7 +381,7 @@
             <button
                 t-if="searchbar_sortings or searchbar_filters or searchbar_groupby or searchbar_inputs"
                 class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#o_portal_navbar_content" aria-controls="navbarSupportedContent"
+                data-bs-target="#o_portal_navbar_content" aria-controls="o_portal_navbar_content"
                 aria-expanded="false" aria-label="Toggle filters">
                 <span class="fa-solid fa-bars" />
             </button>
@@ -415,7 +415,7 @@
                             <button id="portal_searchbar_filters" data-bs-toggle="dropdown"
                                 class="btn btn-light dropdown-toggle">
                                 <t
-                                    t-esc="searchbar_filters.get(filterby,searchbar_filters.get('all')).get('label', 'All')" />
+                                    t-esc="(searchbar_filters.get(filterby) or searchbar_filters.get('all') or {}).get('label', 'All')" />
                             </button>
                             <div class="dropdown-menu dropdown-menu-end"
                                 aria-labelledby="portal_searchbar_filters">
@@ -454,7 +454,7 @@
                     class="o_portal_search_panel col-md-5 col-xl-4 ms-lg-2">
                     <div class="input-group w-100">
                         <button type="button" class="btn btn-light border-end dropdown-toggle"
-                            data-bs-toggle="dropdown" />
+                            data-bs-toggle="dropdown" aria-label="Search filters" title="Search filters" />
                         <div class="dropdown-menu dropdown-menu-end" role="menu">
                             <t t-foreach='searchbar_inputs' t-as='input'>
                                 <a t-att-href="'#' + input_value['input']"
@@ -466,8 +466,8 @@
                         <input type="search" class="form-control border-0 bg-light"
                             placeholder="Search"
                             t-att-value='search' name="search" aria-label="Search" />
-                        <button class="btn btn-light" type="submit">
-                            <span class="oi oi-search" />
+                        <button class="btn btn-light" type="submit" aria-label="Search">
+                            <span class="oi oi-search" aria-hidden="true" />
                         </button>
                     </div>
                 </form>
@@ -516,9 +516,6 @@
             <div class="o_portal_security_body w-md-75 w-lg-50 pb-5">
                 <t t-set="additional_title">Security</t>
                 <t t-set="no_breadcrumbs" t-value="1" />
-                <div class="alert alert-danger" role="alert" t-if="get_error(errors)">
-                    <t t-esc="errors" />
-                </div>
                 <div class="d-flex gap-2 my-3">
                     <a href="/my/" title="Go Back" class="btn btn-light px-2">
                         <i class="oi oi-chevron-left" />
@@ -527,7 +524,6 @@
                 </div>
                 <section name="portal_change_password">
                     <h4>Change Password</h4>
-                    <t t-set="path">password</t>
                     <div class="alert alert-success" role="alert"
                         t-if="success and success.get('password')">
                         Password Updated!
@@ -548,8 +544,8 @@
                                     autocomplete="current-password" required="required" />
                                 <button
                                     class="btn border border-start-0 o_show_password rounded-end"
-                                    type="button">
-                                    <i class="fa-regular fa-eye" />
+                                    type="button" aria-label="Show password" title="Show password">
+                                    <i class="fa-regular fa-eye" aria-hidden="true" />
                                 </button>
                                 <div class="invalid-feedback">
                                     <t t-out="get_error(errors, 'password.old')" />
@@ -564,8 +560,9 @@
                                     id="new" name="new1"
                                     autocomplete="new-password" required="required" />
                                 <button type="button"
-                                    class="btn border border-start-0 o_show_password rounded-end">
-                                    <i class="fa-regular fa-eye" />
+                                    class="btn border border-start-0 o_show_password rounded-end"
+                                    aria-label="Show password" title="Show password">
+                                    <i class="fa-regular fa-eye" aria-hidden="true" />
                                 </button>
                                 <div class="invalid-feedback">
                                     <t t-out="get_error(errors, 'password.new1')" />
@@ -580,8 +577,9 @@
                                     id="new2" name="new2"
                                     autocomplete="new-password" required="required" />
                                 <button type="button"
-                                    class="btn border border-start-0 o_show_password rounded-end">
-                                    <i class="fa-regular fa-eye" />
+                                    class="btn border border-start-0 o_show_password rounded-end"
+                                    aria-label="Show password" title="Show password">
+                                    <i class="fa-regular fa-eye" aria-hidden="true" />
                                 </button>
                                 <div class="invalid-feedback">
                                     <t t-out="get_error(errors, 'password.new2')" />
@@ -593,7 +591,6 @@
                 </section>
                 <section name="portal_revoke_all_devices_popup">
                     <h4>Revoke All Sessions</h4>
-                    <t t-set="path" />
                     <button type="button" class="btn btn-light"
                         id="portal_revoke_all_sessions_popup">
                         Log out from all devices
@@ -646,7 +643,7 @@
                         </table>
                     </div>
                     <div>
-                        <button type="submit" class="btn btn-light o_portal_new_api_key">New API Key</button>
+                        <button type="button" class="btn btn-light o_portal_new_api_key">New API Key</button>
                     </div>
                 </section>
                 <section name="portal_deactivate_account" groups="base.group_portal">
@@ -657,11 +654,12 @@
                         Delete Account
                     </button>
                     <div t-attf-class="modal #{'show d-block' if open_deactivate_modal else ''}"
-                        id="portal_deactivate_account_modal" tabindex="-1" role="dialog">
+                        id="portal_deactivate_account_modal" tabindex="-1" role="dialog"
+                        aria-modal="true" aria-labelledby="portal_deactivate_account_modal_title">
                         <div class="modal-dialog" role="document">
                             <div class="modal-content">
                                 <div class="modal-header bg-danger">
-                                    <h5 class="modal-title">Are you sure you want to do this?</h5>
+                                    <h5 class="modal-title" id="portal_deactivate_account_modal_title">Are you sure you want to do this?</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <form action="/my/deactivate_account" method="post"
@@ -669,6 +667,7 @@
                                     id="portal_deactivate_account_form">
                                     <div>
                                         <div class="alert alert-danger"
+                                            t-if="get_error(errors, 'deactivate.other')"
                                             t-esc="get_error(errors, 'deactivate.other')" />
                                         <p class="text-muted"> Disable your account, preventing any
                                             further login.<br />
@@ -681,7 +680,7 @@
                                         <p>1. Enter your password to confirm you own this account</p>
                                         <input name="password" type="password" required="1"
                                             t-attf-class="form-control #{'is-invalid' if deactivate_error == 'password' else ''}"
-                                            placeholder="Password" />
+                                            placeholder="Password" aria-label="Password" />
                                         <div t-if="deactivate_error == 'password'"
                                             class="invalid-feedback">
                                             Wrong password.
@@ -691,6 +690,7 @@
                                             down your login (<t
                                                 t-esc="env.user.login" />). </p>
                                         <input name="validation" type="text" required="1"
+                                            aria-label="Type your login to confirm"
                                             t-attf-class="form-control #{'is-invalid' if deactivate_error == 'validation' else ''}" />
                                         <div t-if="deactivate_error == 'validation'"
                                             class="invalid-feedback"> You should enter "<t

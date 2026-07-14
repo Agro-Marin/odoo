@@ -156,7 +156,7 @@ registry.category("public.interactions").add("portal.portal_security", PortalSec
  * @returns {Promise} result of the original call
  */
 export async function handleCheckIdentity(wrapped, ormService, dialogService) {
-    return wrapped.then((r) => {
+    return wrapped.then(async (r) => {
         if (
             !(
                 r &&
@@ -168,8 +168,11 @@ export async function handleCheckIdentity(wrapped, ormService, dialogService) {
             return r;
         }
         const checkId = r.res_id;
+        // Await the write so auth_method is set before the dialog prompts (and
+        // a failure surfaces through the caller's await chain instead of as an
+        // unhandled rejection from a fire-and-forget call).
+        await ormService.write("res.users.identitycheck", [checkId], {auth_method: 'password'});
         return new Promise((resolve) => {
-            ormService.write("res.users.identitycheck", [checkId], {auth_method: 'password'});
             dialogService.add(InputConfirmationDialog, {
                 title: _t("Security Control"),
                 body: renderToMarkup("portal.identitycheck"),

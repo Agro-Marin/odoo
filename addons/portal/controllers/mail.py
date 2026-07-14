@@ -59,7 +59,12 @@ class MailController(mail.MailController):
                         url = record_action["url"]
                         if pid and hash_param:
                             parsed = urlsplit(url)
-                            url_params = parse_qsl(parsed.query) + [
+                            # keep_blank_values=True: don't drop empty-valued
+                            # params already on the access-action URL (werkzeug
+                            # preserved them; stdlib parse_qsl drops them).
+                            url_params = parse_qsl(
+                                parsed.query, keep_blank_values=True
+                            ) + [
                                 ("pid", pid),
                                 ("hash", hash_param),
                             ]

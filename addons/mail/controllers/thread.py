@@ -11,6 +11,21 @@ from odoo.tools.misc import verify_limited_field_access_token
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
+def _to_record_id(value):
+    """Coerce a client-supplied record id to ``int``, or raise ``NotFound``.
+
+    These chatter routes are ``auth="public"`` with fully client-controlled
+    ids. A non-numeric id used to reach ``int()`` / ``browse()`` and surface an
+    uncaught ``ValueError`` as an "Odoo Server Error" (leaking a traceback and
+    model internals to anonymous callers). A 404 is the correct answer: the id
+    namespace simply does not contain that value.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise NotFound from None
+
+
 class ThreadController(http.Controller):
     # access helpers
     # ------------------------------------------------------------
@@ -19,7 +34,12 @@ class ThreadController(http.Controller):
     def _get_message_with_access(cls, message_id, mode="read", **kwargs):
         """Simplified getter that filters access params only, making model methods
         using strong parameters."""
-        message_su = request.env["mail.message"].sudo().browse(message_id).exists()
+        message_su = (
+            request.env["mail.message"]
+            .sudo()
+            .browse(_to_record_id(message_id))
+            .exists()
+        )
         if not message_su:
             return message_su
         return request.env["mail.message"]._get_with_access(
@@ -41,7 +61,7 @@ class ThreadController(http.Controller):
         access on mail.message, aka rights to post on the document. Default
         behavior is to rely on _mail_post_access but it might be customized.
         See '_mail_get_operation_for_mail_message_operation'."""
-        thread_su = request.env[thread_model].sudo().browse(int(thread_id))
+        thread_su = request.env[thread_model].sudo().browse(_to_record_id(thread_id))
         access_mode = thread_su._mail_get_operation_for_mail_message_operation(
             "create"
         )[thread_su]
@@ -58,7 +78,7 @@ class ThreadController(http.Controller):
         """Simplified getter that filters access params only, making model methods
         using strong parameters."""
         return request.env[thread_model]._get_thread_with_access(
-            int(thread_id),
+            _to_record_id(thread_id),
             mode=mode,
             **{
                 key: value
