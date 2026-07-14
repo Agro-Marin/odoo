@@ -275,8 +275,10 @@ class TestWebPerfRegression(TransactionCase):
         """web_name_search: display_name-only fast path."""
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
-        with self.assertQueryCount(3):
-            # 1 name_search + 1 browse/read + access rules
+        with self.assertQueryCount(4):
+            # 1 name_search + 1 exists() guard (concurrent-unlink hardening in
+            # web_name_search's display_name fast path) + 1 browse/read
+            # + access rules
             Partners.web_name_search(
                 "PerfPartner",
                 specification={"display_name": {}},
