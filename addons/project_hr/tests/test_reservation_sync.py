@@ -213,6 +213,32 @@ class TestReservationSync(TransactionCase):
         self.assertEqual(reservation.date_start, new_start)
         self.assertEqual(reservation.date_end, new_end)
 
+    def test_renaming_task_updates_reservation_name(self):
+        """The reservation label mirrors ``display_name`` — renames propagate.
+
+        ``name`` is a sync trigger on project.task; without it, reservations
+        kept the task's old title forever.
+        """
+        task = self.env["project.task"].create(
+            {
+                "name": "Old title",
+                "project_id": self.project.id,
+                "employee_ids": [Command.link(self.employee.id)],
+                **self.scheduled_vals,
+            }
+        )
+        reservation = task.reservation_ids
+        self.assertEqual(len(reservation), 1)
+
+        task.name = "New title"
+
+        self.assertEqual(
+            reservation.name,
+            task.display_name,
+            "renaming the task must relabel its reservation",
+        )
+        self.assertIn("New title", reservation.name)
+
     def test_clearing_dates_removes_reservations(self):
         task = self.env["project.task"].create(
             {
@@ -426,26 +452,34 @@ class TestReservationSync(TransactionCase):
         """``planned_hours`` auto-computes from the task's date range using
         the company calendar (Mon-Fri 8h/day).
         """
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Planned default",
-                "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Planned default",
+                    "project_id": self.project.id,
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(task.planned_hours, 8.0)
 
     def test_planned_hours_user_override_persists(self):
         """User-set ``planned_hours`` overrides the auto-compute."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Planned override",
-                "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-                "planned_hours": 20.0,
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Planned override",
+                    "project_id": self.project.id,
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                    "planned_hours": 20.0,
+                }
+            )
         )
         self.assertEqual(task.planned_hours, 20.0)
 
@@ -490,16 +524,20 @@ class TestReservationSync(TransactionCase):
         is the SUM (PMI Work semantic: person-hours across resources).
         """
         _, second_employee = self._create_second_assignee()
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Multi user",
-                "project_id": self.project.id,
-                "employee_ids": [
-                    Command.set([self.employee.id, second_employee.id])
-                ],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Multi user",
+                    "project_id": self.project.id,
+                    "employee_ids": [
+                        Command.set([self.employee.id, second_employee.id])
+                    ],
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(len(task.reservation_ids), 2)
         # Each reservation: Mon 8-17 = 8h. Sum = 16h.
@@ -511,13 +549,17 @@ class TestReservationSync(TransactionCase):
         Honest signal: no resource is committed.  ``planned_hours``
         keeps the estimate so dashboards retain planning information.
         """
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "No assignee",
-                "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "No assignee",
+                    "project_id": self.project.id,
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertFalse(task.employee_ids)
         self.assertEqual(task.allocated_hours, 0.0)
@@ -565,13 +607,17 @@ class TestReservationSync(TransactionCase):
 
     def test_planned_resources_default_one(self):
         """Default ``planned_resources`` = 1; planned_hours = scheduled_hours."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Default resources",
-                "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Default resources",
+                    "project_id": self.project.id,
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(task.planned_resources, 1)
         self.assertEqual(task.scheduled_hours, 8.0)
@@ -579,14 +625,18 @@ class TestReservationSync(TransactionCase):
 
     def test_planned_resources_doubles_planned_hours(self):
         """Setting ``planned_resources=2`` doubles planned_hours."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Two resources",
-                "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-                "planned_resources": 2,
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Two resources",
+                    "project_id": self.project.id,
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                    "planned_resources": 2,
+                }
+            )
         )
         self.assertEqual(task.scheduled_hours, 8.0)
         self.assertEqual(task.planned_hours, 16.0)
@@ -643,9 +693,9 @@ class TestReservationSync(TransactionCase):
         after_recompute = self.env["mail.message"].search_count(
             [("res_id", "=", task.id), ("model", "=", "project.task")]
         )
-        recompute_messages = after_recompute - baseline
-        # planned_resources is tracked → 1 message expected, but it must
-        # not also include a planned_hours override entry.
+        # planned_resources is tracked → at most one tracking message, and it
+        # must not also include a planned_hours override entry.
+        self.assertLessEqual(after_recompute - baseline, 1)
         override_msgs = self.env["mail.message"].search(
             [
                 ("res_id", "=", task.id),
@@ -671,20 +721,26 @@ class TestReservationSync(TransactionCase):
 
     def test_allocation_state_unestimated(self):
         """No dates, no resources → unestimated."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {"name": "No dates", "project_id": self.project.id}
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create({"name": "No dates", "project_id": self.project.id})
         )
         self.assertEqual(task.allocation_state, "unestimated")
 
     def test_allocation_state_unallocated(self):
         """Dates but no employees → unallocated (intent without commit)."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Not assigned",
-                "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Not assigned",
+                    "project_id": self.project.id,
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(task.planned_hours, 8.0)
         self.assertEqual(task.allocated_hours, 0.0)
@@ -692,14 +748,18 @@ class TestReservationSync(TransactionCase):
 
     def test_allocation_state_allocated(self):
         """planned_resources=1 + 1 employee → allocated (matches intent)."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Allocated",
-                "project_id": self.project.id,
-                "employee_ids": [Command.link(self.employee.id)],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Allocated",
+                    "project_id": self.project.id,
+                    "employee_ids": [Command.link(self.employee.id)],
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(task.planned_hours, 8.0)
         self.assertEqual(task.allocated_hours, 8.0)
@@ -707,15 +767,19 @@ class TestReservationSync(TransactionCase):
 
     def test_allocation_state_under_allocated(self):
         """planned_resources=2, 1 employee → under_allocated."""
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Partial",
-                "project_id": self.project.id,
-                "planned_resources": 2,
-                "employee_ids": [Command.link(self.employee.id)],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Partial",
+                    "project_id": self.project.id,
+                    "planned_resources": 2,
+                    "employee_ids": [Command.link(self.employee.id)],
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(task.planned_hours, 16.0)
         self.assertEqual(task.allocated_hours, 8.0)
@@ -724,16 +788,20 @@ class TestReservationSync(TransactionCase):
     def test_allocation_state_over_allocated(self):
         """planned_resources=1 (default), 2 employees → over_allocated (PM over-allocated)."""
         _, second_employee = self._create_second_assignee()
-        task = self.env["project.task"].with_company(self.company_home).create(
-            {
-                "name": "Overplanned",
-                "project_id": self.project.id,
-                "employee_ids": [
-                    Command.set([self.employee.id, second_employee.id])
-                ],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
-                "date_end": datetime(2026, 5, 4, 17, 0),
-            }
+        task = (
+            self.env["project.task"]
+            .with_company(self.company_home)
+            .create(
+                {
+                    "name": "Overplanned",
+                    "project_id": self.project.id,
+                    "employee_ids": [
+                        Command.set([self.employee.id, second_employee.id])
+                    ],
+                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_end": datetime(2026, 5, 4, 17, 0),
+                }
+            )
         )
         self.assertEqual(task.planned_hours, 8.0)
         self.assertEqual(task.allocated_hours, 16.0)

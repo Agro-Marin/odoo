@@ -1951,7 +1951,11 @@ class ProjectTask(models.Model):
                     Command.create(child_id.copy_data(child_default)[0])
                     for child_id in child_ids.filtered(lambda c: c.active)
                 ]
-            if not has_default_users and vals["user_ids"]:
+            # ``.get()``: with project_hr installed, ``user_ids`` is a read-only
+            # computed mirror of ``employee_ids`` (copy=False), so copy_data
+            # emits no ``user_ids`` key at all — indexing crashed every task
+            # copy on such databases.
+            if not has_default_users and vals.get("user_ids"):
                 task_active_users = task.user_ids & active_users
                 vals["user_ids"] = [Command.set(task_active_users.ids)]
             if self.env.context.get("copy_from_template") and not self.env.context.get(
@@ -2673,9 +2677,15 @@ class ProjectTask(models.Model):
         return vals_list
 
     def _get_sync_trigger_fields(self):
-        """Assignees and allocation changes also trigger a reservation sync."""
+        """Assignees, allocation and name changes also trigger a reservation sync.
+
+        ``name`` is a trigger because the reservation label is built from
+        ``display_name`` — without it, renaming a task left its reservations
+        carrying the old title.  The sync helper skips no-op writes, so a
+        rename only rewrites the ``name`` column of the linked reservations.
+        """
         triggers = super()._get_sync_trigger_fields()
-        triggers |= {"user_ids", "allocated_percentage"}
+        triggers |= {"user_ids", "allocated_percentage", "name"}
         return triggers
 
     @api.onchange("date_end", "planned_date_begin")
