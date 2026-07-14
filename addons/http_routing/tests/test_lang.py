@@ -140,6 +140,20 @@ class TestLangLadder(HttpCase):
         self.assertEqual(self._loc(r), "/fr" + self.EP)
         self.assertEqual(r.cookies.get("frontend_lang"), "fr_FR")
 
+    def test_case_5_redirect_preserves_repeated_query_params(self):
+        # The ladder forwards request.httprequest.args (a MultiDict) through
+        # redirect_query; repeated keys -- e.g. website_sale's
+        # ?attrib=1&attrib=2 filters -- must survive the redirect instead of
+        # collapsing to the first value.
+        r = self.url_open(
+            self.EP + "?a=1&a=2&b=3",
+            allow_redirects=False,
+            cookies={"frontend_lang": "fr_FR"},
+        )
+        self.assertEqual(r.status_code, 303)
+        self.assertEqual(self._loc(r), "/fr" + self.EP)
+        self.assertEqual(urlparse(r.headers.get("Location", "")).query, "a=1&a=2&b=3")
+
     def test_case_6_default_lang_in_url_redirects_stripping_it(self):
         # /6: the default lang sitting in the URL is redirected away (303).
         r = self.url_open("/" + self.en_code + self.EP, allow_redirects=False)

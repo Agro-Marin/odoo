@@ -117,6 +117,13 @@ class _RequestResponseMixin:
         local: bool = True,
     ) -> Response:
         if query:
+            # A MultiDict (e.g. ``request.httprequest.args``, forwarded by every
+            # lang-ladder redirect in http_routing) holds repeated keys, but its
+            # ``items()`` yields one value per key and ``urlencode`` consumes it
+            # as a plain mapping -- ``?attrib=1&attrib=2`` would collapse to
+            # ``?attrib=1``. Flatten to pairs first.
+            if isinstance(query, werkzeug.datastructures.MultiDict):
+                query = list(query.items(multi=True))
             # Per RFC 3986 the query must precede the fragment. Append ?<query>
             # to the pre-'#' part, then reattach #<fragment>; otherwise
             # /foo#bar + ?a=b yields /foo#bar?a=b and the server never sees ?a=b.
