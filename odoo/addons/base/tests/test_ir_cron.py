@@ -1410,8 +1410,17 @@ class TestIrCronDbChecks(TransactionCase):
         IrCron._check_version(self.cr)  # must not raise
 
     def test_check_modules_state_stable_passes(self):
-        # No module in a transient ``to ...`` state -> no-op.
-        IrCron._check_modules_state(self.cr, jobs=[])  # must not raise
+        # No module in a transient ``to ...`` state -> no-op. Don't assume the
+        # live DB is stable: during an install/upgrade run (``-i/-u ...
+        # --test-enable``) base's at_install tests execute while sibling
+        # modules still sit in ``to install``. Fabricate the stable state
+        # inside a savepoint, exactly like the sibling tests fabricate the
+        # transient one.
+        with closing(self.cr.savepoint()):
+            self.cr.execute(
+                "UPDATE ir_module_module SET state = 'installed' WHERE state LIKE 'to %'"
+            )
+            IrCron._check_modules_state(self.cr, jobs=[])  # must not raise
 
     def test_check_modules_state_transient_no_jobs_raises(self):
         with closing(self.cr.savepoint()):
