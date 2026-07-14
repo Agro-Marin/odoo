@@ -234,6 +234,20 @@ class ResUsersApikeys(models.Model):
                 _("You cannot exceed %(duration)s days.", duration=max_duration)
             )
 
+    def _check_generate_access(self) -> None:
+        """Raise unless the current user is allowed to hold API keys.
+
+        Single source of truth for the key-holding policy, shared by the
+        ``make_key`` UI path and the ``_generate`` primitive (AK-P1). Base
+        policy is internal users only; opt-in modules may widen it (portal
+        extends it to portal users behind the ``portal.allow_api_keys``
+        parameter).
+
+        :raises AccessError: when the current user may not hold API keys.
+        """
+        if not self.env.user._is_internal():
+            raise AccessError(_("Only internal users can create API keys"))
+
     def _generate(
         self,
         scope: str | None,
@@ -248,14 +262,14 @@ class ResUsersApikeys(models.Model):
             persistent (infinite-duration) key.
         :return: the cleartext key.
         :rtype: str
-        :raises AccessError: when ``self.env.user`` is not an internal user.
+        :raises AccessError: when ``self.env.user`` may not hold API keys
+            (see :meth:`_check_generate_access`).
         """
-        # AK-P1 (audit 2026-05-28): enforce the "only internal users hold API
-        # keys" invariant at the minting primitive, not only the make_key UI
-        # path, so any caller of _generate is self-guarded. Exceeding the user's
-        # max duration requires a sudoed env (env.is_system()).
-        if not self.env.user._is_internal():
-            raise AccessError(_("Only internal users can create API keys"))
+        # AK-P1 (audit 2026-05-28): enforce the key-holding policy at the
+        # minting primitive, not only the make_key UI path, so any caller of
+        # _generate is self-guarded. Exceeding the user's max duration
+        # requires a sudoed env (env.is_system()).
+        self._check_generate_access()
         self._check_expiration_date(expiration_date)
         # no need to clear the LRU when *adding* a key, only when removing
         k = binascii.hexlify(os.urandom(API_KEY_SIZE)).decode()
@@ -408,8 +422,9 @@ class ResUsersApikeysDescription(models.TransientModel):
         }
 
     def check_access_make_key(self) -> None:
-        if not self.env.user._is_internal():
-            raise AccessError(_("Only internal users can create API keys"))
+        # Delegate to the minting primitive's policy so both paths always
+        # agree on who may hold API keys.
+        self.env["res.users.apikeys"]._check_generate_access()
 
 
 class ResUsersApikeysShow(models.AbstractModel):

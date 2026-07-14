@@ -62,8 +62,17 @@ class TestUsersHttp(HttpCase):
                 "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
             }
         )
+        # Portal users may only hold API keys behind the opt-in parameter
+        # (base policy is internal-only, see res.users.apikeys._check_generate_access)
+        self.env["ir.config_parameter"].sudo().set_param(
+            "portal.allow_api_keys", "True"
+        )
+        # timedelta(hours=1): stays under the 1-day cap that
+        # _check_expiration_date enforces for users without a configured
+        # api_key_duration (fields.Datetime.now() truncates to the second, so
+        # "now + exactly 1 day" would overshoot the cap by microseconds).
         self.env["res.users.apikeys"].with_user(portal_user)._generate(
-            None, "Portal API Key", datetime.now() + timedelta(days=1)
+            None, "Portal API Key", datetime.now() + timedelta(hours=1)
         )
         self.assertTrue(portal_user.api_key_ids)
 
@@ -85,9 +94,10 @@ class TestUsersHttp(HttpCase):
             "SELECT password FROM res_users WHERE id = %s", [portal_user.id]
         )
         [hashed] = self.env.cr.fetchone()
-        # Assert the password is an empty string. In `check_credentials`, an empty string as password is invalid
-        # so you are not able to login with an empty password.
-        self.assertTrue(self.env["res.users"]._crypt_context().verify("", hashed))
+        # This fork stores SQL NULL for an emptied password (see
+        # res.users._set_empty_password) so no credential can ever verify
+        # against it — upstream stored hash("") and relied on auth-path guards.
+        self.assertIsNone(hashed)
         self.assertFalse(portal_user.api_key_ids)
         # Assert the deletion of the account is added to the deletion processing queue.
         self.assertTrue(

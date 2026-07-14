@@ -3,7 +3,7 @@ import math
 import re
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, NotFound
 
 from odoo import _
 from odoo.exceptions import (
@@ -137,6 +137,27 @@ def _pager_url(record, attr_name):
     if attr_name == "access_url":
         return f"{record[attr_name]}?access_token={record._portal_ensure_token()}"
     return record[attr_name]
+
+
+def _parse_record_id(raw_id):
+    """Coerce a user-supplied record id (query/form string) into an int.
+
+    Controllers receive ids as strings and historically crashed with an
+    uncaught ``ValueError`` (HTTP 500) on non-numeric input. ``None``/empty
+    values mean "no record" and map to ``None``; anything non-numeric raises
+    ``NotFound`` — the id namespace simply does not contain that value.
+
+    :param raw_id: raw request value (str, int, or falsy)
+    :return: the id as int, or None when no id was provided
+    :rtype: int | None
+    :raise werkzeug.exceptions.NotFound: on non-numeric input
+    """
+    if not raw_id:
+        return None
+    try:
+        return int(raw_id)
+    except TypeError, ValueError:
+        raise NotFound from None
 
 
 def _build_url_w_params(url_string, query_params, remove_duplicates=True):
@@ -425,12 +446,11 @@ class CustomerPortal(Controller):
         :return: The rendered address form.
         :rtype: str
         """
-        partner_id = partner_id and int(partner_id)
         partner_sudo = (
             request.env["res.partner"]
             .with_context(show_address=1)
             .sudo()
-            .browse(partner_id)
+            .browse(_parse_record_id(partner_id))
         )
 
         if partner_sudo and not partner_sudo._can_be_edited_by_current_customer():
@@ -496,7 +516,7 @@ class CustomerPortal(Controller):
             "partner_sudo": partner_sudo,  # If set, customer is editing an existing address
             "partner_id": partner_sudo.id,
             "current_partner": current_partner,
-            "commercial_partner": current_partner.commercial_partner_id,
+            "commercial_partner": commercial_partner,
             "is_commercial_address": not current_partner
             or partner_sudo == commercial_partner,
             "is_main_address": not current_partner
@@ -526,9 +546,6 @@ class CustomerPortal(Controller):
             "discard_url": callback or "/my/addresses",
         }
 
-    def _is_used_as_billing(self, address_type, **kwargs):
-        return address_type == "billing"
-
     def _get_default_country(self, **kwargs):
         """Get country of current user country as default."""
         return request.env.user.country_id
@@ -557,7 +574,7 @@ class CustomerPortal(Controller):
             request.env["res.partner"]
             .with_context(show_address=1)
             .sudo()
-            .browse(partner_id and int(partner_id))
+            .browse(_parse_record_id(partner_id))
         )
         if partner_sudo and not partner_sudo._can_be_edited_by_current_customer():
             raise Forbidden
@@ -703,7 +720,10 @@ class CustomerPortal(Controller):
                 extra_form_data[key] = value
 
         if "zipcode" in form_data and not form_data.get("zip"):
-            address_values["zip"] = form_data.pop("zipcode", "")
+            zipcode = form_data.pop("zipcode", "")
+            address_values["zip"] = (
+                zipcode.strip() if isinstance(zipcode, str) else zipcode
+            )
             # zipcode was collected into extra_form_data by the loop above
             # (it is not a partner field); drop the now-consumed entry so
             # _handle_extra_form_data overrides don't see a stale alias.
@@ -1076,7 +1096,10 @@ class CustomerPortal(Controller):
     )
     def address_archive(self, partner_id):
         address_sudo = (
-            request.env["res.partner"].sudo().browse(int(partner_id)).exists()
+            request.env["res.partner"]
+            .sudo()
+            .browse(_parse_record_id(partner_id))
+            .exists()
         )
         if not address_sudo or not address_sudo._can_be_edited_by_current_customer():
             raise Forbidden
@@ -1092,17 +1115,16 @@ class CustomerPortal(Controller):
         "/my/security", type="http", auth="user", website=True, methods=["GET", "POST"]
     )
     def security(self, **post):
-        values = self._prepare_portal_layout_values()
-        values["get_error"] = get_error
-        values["allow_api_keys"] = bool(
-            request.env["ir.config_parameter"].sudo().get_param("portal.allow_api_keys")
-        )
-        values["open_deactivate_modal"] = False
+        values = self._prepare_security_rendering_values()
 
         if request.httprequest.method == "POST":
+            # ``.get``: a hand-crafted POST may omit any of the three fields;
+            # the empty-field validation in _update_password handles them.
             values.update(
                 self._update_password(
-                    post["old"].strip(), post["new1"].strip(), post["new2"].strip()
+                    post.get("old", "").strip(),
+                    post.get("new1", "").strip(),
+                    post.get("new2", "").strip(),
                 )
             )
 
@@ -1111,6 +1133,21 @@ class CustomerPortal(Controller):
             values,
             headers=self._FRAME_OPTIONS_HEADERS,
         )
+
+    def _prepare_security_rendering_values(self):
+        """Values shared by every render of ``portal.portal_my_security``.
+
+        Used by both the /my/security page and the failed-deactivation
+        re-render, so the template always receives ``allow_api_keys`` &co
+        regardless of which route rendered it.
+        """
+        values = self._prepare_portal_layout_values()
+        values["get_error"] = get_error
+        values["allow_api_keys"] = bool(
+            request.env["ir.config_parameter"].sudo().get_param("portal.allow_api_keys")
+        )
+        values["open_deactivate_modal"] = False
+        return values
 
     def _update_password(self, old, new1, new2):
         for k, v in [("old", old), ("new1", new1), ("new2", new2)]:
@@ -1162,8 +1199,7 @@ class CustomerPortal(Controller):
         methods=["POST"],
     )
     def deactivate_account(self, validation, password, **post):
-        values = self._prepare_portal_layout_values()
-        values["get_error"] = get_error
+        values = self._prepare_security_rendering_values()
         values["open_deactivate_modal"] = True
         credential = {
             "login": request.env.user.login,
@@ -1205,7 +1241,9 @@ class CustomerPortal(Controller):
             attachment_sudo = self._document_check_access(
                 "ir.attachment", int(attachment_id), access_token=access_token
             )
-        except AccessError, MissingError:
+        except AccessError, MissingError, TypeError, ValueError:
+            # TypeError/ValueError: non-numeric attachment_id — same client
+            # feedback as a missing record, without a 500.
             raise UserError(
                 _(
                     "The attachment does not exist or you do not have the rights to access it."
