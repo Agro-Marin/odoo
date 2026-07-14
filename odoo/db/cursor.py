@@ -134,7 +134,7 @@ class BaseCursor(_CursorProtocol):
 
     def execute(
         self,
-        query: str | SQL,
+        query: str | SQL | _sql.Composable,
         params: tuple | list | dict | None = None,
         log_exceptions: bool = True,
     ) -> None:
@@ -448,7 +448,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     def execute(
         self,
-        query: str | SQL,
+        query: str | SQL | _sql.Composable,
         params: tuple | list | dict | None = None,
         log_exceptions: bool = True,
     ) -> None:
@@ -466,8 +466,16 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     "Unexpected parameters combined with a SQL query object"
                 )
             query, params = query.code, query.params
-        elif params:
-            if not isinstance(params, (tuple, list, dict)):
+        else:
+            if isinstance(query, _sql.Composable):
+                # psycopg's sanctioned way to compose dynamic statements with
+                # safely quoted identifiers (sql.Identifier / SQL.format), used
+                # by SQL-view report models for CREATE VIEW.  Resolve to the
+                # final statement text once, with this connection's adaptation
+                # context, so DDL detection, client-side param inlining,
+                # logging and metrics all see the exact SQL the server runs.
+                query = query.as_string(self._cnx)
+            if params and not isinstance(params, (tuple, list, dict)):
                 raise ValueError(
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
@@ -476,8 +484,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         # client-side param inlining ($N is rejected in DDL positions), but only
         # schema-changing DDL (CREATE/ALTER/DROP/DO) invalidates the caches.
         # ``query`` is always a str here: an SQL object was unwrapped to its str
-        # ``.code`` above and the public contract is ``str | SQL``, so there is
-        # nothing to coerce — a ``str(query)`` fallback would only mask a
+        # ``.code`` and a psycopg Composable was resolved via ``as_string``
+        # above; the public contract is ``str | SQL | Composable``, so there is
+        # nothing left to coerce — a ``str(query)`` fallback would only mask a
         # contract violation (and mangle a stray bytes query into its repr).
         qs = query
         ddl_kw = _ddl_keyword(qs)  # uppercase keyword, or None when not DDL
@@ -563,7 +572,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     def executemany(
         self,
-        query: str | SQL,
+        query: str | SQL | _sql.Composable,
         params_seq: Iterable[tuple | list | dict],
         returning: bool = False,
         log_exceptions: bool = True,
@@ -592,6 +601,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     "params; pass the per-row params via params_seq instead."
                 )
             query = query.code
+        elif isinstance(query, _sql.Composable):
+            # Same normalization as execute(): resolve psycopg-composed
+            # statements (sql.Identifier quoting) to their final text once.
+            query = query.as_string(self._cnx)
 
         # Materialize an unsized sequence: a generator is always truthy (so the
         # empty check below would miss an empty one) and has no len() (so metrics
