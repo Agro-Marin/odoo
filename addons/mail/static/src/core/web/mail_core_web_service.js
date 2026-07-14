@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { applyCounterAbsolute, applyCounterDelta } from "@mail/utils/common/counters";
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 export class MailCoreWeb {
@@ -39,20 +40,21 @@ export class MailCoreWeb {
         this.env.bus.addEventListener(
             "mail.message/delete",
             ({ detail: { message, notifId } }) => {
-                if (message.needaction && notifId > this.store.inbox.counter_bus_id) {
-                    this.store.inbox.counter--;
+                if (message.needaction) {
+                    applyCounterDelta(this.store.inbox, "counter", -1, {
+                        busId: notifId,
+                    });
                 }
-                if (message.starred && notifId > this.store.starred.counter_bus_id) {
-                    this.store.starred.counter--;
+                if (message.starred) {
+                    applyCounterDelta(this.store.starred, "counter", -1, {
+                        busId: notifId,
+                    });
                 }
                 const thread = message.thread;
-                if (
-                    message.needaction &&
-                    thread &&
-                    notifId > thread.message_needaction_counter_bus_id &&
-                    thread.message_needaction_counter > 0
-                ) {
-                    thread.message_needaction_counter--;
+                if (message.needaction && thread) {
+                    applyCounterDelta(thread, "message_needaction_counter", -1, {
+                        busId: notifId,
+                    });
                 }
             },
         );
@@ -62,15 +64,12 @@ export class MailCoreWeb {
             /** @type {import("models").Message} */
             const message = this.store["mail.message"].get(messageId);
             const inbox = this.store.inbox;
-            if (notifId > inbox.counter_bus_id) {
-                inbox.counter++;
-            }
+            applyCounterDelta(inbox, "counter", 1, { busId: notifId });
             inbox.messages.add(message);
-            if (
-                message.thread &&
-                notifId > message.thread.message_needaction_counter_bus_id
-            ) {
-                message.thread.message_needaction_counter++;
+            if (message.thread) {
+                applyCounterDelta(message.thread, "message_needaction_counter", 1, {
+                    busId: notifId,
+                });
             }
             if (this.store.self_partner?.im_status?.includes("busy")) {
                 return;
@@ -94,13 +93,10 @@ export class MailCoreWeb {
                     }
                     // update thread counter (before removing message from Inbox, to ensure isNeedaction check is correct)
                     const thread = message.thread;
-                    if (
-                        thread &&
-                        message.needaction &&
-                        notifId > thread.message_needaction_counter_bus_id &&
-                        thread.message_needaction_counter > 0
-                    ) {
-                        thread.message_needaction_counter--;
+                    if (thread && message.needaction) {
+                        applyCounterDelta(thread, "message_needaction_counter", -1, {
+                            busId: notifId,
+                        });
                     }
                     // move messages from Inbox to history
                     message.needaction = false;
@@ -108,10 +104,12 @@ export class MailCoreWeb {
                     const history = this.store.history;
                     history.messages.add(message);
                 }
-                if (notifId > inbox.counter_bus_id) {
-                    inbox.counter = needaction_inbox_counter;
-                    inbox.counter_bus_id = notifId;
-                }
+                applyCounterAbsolute(
+                    inbox,
+                    "counter",
+                    needaction_inbox_counter,
+                    notifId,
+                );
                 if (inbox.counter > inbox.messages.length) {
                     inbox.fetchMoreMessages();
                 }
