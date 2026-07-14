@@ -11,7 +11,7 @@ Focus areas:
 - _compute_origin_display with missing records
 """
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 import pytz
 
@@ -433,6 +433,57 @@ class TestTwoWeekCalendarEdgeCases(TransactionCase):
         self.assertFalse(self.calendar.attendance_ids_1st_week)
         self.assertFalse(self.calendar.attendance_ids_2nd_week)
 
+    def test_switch_to_two_weeks_large_calendar_keeps_weeks_ordered(self):
+        """>24 attendance lines must not spill past the second-week section.
+
+        The section markers' sequences were hard-coded (0 and 25), so week-one
+        lines of a large calendar sorted after the second-week marker and
+        ``_onchange_attendance_ids`` would reassign them to week two.
+        """
+        big = self.env["resource.calendar"].create(
+            {
+                "name": "Big Calendar",
+                "tz": "UTC",
+                "attendance_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": f"D{day}S{slot}",
+                            "dayofweek": str(day),
+                            "hour_from": 8 + slot,
+                            "hour_to": 9 + slot,
+                            "day_period": "morning",
+                        },
+                    )
+                    for day in range(7)
+                    for slot in range(4)
+                ],
+            }
+        )
+        self.assertEqual(len(big.attendance_ids), 28)
+        big.switch_calendar_type()
+
+        lines = big.attendance_ids
+        sections = lines.filtered("display_type").sorted("sequence")
+        self.assertEqual(len(sections), 2)
+        first_week = lines.filtered(lambda a: not a.display_type and a.week_type == "0")
+        second_week = lines.filtered(
+            lambda a: not a.display_type and a.week_type == "1"
+        )
+        self.assertEqual(len(first_week), 28)
+        self.assertEqual(len(second_week), 28)
+        self.assertLess(
+            max(first_week.mapped("sequence")),
+            sections[1].sequence,
+            "every first-week line must sort before the second-week section",
+        )
+        self.assertLess(
+            sections[1].sequence,
+            min(second_week.mapped("sequence")),
+            "every second-week line must sort after its section",
+        )
+
     def test_works_on_date_two_week_calendar(self):
         """_works_on_date respects week type in two-week mode."""
         from datetime import date
@@ -453,6 +504,51 @@ class TestTwoWeekCalendarEdgeCases(TransactionCase):
         else:
             # This Monday is in week 0 (still has attendance)
             self.assertTrue(self.calendar._works_on_date(test_date))
+
+
+@tagged("post_install", "-at_install")
+class TestWorksOnDateIgnoresNonWorkLines(TransactionCase):
+    """_works_on_date must ignore section rows and lunch breaks.
+
+    Section rows keep the default ``dayofweek`` (Monday), so counting them
+    marked Monday as a working day on *every* two-week calendar regardless of
+    its real attendances.  A lunch break alone is not work time either.
+    """
+
+    def test_two_week_calendar_section_rows_do_not_mark_monday(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Sections Cal", "tz": "UTC"}
+        )
+        calendar.switch_calendar_type()  # two-week mode, adds 2 section rows
+        # Keep only Tuesday attendances in both weeks.
+        calendar.attendance_ids.filtered(
+            lambda a: not a.display_type and a.dayofweek != "1"
+        ).unlink()
+
+        monday_w0, monday_w1 = date(2025, 1, 6), date(2025, 1, 13)
+        week_types = {
+            self.env["resource.calendar.attendance"].get_week_type(d)
+            for d in (monday_w0, monday_w1)
+        }
+        self.assertEqual(week_types, {0, 1}, "consecutive Mondays span both weeks")
+        for monday in (monday_w0, monday_w1):
+            self.assertFalse(
+                calendar._works_on_date(monday),
+                "section rows must not mark Monday as worked",
+            )
+            self.assertTrue(calendar._works_on_date(monday + timedelta(days=1)))
+
+    def test_lunch_only_day_is_not_working(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Lunch Cal", "tz": "UTC"}
+        )
+        # Strip Friday down to its lunch break only.
+        calendar.attendance_ids.filtered(
+            lambda a: a.dayofweek == "4" and a.day_period != "lunch"
+        ).unlink()
+        friday = date(2025, 1, 10)
+        self.assertFalse(calendar._works_on_date(friday))
+        self.assertTrue(calendar._works_on_date(date(2025, 1, 9)))
 
 
 @tagged("post_install", "-at_install")
@@ -703,6 +799,56 @@ class TestFullDayMidpointSplit(TransactionCase):
         self.assertEqual(
             calendar._get_hours_for_date(monday, day_period="afternoon"),
             (14.0, 18.0),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestDurationHoursClearedBounds(TransactionCase):
+    """duration_hours must recompute when the hour bounds are cleared."""
+
+    def test_duration_zeroed_when_hours_cleared(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Clear Cal", "tz": "UTC"}
+        )
+        attendance = calendar.attendance_ids.filtered(
+            lambda a: a.day_period == "morning"
+        )[0]
+        self.assertGreater(attendance.duration_hours, 0)
+        attendance.write({"hour_from": 0.0, "hour_to": 0.0})
+        self.assertEqual(
+            attendance.duration_hours,
+            0.0,
+            "clearing the bounds must not leave a stale duration",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestLeaveCompanyFallback(TransactionCase):
+    """A calendar-less leave belongs to its resource's company, not env.company."""
+
+    def test_leave_company_follows_resource(self):
+        company_b = self.env["res.company"].create({"name": "Company B"})
+        resource_b = self.env["resource.resource"].create(
+            {
+                "name": "B worker",
+                "company_id": company_b.id,
+                "calendar_id": False,  # fully flexible: no calendar to derive from
+                "tz": "UTC",
+            }
+        )
+        leave = self.env["resource.calendar.leaves"].create(
+            {
+                "name": "B leave",
+                "resource_id": resource_b.id,
+                "date_from": datetime(2025, 1, 6, 0, 0),
+                "date_to": datetime(2025, 1, 6, 23, 59),
+            }
+        )
+        self.assertFalse(leave.calendar_id)
+        self.assertEqual(
+            leave.company_id,
+            company_b,
+            "the resource's company must beat the acting company",
         )
 
 
