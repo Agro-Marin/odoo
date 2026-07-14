@@ -206,6 +206,14 @@ class SaleOrderLine(models.Model):
         comodel_name="product.pricelist.item",
         compute="_compute_pricelist_item_id",
     )
+    discount = fields.Float(
+        # Extends the order.line.amount.mixin declaration: sale's
+        # _compute_price_and_discount depends on ``linked_line_id.discount``
+        # (a self-referential many2one), which makes the dependency graph
+        # recursive. Purchase shares the mixin without such a loop, so the
+        # flag belongs here rather than on the mixin.
+        recursive=True,
+    )
     price_unit_auto = fields.Float(
         string="Automatic Price",
         min_display_digits="Product Price",
