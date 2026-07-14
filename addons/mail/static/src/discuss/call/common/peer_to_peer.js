@@ -39,6 +39,8 @@ const ORDERED_TRANSCEIVER_TYPES = [
 const DEFAULT_BUS_BATCH_DELAY = 100;
 const INITIAL_RECONNECT_DELAY = 2_000 + Math.random() * 1_000; // the initial delay between reconnection attempts
 const MAXIMUM_RECONNECT_DELAY = 25_000 + Math.random() * 5_000; // the longest delay possible between reconnection attempts
+// how many times a failed notification batch is retried before giving up
+export const MAX_NOTIFICATION_RETRIES = 5;
 const INVALID_ICE_CONNECTION_STATES = new Set(["disconnected", "failed", "closed"]);
 const IS_CLIENT_RTC_COMPATIBLE = Boolean(
     window.RTCPeerConnection && window.MediaStream,
@@ -438,11 +440,15 @@ export class PeerToPeer extends EventTarget {
             isScreenSharingOn: Boolean(this._tracks[STREAM_TYPE.SCREEN]),
             isCameraOn: Boolean(this._tracks[STREAM_TYPE.CAMERA]),
         });
-        const proms = [];
         for (const peer of this.peers.values()) {
-            proms.push(peer.ready.then(() => this._updateRemote(peer, streamType)));
+            // Fan out in the background: `ready` only resolves once the
+            // handshake completes (or after a lengthy recovery), so awaiting
+            // every peer would block the caller for seconds behind a single
+            // stuck peer. `_updateRemote` reads `this._tracks` at execution
+            // time, so a late peer still picks up the latest track, and it
+            // handles its own errors (`_recover`).
+            peer.ready.then(() => this._updateRemote(peer, streamType));
         }
-        await Promise.all(proms);
     }
     /**
      * @param {Info} info
@@ -720,17 +726,18 @@ export class PeerToPeer extends EventTarget {
             browser.setTimeout(async () => {
                 const peer = this.peers.get(id);
                 this._recoverTimeouts.delete(id);
+                // guard before any `peer.connection` read: the peer may have
+                // been removed/disconnected by the time the timeout fires.
+                if (!peer?.connection || !this.channelId) {
+                    return;
+                }
                 const connectionSuccess =
                     peer.connection.connectionState === "connected" ||
                     peer.connection.connectionState === "completed";
                 const iceSuccess =
                     peer.connection.iceConnectionState === "connected" ||
                     peer.connection.iceConnectionState === "completed";
-                if (
-                    !peer?.connection ||
-                    !this.channelId ||
-                    (connectionSuccess && iceSuccess)
-                ) {
+                if (connectionSuccess && iceSuccess) {
                     return;
                 }
                 this._emitUpdate({ name: UPDATE_EVENT.RECOVERY, payload: { id } });
@@ -753,41 +760,64 @@ export class PeerToPeer extends EventTarget {
             return;
         }
         this._isPendingNotify = true;
-        await new Promise((resolve) => setTimeout(resolve, this._batchDelay));
-        if (!this.isActive) {
-            this._isPendingNotify = false;
-            return;
-        }
-        const ids = [];
-        const notifications = [];
-        this._notificationsToSend.forEach((notification, id) => {
-            ids.push(id);
-            notifications.push([
-                notification.sender,
-                notification.targets,
-                JSON.stringify({
-                    event: notification.event,
-                    channelId: notification.channelId,
-                    payload: notification.payload,
-                }),
-            ]);
-        });
         try {
-            await rpc(
-                this._notificationRoute,
-                {
-                    peer_notifications: notifications,
-                },
-                { silent: true },
-            );
-            for (const id of ids) {
-                this._notificationsToSend.delete(id);
+            let failedAttempts = 0;
+            let retryDelay = INITIAL_RECONNECT_DELAY;
+            while (true) {
+                await new Promise((resolve) => setTimeout(resolve, this._batchDelay));
+                if (!this.isActive || this._notificationsToSend.size === 0) {
+                    return;
+                }
+                const ids = [];
+                const notifications = [];
+                this._notificationsToSend.forEach((notification, id) => {
+                    ids.push(id);
+                    notifications.push([
+                        notification.sender,
+                        notification.targets,
+                        JSON.stringify({
+                            event: notification.event,
+                            channelId: notification.channelId,
+                            payload: notification.payload,
+                        }),
+                    ]);
+                });
+                try {
+                    await rpc(
+                        this._notificationRoute,
+                        {
+                            peer_notifications: notifications,
+                        },
+                        { silent: true },
+                    );
+                } catch {
+                    failedAttempts++;
+                    if (failedAttempts > MAX_NOTIFICATION_RETRIES) {
+                        // Give up (probably offline): peers go through the
+                        // recovery flow on their own, while retrying forever
+                        // would hammer a dead network and leak rejections
+                        // into the event handlers that queued notifications.
+                        this._emitLog(
+                            this.selfId,
+                            "too many failed attempts to send notifications, giving up",
+                            LOG_LEVEL.ERROR,
+                        );
+                        this._notificationsToSend.clear();
+                        return;
+                    }
+                    // retry with an exponential backoff
+                    await new Promise((resolve) => setTimeout(resolve, retryDelay));
+                    retryDelay = Math.min(retryDelay * 1.5, MAXIMUM_RECONNECT_DELAY);
+                    continue;
+                }
+                failedAttempts = 0;
+                retryDelay = INITIAL_RECONNECT_DELAY;
+                for (const id of ids) {
+                    this._notificationsToSend.delete(id);
+                }
             }
         } finally {
             this._isPendingNotify = false;
-            if (this._notificationsToSend.size > 0) {
-                await this._sendNotifications();
-            }
         }
     }
     /**

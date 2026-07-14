@@ -14,8 +14,10 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
+import { Mutex } from "@web/core/utils/concurrency";
 import { memoize } from "@web/core/utils/functions";
 import { debounce } from "@web/core/utils/timing";
+
 import { CallAction } from "./call_actions.js";
 let sequence = 1;
 const getSequence = () => sequence++;
@@ -76,6 +78,12 @@ export const CROSS_TAB_CLIENT_MESSAGE = {
     UPDATE_VOLUME: "UPDATE_VOLUME", // sent by a tab to signal a volume change
 };
 const PING_INTERVAL = 30_000;
+/**
+ * How long a session info payload may wait for its session record before it is
+ * dropped: applying an update parked for a long time on `getWhenReady` would
+ * overwrite fresher state with stale data.
+ */
+const SESSION_INFO_APPLY_TIMEOUT = 5_000;
 const UNAVAILABLE_AS_REMOTE = _t("This action can only be done in the call tab.");
 const CALL_FULLSCREEN_ID = Symbol("CALL_FULLSCREEN");
 
@@ -164,6 +172,9 @@ export class Network {
             this.sfu.removeEventListener(name, f);
         }
         this.sfu.disconnect();
+        // full teardown: a kept reference would still show up in stats, be
+        // disconnected again and accumulate listeners on the next `addSfu`.
+        this.sfu = undefined;
     }
     /**
      * @param {string} name
@@ -312,6 +323,26 @@ export class Rtc extends Record {
     sfuTimeout;
     /** @type {AudioContext} AudioContext used to mix screen and mic audio */
     audioContext;
+    /**
+     * Generation token for `_initConnection`: bumped at each new connection
+     * attempt (and on `clear()`) so a stale run aborts after each await
+     * instead of clobbering the state of a newer one.
+     * @type {number}
+     */
+    _connectEpoch = 0;
+    /**
+     * Serializes `updateAudioTrack` runs: concurrent runs would race on the
+     * shared mix AudioContext (double close/create, context leak).
+     */
+    _audioTrackMutex = new Mutex();
+    /**
+     * Monotonic write stamp of the last session info received, by session id.
+     * Used to drop out-of-order/stale info applications.
+     * @type {Map<number, number>}
+     */
+    _sessionInfoStamps = new Map();
+    /** @type {number} id of the keep-alive interval started in `start()` */
+    _pingIntervalId;
     // cross tab sync
     _broadcastChannel = new browser.BroadcastChannel("call_sync_state");
     _remotelyHostedSessionId;
@@ -514,7 +545,7 @@ export class Rtc extends Record {
          * This is distinct from this.recover which tries to restore
          * connections that were established but failed or timed out.
          */
-        browser.setInterval(async () => {
+        this._pingIntervalId = browser.setInterval(async () => {
             if (!this.localSession || !this.state.channel) {
                 return;
             }
@@ -522,11 +553,16 @@ export class Rtc extends Record {
                 type: CROSS_TAB_HOST_MESSAGE.PING,
                 hostedSessionId: this.localSession.id,
             });
-            await this.ping();
-            if (!this.localSession || !this.state.channel) {
-                return;
+            try {
+                await this.ping();
+                if (!this.localSession || !this.state.channel) {
+                    return;
+                }
+                await this.call();
+            } catch {
+                // best-effort keep-alive: a network blip must not surface as
+                // an unhandled rejection, the next interval will retry.
             }
-            this.call();
         }, PING_INTERVAL);
     }
 
@@ -593,6 +629,9 @@ export class Rtc extends Record {
     }
 
     setPttReleaseTimeout(duration = PTT_RELEASE_DURATION) {
+        // a keyup/blur pair may schedule twice: an orphaned timer would later
+        // cut the mic in the middle of the next transmission.
+        browser.clearTimeout(this.state.pttReleaseTimeout);
         this.state.pttReleaseTimeout = browser.setTimeout(
             () => {
                 this.setTalking(false);
@@ -676,11 +715,15 @@ export class Rtc extends Record {
         this.state.hasPendingRequest = true;
         try {
             await this.rpcLeaveCall(channel);
-            this.endCall(channel);
+        } catch {
+            // best-effort, like the `pagehide` beacon path: hanging up while
+            // offline must still run the local cleanup, otherwise the mic and
+            // camera stay live with no way to stop them.
         } finally {
             // a stuck flag would permanently disable every join/leave action
             this.state.hasPendingRequest = false;
         }
+        this.endCall(channel);
     }
 
     /**
@@ -930,40 +973,68 @@ export class Rtc extends Record {
     // Private
     //----------------------------------------------------------------------
 
+    /**
+     * The caller is responsible for the returned client (assigning it to
+     * `this.sfuClient` after checking it is still the latest connection
+     * attempt, disconnecting it otherwise).
+     *
+     * @returns {Promise<import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient>}
+     */
     async _loadSfu() {
         const load = async () => {
             await loadSfuAssets();
             const sfuModule = await import("@mail/../lib/odoo_sfu/odoo_sfu");
             this.SFU_CLIENT_STATE = sfuModule.SFU_CLIENT_STATE;
-            this.sfuClient = new sfuModule.SfuClient();
+            return new sfuModule.SfuClient();
         };
         try {
-            await load();
+            return await load();
         } catch {
             // trying again with a delay in case of race condition with the asset loading.
-            await new Promise((resolve, reject) => {
+            return new Promise((resolve, reject) => {
                 browser.setTimeout(async () => {
                     try {
-                        await load();
+                        resolve(await load());
                     } catch (error) {
                         reject(error);
                     }
-                    resolve();
                 }, 1000);
             });
         }
     }
 
+    /**
+     * Best-effort update of one outbound track through the active network.
+     * Never rejects: several call sites are fire-and-forget and would
+     * otherwise leak unhandled rejections.
+     *
+     * @param {streamType} type
+     * @param {MediaStreamTrack | undefined} track
+     */
+    async _updateTrackUpload(type, track) {
+        try {
+            await this.network?.updateUpload(type, track);
+        } catch (error) {
+            this.log(this.selfSession, `failed to update ${type} upload`, { error });
+        }
+    }
+
     updateUpload() {
-        this.network?.updateUpload("audio", this.state.audioTrack);
-        this.network?.updateUpload("camera", this.state.cameraTrack);
-        this.network?.updateUpload("screen", this.state.screenTrack);
+        this._updateTrackUpload("audio", this.state.audioTrack);
+        this._updateTrackUpload("camera", this.state.cameraTrack);
+        this._updateTrackUpload("screen", this.state.screenTrack);
     }
 
     async _initConnection() {
+        // Reentrancy guard (`joinCall` racing an `sfu_hot_swap`, or the call
+        // ending during the multi-second SFU load): a run that is no longer
+        // the latest aborts after each await, so handlers are never
+        // registered twice and a fresh SfuClient cannot clobber a newer one.
+        const epoch = ++this._connectEpoch;
         this.localSession.connectionState = "selecting network type";
         this.state.connectionType = CONNECTION_TYPES.P2P;
         this.network?.disconnect();
+        this._syncVideoInfo();
         // loading p2p in any case as we may need to receive peer-to-peer connections from users who failed to connect to the SFU.
         this.p2pService.connect(this.localSession.id, this.state.channel.id, {
             info: this.formatInfo(),
@@ -978,14 +1049,21 @@ export class Rtc extends Record {
             });
             this.localSession.connectionState = "loading SFU assets";
             try {
-                await this._loadSfu();
-                this.state.connectionType = CONNECTION_TYPES.SERVER;
-                if (this.network) {
-                    this.network.addSfu(this.sfuClient);
-                } else {
-                    return; // the call may be ended by the time the sfu is loaded
+                const sfuClient = await this._loadSfu();
+                if (epoch !== this._connectEpoch) {
+                    // a newer connection attempt (or the end of the call)
+                    // superseded this run.
+                    sfuClient.disconnect();
+                    return;
                 }
+                this.sfuClient?.disconnect();
+                this.sfuClient = sfuClient;
+                this.state.connectionType = CONNECTION_TYPES.SERVER;
+                this.network.addSfu(this.sfuClient);
             } catch (e) {
+                if (epoch !== this._connectEpoch) {
+                    return;
+                }
                 this.state.fallbackMode = true;
                 this.notification.add(
                     _t("Failed to load the SFU server, falling back to peer-to-peer"),
@@ -1012,6 +1090,9 @@ export class Rtc extends Record {
         });
         if (this.state.channel) {
             await this.call();
+            if (epoch !== this._connectEpoch) {
+                return;
+            }
             this.updateUpload();
         }
     }
@@ -1332,7 +1413,7 @@ export class Rtc extends Record {
                         // this can happen when you join a call from another tab in which you have another session.
                     }
                     // makes sure we are not downloading a video that is not displayed
-                    setTimeout(() => {
+                    browser.setTimeout(() => {
                         this.updateVideoDownload(session);
                     }, 2000);
                 }
@@ -1370,12 +1451,12 @@ export class Rtc extends Record {
                 break;
             case this.SFU_CLIENT_STATE.CONNECTED:
                 browser.clearTimeout(this.sfuTimeout);
+                this._syncVideoInfo();
                 this.sfuClient.updateInfo(this.formatInfo(), {
                     needRefresh: true, // asks the server to send the info from all the channel
                 });
-                this.sfuClient.updateUpload("audio", this.state.audioTrack);
-                this.sfuClient.updateUpload("camera", this.state.cameraTrack);
-                this.sfuClient.updateUpload("screen", this.state.screenTrack);
+                // fan out through the Network so p2p and SFU stay consistent
+                this.updateUpload();
                 return;
             case this.SFU_CLIENT_STATE.CLOSED:
                 {
@@ -1421,33 +1502,59 @@ export class Rtc extends Record {
             this._updateRemoteTabs(payload);
         }
         for (const [id, info] of Object.entries(payload)) {
-            (async () => {
-                const session = await this.store[
-                    "discuss.channel.rtc.session"
-                ].getWhenReady(Number(id));
-                if (!session || session.eq(this.localSession) || !this.channel) {
-                    return;
-                }
-                // `isRaisingHand` is turned into the Date `raisingHand`
-                this.setRemoteRaiseHand(session, info.isRaisingHand);
-                delete info.isRaisingHand;
-                assignDefined(session, {
-                    is_muted: info.isSelfMuted ?? info.is_muted,
-                    is_deaf: info.isDeaf ?? info.is_deaf,
-                    isTalking: info.isTalking,
-                    is_camera_on: info.isCameraOn ?? info.is_camera_on,
-                    is_screen_sharing_on:
-                        info.isScreenSharingOn ?? info.is_screen_sharing_on,
-                });
-            })();
+            const sessionId = Number(id);
+            // stamp each application so a payload parked on `getWhenReady`
+            // cannot overwrite a fresher one once it resolves.
+            const stamp = (this._sessionInfoStamps.get(sessionId) ?? 0) + 1;
+            this._sessionInfoStamps.set(sessionId, stamp);
+            this._applySessionInfo(sessionId, info, stamp);
         }
     }
 
+    /**
+     * @param {number} sessionId
+     * @param {import("#src/models/session.js").SessionInfo} info
+     * @param {number} stamp value of `_sessionInfoStamps` at scheduling time
+     */
+    async _applySessionInfo(sessionId, info, stamp) {
+        const session = await Promise.race([
+            this.store["discuss.channel.rtc.session"].getWhenReady(sessionId),
+            // bounded wait: past this delay the info is likely stale, drop it
+            // instead of applying it whenever the session finally shows up.
+            new Promise((resolve) =>
+                browser.setTimeout(resolve, SESSION_INFO_APPLY_TIMEOUT),
+            ),
+        ]);
+        if (this._sessionInfoStamps.get(sessionId) !== stamp) {
+            return; // a newer info payload for this session superseded this one
+        }
+        if (!session || session.eq(this.localSession) || !this.channel) {
+            return;
+        }
+        // `isRaisingHand` is turned into the Date `raisingHand`
+        this.setRemoteRaiseHand(session, info.isRaisingHand);
+        assignDefined(session, {
+            is_muted: info.isSelfMuted ?? info.is_muted,
+            is_deaf: info.isDeaf ?? info.is_deaf,
+            isTalking: info.isTalking,
+            is_camera_on: info.isCameraOn ?? info.is_camera_on,
+            is_screen_sharing_on: info.isScreenSharingOn ?? info.is_screen_sharing_on,
+        });
+    }
+
     async _downgradeConnection() {
+        if (this.state.connectionType !== CONNECTION_TYPES.SERVER) {
+            // already downgraded: the 10s connection timeout and a
+            // `connect()` rejection can both fire for the same failure, keep
+            // a single funnel.
+            return;
+        }
+        browser.clearTimeout(this.sfuTimeout);
         this.serverInfo = undefined;
         this.state.fallbackMode = true;
         this.state.connectionType = CONNECTION_TYPES.P2P;
-        this.network.removeSfu();
+        this.network?.removeSfu();
+        this.sfuClient = undefined;
         await this.call();
         this.updateUpload();
     }
@@ -1466,6 +1573,10 @@ export class Rtc extends Record {
         }
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
             if (this.sfuClient.state === this.SFU_CLIENT_STATE.DISCONNECTED) {
+                // Watchdog for the whole connection sequence: `connect()`
+                // resolves at AUTHENTICATED, before the transports are ready,
+                // so the timeout must stay armed until the CONNECTED state
+                // change (which clears it), or until `_downgradeConnection`.
                 browser.clearTimeout(this.sfuTimeout);
                 this.sfuTimeout = browser.setTimeout(() => {
                     this.log(this.selfSession, "sfu connection timeout", {
@@ -1473,14 +1584,25 @@ export class Rtc extends Record {
                     });
                     this._downgradeConnection();
                 }, 10000);
-                await this.sfuClient.connect(
-                    this.serverInfo.url,
-                    this.serverInfo.jsonWebToken,
-                    {
-                        channelUUID: this.serverInfo.channelUUID,
-                        iceServers: this.iceServers,
-                    },
-                );
+                try {
+                    await this.sfuClient.connect(
+                        this.serverInfo.url,
+                        this.serverInfo.jsonWebToken,
+                        {
+                            channelUUID: this.serverInfo.channelUUID,
+                            iceServers: this.iceServers,
+                        },
+                    );
+                } catch (error) {
+                    // single failure funnel with the timeout above: fall back
+                    // to p2p locally instead of letting the rejection abort
+                    // the caller (e.g. the rest of the `joinCall` setup).
+                    this.log(this.selfSession, "failed to connect to the SFU server", {
+                        error,
+                        important: true,
+                    });
+                    await this._downgradeConnection();
+                }
             }
             return;
         }
@@ -1752,6 +1874,20 @@ export class Rtc extends Record {
         this.exitFullscreen();
         this._remotelyHostedSessionId = undefined;
         this._remotelyHostedChannelId = undefined;
+        // abort any in-flight `_initConnection` run
+        this._connectEpoch++;
+        this._sessionInfoStamps.clear();
+        for (const timeoutId of this.downloadTimeouts.values()) {
+            browser.clearTimeout(timeoutId);
+        }
+        this.downloadTimeouts.clear();
+        // stale call notifications (e.g. "raised hand") must not survive
+        // into the next call.
+        for (const timeoutId of this.timeouts.values()) {
+            browser.clearTimeout(timeoutId);
+        }
+        this.timeouts.clear();
+        this.notifications.clear();
         browser.clearTimeout(this._crossTabTimeoutId);
         browser.clearTimeout(this.state.pttReleaseTimeout);
         this.cleanups.splice(0).forEach((cleanup) => cleanup());
@@ -1934,7 +2070,10 @@ export class Rtc extends Record {
                         cleanup: false,
                     });
                     if (this.state.cameraTrack) {
-                        this.updateStream(this.localSession, this.state.cameraTrack);
+                        await this.updateStream(
+                            this.localSession,
+                            this.state.cameraTrack,
+                        );
                     }
                     break;
                 }
@@ -1945,32 +2084,36 @@ export class Rtc extends Record {
                             cleanup: false,
                         });
                     } else {
-                        this.updateStream(this.localSession, this.state.screenTrack);
+                        await this.updateStream(
+                            this.localSession,
+                            this.state.screenTrack,
+                        );
                     }
+                    break;
+                }
+            }
+            // broadcast the new state before (and independently of) the
+            // transport fan-out: the upload can lag for seconds behind a
+            // stuck peer handshake and must not delay what the other
+            // participants see.
+            switch (type) {
+                case "camera": {
+                    this.updateAndBroadcast({
+                        is_camera_on: !!this.state.sendCamera,
+                    });
+                    break;
+                }
+                case "screen": {
+                    this.updateAndBroadcast({
+                        is_screen_sharing_on: !!this.state.sendScreen,
+                    });
                     break;
                 }
             }
         }
         const updatedTrack =
             type === "camera" ? this.state.cameraTrack : this.state.screenTrack;
-        await this.network?.updateUpload(type, updatedTrack);
-        if (!this.localSession) {
-            return;
-        }
-        switch (type) {
-            case "camera": {
-                this.updateAndBroadcast({
-                    is_camera_on: !!this.state.sendCamera,
-                });
-                break;
-            }
-            case "screen": {
-                this.updateAndBroadcast({
-                    is_screen_sharing_on: !!this.state.sendScreen,
-                });
-                break;
-            }
-        }
+        await this._updateTrackUpload(type, updatedTrack);
     }
 
     updateAndBroadcast(data) {
@@ -2008,7 +2151,7 @@ export class Rtc extends Record {
             activateVideo = options?.activateVideo ?? false;
             env = options?.env;
         }
-        const stopVideo = () => {
+        const stopVideo = async () => {
             if (track) {
                 track.stop();
             }
@@ -2029,7 +2172,7 @@ export class Rtc extends Record {
                     this.state.screenAudioTrack = undefined;
                     closeStream(this.state.sourceScreenStream);
                     this.state.sourceScreenStream = null;
-                    this.updateAudioTrack();
+                    await this.updateAudioTrack();
                     break;
                 }
             }
@@ -2042,7 +2185,7 @@ export class Rtc extends Record {
                 this.blurManager.close();
                 this.blurManager = undefined;
             }
-            stopVideo();
+            await stopVideo();
             return;
         }
         let sourceStream;
@@ -2076,7 +2219,7 @@ export class Rtc extends Record {
                 camera: type === "camera",
                 screen: type === "screen",
             });
-            stopVideo();
+            await stopVideo();
             return;
         }
         if (!this.selfSession) {
@@ -2138,57 +2281,75 @@ export class Rtc extends Record {
             }
         }
         if (this.state.screenAudioTrack) {
-            this.updateAudioTrack();
+            await this.updateAudioTrack();
         }
     }
 
-    async updateAudioTrack() {
-        const { micAudioTrack, screenAudioTrack } = this.state;
-        if (!micAudioTrack && !screenAudioTrack) {
-            return;
-        }
-        if (micAudioTrack && screenAudioTrack) {
-            await this.audioContext?.close();
-            this.audioContext = undefined;
-            this.audioContext = new AudioContext();
-            const micSource = this.audioContext.createMediaStreamSource(
-                new MediaStream([micAudioTrack]),
-            );
-            const screenSource = this.audioContext.createMediaStreamSource(
-                new MediaStream([screenAudioTrack]),
-            );
-            const destination = this.audioContext.createMediaStreamDestination();
-            micSource.connect(destination);
-            screenSource.connect(destination);
-            this.state.audioTrack = destination.stream.getAudioTracks()[0];
-        } else {
-            // Only one source remains: no mixing needed. Tear down the mix
-            // AudioContext (browsers cap concurrent contexts, so leaking one per
-            // screen-share toggle eventually breaks audio for the rest of the
-            // call) and stop the now-unused mixed destination track.
-            if (this.audioContext) {
-                await this.audioContext.close();
-                this.audioContext = undefined;
+    /**
+     * Rebuilds `state.audioTrack` from the current mic/screen audio tracks
+     * (mixing them when both are present) and updates the outbound upload
+     * accordingly. Serialized behind a mutex: concurrent runs would race on
+     * the shared mix AudioContext (double close/create, context leak).
+     */
+    updateAudioTrack() {
+        return this._audioTrackMutex.exec(async () => {
+            const { micAudioTrack, screenAudioTrack } = this.state;
+            if (micAudioTrack && screenAudioTrack) {
+                await this.audioContext?.close();
+                this.audioContext = new AudioContext();
+                const micSource = this.audioContext.createMediaStreamSource(
+                    new MediaStream([micAudioTrack]),
+                );
+                const screenSource = this.audioContext.createMediaStreamSource(
+                    new MediaStream([screenAudioTrack]),
+                );
+                const destination = this.audioContext.createMediaStreamDestination();
+                micSource.connect(destination);
+                screenSource.connect(destination);
+                this.state.audioTrack = destination.stream.getAudioTracks()[0];
+            } else {
+                // At most one source remains: no mixing needed. Tear down the
+                // mix AudioContext (browsers cap concurrent contexts, so
+                // leaking one per screen-share toggle eventually breaks audio
+                // for the rest of the call) and stop the now-unused mixed
+                // destination track.
+                if (this.audioContext) {
+                    await this.audioContext.close();
+                    this.audioContext = undefined;
+                }
+                const previousTrack = this.state.audioTrack;
+                this.state.audioTrack = micAudioTrack ?? screenAudioTrack;
+                if (previousTrack && previousTrack !== this.state.audioTrack) {
+                    previousTrack.stop();
+                }
             }
-            const previousTrack = this.state.audioTrack;
-            this.state.audioTrack = micAudioTrack ?? screenAudioTrack;
-            if (previousTrack && previousTrack !== this.state.audioTrack) {
-                previousTrack.stop();
-            }
-        }
-        await this.network?.updateUpload("audio", this.state.audioTrack);
+            // always resynchronize the senders, including with no track at
+            // all: they must not keep streaming an ended track.
+            await this._updateTrackUpload("audio", this.state.audioTrack);
+        });
     }
 
     async resetMicAudioTrack({ force = false }) {
         this.state.micAudioTrack?.stop();
         this.state.micAudioTrack = undefined;
-        this.state.audioTrack?.stop();
+        if (
+            this.state.audioTrack &&
+            this.state.audioTrack !== this.state.screenAudioTrack
+        ) {
+            // `audioTrack` is then the mic track itself or a mixed
+            // (mic + screen) destination track, both owned by this service
+            // and safe to stop. When screen-sharing without a mic track,
+            // `audioTrack` IS the live screen-capture audio track: stopping
+            // it would irreversibly end the shared tab/system audio for all
+            // participants (a MediaStreamTrack cannot be restarted).
+            this.state.audioTrack.stop();
+        }
         this.state.audioTrack = undefined;
         if (!this.state.channel) {
             return;
         }
         if (this.localSession) {
-            this.setMute(true);
+            await this.setMute(true);
         }
         if (force) {
             let micAudioTrack;
@@ -2198,10 +2359,13 @@ export class Rtc extends Record {
                 });
                 micAudioTrack = audioStream.getAudioTracks()[0];
                 if (this.localSession) {
-                    this.setMute(false);
+                    await this.setMute(false);
                 }
             } catch {
                 this.showMediaUnavailableWarning({ microphone: true });
+                // still rebuild the outgoing audio (the screen audio may
+                // remain) so the senders do not keep an ended track.
+                await this.updateAudioTrack();
                 return;
             }
             if (!this.localSession) {
@@ -2213,14 +2377,14 @@ export class Rtc extends Record {
             micAudioTrack.addEventListener("ended", async () => {
                 // this mostly happens when the user retracts microphone permission.
                 await this.resetMicAudioTrack({ force: false });
-                this.setMute(true);
+                await this.setMute(true);
             });
             micAudioTrack.enabled =
                 !this.localSession.isMute && this.localSession.isTalking;
             this.state.micAudioTrack = micAudioTrack;
             this.linkVoiceActivationDebounce();
-            this.updateAudioTrack();
         }
+        await this.updateAudioTrack();
     }
 
     /**
@@ -2292,10 +2456,24 @@ export class Rtc extends Record {
         });
     }
 
+    /**
+     * Pure read of the session info shared with the other call participants.
+     * Callers that need the video flags realigned with the actual local
+     * tracks must call `_syncVideoInfo()` first.
+     */
     formatInfo() {
+        return this.localSession.info;
+    }
+
+    /**
+     * Realigns the shared video flags with the actual local tracks. To be
+     * called before advertising the session info over a fresh transport
+     * (`is_camera_on`/`is_screen_sharing_on` are otherwise maintained by
+     * `toggleVideo`).
+     */
+    _syncVideoInfo() {
         this.localSession.is_camera_on = Boolean(this.state.cameraTrack);
         this.localSession.is_screen_sharing_on = Boolean(this.state.screenTrack);
-        return this.localSession.info;
     }
 
     /**
@@ -2425,6 +2603,11 @@ export class Rtc extends Record {
      */
     updateVideoDownload(rtcSession, { viewCountIncrement = 0 } = {}) {
         rtcSession.videoComponentCount += viewCountIncrement;
+        if (!this.state.channel) {
+            // out of a call (e.g. delayed timeout firing after `clear()`):
+            // nothing to download, and no timeout should be (re)scheduled.
+            return;
+        }
         const downloadTimeout = this.downloadTimeouts.get(rtcSession.id);
         if (downloadTimeout) {
             this.downloadTimeouts.delete(rtcSession.id);

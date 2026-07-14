@@ -17,6 +17,7 @@ const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
  *          stuttering when the speech volume oscillates around the threshold value.
  * @param {function(boolean):void} [processorOptions.onThreshold] a function to be called when the threshold is passed
  * @param {function(number):void} [processorOptions.onTic] a function to be called at each tics
+ * @param {number} [processorOptions.processInterval] how many ms between each volume computation
  * @param {number} [processorOptions.volumeThreshold] the normalized minimum value for audio detection
  * @returns {Object} returnValue
  * @returns {function} returnValue.disconnect callback to cleanly end the monitoring
@@ -79,6 +80,7 @@ function _loadScriptProcessor(
         minimumActiveCycles = 30,
         onThreshold,
         onTic,
+        processInterval = 50, // how many ms between each computation
         volumeThreshold = 0.3,
     } = {},
 ) {
@@ -92,7 +94,6 @@ function _loadScriptProcessor(
     scriptProcessorNode.connect(audioContext.destination);
 
     // timing variables
-    const processInterval = 50; // how many ms between each computation
     const intervalInFrames = (processInterval / 1000) * analyser.context.sampleRate;
     let nextUpdateFrame = processInterval;
 
@@ -152,6 +153,7 @@ async function _loadAudioWorkletProcessor(
         minimumActiveCycles = 10,
         onThreshold,
         onTic,
+        processInterval = 50,
         volumeThreshold = 0.3,
         normalizationParameters = { boost: 1, shift: 0.6 },
     } = {},
@@ -165,6 +167,7 @@ async function _loadAudioWorkletProcessor(
         {
             processorOptions: {
                 minimumActiveCycles,
+                processInterval,
                 volumeThreshold,
                 frequencyRange,
                 normalizationParameters,

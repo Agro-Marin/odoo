@@ -1,9 +1,24 @@
-import { describe, expect } from "@odoo/hoot";
+import {
+    defineMailModels,
+    mockGetMedia,
+    onlineTest,
+} from "@mail/../tests/mail_test_helpers";
+import {
+    MAX_NOTIFICATION_RETRIES,
+    PeerToPeer,
+    STREAM_TYPE,
+    UPDATE_EVENT,
+} from "@mail/discuss/call/common/peer_to_peer";
+import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
+import {
+    asyncStep,
+    makeServerError,
+    mountWebClient,
+    onRpc,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { asyncStep, onRpc, mountWebClient, waitForSteps } from "@web/../tests/web_test_helpers";
-import { defineMailModels, mockGetMedia, onlineTest } from "@mail/../tests/mail_test_helpers";
-import { PeerToPeer, STREAM_TYPE, UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -148,7 +163,9 @@ onlineTest("can broadcast a stream and control download", async () => {
     await user1.p2p.updateUpload(STREAM_TYPE.CAMERA, videoTrack);
     await trackPromise;
     const user2RemoteMedia = user2.remoteMedia.get(user1.id);
-    const user2CameraTransceiver = user2.p2p.peers.get(user1.id).getTransceiver(STREAM_TYPE.CAMERA);
+    const user2CameraTransceiver = user2.p2p.peers
+        .get(user1.id)
+        .getTransceiver(STREAM_TYPE.CAMERA);
     expect(user2CameraTransceiver.direction).toBe("recvonly");
     expect(user2RemoteMedia[STREAM_TYPE.CAMERA].track.kind).toBe("video");
     expect(user2RemoteMedia[STREAM_TYPE.CAMERA].active).toBe(true);
@@ -188,6 +205,58 @@ onlineTest("can broadcast arbitrary messages (dataChannel)", async () => {
     expect(user2.inbox[0].message).toBe("ping");
     expect(user1.inbox[0].senderId).toBe(user2.id);
     expect(user1.inbox[0].message).toBe("pong");
+    network.close();
+});
+
+test("failed notification batches retry with backoff then give up", async () => {
+    await mountWebClient();
+    const route = "/failing/mock/notification";
+    let rpcCount = 0;
+    onRpc(route, () => {
+        rpcCount++;
+        throw makeServerError({ message: "offline" });
+    });
+    const p2p = new PeerToPeer({ notificationRoute: route });
+    p2p.connect(1, 1);
+    const notifyProm = p2p._busNotify("disconnect", { targets: [2] });
+    // let the batch delay and every backoff delay (each bounded by
+    // MAXIMUM_RECONNECT_DELAY) elapse; advance in chunks so that the timers
+    // scheduled between retries by the async loop are picked up.
+    for (let i = 0; i < 12; i++) {
+        await advanceTime(10_000);
+    }
+    // initial attempt + capped retries, no infinite ~100ms-cadence recursion
+    expect(rpcCount).toBe(1 + MAX_NOTIFICATION_RETRIES);
+    // the undeliverable batch is dropped
+    expect(p2p._notificationsToSend.size).toBe(0);
+    // resolves cleanly: failures must not leak rejections to the callers
+    await notifyProm;
+    await advanceTime(60_000);
+    expect(rpcCount).toBe(1 + MAX_NOTIFICATION_RETRIES);
+    p2p.disconnect();
+});
+
+onlineTest("recovery timeout firing after peer removal is a no-op", async () => {
+    await mountWebClient();
+    const network = new Network();
+    const user1 = network.register(1);
+    // registered so the mock route can deliver notifications, but never
+    // connected: peer 2 ignores them and never answers.
+    network.register(2);
+    user1.p2p.connect(user1.id, 1);
+    // schedule a recovery for the unanswering peer, then simulate the stale
+    // race where the peer vanishes without its recovery timeout being
+    // cleared.
+    user1.p2p.addPeer(2);
+    user1.p2p._recover(2, "test: forced recovery");
+    expect(user1.p2p._recoverTimeouts.size).toBe(1);
+    user1.p2p.peers.get(2).disconnect();
+    user1.p2p.peers.delete(2);
+    await advanceTime(60_000);
+    // the recovery callback must bail out (it previously read
+    // `peer.connection.connectionState` before its null guard)
+    expect(user1.p2p._recoverTimeouts.size).toBe(0);
+    expect(user1.p2p.peers.size).toBe(0);
     network.close();
 });
 
