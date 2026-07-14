@@ -14,20 +14,7 @@ import { FormCompiler } from "@web/views/form/form_compiler";
  */
 function compileChatter(node, params) {
     const chatterContainerXml = createElement("Chatter");
-    let parentSearch = "";
-    try {
-        parentSearch = window.parent.location.search;
-    } catch {
-        // Cross-origin embed: reading the parent frame throws SecurityError.
-        parentSearch = window.location.search;
-    }
-    const accessToken = new URLSearchParams(parentSearch).get("access_token");
     setAttributes(chatterContainerXml, {
-        // This value becomes the *source text* of a compiled OWL expression, so
-        // the token must be emitted as a safely-escaped JS string literal.
-        // JSON.stringify quotes and escapes it (and yields "" for a missing
-        // token), preventing template/DOM injection via the URL parameter.
-        token: JSON.stringify(accessToken ?? ""),
         threadModel: params.resModel,
         threadId: params.resId,
         projectSharingId: params.projectSharingId,

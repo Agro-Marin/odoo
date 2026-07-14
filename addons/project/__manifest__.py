@@ -126,11 +126,21 @@
             "base/static/src/css/modules.css",
             "web/static/src/core/utils/transitions.scss",
             "web/static/src/core/**/*",
+            # The fork split web/static/src/core into components/, ui/ and
+            # services/: without them the bundle misses their modules and
+            # templates (e.g. web.Dialog, web.DropdownItem, web.TagsList) and
+            # the sharing client dies at template setup.
+            "web/static/src/components/**/*",
+            "web/static/src/ui/**/*",
+            "web/static/src/services/**/*",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
             "web/static/src/webclient/icons.scss",  # variables required in list_controller.scss
             "web/static/src/views/**/*.js",
             "web/static/src/views/*.xml",
+            # Parent templates of the web_enterprise settings_form_view files
+            # that project_enterprise appends to this bundle.
+            "web/static/src/views/settings/**/*",
             "web/static/src/views/*.scss",
             "web/static/src/fields/**/*",
             "web/static/src/views/form/**/*",
@@ -172,6 +182,7 @@
             "project/static/src/views/project_task_form/*.scss",
             "project/static/src/views/project_task_kanban/*.scss",
             "project/static/src/views/project_task_control_panel/*",
+            "project/static/src/utils/project_utils.js",
             "project/static/src/views/project_task_model_mixin.js",
             "project/static/src/views/project_task_relational_model.js",
             "project/static/src/views/project_model_mixin.js",
