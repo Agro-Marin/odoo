@@ -135,7 +135,7 @@ export class CallSettings extends Component {
         const activeRtcSessions = this.store.allActiveRtcSessions;
         if (showOnlyVideo && activeRtcSessions) {
             activeRtcSessions
-                .filter((rtcSession) => !rtcSession.videoStream)
+                .filter((rtcSession) => !rtcSession.hasVideo)
                 .forEach((rtcSession) => {
                     rtcSession.channel.activeRtcSession = undefined;
                 });

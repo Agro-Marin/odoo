@@ -13,10 +13,10 @@ patch(Composer.prototype, {
         this.voiceRecorder = useVoiceRecorder();
     },
     get isSendButtonDisabled() {
-        return this.voiceRecording?.recording || super.isSendButtonDisabled;
+        return this.voiceRecorder?.recording || super.isSendButtonDisabled;
     },
     onKeydown(ev) {
-        if (ev.key === "Enter" && this.voiceRecording?.recording) {
+        if (ev.key === "Enter" && this.voiceRecorder?.recording) {
             ev.preventDefault();
             return;
         }

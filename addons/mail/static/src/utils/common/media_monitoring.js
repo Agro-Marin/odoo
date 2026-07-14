@@ -28,7 +28,7 @@ export async function monitorAudio(track, processorOptions) {
     const stream = new window.MediaStream([monitoredTrack]);
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) {
-        throw "missing audio context";
+        throw new Error("missing audio context");
     }
     const audioContext = new AudioContext();
     const source = audioContext.createMediaStreamSource(stream);
@@ -88,7 +88,7 @@ function _loadScriptProcessor(
     source.connect(analyser);
     const scriptProcessorNode = audioContext.createScriptProcessor(bitSize, 1, 1);
     analyser.connect(scriptProcessorNode);
-    analyser.fftsize = bitSize;
+    analyser.fftSize = bitSize;
     scriptProcessorNode.connect(audioContext.destination);
 
     // timing variables

@@ -104,7 +104,9 @@ export class NavigableList extends Component {
     }
 
     selectOption(ev, index, params = {}) {
-        const option = this.props.options[index];
+        // indexes handed out by the template/keyboard refer to the displayed
+        // (sorted) order, not to props.options' order.
+        const option = this.sortedOptions[index];
         if (!option) {
             return;
         }

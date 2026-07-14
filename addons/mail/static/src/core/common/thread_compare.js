@@ -45,9 +45,9 @@ threadCompareRegistry.add(
         if (
             aMessageDatetime &&
             bMessageDateTime &&
-            aMessageDatetime !== bMessageDateTime
+            aMessageDatetime.ts !== bMessageDateTime.ts
         ) {
-            return bMessageDateTime - aMessageDatetime;
+            return bMessageDateTime.ts - aMessageDatetime.ts;
         }
     },
     { sequence: 40 },

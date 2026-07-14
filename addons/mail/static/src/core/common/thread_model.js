@@ -962,9 +962,9 @@ export class Thread extends Record {
             } else {
                 let afterIndex = this.messages.findIndex((msg) => msg.id > message.id);
                 if (afterIndex === -1) {
-                    afterIndex = this.messages.length + 1;
+                    afterIndex = this.messages.length;
                 }
-                this.messages.splice(afterIndex - 1, 0, message);
+                this.messages.splice(afterIndex, 0, message);
             }
         }
     }

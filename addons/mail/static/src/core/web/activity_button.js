@@ -32,7 +32,7 @@ export class ActivityButton extends Component {
                 break;
             default:
                 if (this.defaultActivityStateClass) {
-                    classes.push(this.activityStateClass);
+                    classes.push(this.defaultActivityStateClass);
                 }
                 break;
         }

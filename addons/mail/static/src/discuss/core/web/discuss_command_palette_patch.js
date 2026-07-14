@@ -24,7 +24,9 @@ patch(DiscussCommandPalette.prototype, {
             for (const channel of limitedMentioned) {
                 this.commands.push(this.makeDiscussCommand(channel, DISCUSS_MENTIONED));
                 if (channel.channel_type === "chat") {
-                    mentionedSet.add(channel.correspondent.persona);
+                    if (channel.correspondent) {
+                        mentionedSet.add(channel.correspondent.persona);
+                    }
                 } else {
                     mentionedSet.add(channel);
                 }
@@ -39,7 +41,9 @@ patch(DiscussCommandPalette.prototype, {
             for (const channel of limitedRecent) {
                 this.commands.push(this.makeDiscussCommand(channel, DISCUSS_RECENT));
                 if (channel.channel_type === "chat") {
-                    recentSet.add(channel.correspondent.persona);
+                    if (channel.correspondent) {
+                        recentSet.add(channel.correspondent.persona);
+                    }
                 } else {
                     recentSet.add(channel);
                 }

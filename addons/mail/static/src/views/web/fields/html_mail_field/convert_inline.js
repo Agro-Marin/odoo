@@ -1320,7 +1320,10 @@ export function formatTables(element) {
             height = parent.style.getPropertyValue("height");
         }
         if (parent) {
-            parent.style.setProperty("height", parent.getBoundingClientRect().height);
+            parent.style.setProperty(
+                "height",
+                parent.getBoundingClientRect().height + "px",
+            );
         }
     }
     // Align self and justify content don't work on table cells.
