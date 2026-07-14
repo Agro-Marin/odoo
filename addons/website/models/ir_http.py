@@ -58,9 +58,17 @@ class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
 
     def routing_map(self, key=None):
-        if not key and request:
-            key = request.website_routing
-        return super().routing_map(key=key)
+        return super().routing_map(key=key or self._routing_map_key())
+
+    @api.model
+    def _routing_map_key(self):
+        # The routing map is scoped per website (rewrites/pages differ), so
+        # anything cached against it -- e.g. ``url_rewrite`` results -- must
+        # be discriminated the same way. ``getattr``: ``website_routing`` is
+        # only stamped on the request once ``_match`` runs; requests that
+        # never dispatched (e.g. direct model calls in tests) fall back to
+        # the unscoped map, as ``routing_map()`` itself would.
+        return getattr(request, "website_routing", None) if request else None
 
     @classmethod
     def _slug(cls, value: models.BaseModel | tuple[int, str]) -> str:

@@ -56,6 +56,23 @@ class TestNearestLang(TransactionCase):
         # not treat that empty prefix as "matches everything".
         self.assertIsNone(self.IrHttp.get_nearest_lang("_US"))
 
+    def test_base_lang_no_false_prefix_match(self):
+        # kab (Kabyle) is not a variant of ka (Georgian): matching must
+        # compare the base language exactly, not by string prefix, which used
+        # to route Georgian visitors onto Kabyle.
+        self.env["res.lang"]._activate_lang("kab_DZ")
+        self.assertEqual(self.IrHttp.get_nearest_lang("kab"), "kab_DZ")
+        self.assertEqual(self.IrHttp.get_nearest_lang("kab_XX"), "kab_DZ")
+        self.assertIsNone(self.IrHttp.get_nearest_lang("ka_GE"))
+        self.assertIsNone(self.IrHttp.get_nearest_lang("ka"))
+
+    def test_script_variant_matches_base_lang(self):
+        # sr@latin carries its qualifier with "@" instead of "_": both
+        # directions must still resolve to the base language "sr".
+        self.env["res.lang"]._activate_lang("sr@latin")
+        self.assertEqual(self.IrHttp.get_nearest_lang("sr_RS"), "sr@latin")
+        self.assertEqual(self.IrHttp.get_nearest_lang("sr"), "sr@latin")
+
 
 @tagged("-at_install", "post_install")
 class TestLangLadder(HttpCase):
@@ -126,6 +143,23 @@ class TestLangLadder(HttpCase):
         r = self.url_open("/fr" + self.EP, allow_redirects=False)
         self.assertEqual(r.status_code, 200)
 
+    def test_direct_match_matches_only_once(self):
+        # A directly-matched frontend URL (case /2) must not be matched a
+        # second time after the ladder: the rule found by the first match is
+        # reused. Pin it by counting _match_and_flag calls for one request.
+        IrHttp = self.registry["ir.http"]
+        matcher = IrHttp._match_and_flag  # bound classmethod
+        calls = []
+
+        def counting(path):
+            calls.append(path)
+            return matcher(path)
+
+        self.patch(IrHttp, "_match_and_flag", counting)
+        r = self.url_open(self.EP, allow_redirects=False)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(calls, [self.EP])
+
     # -- redirects -----------------------------------------------------------
 
     def test_case_5_missing_lang_redirects_adding_lang(self):
@@ -166,6 +200,13 @@ class TestLangLadder(HttpCase):
         self.assertEqual(r.status_code, 301)
         self.assertEqual(self._loc(r), "/fr" + self.EP)
 
+    def test_case_7_bare_lang_alias_redirects_without_trailing_slash(self):
+        # /7 on a bare "/fr_FR": redirect straight to "/fr", not to "/fr/"
+        # which case /8 would then 301 a second time.
+        r = self.url_open("/fr_FR", allow_redirects=False)
+        self.assertEqual(r.status_code, 301)
+        self.assertEqual(self._loc(r), "/fr")
+
     def test_case_8_homepage_trailing_slash_redirects_with_cookie(self):
         # /8: bare "/<lang>/" -> "/<lang>" (301). This branch redirects before
         # any re-match, so it needs no homepage route. The frontend_lang cookie
@@ -182,3 +223,11 @@ class TestLangLadder(HttpCase):
         self.assertEqual(r.status_code, 301)
         self.assertEqual(self._loc(r), self.EP)
         self.assertEqual(urlparse(r.headers.get("Location", "")).query, "a=b")
+
+    def test_slash_runs_merge_in_one_redirect(self):
+        # Any run of slashes collapses in a single hop; a pairwise
+        # replace("//", "/") used to turn "///" into "//" and chain a second
+        # redirect.
+        r = self.url_open("/website///translations", allow_redirects=False)
+        self.assertEqual(r.status_code, 301)
+        self.assertEqual(self._loc(r), self.EP)
