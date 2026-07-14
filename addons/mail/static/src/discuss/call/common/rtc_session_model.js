@@ -108,7 +108,10 @@ export class RtcSession extends Record {
     isVideoStreaming = fields.Attr(false, {
         /** @this {import("models").RtcSession} */
         compute() {
-            return this.is_screen_sharing_on || this.is_camera_on;
+            // normalized: on freshly inserted sessions both flags are
+            // undefined and the computed value must settle on the field
+            // default (false) instead of oscillating around it.
+            return Boolean(this.is_screen_sharing_on || this.is_camera_on);
         },
         /** @this {import("models").RtcSession} */
         onUpdate() {

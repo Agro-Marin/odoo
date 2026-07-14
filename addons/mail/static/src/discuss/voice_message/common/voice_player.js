@@ -63,6 +63,8 @@ export class VoicePlayer extends Component {
         /** @type {import("@mail/discuss/voice_message/common/voice_message_service").VoiceMessageService} */
         this.voiceMessageService = useService("discuss.voice_message");
         this.state = useState({
+            /** the audio file could not be fetched or decoded */
+            failed: false,
             paused: true,
             playing: false,
             repeat: false,
@@ -126,7 +128,14 @@ export class VoicePlayer extends Component {
             url(this.props.attachment.urlRoute, {
                 ...this.props.attachment.urlQueryParams,
             }),
-        ).then((arrayBuffer) => this.drawBuffer(arrayBuffer));
+        )
+            .then((arrayBuffer) => this.drawBuffer(arrayBuffer))
+            .catch(() => {
+                // fetch (e.g. deleted attachment: 404) or decode failure:
+                // leave the player disabled (no `buffer`) instead of leaking
+                // an unhandled rejection.
+                this.state.failed = true;
+            });
     }
 
     _fetch(...args) {
@@ -258,6 +267,10 @@ export class VoicePlayer extends Component {
     }
 
     seekTo(progress) {
+        if (!this.buffer) {
+            // not decoded yet, or the fetch/decode failed
+            return;
+        }
         if (this.state.playing) {
             this.pause({ continue: true });
         }
@@ -272,7 +285,15 @@ export class VoicePlayer extends Component {
     }
 
     async drawBuffer(arrayBuffer) {
+        if (status(this) === "destroyed") {
+            // unmounted while fetching: `audioCtx` is closed and the canvas
+            // contexts are gone.
+            return;
+        }
         const buffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+        if (status(this) === "destroyed") {
+            return;
+        }
         this.state.visualTime = this.generateTime(Math.floor(buffer.duration));
         this.startPosition = 0;
         this.lastPlaytime = this.audioCtx.currentTime;
@@ -379,7 +400,7 @@ export class VoicePlayer extends Component {
     drawLineToContext(ctx, peaks) {
         const maxPeak = Math.max(...peaks);
         let i, peak;
-        for (i = 0; i <= peaks.length; i++) {
+        for (i = 0; i < peaks.length; i++) {
             peak = peaks[i];
             const h = (peak * this.height) / maxPeak;
             ctx.fillRect(i, (this.height - h) / 2, 1.5, h);
@@ -387,7 +408,7 @@ export class VoicePlayer extends Component {
     }
 
     onClickPlayPause() {
-        if (this.props.attachment.uploading) {
+        if (this.props.attachment.uploading || !this.buffer) {
             return;
         }
         if (this.state.paused) {
