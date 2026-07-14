@@ -37,6 +37,13 @@ _UNSLUG_RE = re.compile(rf"(?:({_SLUG_NAME})-)?({_SLUG_ID}){_SLUG_END}")
 _UNSLUG_ROUTE_PATTERN = rf"(?:(?:{_SLUG_NAME})-)?(?:{_SLUG_ID}){_SLUG_END}"
 
 
+def _lang_base(lang_code: str) -> str:
+    """Return the base language of a locale code: "fr_BE" -> "fr",
+    "sr@latin" -> "sr", "kab_DZ" -> "kab".
+    """
+    return lang_code.partition("_")[0].partition("@")[0]
+
+
 class ModelConverter(ir_http.ModelConverter):
     def __init__(self, url_map, model=False, domain="[]"):
         super().__init__(url_map, model)
@@ -189,7 +196,12 @@ class IrHttp(models.AbstractModel):
             # the URL as given -- never abort the surrounding render with a 3xx,
             # nor 500.
             # ``build`` returns a quoted URL, so quote here too for consistency.
-            path = urllib.parse.quote_plus(url, safe="/")
+            # Keep "%" safe: the URL may already be percent-quoted (e.g. an
+            # href out of a template), and re-quoting would double-encode it
+            # ("%C3%A9" -> "%25C3%25A9"). And use ``quote``, not ``quote_plus``:
+            # "+" means a space in query strings only, never in a path, where
+            # a space must be "%20" (which is also what ``build`` emits).
+            path = urllib.parse.quote(url, safe="/%")
         if force_default_lang or lang != request.env["ir.http"]._get_default_lang():
             path = f"/{lang.url_code}{path if path != '/' else ''}"
 
@@ -252,8 +264,9 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _url_for(cls, url_from: str, lang_code: str | None = None) -> str:
-        """Return the url with the rewriting applied.
-        Nothing will be done for absolute URL, invalid URL, or short URL from 1 char.
+        """Return the URL adapted for the frontend: here only the lang
+        handling of :meth:`_url_lang`; the ``website`` override also applies
+        the ``website.rewrite`` rules before delegating here.
 
         :param url_from: The URL to convert.
         :param lang_code: Must be the lang `code`. It could also be something
@@ -282,19 +295,16 @@ class IrHttp(models.AbstractModel):
             spath.pop(1)
             local_url = "/".join(spath)
 
-        # Split off the fragment, then the query. ``partition`` keeps the whole
-        # query -- ``split("?")`` would silently truncate at a second '?'.
-        path, _, query_string = local_url.partition("#")[0].partition("?")
+        # Strip the fragment, then the query: only the path routes.
+        path = local_url.partition("#")[0].partition("?")[0]
 
         # Consider /static/ and /web/ files as non-multilang
         if "/static/" in path or path.startswith("/web/"):
             return False
 
-        query_string = query_string or None
-
         # Try to match an endpoint in werkzeug's routing table
         try:
-            _, func = request.env["ir.http"].url_rewrite(path, query_args=query_string)
+            _, func = request.env["ir.http"].url_rewrite(path)
 
             # /page/xxx has no endpoint/func but is multilang
             return not func or (
@@ -374,10 +384,14 @@ class IrHttp(models.AbstractModel):
         if lang_code in frontend_langs:
             return lang_code
 
-        short = lang_code.partition("_")[0]
-        if not short:
+        # Match on the base language: the code up to the territory ("_") or
+        # script ("@") qualifier. A plain prefix test is wrong on both sides:
+        # it maps ka_GE (Georgian) onto kab_DZ (Kabyle), and fails to map
+        # sr@latin onto sr_RS.
+        base = _lang_base(lang_code)
+        if not base:
             return None
-        return next((code for code in frontend_langs if code.startswith(short)), None)
+        return next((code for code in frontend_langs if _lang_base(code) == base), None)
 
     # ------------------------------------------------------------
     # Routing and dispatch
@@ -433,10 +447,12 @@ class IrHttp(models.AbstractModel):
             return super()._match(path)
 
         # See /1, match a non website endpoint
+        matched = None
         try:
             rule, args = cls._match_and_flag(path)
             if not request.is_frontend:
                 return rule, args
+            matched = (rule, args)
         except NotFound:
             # HTTP-dispatched paths always start with "/" (>=2 segments), but
             # internal callers (e.g. _url_localized) may hand us a slashless or
@@ -455,9 +471,11 @@ class IrHttp(models.AbstractModel):
 
         # Some URLs in website are concatenated, first url ends with /,
         # second url starts with /, resulting url contains two following
-        # slashes that must be merged.
+        # slashes that must be merged. ``re.sub`` collapses any run of
+        # slashes in one pass -- a pairwise ``replace("//", "/")`` turns
+        # "///" into "//" and needs a second redirect to finish the job.
         if allow_redirect and "//" in path:
-            new_url = path.replace("//", "/")
+            new_url = re.sub(r"/{2,}", "/", path)
             # Carry the query string over: ``redirect`` (unlike ``redirect_query``)
             # drops it, so a bare slash-merge on ``/a//b?x=1`` would silently lose
             # ``?x=1``. Every other branch of this ladder preserves it.
@@ -476,6 +494,16 @@ class IrHttp(models.AbstractModel):
         path = cls._reroute_for_lang(
             path, path_no_lang, url_lang_str, default_lang, allow_redirect
         )
+
+        if matched is not None:
+            # The path matched directly, so it carried no lang prefix
+            # (``url_lang_str`` is falsy by construction) and the ladder --
+            # having not aborted with a redirect above -- necessarily left
+            # ``path`` untouched (only case /9 rewrites it, and it needs a
+            # lang prefix). Re-matching the same path would repeat the whole
+            # werkzeug match plus every converter's ``to_python`` for
+            # nothing; reuse the rule found by /1 instead.
+            return matched
 
         # Re-match using rewritten route and really raise for 404 errors
         try:
@@ -605,12 +633,14 @@ class IrHttp(models.AbstractModel):
                 request_url_code,
             )
 
-        # See /5, missing lang in url, /home -> /fr/home
+        # See /5, missing lang in url, /home -> /fr/home. A bare "/" would
+        # yield "/<lang>/", which case /8 would then 301 to "/<lang>" on the
+        # next request -- skip the extra hop and target "/<lang>" directly.
         elif not url_lang_str:
             _logger.debug(
                 "%r (lang: %r) missing lang in url, redirect", path, request_url_code
             )
-            cls._redirect_lang(f"/{request_url_code}{path}")
+            cls._redirect_lang(f"/{request_url_code}{path if path != '/' else ''}")
 
         # See /6, default lang in url, /en/home -> /home. Here ``request.lang``
         # resolved from ``url_lang_str`` *is* the default lang, so the cookie
@@ -621,12 +651,17 @@ class IrHttp(models.AbstractModel):
             )
             cls._redirect_lang(path_no_lang)
 
-        # See /7, lang alias in url, /fr_FR/home -> /fr/home
+        # See /7, lang alias in url, /fr_FR/home -> /fr/home. For a bare
+        # "/fr_FR", ``path_no_lang`` is "/": target "/fr" directly instead of
+        # "/fr/", which case /8 would 301 a second time (same as case /5).
         elif url_lang_str != request_url_code and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) lang alias in url, redirect", path, request_url_code
             )
-            cls._redirect_lang(f"/{request_url_code}{path_no_lang}", code=301)
+            cls._redirect_lang(
+                f"/{request_url_code}{path_no_lang if path_no_lang != '/' else ''}",
+                code=301,
+            )
 
         # See /8, homepage with trailing slash. /fr_BE/ -> /fr_BE. The cookie
         # records ``request.lang`` (the URL's non-default lang), not the default
@@ -820,11 +855,26 @@ class IrHttp(models.AbstractModel):
     # ------------------------------------------------------------
 
     @api.model
-    @tools.ormcache("path", "query_args", cache="routing.rewrites")
+    def _routing_map_key(self) -> int | str | None:
+        """Discriminator of the routing map the current request matches
+        against. It MUST mirror the ``key`` that :meth:`routing_map` resolves
+        when called without one (``website`` overrides both to scope the map
+        -- and therefore the :meth:`url_rewrite` cache -- per website).
+        """
+        return None
+
+    @api.model
+    @tools.ormcache("self._routing_map_key()", "path", cache="routing.rewrites")
     def url_rewrite(
-        self, path: str, query_args: str | None = None
+        self, path: str, _visited: frozenset[str] = frozenset()
     ) -> tuple[str, typing.Any]:
         """Resolve ``path`` against the routing table.
+
+        Besides the routing-map discriminator, the result only depends on
+        ``path``: a redirect rule's target path is built from the rule alone
+        (werkzeug appends any query string as a separate URL component, which
+        is discarded below), so the query string plays no part in the cache
+        key.
 
         :return: a ``(path, endpoint)`` tuple: the possibly-rewritten path (a
                  redirect rule reports its target) and the endpoint serving it,
@@ -833,9 +883,9 @@ class IrHttp(models.AbstractModel):
         router = http.root.get_db_router(request.db).bind("")
         try:
             try:
-                func, _args = router.match(path, method="POST", query_args=query_args)
+                func, _args = router.match(path, method="POST")
             except werkzeug.exceptions.MethodNotAllowed:
-                func, _args = router.match(path, method="GET", query_args=query_args)
+                func, _args = router.match(path, method="GET")
         except werkzeug.routing.RequestRedirect as e:
             # e.new_url is absolute ("http://host/path?qs"); keep only the path.
             # urlsplit is robust to the scheme/host (http vs https, empty host
@@ -843,7 +893,20 @@ class IrHttp(models.AbstractModel):
             # Recurse to resolve the redirect target's own endpoint, but report
             # the first redirect target as the rewritten path.
             new_path = urllib.parse.urlsplit(e.new_url).path
-            _, func = self.url_rewrite(new_path, query_args)
+            if new_path == path or new_path in _visited:
+                # A redirect cycle (e.g. two website.rewrite 308 rules mapping
+                # /a -> /b and /b -> /a) must not recurse forever: report the
+                # path as unroutable instead of killing every render that
+                # generates a URL through it with a RecursionError.
+                _logger.warning(
+                    "Redirect loop while rewriting %r (targets %r again)",
+                    path,
+                    new_path,
+                )
+                return path, False
+            # ``_visited`` is intentionally absent from the ormcache key: it
+            # only breaks in-flight cycles and never changes a loop-free result.
+            _, func = self.url_rewrite(new_path, _visited | {path})
             return new_path or path, func
         except werkzeug.exceptions.NotFound:
             return path, False

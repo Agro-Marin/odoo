@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import werkzeug.exceptions
 import werkzeug.routing
@@ -195,6 +195,20 @@ class TestUrlLocalized(TestUrlCommon):
                 "/fr/no/such/page-4",
             )
 
+    def test_unmatched_url_quoting(self):
+        # The degradation path re-quotes the URL like ``router.build`` would:
+        # existing percent-escapes must survive (no "%C3%A9" -> "%25C3%25A9"
+        # double-encoding) and a raw space must become "%20", not "+".
+        with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
+            self.assertEqual(
+                self.IrHttp._url_localized("/no/such/caf%C3%A9-4", lang_code="fr_FR"),
+                "/fr/no/such/caf%C3%A9-4",
+            )
+            self.assertEqual(
+                self.IrHttp._url_localized("/no such/page-4", lang_code="fr_FR"),
+                "/fr/no%20such/page-4",
+            )
+
     def test_request_redirect_degrades(self):
         # A path sitting under a 308 rewrite rule (website.rewrite) makes the
         # match probe raise werkzeug's RequestRedirect -- an HTTPException that
@@ -223,3 +237,38 @@ class TestUrlLocalized(TestUrlCommon):
                 self.IrHttp._url_localized(self.EP, lang_code="fr_FR"),
                 "/fr" + self.EP,
             )
+
+
+class TestUrlRewrite(TestUrlCommon):
+    """Unit coverage for ``ir.http.url_rewrite`` edge cases."""
+
+    def setUp(self):
+        super().setUp()
+        # Drop this class's probe entries from the registry-level
+        # "routing.rewrites" ormcache (same rationale as TestIsMultilangUrl).
+        self.addCleanup(self.registry.clear_cache, "routing")
+
+    def test_redirect_loop_degrades(self):
+        # Two redirect rules pointing at each other (e.g. website.rewrite 308
+        # rules /a -> /b and /b -> /a, creatable because the constraint only
+        # forbids direct self-redirects) must degrade to (path, False) with a
+        # warning instead of dying on RecursionError -- which would 500 every
+        # render generating a URL through the looping path.
+        targets = {"/loop/a": "/loop/b", "/loop/b": "/loop/a"}
+
+        def fake_match(path, method=None):
+            raise werkzeug.routing.RequestRedirect("http://x" + targets[path])
+
+        router = MagicMock()
+        router.return_value.bind.return_value.match.side_effect = fake_match
+        with (
+            MockRequest(self.env, mock_router=False),
+            patch("odoo.http.root.get_db_router", router),
+            self.assertLogs(
+                "odoo.addons.http_routing.models.ir_http", level="WARNING"
+            ) as capture,
+        ):
+            path, func = self.env["ir.http"].url_rewrite("/loop/a")
+        self.assertEqual(path, "/loop/b")
+        self.assertFalse(func)
+        self.assertIn("Redirect loop", capture.output[0])
