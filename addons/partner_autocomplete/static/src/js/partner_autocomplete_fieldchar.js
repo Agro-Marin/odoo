@@ -60,9 +60,14 @@ export class PartnerAutoCompleteCharField extends CharField {
       Object.keys(this.props.record.fields),
     );
 
-    // Update record with retrieved values
+    // Update record with retrieved values.
+    // The widget lives on the `name` input, which is `isDirty` from the typed
+    // query. useInputField only resyncs the DOM input from the record while
+    // NOT dirty, so writing the enriched name in the bulk update below can be
+    // overwritten by the stale typed value on the next commit. Writing name on
+    // its own first settles it before the rest of the payload lands.
     if (data.company.name) {
-      await this.props.record.update({ name: data.company.name }); // Needed otherwise name it is not saved
+      await this.props.record.update({ name: data.company.name });
     }
     await this.props.record.update(data.company);
 
