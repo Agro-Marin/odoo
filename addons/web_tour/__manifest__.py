@@ -55,20 +55,20 @@ Odoo Web tours.
         # in ``tour_service.js`` is a no-op once the parent loads, so the
         # preload optimisation is moot here.
         "web.assets_tests": [],
-        'web_tour.common': [
+        'web_tour._common': [
             'web/static/lib/hoot-dom/**/*',
             'web_tour/static/src/js/tour_step.js',
         ],
         'web_tour.interactive': [
-            ('include', 'web_tour.common'),
+            ('include', 'web_tour._common'),
             'web_tour/static/src/js/tour_interactive/**/*',
         ],
         'web_tour.automatic': [
-            ('include', 'web_tour.common'),
+            ('include', 'web_tour._common'),
             'web_tour/static/src/js/tour_automatic/**/*',
         ],
         'web_tour.recorder': [
-            ('include', 'web_tour.common'),
+            ('include', 'web_tour._common'),
             'web_tour/static/src/js/tour_recorder/**/*',
             'web_tour/static/src/views/**/*',
             'web_tour/static/src/widgets/**/*',
