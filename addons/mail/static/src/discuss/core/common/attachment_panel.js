@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { DateSection } from "@mail/core/common/date_section";
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { useSequential, useVisible } from "@mail/utils/common/hooks";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";

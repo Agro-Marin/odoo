@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CallDropdown } from "@mail/discuss/call/common/call_dropdown";
+import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component, onWillUnmount } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -33,7 +33,9 @@ class Action extends Component {
 
     get Dropdown() {
         if (this.env.inDiscussCallView?.isPip) {
-            return CallDropdown;
+            // Provided by the discuss call layer ("CallDropdown"); the env flag
+            // can only be set when that layer is loaded.
+            return discussComponentRegistry.get("CallDropdown", Dropdown);
         }
         return Dropdown;
     }

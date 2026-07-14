@@ -7,7 +7,6 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { Thread } from "@mail/core/common/thread";
 import { useThreadActions } from "@mail/core/common/thread_actions";
 import { ThreadIcon } from "@mail/core/common/thread_icon";
-import { Typing } from "@mail/discuss/typing/common/typing";
 import { useHover, useMessageScrolling } from "@mail/utils/common/hooks";
 import {
     Component,
@@ -19,11 +18,11 @@ import {
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 /**
  * @typedef {Object} Props
  * @property {import("models").ChatWindow} chatWindow
@@ -31,6 +30,10 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
  * @extends {Component<Props, Env>}
  */
 export class ChatWindow extends Component {
+    // The memberTyping template block is only reachable when
+    // thread.hasOtherMembersTyping is set, which requires the discuss typing
+    // layer; that layer contributes the Typing component (see
+    // @mail/discuss/typing/common/chat_window_patch).
     static components = {
         ActionList,
         CountryFlag,
@@ -40,7 +43,6 @@ export class ChatWindow extends Component {
         ThreadIcon,
         ImStatus,
         AutoresizeInput,
-        Typing,
     };
     static props = ["chatWindow", "right?"];
     static template = "mail.ChatWindow";

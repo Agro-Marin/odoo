@@ -75,7 +75,6 @@ Help your customers with this chat, and analyse their feedback.
     'application': True,
     'assets': {
         'web.assets_frontend': [
-            'web/static/src/fields/file_handler.*',
             'web/static/src/fields/formatters.js',
             ('include', 'im_livechat.assets_embed_core'),
             'im_livechat/static/src/embed/frontend/**/*',
@@ -106,12 +105,12 @@ Help your customers with this chat, and analyse their feedback.
         'im_livechat.assets_embed_core': [
             ('remove', 'web/static/src/services/title_service.js'),
             ("include", "html_editor._assets_editor"),
-            'mail/static/src/model/**/*',
-            'mail/static/src/core/common/**/*',
-            'mail/static/src/discuss/core/common/*',
-            'mail/static/src/discuss/call/common/**',
-            'mail/static/src/discuss/typing/**/*',
-            'mail/static/src/utils/common/**/*',
+            # mail is consumed through its named sub-bundles; do not glob
+            # mail/static/src/** internals here.
+            ('include', 'mail.assets_core_common'),
+            ('include', 'mail.assets_discuss_core_common'),
+            ('include', 'mail.assets_discuss_call_common'),
+            ('include', 'mail.assets_discuss_typing_common'),
             ('remove', 'mail/static/src/**/*.dark.scss'),
             "rating/static/src/core/common/**/*",
             'im_livechat/static/src/core/common/**/*',
@@ -136,7 +135,6 @@ Help your customers with this chat, and analyse their feedback.
             'web/static/src/webclient/webclient.scss',
             ('include', 'web._assets_core'),
             'web/static/src/fields/formatters.js',
-            'web/static/src/fields/file_handler.*',
             'web/static/src/scss/mimetypes.scss',
             'bus/static/src/*.js',
             'bus/static/src/services/**/*.js',

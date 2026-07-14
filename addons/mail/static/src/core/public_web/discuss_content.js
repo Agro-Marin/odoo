@@ -7,9 +7,9 @@ import { Thread } from "@mail/core/common/thread";
 import { useThreadActions } from "@mail/core/common/thread_actions";
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { FileUploader } from "@web/fields/file_handler";
 export class DiscussContent extends Component {
     static components = {
         ActionList,

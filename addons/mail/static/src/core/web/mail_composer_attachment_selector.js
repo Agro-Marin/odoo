@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { dataUrlToBlob } from "@mail/core/common/attachment_uploader_hook";
 import { Component } from "@odoo/owl";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { FileUploader } from "@web/fields/file_handler";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 export class MailComposerAttachmentSelector extends Component {

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { ImStatus } from "@mail/core/common/im_status";
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { Component } from "@odoo/owl";
@@ -86,3 +87,5 @@ export class AvatarCardPopover extends Component {
         this.actionService.doAction(action, { newWindow });
     }
 }
+
+discussComponentRegistry.add("AvatarCardPopover", AvatarCardPopover);

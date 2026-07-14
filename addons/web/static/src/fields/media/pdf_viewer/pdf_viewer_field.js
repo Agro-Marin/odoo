@@ -11,12 +11,12 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { url } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
-import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class PdfViewerField extends Component {

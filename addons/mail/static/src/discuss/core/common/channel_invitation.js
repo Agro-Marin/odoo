@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { useSequential } from "@mail/utils/common/hooks";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

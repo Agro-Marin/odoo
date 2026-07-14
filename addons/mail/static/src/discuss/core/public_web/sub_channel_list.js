@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_preview";
 import { useSequential, useVisible } from "@mail/utils/common/hooks";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";

@@ -158,7 +158,15 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/web_portal/**/*",
             "mail/static/src/**/web/**/*",
             ("remove", "mail/static/src/**/*.dark.scss"),
-            # discuss (loaded last to fix dependencies)
+            # Discuss feature layer, grouped after the layers above. The
+            # layer globs (mail/static/src/**/common/**, ...) also match
+            # discuss files, so discuss is removed and re-added to keep it in
+            # one deterministic block. Since the core -> discuss import
+            # inversion was fixed, no JS import requires this ordering
+            # anymore; it is kept for the SCSS cascade (discuss styles
+            # override core styles) and for the relative execution order of
+            # side-effect modules (patches, registry additions) that have no
+            # import edge between them.
             ("remove", "mail/static/src/discuss/**/*"),
             "mail/static/src/discuss/core/common/**/*",
             "mail/static/src/discuss/core/public_web/**/*",
@@ -207,6 +215,31 @@ For more specific needs, you may also assign custom-defined actions
         "mail.assets_message_email": [
             "web/static/lib/odoo_ui_icons/style.css",
         ],
+        # Named sub-bundles: the supported way for downstream modules
+        # (portal, im_livechat, ...) to embed mail's frontend layers without
+        # coupling to mail's internal file layout. ('include', ...) these
+        # instead of globbing mail/static/src/** paths. They deliberately
+        # keep *.dark.scss files: consumers decide whether to strip them.
+        "mail.assets_core_common": [
+            "mail/static/src/model/**/*",
+            "mail/static/src/utils/common/**/*",
+            "mail/static/src/core/common/**/*",
+        ],
+        "mail.assets_discuss_core_common": [
+            "mail/static/src/discuss/core/common/**/*",
+        ],
+        "mail.assets_discuss_call_common": [
+            "mail/static/src/discuss/call/common/**/*",
+        ],
+        "mail.assets_discuss_typing_common": [
+            "mail/static/src/discuss/typing/common/**/*",
+        ],
+        "mail.assets_core_web_portal": [
+            "mail/static/src/core/web_portal/**/*",
+        ],
+        "mail.assets_chatter_web_portal": [
+            "mail/static/src/chatter/web_portal/**/*",
+        ],
         "mail.assets_public": [
             "web/static/lib/odoo_ui_icons/style.css",
             ("include", "web._assets_helpers"),
@@ -227,7 +260,6 @@ For more specific needs, you may also assign custom-defined actions
             "web/static/src/scss/ui.scss",
             ("include", "web._assets_core"),
             "web/static/src/fields/formatters.js",
-            "web/static/src/fields/file_handler.*",
             "bus/static/src/*.js",
             "bus/static/src/services/**/*.js",
             "bus/static/src/workers/*.js",
@@ -241,7 +273,8 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public/**/*",
             "mail/static/lib/selfie_segmentation/selfie_segmentation.js",
             ("remove", "mail/static/src/**/*.dark.scss"),
-            # discuss (loaded last to fix dependencies)
+            # Discuss feature layer grouped last; see the comment in
+            # web.assets_backend above.
             ("remove", "mail/static/src/discuss/**/*"),
             "mail/static/src/discuss/core/common/**/*",
             "mail/static/src/discuss/core/public_web/**/*",

@@ -45,6 +45,7 @@ import {
     isIOS,
     isMobileOS,
 } from "@web/core/browser/feature_detection";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
@@ -57,7 +58,6 @@ import {
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { FileUploader } from "@web/fields/file_handler";
 import { usePopover } from "@web/ui/popover/popover_hook";
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",

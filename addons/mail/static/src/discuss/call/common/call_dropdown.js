@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import {
     Component,
     useEffect,
@@ -59,7 +60,8 @@ export class CallDropdown extends Component {
             (triggerEl) => {
                 if (triggerEl) {
                     triggerEl.addEventListener("click", this.handleClick);
-                    return () => triggerEl.removeEventListener("click", this.handleClick);
+                    return () =>
+                        triggerEl.removeEventListener("click", this.handleClick);
                 }
             },
             () => [this.triggerRef.el],
@@ -119,3 +121,5 @@ export class CallDropdown extends Component {
         }
     }
 }
+
+discussComponentRegistry.add("CallDropdown", CallDropdown);
