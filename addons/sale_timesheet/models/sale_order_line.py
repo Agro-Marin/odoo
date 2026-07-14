@@ -78,9 +78,9 @@ class SaleOrderLine(models.Model):
 
     def _prepare_qty_transferred(self):
         delivered_qties = super()._prepare_qty_transferred()
-        lines_by_timesheet = self.filtered(lambda sol: sol.qty_delivered_method == 'timesheet')
+        lines_by_timesheet = self.filtered(lambda sol: sol.qty_transferred_method == 'timesheet')
         domain = lines_by_timesheet._timesheet_compute_delivered_quantity_domain()
-        mapping = lines_by_timesheet.sudo()._get_delivered_quantity_by_analytic(domain)
+        mapping = lines_by_timesheet.sudo()._get_qty_delivered_by_analytic(domain)
         for line in lines_by_timesheet:
             delivered_qties[line] = mapping.get(line.id or line._origin.id, 0.0)
         return delivered_qties

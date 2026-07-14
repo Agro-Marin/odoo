@@ -48,7 +48,7 @@ class ProjectProject(models.Model):
         'product.product', string='Timesheet Product',
         domain="""[
             ('type', '=', 'service'),
-            ('invoice_policy', '=', 'transfered'),
+            ('invoice_policy', '=', 'transferred'),
             ('service_type', '=', 'timesheet'),
         ]""",
         help='Service that will be used by default when invoicing the time spent on a task. It can be modified on each task individually by selecting a specific sales order item.',
@@ -345,17 +345,17 @@ class ProjectProject(models.Model):
             ],
             'billable_milestones': [
                 ('product_id.type', '=', 'service'),
-                ('product_id.invoice_policy', '=', 'transfered'),
+                ('product_id.invoice_policy', '=', 'transferred'),
                 ('product_id.service_type', '=', 'milestones'),
             ],
             'billable_time': [
                 ('product_id.type', '=', 'service'),
-                ('product_id.invoice_policy', '=', 'transfered'),
+                ('product_id.invoice_policy', '=', 'transferred'),
                 ('product_id.service_type', '=', 'timesheet'),
             ],
             'billable_manual': [
                 ('product_id.type', '=', 'service'),
-                ('product_id.invoice_policy', '=', 'transfered'),
+                ('product_id.invoice_policy', '=', 'transferred'),
                 ('product_id.service_type', '=', 'manual'),
             ],
         }

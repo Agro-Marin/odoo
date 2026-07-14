@@ -44,7 +44,7 @@ class TestItEdiDDT(TestItEdi):
                 'type': 'service',
                 'uom_id': uom_unit.id,
                 'default_code': 'SERV_DEL',
-                'invoice_policy': 'transfered',
+                'invoice_policy': 'transferred',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
             }, {
@@ -81,7 +81,7 @@ class TestItEdiDDT(TestItEdi):
                 'weight': 0.01,
                 'uom_id': uom_unit.id,
                 'default_code': 'FURN_7777',
-                'invoice_policy': 'transfered',
+                'invoice_policy': 'transferred',
                 'expense_policy': 'no',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],

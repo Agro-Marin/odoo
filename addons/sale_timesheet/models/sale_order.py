@@ -44,6 +44,7 @@ class SaleOrder(models.Model):
                 timesheet_unit_amount_dict[sale_order.id],
                 sale_order.timesheet_encode_uom_id,
                 rounding_method='HALF-UP',
+                raise_if_failure=False,
             )
             sale_order.timesheet_total_duration = round(total_time)
 
@@ -88,7 +89,7 @@ class SaleOrder(models.Model):
             [
                 ('order_id', 'in', self.ids),
                 '|', ('product_id.service_type', 'not in', ['milestones', 'manual']),
-                     ('product_id.invoice_policy', '!=', 'transfered'),
+                     ('product_id.invoice_policy', '!=', 'transferred'),
             ]
         ]), aggregates=['order_id:array_agg'])[0][0]
 

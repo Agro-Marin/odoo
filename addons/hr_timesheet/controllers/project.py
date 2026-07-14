@@ -26,7 +26,8 @@ class ProjectCustomerPortal(CustomerPortal):
             timesheet_uom_factor=project_time_mode_uom._compute_quantity(
                 1.0,
                 timesheet_encode_uom,
-                round=False
+                round=False,
+                raise_if_failure=False,
             ),
         )
         session_info['uom_ids'] = {

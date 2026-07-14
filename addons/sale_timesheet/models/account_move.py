@@ -31,6 +31,7 @@ class AccountMove(models.Model):
                 timesheet_unit_amount_dict[invoice.id],
                 invoice.timesheet_encode_uom_id,
                 rounding_method='HALF-UP',
+                raise_if_failure=False,
             )
             invoice.timesheet_total_duration = round(total_time)
 
@@ -76,7 +77,7 @@ class AccountMove(models.Model):
             :param end_date: the end date of the period
         """
         for line in self.filtered(lambda i: i.move_type == 'out_invoice' and i.state == 'draft').invoice_line_ids:
-            sale_line_delivery = line.sale_line_ids.filtered(lambda sol: sol.product_id.invoice_policy == 'transfered' and sol.product_id.service_type == 'timesheet')
+            sale_line_delivery = line.sale_line_ids.filtered(lambda sol: sol.product_id.invoice_policy == 'transferred' and sol.product_id.service_type == 'timesheet')
             if not start_date and not end_date:
                 start_date, end_date = self._get_range_dates(sale_line_delivery.order_id)
             if sale_line_delivery:
