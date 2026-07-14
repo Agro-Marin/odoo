@@ -457,27 +457,30 @@ export class UseActions extends SignalStore {
     /** @typedef {ActionDefinition & MoreActionSpecificDefinition} MoreActionDefinition */
     /** @param {MoreActionDefinition} [data] */
     more(data = {}, id) {
-        let moreAction = toRaw(this).moreActions.get(id);
-        if (moreAction) {
-            moreAction = this.moreActions.get(id);
-            moreAction.definition.actions = data.actions;
-        } else {
-            moreAction = new this.ActionClass({
-                owner: this.component,
-                id: `more-action:${id}`,
-                definition: {
-                    ...data,
-                    dropdown: true,
-                    dropdownState: new DropdownState(),
-                    icon: data?.icon ?? "oi oi-ellipsis-v",
-                    isActive: ({ action }) => action.dropdownState.isOpen,
-                    isMoreAction: true,
-                    sequence: data.sequence ?? 1000,
-                },
-                store: this.store,
-            });
-            toRaw(this).moreActions.set(id, moreAction);
+        if (!toRaw(this).moreActions.get(id)) {
+            toRaw(this).moreActions.set(
+                id,
+                new this.ActionClass({
+                    owner: this.component,
+                    id: `more-action:${id}`,
+                    definition: {
+                        ...data,
+                        dropdown: true,
+                        dropdownState: new DropdownState(),
+                        icon: data?.icon ?? "oi oi-ellipsis-v",
+                        isActive: ({ action }) => action.dropdownState.isOpen,
+                        isMoreAction: true,
+                        sequence: data.sequence ?? 1000,
+                    },
+                    store: this.store,
+                }),
+            );
         }
+        // Read (and update) the action through `this` (usually a `useState`
+        // proxy): reads like `moreAction.isActive` must subscribe the caller
+        // to the dropdown open state, including right after creation.
+        const moreAction = this.moreActions.get(id);
+        moreAction.definition.actions = data.actions;
         return moreAction;
     }
 

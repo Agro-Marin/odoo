@@ -34,6 +34,7 @@
                     className="'text-truncate fw-bold flex-shrink-1 me-1 py-0 ' + (ui.isSmall ? 'fs-4' : 'fs-5')"
                     enabled="true"
                     autofocus="true"
+                    onCancel.bind="cancelRenameThread"
                     onValidate.bind="renameThread"
                     value="props.chatWindow.displayName"
                 />
@@ -57,6 +58,7 @@
                     t-if="state.editingGuestName"
                     className="'py-1 me-2'"
                     autofocus="true"
+                    onCancel.bind="cancelRenameGuest"
                     onValidate.bind="renameGuest"
                     value="store.self.name"
                 />

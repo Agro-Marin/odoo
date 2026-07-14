@@ -2,6 +2,7 @@
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { usePosition } from "@web/core/position/position_hook";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
@@ -38,11 +39,15 @@ export class NavigableList extends Component {
 
         useExternalListener(window, "keydown", this.onKeydown, true);
         onExternalClick("root", async (ev) => {
-            // Let event be handled by bubbling handlers first.
-            await new Promise(setTimeout);
+            // Let event be handled by bubbling handlers first. Routed through
+            // `browser` so tests can mock time.
+            await new Promise((resolve) => browser.setTimeout(resolve));
             if (isEventHandled(ev, "composer.onClickTextarea")) {
                 return;
             }
+            // no force: embedded closeOnSelect=false lists (e.g. livechat tag
+            // edit) sit next to their search input, and a click on it must
+            // not hide them.
             this.close();
         });
         // position and size
@@ -51,9 +56,21 @@ export class NavigableList extends Component {
         });
         useEffect(
             () => {
-                this.open();
+                // Only (re)open — which resets the keyboard selection — when
+                // the displayed option set actually changes. Depending on
+                // props identity re-ran this on every parent render: arrow-key
+                // selection was yanked back to the first item whenever an
+                // unrelated re-render happened (e.g. a fetch flag flip), and
+                // Escape-dismissed lists were resurrected.
+                const optionsKey = this.props.options
+                    .map((option) => this.getOptionKey(option))
+                    .join("\x00");
+                if (optionsKey !== this.lastOptionsKey) {
+                    this.lastOptionsKey = optionsKey;
+                    this.open();
+                }
             },
-            () => [this.props],
+            () => [this.props.options, this.props.isLoading],
         );
         useEffect(
             () => {
@@ -90,14 +107,30 @@ export class NavigableList extends Component {
         );
     }
 
+    /**
+     * Identity of an option, to detect actual changes of the option set:
+     * option objects are re-created literals on every parent render, so
+     * object identity cannot be used.
+     */
+    getOptionKey(option) {
+        const record =
+            option.partner ?? option.role ?? option.thread ?? option.cannedResponse;
+        return `${record?.id ?? option.emoji?.codepoints ?? ""}-${option.label}`;
+    }
+
     open() {
         this.state.open = true;
         this.state.activeIndex = null;
         this.navigate("first");
     }
 
-    close() {
-        if (this.props.closeOnSelect) {
+    /**
+     * @param {boolean} [force] close even when `closeOnSelect` is false —
+     *  for explicit dismissals (Escape), otherwise such lists are
+     *  undismissable.
+     */
+    close(force = false) {
+        if (force || this.props.closeOnSelect) {
             this.state.open = false;
             this.state.activeIndex = null;
         }
@@ -170,7 +203,7 @@ export class NavigableList extends Component {
                 break;
             case "escape":
                 markEventHandled(ev, "NavigableList.close");
-                this.close();
+                this.close(true);
                 break;
             case "tab":
                 this.navigate(this.state.activeIndex === null ? "first" : "next");

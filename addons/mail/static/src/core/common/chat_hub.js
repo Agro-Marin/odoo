@@ -11,7 +11,7 @@ import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 import { ChatBubble } from "./chat_bubble.js";
 export class ChatHub extends Component {
@@ -41,8 +41,8 @@ export class ChatHub extends Component {
             isDragging: false,
             top: "unset",
             left: "unset",
-            bottom: `${this.chatHub.BUBBLE_OUTER}px;`,
-            right: `${this.chatHub.BUBBLE_OUTER + this.chatHub.BUBBLE_START}px;`,
+            bottom: `${this.chatHub.BUBBLE_OUTER}px`,
+            right: `${this.chatHub.BUBBLE_OUTER + this.chatHub.BUBBLE_START}px`,
         });
         this.onResize();
         useExternalListener(browser, "resize", this.onResize);
@@ -68,7 +68,9 @@ export class ChatHub extends Component {
             onDragEnd: () => (this.position.isDragging = false),
             onDrop: this.onDrop.bind(this),
         });
-        this.env.bus.addEventListener("ChatWindow:will-open", () => {
+        // useBus: a raw addEventListener would leak a listener holding the
+        // destroyed component on every mount (see chat_bubble.js).
+        useBus(this.env.bus, "ChatWindow:will-open", () => {
             this.resetPosition();
         });
     }
@@ -134,8 +136,8 @@ export class ChatHub extends Component {
     resetPosition() {
         this.position.top = "unset";
         this.position.left = "unset";
-        this.position.bottom = `${this.chatHub.BUBBLE_OUTER}px;`;
-        this.position.right = `${this.chatHub.BUBBLE_OUTER + this.chatHub.BUBBLE_START}px;`;
+        this.position.bottom = `${this.chatHub.BUBBLE_OUTER}px`;
+        this.position.right = `${this.chatHub.BUBBLE_OUTER + this.chatHub.BUBBLE_START}px`;
         this.position.dragged = false;
         this.options.close();
     }

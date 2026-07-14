@@ -58,7 +58,7 @@ export class UseSuggestion {
                 }
                 if (
                     this.lastFetchedSearch?.count === 0 &&
-                    (!this.search.delimiter || this.isSearchMoreSpecificThanLastFetch)
+                    this.isSearchMoreSpecificThanLastFetch
                 ) {
                     return; // no need to fetch since this is more specific than last and last had no result
                 }
@@ -296,12 +296,17 @@ export class UseSuggestion {
         if (!this.thread || status(this.comp) === "destroyed") {
             return;
         }
+        // Snapshot now: `this.search` can change while the fetch is in
+        // flight, and `lastFetchedSearch` must describe the search that was
+        // actually fetched, not the current one (otherwise the cache-coverage
+        // check trusts results that were never fetched).
+        const fetchedSearch = { ...this.search };
         let resetFetchingState = true;
         try {
             this.abortController?.abort();
             this.abortController = new AbortController();
             this.state.isFetching = true;
-            await this.suggestionService.fetchSuggestions(this.search, {
+            await this.suggestionService.fetchSuggestions(fetchedSearch, {
                 thread: this.thread,
                 abortSignal: this.abortController.signal,
             });
@@ -321,9 +326,13 @@ export class UseSuggestion {
             return;
         }
         this.update();
+        // `count` must also describe the fetched search: `state.items` may
+        // already reflect a newer search term.
         this.lastFetchedSearch = {
-            ...this.search,
-            count: this.state.items?.suggestions.length ?? 0,
+            ...fetchedSearch,
+            count: this.suggestionService.searchSuggestions(fetchedSearch, {
+                thread: this.thread,
+            }).suggestions.length,
         };
         if (!this.state.items?.suggestions.length) {
             this.clearSearch();

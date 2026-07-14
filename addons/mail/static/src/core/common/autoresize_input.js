@@ -7,6 +7,7 @@ export class AutoresizeInput extends Component {
         autofocus: { type: Boolean, optional: true },
         className: { type: String, optional: true },
         enabled: { optional: true },
+        onCancel: { type: Function, optional: true },
         onValidate: { type: Function, optional: true },
         placeholder: { type: String, optional: true },
         value: { type: String, optional: true },
@@ -15,6 +16,7 @@ export class AutoresizeInput extends Component {
         autofocus: false,
         className: "",
         enabled: true,
+        onCancel: () => {},
         onValidate: () => {},
         placeholder: "",
     };
@@ -61,8 +63,11 @@ export class AutoresizeInput extends Component {
         this.state.isFocused = false;
         if (this.cancelled) {
             // Escape restores the original value: don't validate (a rename
-            // RPC on every cancelled edit otherwise).
+            // RPC on every cancelled edit otherwise). Still notify the owner:
+            // it may need to leave its editing mode (e.g. chat window thread
+            // rename), which `onValidate` used to do as a side effect.
             this.cancelled = false;
+            this.props.onCancel();
             return;
         }
         this.props.onValidate(this.state.value);

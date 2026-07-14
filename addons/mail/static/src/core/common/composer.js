@@ -20,6 +20,7 @@ import {
 import { trimEmptyBlocksAround } from "@mail/utils/common/format";
 import { useSelection } from "@mail/utils/common/hooks";
 import { isDragSourceExternalFile } from "@mail/utils/common/misc";
+import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import {
     Component,
     EventBus,
@@ -170,8 +171,9 @@ export class Composer extends Component {
             refName: "textarea",
             model: this.props.composer.selection,
             preserveOnClickAwayPredicate: async (ev) => {
-                // Let event be handled by bubbling handlers first.
-                await new Promise(setTimeout);
+                // Let event be handled by bubbling handlers first. Routed
+                // through `browser` so tests can mock time.
+                await new Promise((resolve) => browser.setTimeout(resolve));
                 return (
                     !this.isEventTrusted(ev) ||
                     isEventHandled(ev, "sidebar.openThread") ||
@@ -950,12 +952,8 @@ export class Composer extends Component {
         ev.stopPropagation();
         const composer = toRaw(this.props.composer);
         composer.isFocused = true;
-        if (
-            composer.thread?.scrollTop === "bottom" &&
-            !composer.thread.scrollUnread &&
-            !composer.thread.markedAsUnread
-        ) {
-            composer.thread?.markAsRead();
+        if (composer.thread) {
+            markThreadAsReadIfAtBottom(composer.thread);
         }
     }
 
