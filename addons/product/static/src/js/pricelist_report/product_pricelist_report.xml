@@ -16,7 +16,7 @@
                 <t t-set-slot="layout-actions">
                     <form class="o_pricelist_report_form d-flex flex-row gap-1">
                         <div class="d-flex align-items-center gap-3 w-100">
-                            <label class="visually-hidden" for="pricelists">Username</label>
+                            <label class="visually-hidden" for="pricelists">Pricelist</label>
                             <div class="input-group w-auto">
                                 <div class="input-group-text fw-bold">Pricelist</div>
                                 <select

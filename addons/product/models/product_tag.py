@@ -51,7 +51,7 @@ class ProductTag(models.Model):
         "Tag name already exists!",
     )
 
-    @api.depends("product_template_ids", "product_product_ids")
+    @api.depends("product_template_ids.product_variant_ids", "product_product_ids")
     def _compute_product_ids(self):
         for tag in self:
             tag.product_ids = (

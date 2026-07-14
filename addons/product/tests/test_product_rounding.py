@@ -85,3 +85,27 @@ class TestProductRounding(ProductCommon):
         product_in_cad = product.with_context(pricelist=self.pricelist_cad.id)
         discount_cad = product_in_cad._get_contextual_discount()
         self.assertAlmostEqual(discount_cad, 0.0, places=6, msg="No discount should be applied for $100 product in Testing CAD.")
+
+    def test_discount_percentage_rule(self):
+        """A percentage pricelist rule must surface as a contextual discount.
+
+        Guards against `_get_contextual_discount` degenerating into a constant
+        0.0 — the zero-discount tests above cannot tell those apart.
+        """
+        self._enable_pricelists()
+        self.pricelist_usd.item_ids = [Command.create({
+            'compute_price': 'percentage',
+            'percent_price': 10.0,
+        })]
+        product = self.product_100_dollars.with_context(pricelist=self.pricelist_usd.id)
+        self.assertAlmostEqual(product._get_contextual_discount(), 0.10, places=6)
+
+    def test_discount_percentage_rule_cross_currency(self):
+        """The contextual discount must hold across a currency conversion."""
+        self._enable_pricelists()
+        self.pricelist_cad.item_ids = [Command.create({
+            'compute_price': 'percentage',
+            'percent_price': 25.0,
+        })]
+        product = self.product_100_dollars.with_context(pricelist=self.pricelist_cad.id)
+        self.assertAlmostEqual(product._get_contextual_discount(), 0.25, places=4)

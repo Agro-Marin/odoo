@@ -144,7 +144,7 @@
                                 string="Price Type"
                                 widget="radio"
                                 options="{'horizontal': true}"
-                                invisible="display_applied_on == '1_product' and compute_price == 'fixed_price'"
+                                invisible="display_applied_on == '1_product' and compute_price == 'fixed'"
                                 groups="product.group_product_pricelist"
                             />
                             <label for="fixed_price" invisible="compute_price != 'fixed'" />

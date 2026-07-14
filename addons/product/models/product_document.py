@@ -22,16 +22,27 @@ class ProductDocument(models.Model):
 
     @api.onchange("url")
     def _onchange_url(self):
-        for attachment in self:
+        # Early UX feedback in the form; the real guarantee is the constraint.
+        self._check_url_scheme()
+
+    @api.constrains("url", "type")
+    def _check_url_scheme(self):
+        """Reject non-web URL schemes (javascript:, file:, ...).
+
+        Documents of type ``url`` are surfaced as clickable links, potentially
+        to portal users (e.g. on quotations), so the scheme must be enforced on
+        every write path — not only in the form onchange.
+        """
+        for document in self:
             if (
-                attachment.type == "url"
-                and attachment.url
-                and not attachment.url.startswith(("https://", "http://", "ftp://"))
+                document.type == "url"
+                and document.url
+                and not document.url.startswith(("https://", "http://", "ftp://"))
             ):
                 raise ValidationError(
                     _(
                         "Please enter a valid URL.\nExample: https://www.odoo.com\n\nInvalid URL: %s",
-                        attachment.url,
+                        document.url,
                     )
                 )
 
@@ -39,10 +50,15 @@ class ProductDocument(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        return super(
+        documents = super(
             ProductDocument,
             self.with_context(disable_product_documents_creation=True),
         ).create(vals_list)
+        # Delegated (`_inherits`) fields are written on the parent attachment
+        # before this model's constraint validation runs, so the url check must
+        # be called explicitly on create.
+        documents._check_url_scheme()
+        return documents
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)

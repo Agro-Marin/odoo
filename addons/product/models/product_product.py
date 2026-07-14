@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 
 from odoo import api, fields, models, tools
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import OrderedSet, float_compare, groupby
 from odoo.tools.image import is_image_size_above
@@ -73,7 +73,6 @@ class ProductProduct(models.Model):
         comodel_name="product.uom",
         inverse_name="product_id",
         string="Unit Barcode",
-        store=True,
     )
     product_template_attribute_value_ids = fields.Many2many(
         comodel_name="product.template.attribute.value",
@@ -272,7 +271,9 @@ class ProductProduct(models.Model):
                 )
 
     def _inverse_import_attribute_values(self):
-        raise ValueError("This field can only be used to import products.")
+        raise UserError(
+            self.env._("This field can only be used to import products."),
+        )
 
     @api.depends("product_template_attribute_value_ids")
     def _compute_import_attribute_values(self):
@@ -670,9 +671,14 @@ class ProductProduct(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`;
+        # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`
+        # and on which template a variant belongs to;
         # `_get_first_possible_variant_id` depends on the variants' active state.
-        if "product_template_attribute_value_ids" in vals or "active" in vals:
+        if (
+            "product_template_attribute_value_ids" in vals
+            or "active" in vals
+            or "product_tmpl_id" in vals
+        ):
             self.env.registry.clear_cache()
         return res
 
@@ -701,7 +707,11 @@ class ProductProduct(models.Model):
 
     def unlink(self):
         if self.env.context.get("create_product_product") is False:
-            return super().unlink()
+            res = super().unlink()
+            # `_get_variant_id_for_combination` depends on existing variants,
+            # also on this early-return path (e.g. import placeholder cleanup).
+            self.env.registry.clear_cache()
+            return res
 
         unlink_products_ids = set()
         unlink_templates_ids = set()
@@ -724,6 +734,9 @@ class ProductProduct(models.Model):
             if product.image_variant_1920 and not product.product_tmpl_id.image_1920:
                 product.product_tmpl_id.image_1920 = product.image_variant_1920
             # Check if the product is last product of this template...
+            # NB: only the current record is subtracted (not the whole batch):
+            # the variant engine batch-unlinks every obsolete variant during
+            # regeneration and relies on the template surviving that call.
             has_other_products = product_ids_by_template_id.get(
                 product.product_tmpl_id.id,
                 set(),
@@ -784,7 +797,9 @@ class ProductProduct(models.Model):
 
     @api.depends("image_variant_1920", "image_variant_1024")
     def _compute_can_image_variant_1024_be_zoomed(self):
-        for record in self:
+        # bin_size=False: under a bin_size context the binary fields yield
+        # size strings ("12.5 Kb") that crash the image decoding.
+        for record in self.with_context(bin_size=False):
             record.can_image_variant_1024_be_zoomed = (
                 record.image_variant_1920
                 and is_image_size_above(
@@ -1500,12 +1515,11 @@ class ProductProduct(models.Model):
         return False
 
     def _prepare_sellers(self, params=False):
-        # Use variant_seller_ids (unfiltered) to allow _get_filtered_supplier
-        # to handle company filtering based on params (e.g., order company).
-        # Access via sudo so the cache is not polluted with cross-company
-        # sellers (the field is computed/stored with compute_sudo), which would
-        # otherwise raise a read access error on inactive-company suppliers.
-        all_sellers = self.sudo().variant_seller_ids or self.sudo().seller_ids
+        # Use variant_seller_ids (no company domain, unlike seller_ids) so that
+        # _get_filtered_supplier can do the company filtering itself based on
+        # params (e.g. the order company). sudo: reading cross-company sellers
+        # would otherwise raise on suppliers of other companies.
+        all_sellers = self.sudo().variant_seller_ids
         sellers = all_sellers._get_filtered_supplier(self.env.company, self, params)
         return sellers.sorted(lambda s: (s.sequence, -s.min_qty, s.price, s.id))
 

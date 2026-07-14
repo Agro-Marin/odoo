@@ -14,6 +14,7 @@ class ProductCatalogMixin(models.AbstractModel):
 
     @api.readonly
     def action_add_from_catalog(self):
+        self.ensure_one()
         kanban_view_id = self.env.ref("product.view_product_product_kanban_catalog").id
         search_view_id = self.env.ref("product.view_product_product_search_catalog").id
         additional_context = self._get_action_add_from_catalog_extra_context()
@@ -116,10 +117,10 @@ class ProductCatalogMixin(models.AbstractModel):
                 "productType": product.type,
                 "code": product.code if product.code else "",
             }
-            if not order_line_info[product.id]["uomDisplayName"]:
-                order_line_info[product.id][
-                    "uomDisplayName"
-                ] = product.uom_id.display_name
+            if not order_line_info[product.id].get("uomDisplayName"):
+                order_line_info[product.id]["uomDisplayName"] = (
+                    product.uom_id.display_name
+                )
 
         default_data = self._default_order_line_values(child_field)
         products = self.env["product.product"].browse(product_ids)

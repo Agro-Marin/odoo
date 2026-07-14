@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 
 
 class ProductPricelist(models.Model):
@@ -368,7 +369,12 @@ class ProductPricelist(models.Model):
                 return None
 
         company_id = self.env.company.id
-        pl_domain = self._get_partner_pricelist_multi_search_domain_hook(company_id)
+        # Normalize to a Domain: overrides of the hook may return either a
+        # plain list or a Domain, and list concatenation on a Domain is
+        # deprecated.
+        pl_domain = Domain(
+            self._get_partner_pricelist_multi_search_domain_hook(company_id)
+        )
 
         # Work on a local copy: never mutate the caller's list.
         country_ids = list(country_ids)
@@ -384,7 +390,7 @@ class ProductPricelist(models.Model):
 
         # get fallback pricelist when no pricelist for a given country
         pl_fallback = (
-            self.search(pl_domain + [("country_group_ids", "=", False)], limit=1)
+            self.search(pl_domain & Domain("country_group_ids", "=", False), limit=1)
             # save data in ir.config_parameter instead of ir.default for
             # res.partner.property_product_pricelist
             # otherwise the data will become the default value while
@@ -406,7 +412,7 @@ class ProductPricelist(models.Model):
         requested = set(country_ids)
         result = {}
         matching_pricelists = self.search(
-            [*pl_domain, ("country_group_ids.country_ids", "in", country_ids)]
+            pl_domain & Domain("country_group_ids.country_ids", "in", country_ids)
         )
         for pricelist in matching_pricelists:
             covered = requested.intersection(

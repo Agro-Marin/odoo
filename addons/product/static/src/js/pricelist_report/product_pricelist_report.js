@@ -4,6 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useSetupAction } from "@web/core/action_hook";
 import { Layout } from "@web/search/layout";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
@@ -31,6 +32,9 @@ export class ProductPricelistReport extends Component {
         this.dialog = useService("dialog");
 
         this.MAX_QTY = 5;
+        // Serialize report renders so a slow earlier request can't overwrite
+        // the HTML of a later pricelist/quantity selection.
+        this.renderKeepLast = new KeepLast();
         const pastState = this.props.state || {};
 
         const active_model = pastState.activeModel || this.props.action.context.active_model;
@@ -50,9 +54,9 @@ export class ProductPricelistReport extends Component {
         onWillStart(async () => {
             this.state.pricelists = await this.getPricelists();
             if (this.defaultPricelistId) {
-                this.state.selectedPricelist = this.pricelists.find(p => p.id === this.defaultPricelistId) || this.pricelists[0];
+                this.state.selectedPricelist = this.pricelists.find(p => p.id === this.defaultPricelistId) || this.pricelists[0] || {};
             } else {
-                this.state.selectedPricelist = pastState.selectedPricelist || this.pricelists[0];
+                this.state.selectedPricelist = pastState.selectedPricelist || this.pricelists[0] || {};
             }
             if(this.noProducts){
                 await this.onClickAddProducts();
@@ -132,9 +136,9 @@ export class ProductPricelistReport extends Component {
             this.state.html = "";
             return
         }
-        let html = await this.orm.call(
+        const html = await this.renderKeepLast.add(this.orm.call(
             "report.product.report_pricelist", "get_html", [], {data: this.reportParams}
-        );
+        ));
         this.state.html = markup(html);
     }
 
@@ -152,8 +156,8 @@ export class ProductPricelistReport extends Component {
             return;
         }
 
-        const qty = parseInt(ev.target.previousSibling.value);
-        if (qty > 0) {
+        const qty = parseInt(ev.target.previousSibling.value, 10);
+        if (Number.isInteger(qty) && qty > 0) {
             // Check qty already exist.
             if (this.quantities.indexOf(qty) === -1) {
                 this.quantities.push(qty);
@@ -260,7 +264,7 @@ export class ProductPricelistReport extends Component {
             return;
         }
 
-        const qty = parseInt(ev.srcElement.parentElement.childNodes[0].data);
+        const qty = parseInt(ev.srcElement.parentElement.childNodes[0].data, 10);
         this.quantities = this.quantities.filter(q => q !== qty);
         this.renderHtml();
     }
