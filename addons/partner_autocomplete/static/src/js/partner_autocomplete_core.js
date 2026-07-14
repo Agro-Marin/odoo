@@ -36,7 +36,11 @@ export function usePartnerAutocomplete() {
   const notification = useService("notification");
   const orm = useService("orm");
 
-  let lastNoResultsQuery = null;
+  // Remember the last query that returned nothing, together with the country
+  // scope it was run under. The scope matters: an empty country-scoped result
+  // says nothing about a worldwide (queryCountryId === 0) search for the same
+  // prefix, so both parts must match before we skip the RPC.
+  let lastNoResults = null; // { query: string, countryId: number|false }
 
   onWillStart(async () => {
     await loadJS("/partner_autocomplete/static/lib/jsvat.js");
@@ -208,9 +212,15 @@ export function usePartnerAutocomplete() {
     const method = isVAT ? "autocomplete_by_vat" : "autocomplete_by_name";
 
     // Optimization: if the search query starts with the same content as a previous query for
-    // which there was no results, there won't be any results for the current query.
-    // E.g., if there is no results for query "abc123", there won't be any results for query "abc1234".
-    if (!isVAT && lastNoResultsQuery && value.startsWith(lastNoResultsQuery)) {
+    // which there was no results (under the same country scope), there won't be any results for
+    // the current query. E.g., if there is no results for query "abc123", there won't be any
+    // results for query "abc1234".
+    if (
+      !isVAT &&
+      lastNoResults &&
+      lastNoResults.countryId === queryCountryId &&
+      value.startsWith(lastNoResults.query)
+    ) {
       return [];
     }
 
@@ -222,7 +232,7 @@ export function usePartnerAutocomplete() {
     const suggestions = await keepLastOdoo.add(prom);
 
     if (!isVAT && suggestions.length === 0) {
-      lastNoResultsQuery = value;
+      lastNoResults = { query: value, countryId: queryCountryId };
     }
 
     for (const suggestion of suggestions) {

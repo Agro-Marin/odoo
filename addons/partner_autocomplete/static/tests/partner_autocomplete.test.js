@@ -486,3 +486,33 @@ test("Suggestion description has no dangling comma when city is missing", async 
   expect(texts[0]).toInclude("NoCity Co");
   expect(texts[0]).toInclude("Belgium");
 });
+
+test("Search Worldwide after an empty local search still queries worldwide", async () => {
+  // Regression (C2): the no-results cache is per-query-string only. Now that the
+  // worldwide row is offered on empty local results (U1), a worldwide search for
+  // the same prefix must not be short-circuited by the country-scoped miss.
+  const scopes = [];
+  onRpc("res.partner", "autocomplete_by_name", ({ args }) => {
+    const [, countryId] = args;
+    scopes.push(countryId);
+    // Nothing in the home country, but a hit worldwide.
+    return countryId === 0
+      ? [{ name: "Worldwide Co", duns: "9", city: "Paris" }]
+      : [];
+  });
+  await openCompanyNameSearch();
+
+  await editAutocomplete("[name='name'] .dropdown input", "xyzforeign");
+  expect("[name='name'] .partner_autocomplete_dropdown_char").toHaveCount(0);
+  expect("[name='name'] .partner_autocomplete_dropdown_worldwide").toHaveCount(
+    1,
+  );
+
+  await contains(
+    "[name='name'] .partner_autocomplete_dropdown_worldwide",
+  ).click();
+  await advanceTime(250);
+
+  expect(scopes).toInclude(0); // the worldwide RPC actually fired
+  expect("[name='name'] .partner_autocomplete_dropdown_char").toHaveCount(1);
+});
