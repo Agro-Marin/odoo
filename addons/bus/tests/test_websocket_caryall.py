@@ -394,13 +394,15 @@ class TestWebsocketCaryall(WebsocketCase):
             )
         self.assertNotEqual(server_session.sid, user_session.sid)
         self.assertFalse(server_session.uid)
-        self.assertTrue(
-            ws.getheaders()
-            .get("set-cookie")
-            .startswith(f"session_id={user_session.sid}"),
-            "The set-cookie response header must be the origin request session "
-            "rather than the websocket session",
-        )
+        # The client must not be switched to the downgraded public session: its
+        # cookie stays its own. The downgrade path does not re-persist the
+        # request session (that minted a session file per cross-origin
+        # handshake), so no set-cookie is sent and the browser keeps the
+        # original session_id; if one is sent it must never be the public one.
+        set_cookie = ws.getheaders().get("set-cookie")
+        if set_cookie:
+            self.assertTrue(set_cookie.startswith(f"session_id={user_session.sid}"))
+            self.assertNotIn(server_session.sid, set_cookie)
 
     @patch.dict(os.environ, {"ODOO_BUS_PUBLIC_SAMESITE_WS": "True"})
     def test_mismatched_origin_downgrades_with_legacy_env_var(self):
@@ -414,6 +416,30 @@ class TestWebsocketCaryall(WebsocketCase):
             )
         self.assertNotEqual(server_session.sid, user_session.sid)
         self.assertFalse(server_session.uid)
+
+    def test_downgraded_connections_share_one_public_session(self):
+        """Cross-origin downgrades reuse a single persisted public session per
+        db instead of minting one session file per handshake — the fix for the
+        unauthenticated session-store exhaustion vector on ``/websocket``."""
+        new_test_user(self.env, login="test_user", password="Password!1")
+        user_session = self.authenticate("test_user", "Password!1")
+        with mute_logger("odoo.addons.bus.websocket"):
+            _ws1, session1 = self._connect_and_capture_server_session(
+                cookie=f"session_id={user_session.sid};",
+                origin="http://attacker.example.com",
+            )
+            _ws2, session2 = self._connect_and_capture_server_session(
+                cookie=f"session_id={user_session.sid};",
+                origin="http://attacker.example.com",
+            )
+        self.assertFalse(session1.uid)
+        self.assertFalse(session2.uid)
+        self.assertNotEqual(session1.sid, user_session.sid)
+        self.assertEqual(
+            session1.sid,
+            session2.sid,
+            "Downgraded connections must share one public session, not mint one each",
+        )
 
     def test_matching_origin_keeps_session(self):
         """A same-origin handshake keeps the request's authenticated session

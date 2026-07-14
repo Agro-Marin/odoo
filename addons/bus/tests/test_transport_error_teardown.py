@@ -46,6 +46,48 @@ class TestTransportErrorTeardown(BaseCase):
         ws._timeout_manager = MagicMock()
         return ws
 
+    def test_registry_load_failure_during_server_error_does_not_escape(self):
+        """The SERVER_ERROR diagnostic path loads the registry to detect a
+        concurrent reload; that load itself can fail (database dropped,
+        connection refused). Since ``_handle_transport_error`` runs inside the
+        event loop's except handler, a second exception escaping here would
+        kill the serving thread without ``_terminate`` — it must be swallowed
+        and the normal close handshake must proceed."""
+        ws = self._make_ws()
+        ws._Websocket__socket.sendall = MagicMock()  # close frame sends fine
+        with (
+            patch(
+                "odoo.addons.bus.websocket.Registry",
+                side_effect=Exception("database gone"),
+            ),
+            self.assertLogs("odoo.addons.bus.websocket", level="ERROR"),
+        ):
+            ws._handle_transport_error(RuntimeError("boom"))  # must not raise
+        # The close handshake was initiated normally (SERVER_ERROR close frame).
+        ws._Websocket__socket.sendall.assert_called_once()
+        self.assertEqual(ws.state, ConnectionState.CLOSING)
+
+    def test_registry_reload_suppresses_error_log(self):
+        """When the registry was concurrently reloaded, the unhandled
+        exception is expected fallout: it is logged as a single warning, not
+        a full traceback."""
+        ws = self._make_ws()
+        ws._Websocket__socket.sendall = MagicMock()
+        registry_before = MagicMock(registry_sequence=1)
+        registry_before.check_signaling.return_value = MagicMock(registry_sequence=2)
+        with (
+            patch(
+                "odoo.addons.bus.websocket.Registry", return_value=registry_before
+            ),
+            self.assertLogs("odoo.addons.bus.websocket", level="WARNING") as capture,
+        ):
+            ws._handle_transport_error(RuntimeError("boom"))
+        self.assertTrue(
+            any("registry has been reloaded" in line for line in capture.output)
+        )
+        self.assertFalse(any("ERROR" in line for line in capture.output))
+        self.assertEqual(ws.state, ConnectionState.CLOSING)
+
     def test_send_close_frame_failure_falls_back_to_terminate(self):
         ws = self._make_ws()
 

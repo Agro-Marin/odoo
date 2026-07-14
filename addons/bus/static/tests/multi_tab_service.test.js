@@ -75,6 +75,49 @@ test("pagehide then a bfcache pageshow re-registers the tab", async () => {
     expect(await env.services.multi_tab.isOnMainTab()).toBe(true);
 });
 
+test("a fast-path lock grant landing after unregister() must not seize the lock", async () => {
+    // Real LockManager grants are always asynchronous, so `unregister()` can run
+    // between issuing the `ifAvailable` request and its callback firing. That
+    // request carries no abort signal, so only the internal attempt/terminated
+    // guard can stop a dead tab from grabbing (and never releasing) the lock,
+    // which would wedge the whole-origin election: no tab runs main-tab duties.
+    let fireGrant;
+    let lockReleased = false;
+    patchWithCleanup(browser.navigator, {
+        locks: {
+            request(name, options, callback) {
+                if (typeof options === "function") {
+                    callback = options;
+                    options = {};
+                }
+                if (options.ifAvailable) {
+                    // Defer the grant so the test controls when it lands.
+                    return new Promise((resolveRequest) => {
+                        fireGrant = () => {
+                            const held = callback({ name, mode: "exclusive" });
+                            // A held lock keeps `held` pending; the guard makes
+                            // the callback return undefined instead, so the lock
+                            // is released as soon as the callback settles.
+                            Promise.resolve(held).then(() => {
+                                lockReleased = true;
+                            });
+                            resolveRequest();
+                        };
+                    });
+                }
+                // Blocking request: never granted in this test.
+                return new Promise(() => {});
+            },
+        },
+    });
+    const service = multiTabService.start();
+    service.unregister();
+    fireGrant();
+    await runAllTimers();
+    expect(await service.isOnMainTab()).toBe(false);
+    expect(lockReleased).toBe(true);
+});
+
 test("no split-brain: exactly one of many concurrent tabs is main", async () => {
     const tabs = [await makeMockEnv()];
     for (let i = 0; i < 3; i++) {

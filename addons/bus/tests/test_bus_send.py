@@ -122,6 +122,31 @@ class TestBusPoll(TransactionCase):
         self.assertIn("a_notif", types)
         self.assertNotIn("b_notif", types)
 
+    def test_poll_ignore_ids_excludes_given_ids(self):
+        """``ignore_ids`` is the DB half of the dedup design
+        (``NotificationDispatchState`` holds dispatched ids back and excludes
+        them from polling): the listed ids must be excluded even though they
+        match the channel and id window."""
+        Bus = self.env["bus.bus"]
+        Bus.search([]).unlink()
+        Bus._sendone("ignore_channel", "a", {})
+        Bus._sendone("ignore_channel", "b", {})
+        Bus._sendone("ignore_channel", "c", {})
+        self.env.cr.precommit.run()
+        all_ids = [n["id"] for n in Bus._poll(["ignore_channel"], last=0)]
+        self.assertEqual(len(all_ids), 3)
+        kept = Bus._poll(["ignore_channel"], last=0, ignore_ids=[all_ids[1]])
+        self.assertEqual(
+            [n["id"] for n in kept],
+            [all_ids[0], all_ids[2]],
+            "The ignored id must be excluded, the others kept in id order",
+        )
+        # An empty ignore list is equivalent to no ignore list.
+        self.assertEqual(
+            [n["id"] for n in Bus._poll(["ignore_channel"], last=0, ignore_ids=[])],
+            all_ids,
+        )
+
     def test_bus_last_id_empty_table(self):
         """_bus_last_id returns 0 when the table is empty."""
         self.env["bus.bus"].search([]).unlink()

@@ -257,8 +257,6 @@ export class WebsocketWorker {
      */
     _onClientMessage(client, { action, data }) {
         this._logDebug("_onClientMessage", action, data);
-        // Any message proves the port's page is alive and unfrozen.
-        this.lastSeenByClient.set(client, Date.now());
         if (!this.channelsByClient.has(client) && REREGISTERING_ACTIONS.has(action)) {
             // This client is not (or no longer) registered but is issuing an
             // action that re-establishes bus participation. Two cases produce
@@ -278,6 +276,16 @@ export class WebsocketWorker {
                 // bus_service does not otherwise replay.
                 this.sendToClient(client, "BUS:RESYNC");
             }
+        }
+        // Refresh liveness only for a registered client (possibly just
+        // re-registered above). Any message from a live registered port proves
+        // it unfrozen; but a message from a departed client (BUS:LEAVE or
+        // sweep-evicted) that is not re-registering must not recreate a ghost
+        // lastSeen entry — the sweep would then ping it every cycle forever
+        // (worker_service auto-pongs, refreshing it), a leak the eviction can
+        // never reclaim.
+        if (this.channelsByClient.has(client)) {
+            this.lastSeenByClient.set(client, Date.now());
         }
         switch (action) {
             case "BUS:SEND": {
@@ -451,13 +459,17 @@ export class WebsocketWorker {
         const now = Date.now();
         const sinceLastSweep = now - this._lastLivenessSweepTs;
         this._lastLivenessSweepTs = now;
-        if (sinceLastSweep > this.CLIENT_LIVENESS_TIMEOUT) {
-            // The wall clock jumped far more than one sweep interval: timers do
-            // not fire while the machine is asleep, so this is a system suspend,
-            // not genuine client silence. Every client's `lastSeen` predates the
-            // sleep; evicting on it would wrongly drop every live tab the instant
-            // the machine wakes, before any tab could send. Grant a fresh window
-            // instead — real dead tabs are caught on the next normal sweep.
+        if (sinceLastSweep > this.CLIENT_LIVENESS_SWEEP_DELAY * 2) {
+            // A whole sweep interval was skipped: timers do not fire while the
+            // machine is asleep (or the worker's event loop was blocked), so
+            // this is lost time, not genuine client silence. Even a moderate
+            // few-minute laptop sleep — well under CLIENT_LIVENESS_TIMEOUT —
+            // inflates every client's age by the lost interval, and no tab
+            // could answer a BUS:PING during it. Evicting on that age would
+            // silently drop live tabs that never got their ping grace (a tab
+            // at age > TIMEOUT/2 before the gap jumps straight past TIMEOUT).
+            // Grant a fresh window instead — real dead tabs are caught on the
+            // next normal sweep.
             for (const client of this.lastSeenByClient.keys()) {
                 this.lastSeenByClient.set(client, now);
             }
@@ -532,6 +544,16 @@ export class WebsocketWorker {
             this.channelsByClient.forEach((_, key) =>
                 this.channelsByClient.set(key, new Map()),
             );
+            // The other already-registered clients kept their page-side channel
+            // claims but just had their worker-side maps wiped, and (unlike the
+            // eviction path) they receive no re-init. Without a RESYNC their
+            // channels would be dropped from the next subscribe and never
+            // restored (a later incremental ADD_CHANNEL only re-registers the
+            // one channel it carries), silently killing bus delivery for those
+            // tabs. Ask every client to replay its full channel snapshot; each
+            // SET_CHANNELS re-subscribes with the aggregate, so this converges
+            // even against the post-switch reconnect.
+            this.broadcast("BUS:RESYNC");
             // `bus_bus.id` is a per-database sequence, so the high-watermark
             // and the seen-id history from the previous DB are meaningless
             // (and likely higher / colliding) for the new one. Keeping them

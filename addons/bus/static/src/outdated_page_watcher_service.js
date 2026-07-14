@@ -40,18 +40,20 @@ export class OutdatedPageWatcherService {
         bus_service.addEventListener(
             "BUS:WORKER_STATE_UPDATED",
             ({ detail: state }) => {
-                // Only CONNECTED/DISCONNECTED prove a PREVIOUS connection
-                // existed. CONNECTING must not count: on a browser session
-                // restore, every restored tab joins a worker that is
-                // connecting for the first time, and treating that as
-                // "already connected" would compare yesterday's localStorage
-                // watermark against the server (whose bus_bus rows are long
-                // GC'd) — a guaranteed, sticky false "page is out of date".
+                // Only CONNECTED proves a PREVIOUS connection existed. Neither
+                // CONNECTING nor DISCONNECTED does: on a browser session
+                // restore (or a restore while the server is down/restarting),
+                // a joining tab replays the worker's current state, which is
+                // CONNECTING *or* DISCONNECTED (every failed attempt and every
+                // `_stop()` broadcasts DISCONNECTED — see
+                // `websocket_worker._onWebsocketClose`/`_stop`). Treating
+                // either as "already connected" would compare yesterday's
+                // localStorage watermark against the server (whose bus_bus
+                // rows are long GC'd) — a guaranteed, sticky false "page is
+                // out of date", propagated to every tab via the shared flag.
                 // A tab joining during a real reconnect is still covered by
-                // the BUS:RECONNECT listener below.
-                wasBusAlreadyConnected =
-                    state !== CONNECTION_STATE.IDLE &&
-                    state !== CONNECTION_STATE.CONNECTING;
+                // the BUS:CONNECT/BUS:RECONNECT listeners below.
+                wasBusAlreadyConnected = state === CONNECTION_STATE.CONNECTED;
             },
             { once: true },
         );

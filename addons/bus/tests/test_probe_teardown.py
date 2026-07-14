@@ -77,6 +77,37 @@ class TestTerminateTeardownRobustness(BaseCase):
             ws._handle_transport_error(OSError("connection reset"))  # must not raise
         self.assertEqual(ws.state, ConnectionState.CLOSED)
 
+    def test_drain_deadline_bounds_peer_streaming_after_shutdown(self):
+        """A peer that keeps streaming after our ``SHUT_WR`` must not pin the
+        serving thread: the orderly-shutdown drain has a hard 5s deadline
+        (driven by the injected clock), after which the connection is cut
+        loose."""
+        ws = self._make_ws()
+        now = [0.0]
+        ws._clock = lambda: now[0]
+        recv_calls = [0]
+
+        def endless_recv(bufsize):
+            recv_calls[0] += 1
+            now[0] += 1.0  # each drained chunk costs one virtual second
+            return b"x" * 16  # the peer never stops sending
+
+        ws._Websocket__socket.recv = endless_recv
+        with (
+            patch(
+                "odoo.addons.bus.websocket.acquire_cursor",
+                side_effect=PoolError("irrelevant"),
+            ),
+            patch.object(Websocket, "_trigger_lifecycle_event", lambda self, ev: None),
+            patch("odoo.addons.bus.websocket.dispatch"),
+        ):
+            ws._terminate()  # must return, not loop forever
+        # deadline = clock+5 with one virtual second per recv: the drain is
+        # bounded (6 reads here), not proportional to what the peer sends.
+        self.assertLessEqual(recv_calls[0], 7)
+        ws._Websocket__socket.close.assert_called_once()
+        self.assertEqual(ws.state, ConnectionState.CLOSED)
+
     def test_on_websocket_closed_invoked_on_happy_path(self):
         """When a cursor can be acquired, ``_on_websocket_closed`` is called with
         the stored cookies -- the hook is not skipped on the normal path."""
