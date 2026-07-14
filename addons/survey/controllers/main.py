@@ -13,8 +13,10 @@ from odoo import _, fields, http
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
+from urllib.parse import quote
+
 from odoo.tools import format_date, format_datetime, is_html_empty
-from odoo.tools.urls import keep_query
+from odoo.tools.urls import keep_query, urljoin
 
 
 class Survey(http.Controller):
@@ -204,7 +206,7 @@ class Survey(http.Controller):
                     )[answer_sudo.partner_id.id]
                 else:
                     survey_url = f"/survey/start/{survey_sudo.access_token}?answer_token={answer_sudo.access_token}"
-                    redirect_url = f"/web/login?redirect={werkzeug.urls.url_quote(survey_url, safe='')}"
+                    redirect_url = f"/web/login?redirect={quote(survey_url, safe='')}"
             return request.render(
                 "survey.survey_auth_required",
                 {"survey": survey_sudo, "redirect_url": redirect_url},
@@ -894,7 +896,7 @@ class Survey(http.Controller):
         if not answer_sudo.email:
             return {"error": "no_email"}
 
-        resume_url = url_join(
+        resume_url = urljoin(
             survey_sudo.get_base_url(),
             f"/survey/start/{survey_sudo.access_token}?answer_token={answer_sudo.access_token}",
         )
