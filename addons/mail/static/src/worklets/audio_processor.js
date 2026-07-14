@@ -93,7 +93,10 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
     process(inputs, outputs, parameters) {
         const input = inputs[0];
         if (input.length < 1) {
-            return;
+            // a falsy return value would let the browser reclaim the node on a
+            // transiently silent/channel-less input (e.g. OS-level mute or
+            // device switch), killing the monitoring for the rest of the call.
+            return true;
         }
         const samples = input[0];
         // filter frequencies

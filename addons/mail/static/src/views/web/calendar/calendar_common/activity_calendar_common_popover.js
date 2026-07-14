@@ -7,6 +7,7 @@ export class ActivityCalendarCommonPopover extends CalendarCommonPopover {
         footer: "mail.ActivityCalendarCommonPopover.footer",
     };
     setup() {
+        super.setup();
         this.orm = useService("orm");
         this.actionService = useService("action");
     }

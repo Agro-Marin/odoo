@@ -231,10 +231,11 @@ export class RtcSession extends Record {
             return;
         }
         if (this.store.settings.audioOutputDeviceId) {
-            // skipping, it will use the default device.
+            // on failure (device unplugged, unsupported API), fall back to the
+            // default device rather than aborting playback.
             await this.audioElement
                 .setSinkId(this.store.settings.audioOutputDeviceId)
-                .catch();
+                .catch(() => {});
         }
         try {
             await this.audioElement.play();

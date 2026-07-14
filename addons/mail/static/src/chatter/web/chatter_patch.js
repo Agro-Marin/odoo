@@ -220,7 +220,7 @@ patch(Chatter.prototype, {
                 main_email: email,
             }),
         );
-        if (status(this) === "destroyed" && !this.state.thread) {
+        if (status(this) === "destroyed" || !this.state.thread) {
             return;
         }
         this.state.thread.suggestedRecipients = recipients.map((result) => ({

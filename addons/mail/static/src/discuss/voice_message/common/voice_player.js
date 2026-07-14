@@ -194,7 +194,9 @@ export class VoicePlayer extends Component {
     getPeaks() {
         const peaks = [];
         const sampleSize = this.buffer.length / this.width;
-        const sampleStep = Math.floor(sampleSize / 10);
+        // never 0: a 0 step would make the inner loop below spin forever on
+        // buffers shorter than 10 samples per pixel (very short recordings).
+        const sampleStep = Math.max(1, Math.floor(sampleSize / 10));
         const chan = this.buffer.getChannelData(0);
         let i;
         for (i = 0; i < this.width; i++) {

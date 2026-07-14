@@ -310,8 +310,11 @@ function generateMentionsLinks(
     }
     for (const mention of mentions) {
         const link = mention.link;
+        // function replacer: a plain-string replacement would interpret "$&",
+        // "$`", "$'"... inside the link HTML (e.g. from a display name) as
+        // replacement patterns, splicing chunks of the body into the link.
         // markup: outerHTML is safe when used as a node
-        body = htmlReplace(body, mention.placeholder, markup(link.outerHTML));
+        body = htmlReplace(body, mention.placeholder, () => markup(link.outerHTML));
     }
     return htmlEscape(body);
 }

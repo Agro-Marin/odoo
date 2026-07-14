@@ -418,7 +418,7 @@ export class PeerToPeer extends EventTarget {
             const transceiver = peer.getTransceiver(streamType);
             if (!transceiver) {
                 this._recover(id, `no transceiver available when updating direction`);
-                return;
+                continue;
             }
             // changing the direction triggers a negotiation-needed
             transceiver.direction = peer.getRecommendedTransceiverDirection(

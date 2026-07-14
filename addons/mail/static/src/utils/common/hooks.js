@@ -659,8 +659,8 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
                 return;
             }
             const touch = ev.touches[0];
-            const dx = touch.screenX - startX;
-            const dy = touch.screenY - startY;
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
             if (Math.hypot(dx, dy) > MOVE_TRESHOLD) {
                 reset();
             }

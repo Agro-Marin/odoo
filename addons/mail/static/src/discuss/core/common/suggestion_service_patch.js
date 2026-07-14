@@ -86,9 +86,9 @@ const suggestionServicePatch = {
         return super.searchSuggestions(...arguments);
     },
     searchChannelCommand(cleanedSearchTerm, thread) {
-        if (!thread.model === "discuss.channel") {
+        if (thread?.model !== "discuss.channel") {
             // channel commands are channel specific
-            return;
+            return { type: "ChannelCommand", suggestions: [] };
         }
         const commands = this.getChannelCommands(thread).filter(({ name }) =>
             cleanTerm(name).includes(cleanedSearchTerm),

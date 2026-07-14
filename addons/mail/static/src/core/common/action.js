@@ -476,7 +476,7 @@ export class UseActions extends SignalStore {
                 },
                 store: this.store,
             });
-            toRaw(this).moreActions.set(data.id, moreAction);
+            toRaw(this).moreActions.set(id, moreAction);
         }
         return moreAction;
     }

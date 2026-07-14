@@ -175,7 +175,7 @@ async function openDiscussChannel(
             action: "OPEN_CHANNEL",
             data: { id: channelId, joinCall },
         });
-        targetClient.focus().catch();
+        targetClient.focus().catch(() => {});
         return;
     }
     if (action) {
@@ -222,7 +222,7 @@ self.addEventListener("notificationclick", (event) => {
         }
     }
 });
-self.addEventListener("push", async (event) => {
+self.addEventListener("push", (event) => {
     const notification = event.data.json();
     switch (notification.options?.data?.type) {
         case PUSH_NOTIFICATION_TYPE.CALL:
@@ -231,7 +231,9 @@ self.addEventListener("push", async (event) => {
                 navigator.userAgent.includes("Android")
             ) {
                 // action "accept" is disabled on mobile until: https://issues.chromium.org/issues/40286493 is fixed.
-                delete notification.options.actions.accept;
+                notification.options.actions = notification.options.actions.filter(
+                    (a) => a.action !== PUSH_NOTIFICATION_ACTION.ACCEPT,
+                );
             }
             event.waitUntil(
                 self.registration.showNotification(
@@ -240,15 +242,19 @@ self.addEventListener("push", async (event) => {
                 ),
             );
             return;
-        case PUSH_NOTIFICATION_TYPE.CANCEL: {
-            const notifications = await self.registration.getNotifications({
-                tag: notification.options?.tag,
-            });
-            for (const notification of notifications) {
-                notification.close();
-            }
+        case PUSH_NOTIFICATION_TYPE.CANCEL:
+            // waitUntil: without it the worker may be terminated before the
+            // async getNotifications() resolves, leaving the notification up.
+            event.waitUntil(
+                self.registration
+                    .getNotifications({ tag: notification.options?.tag })
+                    .then((notifications) => {
+                        for (const toCancel of notifications) {
+                            toCancel.close();
+                        }
+                    }),
+            );
             return;
-        }
     }
     event.waitUntil(handlePushEvent(notification));
 });

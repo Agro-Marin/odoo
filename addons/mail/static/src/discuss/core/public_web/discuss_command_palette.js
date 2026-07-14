@@ -91,7 +91,7 @@ class DiscussCommand extends Component {
  static props = {
  counter: { type: Number, optional: true },
  executeCommand: Function,
- imgUrl: { String, optional: true },
+ imgUrl: { type: String, optional: true },
  name: String,
  persona: { type: Object, optional: true },
  channel: { type: Object, optional: true },
@@ -242,7 +242,7 @@ export class DiscussCommandPalette {
  channel: thread.channel_type !== "chat" ? thread : undefined,
  persona:
  thread.channel_type === "chat"
- ? thread.correspondent.persona
+ ? thread.correspondent?.persona
  : undefined,
  counter: thread.importantCounter,
  },
@@ -306,7 +306,7 @@ commandProviderRegistry.add("find_or_start_conversation", {
  const palette = new DiscussCommandPalette(env, options);
  await palette.fetch();
  palette.buildResults();
- palette.commands.slice(0, 8);
+ palette.commands = palette.commands.slice(0, 8);
  if (!palette.store.inPublicPage) {
  palette.commands.push(palette.makeDiscussCommand(NEW_CHANNEL));
  palette.commands.push(palette.makeDiscussCommand(NEW_GROUP_CHAT));

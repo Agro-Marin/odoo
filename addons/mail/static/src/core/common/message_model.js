@@ -568,6 +568,7 @@ export class Message extends Record {
                 _t("Message Copy Failed (Permission denied?)!"),
                 { type: "danger" },
             );
+            return;
         }
         this.store.env.services.notification.add(_t("Message Copied!"), {
             type: "info",

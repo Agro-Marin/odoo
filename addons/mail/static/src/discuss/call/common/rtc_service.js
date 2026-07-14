@@ -85,15 +85,16 @@ const CALL_FULLSCREEN_ID = Symbol("CALL_FULLSCREEN");
  */
 function hasTurn(iceServers) {
     return iceServers.some((server) => {
+        const isTurnUrl = (url) => /^turns?:/.test(url);
         let hasTurn = false;
         if (server.url) {
-            hasTurn = server.url.startsWith("turn:");
+            hasTurn = isTurnUrl(server.url);
         }
         if (server.urls) {
             if (Array.isArray(server.urls)) {
-                hasTurn = server.urls.some((url) => url.startsWith("turn:")) || hasTurn;
+                hasTurn = server.urls.some(isTurnUrl) || hasTurn;
             } else {
-                hasTurn = server.urls.startsWith("turn:") || hasTurn;
+                hasTurn = isTurnUrl(server.urls) || hasTurn;
             }
         }
         return hasTurn;

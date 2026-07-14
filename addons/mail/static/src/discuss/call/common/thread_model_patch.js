@@ -23,7 +23,7 @@ const ThreadPatch = {
             },
         });
         /** @type {typeof CALL_PROMOTE_FULLSCREEN[keyof CALL_PROMOTE_FULLSCREEN]} */
-        this.promoteFullscreen = CALL_PROMOTE_FULLSCREEN.DISABLED;
+        this.promoteFullscreen = CALL_PROMOTE_FULLSCREEN.INACTIVE;
         this.hadSelfSession = false;
         /** @type {Set<number>} */
         this.lastSessionIds = new Set();
