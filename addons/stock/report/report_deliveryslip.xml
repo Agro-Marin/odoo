@@ -48,16 +48,16 @@
                 </t>
                 <div class="page">
                     <div class="oe_structure"></div>
-                    <div id="informations" class="report-wrapping-flexbox clearfix row mb-4">
-                        <div t-if="o.origin" class="col col-3 mw-100 mb-2" name="div_origin">
+                    <div id="informations" class="row mb-4">
+                        <div t-if="o.origin" class="col-3 mb-2" name="div_origin">
                             <strong>Order</strong>
                             <div t-field="o.origin" class="m-0">S0001</div>
                         </div>
-                        <div t-if="o.picking_type_id.code == 'internal' and o.partner_id" class="col col-3 mw-100 mb-2" name="div_contact">
+                        <div t-if="o.picking_type_id.code == 'internal' and o.partner_id" class="col-3 mb-2" name="div_contact">
                             <strong>Contact</strong>
                             <div t-field="o.partner_id" class="m-0"/>
                         </div>
-                        <div t-if="o.state" class="col col-3 mw-100 mb-2" name="div_sched_date">
+                        <div t-if="o.state" class="col-3 mb-2" name="div_sched_date">
                             <strong>Shipping Date</strong>
                             <div t-if="o.state == 'done'" t-field="o.date_done" class="m-0"/>
                             <div t-else="" t-field="o.date_planned" class="m-0"/>
@@ -72,9 +72,9 @@
                     <table class="table table-sm table-borderless" t-if="o.state!='done'" name="stock_move_table">
                         <thead>
                             <tr>
-                                <th name="th_sm_product"><strong>Product</strong></th>
-                                <th name="th_sm_ordered" class="text-end"><strong>Ordered</strong></th>
-                                <th name="th_sm_quantity" class="text-end"><strong>Delivered</strong></th>
+                                <th name="th_sm_product">Product</th>
+                                <th name="th_sm_ordered" class="text-end">Ordered</th>
+                                <th name="th_sm_quantity" class="text-end">Delivered</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -188,9 +188,9 @@
                         <table class="table table-sm table-borderless" name="stock_backorder_table">
                             <thead>
                                 <tr>
-                                    <th name="th_sb_product"><strong>Product</strong></th>
+                                    <th name="th_sb_product">Product</th>
                                     <th/>
-                                    <th name="th_sb_quantity" class="text-end"><strong>Quantity</strong></th>
+                                    <th name="th_sb_quantity" class="text-end">Quantity</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -212,15 +212,17 @@
                     </div>
 
                     <div t-if="not o.signature" class="oe_structure"></div>
-                    <div t-else="" class="mt32 ml64 mr4" name="signature">
-                        <div class="offset-8">
-                            <strong>Signature</strong>
-                        </div>
-                        <div class="offset-8">
-                            <img t-att-src="image_data_uri(o.signature)" class="o_report_signature_img"/>
-                        </div>
-                        <div t-if="o.partner_id.name" class="offset-8 text-center">
-                            <p t-field="o.partner_id.name">John Doe</p>
+                    <div t-else="" class="row mt-4" name="signature">
+                        <div class="col-4 ms-auto">
+                            <div>
+                                <strong>Signature</strong>
+                            </div>
+                            <div>
+                                <img t-att-src="image_data_uri(o.signature)" class="o_report_signature_img mw-100"/>
+                            </div>
+                            <div t-if="o.partner_id.name" class="text-center">
+                                <p t-field="o.partner_id.name">John Doe</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -303,14 +305,14 @@
     <!-- package related "section lines" -->
     <template id="stock_report_delivery_package_section_line">
         <tr class="o_line_section">
-            <td colspan="99" class="bg-secondary" name="package_info">
+            <td colspan="99" class="bg-200" name="package_info">
                 <span class="ms-1" t-field="package.name"/>
             </td>
         </tr>
     </template>
     <template id="stock_report_delivery_no_package_section_line">
         <tr class="o_line_section">
-            <td colspan="99" class="bg-secondary" name="no_package_info">
+            <td colspan="99" class="bg-200" name="no_package_info">
                 <span class="ms-1">Products with no package assigned</span>
             </td>
         </tr>

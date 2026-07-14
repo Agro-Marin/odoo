@@ -89,7 +89,7 @@
                     t-value="not hide_taxes_details and any(l._has_taxes() for l in lines_to_report)" />
 
                 <div class="oe_structure"></div>
-                <table class="o_has_total_table table o_main_table table-borderless">
+                <table class="o_has_total_table table o_main_table table-borderless mb-0">
                     <!-- In case we want to repeat the header, remove "display: table-row-group" -->
                     <thead class="o_thead_no_repeat">
                         <tr>
@@ -338,9 +338,8 @@
                     </tbody>
                 </table>
                 <div name="so_total_summary">
-                    <div id="total" class="row mt-n3" name="total">
-                        <div
-                            t-attf-class="#{'col-6' if report_type != 'html' else 'col-sm-7 col-md-6'} ms-auto">
+                    <div id="total" class="row" name="total">
+                        <div class="col-6 ms-auto">
                             <table class="o_total_table table table-borderless">
                                 <!-- Tax totals -->
                                 <t t-call="sale.document_tax_totals">
@@ -357,16 +356,18 @@
                     t-if="not doc.signature or not doc.env.context.get('sale_include_signature')"
                     class="oe_structure"
                 />
-                <div t-else="" class="mt-4 ml64 mr4" name="signature">
-                    <div class="offset-8">
-                        <strong>Signature</strong>
-                    </div>
-                    <div class="offset-8">
-                        <img t-att-src="image_data_uri(doc.signature)"
-                            class="o_report_signature_img" />
-                    </div>
-                    <div class="offset-8 text-center">
-                        <span t-field="doc.signed_by">Oscar Morgan</span>
+                <div t-else="" class="row mt-4" name="signature">
+                    <div class="col-4 ms-auto">
+                        <div>
+                            <strong>Signature</strong>
+                        </div>
+                        <div>
+                            <img t-att-src="image_data_uri(doc.signature)"
+                                class="o_report_signature_img img-fluid" />
+                        </div>
+                        <div class="text-center">
+                            <span t-field="doc.signed_by">Oscar Morgan</span>
+                        </div>
                     </div>
                 </div>
                 <div>

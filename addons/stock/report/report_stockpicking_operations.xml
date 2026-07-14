@@ -10,8 +10,8 @@
                     <span t-field="o.name">WH/OUT/00001</span>
                 </t>
                 <div class="page">
-                    <div class="row justify-content-between">
-                        <div class="col-8 offset-4" name="right_box">
+                    <div class="row">
+                        <div class="col-8 ms-auto" name="right_box">
                             <div t-field="o.name" class="d-flex justify-content-end" t-options="{'widget': 'barcode', 'width': 600, 'height': 100, 'img_style': 'width:300px;height:50px;margin-right:0;'}">
                                 <div class="bg-light border-1 rounded d-flex flex-column align-items-center justify-content-center p-3 opacity-75 text-muted text-center">
                                     (document barcode)
@@ -32,7 +32,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-5 offset-1" name="div_customer_address" t-if="o.picking_type_id.code=='outgoing' and o.partner_id and o.partner_id != o.partner_id.commercial_partner_id">
+                        <div class="col-5 ms-auto" name="div_customer_address" t-if="o.picking_type_id.code=='outgoing' and o.partner_id and o.partner_id != o.partner_id.commercial_partner_id">
                             <div>
                                 <span><strong>Customer Address:</strong></span>
                             </div>
@@ -48,7 +48,7 @@
                         </div>
                     </div>
                     <div class="oe_structure"></div>
-                    <div class="mt32 mb32 o_stock_report_header_row">
+                    <div class="mt-4 mb-4 o_stock_report_header_row">
                         <div t-if="o.origin" name="div_origin">
                             <strong>Order:</strong>
                             <p t-field="o.origin">S0001</p>
@@ -110,21 +110,11 @@
                         <t t-set="to_col_exists" t-value="o.picking_type_id.code != 'outgoing'"/>
                         <thead>
                             <tr>
-                                <th name="th_product" class="text-start">
-                                    <strong>Product</strong>
-                                </th>
-                                <th name="th_quantity" class="text-end">
-                                    <strong>Quantity</strong>
-                                </th>
-                                <th name="th_from" class="text-start" t-if="from_col_exists" groups="stock.group_stock_multi_locations">
-                                    <strong>From</strong>
-                                </th>
-                                <th name="th_to" class="text-start" t-if="to_col_exists" groups="stock.group_stock_multi_locations">
-                                    <strong>To</strong>
-                                </th>
-                                <th name="th_barcode" class="text-center" t-if="barcode_col_exists">
-                                    <strong>Barcode</strong>
-                                </th>
+                                <th name="th_product" class="text-start">Product</th>
+                                <th name="th_quantity" class="text-end">Quantity</th>
+                                <th name="th_from" class="text-start" t-if="from_col_exists" groups="stock.group_stock_multi_locations">From</th>
+                                <th name="th_to" class="text-start" t-if="to_col_exists" groups="stock.group_stock_multi_locations">To</th>
+                                <th name="th_barcode" class="text-center" t-if="barcode_col_exists">Barcode</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -200,7 +190,7 @@
                                                 <span t-field="line.result_package_id">Package A</span>
                                             </t>
                                         </td>
-                                        <td class=" text-center h6" t-if="barcode_col_exists">
+                                        <td class="text-center h6" t-if="barcode_col_exists">
                                             <span t-if="line.lot_id or line.lot_name" t-out="line.lot_id.name or line.lot_name" t-options="{'widget': 'barcode', 'humanreadable': 1, 'width': 400, 'height': 100, 'img_style': 'width:100%;height:35px;'}">
                                                 <div class="bg-light border-1 rounded d-flex flex-column align-items-center justify-content-center px-1 py-2 opacity-75 text-muted text-center">
                                                     (serial barcode)

@@ -18,3 +18,9 @@
 .tax_computation_company_currency {
     margin-bottom: 5px;
 }
+
+/* Long tax-group names (document_tax_totals_template) wrap instead of
+ * pushing the amount column out of the totals table. */
+.o_total_table td.o_tax_group_label {
+    max-width: 200px;
+}

@@ -11,8 +11,6 @@
             <field name="margin_bottom">0</field>
             <field name="margin_left">0</field>
             <field name="margin_right">0</field>
-            <field name="disable_shrinking" eval="True"/>
-            <field name="dpi">96</field>
         </record>
         <record id="report_product_template_label_2x7" model="ir.actions.report">
             <field name="name">Product Label 2x7 (PDF)</field>
@@ -88,8 +86,6 @@
             <field name="margin_bottom">0</field>
             <field name="margin_left">0</field>
             <field name="margin_right">0</field>
-            <field name="disable_shrinking" eval="True"/>
-            <field name="dpi">96</field>
         </record>
 
         <record id="report_product_template_label_dymo" model="ir.actions.report">
