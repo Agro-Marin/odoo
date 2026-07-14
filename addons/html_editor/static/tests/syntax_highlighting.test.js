@@ -162,13 +162,13 @@ test("inserting a code block in an empty paragraph with a style placeholder acti
         stepFunction: async (editor) => {
             await pressAndWait(["ctrl", "b"]);
             expect(getContent(editor.editable)).toBe(
-                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
+                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
                 { message: "The style placeholder was inserted." }
             );
             splitBlock(editor);
             expect(getContent(editor.editable)).toBe(
                 `<p><strong data-oe-zws-empty-inline="">\u200B</strong></p>` +
-                    `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
+                    `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
                 { message: "The paragraph was split." }
             );
             await insertPre(editor);
