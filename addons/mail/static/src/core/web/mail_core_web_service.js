@@ -45,6 +45,15 @@ export class MailCoreWeb {
                 if (message.starred && notifId > this.store.starred.counter_bus_id) {
                     this.store.starred.counter--;
                 }
+                const thread = message.thread;
+                if (
+                    message.needaction &&
+                    thread &&
+                    notifId > thread.message_needaction_counter_bus_id &&
+                    thread.message_needaction_counter > 0
+                ) {
+                    thread.message_needaction_counter--;
+                }
             },
         );
         this.busService.subscribe("mail.message/inbox", (payload, { id: notifId }) => {

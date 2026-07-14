@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
+import { useSequential } from "@mail/utils/common/hooks";
 import { assignDefined } from "@mail/utils/common/misc";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -28,22 +29,59 @@ export class Thread extends Record {
         return localId.split(",").slice(1).join("_").replace(" AND ", "_");
     }
     static async getOrFetch(data, fieldNames = []) {
-        let thread = this.get(data);
-        if (
-            data.id > 0 &&
-            (!thread || fieldNames.some((fieldName) => thread[fieldName] === undefined))
-        ) {
-            await this.store.fetchStoreData("mail.thread", {
-                thread_model: data.model,
-                thread_id: data.id,
-                request_list: fieldNames,
-            });
-            thread = this.get(data);
-            if (!thread?.exists()) {
+        const thread = this.get(data);
+        if (!(data.id > 0)) {
+            return thread;
+        }
+        const store = this.store;
+        const baseKey = `${data.model},${data.id}`;
+        // Fields already requested once for which the server response came
+        // back without a value are not requested again: a missing field would
+        // otherwise trigger a refetch on every call, forever.
+        const missingFieldNames = fieldNames.filter(
+            (fieldName) =>
+                thread?.[fieldName] === undefined &&
+                !store._threadFetchAttempted.has(`${baseKey},${fieldName}`),
+        );
+        if (thread && missingFieldNames.length === 0) {
+            return thread;
+        }
+        // In-flight dedup: concurrent callers requesting the same thread and
+        // fields share a single promise (and a single RPC).
+        const promiseKey = `${baseKey},${missingFieldNames.join(",")}`;
+        const pending = store._threadFetchPromises.get(promiseKey);
+        if (pending) {
+            return pending;
+        }
+        const promise = (async () => {
+            try {
+                await store.fetchStoreData("mail.thread", {
+                    thread_model: data.model,
+                    thread_id: data.id,
+                    request_list: missingFieldNames,
+                });
+            } finally {
+                store._threadFetchPromises.delete(promiseKey);
+            }
+            const fetchedThread = this.get(data);
+            if (!fetchedThread?.exists()) {
                 return;
             }
-        }
-        return thread;
+            const stillMissing = missingFieldNames.filter(
+                (fieldName) => fetchedThread[fieldName] === undefined,
+            );
+            if (stillMissing.length > 0) {
+                for (const fieldName of stillMissing) {
+                    store._threadFetchAttempted.add(`${baseKey},${fieldName}`);
+                }
+                console.warn(
+                    `Thread.getOrFetch: fields [${stillMissing.join(", ")}] of thread ${baseKey} were requested but absent from the server response; they will not be requested again.`,
+                );
+            }
+            return fetchedThread;
+        })();
+        store._threadFetchPromises.set(promiseKey, promise);
+        return promise;
     }
 
     autofocus = 0;
@@ -624,6 +662,16 @@ export class Thread extends Record {
                     message.id > this.newestPersistentMessage.id),
         );
         this.messages.splice(startIndex, 0, ...filtered);
+        if (
+            after === undefined &&
+            filtered.length > 0 &&
+            alreadyKnownMessages.size > 0
+        ) {
+            // already-known messages (e.g. received from the bus before the
+            // initial fetch) may be newer than some fetched ones: restore the
+            // continuous ascending order invariant of `messages`.
+            this.messages.sort((m1, m2) => m1.id - m2.id);
+        }
         Object.assign(this, {
             loadOlder:
                 after === undefined && fetched.length === this.store.FETCH_LIMIT
@@ -668,19 +716,30 @@ export class Thread extends Record {
         return "/mail/thread/messages";
     }
 
+    _loadAroundSequential = useSequential();
+
     /**
      * Get ready to jump to a message in a thread. This method will fetch the
      * messages around the message to jump to if required, and update the thread
      * messages accordingly.
      *
+     * Jumps are sequentialized: a jump requested while another one is loading
+     * is executed afterwards (intermediate queued jumps are superseded by the
+     * last one) instead of being silently dropped.
+     *
      * @param {import("models").Message} [messageId] if not provided, load around newest message
      */
     async loadAround(messageId) {
-        if (
-            this.status === "loading" ||
-            (this.isLoaded && this.messages.some(({ id }) => id === messageId))
-        ) {
+        if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
             return;
+        }
+        return this._loadAroundSequential(() => this._loadAround(messageId));
+    }
+
+    /** @param {number} [messageId] */
+    async _loadAround(messageId) {
+        if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
+            return; // an earlier queued jump already loaded around this message
         }
         this.isLoaded = false;
         this.scrollTop = undefined;
@@ -688,6 +747,11 @@ export class Thread extends Record {
             this.phantomMessages = this.messages;
             this.messages = await this.fetchMessages({ around: messageId });
         } catch {
+            // Not a silent swallow: fetchMessages() recorded the failure in
+            // hasLoadingFailed/hasLoadingFailedError, which drive the
+            // in-thread error banner and its retry button. Rethrowing would
+            // surface the same failure a second time as an uncaught error in
+            // the fire-and-forget component call sites.
             this.isLoaded = true;
             return;
         } finally {
@@ -721,13 +785,17 @@ export class Thread extends Record {
         // Optimistic UI update: immediately clear needaction messages so the
         // notification item disappears and the systray counter decreases
         // without waiting for the bus notification.
-        const inbox = this.store.inbox;
+        const inbox = this.store.inbox; // absent outside the web bundles
+        const inboxCounterBusId = inbox?.counter_bus_id;
+        const needactionCounterBusId = this.message_needaction_counter_bus_id;
         const messages = [...this.needactionMessages];
         const previousCounter = this.message_needaction_counter;
         for (const message of messages) {
             message.needaction = false;
-            inbox.messages.delete(message);
-            inbox.counter--;
+            if (inbox) {
+                inbox.messages.delete(message);
+                inbox.counter--;
+            }
         }
         this.message_needaction_counter = 0;
         try {
@@ -744,14 +812,23 @@ export class Thread extends Record {
         } catch (e) {
             // Roll back the optimistic update (see Message.setDone): no
             // correcting bus notification arrives on failure, so the inbox and
-            // counters would otherwise stay wrong until reload. Fire-and-forget
-            // caller -> swallow rather than raise an unhandled rejection.
+            // counters would otherwise stay wrong until reload. Counters are
+            // only rolled back when their bus id did not advance in the
+            // meantime: a newer absolute bus snapshot must not be overwritten
+            // by a stale local value. Fire-and-forget caller -> swallow rather
+            // than raise an unhandled rejection.
             for (const message of messages) {
                 message.needaction = true;
-                inbox.messages.add(message);
-                inbox.counter++;
+                if (inbox) {
+                    inbox.messages.add(message);
+                    if (inbox.counter_bus_id === inboxCounterBusId) {
+                        inbox.counter++;
+                    }
+                }
             }
-            this.message_needaction_counter = previousCounter;
+            if (this.message_needaction_counter_bus_id === needactionCounterBusId) {
+                this.message_needaction_counter = previousCounter;
+            }
             console.warn("Failed to mark all messages as read", e);
         }
     }
@@ -925,6 +1002,19 @@ export class Thread extends Record {
         if (!data) {
             return;
         }
+        return this.processMessagePostResponse(data, tmpMsg);
+    }
+
+    /**
+     * Handle the response of a `/mail/message/post` RPC: insert the resulting
+     * data and replace the temporary message with the persistent one. Also
+     * used when re-attempting a failed post (@see Message.postFailRedo).
+     *
+     * @param {Object} data response of `/mail/message/post`
+     * @param {import("models").Message} [tmpMsg] the associated temporary message
+     * @returns {import("models").Message}
+     */
+    processMessagePostResponse(data, tmpMsg) {
         this.store.insert(data.store_data);
         /** @type {import("models").Message} */
         const message = this.store["mail.message"].get(data.message_id);

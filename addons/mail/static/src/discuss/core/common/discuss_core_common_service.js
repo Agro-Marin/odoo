@@ -62,8 +62,12 @@ export class DiscussCoreCommon {
                 if (message.thread) {
                     const { self_member_id } = message.thread;
                     if (
-                        message.id > self_member_id?.seen_message_id?.id &&
-                        notifId > self_member_id.message_unread_counter_bus_id
+                        self_member_id &&
+                        // no seen message means nothing was seen yet: the
+                        // deleted message was necessarily unread.
+                        message.id > (self_member_id.seen_message_id?.id ?? 0) &&
+                        notifId > self_member_id.message_unread_counter_bus_id &&
+                        self_member_id.message_unread_counter > 0
                     ) {
                         self_member_id.message_unread_counter--;
                     }
@@ -83,7 +87,7 @@ export class DiscussCoreCommon {
     }
 
     async _handleNotificationNewMessage(payload, { id: notifId }) {
-        const { data, id: channelId, silent, temporary_id } = payload;
+        const { data, id: channelId, message_id, silent, temporary_id } = payload;
         const channel = await this.store.Thread.getOrFetch({
             model: "discuss.channel",
             id: channelId,
@@ -91,7 +95,12 @@ export class DiscussCoreCommon {
         if (!channel) {
             return;
         }
-        const message = this.store["mail.message"].get(data["mail.message"][0]);
+        // `message_id` explicitly identifies the posted message. Fall back on
+        // the first "mail.message" of the payload for older payloads (that
+        // convention only holds by Python Store insertion order).
+        const message = this.store["mail.message"].get(
+            message_id ?? data["mail.message"][0],
+        );
         if (!message) {
             return;
         }

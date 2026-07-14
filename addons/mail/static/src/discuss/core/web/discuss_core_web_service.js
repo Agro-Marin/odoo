@@ -43,7 +43,10 @@ export class DiscussCoreWeb {
             "mail.message/delete",
             ({ detail: { message } }) => {
                 if (message.thread?.model === "discuss.channel") {
-                    // initChannelsUnreadCounter becomes unreliable
+                    // initChannelsUnreadCounter becomes unreliable: drop the
+                    // cached result so the channels (and their counters) are
+                    // actually fetched again.
+                    this.store.channels.invalidate();
                     this.store.channels.fetch();
                 }
             },
