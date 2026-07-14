@@ -38,7 +38,7 @@ import { _t } from "@web/core/l10n/translation";
 import { compareListTypes, createList, insertListAfter, isListItem } from "./utils.js";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { withSequence } from "@html_editor/utils/resource";
-import { FONT_SIZE_CLASSES, getFontSizeOrClass } from "@html_editor/utils/formatting";
+import { FONT_SIZE_CLASSES, getFontSizeOrClass, getHtmlStyle } from "@html_editor/utils/formatting";
 import { getTextColorOrClass, TEXT_CLASSES_REGEX } from "@html_editor/utils/color";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { ListSelector } from "./list_selector.js";
@@ -1276,9 +1276,12 @@ export class ListPlugin extends Plugin {
         // For `UL` with large font size the marker width is so big that more padding is needed.
         const largestMarkerPadding = Math.round(largestMarker) * (list.nodeName === "UL" ? 2 : 1);
 
-        // Compare against the list's actual CSS padding (typically Bootstrap's 2rem)
-        // rather than estimating from root font-size, to handle any CSS overrides.
-        const defaultPadding = parseFloat(this.window.getComputedStyle(list).paddingInlineStart);
+        // bootstrap sets ul { padding-left: 2rem; } -- estimate the baseline
+        // from the root font-size (upstream parity). Reading the list's
+        // computed padding instead looks appealing but breaks wherever the
+        // Bootstrap rule isn't applied (e.g. bare test fixtures fall back to
+        // the 40px UA default), shifting every computed padding.
+        const defaultPadding = parseFloat(getHtmlStyle(this.document).fontSize) * 2;
         // Align the whole list based on the item that requires the largest padding.
         // For smaller font sizes, doubling the width of the dot marker is still lower than the
         // default. The default is kept in that case.
