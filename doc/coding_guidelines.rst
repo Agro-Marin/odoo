@@ -1705,6 +1705,61 @@ Three-part structure:
   ``"list,kanban,form"``\ ), not ``"list,form"``
 * ``t-lang=`` at ``t-call`` level for localization
 
+3.6.1 PDF rendering — WeasyPrint, not wkhtmltopdf 👁
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This fork renders ``qweb-pdf`` reports with **WeasyPrint** (real CSS Paged
+Media). wkhtmltopdf is gone; forget its workarounds and its folklore. The
+authoritative engine code is ``base/models/ir_actions_report.py``
+(``WeasyPrintEngine``); the paged-media CSS lives in
+``web/static/src/webclient/actions/reports/report_paged_media.css`` and
+``report_pdf_layout.css`` — both have thorough header comments.
+
+**Layout rules**
+
+* Bootstrap **5** class names only: ``text-end``/``text-start``
+  (``text-right``/``text-left`` no longer exist and silently do nothing),
+  ``float-end``, ``ms-*``/``me-*``.
+* Bootstrap responsive breakpoints (``col-md-*``, ``d-md-*``) are meaningless
+  in paged media. Core layouts branch on ``report_type == 'pdf'`` and use CSS
+  Grid there (``o_report_header_*``, ``o_report_footer_grid``) — follow that
+  pattern; don't use ``<table>`` for pure layout.
+* Put report CSS in an SCSS file added to ``web.report_assets_common`` (it
+  benefits from the process-wide parsed-CSS cache), not in inline
+  ``<style>`` blocks or ``style=`` attributes. Use the per-company design
+  tokens (``--co-primary``, ``--co-font``, ``--rp-*``) instead of hardcoded
+  colors.
+
+**Paperformat**
+
+* Live fields: ``format``/``page_width``/``page_height``, ``margin_*`` (mm),
+  ``orientation``, ``header_line``, ``css_margins``.
+* Dead wkhtmltopdf-era fields — do **not** set them on new paperformats:
+  ``dpi``, ``header_spacing``, ``disable_shrinking``. Header/footer size is
+  controlled by ``margin_top``/``margin_bottom``; the ``.header``/``.footer``
+  divs become CSS running elements placed in the page margin boxes.
+
+**Paged-media toolbox** (all supported, use instead of hacks)
+
+* Page numbers: ``<span class="page"/>`` / ``<span class="topage"/>``
+  (CSS counters — never JS).
+* Break control: ``o_page_break_before`` / ``o_page_break_after`` classes,
+  ``break-inside: avoid``; ``o_thead_no_repeat`` to stop ``<thead>``
+  repetition on long tables.
+* PDF outline: ``bookmark-level`` is set on ``h2[name="document_title"]`` /
+  ``h3[name]`` — use real headings and multi-record batches get a navigable
+  outline for free.
+* Advanced (available, adopt where they fit): ``string-set`` running headers
+  ("Invoice X — continued"), ``target-counter()`` + ``leader('.')`` for
+  TOC/cross-references, named ``@page`` rules for landscape annexes,
+  ``float: footnote`` for legal boilerplate.
+* PDF/A-3 + Factur-X and XMP metadata are supported natively — see
+  ``_build_pdf_options``.
+
+**Testing note**: in test mode ``_render_qweb_pdf`` returns raw HTML unless
+``force_report_rendering`` is set; render-path tests live in
+``base/tests/test_reports.py``.
+
 3.7 Action Windows
 ^^^^^^^^^^^^^^^^^^
 
