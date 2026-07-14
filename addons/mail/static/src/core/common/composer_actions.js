@@ -133,16 +133,16 @@ registerComposerAction("open-full-composer", {
         composer.targetThread.model !== "discuss.channel" &&
         !owner.env.inFrontendPortalChatter,
     hasBtnBg: ({ composer, owner }) =>
-        (composer.restoredFromFullComposer && !owner.state.isFullComposerOpen) || undefined,
+        (composer.restoredFromFullComposer && !owner.fullComposer.isOpen) || undefined,
     hotkey: "shift+c",
     icon: "fa-solid fa-up-right-and-down-left-from-center",
     isActive: ({ composer, owner }) =>
-        (composer.restoredFromFullComposer && !owner.state.isFullComposerOpen) || undefined,
+        (composer.restoredFromFullComposer && !owner.fullComposer.isOpen) || undefined,
     name: _t("Open Full Composer"),
     onSelected: ({ owner }) => owner.onClickFullComposer(),
     sequence: 30,
     tags: ({ composer, owner }) =>
-        composer.restoredFromFullComposer && !owner.state.isFullComposerOpen
+        composer.restoredFromFullComposer && !owner.fullComposer.isOpen
             ? [ACTION_TAGS.PRIMARY]
             : undefined,
 });
