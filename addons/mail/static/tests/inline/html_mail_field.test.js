@@ -75,8 +75,11 @@ test("HtmlMail save inline html", async function () {
     enableTransitions();
     useCustomStyleRules(`.test-h1-inline .note-editable h1 { color: #111827 !important; }`);
     onRpc("web_save", ({ args }) => {
+        // Note: computed border/padding values (0px widths, currentColor
+        // border colors, none styles) are no longer force applied: only the
+        // styles set by matching rules are inlined.
         expect(args[1].body.replace(/font-size: ?(\d+(\.\d+)?)px/, "font-size: []px")).toBe(
-            `<h1 style="border-radius:0px;border-style:none;padding:0px;margin:0px 0 8px 0;box-sizing:border-box;border-left-color:#111827;border-bottom-color:#111827;border-right-color:#111827;border-top-color:#111827;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;font-size: []px;color:#111827;line-height:1.2;font-weight:600;font-family:Inter, 'SF Pro Display', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';">first</h1>`
+            `<h1 style="margin:0px 0 8px 0;box-sizing:border-box;font-size: []px;color:#111827;line-height:1.2;font-weight:600;font-family:Inter, 'SF Pro Display', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';">first</h1>`
         );
         expect.step("web_save");
     });
@@ -132,8 +135,11 @@ test("HtmlMail add icon and save inline html", async function () {
         `
     );
     onRpc("web_save", ({ args }) => {
+        // Note: the rule-provided border colors are kept, but the computed
+        // 0px border widths, none styles and 0px paddings/margins are no
+        // longer force applied.
         expect(args[1].body).toBe(
-            `<p style="border-radius:0px;border-style:none;padding:0px;margin:0px 0 16px 0;box-sizing:border-box;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;border-left-color:#ff0000;border-bottom-color:#ff0000;border-right-color:#ff0000;border-top-color:#ff0000;"><span style="display: inline-block; padding: 0px 3.5px; width: 17.5px; height: 14px; vertical-align: text-bottom;" class="oe_unbreakable "><img width="10.5" height="14" src="/mail/font_to_img/63492/rgb(55%2C65%2C81)/rgb(249%2C250%2C251)/11x14" data-class="fa-solid fa-glass" data-style="null" style="border-radius:0px;border-style:none;padding:0px;margin:0px;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;border-left-color:#ff0000;border-bottom-color:#ff0000;border-right-color:#ff0000;border-top-color:#ff0000;box-sizing: border-box; line-height: 14px; width: 10.5px; height: 14px; vertical-align: unset;"></span>first</p>`
+            `<p style="margin:0px 0 16px 0;box-sizing:border-box;border-left-color:#ff0000;border-bottom-color:#ff0000;border-right-color:#ff0000;border-top-color:#ff0000;"><span style="display: inline-block; padding: 0px 3.5px; width: 17.5px; height: 14px; vertical-align: text-bottom;" class="oe_unbreakable "><img width="10.5" height="14" src="/mail/font_to_img/63492/rgb(55%2C65%2C81)/rgb(249%2C250%2C251)/11x14" data-class="fa-solid fa-glass" data-style="null" style="border-left-color:#ff0000;border-bottom-color:#ff0000;border-right-color:#ff0000;border-top-color:#ff0000;box-sizing: border-box; line-height: 14px; width: 10.5px; height: 14px; vertical-align: unset;"></span>first</p>`
         );
         expect.step("web_save");
     });

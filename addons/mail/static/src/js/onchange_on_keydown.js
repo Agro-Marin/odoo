@@ -22,14 +22,17 @@ const onchangeOnKeydownMixin = () => ({
                 this.triggerOnChange,
                 this.props.keydownDebounceDelay,
             );
-            useEffect(() => {
-                if (input.el) {
-                    input.el.addEventListener("keydown", triggerOnChange);
-                    return () => {
-                        input.el.removeEventListener("keydown", triggerOnChange);
-                    };
-                }
-            });
+            useEffect(
+                (el) => {
+                    if (el) {
+                        el.addEventListener("keydown", triggerOnChange);
+                        return () => {
+                            el.removeEventListener("keydown", triggerOnChange);
+                        };
+                    }
+                },
+                () => [input.el],
+            );
         }
     },
 

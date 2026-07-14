@@ -68,8 +68,8 @@ export class ActivityController extends Component {
     }
 
     getSearchProps() {
-        const { comparision, context, domain, groupBy, orderBy } = this.env.searchModel;
-        return { comparision, context, domain, groupBy, orderBy };
+        const { context, domain, groupBy, orderBy } = this.env.searchModel;
+        return { context, domain, groupBy, orderBy };
     }
 
     get getSelectCreateDialogProps() {
