@@ -3,7 +3,11 @@
 
 /** @module @web/core/errors/error_utils - Traceback formatting, source-map annotation, and error chain utilities */
 
-import { mapFramesToSource, parseStackFrames } from "./stack_frames";
+// NB: relative imports need the explicit extension: esbuild resolves without
+// it, but in ?debug=assets mode the BROWSER resolves this raw file's imports,
+// requests the extensionless URL, 404s, and the failed import takes down the
+// whole module graph (white screen on every debug=assets page).
+import { mapFramesToSource, parseStackFrames } from "./stack_frames.js";
 
 /** @typedef {import("./uncaught_errors").UncaughtError} UncaughtError */
 
