@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Chatter } from "@mail/chatter/web_portal/chatter";
+import { WebChatter } from "@mail/chatter/web/web_chatter";
 
 import { Component, useState, useRef } from "@odoo/owl";
 
@@ -9,7 +9,7 @@ import { useBus } from "@web/core/utils/hooks";
 
 export class TodoChatterPanel extends Component {
     static template = "project_todo.TodoChatterPanel";
-    static components = { Chatter };
+    static components = { Chatter: WebChatter };
     static props = {
         ...standardWidgetProps,
     };

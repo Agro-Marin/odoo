@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Chatter } from "@mail/chatter/web_portal/chatter";
+import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";
 import { useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
@@ -12,7 +12,9 @@ patch(FormRenderer.prototype, {
         super.setup();
         this.mailComponents = {
             AttachmentView,
-            Chatter,
+            // key stays "Chatter": the form compiler and downstream tooling
+            // (e.g. web_studio) target `mailComponents.Chatter`.
+            Chatter: WebChatter,
         };
         this.highlightMessageId = router.current.highlight_message_id;
         this.messagingState = useState({

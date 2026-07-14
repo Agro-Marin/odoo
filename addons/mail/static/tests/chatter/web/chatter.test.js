@@ -26,11 +26,13 @@ import {
     makeServerError,
     mockService,
     onRpc,
+    patchWithCleanup,
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 
-import { DELAY_FOR_SPINNER } from "@mail/chatter/web/chatter_patch";
+import { DELAY_FOR_SPINNER, WebChatter } from "@mail/chatter/web/web_chatter";
+import { Chatter } from "@mail/chatter/web_portal/chatter";
 import { queryFirst } from "@odoo/hoot-dom";
 
 describe.current.tags("desktop");
@@ -777,4 +779,37 @@ test("Update primary email in recipient without saving", async () => {
     await insertText("div[name='email_cc'] input", "test@test.be");
     document.querySelector("div[name='email_cc'] input").blur();
     await contains(".o-mail-RecipientsInput .o_tag_badge_text", { text: "test@test.be" });
+});
+
+test("form view mounts WebChatter; base Chatter statics stay portal-clean", async () => {
+    // The unit-test harness loads the whole backend bundle, so per-bundle
+    // selection cannot be exercised directly: assert the wiring instead.
+    // Portal bundles ship only the base Chatter — it must not be mutated by
+    // the web layer (WebChatter subclasses it rather than patching statics).
+    expect(Object.getPrototypeOf(WebChatter)).toBe(Chatter);
+    expect(Chatter.props.includes("record?")).toBe(false);
+    expect("Activity" in Chatter.components).toBe(false);
+    expect("isInFormSheetBg" in Chatter.defaultProps).toBe(false);
+    expect(WebChatter.props.includes("record?")).toBe(true);
+    expect("Activity" in WebChatter.components).toBe(true);
+    expect(WebChatter.defaultProps.isInFormSheetBg).toBe(true);
+    // The backend form view integration must instantiate WebChatter, never
+    // the bare base Chatter. Assert on classes, not instance counts: the
+    // form renderer may legitimately re-instantiate the chatter while
+    // mounting (a reactive write during render — FormRenderer.hasFile() —
+    // can cancel the first render pass and create a fresh instance).
+    const setupClasses = new Set();
+    patchWithCleanup(Chatter.prototype, {
+        setup() {
+            setupClasses.add(this.constructor);
+            super.setup(...arguments);
+        },
+    });
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Chatter-topbar");
+    expect(setupClasses.size).toBe(1);
+    expect(setupClasses.has(WebChatter)).toBe(true);
 });
