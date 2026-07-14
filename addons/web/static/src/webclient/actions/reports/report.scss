@@ -142,8 +142,24 @@ li.oe-nested {
 // Values are emitted on .o_company_X_layout by the compiled styles_company_report SCSS.
 // Fallbacks match the static SCSS defaults for renders without per-company overrides.
 .o_report_layout {
-    font-family: var(--co-font, $o-default-report-font);
+    // --rp-* report tokens carry the theme skin; fall back to --co-* / SCSS
+    // defaults so a company with no theme renders exactly as before.
+    font-family: var(--rp-font, var(--co-font, $o-default-report-font));
     color: var(--co-primary, $o-default-report-primary-color);
+
+    // Align figures in numeric columns. WeasyPrint honors OpenType features and
+    // Lato ships a tabular set — the old wkhtmltopdf engine could not.
+    .oe_currency_value,
+    .o_price_total,
+    .o_td_quantity,
+    td.text-end,
+    th.text-end {
+        font-variant-numeric: tabular-nums;
+    }
+
+    h2[name="document_title"] {
+        font-family: var(--rp-font-display, var(--rp-font, var(--co-font, $o-default-report-font)));
+    }
 
     #informations strong {
         color: var(--co-secondary, $o-default-report-secondary-color);

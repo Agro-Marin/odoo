@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Report themes = skin (typography, density, shape). Values are raw CSS,
+        emitted as rp tokens by web.styles_company_report and consumed by the
+        report SCSS. Orthogonal to report.layout (structure) and company colors.
+    -->
+
+    <record id="report_theme_modern" model="report.theme">
+        <field name="name">Modern</field>
+        <field name="sequence">1</field>
+        <field name="row_padding">0.6rem</field>
+        <field name="border_radius">0.375rem</field>
+        <field name="rule_weight">2px</field>
+    </record>
+
+    <record id="report_theme_ledger" model="report.theme">
+        <field name="name">Ledger</field>
+        <field name="sequence">2</field>
+        <field name="row_padding">0.3rem</field>
+        <field name="border_radius">0</field>
+        <field name="rule_weight">1px</field>
+    </record>
+
+    <record id="report_theme_editorial" model="report.theme">
+        <field name="name">Editorial</field>
+        <field name="sequence">3</field>
+        <field name="font_display">Georgia, 'Times New Roman', serif</field>
+        <field name="row_padding">0.7rem</field>
+        <field name="border_radius">0</field>
+        <field name="rule_weight">3px</field>
+    </record>
+
+    <!-- Backfill: give companies created before this feature the default theme.
+         Idempotent — only fills unset values, so it never clobbers a choice. -->
+    <function model="res.company" name="_set_default_report_theme" />
+
+</odoo>

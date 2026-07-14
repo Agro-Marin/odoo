@@ -22,6 +22,7 @@ from . import test_partner
 from . import test_perf_load_menu
 from . import test_pivot_export
 from . import test_profiler
+from . import test_report_theme
 from . import test_reports
 from . import test_res_partner_properties
 from . import test_res_users

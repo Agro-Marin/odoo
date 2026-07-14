@@ -672,11 +672,15 @@
 
         <t t-foreach="company_ids" t-as="company" t-translation="off">
             <t t-set="primary" t-value="company.primary_color or '#212529'" />
+            <t t-set="secondary" t-value="company.secondary_color or '#212529'" />
             <t t-set="layout" t-value="company.external_report_layout_id.key or 'web.external_layout_standard'" />
             .o_company_<t t-out="company.id" />_layout {
                 --co-primary: <t t-out="primary" />;
-                --co-secondary: <t t-out="company.secondary_color or '#212529'" />;
+                --co-secondary: <t t-out="secondary" />;
                 --co-font: <t t-out="company.font or 'Lato'" />;
+                /* Report design tokens (skin). Colors track the company brand;
+                   typography/density/shape come from the report.theme. */
+                <t t-out="company.report_theme_id._report_css_vars(primary, secondary, company.font or 'Lato')" />
             <t t-if="layout == 'web.external_layout_boxed'">
                 // Boxed: total row uses primary as background; text must contrast.
                 &amp;.o_report_layout_boxed #total .o_total td strong {

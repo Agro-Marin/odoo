@@ -105,6 +105,9 @@ class BaseDocumentLayout(models.TransientModel):
         readonly=False,
     )
     report_layout_id = fields.Many2one("report.layout")
+    report_theme_id = fields.Many2one(
+        related="company_id.report_theme_id", readonly=False
+    )
     # sanitize=False: the raw HTML is rendered directly in an iframe.
     preview = fields.Html(compute="_compute_preview", sanitize=False)
     # Report templates render `self` as the `company` variable (see
@@ -152,6 +155,7 @@ class BaseDocumentLayout(models.TransientModel):
 
     @api.depends(
         "report_layout_id",
+        "report_theme_id",
         "logo",
         "font",
         "primary_color",

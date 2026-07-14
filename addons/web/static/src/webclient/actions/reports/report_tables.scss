@@ -12,6 +12,13 @@ table.table {
     }
 }
 
+// Row density comes from the report theme via Bootstrap's own cell-padding
+// variable, so it flows to every cell without per-selector overrides. Falls
+// back to the Bootstrap default when no theme sets --rp-density.
+.o_report_layout table.table {
+    --bs-table-cell-padding-y: var(--rp-density, #{$table-cell-padding-y});
+}
+
 div#total {
     // Avoid crop in the total table if in middle of 2 pages
     break-inside: avoid;
@@ -23,7 +30,7 @@ div#total {
 .o_table_standard {
     table:not(.o_ignore_layout_styling) {
         thead {
-            border-bottom: $border-width solid $o-gray-900;
+            border-bottom: var(--rp-rule, #{$border-width}) solid $o-gray-900;
         }
 
         th:first-child, td:first-child {
