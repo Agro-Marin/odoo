@@ -119,7 +119,10 @@ const assertReceived = (expected, found) => {
         const { payload } = expected;
         if (payload !== null && payload !== undefined) {
             if (typeof payload === "function") {
-                expect(payload(found.payload)).toBe(true, { message });
+                // Boolean(): findNotification matched this payload with truthy
+                // semantics; asserting strict `true` here would fail matchers
+                // that return the matched value (e.g. a record id).
+                expect(Boolean(payload(found.payload))).toBe(true, { message });
             } else {
                 expect(found.payload).toEqual(payload, { message });
             }
