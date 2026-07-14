@@ -139,10 +139,22 @@ class ResourceReservation(models.Model):
                     )
                 )
 
-    @api.constrains("date_start", "date_end", "resource_id", "allocated_percentage")
+    @api.constrains(
+        "date_start",
+        "date_end",
+        "resource_id",
+        "allocated_percentage",
+        "active",
+        "enforcement_mode",
+    )
     def _check_hard_overlap(self):
-        """Block overlapping reservations when enforcement_mode is 'hard'."""
-        hard = self.filtered(lambda r: r.enforcement_mode == "hard")
+        """Block overlapping reservations when enforcement_mode is 'hard'.
+
+        ``active`` and ``enforcement_mode`` are triggers too: unarchiving a
+        reservation re-asserts its claim on the resource, and switching to
+        ``hard`` opts in to blocking — both must re-validate.
+        """
+        hard = self.filtered(lambda r: r.active and r.enforcement_mode == "hard")
         if not hard:
             return
         # Recompute overlap counts (flushes internally before SQL)
@@ -348,7 +360,7 @@ class ResourceReservation(models.Model):
     # ------------------------------------------------------------------
 
     @api.model
-    def _sync_reservation(self, record, reservation_vals_list):
+    def _sync_reservation(self, record, reservation_vals_list, existing=None):
         """Reconcile reservations for a consumer record.
 
         Creates, updates, or deletes reservations so that the given record
@@ -356,21 +368,35 @@ class ResourceReservation(models.Model):
         Each dict in the list represents one reservation (e.g. one per
         assignee on a task).  An empty list deletes all reservations.
 
+        Reservations here are engine-owned mirror rows: the reconciliation
+        covers *archived* ones too (else an archived twin would sit next to a
+        freshly created active duplicate and both would come alive on the next
+        consumer unarchive), and any row it keeps is forced back to active —
+        the caller only ever syncs active consumers.
+
         :param record: the consumer record (must be saved, not a NewId)
         :param reservation_vals_list: list of dicts with keys:
             ``name``, ``date_start``, ``date_end``, ``resource_id``,
             ``allocated_percentage``, ``enforcement_mode``.
+        :param existing: optional pre-fetched reservations of ``record``
+            (must include archived ones); avoids one query per record when
+            the caller batches (see ``_sync_reservations``).
         :return: recordset of current reservations after sync
         """
         if not record.id or not isinstance(record.id, int):
             return self.browse()
 
-        existing = self.sudo().search(
-            [
-                ("res_model", "=", record._name),
-                ("res_id", "=", record.id),
-            ]
-        )
+        if existing is None:
+            existing = (
+                self.sudo()
+                .with_context(active_test=False)
+                .search(
+                    [
+                        ("res_model", "=", record._name),
+                        ("res_id", "=", record.id),
+                    ]
+                )
+            )
 
         if not reservation_vals_list:
             existing.unlink()
@@ -392,11 +418,25 @@ class ResourceReservation(models.Model):
                 **vals,
                 "res_model": record._name,
                 "res_id": record.id,
+                "active": True,
             }
             bucket = existing_by_resource.get(res_id)
             if bucket:
-                # Reuse one existing reservation per requested val.
-                bucket.pop(0).write(base_vals)
+                # Reuse one existing reservation per requested val, writing
+                # only what actually changed: consumers re-sync on every edit
+                # of a trigger field, and a no-op write would still re-run the
+                # overlap sweep and bump write_date on each of them.
+                reservation = bucket.pop(0)
+                changed_vals = {
+                    fname: value
+                    for fname, value in base_vals.items()
+                    if reservation._fields[fname].convert_to_write(
+                        reservation[fname], reservation
+                    )
+                    != value
+                }
+                if changed_vals:
+                    reservation.write(changed_vals)
             else:
                 to_create.append(base_vals)
 

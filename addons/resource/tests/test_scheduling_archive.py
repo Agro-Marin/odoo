@@ -140,6 +140,92 @@ class TestSchedulingMixinArchive(TransactionCase):
         # No archived leftovers either.
         self.assertEqual(len(self._res(rec, active_test=False)), 1)
 
+    def test_archive_then_unlink_leaves_no_reservation_rows(self):
+        """Archive → delete (the common cleanup flow) must not orphan rows."""
+        rec = self._make()
+        rec.active = False
+        self.assertEqual(len(self._res(rec, active_test=False)), 1)
+
+        rec_id = rec.id
+        rec.unlink()
+        leftovers = (
+            self.Reservation.with_context(active_test=False)
+            .sudo()
+            .search([("res_model", "=", self.MODEL), ("res_id", "=", rec_id)])
+        )
+        self.assertFalse(leftovers, "unlink must also purge archived reservations")
+
+    def test_create_archived_record_plants_no_claim(self):
+        """A record created already archived must not create reservations."""
+        rec = self.Model.create(
+            {
+                "name": "Born archived",
+                "active": False,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+            }
+        )
+        self.assertFalse(self._res(rec, active_test=False))
+
+    def test_sync_reconciles_manually_archived_reservation(self):
+        """A hand-archived mirror row is reconciled, not duplicated.
+
+        If the sync were blind to archived rows, editing the consumer would
+        create an active duplicate next to the archived twin — and the next
+        unarchive cycle would turn both into live claims on the resource.
+        """
+        rec = self._make()
+        self._res(rec).action_archive()
+
+        rec.date_start = datetime(2025, 1, 6, 10, 0)
+        rows = self._res(rec, active_test=False)
+        self.assertEqual(len(rows), 1, "must reuse the archived row, not duplicate")
+        self.assertTrue(rows.active, "engine-owned rows come back alive on sync")
+        self.assertEqual(rows.date_start, datetime(2025, 1, 6, 10, 0))
+
+    def test_sync_skips_noop_writes(self):
+        """Re-syncing unchanged data must not rewrite the reservation."""
+        rec = self._make()
+        reservation = self._res(rec)
+        # Backdate write_date so an (unwanted) write would be detectable.
+        self.env.cr.execute(
+            "UPDATE resource_reservation SET write_date = write_date"
+            " - interval '1 hour' WHERE id = %s",
+            [reservation.id],
+        )
+        reservation.invalidate_recordset(["write_date"])
+        before = reservation.write_date
+
+        rec._sync_reservations()  # same vals — reconcile must be a no-op
+        reservation.invalidate_recordset(["write_date"])
+        self.assertEqual(
+            reservation.write_date,
+            before,
+            "unchanged reservation must not be rewritten on re-sync",
+        )
+
+    def test_aggregates_follow_archive_state(self):
+        """Archiving flips reservations inactive → aggregates must follow.
+
+        ``reservation_ids`` drops archived rows on read, but without an
+        ``active`` dependency the stored sums kept their pre-archive values.
+        """
+        rec = self._make()
+        self.assertGreater(rec.allocated_hours, 0.0)
+
+        rec.active = False
+        self.assertEqual(
+            rec.allocated_hours,
+            0.0,
+            "an archived record's reservations are no longer commitments",
+        )
+
+        rec.active = True
+        self.assertGreater(
+            rec.allocated_hours, 0.0, "restore must revive the committed hours"
+        )
+
     def test_unarchive_refreshes_edits_made_while_archived(self):
         """Edit while archived, then unarchive alone → reservation reflects the edit."""
         rec = self._make()
