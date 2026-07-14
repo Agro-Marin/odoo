@@ -173,6 +173,15 @@ export async function makeDialogMockEnv(partialEnv) {
 export function mockService(name, serviceFactory) {
     const serviceRegistry = registry.category("services");
     const originalService = serviceRegistry.get(name, null);
+    // ``patch()`` extensions are single-use (the extension object is mutated
+    // to build the ``super`` chain and reuse throws). This start wrapper can
+    // run more than once for the same ``serviceFactory`` object: the forced
+    // registry entry outlives the test that installed it, wrappers stack when
+    // several tests mock the same service, and each later ``startServices``
+    // replays the whole chain. Hand ``patch()`` a fresh descriptor-clone per
+    // call instead of the shared factory object.
+    const freshExtension = () =>
+        Object.defineProperties({}, Object.getOwnPropertyDescriptors(serviceFactory));
     serviceRegistry.add(
         name,
         {
@@ -183,9 +192,9 @@ export function mockService(name, serviceFactory) {
                 } else {
                     const service = originalService.start(env, dependencies);
                     if (service instanceof Promise) {
-                        service.then((value) => patch(value, serviceFactory));
+                        service.then((value) => patch(value, freshExtension()));
                     } else {
-                        patch(service, serviceFactory);
+                        patch(service, freshExtension());
                     }
                     return service;
                 }
@@ -206,7 +215,7 @@ export function mockService(name, serviceFactory) {
                 /** @type {any} */ (dependencies),
             );
         } else {
-            patch(currentEnv.services[name], serviceFactory);
+            patch(currentEnv.services[name], freshExtension());
         }
     }
 }
