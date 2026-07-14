@@ -14,74 +14,8 @@ function getTargetModel(reclist) {
 }
 
 /** @param {RecordList} reclist */
-function isComputeField(reclist) {
-    return reclist._.owner.Model._.fieldsCompute.get(reclist._.name);
-}
-
-/** @param {RecordList} reclist */
-function isSortField(reclist) {
-    return reclist._.owner.Model._.fieldsSort.get(reclist._.name);
-}
-
-/** @param {RecordList} reclist */
-function isEager(reclist) {
-    return reclist._.owner.Model._.fieldsEager.get(reclist._.name);
-}
-
-/** @param {RecordList} reclist */
-function setComputeInNeed(reclist) {
-    reclist._.owner._.fieldsComputeInNeed.set(reclist._.name, true);
-}
-
-/** @param {RecordList} reclist */
-function setSortInNeed(reclist) {
-    reclist._.owner._.fieldsSortInNeed.set(reclist._.name, true);
-}
-
-/** @param {RecordList} reclist */
-function isComputeOnNeed(reclist) {
-    return reclist._.owner._.fieldsComputeOnNeed.get(reclist._.name);
-}
-
-/** @param {RecordList} reclist */
-function isSortOnNeed(reclist) {
-    return reclist._.owner._.fieldsSortOnNeed.get(reclist._.name);
-}
-
-/** @param {RecordList} reclist */
-function computeField(reclist) {
-    reclist._.owner._.compute(reclist._.owner, reclist._.name);
-}
-
-/** @param {RecordList} reclist */
-function sortField(reclist) {
-    reclist._.owner._.sort(reclist._.owner, reclist._.name);
-}
-
-/** @param {RecordList} reclist */
 function isOne(reclist) {
     return reclist._.owner.Model._.fieldsOne.get(reclist._.name);
-}
-
-/**
- * Lazy compute/sort bookkeeping for an explicit read of the list content.
- * Mirrors what the proxy get trap does for non-implemented properties.
- *
- * @param {RecordList} reclist
- */
-function onListRead(reclist) {
-    if (isComputeField(reclist) && !isEager(reclist)) {
-        setComputeInNeed(reclist);
-        if (isComputeOnNeed(reclist)) {
-            computeField(reclist);
-        }
-    }
-    if (isSortField(reclist) && !isEager(reclist)) {
-        setSortInNeed(reclist);
-        if (isSortOnNeed(reclist)) {
-            sortField(reclist);
-        }
-    }
 }
 
 export class RecordListInternal {
@@ -351,20 +285,8 @@ export class RecordList extends Array {
                     }
                     return res;
                 }
-                if (isComputeField(recordList) && !isEager(recordList)) {
-                    setComputeInNeed(recordList);
-                    if (isComputeOnNeed(recordList)) {
-                        computeField(recordList);
-                    }
-                }
                 if (name === "length") {
                     return recordListFullProxy.data.length;
-                }
-                if (isSortField(recordList) && !isEager(recordList)) {
-                    setSortInNeed(recordList);
-                    if (isSortOnNeed(recordList)) {
-                        sortField(recordList);
-                    }
                 }
                 if (typeof name !== "symbol" && !window.isNaN(parseInt(name))) {
                     // support for "array[index]" syntax
@@ -781,16 +703,11 @@ export class RecordList extends Array {
     }
     /**
      * Read-only Array methods below are implemented directly over `data`
-     * (no full-array materialization per call). When called through a proxy
-     * they do the lazy compute/sort bookkeeping; raw internal calls
-     * intentionally skip it, like the other prototype methods.
+     * (no full-array materialization per call).
      */
     /** @param {(record: R, index: number) => any} fn */
     map(fn) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         return recordListFullProxy.data.map((localId, index) =>
@@ -803,9 +720,6 @@ export class RecordList extends Array {
      */
     filter(fn) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const result = [];
@@ -824,9 +738,6 @@ export class RecordList extends Array {
      */
     find(fn) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const data = recordListFullProxy.data;
@@ -841,9 +752,6 @@ export class RecordList extends Array {
     /** @param {(record: R, index: number) => boolean} fn */
     findIndex(fn) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const data = recordListFullProxy.data;
@@ -861,9 +769,6 @@ export class RecordList extends Array {
     /** @param {(record: R, index: number) => boolean} fn */
     every(fn) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const data = recordListFullProxy.data;
@@ -877,9 +782,6 @@ export class RecordList extends Array {
     /** @param {(record: R, index: number) => void} fn */
     forEach(fn) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const data = recordListFullProxy.data;
@@ -890,9 +792,6 @@ export class RecordList extends Array {
     /** @param {(acc: any, record: R, index: number) => any} fn */
     reduce(fn, ...init) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const data = recordListFullProxy.data;
@@ -921,9 +820,6 @@ export class RecordList extends Array {
      */
     slice(start, end) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         return recordListFullProxy.data
@@ -933,9 +829,6 @@ export class RecordList extends Array {
     /** @param {R} recordProxy */
     includes(recordProxy) {
         const recordList = toRaw(this)._raw;
-        if (this !== recordList) {
-            onListRead(recordList);
-        }
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         return recordListFullProxy.data.includes(toRaw(recordProxy)?._raw.localId);
     }

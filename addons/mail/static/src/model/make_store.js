@@ -74,34 +74,25 @@ export function makeStore(env, { localRegistry } = {}) {
                                 }
                                 return res;
                             }
-                            if (
-                                Model._.fieldsCompute.get(name) &&
-                                !Model._.fieldsEager.get(name)
-                            ) {
-                                record._.fieldsComputeInNeed.set(name, true);
-                                if (record._.fieldsComputeOnNeed.get(name)) {
-                                    record._.compute(record, name);
-                                }
-                            }
-                            if (
-                                Model._.fieldsSort.get(name) &&
-                                !Model._.fieldsEager.get(name)
-                            ) {
-                                record._.fieldsSortInNeed.set(name, true);
-                                if (record._.fieldsSortOnNeed.get(name)) {
-                                    record._.sort(record, name);
-                                }
-                            }
-                            record._.gettingField = true;
-                            const val = recordFullProxy[name];
-                            record._.gettingField = false;
                             if (isRelation(Model, name)) {
-                                const recordListFullProxy = val._proxy;
+                                // read through the receiver so a reactive
+                                // receiver wraps the returned list; the flag
+                                // makes the re-entrant trap call fall through
+                                record._.gettingField = true;
+                                let recordList;
+                                try {
+                                    recordList = recordFullProxy[name];
+                                } finally {
+                                    record._.gettingField = false;
+                                }
+                                const recordListFullProxy = recordList._proxy;
                                 if (isMany(Model, name)) {
                                     return recordListFullProxy;
                                 }
                                 return recordListFullProxy[0];
                             }
+                            // attrs: single raw read (OWL's own reactive trap
+                            // already subscribed the receiver before this ran)
                             return Reflect.get(record, name, recordFullProxy);
                         },
                         /**
@@ -151,7 +142,9 @@ export function makeStore(env, { localRegistry } = {}) {
                         // Bootstrap: the Store record created by
                         // `store.Store.insert()` in makeStore replaces the
                         // temporary plain store; rebind the makeStore closure
-                        // and the `Record.store` global to it.
+                        // and the `Record.store` global to it. Model refs and
+                        // `_rawStore` re-pointing are done by makeStore inside
+                        // the same enclosing update cycle, before any flush.
                         record.recordByLocalId = store.recordByLocalId;
                         record._ = markRaw(toRaw(store._));
                         store = record;
@@ -222,24 +215,39 @@ export function makeStore(env, { localRegistry } = {}) {
                 }
                 OtherModel._.fieldsTargetModel.set(inverse, Model.getName());
                 OtherModel._.fieldsInverse.set(inverse, name);
-                // // FIXME: lazy fields are not working properly with inverse.
-                Model._.fieldsEager.set(name, true);
-                OtherModel._.fieldsEager.set(inverse, true);
             }
         }
     }
     /**
-     * store/_rawStore are assigned on models at next step, but they are
-     * required on Store model to make the initial store insert.
+     * Point every Model at the temporary plain store so the initial store
+     * insert can run: it shares its internal `_` (queues, UPDATE counter)
+     * with the real Store record, so both count as one update cycle.
      */
-    Object.assign(store.Store, { store, _rawStore: store });
-    // Make true store (as a model)
-    store = toRaw(store.Store.insert())._raw;
     for (const Model of Object.values(Models)) {
         Model._rawStore = store;
         Model.store = store._proxy;
-        store._proxy[Model.getName()] = Model;
     }
-    Object.assign(store, { Models, storeReady: true });
+    /**
+     * Bootstrap: create the real store (as a record) inside one enclosing
+     * update cycle. Since fields are always eager, the Store record's
+     * computes/sorts/hooks (and those of any record they create, e.g. a
+     * one-with-compute field like chatHub) are queued during the insert;
+     * the enclosing MAKE_UPDATE defers their flush until after every Model
+     * has been re-pointed at the real store record and attached to it.
+     * Flushing earlier would run computes like `this.Thread.records` or
+     * hooks dereferencing `this.store.<field>` against a half-wired store.
+     */
+    const temporaryStore = store;
+    temporaryStore.MAKE_UPDATE(function storeBootstrap() {
+        // Make true store (as a model); this reassigns the `store` closure
+        // variable to the created record (see the STORE_SYM branch above)
+        store = toRaw(store.Store.insert())._raw;
+        for (const Model of Object.values(Models)) {
+            Model._rawStore = store;
+            Model.store = store._proxy;
+            store._proxy[Model.getName()] = Model;
+        }
+        Object.assign(store, { Models, storeReady: true });
+    });
     return store._proxy;
 }

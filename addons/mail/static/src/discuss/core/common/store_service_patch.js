@@ -77,7 +77,10 @@ const storeServicePatch = {
      * @param {import("models").ChannelMember} m2
      */
     sortMembers(m1, m2) {
-        return m1.name?.localeCompare(m2.name) || m1.id - m2.id;
+        // a member's name can be non-string: `false` for a nameless partner,
+        // `undefined` while the persona is not inserted yet (member sorts run
+        // eagerly on insert). Fall back to id order in those cases.
+        return (m1.name || "").localeCompare(m2.name || "") || m1.id - m2.id;
     },
     /** @param {number[]} partnerIds */
     async startChat(partnerIds) {

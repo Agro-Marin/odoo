@@ -83,13 +83,8 @@ export const fields = {
      * @param {M} targetModel
      * @param {Object} [param1={}]
      * @param {(this: Record) => any} [param1.compute] if set, the value of this relational field is declarative and
-     *   is computed automatically. All reactive accesses recalls that function. The context of
-     *   the function is the record. Returned value is new value assigned to this field.
-     * @param {boolean} [param1.eager=false] when field is computed, determines whether the computation
-     *   of this field is eager or lazy. By default, fields are computed lazily, which means that
-     *   they are computed when dependencies change AND when this field is being used. In eager mode,
-     *   the field is immediately (re-)computed when dependencies changes, which matches the built-in
-     *   behaviour of OWL reactive.
+     *   is computed automatically: it is recomputed whenever one of its dependencies changes
+     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
      * @param {string} [param1.inverse] if set, the name of field in targetModel that acts as the inverse.
      * @param {(this: Record, r: import("models").Models[M]) => void} [param1.onAdd] function that is called when a record is added
      *   in the relation.
@@ -112,13 +107,8 @@ export const fields = {
      * @param {M} targetModel
      * @param {Object} [param1={}]
      * @param {(this: Record) => any} [param1.compute] if set, the value of this relational field is declarative and
-     *   is computed automatically. All reactive accesses recalls that function. The context of
-     *   the function is the record. Returned value is new value assigned to this field.
-     * @param {boolean} [param1.eager=false] when field is computed, determines whether the computation
-     *   of this field is eager or lazy. By default, fields are computed lazily, which means that
-     *   they are computed when dependencies change AND when this field is being used. In eager mode,
-     *   the field is immediately (re-)computed when dependencies changes, which matches the built-in
-     *   behaviour of OWL reactive.
+     *   is computed automatically: it is recomputed whenever one of its dependencies changes
+     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
      * @param {string} [param1.inverse] if set, the name of field in targetModel that acts as the inverse.
      * @param {(this: Record, r: import("models").Models[M]) => void} [param1.onAdd] function that is called when a record is added
      *   in the relation.
@@ -143,13 +133,8 @@ export const fields = {
      * @param {T} def
      * @param {Object} [param1={}]
      * @param {(this: Record) => any} [param1.compute] if set, the value of this attr field is declarative and
-     *   is computed automatically. All reactive accesses recalls that function. The context of
-     *   the function is the record. Returned value is new value assigned to this field.
-     * @param {boolean} [param1.eager=false] when field is computed, determines whether the computation
-     *   of this field is eager or lazy. By default, fields are computed lazily, which means that
-     *   they are computed when dependencies change AND when this field is being used. In eager mode,
-     *   the field is immediately (re-)computed when dependencies changes, which matches the built-in
-     *   behaviour of OWL reactive.
+     *   is computed automatically: it is recomputed whenever one of its dependencies changes
+     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
      * @param {(this: Record) => void} [param1.onUpdate] function that is called when the field value is updated.
      *   This is called at least once at record creation.
      * @param {(this: Record, Object, Object) => number} [param1.sort] if defined, this field is automatically sorted
@@ -172,13 +157,8 @@ export const fields = {
      * @param {string} def
      * @param {Object} [param1={}]
      * @param {(this: Record) => any} [param1.compute] if set, the value of this html field is declarative and
-     *   is computed automatically. All reactive accesses recalls that function. The context of
-     *   the function is the record. Returned value is new value assigned to this field.
-     * @param {boolean} [param1.eager=false] when field is computed, determines whether the computation
-     *   of this field is eager or lazy. By default, fields are computed lazily, which means that
-     *   they are computed when dependencies change AND when this field is being used. In eager mode,
-     *   the field is immediately (re-)computed when dependencies changes, which matches the built-in
-     *   behaviour of OWL reactive.
+     *   is computed automatically: it is recomputed whenever one of its dependencies changes
+     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
      * @param {(this: Record) => void} [param1.onUpdate] function that is called when the field value is updated.
      *   This is called at least once at record creation.
      * @returns {string|markup }
@@ -196,13 +176,8 @@ export const fields = {
     /**
      * @param {Object} [param0={}]
      * @param {(this: Record) => any} [param0.compute] if set, the value of this date field is declarative and
-     *   is computed automatically. All reactive accesses recalls that function. The context of
-     *   the function is the record. Returned value is new value assigned to this field.
-     * @param {boolean} [param0.eager=false] when field is computed, determines whether the computation
-     *   of this field is eager or lazy. By default, fields are computed lazily, which means that
-     *   they are computed when dependencies change AND when this field is being used. In eager mode,
-     *   the field is immediately (re-)computed when dependencies changes, which matches the built-in
-     *   behaviour of OWL reactive.
+     *   is computed automatically: it is recomputed whenever one of its dependencies changes
+     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
      * @param {(this: Record) => void} [param0.onUpdate] function that is called when the field value is updated.
      *   This is called at least once at record creation.
      * @returns {luxon.DateTime}
@@ -218,13 +193,8 @@ export const fields = {
     /**
      * @param {Object} [param0={}]
      * @param {(this: Record) => any} [param0.compute] if set, the value of this datetime field is declarative and
-     *   is computed automatically. All reactive accesses recalls that function. The context of
-     *   the function is the record. Returned value is new value assigned to this field.
-     * @param {boolean} [param0.eager=false] when field is computed, determines whether the computation
-     *   of this field is eager or lazy. By default, fields are computed lazily, which means that
-     *   they are computed when dependencies change AND when this field is being used. In eager mode,
-     *   the field is immediately (re-)computed when dependencies changes, which matches the built-in
-     *   behaviour of OWL reactive.
+     *   is computed automatically: it is recomputed whenever one of its dependencies changes
+     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
      * @param {(this: Record) => void} [param0.onUpdate] function that is called when the field value is updated.
      *   This is called at least once at record creation.
      * @returns {luxon.DateTime}

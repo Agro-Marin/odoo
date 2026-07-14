@@ -153,8 +153,10 @@ export class ChannelMember extends Record {
      * @param {import("models").Message} message
      */
     hasSeen(message) {
+        // persona can be unset while the member's partner or guest is not
+        // inserted yet (seen computes run eagerly on insert)
         return (
-            this.persona.eq(message.author) || this.seen_message_id?.id >= message.id
+            this.persona?.eq(message.author) || this.seen_message_id?.id >= message.id
         );
     }
     get lastSeenDt() {
