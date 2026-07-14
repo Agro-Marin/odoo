@@ -10,17 +10,16 @@
                 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                 <t t-call-assets="hr_attendance.assets_public_attendance" t-js="false"/>
+                <!-- Data for the bundle's boot module (public_kiosk/main.js):
+                     a classic inline script runs while the document parses,
+                     before any (deferred) module script evaluates. -->
+                <script type="text/javascript">
+                    odoo.__kiosk_backend_info__ = <t t-out="json.dumps(kiosk_backend_info)"/>;
+                </script>
                 <t t-call-assets="hr_attendance.assets_public_attendance" t-css="false"/>
                 <t t-call="web.conditional_assets_tests">
                     <t t-set="ignore_missing_deps" t-value="True"/>
                 </t>
-
-                <script type="text/javascript">
-                    odoo.define("hr_attendance.public_kiosk_app", ["@hr_attendance/public_kiosk/public_kiosk_app"], function (require) {
-                    var { createPublicKioskAttendance } = require("@hr_attendance/public_kiosk/public_kiosk_app");
-                    createPublicKioskAttendance(document, <t t-out="json.dumps(kiosk_backend_info)"/>);
-                    });
-                </script>
             </t>
             <t t-set="body">
             </t>
