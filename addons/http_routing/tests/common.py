@@ -25,6 +25,7 @@ def MockRequest(
     remote_addr=HOST,
     environ_base=None,
     url_root=None,
+    mock_router=True,
 ):
     """Mock of the ``http.request``.
 
@@ -88,22 +89,30 @@ def MockRequest(
             city=(city_name and {"names": {"en": city_name}}) or {},
         )
 
-    # The following code mocks match() to return a fake rule with a fake
-    # 'routing' attribute (routing=True) or to raise a NotFound
-    # exception (routing=False).
+    # The following code mocks match() to return a fake (endpoint, args)
+    # tuple whose endpoint carries a fake 'routing' attribute (routing=True)
+    # or to raise a NotFound exception (routing=False), mirroring werkzeug's
+    # real MapAdapter.match() contract so callers may index *or* unpack it.
     #
     #   router = odoo.http.root.get_db_router()
-    #   rule, args = router.bind(...).match(path)
-    #   # arg routing is True => rule.endpoint.routing == {...}
+    #   func, args = router.bind(...).match(path)
+    #   # arg routing is True => func.routing == {...}
     #   # arg routing is False => NotFound exception
+    #
+    # Pass ``mock_router=False`` to skip this mock entirely and match against
+    # the real routing map (e.g. to exercise url_rewrite/_url_localized against
+    # actual endpoints).
     router = MagicMock()
     match = router.return_value.bind.return_value.match
     if routing:
-        match.return_value[0].routing = {
-            "type": "http",
-            "website": True,
-            "multilang": multilang,
-        }
+        endpoint = Mock(
+            routing={
+                "type": "http",
+                "website": True,
+                "multilang": multilang,
+            }
+        )
+        match.return_value = (endpoint, {})
     else:
         match.side_effect = NotFound
 
@@ -115,6 +124,7 @@ def MockRequest(
     with contextlib.ExitStack() as s:
         odoo.http._request_stack.push(request)
         s.callback(odoo.http._request_stack.pop)
-        s.enter_context(patch("odoo.http.root.get_db_router", router))
+        if mock_router:
+            s.enter_context(patch("odoo.http.root.get_db_router", router))
 
         yield request
