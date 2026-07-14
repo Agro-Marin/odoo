@@ -662,8 +662,17 @@ test("rapid consecutive swipes only fire the action once", async () => {
     // Two threshold-crossing swipes complete within the 500ms bounce window,
     // before the first scheduled action fires. The action pending from the
     // first swipe must be cancelled so it runs only once, not twice.
-    await swipeRight(".o_actionswiper");
-    await swipeRight(".o_actionswiper");
+    // NB: don't use the swipeRight() helper here -- it settles the mocked
+    // clock with advanceTime(1000) after each gesture, which would let the
+    // first action fire before the second swipe even starts. Drive the raw
+    // drag sequence instead so both swipes land inside the same window.
+    for (let i = 0; i < 2; i++) {
+        const el = queryFirst(".o_actionswiper");
+        el.scrollLeft = 0;
+        const { moveTo, drop } = await contains(el).drag({ position: { x: 0, y: 0 } });
+        await moveTo(el, { position: { x: el.clientWidth } });
+        await drop();
+    }
     await advanceTime(500);
     expect.verifySteps(["onRightSwipe"]);
 });
