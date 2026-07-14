@@ -205,11 +205,19 @@ export class ChatWindow extends Component {
         this.state.editingName = false;
     }
 
+    cancelRenameThread() {
+        this.state.editingName = false;
+    }
+
     async renameGuest(name) {
         const newName = name.trim();
         if (this.store.self.name !== newName) {
             await this.store.self.updateGuestName(newName);
         }
+        this.state.editingGuestName = false;
+    }
+
+    cancelRenameGuest() {
         this.state.editingGuestName = false;
     }
 

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread";
+import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import { toRaw, useEffect } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
@@ -53,9 +54,9 @@ const threadPatch = {
                 this.setScroll(scrollTop);
             }
             thread.scrollUnread = false;
-            if (this.isAtBottom && !thread.markedAsUnread && thread.isFocused) {
-                thread.markAsRead();
-            }
+            // setScroll() saved the resulting scroll position, so the shared
+            // helper's "bottom" check matches the isAtBottom state here.
+            markThreadAsReadIfAtBottom(thread);
         } else {
             super.applyScrollContextually(...arguments);
         }

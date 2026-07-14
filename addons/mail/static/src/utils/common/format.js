@@ -320,25 +320,62 @@ function generateMentionsLinks(
 }
 
 /**
+ * Cache for {@link _generateEmojisOnHtml}: one precompiled alternation regex
+ * over all shortcode/emoticon sources instead of ~thousands of per-source
+ * regexes rescanning the whole body on every message post/edit. Keyed on the
+ * emoji list identity (`loadEmoji()` caches it; tests may reset it).
+ *
+ * @type {{
+ *  emojis: unknown[],
+ *  codepointsBySource: Map<string, string>,
+ *  regex: RegExp|null,
+ * }|undefined}
+ */
+let emojiSourceCache;
+
+function getEmojiSourceCache(emojis) {
+    if (emojiSourceCache?.emojis !== emojis) {
+        /** @type {Map<string, string>} */
+        const codepointsBySource = new Map();
+        for (const emoji of emojis) {
+            for (const source of [...emoji.shortcodes, ...emoji.emoticons]) {
+                // Sources are matched against escaped HTML: escape them too
+                // (e.g. the "<3" emoticon appears as "&lt;3" in the body).
+                const escapedSource = htmlEscape(String(source)).toString();
+                if (!codepointsBySource.has(escapedSource)) {
+                    codepointsBySource.set(escapedSource, emoji.codepoints);
+                }
+            }
+        }
+        const alternation = [...codepointsBySource.keys()]
+            .sort((source1, source2) => source2.length - source1.length) // longest match first
+            .map(escapeRegExp)
+            .join("|");
+        emojiSourceCache = {
+            emojis,
+            codepointsBySource,
+            regex: alternation
+                ? new RegExp(`(\\s|^)(${alternation})(?=\\s|$|<)`, "g")
+                : null,
+        };
+    }
+    return emojiSourceCache;
+}
+
+/**
  * @private
  * @param {string|ReturnType<markup>} htmlString
  * @returns {Promise<ReturnType<markup>>}
  */
 async function _generateEmojisOnHtml(htmlString) {
     const { emojis } = await loadEmoji();
-    for (const emoji of emojis) {
-        for (const source of [...emoji.shortcodes, ...emoji.emoticons]) {
-            const escapedSource = htmlEscape(String(source));
-            const regexp = new RegExp(
-                "(\\s|^)(" + escapeRegExp(escapedSource) + ")(?=\\s|$|<)",
-                "g",
-            );
-            htmlString = htmlReplace(
-                htmlString,
-                regexp,
-                (_, group1) => group1 + emoji.codepoints,
-            );
-        }
+    const { codepointsBySource, regex } = getEmojiSourceCache(emojis);
+    if (regex) {
+        htmlString = htmlReplace(
+            htmlString,
+            regex,
+            (_, whitespace, source) => whitespace + codepointsBySource.get(source),
+        );
     }
     return htmlEscape(htmlString);
 }

@@ -17,7 +17,9 @@ import {
     onMounted,
     onPatched,
     onWillDestroy,
+    onWillRender,
     onWillUpdateProps,
+    status,
     toRaw,
     useChildSubEnv,
     useEffect,
@@ -134,6 +136,10 @@ export class Message extends Component {
             message: () => this.message,
             thread: () => this.props.thread,
         });
+        // In onWillRender (not in the template): computing actions writes
+        // fields read during rendering, and doing that mid-render on a
+        // reactive state scheduled a useless second render pass per message.
+        onWillRender(() => this.computeActions());
         this.shadowBody = useRef("shadowBody");
         this.dialog = useService("dialog");
         this.ui = useService("ui");
@@ -232,6 +238,15 @@ export class Message extends Component {
 
     computeActions() {
         const allActions = this.messageActions.actions;
+        const previousActions = this.lastComputedActions;
+        if (
+            previousActions &&
+            previousActions.length === allActions.length &&
+            previousActions.every((action, index) => action === allActions[index])
+        ) {
+            return; // same available actions: keep the computed partition
+        }
+        this.lastComputedActions = allActions;
         const quickActions = allActions.slice(
             0,
             allActions.length > this.quickActionCount
@@ -260,7 +275,13 @@ export class Message extends Component {
         if (this.isAlignedRight) {
             actions.reverse();
         }
-        this.state.moreAction = moreAction;
+        // Plain fields: they are recomputed in `onWillRender`, so no reactive
+        // write is needed (writing them on `state` during rendering scheduled
+        // an extra render pass after every first paint of each message).
+        // `moreAction` comes from `messageActions` (a `useState` proxy), so
+        // reading `moreAction.isActive` still subscribes this component to
+        // the dropdown open state.
+        this.moreAction = moreAction;
         this.quickActions = quickActions;
         this.actions = actions;
     }
@@ -332,11 +353,25 @@ export class Message extends Component {
     }
 
     get showSubtypeDescription() {
-        return (
-            this.message.subtype_id?.description &&
-            this.message.subtype_id.description.toLowerCase() !==
-                htmlToTextContentInline(this.message.body || "").toLowerCase()
-        );
+        const description = this.message.subtype_id?.description;
+        if (!description) {
+            return description;
+        }
+        const body = this.message.body || "";
+        // Cache: extracting the body's text content builds a DOM per call and
+        // this getter runs on every render of the message.
+        let cache = this.subtypeDescriptionCache;
+        if (cache?.description !== description || cache.body !== body) {
+            cache = {
+                body,
+                description,
+                result:
+                    description.toLowerCase() !==
+                    htmlToTextContentInline(body).toLowerCase(),
+            };
+            this.subtypeDescriptionCache = cache;
+        }
+        return cache.result;
     }
 
     get messageTypeText() {
@@ -366,7 +401,7 @@ export class Message extends Component {
             // `emojiPicker` never existed on Message, so the toolbar hid while
             // the reaction picker anchored to it was still open.
             this.reactionPicker?.isOpen ||
-            Boolean(this.state.moreAction?.isActive)
+            Boolean(this.moreAction?.isActive)
         );
     }
 
@@ -446,7 +481,11 @@ export class Message extends Component {
                 document.body.addEventListener(
                     "click",
                     () => {
-                        this.state.isClicked = false;
+                        // once-capture listener: it can fire long after this
+                        // component was destroyed.
+                        if (status(this) !== "destroyed") {
+                            this.state.isClicked = false;
+                        }
                     },
                     { capture: true, once: true },
                 );

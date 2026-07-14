@@ -190,6 +190,12 @@ export function useHover(
             }
         }
     }
+    onWillUnmount(() => {
+        // The callbacks close over the component: firing them after unmount
+        // would run them against a destroyed component.
+        clearTimeout(hoveringTimeout);
+        clearTimeout(awayTimeout);
+    });
     function onmouseleave(ev) {
         if (!state.isHover) {
             return;
@@ -355,8 +361,9 @@ export function useMessageScrolling(duration = 2000) {
             const lastHighlightedMessageId = state.highlightedMessageId;
             this.clear();
             if (lastHighlightedMessageId === message.id) {
-                // Give some time for the state to update.
-                await new Promise(setTimeout);
+                // Give some time for the state to update. Routed through
+                // `browser` so tests can mock time.
+                await new Promise((resolve) => browser.setTimeout(resolve));
             }
             thread.scrollTop = messageScrollDirection === "top" ? "bottom" : undefined;
             if (thread.scrollTop === "bottom") {
@@ -386,14 +393,27 @@ export function useMessageScrolling(duration = 2000) {
             state.scrollPromise?.resolve();
             const scrollPromise = new Deferred();
             state.scrollPromise = scrollPromise;
+            let scrollTimeout;
+            const onScrollEnd = () => {
+                browser.clearTimeout(scrollTimeout);
+                document.removeEventListener("scrollend", onScrollEnd, {
+                    capture: true,
+                });
+                scrollPromise.resolve();
+            };
             if ("onscrollend" in window) {
-                document.addEventListener("scrollend", scrollPromise.resolve, {
+                document.addEventListener("scrollend", onScrollEnd, {
                     capture: true,
                     once: true,
                 });
+                // Safety net: "scrollend" never fires when scrollIntoView
+                // needs no movement (target already in place) and can be
+                // missed on interrupted scrolls; an unresolved scrollPromise
+                // wedges loadOlder/loadNewer, which await it.
+                scrollTimeout = browser.setTimeout(onScrollEnd, 3000);
             } else {
                 // To remove when safari will support the "scrollend" event.
-                setTimeout(scrollPromise.resolve, 250);
+                scrollTimeout = browser.setTimeout(onScrollEnd, 250);
             }
             el.scrollIntoView({ behavior: "smooth", block: "center" });
             return scrollPromise;

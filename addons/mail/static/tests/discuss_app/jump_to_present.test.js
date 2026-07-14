@@ -1,5 +1,12 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { animationFrame, Deferred, press, queryFirst, tick } from "@odoo/hoot-dom";
+import {
+    advanceTime,
+    animationFrame,
+    Deferred,
+    press,
+    queryFirst,
+    tick,
+} from "@odoo/hoot-dom";
 import {
     asyncStep,
     patchWithCleanup,
@@ -22,7 +29,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { PRESENT_VIEWPORT_THRESHOLD } from "@mail/core/common/thread";
+import { PRESENT_VIEWPORT_THRESHOLD, Thread } from "@mail/core/common/thread";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -49,6 +56,63 @@ test("Basic jump to present when scrolling to outdated messages", async () => {
     await click("[title='Jump to Present']");
     await contains("[title='Jump to Present']", { count: 0 });
     await contains(".o-mail-Thread", { scroll: "bottom" });
+});
+
+test("thread scrolling recovers when a smooth scroll never emits scrollend", async () => {
+    // A smooth scroll for which "scrollend" never fires (e.g. the target
+    // position needs no movement, or the animation is interrupted) must not
+    // wedge the thread's smooth-scrolling state forever: scroll applications
+    // and loadOlder/loadNewer await `smoothScrollingDeferred`.
+    let threadComponent;
+    patchWithCleanup(Thread.prototype, {
+        setup() {
+            super.setup(...arguments);
+            threadComponent = this;
+        },
+    });
+    let swallowSmoothScroll = false;
+    patchWithCleanup(Element.prototype, {
+        scrollTo(options) {
+            if (swallowSmoothScroll && options?.behavior === "smooth") {
+                // simulate a smooth scroll whose "scrollend" never comes
+                swallowSmoothScroll = false;
+                return;
+            }
+            return super.scrollTo(...arguments);
+        },
+    });
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    for (let i = 0; i < 20; i++) {
+        pyEnv["mail.message"].create({
+            body: "Non Empty Body ".repeat(100),
+            message_type: "comment",
+            model: "discuss.channel",
+            res_id: channelId,
+        });
+    }
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message", { count: 20 });
+    const el = document.querySelector(".o-mail-Thread");
+    // a smooth scroll towards the opposite end, swallowed: no movement will
+    // happen and "scrollend" will never fire
+    swallowSmoothScroll = true;
+    const farTarget =
+        el.scrollTop > (el.scrollHeight - el.clientHeight) / 2 ? 0 : 9999999;
+    threadComponent.setScroll(farTarget, { smooth: true });
+    expect(threadComponent.isSmoothScrolling).toBe(true);
+    // the safety timeout must release the pending smooth scroll state even
+    // though no "scrollend" ever fired
+    await advanceTime(3000);
+    expect(threadComponent.isSmoothScrolling).toBe(false);
+    expect(threadComponent.smoothScrollingDeferred).toBe(undefined);
+    // a smooth scroll to the current position needs no movement: it must
+    // resolve immediately instead of pending on a "scrollend" that will
+    // never come
+    threadComponent.setScroll(el.scrollTop, { smooth: true });
+    expect(threadComponent.isSmoothScrolling).toBe(false);
+    expect(threadComponent.smoothScrollingDeferred).toBe(undefined);
 });
 
 test("Basic jump to present when scrolling to outdated messages (DESC, chatter aside)", async () => {

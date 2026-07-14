@@ -21,10 +21,13 @@ import {
     onRpc,
     patchWithCleanup,
     serverState,
+    withUser,
 } from "@web/../tests/web_test_helpers";
 
+import { rpc } from "@web/core/network/rpc";
+
 import { Composer } from "@mail/core/common/composer";
-import { press } from "@odoo/hoot-dom";
+import { animationFrame, press } from "@odoo/hoot-dom";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -1403,4 +1406,60 @@ test("should send notifications to users with names containing HTML entities", a
     await contains(".o-mail-MessageNotificationPopover span", {
         text: `${partnerRaw.name} (${partnerRaw.email})`,
     });
+});
+
+test("keyboard selection in suggestion list survives an unrelated re-render", async () => {
+    const pyEnv = await startServer();
+    const partnerId_1 = pyEnv["res.partner"].create({
+        email: "testpartner@odoo.com",
+        name: "TestPartner",
+    });
+    const partnerId_2 = pyEnv["res.partner"].create({
+        email: "testpartner2@odoo.com",
+        name: "TestPartner2",
+    });
+    const userId = pyEnv["res.users"].create({ partner_id: partnerId_1 });
+    pyEnv["res.users"].create({ partner_id: partnerId_2 });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId_1 }),
+            Command.create({ partner_id: partnerId_2 }),
+        ],
+    });
+    const fetchDeferred = new Deferred();
+    // channel threads fetch mentions through the channel-specific method
+    onRpc("res.partner", "get_mention_suggestions_from_channel", async () => {
+        await fetchDeferred;
+        asyncStep("get_mention_suggestions returned");
+    });
+    await start();
+    await openDiscuss(channelId);
+    await insertText(".o-mail-Composer-input", "@TestPartner");
+    // suggestions are shown from already-known members while the fetch is
+    // still pending
+    await contains(".o-mail-Composer-suggestion", { count: 2 });
+    await contains(".o-mail-NavigableList-active", { text: "TestPartner" });
+    await press("ArrowDown");
+    await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
+    // fetch completion re-renders the composer with the same option set: it
+    // must neither reset the keyboard selection nor reopen a dismissed list
+    fetchDeferred.resolve();
+    await expect.waitForSteps(["get_mention_suggestions returned"]);
+    await animationFrame();
+    await contains(".o-mail-Composer-suggestion", { count: 2 });
+    await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
+    // an unrelated re-render (message from another user) must not reset the
+    // selection either
+    await withUser(userId, () =>
+        rpc("/mail/message/post", {
+            post_data: { body: "hello", message_type: "comment" },
+            thread_id: channelId,
+            thread_model: "discuss.channel",
+        }),
+    );
+    await contains(".o-mail-Message-content", { text: "hello" });
+    await animationFrame();
+    await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
 });

@@ -3,6 +3,7 @@ import { DateSection } from "@mail/core/common/date_section";
 import { Message } from "@mail/core/common/message";
 import { Record } from "@mail/core/common/record";
 import { useVisible } from "@mail/utils/common/hooks";
+import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import {
     Component,
     markRaw,
@@ -24,6 +25,7 @@ import { _t } from "@web/core/l10n/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { escape } from "@web/core/utils/format/strings";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 import { NotificationMessage } from "./notification_message.js";
 
@@ -76,7 +78,9 @@ export class Thread extends Component {
         this.escape = escape;
         this.applyScroll = this.applyScroll.bind(this);
         this.saveScroll = this.saveScroll.bind(this);
-        this.onScroll = this.onScroll.bind(this);
+        // Throttled: the handler does several layout reads and a reactive
+        // record write, way too much work for every native scroll tick.
+        this.onScroll = useThrottleForAnimation(this.onScroll);
         this.registerMessageRef = this.registerMessageRef.bind(this);
         this.store = useService("mail.store");
         this.ui = useService("ui");
@@ -94,7 +98,6 @@ export class Thread extends Component {
         });
         this.lastJumpPresent = this.props.jumpPresent;
         this.orm = useService("orm");
-        this.ui = useService("ui");
         /** @type {ReturnType<import('@mail/utils/common/hooks').useMessageScrolling>|null} */
         this.messageHighlight = this.env.messageHighlight
             ? useState(this.env.messageHighlight)
@@ -239,9 +242,28 @@ export class Thread extends Component {
                 if (!this.props.jumpToNewMessage) {
                     return;
                 }
-                const el = this.refByMessageId.get(
-                    this.props.thread.self_member_id.new_message_separator_ui - 1,
-                )?.el;
+                const separatorId =
+                    this.props.thread.self_member_id?.new_message_separator_ui;
+                if (!separatorId) {
+                    return;
+                }
+                // Message ids form a global sequence, so the message of id
+                // `separatorId - 1` almost never belongs to this thread. Jump
+                // to the last message of the thread before the separator (=
+                // the message with the greatest id strictly below it).
+                let jumpMessage;
+                for (const message of this.props.thread.messages) {
+                    if (
+                        Number.isInteger(message.id) &&
+                        message.id < separatorId &&
+                        (!jumpMessage || message.id > jumpMessage.id)
+                    ) {
+                        jumpMessage = message;
+                    }
+                }
+                const el = jumpMessage
+                    ? this.refByMessageId.get(jumpMessage.id)?.el
+                    : undefined;
                 if (el) {
                     el.querySelector(".o-mail-Message-jumpTarget").scrollIntoView({
                         behavior: "instant",
@@ -524,14 +546,7 @@ export class Thread extends Component {
 
     onFocusin() {
         this.props.thread.isFocusedByThread = true;
-        const thread = toRaw(this.props.thread);
-        if (
-            thread?.scrollTop === "bottom" &&
-            !thread.scrollUnread &&
-            !thread.markedAsUnread
-        ) {
-            thread?.markAsRead();
-        }
+        markThreadAsReadIfAtBottom(this.props.thread);
     }
 
     onFocusout() {
@@ -636,16 +651,15 @@ export class Thread extends Component {
     }
 
     onScroll() {
-        const thread = toRaw(this.props.thread);
-        if (
-            this.isAtBottom &&
-            !thread.markedAsUnread &&
-            thread.isFocused &&
-            !thread.markingAsRead
-        ) {
-            thread.markAsRead();
+        if (!this.scrollableRef.el) {
+            // rAF-throttled: can fire after the scrollable is unmounted.
+            return;
         }
         this.saveScroll();
+        // Also mirror scrollTop into the reactive state from here: the
+        // dedicated "scrollend" listener never fires on Safari.
+        this.state.scrollTop = this.scrollableRef.el.scrollTop;
+        markThreadAsReadIfAtBottom(this.props.thread);
     }
 
     saveScroll() {
@@ -700,22 +714,52 @@ export class Thread extends Component {
 
     setScroll(value, { smooth = false } = {}) {
         if (smooth) {
-            clearTimeout(this.smoothScrollingTimeout);
+            const el = this.scrollableRef.el;
+            browser.clearTimeout(this.smoothScrollingTimeout);
+            // Resolve a superseded smooth scroll: its "scrollend" might never
+            // come, and awaiters (loadOlder/loadNewer) must not hang on it.
+            this.smoothScrollingDeferred?.resolve();
+            const deferred = new Deferred();
+            this.smoothScrollingDeferred = deferred;
             this.isSmoothScrolling = true;
-            this.smoothScrollingDeferred = new Deferred();
             const onSmoothScrollingEnd = () => {
-                this.smoothScrollingDeferred.resolve();
-                this.smoothScrollingDeferred = undefined;
-                this.isSmoothScrolling = false;
+                browser.clearTimeout(this.smoothScrollingTimeout);
+                document.removeEventListener("scrollend", onSmoothScrollingEnd, {
+                    capture: true,
+                });
+                if (this.smoothScrollingDeferred === deferred) {
+                    this.smoothScrollingDeferred = undefined;
+                    this.isSmoothScrolling = false;
+                }
+                deferred.resolve();
             };
-            if ("onscrollend" in window) {
+            const target = Math.min(
+                Math.max(value, 0),
+                el.scrollHeight - el.clientHeight,
+            );
+            if (Math.abs(el.scrollTop - target) < 1) {
+                // No movement will occur: browsers never fire "scrollend" for
+                // a no-op scroll, which would leave the deferred pending and
+                // freeze infinite scroll (loadOlder/loadNewer await it).
+                onSmoothScrollingEnd();
+            } else if ("onscrollend" in window) {
                 document.addEventListener("scrollend", onSmoothScrollingEnd, {
                     capture: true,
                     once: true,
                 });
+                // Safety net: a missed "scrollend" (interrupted animation,
+                // scrollable removed mid-scroll, ...) must never wedge the
+                // deferred forever.
+                this.smoothScrollingTimeout = browser.setTimeout(
+                    onSmoothScrollingEnd,
+                    3000,
+                );
             } else {
                 // To remove when safari will support the "scrollend" event.
-                this.smoothScrollingTimeout = setTimeout(onSmoothScrollingEnd, 250);
+                this.smoothScrollingTimeout = browser.setTimeout(
+                    onSmoothScrollingEnd,
+                    250,
+                );
             }
         }
         this.scrollableRef.el.scrollTo({

@@ -1000,6 +1000,66 @@ test("getting focus of chat window through tab key should jump to new message se
     );
 });
 
+test.tags("focus required");
+test("jump to new message separator works with non-consecutive message ids", async () => {
+    // Message ids form a global sequence: interleave messages of another
+    // channel so that no message of "important channel" has the id right
+    // before the separator.
+    const pyEnv = await startServer();
+    const channel_ids = pyEnv["discuss.channel"].create([
+        {
+            name: "important channel",
+            channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
+        },
+        { name: "other channel" },
+    ]);
+    let separatorMessageId;
+    for (let i = 0; i < 40; i++) {
+        const messageId = pyEnv["mail.message"].create({
+            body: `message_${i}`,
+            model: "discuss.channel",
+            res_id: channel_ids[0],
+        });
+        pyEnv["mail.message"].create({
+            body: `noise_${i}`,
+            model: "discuss.channel",
+            res_id: channel_ids[1],
+        });
+        if (i === 20) {
+            separatorMessageId = messageId; // first unread: message_20
+        }
+    }
+    const [selfMember] = pyEnv["discuss.channel.member"].search_read([
+        ["partner_id", "=", serverState.partnerId],
+        ["channel_id", "=", channel_ids[0]],
+    ]);
+    pyEnv["discuss.channel.member"].write([selfMember.id], {
+        new_message_separator: separatorMessageId,
+    });
+    patchUiSize({ width: 1920 });
+    setupChatHub({ opened: channel_ids });
+    await start();
+    await contains(".o-mail-ChatWindow", { count: 2 });
+    await contains(".o-mail-ChatWindow:eq(0)", { text: "important channel" });
+    await contains(".o-mail-ChatWindow:eq(1)", { text: "other channel" });
+    await contains(".o-mail-ChatWindow:eq(0) .o-mail-Message", { count: 40 });
+    await scroll(".o-mail-ChatWindow:eq(0) .o-mail-Thread", 0);
+    await contains(".o-mail-ChatWindow:eq(0) .o-mail-Thread", { scroll: 0 });
+    await focus(".o-mail-Composer-input:eq(1)");
+    await contains(".o-mail-ChatWindow:eq(1) .o-mail-Composer.o-focused");
+    triggerHotkey("Tab");
+    await contains(".o-mail-ChatWindow:eq(0) .o-mail-Composer.o-focused");
+    // jump target: last message before the separator (message_19)
+    await isInViewportOf(
+        ".o-mail-Message:contains(message_19)",
+        ".o-mail-ChatWindow:eq(0) .o-mail-Thread",
+    );
+    await isInViewportOf(
+        ".o-mail-Message:contains(message_20)",
+        ".o-mail-ChatWindow:eq(0) .o-mail-Thread",
+    );
+});
+
 test("Ctrl+k opens the @ command palette", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create([
