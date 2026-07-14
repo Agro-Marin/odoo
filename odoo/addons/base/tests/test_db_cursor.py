@@ -1179,6 +1179,72 @@ class TestDDLFormatting(BaseCase):
             self.assertEqual(cr.fetchone()[0], "test comment")
 
 
+class TestComposableQueries(BaseCase):
+    """psycopg ``sql.Composable`` queries are first-class citizens.
+
+    ``sql.SQL(...).format(sql.Identifier(...))`` is psycopg's sanctioned way to
+    build dynamic statements with safely quoted identifiers; SQL-view report
+    models (e.g. fleet's odometer report) use it for ``CREATE VIEW``.  The
+    cursor resolves them to their final text via ``as_string`` so DDL detection
+    works on real SQL (regression: ``qs[:64]`` crashed on a ``Composed``).
+    """
+
+    def test_composed_ddl_create_view(self):
+        """The fleet pattern: CREATE VIEW composed with sql.Identifier."""
+        with registry().cursor() as cr:
+            cr.execute(
+                psycopg.sql.SQL("CREATE TEMP VIEW {} as ({})").format(
+                    psycopg.sql.Identifier("_test_composed_view"),
+                    psycopg.sql.SQL("SELECT 42 AS answer"),
+                )
+            )
+            cr.execute("SELECT answer FROM _test_composed_view")
+            self.assertEqual(cr.fetchone()[0], 42)
+            cr.execute(
+                psycopg.sql.SQL("DROP VIEW {}").format(
+                    psycopg.sql.Identifier("_test_composed_view")
+                )
+            )
+
+    def test_composed_ddl_with_params(self):
+        """Composed DDL still gets client-side param inlining."""
+        with registry().cursor() as cr:
+            cr.execute(
+                psycopg.sql.SQL("CREATE TEMP TABLE {} (val int DEFAULT %s)").format(
+                    psycopg.sql.Identifier("_test_composed_ddl")
+                ),
+                (7,),
+            )
+            cr.execute(
+                "SELECT column_default FROM information_schema.columns "
+                "WHERE table_name = '_test_composed_ddl' AND column_name = 'val'"
+            )
+            self.assertEqual(cr.fetchone()[0], "7")
+
+    def test_composed_non_ddl(self):
+        """Composed DML/SELECT resolves and binds params server-side."""
+        with registry().cursor() as cr:
+            cr.execute(
+                psycopg.sql.SQL("SELECT {} FROM res_users WHERE id = %s").format(
+                    psycopg.sql.Identifier("login")
+                ),
+                (1,),
+            )
+            self.assertTrue(cr.fetchone())
+
+    def test_composed_executemany(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_composed_many (val int)")
+            cr.executemany(
+                psycopg.sql.SQL("INSERT INTO {} (val) VALUES (%s)").format(
+                    psycopg.sql.Identifier("_test_composed_many")
+                ),
+                [(1,), (2,), (3,)],
+            )
+            cr.execute("SELECT sum(val) FROM _test_composed_many")
+            self.assertEqual(cr.fetchone()[0], 6)
+
+
 class TestCategorizeQuery(BaseCase):
     """Test query categorization utility (from/into/other)."""
 
