@@ -136,7 +136,8 @@ export class Record {
                 return Object.assign(res, { [expr2]: data[expr2] });
             }
             if (expr2 instanceof Array) {
-                for (const expr of this.id) {
+                // nested AND/OR expression: first element is the marker symbol
+                for (const expr of expr2) {
                     if (typeof expr === "symbol") {
                         continue;
                     }

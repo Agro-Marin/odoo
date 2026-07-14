@@ -497,7 +497,8 @@ export class MailMessage extends models.ServerModel {
         }
         if (search_term) {
             domain = new Domain(domain || []);
-            search_term = search_term.replace(" ", "%");
+            // like the Python server: every space becomes a wildcard
+            search_term = search_term.replaceAll(" ", "%");
             const subtypeIds = MailMessageSubtype.search([["description", "ilike", search_term]]);
             const irAttachmentIds = IrAttachment.search([["name", "ilike", search_term]]);
             let message_domain = Domain.or([
