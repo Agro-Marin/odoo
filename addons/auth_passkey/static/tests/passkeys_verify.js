@@ -1,6 +1,9 @@
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import * as passkeyLib from "../lib/simplewebauthn.js";
+// Resolve the live product-module instance from the loader registry: test
+// files load via the import map only (not registerNativeModules), so a
+// static import here would bind a second, unshared instance of the module.
+const getPasskeyLib = () => odoo.loader.modules.get("@auth_passkey/passkey_lib").passkeyLib;
 
 let unpatchPasskeyVerify;
 
@@ -36,7 +39,7 @@ registry.category("web_tour.tours").add('passkeys_tour_verify', {
             content: "Override startAuthentication",
             trigger: 'body',
             run: () => {
-                unpatchPasskeyVerify = patch(passkeyLib, {
+                unpatchPasskeyVerify = patch(getPasskeyLib(), {
                     async startAuthentication() {
                         return {
                             // test-yubikey

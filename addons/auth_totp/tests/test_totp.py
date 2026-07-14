@@ -1,18 +1,18 @@
 import base64
 import hmac
-import logging
 import json
+import logging
+import re
 import struct
 import time
 from xmlrpc.client import Fault
 
 from odoo import http
-from odoo.tests import tagged, get_db_name, new_test_user, HttpCase
+from odoo.tests import HttpCase, get_db_name, new_test_user, tagged
 from odoo.tools import mute_logger
 
-from odoo.addons.auth_totp.models.totp import TOTP as auth_TOTP
-
 from ..controllers.home import Home
+from odoo.addons.auth_totp.models.totp import TOTP as auth_TOTP
 
 _logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class TestTOTPMixin:
         )
 
         ml = mute_logger('odoo.addons.rpc.controllers.xmlrpc')
-        ml.__enter__()  # noqa: PLC2801
+        ml.__enter__()
         cls.addClassCleanup(ml.__exit__)
 
     def install_totphook(self):
@@ -36,7 +36,10 @@ class TestTOTPMixin:
 
         def _generate_totp(secret_b32, timestamp):
             """Generate a 6-digit TOTP token using HMAC-SHA1 (RFC 6238)."""
-            key = base64.b32decode(secret_b32)
+            # The wizard displays the secret space-grouped for readability;
+            # normalize exactly like res.users._totp_try_setting does (the
+            # passlib TOTP this replaced normalized implicitly).
+            key = base64.b32decode(re.sub(r"\s", "", secret_b32).upper())
             counter = int(timestamp / 30)
             mac = hmac.new(key, struct.pack('>Q', counter), 'sha1').digest()
             offset = mac[-1] & 0xF

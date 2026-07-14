@@ -2,7 +2,7 @@
 import { registry } from "@web/core/registry";
 import { FormController } from "@web/views/form/form_controller";
 import { formView } from "@web/views/form/form_view";
-import * as passkeyLib from "../../lib/simplewebauthn.js";
+import { passkeyLib } from "../passkey_lib.js";
 
 export class PassKeyNameFormController extends FormController {
     /**

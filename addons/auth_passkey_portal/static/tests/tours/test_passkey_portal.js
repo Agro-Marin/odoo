@@ -1,6 +1,12 @@
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import * as passkeyLib from "@auth_passkey/../lib/simplewebauthn";
+
+// Test files are excluded from registerNativeModules and load via the import
+// map only, so a static `import { passkeyLib }` here would bind a SECOND
+// instance of the module — patching it would not affect the one product code
+// uses. Resolve the live instance from the loader registry instead (same
+// pattern as the survey / website_sale tours).
+const getPasskeyLib = () => odoo.loader.modules.get("@auth_passkey/passkey_lib").passkeyLib;
 
 let unpatchPasskeyRegistrationPortal;
 
@@ -42,7 +48,7 @@ registry.category("web_tour.tours").add("passkeys_portal_create", {
             content: "Override startRegistration",
             trigger: "body",
             run: () => {
-                unpatchPasskeyRegistrationPortal = patch(passkeyLib, {
+                unpatchPasskeyRegistrationPortal = patch(getPasskeyLib(), {
                     async startRegistration() {
                         return {
                             // test-yubikey
