@@ -2,7 +2,9 @@ import hashlib
 import hmac
 
 from odoo import _, api, fields, models
+from odoo.fields import Domain
 
+from odoo.addons.mail.tools.discuss import EMPTY_EDIT_MARKER
 from odoo.addons.portal.utils import (
     validate_thread_with_hash_pid,
     validate_thread_with_token,
@@ -15,6 +17,28 @@ class MailThread(models.AbstractModel):
     # Token field used to authenticate external posts (defaults to portal.mixin's
     # ``access_token``). Subclasses with a different token field override this.
     _mail_post_token_field = "access_token"
+
+    def _get_portal_message_fetch_domain(self):
+        """Domain selecting the messages the portal chatter displays for ``self``.
+
+        Single source of truth for "which messages are visible in the portal
+        chatter of these records": the ``website_message_ids`` message types,
+        restricted to ``self``, share-visible only (non-internal subtype) and
+        non-empty. Used both by the chatter fetch controller and by counters
+        that must agree with it (e.g. ``website_slides.comments_count``) so a
+        badge never diverges from what the chatter actually shows.
+        """
+        MailMessage = self.env["mail.message"]
+        field = self._fields["website_message_ids"]
+        non_empty = Domain("body", "not in", [False, EMPTY_EDIT_MARKER]) | Domain(
+            "attachment_ids", "!=", False
+        )
+        return (
+            Domain(field.get_comodel_domain(self))
+            & Domain("res_id", "in", self.ids)
+            & Domain(MailMessage._get_search_domain_share())
+            & non_empty
+        )
 
     website_message_ids = fields.One2many(
         "mail.message",

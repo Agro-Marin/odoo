@@ -260,10 +260,23 @@ class SlideSlide(models.Model):
         for slide in self:
             slide.questions_count = len(slide.survey_id.question_ids) if slide.survey_id else 0
 
-    @api.depends('website_message_ids.res_id', 'website_message_ids.model', 'website_message_ids.message_type')
+    @api.depends(
+        'website_message_ids.res_id', 'website_message_ids.model',
+        'website_message_ids.message_type', 'website_message_ids.subtype_id',
+        'website_message_ids.is_internal', 'website_message_ids.body',
+        'website_message_ids.attachment_ids',
+    )
     def _compute_comments_count(self):
+        # Count only the messages the portal chatter actually shows (excludes
+        # internal notes and empty messages), so the badge matches the comment
+        # list. Batched via read_group over the shared portal-fetch domain.
+        counts = dict(
+            self.env['mail.message'].sudo()._read_group(
+                self._get_portal_message_fetch_domain(), ['res_id'], ['__count'],
+            )
+        )
         for slide in self:
-            slide.comments_count = len(slide.website_message_ids)
+            slide.comments_count = counts.get(slide.id, 0)
 
     @api.depends('slide_views', 'public_views')
     def _compute_total(self):

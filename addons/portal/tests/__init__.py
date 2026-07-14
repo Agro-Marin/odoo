@@ -10,4 +10,5 @@ from . import test_portal
 from . import test_portal_avatar
 from . import test_portal_wizard
 from . import test_signature_form_js
+from . import test_token_validation
 from . import test_tours

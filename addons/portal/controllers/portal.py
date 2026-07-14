@@ -5,7 +5,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from werkzeug.exceptions import Forbidden, NotFound
 
-from odoo import _
+from odoo import SUPERUSER_ID, _
 from odoo.exceptions import (
     AccessDenied,
     AccessError,
@@ -171,11 +171,16 @@ def _build_url_w_params(url_string, query_params, remove_duplicates=True):
      * else: result = '/my?foo=bar&error=pay&foo=bar2&alice=bob'
     """
     url = urlsplit(url_string)
+    # keep_blank_values=True: preserve empty-valued params (``?search=``) the
+    # way werkzeug's url.decode_query() did; stdlib parse_qsl drops them by
+    # default, silently losing e.g. an empty search filter on portal lists.
     if remove_duplicates:
-        url_params = dict(parse_qsl(url.query))
+        url_params = dict(parse_qsl(url.query, keep_blank_values=True))
         url_params.update(query_params)
     else:
-        url_params = parse_qsl(url.query) + list(query_params.items())
+        url_params = parse_qsl(url.query, keep_blank_values=True) + list(
+            query_params.items()
+        )
     return urlunsplit(url._replace(query=urlencode(url_params)))
 
 
@@ -1083,6 +1088,10 @@ class CustomerPortal(Controller):
                 and address_fields.index("zip") < address_fields.index("city")
             ),
             "states": [(st.id, st.name, st.code) for st in country.sudo().state_ids],
+            # Consumed by address.js: a state-mandatory country with no defined
+            # states must still show (and require) the state input rather than
+            # hiding a required control the user cannot fill.
+            "state_required": country.state_required,
             "phone_code": country.phone_code,
             "required_fields": list(required_fields),
         }
@@ -1284,9 +1293,17 @@ class CustomerPortal(Controller):
         :return: expected record, SUDOED, with SUPERUSER context
         :raise MissingError: record not found in database, might have been deleted
         :raise AccessError: current user isn't allowed to read requested document (and no valid token was given)
+
+        The sudo recordset must carry the SUPERUSER uid, not merely ``su=True``
+        on the acting user's uid: since the sudo refactor (upstream 1e6c3bec2c5)
+        ``.sudo()`` keeps the current uid, which breaks downstream code that
+        re-derives ``self.env.uid`` (e.g. ``stock.quant`` doing
+        ``self.with_user(self._uid).check_access(...)`` — a portal user signing
+        a ``sale_stock`` quotation would crash). Restores upstream fix
+        4d942852c82 (odoo/odoo#35030), accidentally reverted here.
         """
         document = request.env[model_name].browse(document_id)
-        document_sudo = document.sudo().exists()
+        document_sudo = document.with_user(SUPERUSER_ID).exists()
         if not document_sudo:
             raise MissingError(_("This document does not exist."))
         try:

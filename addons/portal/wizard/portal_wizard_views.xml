@@ -6,6 +6,10 @@
         <field name="name">Grant portal access</field>
         <field name="model_id" ref="portal.model_portal_wizard" />
         <field name="binding_model_id" ref="base.model_res_partner" />
+        <!-- Only offer the action to users who can actually run the wizard
+             (portal.wizard ACL is group_partner_manager); otherwise the menu
+             entry raises a raw AccessError dialog. -->
+        <field name="group_ids" eval="[(4, ref('base.group_partner_manager'))]" />
         <field name="state">code</field>
         <field name="code">action = model.action_open_wizard()</field>
     </record>

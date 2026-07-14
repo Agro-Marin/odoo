@@ -363,6 +363,7 @@
                     t-foreach="country_states"
                     t-as="s"
                     t-att-value="s.id"
+                    t-att-data-code="s.code"
                     t-att-selected="s.id == (int(state_id) if state_id else partner_sudo.state_id.id)"
                     t-out="s.name"
                 />
@@ -375,7 +376,6 @@
         />
         <input type="hidden" name="address_type" t-att-value="address_type" />
         <input type="hidden" name="use_delivery_as_billing" t-att-value="use_delivery_as_billing" />
-        <input type="hidden" name="parent_id" t-att-value="parent_id" />
         <t t-if="partner_id">
             <input type="hidden" name="partner_id" t-att-value="partner_id" />
         </t>

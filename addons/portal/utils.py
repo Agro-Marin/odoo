@@ -18,8 +18,17 @@ def validate_thread_with_hash_pid(
 
     Uses :func:`consteq` (constant-time compare) on every branch to avoid
     leaking token bytes via timing.
+
+    A ``mail.thread`` that does not declare the configured token field cannot
+    produce a signature (``_sign_token`` raises ``NotImplementedError``), so no
+    ``_hash`` can ever validate against it. Short-circuit to ``False`` instead
+    of letting that exception surface as HTTP 500 on the public chatter routes
+    (reachable via e.g. ``res.partner``, a ``mail.thread`` without
+    ``access_token``). Mirrors the guard in :func:`validate_thread_with_token`.
     """
     if not _hash or not pid:
+        return False
+    if thread._mail_post_token_field not in thread._fields:
         return False
     try:
         pid = int(pid)
@@ -49,13 +58,18 @@ def validate_thread_with_token(thread: BaseModel, token: str | None) -> bool:
     controller would otherwise raise ``KeyError`` from ``self._fields[name]``
     and surface as HTTP 500. Mirrors the guard already present in
     :meth:`portal.mail_thread.MailThread._sign_token`.
+
+    ``bool(stored_token)`` guards the ``consteq`` call: an unshared record has
+    ``access_token == False``, and ``consteq(str, False)`` raises ``TypeError``
+    (HTTP 500 on a public route). A falsy stored token cannot match any
+    client-supplied token anyway, so short-circuiting to ``False`` is both
+    correct and safe — there is no secret whose comparison timing could leak.
     """
     token_field = thread._mail_post_token_field
-    return (
-        bool(token)
-        and token_field in thread._fields
-        and consteq(token, thread[token_field])
-    )
+    if not token or token_field not in thread._fields:
+        return False
+    stored_token = thread[token_field]
+    return bool(stored_token) and consteq(token, stored_token)
 
 
 def get_portal_partner(

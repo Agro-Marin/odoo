@@ -13,8 +13,9 @@ class MessageReactionController(ThreadController):
     )
     @add_guest_to_context
     def mail_message_reaction(self, message_id, content, action, **kwargs):
+        # _get_message_with_access coerces message_id (non-numeric -> NotFound).
         message = self._get_message_with_access(
-            int(message_id), mode="create", **kwargs
+            message_id, mode="create", **kwargs
         )
         if not message:
             raise NotFound

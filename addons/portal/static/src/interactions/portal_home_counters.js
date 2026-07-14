@@ -55,7 +55,9 @@ export class PortalHomeCounters extends Interaction {
             });
             return documentsCountersData;
         });
-        return Promise.all(proms).then((results) => {
+        return Promise.all(proms).finally(() => {
+            // .finally (not .then): a failed counter RPC must still clear the
+            // spinner, otherwise it spins forever and its cards stay hidden.
             // Optional chaining: some portal-home template variants omit the
             // spinner, and a bare .remove() on the null result would throw.
             this.el.querySelector(".o_portal_doc_spinner")?.remove();

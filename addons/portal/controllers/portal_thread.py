@@ -4,7 +4,7 @@ from odoo import http
 from odoo.fields import Domain
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import ThreadController
+from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
 from odoo.addons.mail.tools.discuss import EMPTY_EDIT_MARKER, Store
 from odoo.addons.portal.utils import get_portal_partner
 
@@ -148,6 +148,10 @@ class PortalChatter(ThreadController):
         field = model._fields.get("website_message_ids")
         if field is None:
             raise NotFound
+        # Coerce here too: the non-token path never calls _get_thread_with_access,
+        # so a non-numeric thread_id would otherwise reach the ORM as
+        # Domain("res_id", "=", "abc") and 500 with a ValueError.
+        thread_id = _to_record_id(thread_id)
         domain = (
             Domain(self._setup_portal_message_fetch_extra_domain(kw))
             & Domain(field.get_comodel_domain(model))
@@ -214,6 +218,6 @@ class PortalChatter(ThreadController):
         ACL — the ``write()`` call below runs in the current user's env, so
         users who cannot write to the message are blocked by the ORM.
         """
-        message = request.env["mail.message"].browse(int(message_id))
+        message = request.env["mail.message"].browse(_to_record_id(message_id))
         message.write({"is_internal": is_internal})
         return message.is_internal

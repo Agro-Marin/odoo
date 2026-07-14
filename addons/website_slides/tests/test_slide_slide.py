@@ -81,6 +81,35 @@ class TestSlideInternals(slides_common.SlidesCase):
             slide.user_has_completed = True
         self.assertTrue(category_slides[0].user_has_completed_category)
 
+    def test_comments_count_matches_visible_chatter(self):
+        """comments_count must count only what the portal chatter shows:
+        internal notes and empty messages are excluded, so the badge never
+        exceeds the visible comment list (regression for the counter/chatter
+        divergence)."""
+        slide = self.slide
+        slide.message_post(
+            body="Visible comment",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        slide.message_post(
+            body="Internal note",
+            message_type="comment",
+            subtype_xmlid="mail.mt_note",
+        )
+        # Empty-body, no-attachment message of a counted type: shown nowhere.
+        self.env["mail.message"].create(
+            {
+                "model": "slide.slide",
+                "res_id": slide.id,
+                "message_type": "comment",
+                "subtype_id": self.env.ref("mail.mt_comment").id,
+                "body": "",
+            }
+        )
+        slide.invalidate_recordset(["comments_count"])
+        self.assertEqual(slide.comments_count, 1)
+
     def test_change_content_type(self):
         """ To prevent constraint violation when changing type from video to article and vice-versa """
         slide = self.env['slide.slide'].with_context(website_slides_skip_fetch_metadata=True).create({

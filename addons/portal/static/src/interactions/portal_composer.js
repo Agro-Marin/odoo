@@ -94,16 +94,32 @@ export class PortalComposer extends Interaction {
         const accessToken = attachment.access_token;
 
         this.sendButtonEl.disabled = true;
-
-        await this.waitFor(
-            rpc("/portal/attachment/remove", {
-                attachment_id: attachmentId,
-                access_token: accessToken,
-            })
-        );
-        this.attachments = this.attachments.filter((attachment) => attachment.id !== attachmentId);
-        this.updateAttachments();
-        this.sendButtonEl.disabled = false;
+        try {
+            // The route raises UserError for a non-pending / already-linked
+            // attachment or a bad token; without the finally the Send button
+            // would stay disabled forever (dead composer until reload).
+            await this.waitFor(
+                rpc("/portal/attachment/remove", {
+                    attachment_id: attachmentId,
+                    access_token: accessToken,
+                })
+            );
+            this.attachments = this.attachments.filter(
+                (attachment) => attachment.id !== attachmentId
+            );
+            this.updateAttachments();
+        } catch (error) {
+            if (error instanceof RPCError) {
+                this.services.notification.add(
+                    _t("Could not remove the attachment."),
+                    { type: "warning" }
+                );
+            } else {
+                throw error;
+            }
+        } finally {
+            this.sendButtonEl.disabled = false;
+        }
     }
 
     prepareAttachmentData(file) {
@@ -162,7 +178,7 @@ export class PortalComposer extends Interaction {
             thread_model: this.options.res_model,
             thread_id: this.options.res_id,
             post_data: {
-                body: this.el.querySelector('textarea[name="message"]').value,
+                body: this.inputTextareaEl.value,
                 attachment_ids: this.attachments.map((a) => a.id),
                 message_type: "comment",
                 subtype_xmlid: "mail.mt_comment",

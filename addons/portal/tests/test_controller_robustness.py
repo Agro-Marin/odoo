@@ -78,3 +78,24 @@ class TestPortalControllerRobustness(HttpCase):
                 params={"thread_model": "res.country", "thread_id": 1},
             )
         self.assertNotIn("KeyError", str(capture.exception))
+
+    def test_mail_routes_non_numeric_id_no_valueerror(self):
+        """Public chatter routes must 404 on non-numeric ids, not 500 with a
+        ValueError (which would leak a traceback to anonymous callers)."""
+        self._login()
+        cases = [
+            ("/mail/chatter_fetch", {"thread_model": "res.partner", "thread_id": "abc"}),
+            ("/portal/chatter_init", {"thread_model": "res.partner", "thread_id": "abc"}),
+            ("/mail/message/reaction", {"message_id": "abc", "content": "x", "action": "add"}),
+            (
+                "/mail/message/post",
+                {"thread_model": "res.partner", "thread_id": "abc", "post_data": {"body": "hi"}},
+            ),
+            ("/mail/message/update_content", {"message_id": "abc", "update_data": {"body": "hi"}}),
+            ("/mail/update_is_internal", {"message_id": "abc", "is_internal": True}),
+        ]
+        for route, params in cases:
+            with self.subTest(route=route):
+                with self.assertRaises(JsonRpcException) as capture:
+                    self.make_jsonrpc_request(route, params=params)
+                self.assertNotIn("ValueError", str(capture.exception))
