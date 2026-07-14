@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
-import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { useSequential } from "@mail/utils/common/hooks";
 import { assignDefined } from "@mail/utils/common/misc";
 import { _t } from "@web/core/l10n/translation";
@@ -98,12 +97,35 @@ export class Thread extends Record {
     });
     storeAsAllChannels = fields.One("Store", {
         compute() {
-            if (this.model === "discuss.channel") {
+            if (this.isChannelKind) {
                 return this.store;
             }
         },
         eager: true,
     });
+    /**
+     * Whether this thread is a discuss channel (any channel_type), i.e. a
+     * conversation with members, rather than the message trail of a document.
+     * Neutral default: plain document threads are not channels. The discuss
+     * layer overrides this with the actual discriminator; base code must rely
+     * on this predicate (or the more specific hooks below) instead of
+     * comparing `this.model` to a hard-coded channel model name.
+     *
+     * @returns {boolean}
+     */
+    get isChannelKind() {
+        return false;
+    }
+    /**
+     * Whether this thread is strictly a 1:1 (or self) direct chat, excluding
+     * group chats and specialized chat-like kinds (livechat, whatsapp, ...).
+     * Neutral default: false; overridden by the discuss layer.
+     *
+     * @returns {boolean}
+     */
+    get isDirectChat() {
+        return false;
+    }
     /** @type {boolean} */
     areAttachmentsLoaded = false;
     group_public_id = fields.One("res.groups");
@@ -114,24 +136,25 @@ export class Thread extends Record {
          */
         sort: (a1, a2) => (a1.id < a2.id ? 1 : -1),
     });
-    get allowedToLeaveChannelTypes() {
-        return ["channel", "group"];
-    }
+    /**
+     * Whether the current user may leave this thread (stop being a member).
+     * Neutral default: document threads have no membership to leave. The
+     * discuss layer overrides this per channel kind
+     * (@see allowedToLeaveChannelTypes there).
+     *
+     * @returns {boolean}
+     */
     get canLeave() {
-        return (
-            this.allowedToLeaveChannelTypes.includes(this.channel_type) &&
-            this.group_ids.length === 0 &&
-            this.store.self_partner
-        );
+        return false;
     }
-    get allowedToUnpinChannelTypes() {
-        return ["chat"];
-    }
+    /**
+     * Whether the current user may unpin this thread from their sidebar /
+     * messaging menu. Neutral default: document threads are never pinned.
+     *
+     * @returns {boolean}
+     */
     get canUnpin() {
-        return (
-            this.parent_channel_id ||
-            this.allowedToUnpinChannelTypes.includes(this.channel_type)
-        );
+        return false;
     }
     /** @type {boolean} */
     can_react = true;
@@ -160,17 +183,23 @@ export class Thread extends Record {
     display_name;
     displayToSelf = fields.Attr(false, {
         compute() {
-            return (
-                this.self_member_id?.is_pinned ||
-                (["channel", "group"].includes(this.channel_type) &&
-                    this.hasSelfAsMember &&
-                    !this.parent_channel_id)
-            );
+            return this.computeDisplayToSelf();
         },
         onUpdate() {
             this.onPinStateUpdated();
         },
     });
+    /**
+     * Compute of the `displayToSelf` field: whether this thread belongs in
+     * the current user's sidebar / thread lists. Neutral default: document
+     * threads are never listed; the discuss layer overrides this based on
+     * membership and pin state.
+     *
+     * @returns {boolean}
+     */
+    computeDisplayToSelf() {
+        return false;
+    }
     followers = fields.Many("mail.followers", {
         /** @this {import("models").Thread} */
         onAdd(r) {
@@ -189,6 +218,16 @@ export class Thread extends Record {
     followersCount;
     loadOlder = false;
     loadNewer = false;
+    /**
+     * Counter shown next to this thread in navigation UIs (sidebar,
+     * messaging menu, tabs). Contract: return the number the current user
+     * should act on for this thread; 0 hides the badge. Base behavior:
+     * mailboxes expose their own counter, document threads expose the
+     * needaction counter. Layers refine this (e.g. unread messages for chat
+     * channels) and must fall back to `super.importantCounter`.
+     *
+     * @returns {number}
+     */
     get importantCounter() {
         if (this.model === "mail.box") {
             return this.counter;
@@ -359,16 +398,15 @@ export class Thread extends Record {
         return this.needactionMessages.length > 0;
     }
 
-    get typesAllowingCalls() {
-        return ["chat", "channel", "group"];
-    }
-
+    /**
+     * Whether audio/video calls can be started on this thread. Neutral
+     * default: document threads have no call support; the discuss layer
+     * overrides this per channel kind (@see typesAllowingCalls there).
+     *
+     * @returns {boolean}
+     */
     get allowCalls() {
-        return (
-            !this.isTransient &&
-            this.typesAllowingCalls.includes(this.channel_type) &&
-            !this.correspondent?.persona.eq(this.store.odoobot)
-        );
+        return false;
     }
 
     get canPostMessage() {
@@ -386,16 +424,36 @@ export class Thread extends Record {
         return persona?.displayName || persona?.name;
     }
 
+    /**
+     * Whether the thread actions offer an attachments panel. Neutral
+     * default: false (the chatter has its own attachment box).
+     *
+     * @returns {boolean}
+     */
     get hasAttachmentPanel() {
-        return this.model === "discuss.channel";
+        return false;
     }
 
+    /**
+     * Whether this thread reads as a person-to-person conversation (direct
+     * or group chat) rather than a broadcast channel or a document trail.
+     * Drives e.g. the "@" prefix and unread-oriented counters. Neutral
+     * default: false; overridden by the discuss layer.
+     *
+     * @returns {boolean}
+     */
     get isChatChannel() {
-        return ["chat", "group"].includes(this.channel_type);
+        return false;
     }
 
+    /**
+     * Whether the current user can give this thread a personal display name.
+     * Neutral default: false; overridden by the discuss layer.
+     *
+     * @returns {boolean}
+     */
     get supportsCustomChannelName() {
-        return this.isChatChannel && this.channel_type !== "group";
+        return false;
     }
 
     get displayName() {
@@ -410,15 +468,24 @@ export class Thread extends Record {
         return this.module_icon ?? this.store.DEFAULT_AVATAR;
     }
 
+    /**
+     * Whether this thread carries a user-editable description. Neutral
+     * default: false; overridden by the discuss layer per channel kind.
+     *
+     * @returns {boolean}
+     */
     get allowDescription() {
-        return ["channel", "group"].includes(this.channel_type);
+        return false;
     }
 
+    /**
+     * Display name prefixed with the parent thread's one when this thread is
+     * nested (e.g. sub-channels). Neutral default: no nesting.
+     *
+     * @returns {string}
+     */
     get fullNameWithParent() {
-        const text = this.parent_channel_id
-            ? `${this.parent_channel_id.displayName} > ${this.displayName}`
-            : this.displayName;
-        return text;
+        return this.displayName;
     }
 
     get isTransient() {
@@ -472,11 +539,14 @@ export class Thread extends Record {
 
     onPinStateUpdated() {}
 
+    /**
+     * Public link inviting people to this thread, if the thread kind
+     * supports invitations. Neutral default: none.
+     *
+     * @returns {string|undefined}
+     */
     get invitationLink() {
-        if (!this.uuid || this.channel_type === "chat") {
-            return undefined;
-        }
-        return `${window.location.origin}/chat/${this.id}/${this.uuid}`;
+        return undefined;
     }
 
     get isEmpty() {
@@ -506,19 +576,21 @@ export class Thread extends Record {
         return this.hasReadAccess;
     }
 
-    executeCommand(command, body = "") {
-        return this.store.env.services.orm.call(
-            "discuss.channel",
-            command.methodName,
-            [[this.id]],
-            { body },
-        );
+    /**
+     * Whether messages can be fetched for this thread right now. Document
+     * threads need a persistent id (drafts / unsaved records have no trail);
+     * mailboxes use string ids. Extended by the discuss layer.
+     *
+     * @returns {boolean}
+     */
+    get canFetchMessages() {
+        return this.model === "mail.box" || Boolean(this.id);
     }
 
     /** @param {{after: Number, before: Number}} */
     async fetchMessages({ after, around, before } = {}) {
         this.status = "loading";
-        if (!["mail.box", "discuss.channel"].includes(this.model) && !this.id) {
+        if (!this.canFetchMessages) {
             this.isLoaded = true;
             return [];
         }
@@ -622,10 +694,21 @@ export class Thread extends Record {
         return this.store.self_partner || this.store.self_guest;
     }
 
+    /**
+     * Whether new messages reach this thread through bus pushes, so that an
+     * already-loaded thread never needs an incremental refetch. Base
+     * behavior: true for mailboxes; the discuss layer adds channels.
+     *
+     * @returns {boolean}
+     */
+    get busKeepsMessagesFresh() {
+        return this.model === "mail.box";
+    }
+
     async fetchNewMessages() {
         if (
             this.status === "loading" ||
-            (this.isLoaded && ["discuss.channel", "mail.box"].includes(this.model))
+            (this.isLoaded && this.busKeepsMessagesFresh)
         ) {
             return;
         }
@@ -684,9 +767,6 @@ export class Thread extends Record {
     }
 
     getFetchParams() {
-        if (this.model === "discuss.channel") {
-            return { channel_id: this.id };
-        }
         if (this.model === "mail.box") {
             return {};
         }
@@ -698,9 +778,6 @@ export class Thread extends Record {
     }
 
     getFetchRoute() {
-        if (this.model === "discuss.channel") {
-            return "/discuss/channel/messages";
-        }
         if (this.model === "mail.box" && this.id === "inbox") {
             return `/mail/inbox/messages`;
         }
@@ -830,14 +907,6 @@ export class Thread extends Record {
         }
     }
 
-    async markAsFetched() {
-        await this.store.env.services.orm.silent.call(
-            "discuss.channel",
-            "channel_fetched",
-            [[this.id]],
-        );
-    }
-
     /**
      * @param {Object} [options] used in overrides
      */
@@ -854,32 +923,60 @@ export class Thread extends Record {
         }
     }
 
-    /** @param {string} data base64 representation of the binary */
-    async notifyAvatarToServer(data) {
-        await rpc("/discuss/channel/update_avatar", {
-            channel_id: this.id,
-            data,
-        });
-    }
-
-    async notifyDescriptionToServer(description) {
-        this.description = description;
-        return this.store.env.services.orm.call(
-            "discuss.channel",
-            "channel_change_description",
-            [[this.id]],
-            { description },
-        );
-    }
-
     /** @param {import("models").Message} message */
     onNewSelfMessage(message) {}
 
     /**
+     * Open this thread in the UI.
+     *
+     * Composition contract: `open()` delegates, in order, to
+     * - `openChatUI()` — chat surfaces (Discuss app, chat windows),
+     *   implemented by the discuss layer for channel-kind threads;
+     * - `openWebClientUI()` — web-client surfaces (mailboxes, record form
+     *   views), implemented by the web layer.
+     * The chat seam therefore always wins over the web-client seam,
+     * regardless of bundle/patch load order. Patches must extend one of the
+     * two seams rather than `open()` itself, unless they only add side
+     * effects around `super.open()` or handle their own thread model.
+     *
      * @param {Object} [options]
      * @return {boolean} true if the thread was opened, false otherwise
      */
     open(options) {
+        return this.openChatUI(options) || this.openWebClientUI(options);
+    }
+
+    /**
+     * Chat-surface seam of `open()` (@see open). Neutral default: not
+     * handled.
+     *
+     * @param {Object} [options]
+     * @returns {boolean} true if the thread was opened
+     */
+    openChatUI(options) {
+        return false;
+    }
+
+    /**
+     * Web-client seam of `open()` (@see open). Neutral default: not handled
+     * (e.g. on public pages without the action service).
+     *
+     * @param {Object} [options]
+     * @returns {boolean} true if the thread was opened
+     */
+    openWebClientUI(options) {
+        return false;
+    }
+
+    /**
+     * Open this thread inside the Discuss application when appropriate
+     * (e.g. Discuss is active on a large screen). Returning false lets the
+     * caller fall back to a chat window (@see openChatUI in the discuss
+     * layer). Neutral default: not handled.
+     *
+     * @returns {boolean} true if the thread was opened
+     */
+    openChannel() {
         return false;
     }
 
@@ -907,34 +1004,15 @@ export class Thread extends Record {
         await chatWindow?.close({ notifyState: false, ...options });
     }
 
-    /** @param {string} name */
-    async rename(name) {
-        const newName = name.trim();
-        if (
-            newName !== this.displayName &&
-            ((newName && this.channel_type === "channel") || this.isChatChannel)
-        ) {
-            if (this.channel_type === "channel" || this.channel_type === "group") {
-                this.name = newName;
-                await this.store.env.services.orm.call(
-                    "discuss.channel",
-                    "channel_rename",
-                    [[this.id]],
-                    { name: newName },
-                );
-            } else if (this.supportsCustomChannelName) {
-                if (this.self_member_id) {
-                    this.self_member_id.custom_channel_name = newName;
-                }
-                await this.store.env.services.orm.call(
-                    "discuss.channel",
-                    "channel_set_custom_name",
-                    [[this.id]],
-                    { name: newName },
-                );
-            }
-        }
-    }
+    /**
+     * Rename this thread from user input (chat window / Discuss header
+     * editing). Contract: persist the new name server-side when the thread
+     * kind supports renaming, else ignore the request. Neutral default:
+     * document threads have no rename endpoint — no-op.
+     *
+     * @param {string} name
+     */
+    async rename(name) {}
 
     addOrReplaceMessage(message, tmpMsg) {
         // The message from other personas (not self) should not replace the tmpMsg
@@ -950,13 +1028,40 @@ export class Thread extends Record {
     }
 
     /**
+     * Whether `post()` inserts an optimistic pending message right away, so
+     * that composers may fire-and-forget the post RPC
+     * (@see makeOptimisticPendingMessage). Neutral default: false, document
+     * threads wait for the server response.
+     *
+     * @returns {boolean}
+     */
+    get hasOptimisticPost() {
+        return false;
+    }
+
+    /**
+     * Build and insert the optimistic (client-side pending) message shown
+     * while a post RPC is in flight, for thread kinds with optimistic
+     * posting (@see hasOptimisticPost). Contract: return the inserted
+     * pending message, or undefined when the thread kind does not support
+     * optimistic posting (neutral default).
+     *
+     * @param {number} tmpId temporary client-side message id
+     * @param {ReturnType<import("@odoo/owl").markup>} body
+     * @param {Object} postData
+     * @returns {Promise<import("models").Message|undefined>}
+     */
+    async makeOptimisticPendingMessage(tmpId, body, postData) {
+        return undefined;
+    }
+
+    /**
      *  @param {ReturnType<import("@odoo/owl").markup>} body
      *  @param {Object} extraData
      */
     async post(body, postData = {}, extraData = {}) {
-        let tmpMsg;
         postData.attachments = postData.attachments ? [...postData.attachments] : []; // to not lose them on composer clear
-        const { attachments, parentId } = postData;
+        const { parentId } = postData;
         const params = await this.store.getMessagePostParams({
             body,
             postData,
@@ -968,30 +1073,8 @@ export class Thread extends Record {
         if (parentId) {
             params.post_data.parent_id = parentId;
         }
-        if (this.model !== "discuss.channel") {
-            params.thread_id = this.id;
-            params.thread_model = this.model;
-        } else {
-            const tmpData = {
-                id: tmpId,
-                attachment_ids: attachments,
-                res_id: this.id,
-                model: "discuss.channel",
-            };
-            if (this.store.self_partner) {
-                tmpData.author_id = this.store.self_partner;
-            } else {
-                tmpData.author_guest_id = this.store.self_guest;
-            }
-            if (parentId) {
-                tmpData.parent_id = this.store["mail.message"].get(parentId);
-            }
-            tmpMsg = this.store["mail.message"].insert({
-                ...tmpData,
-                body: await generateEmojisOnHtml(body),
-                isPending: true,
-                thread: this,
-            });
+        const tmpMsg = await this.makeOptimisticPendingMessage(tmpId, body, postData);
+        if (tmpMsg) {
             this.messages.push(tmpMsg);
             this.onNewSelfMessage(tmpMsg);
         }
@@ -1057,35 +1140,147 @@ export class Thread extends Record {
         }
     }
 
-    async leaveChannel({ force = false } = {}) {
-        if (
-            this.channel_type !== "group" &&
-            this.create_uid?.eq(this.store.self.main_user_id) &&
-            !force
-        ) {
-            await this.askLeaveConfirmation(
-                _t(
-                    "You are the administrator of this channel. Are you sure you want to leave?",
-                ),
-            );
-        }
-        if (this.channel_type === "group" && !force) {
-            await this.askLeaveConfirmation(
-                _t(
-                    "You are about to leave this group conversation and will no longer have access to it unless you are invited again. Are you sure you want to continue?",
-                ),
-            );
-        }
-        await this.closeChatWindow();
-        await this.store.env.services.orm.silent.call(
-            "discuss.channel",
-            "action_unfollow",
-            [this.id],
-        );
+    /**
+     * Python model name under which this record is keyed in Store payloads
+     * (@see Record._getActualModelName). All document threads serialize as
+     * "mail.thread"; the discuss layer maps channels to their own key.
+     *
+     * @returns {string}
+     */
+    _getActualModelName() {
+        return "mail.thread";
     }
 
-    _getActualModelName() {
-        return this.model === "discuss.channel" ? "discuss.channel" : "mail.thread";
+    /**
+     * Compute of the `correspondent` field of channel-kind threads: the
+     * single "other" member this conversation is with, when that makes sense
+     * (1:1 or self chats). Contract: return a channel member (or undefined);
+     * overrides may special-case per channel kind and should fall back to
+     * `super.computeCorrespondent()`. Neutral default: document threads have
+     * no correspondent.
+     *
+     * @returns {import("models").ChannelMember|undefined}
+     */
+    computeCorrespondent() {
+        return undefined;
+    }
+
+    /**
+     * Members whose "seen" state may be reflected by message seen
+     * indicators. The purpose is to let layers exclude technical members
+     * (e.g. bots) to avoid "wrong" seen indicators. Neutral default:
+     * document threads have no members.
+     *
+     * @returns {import("models").ChannelMember[]}
+     */
+    get membersThatCanSeen() {
+        return [];
+    }
+
+    /**
+     * Whether UIs (chat window header, member lists) should decorate the
+     * correspondent with their country flag. Neutral default: false; kinds
+     * with anonymous visitors (livechat) turn this on.
+     *
+     * @returns {boolean}
+     */
+    get showCorrespondentCountry() {
+        return false;
+    }
+
+    /**
+     * Channel member whose online (im) status stands for this thread in
+     * chat window headers. Neutral default: none; the discuss layer returns
+     * the correspondent of 1:1 chats.
+     *
+     * @returns {import("models").ChannelMember|undefined}
+     */
+    get imStatusMember() {
+        return undefined;
+    }
+
+    /**
+     * Whether this thread is the 1:1 chat with the given persona. Neutral
+     * default: document threads are not chats.
+     *
+     * @param {import("models").Persona} persona
+     * @returns {boolean}
+     */
+    isChatWith(persona) {
+        return false;
+    }
+
+    /**
+     * Composer type forced when this thread is displayed in a chat window;
+     * undefined lets the composer use its default ("message"). Neutral
+     * default: document threads log notes from chat windows.
+     *
+     * @returns {string|undefined}
+     */
+    get chatWindowComposerType() {
+        return "note";
+    }
+
+    /**
+     * Placeholder of the composer input for this thread.
+     *
+     * @returns {string}
+     */
+    get composerPlaceholder() {
+        return _t("Message %(thread name)s…", { "thread name": this.displayName });
+    }
+
+    /**
+     * Title of an out-of-focus OS notification for `message` posted on this
+     * thread. Neutral default: the author's name.
+     *
+     * @param {import("models").Message} message
+     * @returns {string}
+     */
+    outOfFocusNotificationTitle(message) {
+        return message.authorName;
+    }
+
+    /**
+     * Whether the message list shows a "start of conversation" banner once
+     * the oldest message is loaded. Neutral default: false; the discuss
+     * layer enables it per channel kind.
+     *
+     * @returns {boolean}
+     */
+    get hasStartOfConversationBanner() {
+        return false;
+    }
+
+    /**
+     * Title of the "start of conversation" banner
+     * (@see hasStartOfConversationBanner).
+     *
+     * @returns {string}
+     */
+    get conversationStartTitle() {
+        return this.displayName;
+    }
+
+    /**
+     * Subtitle of the "start of conversation" banner
+     * (@see hasStartOfConversationBanner). Neutral default: none.
+     *
+     * @returns {string}
+     */
+    get conversationStartSubtitle() {
+        return "";
+    }
+
+    /**
+     * Message id of the persisted new-message separator for the current
+     * user, when this thread tracks per-member read state. Neutral default:
+     * undefined (no separator support).
+     *
+     * @returns {number|undefined}
+     */
+    get newMessageSeparatorId() {
+        return undefined;
     }
 }
 

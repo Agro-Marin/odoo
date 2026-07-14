@@ -126,10 +126,8 @@ export class ResPartner extends Record {
     }
 
     searchChat() {
-        return Object.values(this.store.Thread.records).find(
-            (thread) =>
-                thread.channel_type === "chat" &&
-                thread.correspondent?.persona.eq(this),
+        return Object.values(this.store.Thread.records).find((thread) =>
+            thread.isChatWith(this),
         );
     }
 

@@ -52,6 +52,11 @@ import { session } from "@web/session";
 let prevLastMessageId = null;
 let temporaryIdOffset = 0.01;
 
+// "discuss.channel" literals: Store-payload ingestion mapping. Python keys
+// thread data under its own model names; both are funneled into the single
+// JS "Thread" model and channel payloads are tagged with their model so that
+// `Thread.isChannelKind` (discuss layer) can discriminate. This is the one
+// sanctioned place where base code spells out the channel model name.
 export const pyToJsModels = {
     "discuss.channel": "Thread",
     "mail.thread": "Thread",
@@ -692,6 +697,9 @@ export class Store extends BaseStore {
                 // Prevent duplicate inbox push notifications since they're already handled by
                 // `mail.message/inbox` bus notifications, and the `modelsHandleByPush` heuristic
                 // in `out_of_focus_service.js` isn't reliable enough to detect these cases.
+                // "discuss.channel" literal: `model` comes from the service
+                // worker push payload; the corresponding Thread record may
+                // not be loaded, so no record predicate can stand in.
                 const isInbox =
                     this.store.self.main_user_id?.notification_type === "inbox" &&
                     model !== "discuss.channel";
@@ -709,6 +717,8 @@ export class Store extends BaseStore {
     }
 
     onPushNotificationDisplayed(payload) {
+        // Model names are push-payload values (@see notification-display-request
+        // handler above), not Thread-record conditionals.
         if (["mail.thread", "discuss.channel"].includes(payload.model)) {
             this.env.services["mail.out_of_focus"]._playSound();
         }
@@ -874,10 +884,7 @@ export class Store extends BaseStore {
         if (role_ids.length) {
             Object.assign(postData, { role_ids });
         }
-        if (
-            thread.model === "discuss.channel" &&
-            validMentions?.specialMentions.length
-        ) {
+        if (thread.isChannelKind && validMentions?.specialMentions.length) {
             postData.special_mentions = validMentions.specialMentions;
         }
         if (attachments.length) {

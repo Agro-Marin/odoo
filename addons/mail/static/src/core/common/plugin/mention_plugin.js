@@ -114,6 +114,8 @@ export class MentionPlugin extends Plugin {
     }
 
     async isValidChannelMentionElement(el) {
+        // "discuss.channel" literals: `data-oe-model` mention markup protocol
+        // (editor DOM), not a Thread-record conditional.
         if (el.dataset.oeModel !== "discuss.channel") {
             return false;
         }

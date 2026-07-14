@@ -243,6 +243,9 @@ export class UseSuggestion {
         } else if (option.role) {
             this.composer.mentionedRoles.add(option.role);
         } else if (option.thread) {
+            // "discuss.channel" literal: identity key of the mentioned
+            // channel in the post payload (channel suggestions are channels
+            // by construction).
             this.composer.mentionedChannels.add({
                 model: "discuss.channel",
                 id: option.thread.id,

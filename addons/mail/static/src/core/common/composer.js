@@ -312,18 +312,7 @@ export class Composer extends Component {
             return this.props.placeholder;
         }
         if (this.thread) {
-            if (this.thread.channel_type === "channel") {
-                const threadName = this.thread.displayName;
-                if (this.thread.parent_channel_id) {
-                    return _t('Message "%(subChannelName)s"', {
-                        subChannelName: threadName,
-                    });
-                }
-                return _t("Message #%(threadName)s…", { threadName });
-            }
-            return _t("Message %(thread name)s…", {
-                "thread name": this.thread.displayName,
-            });
+            return this.thread.composerPlaceholder;
         }
         return "";
     }
@@ -672,7 +661,7 @@ export class Composer extends Component {
         const postThread = toRaw(this.thread);
         const post = postThread.post.bind(postThread, value, postData, extraData);
         let message;
-        if (postThread.model === "discuss.channel") {
+        if (postThread.hasOptimisticPost) {
             // feature of (optimistic) temp message
             post();
         } else {

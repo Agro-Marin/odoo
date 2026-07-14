@@ -21,7 +21,6 @@ import {
 } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { escape } from "@web/core/utils/format/strings";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
@@ -242,8 +241,7 @@ export class Thread extends Component {
                 if (!this.props.jumpToNewMessage) {
                     return;
                 }
-                const separatorId =
-                    this.props.thread.self_member_id?.new_message_separator_ui;
+                const separatorId = this.props.thread.newMessageSeparatorId;
                 if (!separatorId) {
                     return;
                 }
@@ -774,42 +772,15 @@ export class Thread extends Component {
     get showStartMessage() {
         return (
             this.state.mountedAndLoaded &&
-            ["channel", "group", "chat"].includes(this.props.thread.channel_type)
+            this.props.thread.hasStartOfConversationBanner
         );
     }
 
     get startMessageTitle() {
-        const channelName = this.props.thread.name;
-        if (this.props.thread.parent_channel_id) {
-            return channelName;
-        }
-        if (this.props.thread.channel_type === "channel") {
-            return _t("Welcome to #%(channelName)s!", { channelName });
-        }
-        return this.props.thread.displayName;
+        return this.props.thread.conversationStartTitle;
     }
 
     get startMessageSubtitle() {
-        if (this.props.thread.parent_channel_id) {
-            const authorName = Object.values(this.store["res.partner"].records).find(
-                (partner) => partner.main_user_id?.eq(this.props.thread.create_uid),
-            )?.name;
-            if (authorName) {
-                return _t("Started by %(authorName)s", { authorName });
-            }
-        }
-        if (this.props.thread.channel_type === "channel") {
-            return _t("This is the start of the #%(channelName)s channel", {
-                channelName: this.props.thread.name,
-            });
-        }
-        if (this.props.thread.channel_type === "group") {
-            return _t("This is the start of %(conversationName)s group", {
-                conversationName: this.props.thread.displayName,
-            });
-        }
-        return _t("This is the start of your direct chat with %(userName)s", {
-            userName: this.props.thread.displayName,
-        });
+        return this.props.thread.conversationStartSubtitle;
     }
 }

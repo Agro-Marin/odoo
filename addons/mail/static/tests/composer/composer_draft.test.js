@@ -11,7 +11,7 @@ import { browser } from "@web/core/browser/browser";
 function makeComposer() {
     return {
         localId: "Composer,(Thread,res.partner AND 1) OR (undefined)",
-        thread: { model: "res.partner" },
+        thread: { model: "res.partner", isChannelKind: false },
         store: { "mail.message": { insert: (id) => ({ id }) } },
         composerHtml: markup`<div class='o-paragraph'><br></div>`,
         emailAddSignature: true,
@@ -55,7 +55,7 @@ test("draft saved from the full composer restores as recoverable", () => {
     expect(restored.restoredFromFullComposer).toBe(true);
     // channels have no full-composer recovery
     const channelComposer = makeComposer();
-    channelComposer.thread = { model: "discuss.channel" };
+    channelComposer.thread = { model: "discuss.channel", isChannelKind: true };
     restoreComposerDraft(channelComposer);
     expect(channelComposer.restoredFromFullComposer).toBe(false);
 });

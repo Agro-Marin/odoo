@@ -29,7 +29,9 @@ export class Notification extends Record {
                 (f) =>
                     f.resModel === thread?.model &&
                     f.type === this.notification_type &&
-                    (f.resModel !== "discuss.channel" || f.resIds.has(thread?.id)),
+                    // f.resModel === thread.model here, so the thread predicate
+                    // stands in for the failure's resModel kind.
+                    (!thread?.isChannelKind || f.resIds.has(thread?.id)),
             );
             return this.isFailure
                 ? {

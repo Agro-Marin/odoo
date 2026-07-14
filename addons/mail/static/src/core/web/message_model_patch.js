@@ -13,7 +13,7 @@ const messagePatch = {
             return false;
         }
         return (
-            !["discuss.channel", "mail.box"].includes(thread.model) &&
+            !(thread.isChannelKind || thread.model === "mail.box") &&
             ["comment", "email"].includes(this.message_type)
         );
     },

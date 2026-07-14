@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
+import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { useSequential } from "@mail/utils/common/hooks";
 import {
     compareDatetime,
@@ -278,6 +279,265 @@ const threadPatch = {
             (member) => !this.store.onlineMemberStatuses.includes(member.im_status),
         );
     },
+    /**
+     * @override
+     * Single place knowing the channel discriminator: every other override
+     * (here and in base components) routes through this predicate.
+     */
+    get isChannelKind() {
+        return this.model === "discuss.channel";
+    },
+    /** @override */
+    get isDirectChat() {
+        return this.channel_type === "chat";
+    },
+    /** @override */
+    get isChatChannel() {
+        return ["chat", "group"].includes(this.channel_type);
+    },
+    /** Channel types the current user is allowed to leave. */
+    get allowedToLeaveChannelTypes() {
+        return ["channel", "group"];
+    },
+    /** @override */
+    get canLeave() {
+        return (
+            this.allowedToLeaveChannelTypes.includes(this.channel_type) &&
+            this.group_ids.length === 0 &&
+            this.store.self_partner
+        );
+    },
+    /** Channel types the current user is allowed to unpin. */
+    get allowedToUnpinChannelTypes() {
+        return ["chat"];
+    },
+    /** @override */
+    get canUnpin() {
+        return (
+            this.allowedToUnpinChannelTypes.includes(this.channel_type) ||
+            super.canUnpin
+        );
+    },
+    /**
+     * @override
+     * Note: `parent_channel_id` is only populated once the public_web layer
+     * is loaded; the optional chaining keeps this compute safe without it.
+     */
+    computeDisplayToSelf() {
+        return (
+            this.self_member_id?.is_pinned ||
+            (["channel", "group"].includes(this.channel_type) &&
+                this.hasSelfAsMember &&
+                !this.parent_channel_id)
+        );
+    },
+    /** Channel types on which calls can be started. */
+    get typesAllowingCalls() {
+        return ["chat", "channel", "group"];
+    },
+    /** @override */
+    get allowCalls() {
+        return (
+            !this.isTransient &&
+            this.typesAllowingCalls.includes(this.channel_type) &&
+            !this.correspondent?.persona.eq(this.store.odoobot)
+        );
+    },
+    /** @override */
+    get supportsCustomChannelName() {
+        return this.isChatChannel && this.channel_type !== "group";
+    },
+    /** @override */
+    get allowDescription() {
+        return ["channel", "group"].includes(this.channel_type);
+    },
+    /** @override */
+    get invitationLink() {
+        if (!this.uuid || this.channel_type === "chat") {
+            return undefined;
+        }
+        return `${window.location.origin}/chat/${this.id}/${this.uuid}`;
+    },
+    /** @override */
+    get hasAttachmentPanel() {
+        return this.isChannelKind;
+    },
+    /** @override */
+    get canFetchMessages() {
+        return this.isChannelKind || super.canFetchMessages;
+    },
+    /** @override */
+    get busKeepsMessagesFresh() {
+        return this.isChannelKind || super.busKeepsMessagesFresh;
+    },
+    /** @override */
+    getFetchParams() {
+        if (this.isChannelKind) {
+            return { channel_id: this.id };
+        }
+        return super.getFetchParams();
+    },
+    /** @override */
+    getFetchRoute() {
+        if (this.isChannelKind) {
+            return "/discuss/channel/messages";
+        }
+        return super.getFetchRoute();
+    },
+    /** @override */
+    get imStatusMember() {
+        return this.channel_type === "chat" ? this.correspondent : undefined;
+    },
+    /** @override */
+    isChatWith(persona) {
+        return (
+            this.channel_type === "chat" &&
+            Boolean(this.correspondent?.persona.eq(persona))
+        );
+    },
+    /** @override */
+    get chatWindowComposerType() {
+        return this.isChannelKind ? undefined : super.chatWindowComposerType;
+    },
+    /** @override */
+    get composerPlaceholder() {
+        if (this.channel_type === "channel") {
+            return _t("Message #%(threadName)s…", { threadName: this.displayName });
+        }
+        return super.composerPlaceholder;
+    },
+    /** @override */
+    outOfFocusNotificationTitle(message) {
+        if (this.channel_type === "channel") {
+            return _t("%(author name)s from %(channel name)s", {
+                "author name": message.authorName,
+                "channel name": this.displayName,
+            });
+        }
+        return super.outOfFocusNotificationTitle(...arguments);
+    },
+    /** @override */
+    get hasStartOfConversationBanner() {
+        return ["channel", "group", "chat"].includes(this.channel_type);
+    },
+    /** @override */
+    get conversationStartTitle() {
+        if (this.channel_type === "channel") {
+            return _t("Welcome to #%(channelName)s!", { channelName: this.name });
+        }
+        return super.conversationStartTitle;
+    },
+    /** @override */
+    get conversationStartSubtitle() {
+        if (this.channel_type === "channel") {
+            return _t("This is the start of the #%(channelName)s channel", {
+                channelName: this.name,
+            });
+        }
+        if (this.channel_type === "group") {
+            return _t("This is the start of %(conversationName)s group", {
+                conversationName: this.displayName,
+            });
+        }
+        return _t("This is the start of your direct chat with %(userName)s", {
+            userName: this.displayName,
+        });
+    },
+    /** @override */
+    get newMessageSeparatorId() {
+        return this.self_member_id?.new_message_separator_ui;
+    },
+    /** @override */
+    _getActualModelName() {
+        return this.isChannelKind ? "discuss.channel" : super._getActualModelName();
+    },
+    /** @param {import("@mail/core/common/store_service").ChannelCommand} command */
+    executeCommand(command, body = "") {
+        return this.store.env.services.orm.call(
+            "discuss.channel",
+            command.methodName,
+            [[this.id]],
+            { body },
+        );
+    },
+    async markAsFetched() {
+        await this.store.env.services.orm.silent.call(
+            "discuss.channel",
+            "channel_fetched",
+            [[this.id]],
+        );
+    },
+    /** @param {string} data base64 representation of the binary */
+    async notifyAvatarToServer(data) {
+        await rpc("/discuss/channel/update_avatar", {
+            channel_id: this.id,
+            data,
+        });
+    },
+    async notifyDescriptionToServer(description) {
+        this.description = description;
+        return this.store.env.services.orm.call(
+            "discuss.channel",
+            "channel_change_description",
+            [[this.id]],
+            { description },
+        );
+    },
+    /** @override */
+    async rename(name) {
+        const newName = name.trim();
+        if (
+            newName !== this.displayName &&
+            ((newName && this.channel_type === "channel") || this.isChatChannel)
+        ) {
+            if (this.channel_type === "channel" || this.channel_type === "group") {
+                this.name = newName;
+                await this.store.env.services.orm.call(
+                    "discuss.channel",
+                    "channel_rename",
+                    [[this.id]],
+                    { name: newName },
+                );
+            } else if (this.supportsCustomChannelName) {
+                if (this.self_member_id) {
+                    this.self_member_id.custom_channel_name = newName;
+                }
+                await this.store.env.services.orm.call(
+                    "discuss.channel",
+                    "channel_set_custom_name",
+                    [[this.id]],
+                    { name: newName },
+                );
+            }
+        }
+        return super.rename(...arguments);
+    },
+    async leaveChannel({ force = false } = {}) {
+        if (
+            this.channel_type !== "group" &&
+            this.create_uid?.eq(this.store.self.main_user_id) &&
+            !force
+        ) {
+            await this.askLeaveConfirmation(
+                _t(
+                    "You are the administrator of this channel. Are you sure you want to leave?",
+                ),
+            );
+        }
+        if (this.channel_type === "group" && !force) {
+            await this.askLeaveConfirmation(
+                _t(
+                    "You are about to leave this group conversation and will no longer have access to it unless you are invited again. Are you sure you want to continue?",
+                ),
+            );
+        }
+        await this.closeChatWindow();
+        await this.store.env.services.orm.silent.call(
+            "discuss.channel",
+            "action_unfollow",
+            [this.id],
+        );
+    },
     /** Equivalent to DiscussChannel._allow_invite_by_email */
     get allow_invite_by_email() {
         return (
@@ -298,9 +558,6 @@ const threadPatch = {
             return this.correspondent.avatarUrl;
         }
         return super.avatarUrl;
-    },
-    get showCorrespondentCountry() {
-        return false;
     },
     /** @override */
     async checkReadAccess() {
@@ -503,22 +760,46 @@ const threadPatch = {
         this.markedAsUnread = false;
     },
     /** @override */
-    open(options) {
-        if (this.model === "discuss.channel") {
-            const res = this.openChannel();
-            if (res) {
-                return res;
-            }
-            this.openChatWindow(options);
+    openChatUI(options) {
+        if (!this.isChannelKind) {
+            return super.openChatUI(...arguments);
+        }
+        if (this.openChannel()) {
             return true;
         }
-        return super.open(...arguments);
+        this.openChatWindow(options);
+        return true;
     },
-    /**
-     * @returns {boolean} true if the channel was opened, false otherwise
-     */
-    openChannel() {
-        return false;
+    /** @override */
+    get hasOptimisticPost() {
+        return this.isChannelKind;
+    },
+    /** @override */
+    async makeOptimisticPendingMessage(tmpId, body, postData) {
+        if (!this.hasOptimisticPost) {
+            return super.makeOptimisticPendingMessage(...arguments);
+        }
+        const { attachments, parentId } = postData;
+        const tmpData = {
+            id: tmpId,
+            attachment_ids: attachments,
+            res_id: this.id,
+            model: "discuss.channel",
+        };
+        if (this.store.self_partner) {
+            tmpData.author_id = this.store.self_partner;
+        } else {
+            tmpData.author_guest_id = this.store.self_guest;
+        }
+        if (parentId) {
+            tmpData.parent_id = this.store["mail.message"].get(parentId);
+        }
+        return this.store["mail.message"].insert({
+            ...tmpData,
+            body: await generateEmojisOnHtml(body),
+            isPending: true,
+            thread: this,
+        });
     },
     /** @param {string} body */
     async post(body) {
