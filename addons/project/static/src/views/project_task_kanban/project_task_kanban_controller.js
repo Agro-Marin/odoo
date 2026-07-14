@@ -10,8 +10,4 @@ export class ProjectTaskKanbanController extends RottingKanbanController {
         ProjectTaskTemplateDropdown,
     };
 
-    setup() {
-        super.setup();
-        this.hideKanbanStagesNocontent = this.props.context.hide_kanban_stages_nocontent;
-    }
 }

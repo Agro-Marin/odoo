@@ -1,24 +1,6 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
-import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
+import { ProjectGroupConfigMenu } from "../components/project_group_config_menu.js";
 
-export class ProjectProjectGroupConfigMenu extends GroupConfigMenu {
-    setup() {
-        super.setup();
-        this.action = useService("action");
-    }
-
-    async deleteGroup() {
-        if (this.group.groupByField.name === "phase_id") {
-            const action = await this.group.model.orm.call(
-                this.group.groupByField.relation,
-                "unlink_wizard",
-                [this.group.value],
-                { context: this.group.context }
-            );
-            this.action.doAction(action);
-            return;
-        }
-        super.deleteGroup();
-    }
+export class ProjectProjectGroupConfigMenu extends ProjectGroupConfigMenu {
+    static stageFieldName = "phase_id";
 }

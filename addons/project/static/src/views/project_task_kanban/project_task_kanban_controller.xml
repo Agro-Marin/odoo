@@ -9,8 +9,5 @@
                 context="props.context"
             />
         </button>
-        <t t-component="props.Renderer" position="attributes">
-            <attribute name="hideKanbanStagesNocontent">hideKanbanStagesNocontent</attribute>
-        </t>
     </t>
 </templates>
