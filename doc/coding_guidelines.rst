@@ -1754,7 +1754,25 @@ authoritative engine code is ``base/models/ir_actions_report.py``
   TOC/cross-references, named ``@page`` rules for landscape annexes,
   ``float: footnote`` for legal boilerplate.
 * PDF/A-3 + Factur-X and XMP metadata are supported natively — see
-  ``_build_pdf_options``.
+  ``_build_pdf_options``. The same ``data["__pdf_options__"]`` channel also
+  accepts ``dpi`` (cap embedded raster resolution) and ``jpeg_quality`` —
+  the file-size levers for image-heavy reports.
+
+**Engine services** (no template work needed)
+
+* **PDF metadata**: /Title is the record's evaluated ``print_report_name``
+  (fallback: the action label); /Author is the company, /Creator ``Odoo``,
+  /Lang the record's language (which also enables ``hyphens: auto``).
+  Emitted by ``web.minimal_layout`` + ``_prepare_weasyprint_html``.
+* **Watermark**: ``with_context(report_watermark="DRAFT")`` stamps the text
+  diagonally on every page of that print — use for draft/duplicate/
+  confidential copies instead of template hacks.
+* **Report themes**: ``report.theme`` (Settings → General → Document Layout)
+  emits the ``--rp-*`` skin tokens (fonts, row density, corner radius, rule
+  weight) per company. New report CSS must consume tokens, never hardcode.
+* **Diagnostics**: WeasyPrint CSS warnings are captured per render; a failed
+  render's ``UserError`` includes the last few (naming the broken rule), and
+  successful renders log them at DEBUG.
 
 **Testing note**: in test mode ``_render_qweb_pdf`` returns raw HTML unless
 ``force_report_rendering`` is set; render-path tests live in
