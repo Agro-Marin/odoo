@@ -35,6 +35,10 @@ class ProjectTriage(models.Model):
         string="Triage Owner",
         required=True,
         index=True,
+        # Triage buckets are personal: creating one without an explicit owner
+        # (e.g. the kanban column quick-create in My Tasks, which only sends a
+        # name) must assign the current user, not crash on the NOT NULL.
+        default=lambda self: self.env.user,
     )
 
     @api.ondelete(at_uninstall=False)

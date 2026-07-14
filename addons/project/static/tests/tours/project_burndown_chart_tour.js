@@ -75,11 +75,13 @@ registry.category("web_tour.tours").add('burndown_chart_tour', {
     trigger: '.o_filter_menu .o_menu_item:contains("Date") + * .dropdown-item:first-child',
     run: "click",
 }, {
+    content: 'Check the Date filter produced a filter facet (filter icon), on top of the group-by facet',
+    trigger: '.o_searchview_facet:has(.fa-filter)',
+}, {
     content: 'Close the Date filter menu',
     trigger: '.o_graph_renderer',
     run: "click",
 }, {
-    content: 'Open the search panel menu',
-    trigger: '.o_control_panel .o_searchview_dropdown_toggler',
-    run: "click",
+    content: 'Check the chart is still rendered with the Date filter applied',
+    trigger: '.o_graph_renderer canvas',
 }]});

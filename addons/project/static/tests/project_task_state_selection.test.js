@@ -40,7 +40,7 @@ test("project.task (kanban): check task state widget", async () => {
             "If the canceled state as been selected, the fa-times-circle icon should be displayed",
     });
 
-    await click("div[name='state'] i.fa-hourglass-o");
+    await click("div[name='state'] i.fa-hourglass");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
         message: "When trying to click on the waiting icon, no dropdown menu should display",
