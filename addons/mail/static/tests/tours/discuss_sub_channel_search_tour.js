@@ -1,5 +1,3 @@
-import { SubChannelList } from "@mail/discuss/core/public_web/sub_channel_list";
-
 import { status } from "@odoo/owl";
 
 import { registry } from "@web/core/registry";
@@ -8,13 +6,23 @@ import { patch } from "@web/core/utils/patch";
 import { effect } from "@web/core/utils/reactive";
 import { contains, dragenterFiles, dropFiles, scroll } from "@web/../tests/utils";
 
+// Resolve the live product-module instance from the loader registry, and only
+// inside the tour step (i.e. when it runs on a discuss-capable page). A static
+// import would be eagerly resolved on EVERY page loading web.assets_tests —
+// including frontend/portal pages where the discuss bundle (and this
+// specifier) does not exist, killing all tours at pre-boot — and would bind a
+// second, unshared module instance anyway (test files load via the import map
+// only, not registerNativeModules).
+const getSubChannelList = () =>
+    odoo.loader.modules.get("@mail/discuss/core/public_web/sub_channel_list").SubChannelList;
+
 let waitForLoadMoreToDisappearDef;
 registry.category("web_tour.tours").add("test_discuss_sub_channel_search", {
     steps: () => [
         {
             trigger: "body",
             run() {
-                patch(SubChannelList.prototype, {
+                patch(getSubChannelList().prototype, {
                     setup() {
                         super.setup(...arguments);
                         effect(
