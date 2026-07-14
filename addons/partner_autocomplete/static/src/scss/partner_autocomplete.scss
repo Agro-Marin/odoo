@@ -2,3 +2,9 @@
 .o_form_view .o_form_editable .oe_title .o_field_field_partner_autocomplete {
 	width: 100%;
 }
+
+.o_partner_autocomplete_option {
+	display: flex;
+	align-items: center;
+	height: 24px;
+}

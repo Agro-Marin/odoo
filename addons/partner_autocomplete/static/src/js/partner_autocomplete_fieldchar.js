@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { useInputField } from "@web/fields/input_field_hook";
 
@@ -9,93 +8,86 @@ import { usePartnerAutocomplete } from "@partner_autocomplete/js/partner_autocom
 import { PartnerAutoComplete } from "@partner_autocomplete/js/partner_autocomplete_component";
 
 export class PartnerAutoCompleteCharField extends CharField {
-    static template = "partner_autocomplete.PartnerAutoCompleteCharField";
-    static components = {
-        ...CharField.components,
-        PartnerAutoComplete,
+  static template = "partner_autocomplete.PartnerAutoCompleteCharField";
+  static components = {
+    ...CharField.components,
+    PartnerAutoComplete,
+  };
+  setup() {
+    super.setup();
+
+    this.orm = useService("orm");
+    this.partnerAutocomplete = usePartnerAutocomplete();
+
+    this.inputRef = useChildRef();
+    useInputField({
+      getValue: () => this.props.record.data[this.props.name] || "",
+      parse: (v) => this.parse(v),
+      ref: this.inputRef,
+    });
+  }
+
+  get sources() {
+    return [
+      this.partnerAutocomplete.makeAutocompleteSource({
+        cssClass: "partner_autocomplete_dropdown_char",
+        getCountryId: () => this.props.record.data?.country_id?.id || false,
+        onSelectOption: (suggestion) =>
+          this.onSelectPartnerAutocompleteOption(suggestion),
+      }),
+    ];
+  }
+
+  async onSelectPartnerAutocompleteOption(option) {
+    let data = await this.partnerAutocomplete.getCreateData(option);
+    if (!data?.company) {
+      return;
+    }
+
+    if (data.logo) {
+      const logoField =
+        this.props.record.resModel === "res.partner" ? "image_1920" : "logo";
+      data.company[logoField] = data.logo;
+    }
+
+    const additionalData = {
+      entity_type: data.company.entity_type,
+      unspsc_codes: data.company.unspsc_codes,
     };
-    setup() {
-        super.setup();
+    // Delete useless fields before updating record
+    data.company = this.partnerAutocomplete.removeUselessFields(
+      data.company,
+      Object.keys(this.props.record.fields),
+    );
 
-        this.orm = useService("orm");
-        this.partnerAutocomplete = usePartnerAutocomplete();
-
-        this.inputRef = useChildRef();
-        useInputField({ getValue: () => this.props.record.data[this.props.name] || "", parse: (v) => this.parse(v), ref: this.inputRef});
+    // Update record with retrieved values
+    if (data.company.name) {
+      await this.props.record.update({ name: data.company.name }); // Needed otherwise name it is not saved
     }
+    await this.props.record.update(data.company);
 
-    async validateSearchTerm(request) {
-        return request && request.length > 2;
+    // Post message with company info card
+    if (this.props.record.resModel === "res.partner") {
+      const saved = await this.props.record.save();
+      if (saved && data.isEnrichAccessible) {
+        await this.orm.call("res.partner", "enrich_company_message_post", [
+          this.props.record.resId,
+          additionalData,
+        ]);
+        this.props.record.load();
+      }
     }
-
-    get sources() {
-        return [
-            {
-                options: async (request, shouldSearchWorldWide) => {
-                    if (await this.validateSearchTerm(request)) {
-                        let queryCountryId = this.props.record.data?.country_id ? this.props.record.data.country_id.id : false;
-                        if (shouldSearchWorldWide){
-                        	queryCountryId = 0;
-                        }
-                        const suggestions = await this.partnerAutocomplete.autocomplete(request, queryCountryId);
-                        return suggestions.map((suggestion) => ({
-                            cssClass: "partner_autocomplete_dropdown_char",
-                            data: suggestion,
-                            label: suggestion.name,
-                            onSelect: () => this.onSelectPartnerAutocompleteOption(suggestion),
-                        }));
-                    }
-                    else {
-                        return [];
-                    }
-                },
-                optionSlot: "partnerOption",
-                placeholder: _t('Searching Autocomplete...'),
-            },
-        ];
+    if (this.props.setDirty) {
+      this.props.setDirty(false);
     }
-
-    async onSelectPartnerAutocompleteOption(option) {
-        let data = await this.partnerAutocomplete.getCreateData(option);
-        if (!data?.company) {
-            return;
-        }
-
-        if (data.logo) {
-            const logoField = this.props.record.resModel === 'res.partner' ? 'image_1920' : 'logo';
-            data.company[logoField] = data.logo;
-        }
-
-        const additionalData = {
-            entity_type : data.company.entity_type,
-            unspsc_codes : data.company.unspsc_codes,
-        };
-        // Delete useless fields before updating record
-        data.company = this.partnerAutocomplete.removeUselessFields(data.company, Object.keys(this.props.record.fields));
-
-        // Update record with retrieved values
-        if (data.company.name) {
-            await this.props.record.update({name: data.company.name});  // Needed otherwise name it is not saved
-        }
-        await this.props.record.update(data.company);
-
-        // Post message with company info card
-        if (this.props.record.resModel === 'res.partner') {
-            const saved = await this.props.record.save();
-            if (saved && data.isEnrichAccessible) {
-                await this.orm.call("res.partner", "enrich_company_message_post", [this.props.record.resId, additionalData]);
-                this.props.record.load();
-            }
-        }
-        if (this.props.setDirty) {
-            this.props.setDirty(false);
-        }
-    }
+  }
 }
 
 export const partnerAutoCompleteCharField = {
-    ...charField,
-    component: PartnerAutoCompleteCharField,
+  ...charField,
+  component: PartnerAutoCompleteCharField,
 };
 
-registry.category("fields").add("field_partner_autocomplete", partnerAutoCompleteCharField);
+registry
+  .category("fields")
+  .add("field_partner_autocomplete", partnerAutoCompleteCharField);
