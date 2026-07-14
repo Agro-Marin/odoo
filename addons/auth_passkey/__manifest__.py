@@ -23,11 +23,13 @@ When a user logs in with a Passkey, MFA will not be required.
     'assets': {
         'web.assets_backend': [
             'auth_passkey/static/lib/simplewebauthn.js',
+            'auth_passkey/static/src/passkey_lib.js',
             'auth_passkey/static/src/views/*',
             'auth_passkey/static/src/scss/res_users.scss',
         ],
         'web.assets_frontend': [
             'auth_passkey/static/lib/simplewebauthn.js',
+            'auth_passkey/static/src/passkey_lib.js',
             'auth_passkey/static/src/interactions/*',
         ],
         'web.assets_tests': [

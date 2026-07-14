@@ -1,6 +1,9 @@
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import * as passkeyLib from "../lib/simplewebauthn.js";
+// Resolve the live product-module instance from the loader registry: test
+// files load via the import map only (not registerNativeModules), so a
+// static import here would bind a second, unshared instance of the module.
+const getPasskeyLib = () => odoo.loader.modules.get("@auth_passkey/passkey_lib").passkeyLib;
 
 registry.category("web_tour.tours").add('passkeys_tour_login', {
     url: '/web/login',
@@ -10,7 +13,7 @@ registry.category("web_tour.tours").add('passkeys_tour_login', {
             trigger: 'body',
             run: () => {
                 // Due to switching from /web/login to /odoo, the asset bundles will be different. As a result this will automatically clean up the test.
-                patch(passkeyLib, {
+                patch(getPasskeyLib(), {
                     async startAuthentication() {
                         return {
                             // test-keepassxc

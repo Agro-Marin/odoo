@@ -2,7 +2,10 @@ import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 
-import * as passkeyLib from "@auth_passkey/../lib/simplewebauthn";
+// Resolve the live product-module instance from the loader registry: test
+// files load via the import map only (not registerNativeModules), so a
+// static import here would bind a second, unshared instance of the module.
+const getPasskeyLib = () => odoo.loader.modules.get("@auth_passkey/passkey_lib").passkeyLib;
 
 async function testRPC() {
     const response = await fetch("/web/session/check", {
@@ -18,7 +21,7 @@ let unpatchPasskeyMethod;
 const patchPasskey = {
     trigger: "body",
     run: function () {
-        unpatchPasskeyMethod = patch(passkeyLib, {
+        unpatchPasskeyMethod = patch(getPasskeyLib(), {
             async startRegistration() {
                 return { id: "foo" };
             },
