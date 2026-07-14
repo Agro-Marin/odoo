@@ -430,33 +430,41 @@ export function useMicrophoneVolume() {
             }
             let track;
             try {
-                const audioStream = await browser.navigator.mediaDevices.getUserMedia({
-                    audio: store.settings.audioConstraints,
+                try {
+                    const audioStream =
+                        await browser.navigator.mediaDevices.getUserMedia({
+                            audio: store.settings.audioConstraints,
+                        });
+                    track = audioStream.getAudioTracks()[0];
+                } catch {
+                    store.env.services.notification.add(
+                        _t('"%(hostname)s" requires microphone access', {
+                            hostname: browser.location.host,
+                        }),
+                        { type: "warning" },
+                    );
+                    return;
+                }
+                if (isClosed) {
+                    track.stop();
+                    return;
+                }
+                audioMonitorPromise = monitorAudio(track, {
+                    onTic: (value) => {
+                        state.value = value;
+                    },
+                    processInterval: 100,
                 });
-                track = audioStream.getAudioTracks()[0];
+                disconnectAudioMonitor = await audioMonitorPromise;
+                audioTrack = track;
+                state.isActive = true;
             } catch {
-                store.env.services.notification.add(
-                    _t('"%(hostname)s" requires microphone access', {
-                        hostname: browser.location.host,
-                    }),
-                    { type: "warning" },
-                );
-                return;
+                // monitorAudio failed: don't keep a dangling live track
+                track?.stop();
+            } finally {
+                // a stuck false would permanently disable the toggle
+                state.isReady = true;
             }
-            if (isClosed) {
-                track.stop();
-                return;
-            }
-            audioMonitorPromise = monitorAudio(track, {
-                onTic: (value) => {
-                    state.value = value;
-                },
-                processInterval: 100,
-            });
-            disconnectAudioMonitor = await audioMonitorPromise;
-            audioTrack = track;
-            state.isActive = true;
-            state.isReady = true;
         },
     });
     onWillUnmount(async () => {

@@ -191,21 +191,26 @@ export class GifPicker extends Component {
             if (!region && language === "sr") {
                 region = "RS";
             }
-            const params = {
-                country: region,
-                locale: `${language}_${region}`,
-                search_term: this.searchTerm,
-            };
-            if (this.next) {
-                params.position = this.next;
-            }
-            const res = await this.sequential(() => {
+            const res = await this.sequential(async () => {
+                // build params inside the sequential callback so a queued call
+                // uses the up-to-date pagination token, not the one captured
+                // when the call was scheduled.
+                const params = {
+                    country: region,
+                    locale: `${language}_${region}`,
+                    search_term: this.searchTerm,
+                };
+                if (this.next) {
+                    params.position = this.next;
+                }
                 this.state.loadingGif = true;
-                const res = rpc("/discuss/gif/search", params, {
-                    silent: true,
-                });
-                this.state.loadingGif = false;
-                return res;
+                try {
+                    return await rpc("/discuss/gif/search", params, {
+                        silent: true,
+                    });
+                } finally {
+                    this.state.loadingGif = false;
+                }
             });
             if (res) {
                 const { next, results } = res;
@@ -246,6 +251,9 @@ export class GifPicker extends Component {
         this.state.evenGif.columnSize = 0;
         this.state.oddGif.gifs.clear();
         this.state.oddGif.columnSize = 0;
+        // the pagination token is bound to the previous query: reusing it for
+        // a new search term returns a wrong/empty page.
+        this.next = "";
     }
 
     /**

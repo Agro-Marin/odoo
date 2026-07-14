@@ -90,11 +90,14 @@ export function useVoiceRecorder() {
         }
         state.elapsed = "00 : 00";
         state.recording = true;
-        audioContext = new browser.AudioContext();
+        try {
+            audioContext = new browser.AudioContext();
 
-        await loadLamejs();
-        await audioContext.audioWorklet.addModule("/discuss/voice/worklet_processor");
-        processor = new browser.AudioWorkletNode(audioContext, "processor");
+            await loadLamejs();
+            await audioContext.audioWorklet.addModule(
+                "/discuss/voice/worklet_processor",
+            );
+            processor = new browser.AudioWorkletNode(audioContext, "processor");
         processor.port.onmessage = (e) => {
             if (state.recording && !startTimeStamp) {
                 startTimeStamp = e.timeStamp;
@@ -126,14 +129,23 @@ export function useVoiceRecorder() {
             }
             _encode(e.data);
         };
-        streamSource = audioContext.createMediaStreamSource(microphone);
+            streamSource = audioContext.createMediaStreamSource(microphone);
 
-        // Start to get microphone data
-        streamSource.connect(processor);
-        processor.connect(audioContext.destination);
-        config.sampleRate = audioContext.sampleRate;
-        encoder = new Mp3Encoder(config);
-        state.isActionPending = false;
+            // Start to get microphone data
+            streamSource.connect(processor);
+            processor.connect(audioContext.destination);
+            config.sampleRate = audioContext.sampleRate;
+            encoder = new Mp3Encoder(config);
+        } catch {
+            // failed init (lamejs bundle missing, worklet load failure...)
+            // must not leave the recording UI stuck with a live microphone.
+            notification.add(_t("Voice recording is not available."), {
+                type: "warning",
+            });
+            cleanUp();
+        } finally {
+            state.isActionPending = false;
+        }
     }
 
     function _encode(data) {
@@ -149,6 +161,11 @@ export function useVoiceRecorder() {
     }
 
     function stopRecording() {
+        if (!encoder) {
+            // stop clicked while the async init was still in progress
+            cleanUp();
+            return;
+        }
         getMp3()
             .then((buffer) => {
                 const file = _makeFile(buffer, "audio/mp3");
@@ -166,12 +183,13 @@ export function useVoiceRecorder() {
             // Clean up the Web Audio API resources.
             streamSource.disconnect();
             processor.disconnect();
-
-            if (audioContext && audioContext.state !== "closed") {
-                // If all references using audioContext are destroyed, context is
-                // closed automatically. DOMException is fired when trying to close again
-                audioContext.close();
-            }
+        }
+        // close unconditionally: on a partial init (e.g. worklet load failure)
+        // the context exists even though processor/streamSource do not.
+        if (audioContext && audioContext.state !== "closed") {
+            // If all references using audioContext are destroyed, context is
+            // closed automatically. DOMException is fired when trying to close again
+            audioContext.close();
         }
 
         startTimeStamp = false;
@@ -181,7 +199,9 @@ export function useVoiceRecorder() {
         state.limitWarning = false;
     }
 
-    function getMp3() {
+    async function getMp3() {
+        // async: a synchronous encoder throw becomes a rejection instead of
+        // escaping the caller's .catch()
         const finalBuffer = _getEncoderBuffer();
         return new Promise((resolve, reject) => {
             if (finalBuffer.length === 0) {

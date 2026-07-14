@@ -596,7 +596,8 @@ export class Rtc extends Record {
         this.state.pttReleaseTimeout = browser.setTimeout(
             () => {
                 this.setTalking(false);
-                if (!this.localSession?.isMute) {
+                // this.localSession is unset once the call is left: no beep
+                if (this.localSession && !this.localSession.isMute) {
                     this.soundEffectsService.play("ptt-release");
                 }
             },
@@ -673,9 +674,13 @@ export class Rtc extends Record {
     async leaveCall(channel = this.state.channel) {
         this.store.fullscreenChannel = null;
         this.state.hasPendingRequest = true;
-        await this.rpcLeaveCall(channel);
-        this.endCall(channel);
-        this.state.hasPendingRequest = false;
+        try {
+            await this.rpcLeaveCall(channel);
+            this.endCall(channel);
+        } finally {
+            // a stuck flag would permanently disable every join/leave action
+            this.state.hasPendingRequest = false;
+        }
     }
 
     /**
@@ -1521,18 +1526,26 @@ export class Rtc extends Record {
         }
         this.pttExtService.subscribe();
         this.state.hasPendingRequest = true;
-        const data = await rpc(
-            "/mail/rtc/channel/join_call",
-            {
-                camera,
-                channel_id: channel.id,
-                check_rtc_session_ids: channel.rtc_session_ids.map(
-                    (session) => session.id,
-                ),
-            },
-            { silent: true },
-        );
-        this.state.hasPendingRequest = false;
+        let data;
+        try {
+            data = await rpc(
+                "/mail/rtc/channel/join_call",
+                {
+                    camera,
+                    channel_id: channel.id,
+                    check_rtc_session_ids: channel.rtc_session_ids.map(
+                        (session) => session.id,
+                    ),
+                },
+                { silent: true },
+            );
+        } catch (error) {
+            this.pttExtService.unsubscribe();
+            throw error;
+        } finally {
+            // a stuck flag would permanently disable every join/leave action
+            this.state.hasPendingRequest = false;
+        }
         // Initializing a new session implies closing the current session.
         this.clear();
         this.state.channel = channel;
@@ -1740,6 +1753,7 @@ export class Rtc extends Record {
         this._remotelyHostedSessionId = undefined;
         this._remotelyHostedChannelId = undefined;
         browser.clearTimeout(this._crossTabTimeoutId);
+        browser.clearTimeout(this.state.pttReleaseTimeout);
         this.cleanups.splice(0).forEach((cleanup) => cleanup());
         browser.clearTimeout(this.sfuTimeout);
         this.sfuClient = undefined;

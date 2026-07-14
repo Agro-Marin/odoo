@@ -31,6 +31,9 @@ export class MailCoreWeb {
                     this.store.activityCounter + countDiff,
                     0,
                 );
+                // advance the bus id so a redelivered notification (bus
+                // reconnection catch-up) is not applied a second time.
+                this.store.activity_counter_bus_id = notifId;
             },
         );
         this.env.bus.addEventListener(

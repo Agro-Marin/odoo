@@ -53,7 +53,9 @@ export class FollowerList extends Component {
     }
 
     async onClickFollow() {
-        this.props.thread.follow();
+        // await: onFollowerChanged triggers a reload whose follower fetch
+        // would otherwise race the subscribe RPC and show "not following".
+        await this.props.thread.follow();
         this.props.onFollowerChanged?.();
     }
 

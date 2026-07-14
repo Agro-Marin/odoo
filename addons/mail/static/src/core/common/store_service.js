@@ -351,9 +351,18 @@ export class Store extends BaseStore {
                 await this.fetchStoreData("init_messaging");
             } catch (error) {
                 if (!(error instanceof ConnectionLostError)) {
+                    // don't cache the failure: a later initialize() call must
+                    // be able to retry instead of returning the stale
+                    // rejection forever (isReady would then never resolve).
+                    this._initializePromise = undefined;
                     throw error;
                 }
-                await this.fetchStoreData("init_messaging");
+                try {
+                    await this.fetchStoreData("init_messaging");
+                } catch (retryError) {
+                    this._initializePromise = undefined;
+                    throw retryError;
+                }
             }
             this.isReady.resolve();
         })();
