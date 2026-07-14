@@ -307,7 +307,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
             'list_price': 90,
             'type': 'service',
             'service_policy': 'delivered_timesheet',
-            'invoice_policy': 'transfered',
+            'invoice_policy': 'transferred',
             'default_code': 'SERV-DELI2',
             'service_type': 'timesheet',
             'service_tracking': 'task_global_project',

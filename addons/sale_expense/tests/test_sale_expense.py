@@ -52,7 +52,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             'expense_policy': 'sales_price',
             'type': 'service',
             'can_be_expensed': True,
-            'invoice_policy': 'transfered',
+            'invoice_policy': 'transferred',
             'list_price': 0.50,
             'uom_id': self.env.ref('uom.product_uom_km').id,
             'standard_price': 0.15,

@@ -21,7 +21,8 @@ class IrHttp(models.AbstractModel):
                     "timesheet_uom_factor": company.project_time_mode_id._compute_quantity(
                         1.0,
                         company.timesheet_encode_uom_id,
-                        round=False
+                        round=False,
+                        raise_if_failure=False,
                     ),
                 })
             result["uom_ids"] = self.get_timesheet_uoms()

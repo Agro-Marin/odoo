@@ -38,9 +38,9 @@
         <field name="arch" type="xml">
             <filter name="combo" position="after">
                 <separator/>
-                <filter string="Time-based services" name="product_time_based" domain="[('type', '=', 'service'), ('invoice_policy', '=', 'transfered'), ('service_type', '=', 'timesheet')]"/>
+                <filter string="Time-based services" name="product_time_based" domain="[('type', '=', 'service'), ('invoice_policy', '=', 'transferred'), ('service_type', '=', 'timesheet')]"/>
                 <filter string="Fixed price services" name="product_service_fixed" domain="[('type', '=', 'service'), ('invoice_policy', '=', 'ordered'), ('service_type', '=', 'timesheet')]"/>
-                <filter string="Milestone services" name="product_service_milestone" domain="[('type', '=', 'service'), ('invoice_policy', '=', 'transfered'), ('service_type', '=', 'manual')]"/>
+                <filter string="Milestone services" name="product_service_milestone" domain="[('type', '=', 'service'), ('invoice_policy', '=', 'transferred'), ('service_type', '=', 'manual')]"/>
             </filter>
         </field>
     </record>
