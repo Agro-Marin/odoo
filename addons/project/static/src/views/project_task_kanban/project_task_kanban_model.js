@@ -1,31 +1,12 @@
 /** @odoo-module native */
-import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { makeActiveField } from "@web/model/relational_model/utils";
 import { ProjectTaskRelationalModel } from "../project_task_relational_model.js";
 
-export class ProjectTaskKanbanDynamicGroupList extends RelationalModel.DynamicGroupList {
-    get isGroupedByStage() {
-        return !!this.groupByField && this.groupByField.name === "step_id";
-    }
-
-    async _unlinkGroups(groups) {
-        if (this.isGroupedByStage) {
-            const action = await this.model.orm.call(
-                this.groupByField.relation,
-                "unlink_wizard",
-                groups.map((g) => g.value),
-                { context: this.context }
-            );
-            return new Promise((resolve) => {
-                this.model.action.doAction(action, {
-                    onClose: ({ success }) => resolve(!!success),
-                });
-            });
-        }
-        return super._unlinkGroups(groups);
-    }
-}
+// NB: step-column deletion (unlink wizard + manager gating) lives in
+// ProjectGroupConfigMenu, not in a DynamicGroupList override: the model
+// layer has no action service to open the wizard with, and the component
+// is shared by the kanban and the grouped list.
 
 export class ProjectTaskRecord extends RelationalRecord {
     setup() {
@@ -70,5 +51,4 @@ export class ProjectTaskKanbanModel extends ProjectTaskRelationalModel {
     }
 }
 
-ProjectTaskKanbanModel.DynamicGroupList = ProjectTaskKanbanDynamicGroupList;
 ProjectTaskKanbanModel.Record = ProjectTaskRecord;
