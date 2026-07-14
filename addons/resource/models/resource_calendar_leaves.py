@@ -92,10 +92,17 @@ class ResourceCalendarLeaves(models.Model):
         for leave in self.filtered("resource_id"):
             leave.calendar_id = leave.resource_id.calendar_id
 
-    @api.depends("calendar_id")
+    @api.depends("calendar_id", "resource_id.company_id")
     def _compute_company_id(self):
+        # The resource's company beats env.company: a leave created for a
+        # resource of company B while acting in company A must belong to B,
+        # or B's users cannot even see it (multi-company rule).
         for leave in self:
-            leave.company_id = leave.calendar_id.company_id or self.env.company
+            leave.company_id = (
+                leave.calendar_id.company_id
+                or leave.resource_id.company_id
+                or self.env.company
+            )
 
     @api.depends("date_from")
     def _compute_date_to(self):

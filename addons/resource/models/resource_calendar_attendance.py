@@ -155,9 +155,12 @@ class ResourceCalendarAttendance(models.Model):
 
     @api.depends("hour_from", "hour_to", "day_period")
     def _compute_duration_hours(self):
-        for attendance in self.filtered("hour_to"):
+        # Compute unconditionally: the old ``filtered("hour_to")`` skip kept a
+        # stale duration when ``hour_to`` was cleared back to 0 (e.g. through
+        # the API), leaving duration_hours > 0 on a 0-0 line.
+        for attendance in self:
             attendance.duration_hours = (
-                (attendance.hour_to - attendance.hour_from)
+                max(0.0, attendance.hour_to - attendance.hour_from)
                 if attendance.day_period != "lunch"
                 else 0
             )

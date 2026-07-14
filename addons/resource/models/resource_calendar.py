@@ -808,37 +808,44 @@ class ResourceCalendar(models.Model):
             ("date_to", ">=", start_dt.astimezone(utc).replace(tzinfo=None)),
         ]
 
+        # Resolve each queried resource's timezone and localized window once —
+        # the reconciliation below is O(leaves × resources) and previously
+        # redid these conversions per (leave, resource) pair.
+        window_per_resource = [
+            (
+                resource,
+                resource_tz := tz or timezone((resource or self).tz or "UTC"),
+                start_dt.astimezone(resource_tz),
+                end_dt.astimezone(resource_tz),
+            )
+            for resource in resources_list
+        ]
+
         # retrieve leave intervals in (start_dt, end_dt)
         result = defaultdict(list)
-        tz_dates = {}
+        leave_bounds = {}  # (leave.id, tz) → (dt0, dt1), shared across resources
         all_leaves = self.env["resource.calendar.leaves"].search(domain)
         for leave in all_leaves:
             leave_resource = leave.resource_id
             leave_company = leave.company_id
             leave_date_from = leave.date_from
             leave_date_to = leave.date_to
-            for resource in resources_list:
+            for resource, resource_tz, start, end in window_per_resource:
                 if leave_resource.id not in [False, resource.id] or (
                     not leave_resource
                     and resource
                     and resource.company_id != leave_company
                 ):
                     continue
-                resource_tz = tz or timezone((resource or self).tz or "UTC")
-                if (resource_tz, start_dt) in tz_dates:
-                    start = tz_dates[resource_tz, start_dt]
+                bounds_key = (leave.id, resource_tz)
+                if bounds_key in leave_bounds:
+                    dt0, dt1 = leave_bounds[bounds_key]
                 else:
-                    start = start_dt.astimezone(resource_tz)
-                    tz_dates[resource_tz, start_dt] = start
-                if (resource_tz, end_dt) in tz_dates:
-                    end = tz_dates[resource_tz, end_dt]
-                else:
-                    end = end_dt.astimezone(resource_tz)
-                    tz_dates[resource_tz, end_dt] = end
-                dt0 = leave_date_from.astimezone(resource_tz)
-                dt1 = leave_date_to.astimezone(resource_tz)
-                if leave_resource and leave_resource._is_flexible():
-                    dt0, dt1 = self._handle_flexible_leave_interval(dt0, dt1, leave)
+                    dt0 = leave_date_from.astimezone(resource_tz)
+                    dt1 = leave_date_to.astimezone(resource_tz)
+                    if leave_resource and leave_resource._is_flexible():
+                        dt0, dt1 = self._handle_flexible_leave_interval(dt0, dt1, leave)
+                    leave_bounds[bounds_key] = (dt0, dt1)
                 result[resource.id].append((max(start, dt0), min(end, dt1), leave))
 
         return {r.id: Intervals(result[r.id]) for r in resources_list}
@@ -1200,12 +1207,17 @@ class ResourceCalendar(models.Model):
         ]
 
     def _get_two_weeks_attendance(self):
+        # The second-week section must sort after every first-week line
+        # whatever the calendar size (the old fixed offset of 25 let week-one
+        # lines of a 25+-line calendar spill past the section marker, which
+        # ``_onchange_attendance_ids`` then reassigned to the wrong week).
+        second_week_seq = len(self.attendance_ids) + 1
         final_attendances = [
             Command.create(
                 {
                     "name": "First week",
                     "dayofweek": "0",
-                    "sequence": "0",
+                    "sequence": 0,
                     "hour_from": 0,
                     "day_period": "morning",
                     "week_type": "0",
@@ -1217,7 +1229,7 @@ class ResourceCalendar(models.Model):
                 {
                     "name": "Second week",
                     "dayofweek": "0",
-                    "sequence": "25",
+                    "sequence": second_week_seq,
                     "hour_from": 0,
                     "day_period": "morning",
                     "week_type": "1",
@@ -1234,7 +1246,11 @@ class ResourceCalendar(models.Model):
             )
             final_attendances.append(
                 Command.create(
-                    dict(att._copy_attendance_vals(), week_type="1", sequence=idx + 26)
+                    dict(
+                        att._copy_attendance_vals(),
+                        week_type="1",
+                        sequence=second_week_seq + idx + 1,
+                    )
                 )
             )
         return final_attendances
@@ -1534,6 +1550,10 @@ class ResourceCalendar(models.Model):
         self.ensure_one()
 
         working_days = defaultdict(lambda: defaultdict(lambda: False))
-        for attendance in self.attendance_ids:
+        # Only real work lines mark a day as worked: section rows are pure UX
+        # (their ``dayofweek`` is always the default Monday, so counting them
+        # flagged Monday as worked on every two-week calendar) and a lunch
+        # break alone is not work time.
+        for attendance in self._get_global_attendances():
             working_days[attendance.week_type][attendance.dayofweek] = True
         return working_days
