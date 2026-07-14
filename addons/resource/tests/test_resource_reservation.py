@@ -314,6 +314,50 @@ class TestResourceReservation(TransactionCase):
         )
         self.assertTrue(res.id)
 
+    def test_hard_enforcement_blocks_unarchive_into_conflict(self):
+        """Unarchiving a hard reservation re-asserts its claim → must re-validate."""
+        blocker = self.Reservation.create(
+            {
+                "name": "Hard blocker",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 12, 0),
+                "enforcement_mode": "hard",
+            }
+        )
+        blocker.active = False
+        self.Reservation.create(
+            {
+                "name": "Took the slot meanwhile",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 10, 0),
+                "date_end": datetime(2025, 1, 6, 14, 0),
+            }
+        )
+        with self.assertRaises(ValidationError):
+            blocker.active = True
+
+    def test_hard_enforcement_blocks_mode_switch_into_conflict(self):
+        """Switching soft → hard opts in to blocking → must re-validate."""
+        soft = self.Reservation.create(
+            {
+                "name": "Soft overlapper",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 12, 0),
+            }
+        )
+        self.Reservation.create(
+            {
+                "name": "Other overlapper",
+                "resource_id": self.resource_a.id,
+                "date_start": datetime(2025, 1, 6, 10, 0),
+                "date_end": datetime(2025, 1, 6, 14, 0),
+            }
+        )
+        with self.assertRaises(ValidationError):
+            soft.enforcement_mode = "hard"
+
     # ------------------------------------------------------------------
     # Cross-origin overlap detection
     # ------------------------------------------------------------------
