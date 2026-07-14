@@ -9,6 +9,7 @@ import {
     listGroupToTable,
     normalizeColors,
     normalizeRem,
+    toInline,
 } from "@mail/views/web/fields/html_mail_field/convert_inline";
 import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
 import { enableTransitions } from "@odoo/hoot-mock";
@@ -24,6 +25,13 @@ const TEST_WIDTH = 800;
 const TEST_HEIGHT = 600;
 
 let editable;
+// Remove the marker set on generated elements for the benefit of re-runs of
+// `toInline` on its own output: it is not part of the tested behaviors.
+function removeGeneratedMarkers(element) {
+    element.querySelectorAll("[data-o-mail-generated]").forEach((node) => {
+        node.removeAttribute("data-o-mail-generated");
+    });
+}
 function testConvertGrid({ before, after, title, stepFunction }) {
     editable.innerHTML = before;
     (stepFunction || bootstrapToTable)(editable);
@@ -35,6 +43,7 @@ function testConvertGrid({ before, after, title, stepFunction }) {
             node.removeAttribute("class");
         }
     });
+    removeGeneratedMarkers(editable);
     expect(editable).toHaveInnerHTML(after, { message: title, type: "html" });
 }
 
@@ -515,6 +524,31 @@ describe("Convert Bootstrap grids to tables", () => {
         });
     });
 
+    test("do not duplicate the row id on overflowing rows", async () => {
+        editable.innerHTML =
+            '<div class="container"><div class="row" id="test-row-id">' +
+            '<div class="col-8">(0, 0)</div><div class="col-8">(0, 1)</div>' +
+            "</div></div>";
+        bootstrapToTable(editable);
+        expect(editable.querySelectorAll("#test-row-id").length).toBe(1, {
+            message: "should have kept the id on a single row only",
+        });
+    });
+
+    test("ignore whitespace-only text in cards", async () => {
+        editable.innerHTML = `<div class="card">\n    <div class="card-body">BODY</div>\n</div>`;
+        cardToTable(editable);
+        expect(editable.querySelectorAll("tr").length).toBe(2, {
+            message: "should not have created a row for whitespace-only text",
+        });
+
+        editable.innerHTML = `<div class="card">Loose text<div class="card-body">BODY</div></div>`;
+        cardToTable(editable);
+        expect(editable.querySelectorAll("tr").length).toBe(4, {
+            message: "should have created a row for actual text content",
+        });
+    });
+
     test("convert a grid with offsets to a table", async () => {
         testConvertGrid({
             before: '<div class="container"><div class="row"><div class="col-6 offset-4">(0, 0)</div></div>',
@@ -696,6 +730,7 @@ describe("Normalize styles", () => {
         body.parentElement.appendChild(tr);
         tr.parentElement.removeChild(body);
         formatTables(editable);
+        removeGeneratedMarkers(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody style="vertical-align: top;"><tr><td>I don't have a body :'(</td></tr></tbody></table>`,
             { message: "should have added a tbody to a table that didn't have one" }
@@ -760,6 +795,7 @@ describe("Convert snippets and mailing bodies to tables", () => {
     test("convert snippets to tables", async () => {
         editable.innerHTML = `<div class="o_mail_snippet_general"><div>Snippet</div></div>`;
         addTables(editable);
+        removeGeneratedMarkers(editable);
         expect(editable).toHaveInnerHTML(
             getRegularTableHtml(1, 1, 12, 100)
                 .split("style=")
@@ -783,6 +819,7 @@ describe("Convert snippets and mailing bodies to tables", () => {
                 <table><tbody><tr><td>Snippet</td></tr></tbody></table>
             </div>`;
         addTables(editable);
+        removeGeneratedMarkers(editable);
         expect(editable).toHaveInnerHTML(
             getRegularTableHtml(1, 1, 12, 100)
                 .split("style=")
@@ -801,6 +838,7 @@ describe("Convert snippets and mailing bodies to tables", () => {
     test("convert mailing bodies to tables", async () => {
         editable.innerHTML = `<div class="o_layout"><div>Mailing</div></div>`;
         addTables(editable);
+        removeGeneratedMarkers(editable);
         expect(editable).toHaveInnerHTML(
             getRegularTableHtml(1, 1, 12, 100)
                 .split("style=")
@@ -825,6 +863,7 @@ describe("Convert snippets and mailing bodies to tables", () => {
                 <table><tbody><tr><td>Mailing</td></tr></tbody></table>
             </div>`;
         addTables(editable);
+        removeGeneratedMarkers(editable);
         expect(editable).toHaveInnerHTML(
             getRegularTableHtml(1, 1, 12, 100)
                 .split("style=")
@@ -873,9 +912,12 @@ describe("Convert classes to inline styles", () => {
         // Some positional properties (eg., padding-right, margin-left) are not
         // concatenated (eg., as padding, margin) because they were defined with
         // variables (var) or calculated (calc).
-        const containerStyle = `border-radius: 0px; border-style: none; margin: 0px auto; box-sizing: border-box; border-width: 0px; max-width: 1320px; padding-left: 16px; padding-right: 16px; width: 100%; border-color: ${borderColor};`;
-        const rowStyle = `border-radius: 0px; border-style: none; padding: 0px; box-sizing: border-box; border-width: 0px; margin-left: -16px; margin-right: -16px; margin-top: 0px; border-color: ${borderColor};`;
-        const colStyle = `border-radius: 0px; border-style: none; box-sizing: border-box; border-width: 0px; margin-top: 0px; padding-left: 16px; padding-right: 16px; max-width: 100%; width: 100%; border-color: ${borderColor};`;
+        // Note: computed border/border-radius values are no longer force
+        // applied on every node: only grouped styles that a matched rule
+        // defines through var()/calc() are completed with computed values.
+        const containerStyle = `margin: 0px auto; box-sizing: border-box; max-width: 1320px; padding-left: 16px; padding-right: 16px; width: 100%; border-color: ${borderColor};`;
+        const rowStyle = `box-sizing: border-box; margin-left: -16px; margin-right: -16px; margin-top: 0px; border-color: ${borderColor};`;
+        const colStyle = `box-sizing: border-box; margin-top: 0px; padding-left: 16px; padding-right: 16px; max-width: 100%; width: 100%; border-color: ${borderColor};`;
         expect(editable).toHaveInnerHTML(
             `<div class="container" style="${containerStyle}" width="100%">` +
                 `<div class="row" style="${rowStyle}">` +
@@ -1377,7 +1419,7 @@ describe("Convert classes to inline styles", () => {
         iframeEditable.innerHTML = `<div class="o_layout" style="padding: 50px;">Test</div>`;
         classToStyle(iframeEditable, getCSSRules(iframeEditable.ownerDocument));
         expect(iframeEditable).toHaveInnerHTML(
-            `<div class="o_layout" style="border-radius:0px;border-style:none;margin:0px;box-sizing:border-box;border-left-color:${borderColor};border-bottom-color:${borderColor};border-right-color:${borderColor};border-top-color:${borderColor};border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;font-size:50px;direction:rtl;color:white;background-color:red;padding: 50px;">Test</div>`,
+            `<div class="o_layout" style="box-sizing:border-box;border-left-color:${borderColor};border-bottom-color:${borderColor};border-right-color:${borderColor};border-top-color:${borderColor};font-size:50px;direction:rtl;color:white;background-color:red;padding: 50px;">Test</div>`,
             { message: "should have given all styles of body to .o_layout" }
         );
         styleSheet.deleteRule(0);
@@ -1446,6 +1488,168 @@ describe("Convert classes to inline styles", () => {
         );
 
         // @todo to adapt when hoot has a better way to remove it
+    });
+
+
+    test("do not force computed grouped styles without dynamic values", async () => {
+        enableTransitions();
+        styleSheet.insertRule(
+            `
+            .test-no-bloat {
+                color: blue;
+            }
+        `,
+            0
+        );
+        editable.innerHTML = `<div class="test-no-bloat">Hello</div>`;
+        getFixture().append(editable); // Attached: computed styles are resolvable.
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        expect(editable).toHaveInnerHTML(
+            `<div class="test-no-bloat" style="box-sizing:border-box;color:blue;">Hello</div>`,
+            {
+                message:
+                    "should not have baked computed border/margin/padding/border-radius values into the inline style",
+            }
+        );
+        styleSheet.deleteRule(0);
+    });
+
+    test("force computed values for grouped styles defined with css variables", async () => {
+        enableTransitions();
+        styleSheet.insertRule(
+            `
+            .test-var-border {
+                --test-border-width: 3px;
+                border-width: var(--test-border-width);
+                border-style: solid;
+                border-color: blue;
+            }
+        `,
+            0
+        );
+        editable.innerHTML = `<div class="test-var-border">Hello</div>`;
+        getFixture().append(editable); // Attached: computed styles are resolvable.
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        const node = editable.firstElementChild;
+        expect(node.style.borderTopWidth).toBe("3px", {
+            message: "should have inlined the computed value of the var() border width",
+        });
+        expect(node.style.borderTopStyle).toBe("solid", {
+            message: "should have kept the rule-provided border style",
+        });
+        styleSheet.deleteRule(0);
+    });
+
+    test("strip inline flex styles", async () => {
+        styleSheet.insertRule(
+            `
+            .test-inline-flex {
+                color: red;
+            }
+        `,
+            0
+        );
+        editable.innerHTML = `<div class="test-inline-flex" style="display: flex; flex-grow: 1; text-align: center;"></div>`;
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        expect(editable).toHaveInnerHTML(
+            `<div class="test-inline-flex" style="box-sizing:border-box;color:red; text-align: center;"></div>`,
+            { message: "should have removed the inline flex declarations" }
+        );
+        styleSheet.deleteRule(0);
+    });
+
+    test("compute selector specificity per the CSS specification", async () => {
+        // One id beats any number of classes.
+        styleSheet.insertRule(`#test-spec-id { color: red; }`, 0);
+        styleSheet.insertRule(
+            `.tsc1.tsc2.tsc3.tsc4.tsc5.tsc6.tsc7.tsc8.tsc9.tsc10 { color: blue; }`,
+            1
+        );
+        editable.innerHTML = `<div id="test-spec-id" class="tsc1 tsc2 tsc3 tsc4 tsc5 tsc6 tsc7 tsc8 tsc9 tsc10"></div>`;
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        expect(editable).toHaveInnerHTML(
+            `<div id="test-spec-id" class="tsc1 tsc2 tsc3 tsc4 tsc5 tsc6 tsc7 tsc8 tsc9 tsc10" style="box-sizing:border-box;color:red;"></div>`,
+            { message: "should have prioritized one id over ten classes" }
+        );
+        styleSheet.deleteRule(0);
+        styleSheet.deleteRule(0);
+
+        // Pseudo-classes count at the class level, not the type level.
+        styleSheet.insertRule(`div:first-child { color: green; }`, 0);
+        styleSheet.insertRule(`.test-spec-pseudo { color: blue; }`, 1);
+        editable.innerHTML = `<div class="test-spec-pseudo"></div>`;
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        expect(editable).toHaveInnerHTML(
+            `<div class="test-spec-pseudo" style="box-sizing:border-box;color:green;"></div>`,
+            {
+                message:
+                    "should have prioritized the (0, 1, 1) pseudo-class selector over the (0, 1, 0) class",
+            }
+        );
+        styleSheet.deleteRule(0);
+        styleSheet.deleteRule(0);
+
+        // :not() itself counts for nothing; only its argument counts. Both
+        // selectors are (0, 1, 1): the later one must win.
+        styleSheet.insertRule(`div:not(.absent) { color: purple; }`, 0);
+        styleSheet.insertRule(`div.test-spec-not { color: orange; }`, 1);
+        editable.innerHTML = `<div class="test-spec-not"></div>`;
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        expect(editable).toHaveInnerHTML(
+            `<div class="test-spec-not" style="box-sizing:border-box;color:orange;"></div>`,
+            {
+                message:
+                    "should have resolved the specificity tie between :not() and a class by document order",
+            }
+        );
+        styleSheet.deleteRule(0);
+        styleSheet.deleteRule(0);
+    });
+
+    test("only collect email-compatible css rules", async () => {
+        styleSheet.insertRule(
+            `@media (min-width: 1200px) { .test-media-desktop { color: red; } }`,
+            0
+        );
+        styleSheet.insertRule(
+            `@media (min-width: 768px) and (max-width: 991.98px) { .test-media-tablet { color: blue; } }`,
+            1
+        );
+        styleSheet.insertRule(
+            `@media (max-width: 575.98px) { .test-media-mobile { color: green; } }`,
+            2
+        );
+        styleSheet.insertRule(`@media screen { .test-media-screen { color: purple; } }`, 3);
+        styleSheet.insertRule(`@media print { .test-media-print { color: black; } }`, 4);
+        styleSheet.insertRule(
+            `.test-nested-parent { .test-nested-child { color: orange; } }`,
+            5
+        );
+        styleSheet.insertRule(`.test-visited:visited { color: yellow; }`, 6);
+        styleSheet.insertRule(`.test-checked:checked { color: yellow; }`, 7);
+        styleSheet.insertRule(`.test-disabled:disabled { color: yellow; }`, 8);
+
+        const selectors = new Set(
+            getCSSRules(editable.ownerDocument).map((rule) => rule.selector)
+        );
+        // Unbounded desktop min-width rules apply to emails.
+        expect(selectors.has(".test-media-desktop")).toBe(true);
+        // Bounded (tablet-only) ranges and mobile-only rules do not.
+        expect(selectors.has(".test-media-tablet")).toBe(false);
+        expect(selectors.has(".test-media-mobile")).toBe(false);
+        // Unconditional screen rules apply, print rules do not.
+        expect(selectors.has(".test-media-screen")).toBe(true);
+        expect(selectors.has(".test-media-print")).toBe(false);
+        // Nested rules are resolved against their parent selectors.
+        expect(selectors.has(".test-nested-parent .test-nested-child")).toBe(true);
+        // Interaction-state pseudo-classes cannot apply in an email.
+        expect([...selectors].some((sel) => sel.includes(":visited"))).toBe(false);
+        expect([...selectors].some((sel) => sel.includes(":checked"))).toBe(false);
+        expect([...selectors].some((sel) => sel.includes(":disabled"))).toBe(false);
+
+        for (let i = 0; i < 9; i++) {
+            styleSheet.deleteRule(0);
+        }
     });
 
     test("Correct border attributes for outlook", async () => {
@@ -1568,5 +1772,29 @@ describe("Should not convert blacklisted class to inline styles", () => {
                     "should ignore styles from lower specificity class in favor of blacklisted class",
             }
         );
+    });
+});
+
+describe("Convert to inline (full pipeline)", () => {
+    test("toInline is idempotent on its own output", async () => {
+        editable = document.createElement("div");
+        editable.style.setProperty("width", TEST_WIDTH + "px");
+        getFixture().append(editable);
+        editable.innerHTML =
+            '<div class="o_layout">' +
+            '<div class="container"><div class="row">' +
+            '<div class="col-8"><p>Hello there</p></div>' +
+            '<div class="col-4"><a href="#" class="btn">Click me</a></div>' +
+            "</div></div>" +
+            '<div class="card"><div class="card-body">Card body</div></div>' +
+            "</div>";
+        const cssRules = getCSSRules(document);
+        await toInline(editable, cssRules);
+        const inlinedOnce = editable.innerHTML;
+        await toInline(editable, cssRules);
+        // Compare raw innerHTML: mso conditional comments matter here.
+        expect(editable.innerHTML).toBe(inlinedOnce, {
+            message: "a second run on the converted output should change nothing",
+        });
     });
 });

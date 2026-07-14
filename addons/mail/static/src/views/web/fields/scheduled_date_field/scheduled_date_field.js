@@ -55,7 +55,7 @@ class TextScheduledDateField extends ScheduledDateFieldCommon {
 
     setScheduledDate(scheduledDate) {
         this.props.record.update({
-            scheduled_date: scheduledDate ? serializeDateTime(scheduledDate) : "",
+            [this.props.name]: scheduledDate ? serializeDateTime(scheduledDate) : "",
         });
     }
 }
@@ -76,7 +76,7 @@ class DatetimeScheduledDateField extends ScheduledDateFieldCommon {
     }
 
     setScheduledDate(scheduledDate) {
-        this.props.record.update({ scheduled_date: scheduledDate });
+        this.props.record.update({ [this.props.name]: scheduledDate });
     }
 }
 

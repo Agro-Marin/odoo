@@ -117,6 +117,7 @@ async function storeLogs(logs, { download = false } = {}) {
         }
         if (download) {
             const request = store.getAll();
+            request.onerror = (event) => reject(event.target.error);
             request.onsuccess = () => {
                 const allLogs = request.result;
                 const timelines = {};
@@ -128,7 +129,6 @@ async function storeLogs(logs, { download = false } = {}) {
                         snapshots[log.entry] = log.value;
                     }
                 });
-                request.onerror = (event) => reject(event.target.error);
                 output = { timelines, snapshots };
             };
         }
@@ -155,6 +155,12 @@ async function openDiscussChannel(
             new RegExp(`/odoo/action-${action}`),
         );
     }
+    // Prefer the client the user is looking at (focused, then visible), and
+    // among equals a discuss client over any other.
+    const getScore = (client) =>
+        (client.focused ? 4 : 0) +
+        (client.visibilityState === "visible" ? 2 : 0) +
+        (discussURLRegexes.some((r) => r.test(new URL(client.url).pathname)) ? 1 : 0);
     let targetClient;
     for (const client of await self.clients.matchAll({
         type: "window",
@@ -163,10 +169,7 @@ async function openDiscussChannel(
         if (source && source.id === client.id) {
             continue;
         }
-        if (
-            !targetClient ||
-            discussURLRegexes.some((r) => r.test(new URL(client.url).pathname))
-        ) {
+        if (!targetClient || getScore(client) > getScore(targetClient)) {
             targetClient = client;
         }
     }
@@ -178,14 +181,15 @@ async function openDiscussChannel(
         targetClient.focus().catch(() => {});
         return;
     }
-    if (action) {
-        const url = new URL(`/odoo/action-${action}`, location.origin);
-        url.searchParams.set("active_id", `discuss.channel_${channelId}`);
-        if (joinCall) {
-            url.searchParams.set("call", "accept");
-        }
-        await self.clients.openWindow(url.toString());
+    // No client at all: open a new window on the channel.
+    const url = action
+        ? new URL(`/odoo/action-${action}`, location.origin)
+        : new URL("/odoo/discuss", location.origin);
+    url.searchParams.set("active_id", `discuss.channel_${channelId}`);
+    if (joinCall) {
+        url.searchParams.set("call", "accept");
     }
+    await self.clients.openWindow(url.toString());
 }
 
 self.addEventListener("notificationclick", (event) => {
@@ -223,7 +227,19 @@ self.addEventListener("notificationclick", (event) => {
     }
 });
 self.addEventListener("push", (event) => {
-    const notification = event.data.json();
+    let notification;
+    try {
+        notification = event.data?.json();
+    } catch {
+        notification = undefined;
+    }
+    if (!notification?.title) {
+        // Empty or invalid payload: still show a generic notification, as
+        // browsers may penalize the push subscription when a push event
+        // doesn't show anything.
+        event.waitUntil(self.registration.showNotification("Odoo"));
+        return;
+    }
     switch (notification.options?.data?.type) {
         case PUSH_NOTIFICATION_TYPE.CALL:
             if (
@@ -273,11 +289,17 @@ self.addEventListener("message", ({ data }) => {
     }
 });
 
-async function incrementUnread() {
-    const oldCounter = (await get("unread", unread_store)) ?? 0;
-    const newCounter = oldCounter + 1;
-    set("unread", newCounter, unread_store);
-    navigator.setAppBadge?.(newCounter);
+// Serialize the read-modify-write cycles on the unread counter: concurrent
+// push events would otherwise read the same value and lose increments.
+let unreadUpdatePromise = Promise.resolve();
+function incrementUnread() {
+    unreadUpdatePromise = unreadUpdatePromise.then(async () => {
+        const oldCounter = (await get("unread", unread_store)) ?? 0;
+        const newCounter = oldCounter + 1;
+        await set("unread", newCounter, unread_store);
+        navigator.setAppBadge?.(newCounter);
+    });
+    return unreadUpdatePromise;
 }
 
 async function handlePushEvent(notification) {
@@ -309,6 +331,8 @@ async function handlePushEvent(notification) {
                 );
             });
         timeoutId = setTimeout(async () => {
+            // No client answered the display request: drop its handler.
+            self.handlePushEventMessageFns.delete(correlationId);
             await incrementUnread();
             self.clients
                 .matchAll({ includeUncontrolled: true, type: "window" })
@@ -329,10 +353,17 @@ async function handlePushEvent(notification) {
         }, 500);
     });
 }
-self.addEventListener("pushsubscriptionchange", async (event) => {
+self.addEventListener("pushsubscriptionchange", (event) => {
     if (!event.oldSubscription) {
         return;
     }
+    // waitUntil: without it the browser may terminate the worker between the
+    // resubscription and the register_devices call, leaving the device row
+    // on the dead endpoint (i.e. no more push notifications, silently).
+    event.waitUntil(resubscribePushDevice(event));
+});
+
+async function resubscribePushDevice(event) {
     const subscription = await self.registration.pushManager.subscribe(
         event.oldSubscription.options,
     );
@@ -369,7 +400,7 @@ self.addEventListener("pushsubscriptionchange", async (event) => {
         mode: "cors",
         credentials: "include",
     });
-});
+}
 self.addEventListener("message", async ({ data, source }) => {
     switch (data.name) {
         case MESSAGE_TYPE.UNEXPECTED_CALL_TERMINATION:
