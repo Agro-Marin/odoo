@@ -37,7 +37,9 @@
     </record>
     <record id="product_uom_minute" model="uom.uom">
         <field name="name">Minutes</field>
-        <field name="relative_factor" eval="0.0166667"/>
+        <!-- 1/60 keeps the round trip exact: 60 * (1/60) rounds back to 1.0,
+             while 0.0166667 * 60 = 1.000002 rounds UP to 1.01 hour. -->
+        <field name="relative_factor" eval="1.0 / 60.0"/>
         <field name="relative_uom_id" ref="uom.product_uom_hour"/>
     </record>
 
