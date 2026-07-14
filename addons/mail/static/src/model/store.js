@@ -1,7 +1,42 @@
 /** @odoo-module native */
+/**
+ * Model layer overview.
+ *
+ * Every record and record list exists as a triad of objects:
+ * - `_raw`: the plain instance. Fields hold raw values (relations hold raw
+ *   `RecordList`s whose `data` is an array of localIds). Internal code works
+ *   on `_raw` to avoid reactivity costs and re-entrancy.
+ * - `_proxyInternal`: a `Proxy` over `_raw` implementing field semantics
+ *   (relation get/set, commands, lazy compute/sort bookkeeping). It is NOT an
+ *   OWL reactive: reading through it does not subscribe an observer, but
+ *   writing through it still notifies observers of `_proxy`.
+ * - `_proxy`: `reactive(_proxyInternal)`, the object handed to business code
+ *   and components. Reads through it (or through a `reactive()` wrapper of
+ *   it) subscribe; getters "downgrade" a `_proxy` receiver to
+ *   `_proxyInternal` so internal reads stay subscription-free.
+ *
+ * All mutations funnel through `Store.MAKE_UPDATE`, which counts nesting
+ * depth (`UPDATE`) and defers side effects into queues. When the outermost
+ * update ends, queues are flushed in a fixed order, repeated until all are
+ * empty:
+ *   FC (field computes) → FS (field sorts) → FA (field onAdd hooks)
+ *   → FD (field onDelete hooks) → FU (field onUpdate hooks)
+ *   → RO (record onChange observers) → RD (record deletes)
+ *   → RHD (record hard-deletes).
+ * RD unregisters the record from `recordByLocalId` and `Model.records` and
+ * detaches all relations; the record stays addressable through the local
+ * `deletingRecordsByLocalId` map until RHD, so cleanups of the same flush
+ * can still reference it.
+ */
 import { reactive, toRaw } from "@odoo/owl";
 
-import { modelRegistry, STORE_SYM } from "./misc.js";
+import {
+    IS_DELETED_SYM,
+    IS_DELETING_SYM,
+    isRelation,
+    modelRegistry,
+    STORE_SYM,
+} from "./misc.js";
 import { Record } from "./record.js";
 
 /** @typedef {import("./record_list").RecordList} RecordList */
@@ -37,14 +72,21 @@ export class Store extends Record {
 
     /** @param {() => any} fn */
     MAKE_UPDATE(fn) {
+        const outermost = this._.UPDATE === 0;
         this._.UPDATE++;
         let res;
         try {
             res = fn();
         } catch (err) {
+            if (!outermost) {
+                // A nested update must not swallow: its caller would continue
+                // on half-applied state. Depth 0 collects and rethrows below.
+                throw err;
+            }
             this.handleError(err);
+        } finally {
+            this._.UPDATE--;
         }
-        this._.UPDATE--;
         const deletingRecordsByLocalId = new Map();
         if (this._.UPDATE === 0) {
             // pretend an increased update cycle so that nothing in queue creates many small update cycles
@@ -164,28 +206,58 @@ export class Store extends Record {
                         /** @type {Record} */
                         const record = RD_QUEUE.keys().next().value;
                         RD_QUEUE.delete(record);
-                        for (const [localId, names] of record._.uses.data.entries()) {
+                        // detach from every record that uses this record
+                        for (const [
+                            usingRecord,
+                            names,
+                        ] of record._.uses.data.entries()) {
+                            const aliveProxy = toRaw(this.recordByLocalId).get(
+                                usingRecord.localId,
+                            );
+                            const alive =
+                                (aliveProxy &&
+                                    toRaw(aliveProxy)._raw === usingRecord) ||
+                                deletingRecordsByLocalId.get(usingRecord.localId) ===
+                                    usingRecord;
+                            if (!alive) {
+                                // using record already hard-deleted, clean inverses
+                                record._.uses.data.delete(usingRecord);
+                                continue;
+                            }
                             for (const [name2, count] of names.entries()) {
-                                const existingRecordProxyInternal = toRaw(
-                                    this.recordByLocalId,
-                                ).get(localId);
-                                const usingRecord =
-                                    (existingRecordProxyInternal &&
-                                        toRaw(existingRecordProxyInternal)?._raw) ||
-                                    deletingRecordsByLocalId.get(localId);
-                                if (!usingRecord) {
-                                    // record already deleted, clean inverses
-                                    record._.uses.data.delete(localId);
-                                    continue;
-                                }
                                 for (let c = 0; c < count; c++) {
                                     usingRecord[name2].delete(record);
                                 }
                             }
                         }
+                        // detach outgoing relations: without an inverse, the
+                        // targets' `uses` would keep a stale entry forever
+                        for (const fieldName of record.Model._.fields.keys()) {
+                            if (!isRelation(record.Model, fieldName)) {
+                                continue;
+                            }
+                            const reclist = record[fieldName];
+                            for (const localId of reclist.data) {
+                                const targetProxy = toRaw(this.recordByLocalId).get(
+                                    localId,
+                                );
+                                const target = targetProxy
+                                    ? toRaw(targetProxy)._raw
+                                    : deletingRecordsByLocalId.get(localId);
+                                target?._.uses.delete(reclist);
+                            }
+                        }
+                        // Two-registry invariant: recordByLocalId and
+                        // Model.records are unregistered in the same step, so
+                        // business code can no longer reach the record, while
+                        // deletingRecordsByLocalId/RHD_QUEUE keep it
+                        // addressable for the rest of this flush.
                         deletingRecordsByLocalId.set(record.localId, record);
                         this.recordByLocalId.delete(record.localId);
-                        this._.ADD_QUEUE("hard_delete", toRaw(record));
+                        record._[IS_DELETING_SYM] = true;
+                        record._proxy[IS_DELETED_SYM] = true;
+                        delete record.Model.records[record.localId];
+                        this._.ADD_QUEUE("hard_delete", record);
                     }
                     while (RHD_QUEUE.size > 0) {
                         // effectively delete the record
@@ -213,15 +285,17 @@ export class Store extends Record {
         return res;
     }
     /**
-     * @template T
-     * @param {T} [dataByModelName={}]
+     * @param {Object} [dataByModelName={}] data to insert, keyed by model name
      * @param {Object} [options={}]
-     * @returns {{ [K in keyof T]: import("models").Models[K][] }}
+     * @returns {void}
      */
     insert(dataByModelName = {}, options = {}) {
         const store = this;
+        // batch on this store's own update cycle, not on the last-created
+        // store (`Record.store`), so concurrent stores don't share queues
+        const rawStore = toRaw(this)._raw;
         const ctx = storeInsertFns.makeContext(store);
-        Record.MAKE_UPDATE(function storeInsert() {
+        rawStore.MAKE_UPDATE(function storeInsert() {
             const recordsDataToDelete = [];
             for (const [pyOrJsModelName, data] of Object.entries(dataByModelName)) {
                 const modelName = storeInsertFns.getActualModelName(
@@ -236,15 +310,19 @@ export class Store extends Record {
                     continue;
                 }
                 const insertData = [];
-                for (const vals of Array.isArray(data) ? data : [data]) {
+                for (let vals of Array.isArray(data) ? data : [data]) {
                     const extraFields = storeInsertFns.getExtraFieldsFromModel(
                         store,
                         pyOrJsModelName,
                     );
+                    // never mutate caller payloads: they may be reused
                     if (extraFields) {
-                        Object.assign(vals, extraFields);
+                        vals = { ...vals, ...extraFields };
                     }
                     if (vals._DELETE) {
+                        if (!extraFields) {
+                            vals = { ...vals };
+                        }
                         delete vals._DELETE;
                         recordsDataToDelete.push([modelName, vals]);
                     } else {

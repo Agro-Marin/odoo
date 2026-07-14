@@ -44,7 +44,8 @@ export class Record {
         return this.store.MAKE_UPDATE(...arguments);
     }
     static onChange(record, name, cb) {
-        return this.store.onChange(...arguments);
+        // route through the record's own store, not the last-created one
+        return toRaw(record)._raw._rawStore.onChange(record, name, cb);
     }
     static get(data) {
         const Model = toRaw(this);

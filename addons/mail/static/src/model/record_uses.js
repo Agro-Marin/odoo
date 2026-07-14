@@ -1,39 +1,47 @@
 /** @odoo-module native */
+/** @typedef {import("./record").Record} Record */
+/** @typedef {import("./record_list").RecordList} RecordList */
+
 export class RecordUses {
     /**
      * Track the uses of a record. Each record contains a single `RecordUses`:
-     * - Key: localId of record that uses current record
+     * - Key: record that uses current record. Keyed by reference, not by
+     *   localId: localId strings are reusable after delete + re-insert,
+     *   which would alias stale entries onto the new record.
      * - Value: Map where key is relational field name, and value is number
      *          of time current record is present in this relation.
      *
-     * @type {Map<string, Map<string, number>>}}
+     * @type {Map<Record, Map<string, number>>}
      */
     data = new Map();
     /** @param {RecordList} list */
     add(list) {
         const record = list._.owner;
-        if (!this.data.has(record.localId)) {
-            this.data.set(record.localId, new Map());
+        let use = this.data.get(record);
+        if (!use) {
+            use = new Map();
+            this.data.set(record, use);
         }
-        const use = this.data.get(record.localId);
-        if (!use.get(list._.name)) {
-            use.set(list._.name, 0);
-        }
-        use.set(list._.name, use.get(list._.name) + 1);
+        use.set(list._.name, (use.get(list._.name) ?? 0) + 1);
     }
     /** @param {RecordList} list */
     delete(list) {
         const record = list._.owner;
-        if (!this.data.has(record.localId)) {
+        const use = this.data.get(record);
+        if (!use) {
             return;
         }
-        const use = this.data.get(record.localId);
-        if (!use.get(list._.name)) {
+        const count = use.get(list._.name);
+        if (!count) {
             return;
         }
-        use.set(list._.name, use.get(list._.name) - 1);
-        if (use.get(list._.name) === 0) {
+        if (count === 1) {
             use.delete(list._.name);
+            if (use.size === 0) {
+                this.data.delete(record);
+            }
+        } else {
+            use.set(list._.name, count - 1);
         }
     }
 }

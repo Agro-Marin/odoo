@@ -27,8 +27,26 @@ export function OR(...args) {
     return [OR_SYM, ...args];
 }
 
+const COMMAND_NAMES = new Set(["ADD", "DELETE", "ADD.noinv", "DELETE.noinv"]);
 export function isCommand(data) {
-    return ["ADD", "DELETE", "ADD.noinv", "DELETE.noinv"].includes(data?.[0]?.[0]);
+    if (!Array.isArray(data) || data.length === 0) {
+        return false;
+    }
+    let commandCount = 0;
+    for (const entry of data) {
+        if (Array.isArray(entry) && COMMAND_NAMES.has(entry[0])) {
+            commandCount++;
+        }
+    }
+    if (commandCount === 0) {
+        return false;
+    }
+    if (commandCount === data.length) {
+        return true;
+    }
+    throw new Error(
+        `Cannot mix command entries (e.g. ["ADD", ...]) with plain values in relational field data: got ${commandCount} command(s) among ${data.length} entries.`,
+    );
 }
 /**
  * @param {typeof import("./record").Record} Model

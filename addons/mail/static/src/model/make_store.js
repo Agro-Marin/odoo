@@ -133,9 +133,12 @@ export function makeStore(env, { localRegistry } = {}) {
                                 if (reactiveSet) {
                                     record._.proxyUsed.set(name, true);
                                 }
-                                store._.updateFields(record, { [name]: val });
-                                if (reactiveSet) {
-                                    record._.proxyUsed.delete(name);
+                                try {
+                                    store._.updateFields(record, { [name]: val });
+                                } finally {
+                                    if (reactiveSet) {
+                                        record._.proxyUsed.delete(name);
+                                    }
                                 }
                                 return true;
                             });
@@ -145,6 +148,10 @@ export function makeStore(env, { localRegistry } = {}) {
                     const recordProxy = reactive(recordProxyInternal);
                     record._proxy = recordProxy;
                     if (record?.[STORE_SYM]) {
+                        // Bootstrap: the Store record created by
+                        // `store.Store.insert()` in makeStore replaces the
+                        // temporary plain store; rebind the makeStore closure
+                        // and the `Record.store` global to it.
                         record.recordByLocalId = store.recordByLocalId;
                         record._ = markRaw(toRaw(store._));
                         store = record;
@@ -172,6 +179,17 @@ export function makeStore(env, { localRegistry } = {}) {
                 Model._.prepareField(name, val);
             }
         }
+        (function collectIdFields(expr) {
+            if (typeof expr === "string") {
+                Model._.idFields.add(expr);
+            } else if (Array.isArray(expr)) {
+                for (const part of expr) {
+                    if (typeof part !== "symbol") {
+                        collectIdFields(part);
+                    }
+                }
+            }
+        })(Model.id);
     }
     // Sync inverse fields
     for (const Model of Object.values(Models)) {

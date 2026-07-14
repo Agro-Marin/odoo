@@ -30,6 +30,14 @@ export class ModelInternal {
     fieldsSort = new Map();
     /** @type {Map<string, string>} */
     fieldsType = new Map();
+    /**
+     * Names of fields participating in the model's id (from `static id`,
+     * flattening AND/OR expressions). These fields are immutable once the
+     * record is inserted. Populated by `makeStore`.
+     *
+     * @type {Set<string>}
+     */
+    idFields = new Set();
 
     prepareField(fieldName, data) {
         this.fields.set(fieldName, true);
