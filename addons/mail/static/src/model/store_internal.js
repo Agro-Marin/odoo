@@ -2,11 +2,11 @@
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */
 
-import { luxon } from "@web/core/l10n/luxon";
 import { htmlEscape, markup, toRaw } from "@odoo/owl";
 import { deserializeDate, deserializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 
-import { IS_DELETED_SYM, IS_DELETING_SYM, isCommand, isMany } from "./misc.js";
+import { isCommand, isMany, isRecord, isRelation } from "./misc.js";
 import { RecordInternal } from "./record_internal.js";
 const Markup = markup().constructor;
 
@@ -121,11 +121,10 @@ export class StoreInternal extends RecordInternal {
                 break;
             }
             case "hard_delete": {
+                // pure enqueue: the soft-delete mutations (deletion flags,
+                // registry unregistration) happen in the RD flush step.
                 /** @type {import("./record").Record} */
                 const [record] = params;
-                record._[IS_DELETING_SYM] = true;
-                record._proxy[IS_DELETED_SYM] = true;
-                delete record.Model.records[record.localId];
                 if (!this.RHD_QUEUE.has(record)) {
                     this.RHD_QUEUE.set(record, true);
                 }
@@ -185,12 +184,92 @@ export class StoreInternal extends RecordInternal {
                       : "";
             shouldChange =
                 record[fieldName]?.toString() !== newValue?.toString() ||
-                record[fieldName] instanceof Markup != newValue instanceof Markup;
+                record[fieldName] instanceof Markup !== newValue instanceof Markup;
         }
         if (shouldChange) {
             record._.updatingAttrs.set(fieldName, true);
             targetRecord[fieldName] = newValue;
             record._.updatingAttrs.delete(fieldName);
+        }
+    }
+    /**
+     * Id fields are the record's identity: `localId`, `Model.records` and
+     * `store.recordByLocalId` are all keyed on them. Rewriting one on an
+     * inserted record would desync those registries (duplicate on next
+     * insert, `get()` misses), so throw instead of corrupting.
+     *
+     * @param {Record} record
+     * @param {string} fieldName
+     * @param {any} value
+     */
+    ensureIdFieldUnchanged(record, fieldName, value) {
+        const Model = record.Model;
+        if (!isRelation(Model, fieldName)) {
+            const fieldType = Model._.fieldsType.get(fieldName);
+            if (fieldType === "date" || fieldType === "datetime") {
+                return; // stored values are normalized: strict compare would false-positive
+            }
+            const current = record[fieldName];
+            if (
+                current === undefined ||
+                current === null ||
+                current === false ||
+                current === "" ||
+                value === undefined
+            ) {
+                // unset class default: this is the initial fill of a freshly
+                // created record (localId was derived from the insert data
+                // before fields were populated), not a change
+                return;
+            }
+            let incoming = value;
+            if (Model._.fieldsHtml.get(fieldName)) {
+                // normalize like updateAttr does, so the serialized
+                // ["markup", html] insert form compares against the stored
+                // Markup value
+                incoming =
+                    Array.isArray(value) && value[0] === "markup"
+                        ? value[1]
+                            ? markup(value[1])
+                            : ""
+                        : value
+                          ? htmlEscape(value)
+                          : "";
+            }
+            if (current === incoming || String(current) === String(incoming)) {
+                // String(): Markup and other wrapper values are identity-
+                // distinct but localId-equal when their string form matches
+                return;
+            }
+            throw new Error(
+                `Cannot change id field "${Model.getName()}/${fieldName}" of inserted record from "${current}" to "${value}" (localId: ${
+                    record.localId
+                }): id fields are immutable. Delete the record and insert a new one instead.`,
+            );
+        }
+        // fields.One participating in the id
+        const currentLocalId = record[fieldName].data[0];
+        if (!currentLocalId) {
+            return;
+        }
+        let target = value;
+        if (isCommand(value)) {
+            const [cmd, cmdData] = value.at(-1);
+            if (cmd === "DELETE" || cmd === "DELETE.noinv") {
+                return; // clearing is done by deletion flows
+            }
+            target = cmdData;
+        }
+        if (target === null || target === false || target === undefined) {
+            return;
+        }
+        const targetLocalId = isRecord(target)
+            ? toRaw(target)._raw.localId
+            : Model._rawStore[Model._.fieldsTargetModel.get(fieldName)].localId(target);
+        if (targetLocalId !== currentLocalId) {
+            throw new Error(
+                `Cannot change id field "${Model.getName()}/${fieldName}" of inserted record from "${currentLocalId}" to "${targetLocalId}": id fields are immutable. Delete the record and insert a new one instead.`,
+            );
         }
     }
     /**
@@ -202,6 +281,12 @@ export class StoreInternal extends RecordInternal {
             Object.getOwnPropertySymbols(vals).map((sym) => [sym, vals[sym]]),
         );
         for (const [fieldName, value] of fieldEntries) {
+            if (
+                typeof fieldName === "string" &&
+                record.Model._.idFields.has(fieldName)
+            ) {
+                this.ensureIdFieldUnchanged(record, fieldName, value);
+            }
             if (
                 !record.Model._.fields.get(fieldName) ||
                 record.Model._.fieldsAttr.get(fieldName)
@@ -234,16 +319,15 @@ export class StoreInternal extends RecordInternal {
         if (isCommand(value)) {
             for (const [cmd, cmdData] of value) {
                 if (Array.isArray(cmdData)) {
-                    for (const item of cmdData) {
-                        if (cmd === "ADD") {
-                            recordList.add(item);
-                        } else if (cmd === "ADD.noinv") {
-                            recordList._.addNoinv(recordList, item);
-                        } else if (cmd === "DELETE.noinv") {
-                            recordList._.deleteNoinv(recordList, item);
-                        } else {
-                            recordList.delete(item);
-                        }
+                    // single call: add() dedupes bulk data with a Set
+                    if (cmd === "ADD") {
+                        recordList.add(...cmdData);
+                    } else if (cmd === "ADD.noinv") {
+                        recordList._.addNoinv(recordList, ...cmdData);
+                    } else if (cmd === "DELETE.noinv") {
+                        recordList._.deleteNoinv(recordList, ...cmdData);
+                    } else {
+                        recordList.delete(...cmdData);
                     }
                 } else {
                     if (cmd === "ADD") {

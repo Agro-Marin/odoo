@@ -391,17 +391,20 @@ test("Computed fields: lazy (default) vs. eager", async () => {
 });
 
 test("insert on html field", async () => {
+    // id is a separate field: body mutations below would otherwise rewrite
+    // the record's identity, which id-field immutability forbids
     (class Message extends Record {
-        static id = "body";
+        static id = "id";
+        id;
         body = fields.Html("");
     }).register(localRegistry);
     const store = await start();
-    const message1 = store.Message.insert({ body: ["markup", "<p>hello 1</p>"] });
+    const message1 = store.Message.insert({ id: 1, body: ["markup", "<p>hello 1</p>"] });
     expect(message1.body?.toString()).toBe("<p>hello 1</p>");
     expect(message1.body).toBeInstanceOf(Markup);
     message1.body = "<p>hello 1b</p>";
     expect(message1.body?.toString()).toBe("&lt;p&gt;hello 1b&lt;/p&gt;");
-    const message2 = store.Message.insert("<p>hello 2</p>");
+    const message2 = store.Message.insert({ id: 2, body: "<p>hello 2</p>" });
     expect(message2.body?.toString()).toBe("&lt;p&gt;hello 2&lt;/p&gt;");
     expect(message2.body).toBeInstanceOf(Markup);
     message2.body = ["markup", "<p>hello 2b</p>"];
@@ -409,7 +412,7 @@ test("insert on html field", async () => {
     message2.body = ["markup", false];
     expect(message2.body).toBe("");
     expect(message2.body).not.toBeInstanceOf(Markup);
-    const message3 = store.Message.insert({ body: markup`<p>hello 3</p>` });
+    const message3 = store.Message.insert({ id: 3, body: markup`<p>hello 3</p>` });
     expect(message3.body?.toString()).toBe("<p>hello 3</p>");
     expect(message3.body).toBeInstanceOf(Markup);
     message3.body = false;
@@ -1412,6 +1415,222 @@ test("Record exists is reactive", async () => {
     await expect.waitForSteps(["thread exists"]);
     thread.delete();
     await expect.waitForSteps(["thread does not exist"]);
+});
+
+test("re-parenting via many side cleans old owner's list and fires onDelete", async () => {
+    let logs = [];
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        files = fields.Many("File", {
+            inverse: "thread",
+            onAdd(file) {
+                logs.push(`${this.name}.files.onAdd(${file.name})`);
+            },
+            onDelete(file) {
+                logs.push(`${this.name}.files.onDelete(${file.name})`);
+            },
+        });
+    }).register(localRegistry);
+    (class File extends Record {
+        static id = "name";
+        name;
+        thread = fields.One("Thread", { inverse: "files" });
+    }).register(localRegistry);
+    const store = await start();
+    const threadA = store.Thread.insert("A");
+    const threadB = store.Thread.insert("B");
+    const file = store.File.insert("file.txt");
+    threadA.files.push(file);
+    expect(logs).toEqual(["A.files.onAdd(file.txt)"]);
+    logs = [];
+    threadB.files.push(file);
+    expectRecord(file.thread).toEqual(threadB);
+    expectRecord(file).toBeIn(threadB.files);
+    expectRecord(file).not.toBeIn(threadA.files);
+    expect(threadA.files.length).toBe(0);
+    expect(logs).toEqual(["B.files.onAdd(file.txt)", "A.files.onDelete(file.txt)"]);
+});
+
+test("error in nested update propagates and store still works afterwards", async () => {
+    (class Message extends Record {
+        static id = "id";
+        id;
+        body;
+    }).register(localRegistry);
+    const store = await start();
+    store.warnErrors = false;
+    expect(() =>
+        store.MAKE_UPDATE(() => {
+            store.Message.insert(1);
+            store.MAKE_UPDATE(() => {
+                throw new Error("boom");
+            });
+            expect.step("unreachable");
+        }),
+    ).toThrow("boom");
+    // the nested error interrupted the caller instead of being swallowed
+    expect.verifySteps([]);
+    // work batched before the error was still flushed
+    expect(store.Message.get(1).exists()).toBe(true);
+    // the store is fully functional afterwards (UPDATE back to 0)
+    const message = store.Message.insert(2);
+    Record.onChange(message, "body", () => expect.step("BODY_CHANGED"));
+    message.body = "test";
+    expect.verifySteps(["BODY_CHANGED"]);
+});
+
+test("record list index assignment", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        files = fields.Many("File", {
+            inverse: "thread",
+            onAdd: (file) => expect.step(`onAdd(${file.name})`),
+            onDelete: (file) => expect.step(`onDelete(${file.name})`),
+        });
+    }).register(localRegistry);
+    (class File extends Record {
+        static id = "name";
+        name;
+        thread = fields.One("Thread", { inverse: "files" });
+    }).register(localRegistry);
+    const store = await start();
+    store.warnErrors = false;
+    const thread = store.Thread.insert("General");
+    const file1 = store.File.insert("file1.txt");
+    const file2 = store.File.insert("file2.txt");
+    thread.files.push(file1);
+    expect.verifySteps(["onAdd(file1.txt)"]);
+    // self-assignment is a no-op: no hooks, inverse untouched
+    thread.files[0] = file1;
+    expect.verifySteps([]);
+    expectRecord(file1.thread).toEqual(thread);
+    expectRecord(file1).toBeIn(thread.files);
+    // assigning at index === length appends
+    thread.files[thread.files.length] = file2;
+    expect.verifySteps(["onAdd(file2.txt)"]);
+    expect(thread.files.length).toBe(2);
+    expectRecord(file2.thread).toEqual(thread);
+    // assigning past the end is refused with a clear error
+    expect(() => (thread.files[10] = file1)).toThrow("out of range");
+    expect(thread.files.length).toBe(2);
+    expect.verifySteps([]);
+    // replacement still works and updates inverses (flush order: FA → FD)
+    thread.files[0] = { name: "file3.txt" };
+    expect.verifySteps(["onAdd(file3.txt)", "onDelete(file1.txt)"]);
+    expect(file1.thread).toBe(undefined);
+    expectRecord(store.File.get("file3.txt").thread).toEqual(thread);
+});
+
+test("id fields are immutable once the record is inserted", async () => {
+    (class Message extends Record {
+        static id = "id";
+        id;
+        body;
+    }).register(localRegistry);
+    (class Thread extends Record {
+        static id = "name";
+        name;
+    }).register(localRegistry);
+    (class ChatWindow extends Record {
+        static id = "thread";
+        thread = fields.One("Thread");
+    }).register(localRegistry);
+    const store = await start();
+    store.warnErrors = false;
+    const message = store.Message.insert({ id: 1, body: "a" });
+    // re-inserting with the same id is fine
+    store.Message.insert({ id: 1, body: "b" });
+    expect(message.body).toBe("b");
+    expect(() => (message.id = 5)).toThrow("id fields are immutable");
+    expect(message.id).toBe(1);
+    expect(() => message.update({ id: 5 })).toThrow("id fields are immutable");
+    expect(message.id).toBe(1);
+    expectRecord(store.Message.get(1)).toEqual(message);
+    // relational id fields are protected too
+    const chatWindow = store.ChatWindow.insert({ thread: "General" });
+    store.ChatWindow.insert({ thread: "General" }); // same id: fine
+    expect(() => (chatWindow.thread = "Sales")).toThrow("id fields are immutable");
+    expectRecord(chatWindow.thread).toEqual(store.Thread.get("General"));
+});
+
+test("record list read methods work and unsupported mutators throw", async () => {
+    (class Message extends Record {
+        static id = "id";
+        id;
+    }).register(localRegistry);
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        messages = fields.Many("Message");
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    thread.messages.push({ id: 1 }, { id: 2 }, { id: 3 });
+    const messages = thread.messages;
+    expect(messages.map((msg) => msg.id)).toEqual([1, 2, 3]);
+    expect(messages.filter((msg) => msg.id > 1).map((msg) => msg.id)).toEqual([2, 3]);
+    expectRecord(messages.find((msg) => msg.id === 2)).toEqual(store.Message.get(2));
+    expect(messages.find((msg) => msg.id === 42)).toBe(undefined);
+    expect(messages.findIndex((msg) => msg.id === 2)).toBe(1);
+    expect(messages.findIndex((msg) => msg.id === 42)).toBe(-1);
+    expect(messages.some((msg) => msg.id === 3)).toBe(true);
+    expect(messages.some((msg) => msg.id === 42)).toBe(false);
+    expect(messages.every((msg) => msg.id > 0)).toBe(true);
+    expect(messages.every((msg) => msg.id > 1)).toBe(false);
+    expect(messages.reduce((acc, msg) => acc + msg.id, 0)).toBe(6);
+    const seen = [];
+    messages.forEach((msg, index) => seen.push([index, msg.id]));
+    expect(seen).toEqual([
+        [0, 1],
+        [1, 2],
+        [2, 3],
+    ]);
+    expect(messages.slice(1).map((msg) => msg.id)).toEqual([2, 3]);
+    expect(messages.slice(0, 2).map((msg) => msg.id)).toEqual([1, 2]);
+    expect(messages.includes(store.Message.get(2))).toBe(true);
+    expect(messages.includes(store.Message.insert({ id: 42 }))).toBe(false);
+    expect(() => messages.reverse()).toThrow("in-place mutators are not supported");
+    expect(() => messages.fill(store.Message.get(1))).toThrow(
+        "in-place mutators are not supported",
+    );
+    expect(() => messages.copyWithin(0, 1)).toThrow(
+        "in-place mutators are not supported",
+    );
+    expect(messages.map((msg) => msg.id)).toEqual([1, 2, 3]);
+});
+
+test("clear() empties the list, updates inverses and fires onDelete hooks", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        members = fields.Many("Member", {
+            inverse: "thread",
+            onDelete: (member) => expect.step(`onDelete(${member.name})`),
+        });
+    }).register(localRegistry);
+    (class Member extends Record {
+        static id = "name";
+        name;
+        thread = fields.One("Thread", { inverse: "members" });
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    thread.members = [{ name: "Jane" }, { name: "John" }, { name: "Marc" }];
+    const [jane, john, marc] = [...thread.members];
+    expect(thread.members.length).toBe(3);
+    thread.members.clear();
+    expect(thread.members.length).toBe(0);
+    expect(Boolean(jane.thread)).toBe(false);
+    expect(Boolean(john.thread)).toBe(false);
+    expect(Boolean(marc.thread)).toBe(false);
+    expectRecord(jane).not.toBeIn(thread.members);
+    // removal order matches historical pop-based behavior (last first)
+    expect.verifySteps(["onDelete(Marc)", "onDelete(John)", "onDelete(Jane)"]);
+    // clearing an empty list is a no-op
+    thread.members.clear();
+    expect.verifySteps([]);
 });
 
 test("record.delete() while used in a 'on-sort' sorted field should properly delete this record from relation", async () => {
