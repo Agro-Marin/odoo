@@ -5,13 +5,13 @@
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
-import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export const fileTypeMagicWordMap = {

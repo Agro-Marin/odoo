@@ -10,7 +10,7 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { FileUploader } from "@web/fields/file_handler";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { session } from "@web/session";
 
 /**

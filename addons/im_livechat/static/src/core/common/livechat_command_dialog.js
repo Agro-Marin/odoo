@@ -1,17 +1,22 @@
 /** @odoo-module native */
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
-
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { Component, useState } from "@odoo/owl";
-
-import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 
 const commandRegistry = registry.category("discuss.channel_commands");
 
 export class LivechatCommandDialog extends Component {
     static template = "im_livechat.LivechatCommandDialog";
     static components = { ActionPanel };
-    static props = ["thread", "close", "commandName", "placeholderText", "title", "icon"];
+    static props = [
+        "thread",
+        "close",
+        "commandName",
+        "placeholderText",
+        "title",
+        "icon",
+    ];
 
     setup() {
         this.state = useState({ inputText: "" });
@@ -30,7 +35,7 @@ export class LivechatCommandDialog extends Component {
         if (command) {
             this.props.thread.executeCommand(
                 command,
-                `/${this.props.commandName} ${this.state.inputText}`
+                `/${this.props.commandName} ${this.state.inputText}`,
             );
             this.props.close();
         }

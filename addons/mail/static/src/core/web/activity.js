@@ -1,14 +1,14 @@
 /** @odoo-module native */
 import { useAttachmentUploader } from "@mail/core/common/attachment_uploader_hook";
+import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { ActivityMailTemplate } from "@mail/core/web/activity_mail_template";
 import { ActivityMarkAsDone } from "@mail/core/web/activity_markasdone_popover";
-import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { computeDelay, getMsToTomorrow } from "@mail/utils/common/dates";
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { FileUploader } from "@web/fields/file_handler";
 import { usePopover } from "@web/ui/popover/popover_hook";
 /**
  * @typedef {Object} Props
@@ -27,7 +27,9 @@ export class Activity extends Component {
         this.storeService = useService("mail.store");
         this.state = useState({ showDetails: false });
         this.markDonePopover = usePopover(ActivityMarkAsDone, { position: "right" });
-        this.avatarCard = usePopover(AvatarCardPopover);
+        // Registered by the discuss web layer, which is always bundled with
+        // core/web (backend assets).
+        this.avatarCard = usePopover(discussComponentRegistry.get("AvatarCardPopover"));
         onMounted(() => {
             this.updateDelayAtNight();
         });

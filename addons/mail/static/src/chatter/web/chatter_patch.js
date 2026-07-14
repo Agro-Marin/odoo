@@ -18,12 +18,12 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { useCustomDropzone } from "@web/components/dropzone/dropzone_hook";
 import { browser } from "@web/core/browser/browser";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { FileUploader } from "@web/fields/file_handler";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 export const DELAY_FOR_SPINNER = 1000;
 

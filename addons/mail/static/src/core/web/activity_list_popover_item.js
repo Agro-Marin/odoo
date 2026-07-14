@@ -4,8 +4,8 @@ import { ActivityMailTemplate } from "@mail/core/web/activity_mail_template";
 import { ActivityMarkAsDone } from "@mail/core/web/activity_markasdone_popover";
 import { computeDelay } from "@mail/utils/common/dates";
 import { Component, useState } from "@odoo/owl";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
-import { FileUploader } from "@web/fields/file_handler";
 /**
  * @typedef {Object} Props
  * @property {import("models").Activity} activity

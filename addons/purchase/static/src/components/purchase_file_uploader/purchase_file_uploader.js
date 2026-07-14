@@ -1,12 +1,11 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { FileUploader } from "@web/fields/file_handler";
-import { WarningDialog } from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
-
 import { Component } from "@odoo/owl";
+import { WarningDialog } from "@web/components/errors/error_dialogs";
+import { FileUploader } from "@web/core/file_upload/file_handler";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 export class PurchaseFileUploader extends Component {
     static template = "purchase.DocumentFileUploader";
@@ -43,11 +42,15 @@ export class PurchaseFileUploader extends Component {
         if (this.env.config.viewType !== "list") {
             return;
         }
-        const vendorSet = new Set(this.props.list.selection.map((record) => record.data.partner_id.id));
+        const vendorSet = new Set(
+            this.props.list.selection.map((record) => record.data.partner_id.id),
+        );
         if (vendorSet.size > 1) {
             this.dialog.add(WarningDialog, {
                 title: _t("Validation Error"),
-                message: _t("You can only upload a bill for a single vendor at a time."),
+                message: _t(
+                    "You can only upload a bill for a single vendor at a time.",
+                ),
             });
             return false;
         }
@@ -74,7 +77,7 @@ export class PurchaseFileUploader extends Component {
                 resModel,
                 "action_create_invoice_from_file",
                 [ids, this.attachmentIdsToProcess],
-                { context: { ...this.env.searchModel.context } }
+                { context: { ...this.env.searchModel.context } },
             );
         } finally {
             // ensures attachments are cleared on success as well as on error

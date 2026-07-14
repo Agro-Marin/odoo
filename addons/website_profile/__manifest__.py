@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
@@ -20,7 +19,6 @@
     ],
     'assets': {
         'web.assets_frontend': [
-            'web/static/src/fields/file_handler.*',
             'website_profile/static/src/scss/website_profile.scss',
             'website_profile/static/src/components/**/*',
             'website_profile/static/src/interactions/**/*',

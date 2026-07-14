@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { Message } from "@mail/core/common/message";
 import { messageActionOpenFullComposer } from "@mail/core/web/message_actions_patch";
-import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import {
     deserializeDate,
     deserializeDateTime,
@@ -24,7 +24,9 @@ patch(Message.prototype, {
     setup() {
         super.setup(...arguments);
         this.action = useService("action");
-        this.avatarCard = usePopover(AvatarCardPopover);
+        // Registered by the discuss web layer, which is always bundled with
+        // core/web (backend assets).
+        this.avatarCard = usePopover(discussComponentRegistry.get("AvatarCardPopover"));
     },
     get authorAvatarAttClass() {
         return {

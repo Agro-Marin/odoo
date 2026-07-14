@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";

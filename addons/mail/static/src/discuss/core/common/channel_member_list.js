@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -37,7 +37,9 @@ export class ChannelMemberList extends Component {
     }
 
     canOpenChatWith(member) {
-        return !this.store.inPublicPage && !member.guest_id && member.persona.main_user_id;
+        return (
+            !this.store.inPublicPage && !member.guest_id && member.persona.main_user_id
+        );
     }
 
     onClickAvatar(ev, member) {

@@ -82,12 +82,13 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/views/view_utils.js",
             "web/static/src/fields/field_types.js",
             "web/static/src/fields/formatters.js",
-            "web/static/src/fields/file_handler.*",
-            "mail/static/src/model/**/*",
-            "mail/static/src/core/common/**/*",
-            "mail/static/src/core/web_portal/**/*",
-            "mail/static/src/**/common/**/*",
-            "mail/static/src/chatter/web_portal/**/*",
+            # mail is consumed through its named sub-bundles; do not glob
+            # mail/static/src/** internals here. The portal chatter is a
+            # document chatter: it deliberately ships no discuss layer
+            # (channels, calls, typing, ...).
+            ("include", "mail.assets_core_common"),
+            ("include", "mail.assets_core_web_portal"),
+            ("include", "mail.assets_chatter_web_portal"),
             ("remove", "mail/static/src/**/*.dark.scss"),
         ],
         "portal.assets_chatter": [
@@ -122,6 +123,8 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/core/avatar/avatar.scss",
             "web/static/src/components/dropdown/dropdown.scss",
             "web/static/src/components/emoji_picker/**/*",
+            # Style-only projection of mail.assets_core_common /
+            # mail.assets_chatter_web_portal (an include would drag JS/XML in).
             "mail/static/src/core/common/**/*.scss",
             "mail/static/src/chatter/web_portal/**/*.scss",
             ("remove", "mail/static/src/**/*.dark.scss"),

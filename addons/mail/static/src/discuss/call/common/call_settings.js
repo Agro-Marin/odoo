@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { ActionPanel } from "@mail/core/common/action_panel";
 import { DeviceSelect } from "@mail/discuss/call/common/device_select";
-import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { useMicrophoneVolume } from "@mail/utils/common/hooks";
 import { Component, onWillStart, useExternalListener, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

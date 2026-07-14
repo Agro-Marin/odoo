@@ -2,7 +2,28 @@
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { CallSettings } from "@mail/discuss/call/common/call_settings";
+import { MeetingChat } from "@mail/discuss/call/common/meeting_chat";
 import { _t } from "@web/core/l10n/translation";
+registerThreadAction("meeting-chat", {
+    actionPanelComponent: MeetingChat,
+    badge: ({ thread }) => thread.isUnread,
+    badgeIcon: ({ thread }) =>
+        !thread.importantCounter && "fa-solid fa-circle text-700",
+    badgeText: ({ thread }) => thread.importantCounter || undefined,
+    condition: ({ owner }) => owner.env.inMeetingView,
+    icon: "fa-solid fa-comments",
+    name: _t("Chat"),
+    panelOuterClass: "bg-100 border border-secondary",
+    sequence: 30,
+    toggle: true,
+    tags: ({ thread }) => {
+        const tags = [];
+        if (thread.importantCounter) {
+            tags.push(ACTION_TAGS.IMPORTANT_BADGE);
+        }
+        return tags;
+    },
+});
 registerThreadAction("call", {
     condition: ({ store, thread }) =>
         thread?.allowCalls && !thread?.eq(store.rtc.channel),

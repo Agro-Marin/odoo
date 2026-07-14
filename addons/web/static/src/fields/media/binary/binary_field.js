@@ -4,12 +4,12 @@
 /** @module @web/fields/media/binary/binary_field - File upload/download field for Binary columns */
 
 import { Component } from "@odoo/owl";
+import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { isBinarySize, toBase64Length } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
-import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export const MAX_FILENAME_SIZE_BYTES = 0xff; // filenames do not exceed 255 bytes on Linux/Windows/MacOS
