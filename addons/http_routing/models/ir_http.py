@@ -170,19 +170,24 @@ class IrHttp(models.AbstractModel):
             router = http.root.get_db_router(request.db).bind("")
             path = router.build(rule.endpoint, args)
         except (
-            NotFound,
+            HTTPException,
             AccessError,
             MissingError,
             werkzeug.routing.BuildError,
             ValueError,
         ):
             # Rebuilding the path failed, so fall back to the URL as given. The
-            # catch is deliberately wide: besides the match itself (NotFound) and
-            # reading translated ``<model(...)>`` args (AccessError/MissingError),
-            # ``router.build`` raises BuildError when the args no longer satisfy
-            # the rule, and the slug builder raises ValueError for a record whose
-            # id went falsy (e.g. deleted between match and localize). All mean
-            # "cannot rebuild" and must degrade, not 500.
+            # catch is deliberately wide: the match itself raises any
+            # HTTPException -- NotFound, but also MethodNotAllowed (the probe
+            # matches with the *current* request's method, e.g. POST, against
+            # GET-only rules) and werkzeug's RequestRedirect (a website 308
+            # rewrite rule); reading translated ``<model(...)>`` args raises
+            # AccessError/MissingError; ``router.build`` raises BuildError when
+            # the args no longer satisfy the rule; and the slug builder raises
+            # ValueError for a record whose id went falsy (e.g. deleted between
+            # match and localize). All mean "cannot rebuild" and must degrade to
+            # the URL as given -- never abort the surrounding render with a 3xx,
+            # nor 500.
             # ``build`` returns a quoted URL, so quote here too for consistency.
             path = urllib.parse.quote_plus(url, safe="/")
         if force_default_lang or lang != request.env["ir.http"]._get_default_lang():
@@ -395,7 +400,7 @@ class IrHttp(models.AbstractModel):
         3/ Use the URL as-is saving the requested lang when the user is
            a bot and that the lang is missing from the URL.
 
-        4) Use the url as-is when the lang is missing from the URL, that
+        4/ Use the url as-is when the lang is missing from the URL, that
            another lang than the default one has been requested but that
            it is forbidden to redirect (e.g. POST)
 
@@ -819,21 +824,27 @@ class IrHttp(models.AbstractModel):
     def url_rewrite(
         self, path: str, query_args: str | None = None
     ) -> tuple[str, typing.Any]:
-        new_url = False
+        """Resolve ``path`` against the routing table.
+
+        :return: a ``(path, endpoint)`` tuple: the possibly-rewritten path (a
+                 redirect rule reports its target) and the endpoint serving it,
+                 or ``False`` when nothing matches.
+        """
         router = http.root.get_db_router(request.db).bind("")
-        endpoint = False
         try:
             try:
-                endpoint = router.match(path, method="POST", query_args=query_args)
+                func, _args = router.match(path, method="POST", query_args=query_args)
             except werkzeug.exceptions.MethodNotAllowed:
-                endpoint = router.match(path, method="GET", query_args=query_args)
+                func, _args = router.match(path, method="GET", query_args=query_args)
         except werkzeug.routing.RequestRedirect as e:
             # e.new_url is absolute ("http://host/path?qs"); keep only the path.
             # urlsplit is robust to the scheme/host (http vs https, empty host
             # from bind("")) that a hardcoded prefix strip silently mishandles.
-            new_url = urllib.parse.urlsplit(e.new_url).path
-            _, endpoint = self.url_rewrite(new_url, query_args)
-            endpoint = endpoint and [endpoint]
+            # Recurse to resolve the redirect target's own endpoint, but report
+            # the first redirect target as the rewritten path.
+            new_path = urllib.parse.urlsplit(e.new_url).path
+            _, func = self.url_rewrite(new_path, query_args)
+            return new_path or path, func
         except werkzeug.exceptions.NotFound:
-            new_url = path
-        return new_url or path, endpoint and endpoint[0]
+            return path, False
+        return path, func
