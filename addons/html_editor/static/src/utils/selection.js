@@ -240,13 +240,20 @@ export const callbacksForCursorUpdate = {
 };
 
 /**
+ * Not implemented yet (see the ``test.todo`` suite in
+ * ``tests/utils/selection.test.js``): exported as a no-op so the test
+ * module's named import resolves under native ESM.
+ *
+ * @param {HTMLElement} element
+ */
+export function ensureFocus(element) {}
+
+/**
  * @param {Selection} selection
  * @param {"previous"|"next"} side
  * @param {HTMLElement} editable
  * @returns {string | undefined}
  */
-export function ensureFocus(element) {}
-
 export function getAdjacentCharacter(selection, side, editable) {
     let { focusNode, focusOffset } = selection;
     [focusNode, focusOffset] = getDeepestPosition(focusNode, focusOffset);

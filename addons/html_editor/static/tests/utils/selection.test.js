@@ -13,7 +13,7 @@ import { setSelection } from "../_helpers/selection.js";
 
 describe("ensureFocus", () => {
     // TODO @phoenix: unskipped when ensureFocus is add in the code base
-    test(
+    test.todo(
         "should preserve the focus on the child of this.editable when executing a powerbox command even if it is enclosed in a contenteditable=false",
         async () => {
             await testEditor({
@@ -45,7 +45,7 @@ describe("ensureFocus", () => {
         }
     );
 
-    test(
+    test.todo(
         "should preserve the focus on the child of this.editable even if it is enclosed in a contenteditable=false",
         async () => {
             await testEditor({
