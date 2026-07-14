@@ -230,6 +230,14 @@ class SaleOrderLine(models.Model):
         help="Price from pricelist. Compared with price_unit to detect manual overrides. "
         "When price_unit != price_unit_auto, the price is considered manually set.",
     )
+    discount = fields.Float(
+        # Sale-only recursion: ``_compute_price_and_discount`` depends on
+        # ``linked_line_id.discount`` (combo child lines follow their parent's
+        # discount), i.e. the same field on a related record of the same model.
+        # The ORM requires recursive=True so trigger propagation walks the
+        # linked-line chain instead of warning on every registry load.
+        recursive=True,
+    )
     customer_lead = fields.Float(
         string="Lead Time",
         compute="_compute_customer_lead",
