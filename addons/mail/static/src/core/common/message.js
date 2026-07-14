@@ -362,7 +362,10 @@ export class Message extends Component {
         return (
             this.state.isHovered ||
             this.state.isClicked ||
-            this.emojiPicker?.isOpen ||
+            // reactionPicker (set by the "Add a Reaction" message action);
+            // `emojiPicker` never existed on Message, so the toolbar hid while
+            // the reaction picker anchored to it was still open.
+            this.reactionPicker?.isOpen ||
             Boolean(this.state.moreAction?.isActive)
         );
     }
