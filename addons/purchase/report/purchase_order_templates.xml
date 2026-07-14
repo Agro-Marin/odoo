@@ -37,41 +37,29 @@
                         <strong>Your Order Reference</strong>
                         <div t-field="o.partner_ref" />
                     </div>
-                    <div t-if="o.state == 'done' and o.date_confirmed" class="col-3 bm-2">
+                    <div t-if="o.state == 'done' and o.date_confirmed" class="col-3 mb-2">
                         <strong>Order Date:</strong>
                         <p t-field="o.date_confirmed" t-options="{'date_only': 'true'}" class="m-0" />
                     </div>
-                    <div t-elif="o.date_order" class="col-2 bm-2">
+                    <div t-elif="o.date_order" class="col-2 mb-2">
                         <strong>Order Deadline:</strong>
                         <p t-field="o.date_order" t-options="{'date_only': 'true'}" class="m-0" />
                     </div>
-                    <div t-if="o.date_planned" class="col-2 bm-2">
+                    <div t-if="o.date_planned" class="col-2 mb-2">
                         <strong>Expected Arrival:</strong>
                         <p t-field="o.date_planned" t-options="{'date_only': 'true'}" class="m-0" />
                     </div>
                 </div>
 
-                <table class="o_has_total_table table o_main_table table-borderless">
+                <table class="o_has_total_table table o_main_table table-borderless mb-0">
                     <thead class="o_thead_no_repeat">
                         <tr>
-                            <th name="th_description" class="text-start">
-                                <strong>Description</strong>
-                            </th>
-                            <th name="th_quantity" class="text-end">
-                                <strong>Qty</strong>
-                            </th>
-                            <th name="th_price_unit" class="text-end">
-                                <strong>Unit Price</strong>
-                            </th>
-                            <th name="th_discount" class="text-end">
-                                <strong>Disc.</strong>
-                            </th>
-                            <th name="th_taxes" class="text-end">
-                                <strong>Taxes</strong>
-                            </th>
-                            <th name="th_subtotal" class="text-end">
-                                <strong>Amount</strong>
-                            </th>
+                            <th name="th_description" class="text-start">Description</th>
+                            <th name="th_quantity" class="text-end">Qty</th>
+                            <th name="th_price_unit" class="text-end">Unit Price</th>
+                            <th name="th_discount" class="text-end">Disc.</th>
+                            <th name="th_taxes" class="text-end">Taxes</th>
+                            <th name="th_subtotal" class="text-end">Amount</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -146,7 +134,7 @@
                     </tbody>
                 </table>
 
-                <div id="total" class="row justify-content-end mt-n3">
+                <div id="total" class="row justify-content-end">
                     <div class="col-4">
                         <table class="o_total_table table table-borderless">
                             <t t-call="purchase.document_tax_totals">

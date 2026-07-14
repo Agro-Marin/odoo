@@ -2,7 +2,7 @@
 <odoo>
 
     <template id="report_pricelist_page">
-        <div class="container bg-white p-4 my-4">
+        <div class="container p-4 my-4">
             <div class="oe_structure"></div>
             <div class="row my-3">
                 <div class="col-12">
@@ -88,7 +88,7 @@
                     </t>
                 </t>
             </div>
-            <p style="break-before: page;"> </p>
+            <p class="o_page_break_before"> </p>
             <div class="oe_structure"></div>
         </t>
     </template>
