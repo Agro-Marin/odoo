@@ -1,4 +1,5 @@
 import typing
+from decimal import Decimal
 from operator import attrgetter
 from typing import override
 
@@ -200,6 +201,14 @@ class Float(Field[float]):
         if digits := self.get_digits(record.env):
             _precision, scale = digits
             value = float_round(value, precision_digits=scale)
+        elif self._digits is not None and self.column_type[0] == "numeric":
+            # digits=0: NUMERIC column with unlimited precision. Send a
+            # Decimal so the value round-trips exactly; a float parameter
+            # would go through PostgreSQL's float8->numeric cast, which keeps
+            # only 15 significant digits (e.g. a uom factor of 1/60 comes
+            # back as a different float). Company-dependent floats also have
+            # falsy digits but live in a JSONB column: keep those as float.
+            return Decimal(repr(value))
         return value
 
     @override

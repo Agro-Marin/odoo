@@ -60,15 +60,6 @@ export class Many2OneUomField extends Component {
             productModel,
             productId,
             productQuantity: this.props.record.data[this.props.quantityField],
-            // specification: {
-            //     name: {},
-            //     relative_factor: {},
-            //     relative_uom_id: {
-            //         fields: {
-            //             display_name: {},
-            //         },
-            //     },
-            // },
         };
     }
 
@@ -99,7 +90,7 @@ registry.category("fields").add("many2one_uom", {
             label: _t("Quantity Field Name"),
             name: "quantity_field",
             type: "field",
-            availableTypes: ["many2one"],
+            availableTypes: ["float", "integer"],
         },
     ],
 });

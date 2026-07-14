@@ -10,8 +10,6 @@
                 <separator />
                 <filter string="Archived" name="inactive"
                     domain="[('active', '=', False)]" />
-                <group>
-                </group>
             </search>
         </field>
     </record>

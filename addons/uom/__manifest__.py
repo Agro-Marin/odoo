@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
     'name': 'Units of measure',
-    'version': '1.0',
+    'version': '1.1',
     'category': 'Sales/Sales',
     'depends': ['base'],
     'description': """

@@ -4,10 +4,10 @@
 from datetime import timedelta
 from typing import Literal, Self
 
-from odoo import _, api, fields, models, tools
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.numbers.float_utils import RoundingMethod
-from odoo.tools import float_round
+from odoo.tools import float_compare, float_is_zero, float_round
 
 
 class UomUom(models.Model):
@@ -17,23 +17,13 @@ class UomUom(models.Model):
     _parent_store = True
     _order = 'sequence, relative_uom_id, id'
 
-    def _unprotected_uom_xml_ids(self):
-        """Return a list of UoM XML IDs that are not protected by default.
-        Note: Some of these may be protected via overrides in other modules.
-        """
-        return [
-            "product_uom_hour",
-            "product_uom_dozen",
-            "product_uom_pack_6",
-        ]
-
     name = fields.Char('Unit Name', required=True, translate=True)
     sequence = fields.Integer(compute="_compute_sequence", store=True, readonly=False, precompute=True)
     relative_factor = fields.Float(
         'Contains',
         default=1.0,
-        digits=0,
-        required=True,  # force NUMERIC with unlimited precision
+        digits=0,  # falsy digits force NUMERIC with unlimited precision
+        required=True,
         help='How much bigger or smaller this unit is compared to the reference UoM for this unit',
     )
     rounding = fields.Float('Rounding Precision', compute="_compute_rounding")
@@ -46,8 +36,8 @@ class UomUom(models.Model):
     parent_path = fields.Char(index=True)
 
     _factor_gt_zero = models.Constraint(
-        'CHECK (relative_factor!=0)',
-        'The conversion ratio for a unit of measure cannot be 0!',
+        'CHECK (relative_factor > 0)',
+        'The conversion ratio for a unit of measure must be strictly positive!',
     )
 
     # === COMPUTE METHODS === #
@@ -78,7 +68,7 @@ class UomUom(models.Model):
 
     # === ONCHANGE METHODS === #
 
-    @api.onchange('relative_factor')
+    @api.onchange('relative_factor', 'relative_uom_id')
     def _onchange_critical_fields(self):
         if self._filter_protected_uoms() and self.create_date < (fields.Datetime.now() - timedelta(days=1)):
             return {
@@ -93,14 +83,19 @@ class UomUom(models.Model):
                     ),
                 }
             }
+        return None
 
     # === CONSTRAINT METHODS === #
 
     @api.constrains('relative_factor', 'relative_uom_id')
     def _check_factor(self):
         for uom in self:
-            if not uom.relative_uom_id and uom.relative_factor != 1.0:
-                raise UserError(_("Reference unit of measure is missing."))
+            if not uom.relative_uom_id and float_compare(uom.relative_factor, 1.0, precision_digits=12) != 0:
+                raise UserError(_(
+                    "The unit of measure %s has a conversion ratio but no reference unit."
+                    " Either set a reference unit or keep a ratio of 1.",
+                    uom.display_name,
+                ))
 
     # === CRUD METHODS === #
 
@@ -121,7 +116,7 @@ class UomUom(models.Model):
         """Round the value using the 'Product Unit' precision"""
         self.ensure_one()
         digits = self.env['decimal.precision'].precision_get('Product Unit')
-        return tools.float_round(value, precision_digits=digits, rounding_method=rounding_method)
+        return float_round(value, precision_digits=digits, rounding_method=rounding_method)
 
     def compare(self, value1: float, value2: float) -> Literal[-1, 0, 1]:
         """Compare two measures after rounding them with the 'Product Unit' precision
@@ -132,13 +127,13 @@ class UomUom(models.Model):
         """
         self.ensure_one()
         digits = self.env['decimal.precision'].precision_get('Product Unit')
-        return tools.float_compare(value1, value2, precision_digits=digits)
+        return float_compare(value1, value2, precision_digits=digits)
 
     def is_zero(self, value: float) -> bool:
         """Check if the value is zero after rounding with the 'Product Unit' precision"""
         self.ensure_one()
         digits = self.env['decimal.precision'].precision_get('Product Unit')
-        return tools.float_is_zero(value, precision_digits=digits)
+        return float_is_zero(value, precision_digits=digits)
 
     @api.depends('name', 'relative_factor', 'relative_uom_id')
     @api.depends_context('formatted_display_name')
@@ -157,11 +152,13 @@ class UomUom(models.Model):
         raise_if_failure: bool = True,
     ) -> float:
         """Convert the given quantity from the current UoM `self` into a given one
+
         :param qty: the quantity to convert
         :param to_unit: the destination UomUom record (uom.uom)
-        :param raise_if_failure: only if the conversion is not possible
-            - if true, raise an exception if the conversion is not possible (different UomUom category),
-            - otherwise, return the initial quantity
+        :param raise_if_failure: behavior when the conversion is not possible
+            (`self` and `to_unit` have no common reference unit):
+            - if true, raise a UserError,
+            - otherwise, return the initial quantity unconverted
         """
         if not self or not qty:
             return qty
@@ -170,25 +167,35 @@ class UomUom(models.Model):
         if self == to_unit:
             amount = qty
         else:
+            if to_unit and not self._has_common_reference(to_unit):
+                if raise_if_failure:
+                    raise UserError(_(
+                        "The unit of measure %(unit)s cannot be converted into %(other_unit)s"
+                        " because they do not share a common reference unit.",
+                        unit=self.name,
+                        other_unit=to_unit.name,
+                    ))
+                return qty
             amount = qty * self.factor
             if to_unit:
                 amount = amount / to_unit.factor
 
         if to_unit and round:
-            amount = tools.float_round(amount, precision_rounding=to_unit.rounding, rounding_method=rounding_method)
+            amount = float_round(amount, precision_rounding=to_unit.rounding, rounding_method=rounding_method)
 
         return amount
 
-    def _check_qty(self, product_qty, uom_id, rounding_method="HALF-UP"):
-        """Check if product_qty in given uom is a multiple of the packaging qty.
-        If not, rounding the product_qty to closest multiple of the packaging qty
-        according to the rounding_method "UP", "HALF-UP or "DOWN".
+    def _check_qty(self, product_qty, uom, rounding_method="HALF-UP"):
+        """Round `product_qty` (expressed in `uom`) to a whole multiple of the
+        packaging `self`, according to `rounding_method` ("UP", "HALF-UP" or "DOWN").
         """
         self.ensure_one()
-        packaging_qty = self._compute_quantity(1, uom_id)
-        if self == uom_id:
+        if self == uom:
             return product_qty
-        # We do not use the modulo operator to check if qty is a mltiple of q. Indeed the quantity
+        # One package expressed in `uom`, unrounded: rounding it first would
+        # distort the multiples (e.g. a Unit is 1/12 Dozen, not 0.08).
+        packaging_qty = self._compute_quantity(1, uom, round=False)
+        # We do not use the modulo operator to check if qty is a multiple of q. Indeed the quantity
         # per package might be a float, leading to incorrect results. For example:
         # 8 % 1.6 = 1.5999999999999996
         # 5.4 % 1.8 = 2.220446049250313e-16
@@ -197,19 +204,30 @@ class UomUom(models.Model):
                 float_round(product_qty / packaging_qty, precision_rounding=1.0, rounding_method=rounding_method)
                 * packaging_qty
             )
+            # The whole-package count is already fixed; this only strips float
+            # artefacts (e.g. 144 * 1/12 = 12.000000000000002).
+            product_qty = float_round(product_qty, precision_rounding=uom.rounding, rounding_method='HALF-UP')
         return product_qty
 
     def _compute_price(self, price: float, to_unit: Self) -> float:
+        """Convert a price per unit of `self` into a price per unit of `to_unit`."""
         self.ensure_one()
-        if not self or not price or not to_unit or self == to_unit:
+        if not price or not to_unit or self == to_unit:
             return price
-        amount = price * to_unit.factor
-        if to_unit:
-            amount = amount / self.factor
-        return amount
+        return price * to_unit.factor / self.factor
+
+    def _unprotected_uom_xml_ids(self):
+        """Return a list of UoM XML IDs that are not protected by default.
+        Note: Some of these may be protected via overrides in other modules.
+        """
+        return [
+            "product_uom_hour",
+            "product_uom_dozen",
+            "product_uom_pack_6",
+        ]
 
     def _filter_protected_uoms(self):
-        """Verifies self does not contain protected uoms."""
+        """Return the subset of `self` that is protected master data."""
         linked_model_data = (
             self.env['ir.model.data']
             .sudo()
@@ -222,21 +240,21 @@ class UomUom(models.Model):
                 ]
             )
         )
-        if not linked_model_data:
-            return self.browse()
-        else:
-            return self.browse(set(linked_model_data.mapped('res_id')))
+        return self.browse(set(linked_model_data.mapped('res_id')))
+
+    def _get_reference_uom(self) -> Self:
+        """Return the root unit `self` is (transitively) defined against."""
+        self.ensure_one()
+        uom = self
+        while uom.relative_uom_id:
+            uom = uom.relative_uom_id
+        return uom
 
     def _has_common_reference(self, other_uom: Self) -> bool:
         """Check if `self` and `other_uom` have a common reference unit"""
         self.ensure_one()
         other_uom.ensure_one()
-        self_path = self.parent_path.split('/')
-        other_path = other_uom.parent_path.split('/')
-        common_path = []
-        for self_parent, other_parent in zip(self_path, other_path):
-            if self_parent == other_parent:
-                common_path.append(self_parent)
-            else:
-                break
-        return bool(common_path)
+        if self.parent_path and other_uom.parent_path:
+            return self.parent_path.split('/', 1)[0] == other_uom.parent_path.split('/', 1)[0]
+        # New records (e.g. during an onchange) have no parent_path yet.
+        return self._get_reference_uom() == other_uom._get_reference_uom()
