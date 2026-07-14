@@ -139,8 +139,15 @@ class PortalChatter(ThreadController):
         a sudo recordset so the search returns the messages the validator
         already authorised.
         """
+        # ``thread_model`` is client-supplied: an unknown model or one that
+        # does not carry the portal chatter field must be a clean 404, not a
+        # KeyError bubbling up as "Odoo Server Error" (leaking model names).
+        if thread_model not in request.env:
+            raise NotFound
         model = request.env[thread_model]
-        field = model._fields["website_message_ids"]
+        field = model._fields.get("website_message_ids")
+        if field is None:
+            raise NotFound
         domain = (
             Domain(self._setup_portal_message_fetch_extra_domain(kw))
             & Domain(field.get_comodel_domain(model))
