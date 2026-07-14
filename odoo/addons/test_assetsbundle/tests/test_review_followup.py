@@ -67,6 +67,7 @@ class TestPreprocessCssErrorContract(BaseCase):
         plain = Mock(spec=StylesheetAsset)  # not a PreprocessedCSS
         plain._content = None
         plain.errors = []
+
         # A real StylesheetAsset records its fetch/rewrite error WHILE minify()
         # pulls content; preprocess clears asset.errors first and rebuilds it
         # this run, so model the error as recorded during minify() rather than
@@ -74,6 +75,7 @@ class TestPreprocessCssErrorContract(BaseCase):
         def _minify():
             plain.errors.append("audit_missing.css does not exist.")
             return "body{color:red}"
+
         plain.minify.side_effect = _minify
         pipeline, bundle = self._pipeline([plain])
 
@@ -118,7 +120,9 @@ class TestMinifyNulGuard(BaseCase):
         # whitespace inside a string literal is preserved
         self.assertIn('"x   y"', StylesheetAsset._minify_css_body('a{content:"x   y"}'))
         # /*! legal comment kept, ordinary comment dropped
-        out = StylesheetAsset._minify_css_body("/*! keep */ a{color:red} /* drop */ b{}")
+        out = StylesheetAsset._minify_css_body(
+            "/*! keep */ a{color:red} /* drop */ b{}"
+        )
         self.assertIn("/*! keep */", out)
         self.assertNotIn("drop", out)
 
@@ -136,9 +140,11 @@ class TestUrlRewriteStringBoundary(BaseCase):
     rx = StylesheetAsset.rx_url
 
     def _rewrite(self, css):
-        # Mirror _fetch_content's url rewrite with an observable marker.
+        # Mirror _fetch_content's url rewrite with an observable marker. Like
+        # the real replacement, re-emit the closing quote the regex consumes.
         def repl(match):
-            return f"url({match.group('q')}REW/{match.group('body')}"
+            q = match.group("q")
+            return f"url({q}REW/{match.group('body')}{q}"
 
         return _rewrite_css_outside_strings(self.rx, repl, css)
 
@@ -149,6 +155,46 @@ class TestUrlRewriteStringBoundary(BaseCase):
         # url("x") — the match starts at the url( token (code); the inner "x" is
         # the only protected span and the rewrite never needs to enter it.
         self.assertIn('url("REW/x', self._rewrite('a{background:url("x.png")}'))
+
+    def test_multi_url_src_list_all_rewritten(self):
+        """Every url() of a @font-face src list is rewritten, not just the first.
+
+        Regression: the regex used to consume the opening quote but not the
+        closing one, desynchronizing the scanner's quote pairing — ``") format("``
+        then read as a string literal and swallowed every subsequent ``url(``
+        token, so bundle web fonts 404'd in browsers and WeasyPrint PDFs alike.
+        """
+        out = self._rewrite(
+            'src:url("./l/a.eot?#iefix") format("embedded-opentype"),'
+            'url("./l/a.woff") format("woff"),'
+            "url('./l/a.ttf') format('truetype');"
+        )
+        self.assertEqual(out.count("REW/"), 3, out)
+        # The format() hints are strings and must survive verbatim.
+        self.assertIn('format("woff")', out)
+        self.assertIn("format('truetype')", out)
+
+    def test_quoted_url_with_space_is_left_untouched(self):
+        # A quoted body containing a stopper char can't be matched to its
+        # closing quote; it must pass through whole, never half-rewritten
+        # (the old regex truncated the body at the space and mangled the url).
+        out = self._rewrite('a{background:url("x y.png")}')
+        self.assertNotIn("REW/", out)
+        self.assertIn('url("x y.png")', out)
+
+    def test_consecutive_imports_all_rewritten(self):
+        """Both quoted @imports are rewritten — same quote-pairing regression."""
+
+        def repl(match):
+            q = match.group("q")
+            return f"@import {q}REW/{match.group('path')}{q}"
+
+        out = _rewrite_css_outside_strings(
+            StylesheetAsset.rx_import,
+            repl,
+            '@import "a.css"; @import "b.css";',
+        )
+        self.assertEqual(out.count("REW/"), 2, out)
 
     def test_url_inside_string_value_is_skipped(self):
         """A ``url(...)`` mid-string is no longer rewritten (the fix)."""
@@ -215,7 +261,9 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
         pipeline, bundle = self._pipeline()
         pipeline.preprocess()
         out2 = pipeline.preprocess()
-        self.assertEqual(len(bundle.stylesheets), 1, "re-run must not mutate the source")
+        self.assertEqual(
+            len(bundle.stylesheets), 1, "re-run must not mutate the source"
+        )
         self.assertEqual(
             len(pipeline._rendered_assets), 2, "render list rebuilt, not stacked"
         )
@@ -537,11 +585,14 @@ class TestRunRtlcssEmptyOutputGuard(BaseCase):
     def _run(self, source, fake_out):
         bundle = SimpleNamespace(css_errors=[], name="t.b", stylesheets=[])
         pipe = CssPipeline(bundle)
-        with patch.object(_ab.css_pipeline, "_check_rtlcss", return_value=True), patch.object(
-            _ab.css_pipeline, "_rtlcss_bin", return_value="rtlcss"
-        ), patch.object(
-            _ab.css_pipeline, "_rtlcss_config_path", return_value="/x.json"
-        ), patch.object(_ab.css_pipeline, "_run_cli_pipe", return_value=fake_out):
+        with (
+            patch.object(_ab.css_pipeline, "_check_rtlcss", return_value=True),
+            patch.object(_ab.css_pipeline, "_rtlcss_bin", return_value="rtlcss"),
+            patch.object(
+                _ab.css_pipeline, "_rtlcss_config_path", return_value="/x.json"
+            ),
+            patch.object(_ab.css_pipeline, "_run_cli_pipe", return_value=fake_out),
+        ):
             result = pipe.run_rtlcss(source)
         return result, bundle.css_errors
 
@@ -584,7 +635,7 @@ class TestEsmTemplateBundleForms(BaseCase):
 
     def test_debug_form_uses_native_import(self):
         out = self._bundle().generate_esm_template_bundle(use_import=True)
-        self.assertIn('import {', out)
+        self.assertIn("import {", out)
         self.assertIn('from "@web/core/templates";', out)
         self.assertIn('registerTemplate("my.module.Widget"', out)
 
@@ -596,9 +647,7 @@ class TestEsmTemplateBundleForms(BaseCase):
 
     def test_empty_templates_yield_empty_string(self):
         bundle = SimpleNamespace(name="my.bundle", env=None, templates=[])
-        self.assertEqual(
-            XmlTemplatePipeline(bundle).generate_esm_template_bundle(), ""
-        )
+        self.assertEqual(XmlTemplatePipeline(bundle).generate_esm_template_bundle(), "")
 
 
 class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
@@ -654,9 +703,7 @@ class TestImportMapSpecCollision(BaseCase):
             data = self._data(mods)
         self.assertIn("import_map_spec_collision", "\n".join(cm.output))
         # last-wins is preserved (purely additive change)
-        self.assertEqual(
-            data["import_map"]["@web/foo"], "/web/static/src/foo/index.js"
-        )
+        self.assertEqual(data["import_map"]["@web/foo"], "/web/static/src/foo/index.js")
 
     def test_colliding_alias_warns(self):
         mods = [
@@ -673,9 +720,7 @@ class TestImportMapSpecCollision(BaseCase):
         mods = [self._mod("@web/foo", "/web/static/src/foo/index.js")]
         with self.assertNoLogs(self._LOG, level="WARNING"):
             data = self._data(mods)
-        self.assertEqual(
-            data["import_map"]["@web/foo"], "/web/static/src/foo/index.js"
-        )
+        self.assertEqual(data["import_map"]["@web/foo"], "/web/static/src/foo/index.js")
         self.assertEqual(
             data["import_map"]["@web/foo/index"], "/web/static/src/foo/index.js"
         )

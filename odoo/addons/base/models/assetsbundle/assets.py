@@ -325,15 +325,28 @@ class XMLAsset(WebAsset):
 class StylesheetAsset(WebAsset):
     """Plain CSS asset with relative-URL rewriting and regex minification."""
 
-    rx_import = re.compile(r"""@import\s+('|")(?!'|"|/|https?://)""")
+    # Both rewrite patterns consume the WHOLE quoted argument — opening quote,
+    # body, and closing ``(?P=q)`` — and their replacements re-emit the closing
+    # quote. Consuming only the opening quote desynchronizes
+    # ``_rewrite_css_outside_strings``'s quote pairing: the scanner then reads
+    # ``") format("`` as a string literal and swallows every subsequent
+    # ``url(`` token of a multi-url ``src:`` list (or the next ``@import``), so
+    # only the first URL of a ``@font-face`` ``src:`` was ever rewritten and
+    # bundle web fonts 404'd against ``/web/assets/<unique>/``.
+    rx_import = re.compile(
+        r"""@import\s+(?P<q>'|")(?!'|"|/|https?://)(?P<path>[^'"]*)(?P=q)"""
+    )
     # ``rx_url`` matches ``url(`` and the optional opening quote, capturing the
     # relative body. Capturing it lets us prefix ``web_dir/`` and collapse the
     # ``<dir>/../<seg>`` the concatenation produces. Without the collapse the
     # emitted URL wouldn't match ``<link rel="preload" href="…">`` byte-for-byte
     # and the browser deems the preload unused — see
     # knowledge/.../2026-04-19-esm-import-map-conflict-investigation.md §10.2.
+    # A quoted url whose body contains a quote-stopper (space, ``'``, ``"``,
+    # ``)``) no longer half-matches: ``(?P=q)`` fails and the url is left
+    # untouched (before, the body was truncated at the stopper and mangled).
     rx_url = re.compile(
-        r"""(?<!")url\s*\(\s*(?P<q>['"]|)(?!['"]|/|https?://|data:|\#\{str)(?P<body>[^'")\s]*)""",
+        r"""(?<!")url\s*\(\s*(?P<q>['"]|)(?!['"]|/|https?://|data:|\#\{str)(?P<body>[^'")\s]*)(?P=q)""",
     )
     rx_charset = re.compile(r'(@charset "[^"]+";)')
     # The two CSS spans minification must NOT reach into — comments and string
@@ -375,7 +388,8 @@ class StylesheetAsset(WebAsset):
                 # Function replacement (like ``_rewrite_url``): never splice
                 # ``web_dir`` into a regex replacement TEMPLATE, where a
                 # backslash would raise ``re.PatternError`` past this handler.
-                return f"@import {match.group(1)}{web_dir}/"
+                q = match.group("q")
+                return f"@import {q}{web_dir}/{match.group('path')}{q}"
 
             if self.rx_import:
                 content = _rewrite_css_outside_strings(
@@ -393,9 +407,9 @@ class StylesheetAsset(WebAsset):
                 q = match.group("q")
                 body = match.group("body")
                 if not body:
-                    return f"url({q}{web_dir}/"
+                    return f"url({q}{web_dir}/{q}"
                 normalised = posixpath.normpath(f"{web_dir}/{body}")
-                return f"url({q}{normalised}"
+                return f"url({q}{normalised}{q}"
 
             content = _rewrite_css_outside_strings(self.rx_url, _rewrite_url, content)
 
