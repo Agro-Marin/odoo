@@ -444,8 +444,10 @@ export class RecordList extends Array {
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const store = recordList._store;
         return store.MAKE_UPDATE(function recordListShift() {
+            // mutate through _proxy (like push/splice): mutating the possibly
+            // downgraded full proxy's data skips OWL reactivity notifications.
             const recordProxy = recordListFullProxy._store.recordByLocalId.get(
-                recordListFullProxy.data.shift(),
+                recordList._proxy.data.shift(),
             );
             recordList._.syncLength(recordList);
             if (!recordProxy) {

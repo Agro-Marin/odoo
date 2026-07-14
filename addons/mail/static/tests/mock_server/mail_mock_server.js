@@ -200,7 +200,9 @@ async function load_attachments(request) {
             res_model === "discuss.channel" &&
             (!older_attachment_id || id < older_attachment_id)
     )
-        .sort()
+        // newest first, like the real controller (default-comparator sort on
+        // record objects was a no-op returning insertion order)
+        .sort((a1, a2) => a2.id - a1.id)
         .slice(0, limit)
         .map(({ id }) => id);
     return {
@@ -384,10 +386,11 @@ async function discuss_channel_sub_channel_fetch(request) {
     const subChannels = DiscussChannel.search(domain, makeKwArgs({ limit, order: "id DESC" }));
     const store = new mailDataHelpers.Store(DiscussChannel.browse(subChannels));
     const lastMessageIds = [];
-    for (const channel of subChannels) {
-        const lastMessageId = Math.max(channel.message_ids);
-        if (lastMessageId) {
-            lastMessageIds.push(lastMessageId);
+    // search() returns ids: browse to get records; Math.max needs a spread
+    // (Math.max(array) is NaN), and an empty channel has no last message.
+    for (const channel of DiscussChannel.browse(subChannels)) {
+        if (channel.message_ids.length) {
+            lastMessageIds.push(Math.max(...channel.message_ids));
         }
     }
     store.add(MailMessage.browse(lastMessageIds));
@@ -951,11 +954,6 @@ async function mail_thread_recipients_fields(request) {
         partner_fields: [],
         primary_email_field: [],
     };
-}
-
-registerRoute("mail/thread/update_suggested_recipents", mail_thread_update_suggested_recipients);
-async function mail_thread_update_suggested_recipients(request) {
-    return [];
 }
 
 registerRoute("/mail/action", mail_action);

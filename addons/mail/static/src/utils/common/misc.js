@@ -105,10 +105,7 @@ export function onChange(target, key, callback) {
         }
     }
     if (Array.isArray(key)) {
-        for (const k of key) {
-            onChange(target, k, callback);
-        }
-        return;
+        return key.map((k) => onChange(target, k, callback));
     }
     proxy = reactive(target, () => {
         _observe();

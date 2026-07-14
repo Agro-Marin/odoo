@@ -50,7 +50,9 @@ export class DiscussChannel extends models.ServerModel {
     _compute_channel_name_member_ids() {
         for (const channel of this) {
             const members = channel.channel_member_ids ?? [];
-            members.sort();
+            // numeric: the default comparator sorts ids lexicographically
+            // (10 < 2), diverging from the server's id ordering
+            members.sort((a, b) => a - b);
             channel.channel_name_member_ids = members.slice(0, 3);
         }
     }
