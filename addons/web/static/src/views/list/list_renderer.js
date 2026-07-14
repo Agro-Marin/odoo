@@ -305,7 +305,7 @@ export class ListRenderer extends Component {
 
             mark("list:processAllColumns:start");
             this.allColumns = /** @type {Column[]} */ (
-                processAllColumns(this.props.archInfo.columns, this.props.list)
+                this.processAllColumns(this.props.archInfo.columns, this.props.list)
             );
             measure("list:processAllColumns", "list:processAllColumns:start");
 
@@ -447,6 +447,22 @@ export class ListRenderer extends Component {
         this.notificationService.add(_t("Please save your changes first"), {
             type: "danger",
         });
+    }
+
+    /**
+     * Overridable seam around the shared column pre-processing util.
+     * Sub-renderers remap column attributes before the shared processing
+     * runs — e.g. account's invoice-line renderer resolves
+     * optional="conditional" to "show"/"hide" from the move type. Keep
+     * calling this method (not the util directly) from render paths so
+     * those overrides stay effective.
+     *
+     * @param {Column[]} allColumns
+     * @param {DynamicList | StaticList} list
+     * @returns {Column[]}
+     */
+    processAllColumns(allColumns, list) {
+        return processAllColumns(allColumns, list);
     }
 
     getActiveColumns() {

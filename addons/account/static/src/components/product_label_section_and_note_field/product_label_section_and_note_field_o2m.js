@@ -5,7 +5,6 @@ import {
     SectionAndNoteListRenderer,
 } from "@account/components/section_and_note_fields_backend/section_and_note_fields_backend";
 import { ProductNameAndDescriptionListRendererMixin } from "@product/product_name_and_description/product_name_and_description";
-import { processAllColumns } from "@web/views/list/list_column_utils";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 
@@ -17,7 +16,7 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
         this.conditionalColumns = ["product_id", "quantity", "product_uom_id"];
     }
 
-    processAllColumn(allColumns, list) {
+    processAllColumns(allColumns, list) {
         allColumns = allColumns.map((column) => {
             if (column["optional"] === "conditional" && this.conditionalColumns.includes(column["name"])) {
                 /**
@@ -40,7 +39,7 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
             }
             return column;
         });
-        return processAllColumns(allColumns, list);
+        return super.processAllColumns(allColumns, list);
     }
 
     isCellReadonly(column, record) {
