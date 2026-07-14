@@ -12,7 +12,7 @@ import { describe, test } from "@odoo/hoot";
 import { Deferred, advanceTime } from "@odoo/hoot-mock";
 import { asyncStep, waitForSteps } from "@web/../tests/web_test_helpers";
 
-import { DELAY_FOR_SPINNER } from "@mail/chatter/web/chatter_patch";
+import { DELAY_FOR_SPINNER } from "@mail/chatter/web/web_chatter";
 
 describe.current.tags("desktop");
 defineMailModels();
