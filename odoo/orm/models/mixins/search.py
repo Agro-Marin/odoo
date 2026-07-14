@@ -665,7 +665,8 @@ class SearchMixin(_ModelStubs):
         :raises: ``LockError`` when some records could not be locked
         """
         if (backend := self.env.backend) is not None:
-            return backend.lock_for_update(self, allow_referencing=allow_referencing)
+            backend.lock_for_update(self, allow_referencing=allow_referencing)
+            return
         ids = {id_ for id_ in self._ids if id_}
         if not ids:
             return
@@ -682,6 +683,7 @@ class SearchMixin(_ModelStubs):
         rows = self.env.execute_query(SQL("%s %s", query.select(), lock_sql))
         if len(rows) != len(ids):
             raise LockError(self.env._("Cannot grab a lock on records"))
+        return
 
     @api.private
     def try_lock_for_update(
