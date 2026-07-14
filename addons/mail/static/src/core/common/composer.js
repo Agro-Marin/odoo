@@ -27,6 +27,7 @@ import {
     onMounted,
     onWillUnmount,
     reactive,
+    status,
     toRaw,
     useChildSubEnv,
     useEffect,
@@ -310,9 +311,18 @@ export class Composer extends Component {
         });
         onWillUnmount(() => {
             this.props.composer.isFocused = false;
+            // drop the editor reference so the reactive callback below (bound
+            // to the persistent composer record, which outlives this
+            // component) can never write into a destroyed editor.
+            this.editor = undefined;
         });
         const composerProxy = reactive(this.props.composer, () => {
-            if (this.status === 2 /* DESTROYED */) {
+            // `this.status` does not exist on an OWL component (status lives on
+            // __owl__); the guard was always false, so the callback re-read
+            // composerHtml and re-subscribed on every mount, leaking a
+            // subscription per Composer mount. Use the public status() helper
+            // and stop observing once destroyed.
+            if (status(this) === "destroyed") {
                 return;
             }
             const composerHtml = composerProxy.composerHtml;

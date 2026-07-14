@@ -4,7 +4,7 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 class ChatBubblePreview extends Component {
     static props = ["chatWindow", "close"];
@@ -45,7 +45,9 @@ export class ChatBubble extends Component {
                 "dropdown-menu bg-view border-0 p-0 overflow-visible o-rounded-bubble mx-1",
             ref: popoverRef,
         });
-        this.env.bus.addEventListener("ChatBubble:preview-will-open", ({ detail }) => {
+        // useBus: chat bubbles mount/unmount constantly; a raw addEventListener
+        // leaks a listener (holding the destroyed component) on every mount.
+        useBus(this.env.bus, "ChatBubble:preview-will-open", ({ detail }) => {
             if (detail === this) {
                 return;
             }
