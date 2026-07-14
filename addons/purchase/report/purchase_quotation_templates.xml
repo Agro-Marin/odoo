@@ -31,48 +31,42 @@
                 <table class="table table-borderless">
                     <thead class="o_thead_no_repeat">
                         <tr>
-                            <th name="th_description">
-                                <strong>Description</strong>
-                            </th>
-                            <th name="th_expected_date" class="text-center">
-                                <strong>Expected Date</strong>
-                            </th>
-                            <th name="th_quantity" class="text-end">
-                                <strong>Qty</strong>
-                            </th>
+                            <th name="th_description">Description</th>
+                            <th name="th_expected_date" class="text-center">Expected Date</th>
+                            <th name="th_quantity" class="text-end">Qty</th>
                         </tr>
                     </thead>
                     <tbody>
                         <t
                             t-foreach="o.line_ids.filtered(lambda l: l.display_type or l.product_qty != 0)"
-                            t-as="line_ids">
+                            t-as="line">
                             <tr
-                                t-att-class="'fw-bolder o_line_section' if order_line.display_type == 'line_section' else 'fw-bold o_line_subsection' if order_line.display_type == 'line_subsection' else 'fst-italic o_line_note' if order_line.display_type == 'line_note' else ''">
-                                <t t-if="not order_line.display_type">
+                                t-att-class="'fw-bolder o_line_section' if line.display_type == 'line_section' else 'fw-bold o_line_subsection' if line.display_type == 'line_subsection' else 'fst-italic o_line_note' if line.display_type == 'line_note' else ''">
+                                <t t-if="not line.display_type">
                                     <td id="product">
-                                        <span t-field="line_ids.name" />
+                                        <span t-field="line.name" />
                                     </td>
                                     <td class="text-center">
-                                        <span t-field="line_ids.date_planned"
+                                        <span t-field="line.date_planned"
                                             t-options="{'date_only': 'true'}" />
                                     </td>
                                     <td class="text-end">
-                                        <span t-field="line_ids.product_qty" />
-                                        <span t-field="line_ids.product_uom_id"
+                                        <span t-field="line.product_qty" />
+                                        <span t-field="line.product_uom_id"
                                             groups="uom.group_uom" />
                                         <span
-                                            t-if="line_ids.product_uom_id != order_line.product_id.uom_id"
+                                            t-if="line.product_uom_id != line.product_id.uom_id"
                                             class="text-muted small">
                                             <br />
-                                            <span t-field="line_ids.product_uom_qty"
+                                            <span t-field="line.product_uom_qty"
                                                 t-options="{'widget': 'float', 'decimal_precision': 'Product Unit'}" />
-                                            <span t-field="line_ids.product_id.uom_id" />
+                                            <span t-field="line.product_id.uom_id" />
                                         </span>
                                     </td>
                                 </t>
                                 <t t-else="">
                                     <td colspan="99" id="section">
-                                        <span t-field="line_ids.name" />
+                                        <span t-field="line.name" />
                                     </td>
                                 </t>
                             </tr>
