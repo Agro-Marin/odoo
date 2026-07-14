@@ -72,6 +72,42 @@ class TestReports(odoo.tests.TransactionCase):
         self.assertEqual(css2, [])
         self.assertIn("/a/keep.css", html2)
 
+    def test_asset_css_parsed_once_per_process(self):
+        """Content-addressed ``/web/assets`` stylesheets parse once per process.
+
+        The parsed ``weasyprint.CSS`` lands in the ``_WeasySharedState`` cache
+        keyed by the content-addressed URL, so a later render (fresh batch
+        memo) reuses it without fetching or re-parsing. The mutable ``debug``
+        unique must bypass the cache, and parsing must pass the shared
+        ``font_config`` (without it WeasyPrint drops ``@font-face`` rules).
+        """
+        from odoo.addons.base.models import ir_actions_report as iar
+
+        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
+        self.addCleanup(iar._weasy_state.reset_for_tests)
+
+        body = (
+            "<html><head>"
+            '<link rel="stylesheet" '
+            'href="/web/assets/abc123/web.report_assets_common.min.css"/>'
+            "</head><body>x</body></html>"
+        )
+        debug_body = body.replace("/abc123/", "/debug/")
+        sentinel = object()
+        with patch.object(iar.weasyprint, "CSS", return_value=sentinel) as css_cls:
+            _html0, css0 = engine._process_body_html(body, "", {}, fetcher=object())
+            _html1, css1 = engine._process_body_html(body, "", {}, fetcher=object())
+            self.assertEqual(css_cls.call_count, 1, "second render must hit the cache")
+            self.assertEqual(css0, [sentinel])
+            self.assertEqual(css1, [sentinel])
+            self.assertIsNotNone(
+                css_cls.call_args.kwargs.get("font_config"),
+                "@font-face registration needs the shared font config at parse time",
+            )
+            engine._process_body_html(debug_body, "", {}, fetcher=object())
+            engine._process_body_html(debug_body, "", {}, fetcher=object())
+            self.assertEqual(css_cls.call_count, 3, "debug assets must not be cached")
+
     def test_render_entry_points_do_not_mutate_caller_data(self):
         """Render entry points must copy ``data`` before mutating it.
 

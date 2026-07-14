@@ -8,6 +8,7 @@ import threading
 from ast import literal_eval
 from collections.abc import Callable
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Self
 from urllib.parse import parse_qs, urlparse
 
@@ -117,6 +118,19 @@ def _inject_page_css(html: str, css: str) -> str:
 # the oldest half is evicted (dicts preserve insertion order).
 _WEASY_IMAGE_CACHE_MAX = 256
 
+# Bound of the process-wide parsed-stylesheet cache (_WeasySharedState). Entries
+# are only added when an asset bundle is (re)built, so the cap merely stops
+# unbounded growth on very long-lived workers; when full, the oldest half is
+# evicted.
+_WEASY_CSS_CACHE_MAX = 32
+
+# /web/assets/<unique>/<filename> URLs are content-addressed: <unique> is the
+# bundle version hash, so the content behind a given URL never changes (a
+# rebuilt bundle gets a new URL). That makes the parsed stylesheet safe to
+# cache process-wide — including across databases, since an equal URL implies
+# equal content. "debug" is the one mutable <unique> and is never cached.
+_IMMUTABLE_ASSET_CSS_RE = re.compile(r"^/web/assets/(?!debug/)[^/]+/")
+
 # Non-split batches larger than this are serialized incrementally (render one
 # body, free its Document, repeat) then merged with pypdf, bounding peak memory:
 # WeasyPrint can't stream, so "render all, then merge" holds every Document at
@@ -158,6 +172,8 @@ class _WeasySharedState:
         self._lock = threading.Lock()
         self._font_config: FontConfiguration | None = None
         self._image_cache: dict[str, Any] = {}
+        self._css_lock = threading.Lock()
+        self._css_cache: dict[str, Any] = {}
         self._process_setup_done = False
 
     def setup_process(self) -> None:
@@ -213,8 +229,28 @@ class _WeasySharedState:
                 for key in list(self._image_cache)[:evict_count]:
                     del self._image_cache[key]
 
+    def get_parsed_css(self, url: str, parse: Callable[[], Any]) -> Any:
+        """Process-cached parsed stylesheet for a content-addressed asset URL.
+
+        ``parse`` runs under the cache lock, so a cold URL is fetched, parsed
+        (and its ``@font-face`` rules registered) exactly once per process even
+        under concurrent renders. Only successful parses are cached; a raising
+        ``parse`` propagates and leaves no entry, so failures are retried on
+        the next render. Callers must only pass URLs matching
+        :data:`_IMMUTABLE_ASSET_CSS_RE` — cache entries are never invalidated,
+        which is only sound for content-addressed URLs.
+        """
+        with self._css_lock:
+            if url not in self._css_cache:
+                if len(self._css_cache) >= _WEASY_CSS_CACHE_MAX:
+                    evict_count = _WEASY_CSS_CACHE_MAX // 2
+                    for key in list(self._css_cache)[:evict_count]:
+                        del self._css_cache[key]
+                self._css_cache[url] = parse()
+            return self._css_cache[url]
+
     def reset_for_tests(self) -> None:
-        """Drop the font config and clear the image cache in place.
+        """Drop the font config and clear the image and CSS caches in place.
 
         Clearing in place keeps module-level aliases of the cache dict valid.
         The idempotent :meth:`setup_process` mutations are not reverted.
@@ -222,6 +258,8 @@ class _WeasySharedState:
         with self._lock:
             self._font_config = None
             self._image_cache.clear()
+        with self._css_lock:
+            self._css_cache.clear()
 
 
 _weasy_state = _WeasySharedState()
@@ -941,10 +979,11 @@ class WeasyPrintEngine:
         ``<link>`` tags, and return this body's parsed CSS.
 
         ``parsed_css_by_url`` is the batch-wide memo (``css_url`` -> parsed
-        ``weasyprint.CSS`` or ``None`` on failure): the ~300KB report bundle is
-        parsed once and reused. Keyed by URL, not shared across bodies, so a
-        mixed-language batch renders each body with its own direction-specific
-        CSS (``...rtl.min.css`` vs ``...min.css``). Links that fail to parse — or
+        ``weasyprint.CSS`` or ``None`` on failure); content-addressed asset
+        URLs are additionally cached process-wide (see :meth:`_parse_stylesheet`).
+        Keyed by URL, not shared across bodies, so a mixed-language batch
+        renders each body with its own direction-specific CSS
+        (``...rtl.min.css`` vs ``...min.css``). Links that fail to parse — or
         that are unknown when no ``fetcher`` is given — are left in place for
         WeasyPrint.
 
@@ -958,15 +997,7 @@ class WeasyPrintEngine:
             if css_url not in parsed_css_by_url:
                 if fetcher is None:
                     continue
-                try:
-                    parsed_css_by_url[css_url] = weasyprint.CSS(
-                        url=css_url, url_fetcher=fetcher
-                    )
-                except Exception:
-                    _logger.warning(
-                        "Failed to pre-parse CSS: %s", css_url, exc_info=True
-                    )
-                    parsed_css_by_url[css_url] = None
+                parsed_css_by_url[css_url] = self._parse_stylesheet(css_url, fetcher)
             parsed = parsed_css_by_url[css_url]
             if parsed is not None and css_url not in strip_urls:
                 body_css.append(parsed)
@@ -977,6 +1008,38 @@ class WeasyPrintEngine:
                 html_with_css,
             )
         return html_with_css, body_css
+
+    @staticmethod
+    def _parse_stylesheet(css_url: str, fetcher: OdooURLFetcher) -> Any:
+        """Parse one linked stylesheet to a ``weasyprint.CSS``, or ``None`` on failure.
+
+        Content-addressed ``/web/assets/<unique>/...`` URLs go through the
+        process-wide cache in :class:`_WeasySharedState`, so the ~300KB report
+        bundle is fetched and parsed once per process (per bundle version), not
+        once per render. Parsed CSS objects are read-only during layout, so
+        sharing them across renders is safe. Other URLs are parsed per batch.
+
+        Parsing registers ``@font-face`` rules into the process-wide
+        :class:`FontConfiguration` — the same one every render passes to
+        WeasyPrint, as its docs require. Without ``font_config`` here,
+        ``preprocess_stylesheet`` silently drops ``@font-face`` rules and
+        bundle web fonts only work when installed as system fonts.
+        """
+
+        def parse() -> Any:
+            return weasyprint.CSS(
+                url=css_url,
+                url_fetcher=fetcher,
+                font_config=_weasy_state.get_font_config(),
+            )
+
+        try:
+            if _IMMUTABLE_ASSET_CSS_RE.match(css_url):
+                return _weasy_state.get_parsed_css(css_url, parse)
+            return parse()
+        except Exception:
+            _logger.warning("Failed to pre-parse CSS: %s", css_url, exc_info=True)
+            return None
 
     def _render_body_document(
         self, html_str: str, fetcher: OdooURLFetcher, body_css: list
@@ -1668,20 +1731,29 @@ class IrActionsReport(models.Model):
         if not bodies:
             raise UserError(_("No content to render as PDF."))
 
-        paperformat_id = (
-            self._get_report(report_ref).get_paperformat()
-            if report_ref
-            else self.get_paperformat()
-        )
+        report = self._get_report(report_ref) if report_ref else None
+        paperformat_id = report.get_paperformat() if report else self.get_paperformat()
         page_css = self._paperformat_to_css(
             paperformat_id,
             landscape=landscape,
             specific_paperformat_args=specific_paperformat_args,
         )
         pdf_options = self._build_pdf_options(pdf_variant, attachments, xmp_metadata)
-        return self._build_weasyprint_engine().render(
+        start = perf_counter()
+        result = self._build_weasyprint_engine().render(
             bodies, page_css, split=_split, pdf_options=pdf_options
         )
+        size = sum(len(pdf) for pdf in result) if _split else len(result)
+        # The one render-latency datapoint per print: the only way to see which
+        # reports are slow in production, so keep it at INFO.
+        _logger.info(
+            "WeasyPrint rendered %s: %d body(ies), %.2fs, %.0f KiB.",
+            report.report_name if report else "(no report ref)",
+            len(bodies),
+            perf_counter() - start,
+            size / 1024,
+        )
+        return result
 
     def _render_html_to_image(
         self,
