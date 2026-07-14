@@ -1,7 +1,7 @@
 import base64
 from typing import Any, Self
 
-from odoo import api, models
+from odoo import api, fields, models
 from odoo.api import ValuesType
 
 
@@ -10,7 +10,24 @@ class ResCompany(models.Model):
 
     # Fields whose changes require regenerating the company report stylesheet.
     _REPORT_STYLE_FIELDS: frozenset[str] = frozenset(
-        {"external_report_layout_id", "font", "primary_color", "secondary_color"}
+        {
+            "external_report_layout_id",
+            "font",
+            "primary_color",
+            "secondary_color",
+            "report_theme_id",
+        }
+    )
+
+    # Report skin (typography, density, shape). Orthogonal to the structural
+    # layout (external_report_layout_id) and to the brand colors. Emitted as
+    # --rp-* tokens by web.styles_company_report. Empty = built-in defaults.
+    report_theme_id = fields.Many2one(
+        "report.theme",
+        string="Report Theme",
+        default=lambda self: self.env.ref(
+            "web.report_theme_modern", raise_if_not_found=False
+        ),
     )
 
     @api.model_create_multi
@@ -41,6 +58,18 @@ class ResCompany(models.Model):
             raise_if_not_found=False,
         )
         return base64.b64encode(company_styles.encode())
+
+    @api.model
+    def _set_default_report_theme(self) -> None:
+        """Assign the Modern theme to companies that have none.
+
+        Called once from data on web install/upgrade so pre-existing companies
+        adopt the token defaults. Idempotent: only fills unset values.
+        """
+        modern = self.env.ref("web.report_theme_modern", raise_if_not_found=False)
+        if not modern:
+            return
+        self.sudo().search([("report_theme_id", "=", False)]).report_theme_id = modern
 
     def _update_asset_style(self) -> None:
         """Update the report-style attachment if the rendered content changed."""

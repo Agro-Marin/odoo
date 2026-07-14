@@ -17,6 +17,7 @@ from . import properties_base_definition
 
 # Business models
 from . import base_document_layout
+from . import report_theme
 from . import res_company
 from . import res_config_settings
 from . import res_partner

@@ -37,6 +37,7 @@ This module provides the core of the Odoo Web Client.
         "views/res_config_settings_views.xml",
         "views/web_cwv_metric_views.xml",
         "data/ir_attachment.xml",
+        "data/report_theme.xml",
         "data/report_layout.xml",
         "data/web_cwv_metric_data.xml",
         "views/web_menus.xml",
@@ -443,8 +444,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/webclient/clickbot/clickbot.js",
         ],
     },
-    "auto_install": True,
-    "bootstrap": True,
     'esm': {
         'bundles': [
             'web.assets_web',
@@ -492,4 +491,6 @@ This module provides the core of the Odoo Web Client.
             ],
         },
     },
+    "auto_install": True,
+    "bootstrap": True,
 }
