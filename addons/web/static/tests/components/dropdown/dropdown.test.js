@@ -129,9 +129,13 @@ test("items prop validates each item's shape", async () => {
             </Dropdown>
         `;
     }
+    expect.errors(1);
     await expect(mountWithCleanup(Parent)).rejects.toThrow(
         /Invalid props for component 'Dropdown'/,
     );
+    // The rejected mount also surfaces the error through owl's global handler;
+    // consume it so the runner doesn't count an unverified error.
+    expect.verifyErrors([/Invalid props for component 'Dropdown'/]);
 });
 
 test("can be toggled", async () => {
