@@ -119,7 +119,7 @@ for (const [viewType, newButtonClass] of [
         await hover("button.dropdown-item:contains('Template Task 1')");
         await animationFrame();
 
-        await contains(".o_template_icon_group:first > i.fa-trash").click();
+        await contains(".o_template_icon_group:first > i.fa-trash-can").click();
         expect(".modal-body").toHaveCount(1, {
             message: "A confirmation modal should appear when deleting a template",
         });

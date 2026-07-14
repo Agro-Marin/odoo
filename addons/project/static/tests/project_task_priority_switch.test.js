@@ -20,13 +20,13 @@ test("project.task (form): check ProjectTaskPrioritySwitch", async () => {
         `,
     });
 
-    expect("div[name='priority'] .fa-star-o").toHaveCount(1, {
-        message: "The low priority should display the fa-star-o (empty) icon",
+    expect("div[name='priority'] .fa-regular.fa-star").toHaveCount(1, {
+        message: "The low priority should display the regular (empty) star icon",
     });
     await press("alt+r");
     await animationFrame();
-    expect("div[name='priority'] .fa-star").toHaveCount(1, {
+    expect("div[name='priority'] .fa-solid.fa-star").toHaveCount(1, {
         message:
-            "After using the alt+r hotkey the priority should be set to high and the widget should display the fa-star (filled) icon",
+            "After using the alt+r hotkey the priority should be set to high and the widget should display the solid (filled) star icon",
     });
 });

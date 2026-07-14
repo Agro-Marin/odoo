@@ -1,6 +1,7 @@
 from . import test_access_rights
 from . import test_audit_fixes
 from . import test_burndown_chart
+from . import test_js
 from . import test_project_base
 from . import test_project_config
 from . import test_project_embedded_action_settings

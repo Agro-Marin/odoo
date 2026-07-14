@@ -59,5 +59,7 @@ test("global shortcut", async () => {
         ".modal-dialog .o_todo_activity_wizard_view .o_field_widget[name='summary'] .o_input"
     ).edit("My first todo");
     await click(".modal-dialog .btn.btn-primary:contains(Add To-Do)");
+    // The save RPC resolves asynchronously after the click.
+    await animationFrame();
     expect.verifySteps(["My first todo"]);
 });

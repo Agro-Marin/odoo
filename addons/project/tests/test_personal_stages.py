@@ -663,5 +663,14 @@ class TestPersonalStages(TestProjectCommon):
 @tagged("-at_install", "post_install")
 class TestPersonalStageTour(HttpCase, TestProjectCommon):
     def test_personal_stage_tour(self) -> None:
+        # Give the project a workflow step so the kanban shows a real column:
+        # the tour opens its config menu to check the manager-only gating of
+        # the Edit/Delete actions.
+        self.env["project.workflow.step"].create(
+            {
+                "name": "Doing",
+                "project_ids": [Command.link(self.project_pigs.id)],
+            }
+        )
         # Test customizing personal stages as a project user
         self.start_tour("/odoo", "personal_stage_tour", login="armandel")

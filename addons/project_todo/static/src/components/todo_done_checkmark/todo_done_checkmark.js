@@ -17,37 +17,34 @@ export class TodoDoneCheckmark extends StateSelectionField {
         });
         onMounted(() => {
             const fieldValue = this.props.record.data[this.props.name]
-            this.notDoneState = fieldValue == '1_done' ? '01_in_progress' : fieldValue;
+            this.notDoneState = fieldValue == 'done' ? 'in_progress' : fieldValue;
         });
         onRendered(() => {
             if (!this.stateDone.notReloadState) {
-                this.stateDone.isDone = this.props.record.data[this.props.name] == '1_done';
+                this.stateDone.isDone = this.props.record.data[this.props.name] == 'done';
             }
         });
     }
 
     /**
      * @private
-     * @param {InputEvent} ev
      */
-    actualizeDoneState(ev) {
+    actualizeDoneState() {
         this.stateDone.notReloadState = false;
     }
 
     /**
      * @private
-     * @param {InputEvent} ev
      */
-    freezeDoneState(ev) {
+    freezeDoneState() {
         this.stateDone.notReloadState = true;
     }
 
     /**
      * @private
-     * @param {InputEvent} ev
      */
-    async onDoneToggled(ev) {
-        const value = this.props.record.data[this.props.name] != '1_done' ? '1_done' : this.notDoneState;
+    async onDoneToggled() {
+        const value = this.props.record.data[this.props.name] != 'done' ? 'done' : this.notDoneState;
         if (['kanban', 'list'].includes(this.props.viewType)) {
             await super.updateRecord(value);
         }

@@ -292,6 +292,11 @@ test("project.task (form): check focus on new subtask's name", async () => {
 });
 
 test("project.task (kanban): check subtask creation when input is empty", async () => {
+    mockService("notification", {
+        add(message, options) {
+            expect.step(`notification:${message}:${options.type}`);
+        },
+    });
     await mountView({
         resModel: "project.task",
         type: "kanban",
@@ -307,12 +312,7 @@ test("project.task (kanban): check subtask creation when input is empty", async 
     expect(".subtask_create_input input").toHaveClass("o_field_invalid", {
         message: "input field should be displayed as invalid",
     });
-    expect(".o_notification_content").toHaveInnerHTML("Invalid Display Name", {
-        message: "The content of the notification should contain 'Display Name'.",
-    });
-    expect(".o_notification_bar").toHaveClass("bg-danger", {
-        message: "The notification bar should have type 'danger'.",
-    });
+    expect.verifySteps(["notification:Invalid Display Name:danger"]);
 });
 
 test("project.task: Parent id is set when creating new task from subtask form's 'View' button", async () => {

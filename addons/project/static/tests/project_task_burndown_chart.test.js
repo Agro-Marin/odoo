@@ -112,7 +112,7 @@ function checkGroupByOrder() {
     expect(searchFacets).toHaveCount(2);
     const [dateSearchFacet, stageSearchFacet] = searchFacets;
     expect(dateSearchFacet).toHaveText("Date: Month");
-    expect(stageSearchFacet).toHaveText("Stage");
+    expect(stageSearchFacet).toHaveText("Step");
 }
 
 test("burndown.chart: check that the sort buttons are invisible", async () => {
@@ -125,7 +125,7 @@ test("burndown.chart: check that the sort buttons are invisible", async () => {
     );
 });
 
-test("burndown.chart: check that removing the group by 'Date: Month > Stage' in the search bar triggers a notification", async () => {
+test("burndown.chart: check that removing the group by 'Date: Month > Step' in the search bar triggers a notification", async () => {
     await mountViewWithSearch();
     await click(".o_facet_remove");
     // Only the notification will be triggered and the file won't be uploaded.
@@ -152,7 +152,7 @@ test("burndown.chart: check that adding a group by 'Date' actually toggles it", 
     });
 });
 
-test("burndown.chart: check that groupby 'Date > Stage' results in 'Date > Stage'", async () => {
+test("burndown.chart: check that groupby 'Date > Step' results in 'Date > Step'", async () => {
     await mountViewWithSearch({
         search_default_date: 1,
         search_default_stage: 1,
@@ -160,7 +160,7 @@ test("burndown.chart: check that groupby 'Date > Stage' results in 'Date > Stage
     checkGroupByOrder();
 });
 
-test("burndown.chart: check that groupby 'Stage > Date' results in 'Date > Stage'", async () => {
+test("burndown.chart: check that groupby 'Step > Date' results in 'Date > Step'", async () => {
     await mountViewWithSearch({
         search_default_stage: 1,
         search_default_date: 1,
@@ -168,9 +168,9 @@ test("burndown.chart: check that groupby 'Stage > Date' results in 'Date > Stage
     checkGroupByOrder();
 });
 
-test("burndown.chart: check the toggle between 'Stage' and 'Burnup chart'", async () => {
+test("burndown.chart: check the toggle between 'Step' and 'Burnup chart'", async () => {
     await mountViewWithSearch();
-    await toggleGroupBy("Stage");
+    await toggleGroupBy("Step");
     const searchFacets = queryAll(".o_facet_value");
     expect(searchFacets).toHaveCount(2);
 

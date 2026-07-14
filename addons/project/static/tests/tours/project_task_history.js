@@ -101,7 +101,7 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
         run: function () {
             const items = document.querySelectorAll(".revision-list .btn");
             if (items.length !== 5) {
-                console.error("Expect 5 Revisions in the history dialog, got " + items.length);
+                throw new Error("Expect 5 Revisions in the history dialog, got " + items.length);
             }
         },
     }, {
@@ -127,7 +127,7 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
             const comparaisonHtml = this.anchor.innerHTML;
             const correctHtml = `<added>${baseDescriptionContent} 3</added><removed>${baseDescriptionContent} 1</removed>`;
             if (!comparaisonHtml.includes(correctHtml)) {
-                console.error(`Expect comparison to be ${correctHtml}, got ${comparaisonHtml}`);
+                throw new Error(`Expect comparison to be ${correctHtml}, got ${comparaisonHtml}`);
             }
         },
     }, {
@@ -147,7 +147,7 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
             const p = this.anchor?.innerText;
             const expected = `${baseDescriptionContent} 1`;
             if (p !== expected) {
-                console.error(`Expect description to be ${expected}, got ${p}`);
+                throw new Error(`Expect description to be ${expected}, got ${p}`);
             }
         }
     }, {
@@ -245,7 +245,7 @@ registry.category("web_tour.tours").add("project_task_last_history_steps_tour", 
         run: function () {
             const items = document.querySelectorAll(".revision-list .btn");
             if (items.length !== 2) {
-                console.error("Expect 2 Revisions in the history dialog, got " + items.length);
+                throw new Error("Expect 2 Revisions in the history dialog, got " + items.length);
             }
         },
     }, {

@@ -8,7 +8,7 @@ export class ProjectProject extends models.Model {
     is_favorite = fields.Boolean();
     is_template = fields.Boolean();
     active = fields.Boolean({ default: true });
-    step_id = fields.Many2one({ relation: "project.phase" });
+    phase_id = fields.Many2one({ relation: "project.phase" });
     date = fields.Date({ string: "Expiration Date" });
     date_start = fields.Date();
     user_id = fields.Many2one({ relation: "res.users", falsy_value_label: "👤 Unassigned" });
@@ -20,11 +20,11 @@ export class ProjectProject extends models.Model {
         {
             id: 1,
             name: "Project 1",
-            step_id: 1,
-            date: "2024-01-09 07:00:00",
-            date_start: "2024-01-03 12:00:00",
+            phase_id: 1,
+            date: "2024-01-09",
+            date_start: "2024-01-03",
         },
-        { id: 2, name: "Project 2", step_id: 2 },
+        { id: 2, name: "Project 2", phase_id: 2 },
     ];
 
     _views = {
@@ -32,8 +32,8 @@ export class ProjectProject extends models.Model {
         form: '<form><field name="name"/></form>',
     };
 
-    check_access_rights() {
-        return Promise.resolve(true);
+    has_access() {
+        return true;
     }
 
     get_template_tasks(projectId) {
@@ -65,14 +65,14 @@ export class ProjectProject extends models.Model {
     }
 }
 
-export class ProjectProjectStage extends models.Model {
+export class ProjectPhase extends models.Model {
     _name = "project.phase";
 
     name = fields.Char();
 
     _records = [
-        { id: 1, name: "Stage 1" },
-        { id: 2, name: "Stage 2" },
+        { id: 1, name: "Phase 1" },
+        { id: 2, name: "Phase 2" },
     ];
 
     _views = {
@@ -99,6 +99,7 @@ export class ProjectTask extends models.Model {
     milestone_id = fields.Many2one({ relation: "project.milestone" });
     state = fields.Selection({
         selection: [
+            ["todo", "To Do"],
             ["in_progress", "In Progress"],
             ["changes_requested", "Changes Requested"],
             ["approved", "Approved"],
@@ -125,6 +126,11 @@ export class ProjectTask extends models.Model {
     closed_predecessor_count = fields.Integer();
     is_closed = fields.Boolean();
     is_template = fields.Boolean({ string: "Is Template", default: false });
+    triage_id = fields.Many2one({ relation: "project.triage" });
+
+    has_access() {
+        return true;
+    }
 
     plan_task_in_calendar(idOrIds, values) {
         return this.write(idOrIds, values);
@@ -178,6 +184,20 @@ export class ProjectMilestone extends models.Model {
     _records = [{ id: 1, name: "Milestone 1" }];
 }
 
+export class ProjectTriage extends models.Model {
+    _name = "project.triage";
+
+    name = fields.Char();
+    sequence = fields.Integer({ default: 1 });
+    fold = fields.Boolean();
+    user_id = fields.Many2one({ relation: "res.users" });
+
+    _records = [
+        { id: 1, name: "Inbox" },
+        { id: 2, name: "Later" },
+    ];
+}
+
 export function defineProjectModels() {
     defineMailModels();
     defineModels(projectModels);
@@ -185,8 +205,9 @@ export function defineProjectModels() {
 
 export const projectModels = {
     ProjectProject,
-    ProjectProjectStage,
+    ProjectPhase,
     ProjectTask,
     ProjectTaskType,
     ProjectMilestone,
+    ProjectTriage,
 };

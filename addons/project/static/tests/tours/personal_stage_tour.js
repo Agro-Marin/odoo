@@ -11,15 +11,22 @@ registry.category("web_tour.tours").add('personal_stage_tour', {
     trigger: '.o_kanban_record:contains("Pig")',
     run: "click",
 }, {
-    // Default is grouped by stage, user should not be able to create/edit a column
+    // Default is grouped by stage, user should not be able to create/edit a
+    // column. NB: :has() is required — the classes live on descendants, so a
+    // plain body:not(.cls) selector would always match and check nothing.
     content: "Check that there is no create column",
-    trigger: "body:not(.o_column_quick_create)",
+    trigger: ".o_kanban_renderer:not(:has(.o_column_quick_create))",
 }, {
-    content: "Check that there is no create column",
-    trigger: "body:not(.o_group_edit)",
+    content: "Open the column config menu",
+    trigger: ".o_kanban_header",
+    run: "hover && click .o_kanban_header .o_group_config .dropdown-toggle",
 }, {
-    content: "Check that there is no create column",
-    trigger: "body:not(.o_group_delete)",
+    content: "Check that a project user can neither edit nor delete a step column",
+    trigger: ".o-dropdown--menu:not(:has(.o_group_edit)):not(:has(.o_group_delete))",
+}, {
+    content: "Close the column config menu",
+    trigger: "body",
+    run: "press escape",
 }, {
     content: "Go to tasks",
     trigger: 'button[data-menu-xmlid="project.menu_project_management"]',

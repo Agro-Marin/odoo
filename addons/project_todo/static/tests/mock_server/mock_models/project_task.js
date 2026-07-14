@@ -12,20 +12,20 @@ export class ProjectTask extends projectModels.ProjectTask {
         {
             id: 1,
             name: "Todo 1",
-            state: "01_in_progress",
+            state: "in_progress",
             tag_ids: [1],
             date_end: "2022-01-01 08:30:00",
         },
         {
             id: 2,
             name: "Todo 2",
-            state: "1_done",
+            state: "done",
             tag_ids: [3],
         },
         {
             id: 3,
             name: "Todo 3",
-            state: "01_in_progress",
+            state: "in_progress",
             tag_ids: [3, 2],
             date_end: "2022-01-05 08:30:00",
         },
