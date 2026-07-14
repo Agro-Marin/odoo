@@ -1,29 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates>
-    <t t-name="partner_autocomplete.PartnerAutoComplete" t-inherit="web.AutoComplete" t-inherit-mode="primary">
-        <xpath expr="//ul" position="inside">
-            <t t-if="this.sources &amp;&amp; this.sources.at(-1)?.options.length !== 0 &amp;&amp; !this.shouldSearchWorldwide">  <!-- 1 because IAP sources (potential partners) are loaded after DB sources (existing partners)-->
-                <li
-                    class="o-autocomplete--dropdown-item ui-menu-item d-block"
-                    t-on-pointerdown="() => this.ignoreBlur = true"
-                    t-on-mouseleave="() => this.onOptionMouseLeave()"
-                    t-on-click="(ev) => this.searchWorldwide(ev)"
-                >
-                    <a
-                        t-attf-id="{{props.id or 'autocomplete'}}_{{source_index}}_{{option_index}}"
-                        role="option"
-                        href="#"
-                        class="dropdown-item ui-menu-item-wrapper text-truncate text-info"
-                        t-att-class="{ 'ui-state-active': isActiveSourceOption([source_index, option_index]) }"
-                        t-att-aria-selected="isActiveSourceOption([source_index, option_index]) ? 'true' : 'false'"
-                    >
-                        Search Worldwide 🌎
-                    </a>
-                </li>
-            </t>
-        </xpath>
-    </t>
-
     <t t-name="partner_autocomplete.PartnerAutoCompleteCharField" t-inherit="web.CharField" t-inherit-mode="primary">
         <xpath expr="//t[@t-else='']" position="before">
             <t t-elif="props.record.resModel !== 'res.partner' || props.record.data.company_type === 'company'">
@@ -59,11 +35,11 @@
     </t>
 
     <t t-name="partner_autocomplete.DropdownOption">
-        <div style="display: flex; justify-content: space-between; align-items: center; height: 24px;">
-            <div>
-                <span t-esc="option.label"/>,
-                <span class="text-muted" t-esc="option.data.description"/>
-            </div>
+        <div t-if="option.data.isWorldwideAction" class="o_partner_autocomplete_option text-info">
+            <span t-esc="option.label"/> 🌎
+        </div>
+        <div t-else="" class="o_partner_autocomplete_option">
+            <span t-esc="option.label"/><t t-if="option.data.description">, <span class="text-muted" t-esc="option.data.description"/></t>
         </div>
     </t>
 
