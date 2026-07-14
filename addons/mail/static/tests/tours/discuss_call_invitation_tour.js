@@ -1,12 +1,20 @@
-import { ChannelMember } from "@mail/discuss/core/common/channel_member_model";
-
 import { registry } from "@web/core/registry";
 import { patchWithCleanup } from "@web/../tests/helpers/utils";
+
+// Resolve the live product-module instance from the loader registry, and only
+// inside steps() (i.e. when the tour actually runs on a discuss-capable page).
+// A static import would be eagerly resolved on EVERY page loading
+// web.assets_tests — including frontend/portal pages where the discuss bundle
+// (and this specifier) does not exist, killing all tours at pre-boot — and
+// would bind a second, unshared module instance anyway (test files load via
+// the import map only, not registerNativeModules).
+const getChannelMember = () =>
+    odoo.loader.modules.get("@mail/discuss/core/common/channel_member_model").ChannelMember;
 
 registry.category("web_tour.tours").add("discuss_call_invitation.js", {
     steps: () => {
         // Call invitation is cancelled after 30s. Increase this delay for the test.
-        patchWithCleanup(ChannelMember, { CANCEL_CALL_INVITE_DELAY: 1e6 });
+        patchWithCleanup(getChannelMember(), { CANCEL_CALL_INVITE_DELAY: 1e6 });
         return [
             { trigger: ".o-discuss-CallInvitation" },
             {
