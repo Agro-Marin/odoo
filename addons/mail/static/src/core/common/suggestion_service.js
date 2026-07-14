@@ -44,7 +44,7 @@ export class SuggestionService {
                 await this.fetchThreads(cleanedSearchTerm, { abortSignal });
                 break;
             case "::":
-                await this.store.cannedReponses.fetch();
+                await this.store.cannedResponses.fetch();
                 break;
             case ":": {
                 const { emojis } = await loadEmoji();

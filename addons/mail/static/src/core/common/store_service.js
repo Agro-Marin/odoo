@@ -137,7 +137,7 @@ export class Store extends BaseStore {
          * @param {import("models").Failure} f1
          * @param {import("models").Failure} f2
          */
-        sort: (f1, f2) => f2.lastMessage?.id - f1.lastMessage?.id,
+        sort: (f1, f2) => (f2.lastMessage?.id ?? 0) - (f1.lastMessage?.id ?? 0),
     });
     settings = fields.One("Settings");
     emojiLoader = loader;
@@ -147,7 +147,23 @@ export class Store extends BaseStore {
     fetchReadonly = true;
     fetchSilent = true;
 
-    cannedReponses = this.makeCachedFetchData("mail.canned.response");
+    /**
+     * In-flight `Thread.getOrFetch` requests, keyed by
+     * `model,id,missingFieldNames`, so concurrent identical calls share one
+     * promise. @see Thread.getOrFetch
+     *
+     * @type {Map<string, Promise<import("models").Thread|undefined>>}
+     */
+    _threadFetchPromises = new Map();
+    /**
+     * `model,id,fieldName` keys for which a `Thread.getOrFetch` response came
+     * back without the requested field, to avoid refetching them forever.
+     *
+     * @type {Set<string>}
+     */
+    _threadFetchAttempted = new Set();
+
+    cannedResponses = this.makeCachedFetchData("mail.canned.response");
 
     specialMentions = [
         {
@@ -182,13 +198,23 @@ export class Store extends BaseStore {
         },
     });
 
-    messagePostMutex = new Mutex();
+    /**
+     * One mutex per thread so message posts on the same thread are ordered
+     * without a slow post on one thread blocking posts on every other thread.
+     * Entries are removed as soon as their mutex is idle.
+     *
+     * @type {Map<string, Mutex>}
+     */
+    messagePostMutexes = new Map();
 
     menuThreads = fields.Many("Thread", {
         /** @this {import("models").Store} */
         compute() {
+            // `discuss` and `starred` only exist once the web/public_web
+            // patches are applied: guard so portal/livechat bundles that load
+            // core/common alone don't crash.
             /** @type {import("models").Thread[]} */
-            const searchTerm = cleanTerm(this.discuss.searchTerm);
+            const searchTerm = cleanTerm(this.discuss?.searchTerm ?? "");
             let threads = Object.values(this.Thread.records).filter(
                 (thread) =>
                     (thread.displayToSelf ||
@@ -196,13 +222,13 @@ export class Store extends BaseStore {
                             thread.model !== "mail.box")) &&
                     cleanTerm(thread.displayName).includes(searchTerm),
             );
-            const tab = this.discuss.activeTab;
+            const tab = this.discuss?.activeTab;
             if (tab === "inbox") {
                 threads = threads.filter(({ channel_type }) =>
                     this.tabToThreadType("mailbox").includes(channel_type),
                 );
             } else if (tab === "starred") {
-                threads = [this.starred];
+                threads = this.starred ? [this.starred] : [];
             } else if (tab !== "notification") {
                 threads = threads.filter(({ channel_type }) =>
                     this.tabToThreadType(tab).includes(channel_type),
@@ -264,23 +290,43 @@ export class Store extends BaseStore {
      * @param {import("models").Message} tmpMessage the associated temporary message
      */
     async doMessagePost(params, tmpMessage) {
-        return this.messagePostMutex.exec(async () => {
-            let res;
-            try {
-                res = await rpc("/mail/message/post", params, { silent: true });
-            } catch (err) {
-                if (!tmpMessage) {
-                    throw err;
+        const mutexKey = `${params.thread_model},${params.thread_id}`;
+        let mutex = this.messagePostMutexes.get(mutexKey);
+        if (!mutex) {
+            mutex = new Mutex();
+            this.messagePostMutexes.set(mutexKey, mutex);
+        }
+        try {
+            return await mutex.exec(async () => {
+                let res;
+                try {
+                    res = await rpc("/mail/message/post", params, { silent: true });
+                } catch (err) {
+                    if (!tmpMessage) {
+                        throw err;
+                    }
+                    tmpMessage.postFailRedo = async () => {
+                        tmpMessage.postFailRedo = undefined;
+                        const thread = tmpMessage.thread;
+                        thread.messages.delete(tmpMessage);
+                        thread.messages.add(tmpMessage);
+                        // Route the redo through the regular post-response
+                        // handling: the temporary message must be replaced by
+                        // the persistent one even if the bus echo is lost
+                        // (which is likely exactly when posts fail).
+                        const data = await this.doMessagePost(params, tmpMessage);
+                        if (data) {
+                            thread.processMessagePostResponse(data, tmpMessage);
+                        }
+                    };
                 }
-                tmpMessage.postFailRedo = () => {
-                    tmpMessage.postFailRedo = undefined;
-                    tmpMessage.thread.messages.delete(tmpMessage);
-                    tmpMessage.thread.messages.add(tmpMessage);
-                    this.doMessagePost(params, tmpMessage);
-                };
+                return res;
+            });
+        } finally {
+            if (!mutex.locked && this.messagePostMutexes.get(mutexKey) === mutex) {
+                this.messagePostMutexes.delete(mutexKey);
             }
-            return res;
-        });
+        }
     }
 
     /**
@@ -375,15 +421,22 @@ export class Store extends BaseStore {
      * rejected and the cache is reset allowing to retry the request when
      * calling the function again.
      *
+     * `invalidate()` drops the cached result so the next `fetch()` call hits
+     * the server again (useful when a bus notification makes the cached data
+     * unreliable). Invalidating while a fetch is in flight marks that result
+     * as stale once it lands, without rejecting pending callers.
+     *
      * @param {string} name
      * @param {*} params Parameters to pass to the `fetchStoreData` method.
      * @returns {{
      *      fetch: () => ReturnType<Store["fetchStoreData"]>,
+     *      invalidate: () => void,
      *      status: "not_fetched"|"fetching"|"fetched"
      * }}
      */
     makeCachedFetchData(name, params) {
         let def = null;
+        let invalidatedWhileFetching = false;
         const r = reactive({
             status: "not_fetched",
             fetch: () => {
@@ -391,18 +444,33 @@ export class Store extends BaseStore {
                     return def;
                 }
                 r.status = "fetching";
+                invalidatedWhileFetching = false;
                 def = new Deferred();
+                const fetchDef = def;
                 this.fetchStoreData(name, params).then(
                     (result) => {
-                        r.status = "fetched";
-                        def.resolve(result);
+                        if (fetchDef === def) {
+                            r.status = invalidatedWhileFetching
+                                ? "not_fetched"
+                                : "fetched";
+                        }
+                        fetchDef.resolve(result);
                     },
                     (error) => {
-                        r.status = "not_fetched";
-                        def.reject(error);
+                        if (fetchDef === def) {
+                            r.status = "not_fetched";
+                        }
+                        fetchDef.reject(error);
                     },
                 );
                 return def;
+            },
+            invalidate: () => {
+                if (r.status === "fetching") {
+                    invalidatedWhileFetching = true;
+                } else {
+                    r.status = "not_fetched";
+                }
             },
         });
         return r;
@@ -430,16 +498,49 @@ export class Store extends BaseStore {
             }),
         ).then(
             (data) => {
-                this.insert(data);
-                for (const [, , dataRequest] of fetchParams) {
-                    if (dataRequest._autoResolve) {
-                        dataRequest._resolve = true;
+                let insertError;
+                try {
+                    this.insert(data);
+                } catch (error) {
+                    insertError = error;
+                }
+                for (const [name, , dataRequest] of fetchParams) {
+                    if (!dataRequest.exists()) {
+                        // already resolved (and self-deleted) by a `_resolve`
+                        // value in the inserted payload.
+                        continue;
                     }
+                    if (insertError) {
+                        // One malformed record must not leave the whole batch
+                        // pending forever: reject every request of the batch
+                        // so awaiting callers (store.isReady, getOrFetch,
+                        // joinChat, ...) fail fast instead of hanging.
+                        dataRequest._resultDef.reject(insertError);
+                    } else if (dataRequest._autoResolve) {
+                        dataRequest._resolve = true;
+                        continue; // `_resolve` onUpdate deletes the record
+                    } else {
+                        // The server response came back without resolving this
+                        // request: resolve_data_request() was never called for
+                        // it. Reject instead of pending forever.
+                        dataRequest._resultDef.reject(
+                            new Error(
+                                `Data request "${name}" (id ${dataRequest.id}) was not resolved by the server response. The server route probably lacks a "resolve_data_request()" call.`,
+                            ),
+                        );
+                    }
+                    dataRequest.delete();
+                }
+                if (insertError) {
+                    console.error("Failed to insert fetched mail data:", insertError);
                 }
             },
             (error) => {
                 for (const [, , dataRequest] of fetchParams) {
                     dataRequest._resultDef.reject(error);
+                    if (dataRequest.exists()) {
+                        dataRequest.delete();
+                    }
                 }
             },
         );
@@ -649,12 +750,20 @@ export class Store extends BaseStore {
         }
     }
 
+    /**
+     * Highest message id (including temporary fractional ids) ever inserted in
+     * this store. Tracked incrementally at message insert (see
+     * `Message.update()`): scanning all message records on every post does not
+     * scale. Monotonic: deleting the highest message does not lower it, which
+     * is fine for its only purpose of generating increasing temporary ids.
+     *
+     * @type {number}
+     */
+    lastKnownMessageId = 0;
+
     /** @returns {number} */
     getLastMessageId() {
-        return Object.values(this["mail.message"].records).reduce(
-            (lastMessageId, message) => Math.max(lastMessageId, message.id),
-            0,
-        );
+        return this.lastKnownMessageId;
     }
 
     handleValidChannelMention(channelLinks) {

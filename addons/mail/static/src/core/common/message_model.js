@@ -10,7 +10,7 @@ import {
     getNonEditableMentions,
     htmlToTextContentInline,
 } from "@mail/utils/common/format";
-import { markup } from "@odoo/owl";
+import { markup, toRaw } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
@@ -23,6 +23,17 @@ import {
 import { url } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
 const { DateTime } = luxon;
+
+/**
+ * Fallback datetimes of messages without a `date` (pending/transient), keyed
+ * by raw record. Kept outside the records so reading `datetime` never writes
+ * through the record proxy: getters run during renders and field computes,
+ * where a proxy write would trigger a store update flush.
+ *
+ * @type {WeakMap<import("models").Message, luxon.DateTime>}
+ */
+const fallbackDatetimes = new WeakMap();
+
 export class Message extends Record {
     static _name = "mail.message";
     static id = "id";
@@ -30,6 +41,9 @@ export class Message extends Record {
     /** @param {Object} data */
     update(data) {
         super.update(data);
+        if (typeof this.id === "number" && this.id > this.store.lastKnownMessageId) {
+            this.store.lastKnownMessageId = this.id;
+        }
         if (this.isNotification && !this.notificationType) {
             const htmlBody = createDocumentFragmentFromContent(this.body);
             this.notificationType =
@@ -268,7 +282,18 @@ export class Message extends Record {
     }
 
     get datetime() {
-        return this.date || DateTime.now();
+        if (this.date) {
+            return this.date;
+        }
+        // Stable fallback: returning a fresh now() on each read would make
+        // sort keys unstable.
+        const raw = toRaw(this)._raw;
+        let fallback = fallbackDatetimes.get(raw);
+        if (!fallback) {
+            fallback = DateTime.now();
+            fallbackDatetimes.set(raw, fallback);
+        }
+        return fallback;
     }
 
     /**
@@ -740,10 +765,15 @@ export class Message extends Record {
         // disappears and the systray counter decreases without waiting for
         // the bus notification.
         const wasNeedaction = this.needaction;
+        const inbox = this.store.inbox; // absent outside the web bundles
+        const inboxCounterBusId = inbox?.counter_bus_id;
+        const needactionCounterBusId = this.thread?.message_needaction_counter_bus_id;
         if (wasNeedaction) {
             this.needaction = false;
-            this.store.inbox.messages.delete(this);
-            this.store.inbox.counter--;
+            if (inbox) {
+                inbox.messages.delete(this);
+                inbox.counter--;
+            }
             if (this.thread) {
                 this.thread.message_needaction_counter--;
             }
@@ -758,13 +788,24 @@ export class Message extends Record {
             // Roll back the optimistic update: the server still has the message
             // as needaction and no correcting bus notification will arrive, so
             // without this the inbox and its counter stay wrong until reload.
+            // Counters are only rolled back when their bus id did not advance
+            // in the meantime: a newer absolute bus snapshot must not be
+            // overwritten by a stale local value.
             // These call sites are fire-and-forget, so swallow (log) rather
             // than surface an unhandled rejection / crash dialog.
             if (wasNeedaction) {
                 this.needaction = true;
-                this.store.inbox.messages.add(this);
-                this.store.inbox.counter++;
-                if (this.thread) {
+                if (inbox) {
+                    inbox.messages.add(this);
+                    if (inbox.counter_bus_id === inboxCounterBusId) {
+                        inbox.counter++;
+                    }
+                }
+                if (
+                    this.thread &&
+                    this.thread.message_needaction_counter_bus_id ===
+                        needactionCounterBusId
+                ) {
                     this.thread.message_needaction_counter++;
                 }
             }

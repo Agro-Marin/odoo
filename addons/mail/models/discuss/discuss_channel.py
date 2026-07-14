@@ -1217,6 +1217,9 @@ class DiscussChannel(models.Model):
         payload = {
             "data": Store(bus_channel=self).add(message).get_result(),
             "id": self.id,
+            # explicitly identify the posted message: clients must not have to
+            # rely on Store insertion order of the "mail.message" data
+            "message_id": message.id,
         }
         if temporary_id := self.env.context.get("temporary_id"):
             payload["temporary_id"] = temporary_id

@@ -167,6 +167,7 @@ const StorePatch = {
         const starredBox = this.store.starred;
         const messages = starredBox.messages.slice();
         const counter = starredBox.counter;
+        const counterBusId = starredBox.counter_bus_id;
         for (const message of messages) {
             // keep message state in sync so the echoed
             // `mail.message/toggle_star` notification sees no transition and
@@ -178,11 +179,15 @@ const StorePatch = {
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
-            // rollback the optimistic update
+            // rollback the optimistic update; only restore the counter when
+            // its bus id did not advance in the meantime: a newer absolute
+            // bus snapshot must not be overwritten by a stale local value.
             for (const message of messages) {
                 message.starred = true;
             }
-            starredBox.counter = counter;
+            if (starredBox.counter_bus_id === counterBusId) {
+                starredBox.counter = counter;
+            }
             starredBox.messages = messages;
             throw error;
         }

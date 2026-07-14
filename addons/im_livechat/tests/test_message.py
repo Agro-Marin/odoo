@@ -5,10 +5,11 @@ from markupsafe import Markup
 
 from odoo import Command, fields
 from odoo.exceptions import AccessError
-from odoo.tests.common import users, tagged
+from odoo.tests.common import tagged, users
+
+from odoo.addons.im_livechat.tests.chatbot_common import ChatbotCase
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.discuss import Store
-from odoo.addons.im_livechat.tests.chatbot_common import ChatbotCase
 
 
 @tagged('post_install', '-at_install')
@@ -298,6 +299,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                                 "mail.thread": self._filter_threads_fields(
                                     {
                                         "display_name": "Chell Gladys Ernest Employee",
+                                        "has_mail_thread": True,
                                         "id": channel.id,
                                         "model": "discuss.channel",
                                         "module_icon": "/mail/static/description/icon.png",
@@ -327,10 +329,15 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                                     },
                                 ),
                                 "res.users": self._filter_users_fields(
-                                    {"id": self.env.user.id, "share": True},
+                                    {
+                                        "id": self.env.user.id,
+                                        "partner_id": self.env.user.partner_id.id,
+                                        "share": True,
+                                    },
                                 ),
                             },
                             "id": channel.id,
+                            "message_id": message.id,
                         },
                     },
                 ],

@@ -36,6 +36,11 @@ export class Settings extends Record {
 
     delete() {
         browser.removeEventListener("storage", this.onStorage);
+        for (const timeoutId of this.volumeSettingsTimeouts.values()) {
+            browser.clearTimeout(timeoutId);
+        }
+        this.volumeSettingsTimeouts.clear();
+        browser.clearTimeout(this.globalSettingsTimeout);
         super.delete(...arguments);
     }
 
@@ -392,15 +397,17 @@ export class Settings extends Record {
         this.voiceActivationThreshold = voiceActivationThresholdString
             ? parseFloat(voiceActivationThresholdString)
             : this.voiceActivationThreshold;
-        this.audioInputDeviceId = browser.localStorage.getItem(
-            "mail_user_setting_audio_input_device_id",
-        );
-        this.audioOutputDeviceId = browser.localStorage.getItem(
-            "mail_user_setting_audio_output_device_id",
-        );
-        this.cameraInputDeviceId = browser.localStorage.getItem(
-            "mail_user_setting_camera_input_device_id",
-        );
+        // `getItem()` returns null for absent keys: keep the "" defaults so
+        // consumers can keep relying on falsy-but-string device ids.
+        this.audioInputDeviceId =
+            browser.localStorage.getItem("mail_user_setting_audio_input_device_id") ??
+            "";
+        this.audioOutputDeviceId =
+            browser.localStorage.getItem("mail_user_setting_audio_output_device_id") ??
+            "";
+        this.cameraInputDeviceId =
+            browser.localStorage.getItem("mail_user_setting_camera_input_device_id") ??
+            "";
         this.showOnlyVideo =
             browser.localStorage.getItem("mail_user_setting_show_only_video") ===
             "true";

@@ -177,6 +177,7 @@ class TestChannelInternals(MailCommon, HttpCase):
                                 ),
                             },
                             "id": test_group.id,
+                            "message_id": message.id,
                         },
                     },
                     {

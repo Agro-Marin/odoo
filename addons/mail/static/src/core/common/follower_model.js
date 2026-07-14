@@ -20,10 +20,12 @@ export class Follower extends Record {
 
     /** @returns {boolean} */
     get isEditable() {
-        const hasWriteAccess = this.thread ? this.thread.hasWriteAccess : false;
+        if (!this.thread) {
+            return false;
+        }
         return this.partner_id.eq(this.store.self_partner)
             ? this.thread.hasReadAccess
-            : hasWriteAccess;
+            : this.thread.hasWriteAccess;
     }
 
     async remove() {

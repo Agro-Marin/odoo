@@ -456,6 +456,9 @@ export class MailThread extends models.ServerModel {
                             MailMessage.browse(message_id)
                         ).get_result(),
                         id: channel.id,
+                        // explicitly identify the posted message, as the
+                        // server does in `_notify_thread()`
+                        message_id: message.id,
                         temporary_id,
                     },
                 ]);
