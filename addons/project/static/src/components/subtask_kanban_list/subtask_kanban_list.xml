@@ -5,7 +5,7 @@
     <t t-name="project.SubtaskKanbanList">
         <t t-if="props.record.displaySubtasks">
             <div class="subtask_list">
-                <div t-foreach="closedList" t-as="record" t-key="record.id"  class="subtask_list_row">
+                <div t-foreach="openSubtasks" t-as="record" t-key="record.id"  class="subtask_list_row">
                     <a t-attf-class="subtask_name_col {{ ['done', 'canceled'].includes(record.data.state) ? 'text-muted opacity-50' : '' }}"
                         t-att-title="record.data.display_name"
                         t-esc="record.data.display_name"
@@ -23,12 +23,11 @@
                         type="'project_task_state_selection'"
                         fieldInfo="fieldInfo.state"/>
                 </div>
-                <div class="subtask_create" t-on-click.stop="(ev) => this.onSubTaskCreated(ev)"
+                <div class="subtask_create" t-on-click.stop="() => this.openSubtaskCreate()"
                     t-on-keydown="(ev) => ev.code === 'Escape' ? this._onBlur(ev) : ()=>{}">
                     <t t-if="subtaskCreate.open">
                         <SubtaskCreate
                             name="subtaskCreate.name"
-                            isReadonly="props.isReadonly" 
                             onSubtaskCreateNameChanged.bind="_onSubtaskCreateNameChanged"
                             onBlur.bind="_onBlur" />
                     </t>

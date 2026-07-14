@@ -18,10 +18,9 @@ export class BurndownChartModel extends GraphModel {
      * @param {Object} context
      */
     async _fetchStageInfo(context) {
-        const searchDomain =
-            !context.active_id || !context.default_project_id
-                ? []
-                : [["project_ids", "in", context.active_id]];
+        const searchDomain = context.active_id
+            ? [["project_ids", "in", context.active_id]]
+            : [];
         const data = await this.orm.webSearchRead("project.workflow.step", searchDomain, {
             specification: {
                 name: {},
@@ -42,14 +41,18 @@ export class BurndownChartModel extends GraphModel {
         const { context, groupBy } = searchParams;
 
         if (groupBy.includes("step_id")) {
-            if (context.stage_name_and_sequence_per_id && context.default_project_id) {
+            if (context.stage_name_and_sequence_per_id) {
+                // Provided by the server actions that open the chart. (Do not
+                // additionally require default_project_id: no producer sets
+                // it, the gate would make this payload dead weight.)
                 this.stageSeqAndNamePerId = context.stage_name_and_sequence_per_id;
-            } else {
-                // if the stage_name_and_sequence_per_id wasn't given by the action (for example if the page is simply reloaded)
+            } else if (!Object.keys(this.stageSeqAndNamePerId).length) {
+                // Page reload / direct navigation: fetch once and keep it —
+                // step names and sequences don't change with search
+                // interactions, and refetching on every filter or group-by
+                // change costs one RPC each.
                 this.stageSeqAndNamePerId = await this._fetchStageInfo(context);
             }
-        } else {
-            this.stageSeqAndNamePerId = {};
         }
         await super.load(searchParams);
     }
@@ -67,7 +70,8 @@ export class BurndownChartModel extends GraphModel {
                 const group = Object.assign(...JSON.parse(firstIdentifier));
                 const val = group.step_id;
                 if (Array.isArray(val)) {
-                    return this.stageSeqAndNamePerId[val[0]]?.sequence || -1;
+                    // `??`: a real sequence of 0 must not fall back to -1.
+                    return this.stageSeqAndNamePerId[val[0]]?.sequence ?? -1;
                 }
                 return -1;
             });

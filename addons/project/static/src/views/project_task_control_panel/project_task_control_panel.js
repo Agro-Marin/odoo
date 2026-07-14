@@ -1,15 +1,14 @@
 /** @odoo-module native */
-import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { getShowSubtasks, setShowSubtasks } from "@project/utils/project_utils";
 
 export class ProjectTaskControlPanel extends ControlPanel {
     static template = "project.ProjectTaskControlPanel";
 
     setup() {
         super.setup();
-        this.showSubtasksKey = "showSubtasks";
-        this.state.showSubtasks = JSON.parse(browser.localStorage.getItem(this.showSubtasksKey) || "false");
+        this.state.showSubtasks = getShowSubtasks();
     }
 
     get showTaskOptions() {
@@ -24,9 +23,9 @@ export class ProjectTaskControlPanel extends ControlPanel {
         return _t("Show sub-tasks");
     }
 
-    onClickShowSubtasks(ev) {
+    onClickShowSubtasks() {
         this.state.showSubtasks = !this.state.showSubtasks;
-        browser.localStorage.setItem(this.showSubtasksKey, this.state.showSubtasks);
+        setShowSubtasks(this.state.showSubtasks);
         this.env.searchModel.search();
     }
 }

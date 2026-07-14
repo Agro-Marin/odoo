@@ -21,7 +21,6 @@ export class ProjectTaskCalendarController extends CalendarController {
         if (this.canDragAndDropRecord) {
             useCalendarTaskToPlanDraggable({
                 ref: this.rootRef,
-                enable: this.draggable,
                 elements: ".o_task_to_plan_draggable",
                 ignore: "button",
                 onElementEnter: ({ addClass, element }) => {

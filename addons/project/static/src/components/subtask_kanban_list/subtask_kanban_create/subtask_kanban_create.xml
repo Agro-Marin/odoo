@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates>
     <div t-name="project.SubtaskCreate" class="subtask_create_input d-flex" owl="1">
-        <input type="text" title="Rename" 
+        <input type="text"
             class='o_input border-0 border-bottom py-1'
             t-att-class="{'o_field_invalid border-danger': state.isFieldInvalid}"
             t-ref='subtaskCreateInput'
@@ -10,7 +10,7 @@
             t-on-input="_onInput"
             t-on-click="_onClick"
             t-on-change="_onNameChanged"
-            t-att-disabled="props.isReadonly"/>
+            t-on-blur="_onBlur"/>
         <button t-on-click="_onSaveClick" class="ms-auto fw-bold btn btn-link py-0 px-2">
             SAVE
         </button>

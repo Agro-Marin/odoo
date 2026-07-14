@@ -1,30 +1,21 @@
 /** @odoo-module native */
-import { useState, onRendered } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { BooleanToggleField, booleanToggleField } from "@web/fields/basic/boolean_toggle/boolean_toggle_field";
 
 export class TaskCheckMark extends BooleanToggleField {
     static template = "project.TaskCheckMark";
 
-    setup() {
-        super.setup();
-        this.reached = useState({
-            isReached: false,
-        });
-        onRendered(() => {
-            this.reached.isReached = this.props.record.data[this.props.name];
-        });
+    get isReached() {
+        return Boolean(this.props.record.data[this.props.name]);
     }
 
-    async onChange(ev) {
-        const { record, name } = this.props;
-        const value = !record.data[name];
-        const recordUpdate = record.update.bind(record);
-        if (['kanban', 'list'].includes(this.env.config.viewType)) {
-            await recordUpdate({ [name]: value }, { save: true });
-        } else {
-            await recordUpdate({ [name]: value });
+    async onToggle() {
+        if (this.props.readonly) {
+            return;
         }
+        // Base onChange handles the update, the autosave option and the
+        // optimistic-state rollback on a rejected save.
+        await this.onChange(!this.isReached);
     }
 }
 

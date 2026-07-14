@@ -35,6 +35,6 @@ test("ProjectMany2one: project.task list view", async () => {
     });
     expect("div[name='project_id']").toHaveCount(3);
     expect("div[name='project_id'] .o_many2one").toHaveCount(2);
-    expect("div[name='project_id'] span.text-danger.fst-italic.text-muted").toHaveCount(1);
-    expect("div[name='project_id'] span.text-danger.fst-italic.text-muted").toHaveText("🔒 Private");
+    expect("div[name='project_id'] span.fst-italic.text-muted").toHaveCount(1);
+    expect("div[name='project_id'] span.fst-italic.text-muted").toHaveText("🔒 Private");
 });

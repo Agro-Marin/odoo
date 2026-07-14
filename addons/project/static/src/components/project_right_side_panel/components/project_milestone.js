@@ -21,10 +21,6 @@ export class ProjectMilestone extends Component {
         // code used to) would discard the reactive proxy; copying instead of
         // wrapping props avoids mutating the parent's prop object.
         this.milestone = useState({ ...this.props.milestone });
-        this.state = useState({
-            colorClass: this._getColorClass(),
-            checkboxIcon: this._getCheckBoxIcon(),
-        });
         onWillUpdateProps(this.onWillUpdateProps);
     }
 
@@ -33,26 +29,29 @@ export class ProjectMilestone extends Component {
     }
 
     get deadline() {
-        if (!this.milestone.deadline) return;
+        if (!this.milestone.deadline) {
+            return "";
+        }
         return formatDate(DateTime.fromISO(this.milestone.deadline));
     }
 
-    _getColorClass() {
-        return this.milestone.is_deadline_exceeded && !this.milestone.can_be_marked_as_done ? "text-danger" : this.milestone.can_be_marked_as_done ? "text-success" : "";
+    // Derived from the reactive milestone copy: plain getters re-evaluate on
+    // render, so no manual resynchronization is needed.
+    get colorClass() {
+        return this.milestone.is_deadline_exceeded && !this.milestone.can_be_marked_as_done
+            ? "text-danger"
+            : this.milestone.can_be_marked_as_done
+              ? "text-success"
+              : "";
     }
 
-    _getCheckBoxIcon() {
+    get checkboxIcon() {
         return this.milestone.is_reached ? "fa-solid fa-square-check" : "fa-regular fa-square";
     }
 
     onWillUpdateProps(nextProps) {
         if (nextProps.milestone) {
             Object.assign(this.milestone, nextProps.milestone);
-            this.state.colorClass = this._getColorClass();
-            this.state.checkboxIcon = this._getCheckBoxIcon();
-        }
-        if (nextProps.context) {
-            this.contextValue = nextProps.context;
         }
     }
 
@@ -65,8 +64,6 @@ export class ProjectMilestone extends Component {
                     'toggle_is_reached',
                     [[this.milestone.id], !this.milestone.is_reached],
                 ));
-                this.state.colorClass = this._getColorClass();
-                this.state.checkboxIcon = this._getCheckBoxIcon();
             } finally {
                 // Always release the lock, even if the RPC rejects, otherwise a
                 // single transient failure permanently disables the checkbox.

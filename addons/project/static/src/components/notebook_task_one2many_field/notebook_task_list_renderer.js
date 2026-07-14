@@ -1,25 +1,24 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 
+import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 
 import { TaskListRenderer } from "../task_list_renderer.js";
 
 export class NotebookTaskListRenderer extends TaskListRenderer {
     static rowsTemplate = "project.NotebookTaskListRenderer.Rows";
+    // Explicit stable key: deriving it from `constructor.name` (as this used
+    // to) breaks under minification and silently forks the preference for
+    // every subclass.
+    static hideClosedStorageKey = "project.notebook_task_list.hide_closed";
+
     setup() {
         super.setup();
         this.hideState = useState({
-            hide: localStorage.getItem(this._getStorageKey) === 'true',
+            hide:
+                browser.localStorage.getItem(this.constructor.hideClosedStorageKey) === "true",
         });
-    }
-
-    /**
-     * @private
-     * @returns {string}
-     */
-    get _getStorageKey() {
-        return `hide_closed_${this.constructor.name}`;
     }
 
     get hideClosed() {
@@ -50,7 +49,7 @@ export class NotebookTaskListRenderer extends TaskListRenderer {
 
     toggleHideClosed() {
         this.hideState.hide = !this.hideState.hide;
-        localStorage.setItem(this._getStorageKey, this.hideState.hide);
+        browser.localStorage.setItem(this.constructor.hideClosedStorageKey, this.hideState.hide);
         document.activeElement.blur();
     }
 }

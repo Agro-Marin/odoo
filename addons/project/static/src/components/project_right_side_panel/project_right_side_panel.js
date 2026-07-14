@@ -7,7 +7,7 @@ import { ViewButton } from '@web/views/view_button/view_button';
 import { ProjectRightSidePanelSection } from './components/project_right_side_panel_section.js';
 import { ProjectMilestone } from './components/project_milestone.js';
 import { ProjectProfitability } from './components/project_profitability.js';
-import { getCurrency } from '@web/services/currency';
+import { formatCurrency } from '@web/services/currency';
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { SIZES } from "@web/ui/block/ui_service";
 
@@ -102,20 +102,9 @@ export class ProjectRightSidePanel extends Component {
     }
 
     formatMonetary(value, options = {}) {
-        const valueFormatted = formatFloat(value, {
-            ...options,
-            'digits': [false, 0],
-            'noSymbol': true,
-        });
-        const currency = getCurrency(this.currencyId);
-        if (!currency) {
-            return valueFormatted;
-        }
-        if (currency.position === "after") {
-            return `${valueFormatted}\u00A0${currency.symbol}`;
-        } else {
-            return `${currency.symbol}\u00A0${valueFormatted}`;
-        }
+        // formatCurrency owns symbol lookup/position; keep the panel's
+        // 0-decimals display.
+        return formatCurrency(value, this.currencyId, { digits: [false, 0], ...options });
     }
 
     async loadData() {

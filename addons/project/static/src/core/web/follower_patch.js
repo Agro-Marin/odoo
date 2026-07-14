@@ -1,35 +1,30 @@
 /** @odoo-module native */
-import { FollowerList } from "@mail/core/web/follower_list";
+import { Follower } from "@mail/core/web/follower";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
-
 import { patch } from "@web/core/utils/patch";
 
-const followerListPatch = {
-    setup() {
-        super.setup();
-        this.dialogService = useService("dialog");
-    },
+patch(Follower.prototype, {
     /**
-     * @param {MouseEvent} ev
-     * @param {import("models").Follower} follower
+     * Removing a follower who is a project collaborator also revokes their
+     * portal access to the project (server-side unsubscribe logic), so ask
+     * for confirmation first.
      */
-    async onClickRemove(ev, follower) {
+    async onClickRemove() {
+        const follower = this.props.follower;
         if (follower.partner_id.in(follower.thread.collaborator_ids)) {
-            this.dialogService.add(ConfirmationDialog, {
+            this.env.services.dialog.add(ConfirmationDialog, {
                 title: _t("Remove Collaborator"),
                 body: _t(
                     "This follower is currently a project collaborator. Removing them will revoke their portal access to the project. Are you sure you want to proceed?"
                 ),
                 confirmLabel: _t("Remove Collaborator"),
                 cancelLabel: _t("Discard"),
-                confirm: () => super.onClickRemove(ev, follower),
+                confirm: () => super.onClickRemove(),
                 cancel: () => {},
             });
         } else {
-            super.onClickRemove(ev, follower);
+            return super.onClickRemove();
         }
     },
-};
-patch(FollowerList.prototype, followerListPatch);
+});

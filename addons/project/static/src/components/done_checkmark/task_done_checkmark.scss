@@ -1,4 +1,5 @@
-a.o_todo_done_button {
+a.o_todo_done_button,
+button.o_todo_done_button {
     margin: 0px 5px;
     @include o-hover-text-color($gray-400, $o-success);
     &:hover:before {

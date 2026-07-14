@@ -3,9 +3,10 @@ import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { HistoryDialog } from "@html_editor/components/history_dialog/history_dialog";
 import { useService } from '@web/core/utils/hooks';
-import { markup, useEffect } from "@odoo/owl";
+import { markup } from "@odoo/owl";
 import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander';
 import { getHtmlFieldMetadata, setHtmlFieldMetadata } from "@html_editor/fields/html_field";
+import { useFocusTitle } from "@project/utils/project_utils";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 
@@ -40,17 +41,7 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
         this.notifications = useService("notification");
 
         if (this.props.focusTitle) {
-            useEffect(
-                () => {
-                    if (this.rootRef) {
-                        const title = this.rootRef.el.querySelector("#name_0");
-                        if (title) {
-                            title.focus();
-                        }
-                    }
-                },
-                () => []
-            );
+            useFocusTitle(this.rootRef);
         }
     }
 
@@ -109,11 +100,14 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
                     this.dialogService.add(ConfirmationDialog, {
                         title: _t("Are you sure you want to restore this version ?"),
                         body: _t("Restoring will replace the current content with the selected version. Any unsaved changes will be lost."),
-                        confirm: () => {
+                        confirm: async () => {
                             const restoredData = {};
                             const contentMetadata = getHtmlFieldMetadata(record.data[versionedFieldName]);
                             restoredData[versionedFieldName] = setHtmlFieldMetadata(html, contentMetadata);
-                            record.update(restoredData);
+                            // Await so a failed restore surfaces in this
+                            // dialog instead of as an unhandled rejection
+                            // after everything closed.
+                            await record.update(restoredData);
                             close();
                         },
                         confirmLabel: _t("Restore"),

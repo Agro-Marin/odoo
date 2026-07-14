@@ -11,6 +11,12 @@ export class AnalyticAccountListController extends ListController {
             const analyticAccountWithProjects = selectedRecords
                 .filter((record) => record.data.project_count)
                 .map((record) => record.data.name);
+            // With a domain selection ("Select all N"), off-page records are
+            // archived too and cannot be inspected client-side: show the
+            // cautious message.
+            if (this.model.root.isDomainSelected && !analyticAccountWithProjects.length) {
+                analyticAccountWithProjects.push(_t("(and/or records not visible on this page)"));
+            }
             if (analyticAccountWithProjects.length) {
                 dialogProps = {
                     ...dialogProps,

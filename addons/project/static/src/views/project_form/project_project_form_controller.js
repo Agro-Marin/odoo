@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { onWillStart, useEffect } from "@odoo/owl";
+import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";
 import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander'
+import { useFocusTitle } from "@project/utils/project_utils";
 import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 
 export class ProjectProjectFormController extends FormControllerWithHTMLExpander {
@@ -27,24 +28,14 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
         onWillStart(async () => {
             this.isProjectManager = await user.hasGroup('project.group_project_manager');
             this.featuresToObserve = await this.orm.call(
-                this.modelParams.config.resModel,
+                this.props.resModel,
                 "check_features_enabled",
                 []
             );
         });
 
         if (this.props.focusTitle) {
-            useEffect(
-                (el) => {
-                    if (el) {
-                        const title = this.rootRef.el.querySelector("#name_0");
-                        if (title) {
-                            title.focus();
-                        }
-                    }
-                },
-                () => [this.rootRef.el]
-            );
+            useFocusTitle(this.rootRef);
         }
     }
 

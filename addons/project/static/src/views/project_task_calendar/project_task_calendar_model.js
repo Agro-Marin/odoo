@@ -33,34 +33,41 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     async load(params = {}) {
-        const domain = params.domain || this.meta.domain;
-        params.domain = this._processSearchDomain(domain);
+        // Domain processing is handled by ProjectTaskModelMixin.load(); this
+        // override only resets the planTask flag on regular loads.
         return super.load({
             planTask: false,
-            ...(params || {}),
+            ...params,
         });
     }
 
-    async loadRecords(data) {
-        const [records] = await Promise.all([
-            super.loadRecords(data),
-            this.fetchTasksToPlan({ data }),
-        ]);
-        return records;
+    /**
+     * The to-plan list is staged on `data` and only becomes visible when the
+     * base load() commits it (`this.data = data`), so a superseded or failed
+     * load can never leave the side panel out of sync with the calendar
+     * records (the base epoch/rollback protection covers it too).
+     */
+    get tasksToPlan() {
+        return this.data?.tasksToPlan;
     }
 
-    async fetchTasksToPlan(params) {
-        if (this.meta.showTasksToPlan && !this.meta.planTask) {
-            this.tasksToPlan = await this._fetchTasksToPlan(params);
-        }
+    async loadRecords(data) {
+        const keepCurrentList = !this.meta.showTasksToPlan || this.meta.planTask;
+        const [records, tasksToPlan] = await Promise.all([
+            super.loadRecords(data),
+            keepCurrentList ? this.data?.tasksToPlan : this._fetchTasksToPlan({ data }),
+        ]);
+        data.tasksToPlan = tasksToPlan;
+        return records;
     }
 
     async loadMoreTasksToPlan() {
         const { records, length } = this.tasksToPlan;
         const offset = records.length;
-        let limit = offset + 20;
-        if (limit > length) {
-            limit = length;
+        // `limit` is a page size, not an end index.
+        const limit = Math.min(20, length - offset);
+        if (limit <= 0) {
+            return;
         }
         const { records: newRecords } = await this._fetchTasksToPlan({ limit, offset });
         this.tasksToPlan.records.push(...newRecords);
@@ -70,7 +77,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     async _fetchTasksToPlan({ data, limit, offset }) {
         const projectId = this.meta.context.default_project_id;
         if (!projectId) {
-            return [];
+            return { records: [], length: 0 };
         }
         const { date_start, date_stop } = this.meta.fieldMapping;
         const fieldsToRemove = [...new Set([date_start, date_stop, 'planned_date_begin', 'date_end'])]
@@ -92,7 +99,9 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
         });
     }
 
-    _getPlanTaskVals(taskToPlan, date, timeSlotSelected = false) {
+    _getPlanTaskVals(taskToPlan, date) {
+        // NB: subclasses receive (taskToPlan, date, timeSlotSelected) via
+        // ...arguments (cf. industry_fsm).
         const [, end] = this.getAllDayDates(date, date);
         return { date_end: serializeDateTime(end) };
     }
@@ -105,18 +114,22 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     async planTask(taskId, date, timeSlotSelected = false) {
-        const taskToPlanIndex = this.tasksToPlan.records.findIndex((task) => task.id === taskId);
-        if (taskToPlanIndex < 0) {
+        const taskToPlan = this.tasksToPlan.records.find((task) => task.id === taskId);
+        if (!taskToPlan) {
             return;
         }
-        // Decrement only once we know a record will actually be removed, so
-        // `length` stays in sync with `records` (drives the "Load more" count).
-        this.tasksToPlan.length -= 1;
-        const [taskToPlan] = this.tasksToPlan.records.splice(taskToPlanIndex, 1);
         const context = this._getPlanTaskContext(taskToPlan, timeSlotSelected);
         await this.orm.call(this.meta.resModel, "plan_task_in_calendar", [[taskId], this._getPlanTaskVals(taskToPlan, date, timeSlotSelected)], {
             context,
         });
+        // Only drop the task from the side panel once the server accepted the
+        // plan: if the RPC rejects, the task must stay droppable. Decrement
+        // `length` in step with `records` (drives the "Load more" count).
+        const taskToPlanIndex = this.tasksToPlan.records.indexOf(taskToPlan);
+        if (taskToPlanIndex >= 0) {
+            this.tasksToPlan.records.splice(taskToPlanIndex, 1);
+            this.tasksToPlan.length -= 1;
+        }
         await this.load({ planTask: true });
     }
 }

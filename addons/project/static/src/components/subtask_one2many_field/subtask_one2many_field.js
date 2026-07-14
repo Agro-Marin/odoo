@@ -24,7 +24,10 @@ export class SubtaskOne2ManyField extends X2ManyField {
     get rendererProps() {
         const rendererProps = super.rendererProps;
         if (this.props.viewMode === "kanban") {
-            rendererProps.openRecord = this.switchToForm.bind(this);
+            // KanbanRecord calls openRecord(record) with a single argument
+            // while switchToForm dereferences its options parameter.
+            rendererProps.openRecord = (record, options = {}) =>
+                this.switchToForm(record, options);
         }
         return rendererProps;
     }
