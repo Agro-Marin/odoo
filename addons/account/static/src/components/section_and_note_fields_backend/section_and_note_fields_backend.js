@@ -8,69 +8,24 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 import { ListTextField, TextField } from "@web/fields/basic/text/text_field";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { ListRenderer } from "@web/views/list/list_renderer";
+import {
+    DISPLAY_TYPES,
+    getPreviousSectionRecords,
+    getRecordsUntilSection,
+    getSectionRecords,
+    hasNextSection,
+    hasPreviousSection,
+    isSectionOrNoteType,
+    isSectionType,
+    isSubSectionType,
+    isTopSectionType,
+} from "./section_and_note_helpers";
+
+// Re-exported for external consumers (e.g. sale_management's order line field).
+export { getSectionRecords };
 
 const SHOW_ALL_ITEMS_TOOLTIP = _t("Some lines can be on the next page, display them to unlock actions on section.");
 const DISABLED_MOVE_DOWN_ITEM_TOOLTIP = _t("Some lines of the next section can be on the next page, display them to unlock the action.");
-
-const DISPLAY_TYPES = {
-    NOTE: "line_note",
-    SECTION: "line_section",
-    SUBSECTION: "line_subsection",
-};
-
-function getPreviousSectionRecords(list, record) {
-    const { sectionRecords } = getRecordsUntilSection(list, record, false);
-    return sectionRecords;
-}
-
-export function getSectionRecords(list, record, subSection) {
-    const { sectionRecords } = getRecordsUntilSection(list, record, true, subSection);
-    return sectionRecords;
-}
-
-function hasNextSection(list, record) {
-    const { sectionIndex } = getRecordsUntilSection(list, record, true);
-    return sectionIndex < list.records.length && list.records[sectionIndex].data.display_type === record.data.display_type;
-}
-
-function hasPreviousSection(list, record) {
-    const { sectionIndex } = getRecordsUntilSection(list, record, false);
-    return sectionIndex >= 0 && list.records[sectionIndex].data.display_type === record.data.display_type;
-}
-
-function getRecordsUntilSection(list, record, asc, subSection) {
-    const stopAtTypes = [DISPLAY_TYPES.SECTION];
-    if (subSection ?? record.data.display_type === DISPLAY_TYPES.SUBSECTION) {
-        stopAtTypes.push(DISPLAY_TYPES.SUBSECTION);
-    }
-
-    const sectionRecords = [];
-    let index = list.records.findIndex(listRecord => listRecord.id === record.id);
-    if (asc) {
-        sectionRecords.push(list.records[index]);
-        index++;
-        while (index < list.records.length && !stopAtTypes.includes(list.records[index].data.display_type)) {
-            sectionRecords.push(list.records[index]);
-            index++;
-        }
-    } else {
-        index--;
-        while (index >= 0 && !stopAtTypes.includes(list.records[index].data.display_type)) {
-            sectionRecords.unshift(list.records[index]);
-            index--;
-        }
-        // Only prepend the delimiting section when one exists above; otherwise
-        // index is -1 and list.records[-1] would push `undefined` into the array.
-        if (index >= 0) {
-            sectionRecords.unshift(list.records[index]);
-        }
-    }
-
-    return {
-        sectionRecords,
-        sectionIndex: index,
-    };
-}
 
 export class SectionAndNoteListRenderer extends ListRenderer {
     static template = "account.SectionAndNoteListRenderer";
@@ -294,15 +249,11 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     isSectionOrNote(record = null) {
-        record = record || this.record;
-        return [DISPLAY_TYPES.SECTION, DISPLAY_TYPES.SUBSECTION, DISPLAY_TYPES.NOTE].includes(
-            record.data.display_type
-        );
+        return isSectionOrNoteType(record || this.record);
     }
 
     isSection(record = null) {
-        record = record || this.record;
-        return [DISPLAY_TYPES.SECTION, DISPLAY_TYPES.SUBSECTION].includes(record.data.display_type);
+        return isSectionType(record || this.record);
     }
 
     isSectionInPage(record) {
@@ -319,11 +270,11 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     isTopSection(record) {
-        return record.data.display_type === DISPLAY_TYPES.SECTION;
+        return isTopSectionType(record);
     }
 
     isSubSection(record) {
-        return record.data.display_type === DISPLAY_TYPES.SUBSECTION;
+        return isSubSectionType(record);
     }
 
     /**
