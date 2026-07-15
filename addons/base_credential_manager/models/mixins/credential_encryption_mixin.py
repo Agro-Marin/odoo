@@ -263,6 +263,20 @@ class CredentialEncryptionMixin(models.AbstractModel):
             # internal error surfaced via the caller's translated context.
             raise ValidationError("Invalid encrypted binary data") from e
 
+    def _allow_key_fallback(self) -> bool:
+        """Whether this record allows falling back to older encryption keys.
+
+        ``allow_key_fallback`` is a per-credential config flag, not secret
+        data — reading it must not depend on the calling user's access to
+        this record (a low-privilege context could otherwise silently fall
+        back to the field default instead of the record's real preference),
+        hence ``sudo()``. Models that don't define the field (it's optional,
+        added by ``base_credential_manager``) default to allowing fallback.
+        Shared by both the char and binary decrypt paths so the two can't
+        drift on this check.
+        """
+        return getattr(self.sudo(), "allow_key_fallback", True)
+
     def _decrypt_binary_value(self, encrypted_value: bytes) -> bytes | bool:
         """Decrypt binary data using Fernet symmetric encryption.
 
@@ -278,7 +292,7 @@ class CredentialEncryptionMixin(models.AbstractModel):
         if not encrypted_value:
             return False
 
-        allow_fallback = getattr(self, "allow_key_fallback", True)
+        allow_fallback = self._allow_key_fallback()
         encrypted_bytes = self._coerce_fernet_token(encrypted_value)
 
         try:
@@ -361,8 +375,9 @@ class CredentialEncryptionMixin(models.AbstractModel):
         # char and binary paths means neither path can diverge again.
         encrypted_bytes = self._coerce_fernet_token(encrypted_value)
 
-        # Check if this model has allow_key_fallback field (per-credential preference)
-        allow_fallback = getattr(self, "allow_key_fallback", True)
+        # Check if this model has allow_key_fallback field (per-credential
+        # preference).
+        allow_fallback = self._allow_key_fallback()
 
         # Try current key first (most common case)
         try:

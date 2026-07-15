@@ -302,6 +302,115 @@ class TestRotationMigrationGeneralization(TestHardeningFixesBase):
             self.assertIn(key, result)
 
 
+class TestEO78SudoReads(TestHardeningFixesBase):
+    """t23743 (EO7.8.26): 3 reads that must not AccessError for a
+    non-privileged calling context — allow_key_fallback (x2 decrypt paths)
+    and the category defaults read in _onchange_category_id."""
+
+    def _low_priv_user(self, login):
+        return self.env["res.users"].create(
+            {
+                "name": "Low Priv Credential User",
+                "login": login,
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref(
+                                "base_credential_manager.group_credential_user"
+                            ).id
+                        ],
+                    )
+                ],
+            }
+        )
+
+    def test_decrypt_value_reads_allow_key_fallback_without_accesserror(self):
+        user = self._low_priv_user("eo78_decrypt_char_user")
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Fallback Char Cred",
+                "category_id": self.category_api_key.id,
+                "credential_value": "secret-value",
+                "allow_key_fallback": False,
+            }
+        )
+        # Not asserting a specific plaintext here — just that reading
+        # allow_key_fallback via sudo() doesn't itself raise, regardless of
+        # the calling user's direct access to this record.
+        cred.with_user(user)._decrypt_value(
+            cred.with_context(bin_size=False).credential_value_encrypted
+        )
+
+    def test_decrypt_binary_value_reads_allow_key_fallback_without_accesserror(self):
+        user = self._low_priv_user("eo78_decrypt_binary_user")
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Fallback Binary Cred",
+                "category_id": self.category_custom.id,
+                "allow_key_fallback": False,
+            }
+        )
+        encrypted = cred._encrypt_binary_value(b"YmluYXJ5LXBheWxvYWQ=")
+        cred.with_user(user)._decrypt_binary_value(encrypted)
+
+    def test_onchange_category_id_applies_defaults_without_accesserror(self):
+        user = self._low_priv_user("eo78_onchange_user")
+        cred = self.env["credential.credential"].new(
+            {"name": "Onchange Cred", "category_id": self.category_api_key.id}
+        )
+        cred_as_user = cred.with_user(user)
+        # The call itself must not raise — this is what the sudo() fix
+        # covers (reading category.default_* as a group_credential_user).
+        cred_as_user._onchange_category_id()
+        # enable_rate_limiting/allow_key_fallback are themselves restricted
+        # to group_credential_admin (by design, unrelated to this fix) —
+        # read back via sudo() rather than as the low-priv user.
+        self.assertEqual(
+            cred_as_user.sudo().enable_rate_limiting,
+            self.category_api_key.default_enable_rate_limiting,
+        )
+        self.assertEqual(
+            cred_as_user.sudo().allow_key_fallback,
+            self.category_api_key.default_allow_key_fallback,
+        )
+
+
+class TestRateLimitBucketLockTimeoutScope(TestHardeningFixesBase):
+    """t23743 (EO7.8.26): a strict consume_token() must not leave
+    lock_timeout tightened for the rest of the transaction."""
+
+    def test_lock_timeout_reset_after_strict_consume(self):
+        cred = self.env["credential.credential"].create(
+            {
+                "name": "Lock Timeout Scope Cred",
+                "category_id": self.category_custom.id,
+            }
+        )
+        self.env.cr.execute("SHOW lock_timeout")
+        (before,) = self.env.cr.fetchone()
+
+        bucket = self.env["rate.limit.bucket"].create(
+            {
+                "bucket_key": f"credential.credential:{cred.id}:global",
+                "endpoint_model": "credential.credential",
+                "endpoint_id": cred.id,
+                "tokens": 5.0,
+            }
+        )
+        self.assertTrue(bucket.consume_token(strict=True))
+
+        self.env.cr.execute("SHOW lock_timeout")
+        (after,) = self.env.cr.fetchone()
+        self.assertEqual(
+            before,
+            after,
+            "lock_timeout must be reset immediately after the locked query, "
+            "not leak into the rest of the transaction",
+        )
+
+
 class TestVerifyCustomPrefixGate(TransactionCase):
     """_verify_custom must refuse to invoke non-verify methods under sudo."""
 
