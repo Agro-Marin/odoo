@@ -1,11 +1,8 @@
 /** @odoo-module native */
 import { SaleFileUploadKanbanRenderer } from '../sale_file_upload_kanban/sale_file_upload_kanban_renderer.js';
-import { SaleActionHelper } from "../../js/sale_action_helper/sale_action_helper.js";
+import { saleOnboardingRenderer } from '../sale_file_upload_mixins.js';
 
-export class SaleKanbanRenderer extends SaleFileUploadKanbanRenderer {
-    static template = "sale.SaleKanbanRenderer";
-    static components = {
-        ...SaleFileUploadKanbanRenderer.components,
-        SaleActionHelper,
-    };
-};
+export const SaleKanbanRenderer = saleOnboardingRenderer(
+    SaleFileUploadKanbanRenderer,
+    "sale.SaleKanbanRenderer",
+);
