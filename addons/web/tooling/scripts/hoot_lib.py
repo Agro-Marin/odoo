@@ -17,6 +17,7 @@ test case (``_logger``, ``browser_size``, ``touch_enabled``) plus a
 from __future__ import annotations
 
 import contextlib
+import getpass
 import json
 import logging
 import os
@@ -112,11 +113,17 @@ def generate_hash(test_string: str) -> str:
 # --------------------------------------------------------------------------- #
 # Postgres / port helpers
 # --------------------------------------------------------------------------- #
+# PostgreSQL role: honor $PGUSER (the standard libpq env var), else the OS user
+# — Unix-socket peer auth maps to the same-named role. Never hardcode a role: a
+# hardcoded 'marin' broke the runner on machines whose PG role differs (t23795).
+# Set PGUSER if your role is not your OS username. The former 'odoo' TCP role
+# was dropped; see config/*.conf and the workspace CLAUDE.md.
+PG_USER = os.environ.get("PGUSER") or getpass.getuser()
+
+
 def _psql(sql: str) -> str:
-    # Unix-socket peer auth as role 'marin' (= the OS user). The former 'odoo'
-    # TCP role was dropped; see config/*.conf and the workspace CLAUDE.md.
     out = subprocess.run(
-        ["psql", "-U", "marin", "-d", "postgres", "-tAc", sql],
+        ["psql", "-U", PG_USER, "-d", "postgres", "-tAc", sql],
         capture_output=True, text=True, check=False,
     )
     return out.stdout.strip()
@@ -128,7 +135,7 @@ def db_exists(db: str) -> bool:
 
 def drop_db(db: str) -> None:
     subprocess.run(
-        ["psql", "-U", "marin", "-d", "postgres", "-c",
+        ["psql", "-U", PG_USER, "-d", "postgres", "-c",
          f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)'],
         capture_output=True, text=True, check=False,
     )
@@ -237,7 +244,7 @@ def installed_modules(db: str) -> set[str]:
     if not db_exists(db):
         return set()
     out = subprocess.run(
-        ["psql", "-U", "marin", "-d", db, "-tAc",
+        ["psql", "-U", PG_USER, "-d", db, "-tAc",
          "SELECT name FROM ir_module_module WHERE state='installed'"],
         capture_output=True, text=True, check=False,
     )
