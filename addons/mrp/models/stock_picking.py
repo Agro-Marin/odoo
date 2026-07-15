@@ -196,7 +196,7 @@ class StockPicking(models.Model):
         for picking in self:
             picking.has_kits = any(picking.move_ids.mapped("bom_line_id"))
 
-    @api.depends("reference_ids.production_ids")
+    @api.depends("move_ids.production_group_id.production_ids")
     def _compute_production_ids(self):
         for picking in self:
             picking.production_ids = picking.move_ids.production_group_id.production_ids

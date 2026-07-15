@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo import api, fields, models
 
 
 class MrpConsumptionWarning(models.TransientModel):
@@ -49,7 +48,6 @@ class MrpConsumptionWarning(models.TransientModel):
 
     def action_set_qty(self):
         missing_move_vals = []
-        problem_tracked_products = self.env["product.product"]
         for production in self.mrp_production_ids:
             for line in self.mrp_consumption_warning_line_ids:
                 if line.mrp_production_id != production:
@@ -82,17 +80,6 @@ class MrpConsumptionWarning(models.TransientModel):
                             "picked": True,
                         }
                     )
-        if problem_tracked_products:
-            products_list = "".join(
-                f"\n- {product_name}"
-                for product_name in problem_tracked_products.mapped("name")
-            )
-            raise UserError(
-                _(
-                    "Values cannot be set and validated because a Lot/Serial Number needs to be specified for a tracked product that is having its consumed amount increased:%(products)s",
-                    products=products_list,
-                ),
-            )
         if missing_move_vals:
             self.env["stock.move"].create(missing_move_vals)
         return self.action_confirm()

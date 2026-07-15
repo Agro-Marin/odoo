@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 from odoo.tools import float_is_zero
 
 
@@ -67,6 +68,13 @@ class ChangeProductionQty(models.TransientModel):
             old_production_qty = production.product_qty
             new_production_qty = wizard.product_qty
 
+            if production.product_uom_id.is_zero(old_production_qty):
+                raise UserError(
+                    _(
+                        "Cannot change the quantity of a manufacturing order whose "
+                        "current quantity is zero."
+                    )
+                )
             factor = new_production_qty / old_production_qty
             update_info = production._update_raw_moves(factor)
             documents = {}

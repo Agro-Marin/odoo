@@ -1052,10 +1052,22 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     forecast_line["quantity"], move_raw.product_uom_id
                 ),
             )  # Avoid over-rounding
-            bom_quantity = (
-                production.product_uom_qty * move_raw.bom_line_id.product_qty
-                - (quantity - line_quantity)
-            )
+            # Component demand expressed in BoM terms must be normalized the same
+            # way as _format_component_move: convert the MO qty into the BoM UoM
+            # and divide by the BoM batch size, otherwise a batch BoM
+            # (product_qty > 1) inflates bom_cost by that factor.
+            if production.bom_id and move_raw.bom_line_id:
+                qty_in_bom_uom = production.product_uom_id._compute_quantity(
+                    production.product_qty, production.bom_id.product_uom_id
+                )
+                full_bom_demand = (
+                    qty_in_bom_uom
+                    * move_raw.bom_line_id.product_qty
+                    / production.bom_id.product_qty
+                )
+            else:
+                full_bom_demand = quantity
+            bom_quantity = full_bom_demand - (quantity - line_quantity)
             replenishment["summary"] = {
                 "level": level + 1,
                 "index": replenishment_index,
@@ -1175,10 +1187,20 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
-        qty_in_bom_uom = production.product_uom_id._compute_quantity(
-            production.product_qty, production.bom_id.product_uom_id
-        )
-        bom_missing_quantity = qty_in_bom_uom * move_raw.bom_line_id.product_qty - (
+        if production.bom_id and move_raw.bom_line_id:
+            qty_in_bom_uom = production.product_uom_id._compute_quantity(
+                production.product_qty, production.bom_id.product_uom_id
+            )
+            # Divide by the BoM batch size (see _format_component_move): without
+            # it a batch BoM (product_qty > 1) inflates the missing qty and cost.
+            full_bom_demand = (
+                qty_in_bom_uom
+                * move_raw.bom_line_id.product_qty
+                / production.bom_id.product_qty
+            )
+        else:
+            full_bom_demand = quantity
+        bom_missing_quantity = full_bom_demand - (
             reserved_quantity + qty_free + total_ordered
         )
 

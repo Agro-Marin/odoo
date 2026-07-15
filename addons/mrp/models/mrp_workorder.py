@@ -2,7 +2,7 @@
 
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from dateutil.relativedelta import relativedelta
 
@@ -899,7 +899,7 @@ class MrpWorkorder(models.Model):
     def _plan_workorder(self, replan=False):
         self.ensure_one()
         # Plan workorder after its predecessors
-        date_start = max(self.production_id.date_start, datetime.now())
+        date_start = max(self.production_id.date_start, fields.Datetime.now())
         for workorder in self.blocked_by_workorder_ids:
             workorder._plan_workorder(replan)
             if workorder.date_end and workorder.date_end > date_start:

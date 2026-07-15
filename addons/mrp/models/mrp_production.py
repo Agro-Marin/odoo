@@ -1358,6 +1358,7 @@ class MrpProduction(models.Model):
         ]
 
     @api.depends(
+        "bom_id.produce_delay",
         "company_id",
         "date_start",
         "is_planned",
@@ -3244,7 +3245,7 @@ class MrpProduction(models.Model):
                 initial_move.raw_material_production_id
                 or (
                     initial_move.production_id
-                    and initial_move.product_id != production.product_id
+                    and initial_move.product_id != initial_move.production_id.product_id
                 )
             ):
                 ml_vals = initial_move._prepare_move_line_vals()
