@@ -3,6 +3,12 @@ import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { ReceptionReportTable } from "../reception_report_table/stock_reception_report_table.js";
+import {
+    collectAssignable,
+    assignMoves,
+    collectAssignedLabels,
+    buildLabelAction,
+} from "../reception_report_utils.js";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
@@ -33,7 +39,7 @@ export class ReceptionReportMain extends Component {
                 const parsedIds = JSON.parse(rids);
                 defaultDocIds = [rfield, parsedIds instanceof Array ? parsedIds : [parsedIds]];
             } else {
-                defaultDocIds = Object.entries(this.context).find(([k,v]) => k.startsWith("default_"));
+                defaultDocIds = Object.entries(this.context).find(([k]) => k.startsWith("default_"));
                 if (!defaultDocIds) {
                     // If nothing could be found, just ask for empty data.
                     defaultDocIds = [false, [0]];
@@ -77,26 +83,9 @@ export class ReceptionReportMain extends Component {
     //---- Handlers ----
 
     async onClickAssignAll() {
-        const moveIds = [];
-        const quantities = [];
-        const inIds = [];
-
-        for (const lines of Object.values(this.state.sourcesToLines)) {
-            for (const line of lines) {
-                // Skip lines with nothing to assign (already assigned, or
-                // "expected" draft lines that carry no incoming moves to link).
-                if (line.is_assigned || !line.is_qty_assignable) continue;
-                moveIds.push(line.move_out_id);
-                quantities.push(line.quantity);
-                inIds.push(line.move_ins);
-            }
-        }
-
-        await this.ormService.call(
-            "report.stock.report_reception",
-            "action_assign",
-            [false, moveIds, quantities, inIds],
-        );
+        const lines = Object.values(this.state.sourcesToLines).flat();
+        const { moveIds, quantities, inIds } = collectAssignable(lines);
+        await assignMoves(this.ormService, moveIds, quantities, inIds);
         this._changeAssignedState({ isAssigned: true });
     }
 
@@ -118,25 +107,12 @@ export class ReceptionReportMain extends Component {
     }
 
     onClickPrintLabels() {
-        const modelIds = [];
-        const quantities = [];
-
-        for (const lines of Object.values(this.state.sourcesToLines)) {
-            for (const line of lines) {
-                if (!line.is_assigned) continue;
-                modelIds.push(line.move_out_id);
-                quantities.push(Math.ceil(line.quantity) || 1);
-            }
+        const lines = Object.values(this.state.sourcesToLines).flat();
+        const { docids, quantities } = collectAssignedLabels(lines);
+        const action = buildLabelAction(this.receptionReportLabelAction, docids, quantities);
+        if (action) {
+            return this.actionService.doAction(action);
         }
-        if (!modelIds.length) {
-            return;
-        }
-
-        return this.actionService.doAction({
-            ...this.receptionReportLabelAction,
-            context: { active_ids: modelIds },
-            data: { docids: modelIds, quantity: quantities.join(",") },
-        });
     }
 
     //---- Utils ----

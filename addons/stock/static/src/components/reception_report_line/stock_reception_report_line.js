@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/fields/formatters";
+import { assignMoves, buildLabelAction } from "../reception_report_utils.js";
 import { Component } from "@odoo/owl";
 
 export class ReceptionReportLine extends Component {
@@ -35,21 +36,20 @@ export class ReceptionReportLine extends Component {
         if (!this.data.move_out_id) {
             return;
         }
-        const modelIds = [this.data.move_out_id];
-        const productQtys = [Math.ceil(this.data.quantity) || '1'];
-
-        return this.actionService.doAction({
-            ...this.props.labelReport,
-            context: { active_ids: modelIds },
-            data: { docids: modelIds, quantity: productQtys.join(",") },
-        });
+        const action = buildLabelAction(
+            this.props.labelReport,
+            [this.data.move_out_id],
+            [Math.ceil(this.data.quantity) || 1],
+        );
+        return this.actionService.doAction(action);
     }
 
     async onClickAssign() {
-        await this.ormService.call(
-            "report.stock.report_reception",
-            "action_assign",
-            [false, [this.data.move_out_id], [this.data.quantity], [this.data.move_ins]],
+        await assignMoves(
+            this.ormService,
+            [this.data.move_out_id],
+            [this.data.quantity],
+            [this.data.move_ins],
         );
         this.env.bus.trigger("update-assign-state", { isAssigned: true, tableIndex: this.props.parentIndex, lineIndex: this.data.index });
     }
