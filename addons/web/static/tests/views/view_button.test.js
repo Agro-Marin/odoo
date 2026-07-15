@@ -1,10 +1,5 @@
 // @ts-check
 
-// Side-effect imports: register the remaining shared_components entries and
-// install the registry's validation schema (M2).
-import "@web/views/form/form_utils";
-import "@web/views/view_utils";
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, useRef, useState, xml } from "@odoo/owl";
@@ -17,6 +12,16 @@ import { registry } from "@web/core/registry";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
+// eslint-disable-next-line simple-import-sort/imports -- order-sensitive:
+// must run AFTER the view_button imports above. A prior `eslint --fix`
+// hoisted these to the top, reordering them relative to the modules whose
+// registrations they may depend on; restored to their original position.
+// Not verified against the Hoot suite (harness unavailable in this
+// environment) — treat this position as the known-safe one until it is.
+// Side-effect imports: register the remaining shared_components entries and
+// install the registry's validation schema (M2).
+import "@web/views/form/form_utils";
+import "@web/views/view_utils";
 
 /**
  * Mount a ViewButton (or subclass) declared by `buttonXml`, wired to useViewButtons.
