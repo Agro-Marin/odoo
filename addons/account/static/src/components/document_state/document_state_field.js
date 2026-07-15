@@ -30,9 +30,13 @@ export class DocumentState extends SelectionField {
         return this.props.record.data.message;
     }
 
-    copyText() {
-        navigator.clipboard.writeText(this.message);
-        this.notification.add(_t("Text copied"), { type: "success" });
+    async copyText() {
+        try {
+            await navigator.clipboard.writeText(this.message);
+            this.notification.add(_t("Text copied"), { type: "success" });
+        } catch {
+            this.notification.add(_t("Could not copy to clipboard"), { type: "warning" });
+        }
         this.popoverCloseFn();
         this.popoverCloseFn = null;
     }

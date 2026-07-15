@@ -19,6 +19,11 @@ export class AccountSidebar extends Sidebar {
     start() {
         super.start();
         this.invoiceHTMLEl = document.getElementById('invoice_html');
+        if (!this.invoiceHTMLEl) {
+            // The sidebar can render without the invoice iframe (partial template
+            // / permissions); bail instead of crashing the interaction bootstrap.
+            return;
+        }
         const iframeDoc = this.invoiceHTMLEl.contentDocument || this.invoiceHTMLEl.contentWindow.document;
         if (iframeDoc.readyState === 'complete') {
             this.updateIframeSize();
@@ -32,6 +37,9 @@ export class AccountSidebar extends Sidebar {
      * The goal is to expand the iframe height to display the full report without scrollbar.
      */
     updateIframeSize() {
+        if (!this.invoiceHTMLEl) {
+            return;
+        }
         const wrapwrapEl = this.invoiceHTMLEl.contentDocument.querySelector("div#wrapwrap");
         // Set it to 0 first to handle the case where scrollHeight is too big for its content.
         this.invoiceHTMLEl.height = 0;

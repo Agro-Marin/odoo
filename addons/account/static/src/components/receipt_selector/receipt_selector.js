@@ -75,7 +75,7 @@ export class ReceiptSelector extends RadioField {
         if ( this.type === 'selection' ) {
             // Use the original labels and not the modified ones
             return this.value !== false
-                ? this.props.record.fields[this.props.name].selection.find((i) => i[0] === this.value)[1]
+                ? this.props.record.fields[this.props.name].selection.find((i) => i[0] === this.value)?.[1] ?? ""
                 : "";
         }
         return "";
@@ -86,9 +86,6 @@ export const receiptSelector = {
     ...radioField,
     additionalClasses: ['o_field_radio'],
     component: ReceiptSelector,
-    extractProps() {
-        return radioField.extractProps(...arguments);
-    },
 };
 
 registry.category("fields").add("receipt_selector", receiptSelector);

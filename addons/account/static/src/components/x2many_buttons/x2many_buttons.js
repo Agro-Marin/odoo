@@ -48,7 +48,6 @@ class X2ManyButtons extends Component {
     }
 }
 
-X2ManyButtons.template = "account.X2ManyButtons";
 registry.category("fields").add("x2many_buttons", {
     component: X2ManyButtons,
     relatedFields: [{ name: "display_name", type: "char" }],

@@ -11,7 +11,7 @@ import { useState, onWillStart } from "@odoo/owl";
 export class DashboardKanbanDropdownMenuWrapper extends KanbanDropdownMenuWrapper {
     onClick(ev) {
         // Keep the dropdown open as we need the fileupload to remain in the dom
-        if (!ev.target.tagName === "INPUT" && !ev.target.closest('.file_upload_kanban_action_a')) {
+        if (ev.target.tagName !== "INPUT" && !ev.target.closest('.file_upload_kanban_action_a')) {
             super.onClick(ev);
         }
     }
@@ -20,7 +20,7 @@ export class DashboardKanbanDropdownMenuWrapper extends KanbanDropdownMenuWrappe
 export class DashboardKanbanRecord extends KanbanRecord {
     static template = "account.DashboardKanbanRecord";
     static components = {
-        ...DashboardKanbanRecord.components,
+        ...KanbanRecord.components,
         UploadDropZone,
         AccountFileUploader,
         KanbanDropdownMenuWrapper: DashboardKanbanDropdownMenuWrapper,

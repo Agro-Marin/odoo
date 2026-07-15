@@ -45,15 +45,24 @@ export const accountTaxHelpers = {
 
         const group_per_tax = {};
         const sorted_taxes = [];
+        const seen_tax_ids = new Set();
+        // Mirror Python's recordset union (|=): de-duplicate by id while preserving
+        // insertion order, so a tax reused across groups is not counted twice.
+        const add_tax = (tax) => {
+            if (!seen_tax_ids.has(tax.id)) {
+                seen_tax_ids.add(tax.id);
+                sorted_taxes.push(tax);
+            }
+        };
         for (const tax of sort_key(taxes)) {
             if (tax.amount_type === "group") {
                 const children = sort_key(tax.children_tax_ids);
                 for (const child of children) {
                     group_per_tax[child.id] = tax;
-                    sorted_taxes.push(child);
+                    add_tax(child);
                 }
             } else {
-                sorted_taxes.push(tax);
+                add_tax(tax);
             }
         }
         return { sorted_taxes, group_per_tax };
@@ -210,7 +219,7 @@ export const accountTaxHelpers = {
             const total_percentage =
                 batch.reduce((sum, batch_tax) => sum + batch_tax.amount, 0) / 100.0;
             const to_price_excluded_factor =
-                total_percentage !== -1 ? 1 / (1 + total_percentage) : 0.0;
+                !floatIsZero(total_percentage + 1, 10) ? 1 / (1 + total_percentage) : 0.0;
             return (raw_base * to_price_excluded_factor * tax.amount) / 100.0;
         }
 
@@ -232,7 +241,7 @@ export const accountTaxHelpers = {
         if (tax.amount_type === "division") {
             const total_percentage =
                 batch.reduce((sum, batch_tax) => sum + batch_tax.amount, 0) / 100.0;
-            const incl_base_multiplicator = total_percentage === 1.0 ? 1.0 : 1 - total_percentage;
+            const incl_base_multiplicator = floatIsZero(total_percentage - 1.0, 10) ? 1.0 : 1 - total_percentage;
             return (raw_base * tax.amount) / 100.0 / incl_base_multiplicator;
         }
         return null;
@@ -621,10 +630,13 @@ export const accountTaxHelpers = {
      */
     get_base_line_field_value_from_record(record, field, extra_values, fallback) {
         if (field in extra_values) {
+            // Mirror Python: 'extra_values[field] or fallback' — truthy-or-fallback.
             return extra_values[field] || fallback;
         }
         if (record && field in record) {
-            return record[field] || fallback;
+            // Mirror Python's 'record.get(field, fallback)': a present key keeps its
+            // value even when falsy (e.g. rate === 0); only an absent key falls back.
+            return record[field];
         }
         return fallback;
     },
@@ -786,7 +798,9 @@ export const accountTaxHelpers = {
         }
 
         const sign = delta_amount < 0.0 ? -1 : 1;
-        const nb_of_errors = Math.round(Math.abs(delta_amount / precision_rounding));
+        // Python's round() is banker's rounding (round-half-to-even); mirror it so
+        // exact .5 ties allocate the residual cent to the same line as the server.
+        const nb_of_errors = roundPrecision(Math.abs(delta_amount / precision_rounding), 1, "HALF-EVEN");
         let remaining_errors = nb_of_errors;
 
         // Distribute using the factor first.
@@ -797,7 +811,7 @@ export const accountTaxHelpers = {
             }
 
             const nb_of_amount_to_distribute = Math.min(
-                Math.round(factor * nb_of_errors),
+                roundPrecision(factor * nb_of_errors, 1, "HALF-EVEN"),
                 remaining_errors
             );
             remaining_errors -= nb_of_amount_to_distribute;
@@ -1250,8 +1264,13 @@ export const accountTaxHelpers = {
                         tax_details.total_excluded_currency +
                         tax_details.delta_total_excluded_currency;
                     for (const tax_data of tax_details.taxes_data) {
-                        display_base_amount_currency += tax_data.tax_amount_currency;
-                        display_base_amount += tax_data.tax_amount;
+                        // Only the division taxes of this group are added back to the
+                        // displayed base; other taxes on the line belong to other groups
+                        // and must not inflate it (mirror of account_tax.py).
+                        if (tax_data.tax.amount_type === "division") {
+                            display_base_amount_currency += tax_data.tax_amount_currency;
+                            display_base_amount += tax_data.tax_amount;
+                        }
                     }
                 });
             } else {
@@ -1789,7 +1808,7 @@ export const accountTaxHelpers = {
         const currency = base_line.currency_id;
         const tax_details = base_line.tax_details;
 
-        const factors = this._normalize_target_factors(target_factors);
+        const factors = this.normalize_target_factors(target_factors);
 
         const new_tax_details_list = [];
 
@@ -2278,8 +2297,10 @@ export const accountTaxHelpers = {
         this.add_tax_details_in_base_lines(new_base_lines, company);
         this.round_base_lines_tax_details(new_base_lines, company);
 
-        // Smooth distribution of the delta tax/base amounts.
-        const sorted_base_lines = new_base_lines.sort((base_line_1, base_line_2) => {
+        // Smooth distribution of the delta tax/base amounts. Use toSorted so
+        // new_base_lines keeps its original order for the return value (mirror of
+        // Python's non-mutating sorted()); only the distribution below is ordered.
+        const sorted_base_lines = new_base_lines.toSorted((base_line_1, base_line_2) => {
             const key_1 = [
                 Boolean(base_line_1.special_type),
                 -base_line_1.tax_details.total_excluded_currency,

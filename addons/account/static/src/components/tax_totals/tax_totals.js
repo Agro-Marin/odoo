@@ -25,7 +25,6 @@ class TaxGroupComponent extends Component {
         taxGroup: { optional: true },
         onChangeTaxGroup: { optional: true },
         isReadonly: Boolean,
-        invalidate: Function,
     };
     static template = "account.TaxGroupComponent";
 
@@ -130,16 +129,13 @@ export class TaxTotalsComponent extends Component {
 
     setup() {
         this.totals = {};
-        this.formatData(this.props);
+        this._rawTotals = undefined;
+        // onWillRender fires before the first render, so no eager formatData here.
         onWillRender(() => this.formatData(this.props));
     }
 
     get readonly() {
         return this.props.readonly;
-    }
-
-    invalidate() {
-        return this.props.record.setInvalidField(this.props.name);
     }
 
     formatMonetary(value) {
@@ -154,16 +150,24 @@ export class TaxTotalsComponent extends Component {
      */
     _onChangeTaxValueByTaxGroup({ oldValue, newValue }) {
         if (oldValue === newValue) return;
-        this.props.record.update({ [this.props.name]: this.totals });
+        // Drop the derived key before persisting so it is never written back,
+        // instead of deleting it from the same reference after handing it to update().
         delete this.totals.cash_rounding_base_amount_currency;
+        this.props.record.update({ [this.props.name]: this.totals });
     }
 
     formatData(props) {
-        let totals = JSON.parse(JSON.stringify(toRaw(props.record.data[this.props.name])));
-        if (!totals) {
+        const raw = toRaw(props.record.data[this.props.name]);
+        // Only re-clone when the underlying field object changed identity; otherwise
+        // keep the existing clone (avoids a full deep-clone on every re-render).
+        if (raw === this._rawTotals) {
             return;
         }
-        this.totals = totals;
+        this._rawTotals = raw;
+        if (!raw) {
+            return;
+        }
+        this.totals = JSON.parse(JSON.stringify(raw));
     }
 }
 

@@ -67,6 +67,9 @@ export class DocumentFileUploader extends Component {
       // ensures attachments are cleared on success as well as on error
       this.attachmentIdsToProcess = [];
     }
+    if (!action) {
+      return;
+    }
     if (action.context && action.context.notifications) {
       for (const [file, msg] of Object.entries(action.context.notifications)) {
         this.notification.add(msg, {

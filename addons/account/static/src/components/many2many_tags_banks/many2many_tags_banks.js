@@ -16,7 +16,7 @@ export class FieldMany2ManyTagsBanksTagsList extends TagsList {
 export class FieldMany2ManyTagsBanks extends Many2ManyTagsFieldColorEditable {
     static template = "account.FieldMany2ManyTagsBanks";
     static components = {
-        ...FieldMany2ManyTagsBanks.components,
+        ...Many2ManyTagsFieldColorEditable.components,
         TagsList: FieldMany2ManyTagsBanksTagsList,
     };
 

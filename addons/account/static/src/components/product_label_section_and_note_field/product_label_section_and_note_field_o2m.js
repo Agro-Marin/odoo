@@ -18,26 +18,32 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
 
     processAllColumns(allColumns, list) {
         allColumns = allColumns.map((column) => {
-            if (column["optional"] === "conditional" && this.conditionalColumns.includes(column["name"])) {
-                /**
-                 * The preference should be different whether:
-                 *     - It's a Vendor Bill or an Invoice
-                 *     - Sale module is installed
-                 * Vendor Bills -> Product should be hidden by default
-                 * Invoices -> conditionalColumns should be hidden by default if Sale module is not installed
-                 */
-                const isBill = ["in_invoice", "in_refund", "in_receipt"].includes(this.props.list.evalContext.parent.move_type);
-                const isInvoice = ["out_invoice", "out_refund", "out_receipt"].includes(this.props.list.evalContext.parent.move_type);
-                const isSaleInstalled = this.props.list.evalContext.parent.is_sale_installed;
-                column["optional"] = "show";
-                if (isBill && column["name"] === "product_id") {
-                    column["optional"] = "hide";
-                }
-                else if (isInvoice && !isSaleInstalled) {
-                    column["optional"] =  "hide";
-                }
+            // Gate on the column name, not column.optional: the base re-invokes this
+            // every render against the SAME cached arch objects, so mutating
+            // column.optional in place made the "conditional" gate fail after the
+            // first render and let one move_type's visibility leak to other invoices.
+            // Recompute from the current move_type into a shallow copy each time.
+            if (!this.conditionalColumns.includes(column["name"])) {
+                return column;
             }
-            return column;
+            /**
+             * The preference should be different whether:
+             *     - It's a Vendor Bill or an Invoice
+             *     - Sale module is installed
+             * Vendor Bills -> Product should be hidden by default
+             * Invoices -> conditionalColumns should be hidden by default if Sale module is not installed
+             */
+            const isBill = ["in_invoice", "in_refund", "in_receipt"].includes(this.props.list.evalContext.parent.move_type);
+            const isInvoice = ["out_invoice", "out_refund", "out_receipt"].includes(this.props.list.evalContext.parent.move_type);
+            const isSaleInstalled = this.props.list.evalContext.parent.is_sale_installed;
+            let optional = "show";
+            if (isBill && column["name"] === "product_id") {
+                optional = "hide";
+            }
+            else if (isInvoice && !isSaleInstalled) {
+                optional = "hide";
+            }
+            return { ...column, optional };
         });
         return super.processAllColumns(allColumns, list);
     }
