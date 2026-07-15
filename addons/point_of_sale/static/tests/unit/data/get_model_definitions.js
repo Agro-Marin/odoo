@@ -13,9 +13,20 @@ export const getModelDefinitions = () => {
 };
 
 let generatedModels = null;
+// The instance is cached so repeated calls within a single test share it, but the
+// cache must not leak across tests (records would accumulate on a shared instance).
+// Each test spins up a fresh MockServer via makeMockServer(), so key the cache on
+// the current server (and on useModelClass) and rebuild when either changes.
+let generatedModelsKey = null;
 
 export const getRelatedModelsInstance = (useModelClass = true) => {
-    if (generatedModels) {
+    const cacheKey = { server: MockServer.current, useModelClass };
+    if (
+        generatedModels &&
+        generatedModelsKey &&
+        generatedModelsKey.server === cacheKey.server &&
+        generatedModelsKey.useModelClass === cacheKey.useModelClass
+    ) {
         return generatedModels;
     }
 
@@ -38,5 +49,6 @@ export const getRelatedModelsInstance = (useModelClass = true) => {
 
     const models = createRelatedModels(relations, useModelClass ? modelClasses : {}, options);
     generatedModels = models.models;
+    generatedModelsKey = cacheKey;
     return models.models;
 };

@@ -8,7 +8,10 @@ test("uiState", async () => {
     const store = await setupPosEnv();
     const order = store.addNewOrder();
 
-    expect(order.uiState).toEqual({
+    // Assert the point_of_sale-owned defaults with a subset match: other installed
+    // modules (e.g. pos_enterprise adds `noteHistory`) legitimately extend uiState,
+    // and their patches are always present in the shared unit-test bundle.
+    expect(order.uiState).toMatchObject({
         unmerge: {},
         lastPrints: [],
         lineToRefund: {},
