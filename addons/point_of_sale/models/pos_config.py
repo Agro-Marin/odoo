@@ -523,6 +523,8 @@ class PosConfig(models.Model):
         record = read_records[0]
         record["_server_version"] = exp_version()
         record["_base_url"] = config.get_base_url()
+        # Needed to build the authenticated customer-display URL (t23962 / R6-3).
+        record["access_token"] = config.access_token
         record["_data_server_date"] = (
             self.env.context.get("pos_last_server_date") or self.env.cr.now()
         )
@@ -558,7 +560,7 @@ class PosConfig(models.Model):
     def _compute_fast_payment_method_ids(self):
         for config in self:
             config.fast_payment_method_ids = config.fast_payment_method_ids.filtered(
-                lambda pm: pm.id in config.payment_method_ids.ids
+                lambda pm, config=config: pm.id in config.payment_method_ids.ids
             )
             if not config.fast_payment_method_ids:
                 config.use_fast_payment = False
@@ -832,7 +834,8 @@ class PosConfig(models.Model):
 
             if config.use_pricelist and any(
                 config.available_pricelist_ids.mapped(
-                    lambda pricelist: pricelist.currency_id != config.currency_id
+                    lambda pricelist, config=config: pricelist.currency_id
+                    != config.currency_id
                 )
             ):
                 raise ValidationError(
