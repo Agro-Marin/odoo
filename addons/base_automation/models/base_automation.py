@@ -1150,13 +1150,18 @@ class BaseAutomation(models.Model):
         return False
 
     def _webhook_rate_ok(self):
-        """Consume one token from this rule's DB-backed rate-limit bucket."""
+        """Consume one token from this rule's DB-backed rate-limit bucket.
+
+        strict=True: a public webhook endpoint must fail CLOSED under lock
+        contention, not silently let a burst through (the bucket's own
+        default is fail-open, meant for lower-stakes internal callers).
+        """
         bucket = (
             self.env["rate.limit.bucket"]
             .sudo()
             .get_or_create_bucket(self, self.env.company.id)
         )
-        return bucket.consume_token()
+        return bucket.consume_token(strict=True)
 
     def _execute_webhook(self, payload):
         """Execute the webhook for the given payload.
