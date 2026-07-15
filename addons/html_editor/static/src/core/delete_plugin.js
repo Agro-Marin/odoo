@@ -248,6 +248,9 @@ export class DeletePlugin extends Plugin {
      */
     delete(direction, granularity) {
         const selection = this.dependencies.selection.getEditableSelection();
+
+        this.dependencies.history.stageSelection();
+
         this.dispatchTo("before_delete_handlers");
 
         if (!selection.isCollapsed) {
@@ -1400,6 +1403,7 @@ export class DeletePlugin extends Plugin {
             !this.isUnremovable(closestUnmergeable)
         ) {
             closestUnmergeable.remove();
+            this.fillShrunkBlocks(commonAncestor);
             this.dependencies.selection.setSelection({
                 anchorNode: destContainer,
                 anchorOffset: destOffset,
