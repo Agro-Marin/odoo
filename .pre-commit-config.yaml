@@ -53,3 +53,18 @@ repos:
     rev: v3.2.0
     hooks:
       - id: agromarin-commit-format
+
+  # === Cross-repo symbol coherence (pre-push, local) ===
+  # Fails a core push that removes a JS module a sibling repo (enterprise,
+  # agromarin-addons, design-themes) still imports at runtime — the split-repo
+  # break from t23778. pre-push stage → run once against the pushed range, not
+  # per-file. Requires per-clon: pre-commit install --hook-type pre-push
+  - repo: local
+    hooks:
+      - id: cross-repo-coherence
+        name: cross-repo symbol coherence (core -> consumers)
+        entry: python tooling/architecture/cross_repo_coherence.py --check
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
