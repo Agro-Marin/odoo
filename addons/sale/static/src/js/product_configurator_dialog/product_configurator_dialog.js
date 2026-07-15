@@ -5,6 +5,14 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { ProductList } from "../product_list/product_list.js";
 import { formatCurrency } from '@web/services/currency';
+import {
+    checkExclusions,
+    findProduct,
+    getChildProducts,
+    getCombination,
+    getParentsCombination,
+    isPossibleCombination,
+} from "./product_configurator_utils.js";
 
 export class ProductConfiguratorDialog extends Component {
     static components = { Dialog, ProductList};
@@ -360,62 +368,22 @@ export class ProductConfiguratorDialog extends Component {
      * @param {Object} product - The product for which to check the exclusions.
      */
     _checkExclusions(product) {
-        const combination = this._getCombination(product);
-        const exclusions = product.exclusions;
-        const parentExclusions = product.parent_exclusions;
-        const archivedCombinations = product.archived_combinations;
-        const parentCombination = this._getParentsCombination(product);
-        const childProducts = this._getChildProducts(product.product_tmpl_id)
-        const ptavList = product.attribute_lines.flatMap(ptal => ptal.attribute_values)
-        ptavList.forEach(ptav => ptav.excluded = false); // Reset all the values
-
-        if (exclusions) {
-            for(const ptavId of combination) {
-                for(const excludedPtavId of (exclusions[ptavId] || [])) {
-                    const excludedPtav = ptavList.find(ptav => ptav.id === excludedPtavId);
-                    if (excludedPtav) {
-                        excludedPtav.excluded = true; // Assign only if the element exists
-                    }
-                }
-            }
-        }
-        if (parentCombination) {
-            for(const ptavId of parentCombination) {
-                for(const excludedPtavId of (parentExclusions[ptavId]||[])) {
-                    const ptav = ptavList.find(ptav => ptav.id === excludedPtavId);
-                    if (ptav) {
-                        ptav.excluded = true; // Assign only if the element exists
-                    }
-                }
-            }
-        }
-        if (archivedCombinations) {
-            for(const excludedCombination of archivedCombinations) {
-                const ptavCommon = excludedCombination.filter((ptav) => combination.includes(ptav));
-                if (ptavCommon.length === combination.length) {
-                    for(const excludedPtavId of ptavCommon) {
-                        ptavList.find(ptav => ptav.id === excludedPtavId).excluded = true;
-                    }
-                } else if (ptavCommon.length === (combination.length - 1)) {
-                    // In this case we only need to disable the remaining ptav
-                    const disabledPtavId = excludedCombination.find(
-                        (ptav) => !combination.includes(ptav)
-                    );
-                    const excludedPtav = ptavList.find(ptav => ptav.id === disabledPtavId)
-                    if (excludedPtav) {
-                        excludedPtav.excluded = true;
-                    }
-                }
-            }
-        }
-        for(const optionalProductTmpl of childProducts) {
-            this._checkExclusions(optionalProductTmpl);
-        }
+        checkExclusions(this._allProducts, product);
     }
 
     //--------------------------------------------------------------------------
     // Private
     //--------------------------------------------------------------------------
+
+    /**
+     * The pool of products (main + optional) that combination/exclusion lookups
+     * resolve parents and children against.
+     *
+     * @return {Object[]}
+     */
+    get _allProducts() {
+        return [...this.state.products, ...this.state.optionalProducts];
+    }
 
     /**
      * Return the product given his template id.
@@ -425,8 +393,7 @@ export class ProductConfiguratorDialog extends Component {
      */
     _findProduct(productTmplId) {
         // The product might be in either of the two lists `products` or `optional_products`.
-        return  this.state.products.find(p => p.product_tmpl_id === productTmplId) ||
-                this.state.optionalProducts.find(p => p.product_tmpl_id === productTmplId);
+        return findProduct(this._allProducts, productTmplId);
     }
 
     /**
@@ -437,10 +404,7 @@ export class ProductConfiguratorDialog extends Component {
      * @return {Array} - The list of dependents products.
      */
     _getChildProducts(productTmplId) {
-        return [
-            ...this.state.products.filter(p => p.parent_product_tmpl_id === productTmplId),
-            ...this.state.optionalProducts.filter(p => p.parent_product_tmpl_id === productTmplId)
-        ]
+        return getChildProducts(this._allProducts, productTmplId);
     }
 
     /**
@@ -450,7 +414,7 @@ export class ProductConfiguratorDialog extends Component {
      * @return {Array} - The combination of the product.
      */
     _getCombination(product) {
-        return product.attribute_lines.flatMap(ptal => ptal.selected_attribute_value_ids);
+        return getCombination(product);
     }
 
     /**
@@ -461,9 +425,7 @@ export class ProductConfiguratorDialog extends Component {
      * @return {Array} - The combination of the parent product.
      */
     _getParentsCombination(product) {
-        return product.parent_product_tmpl_id
-            ? this._getCombination(this._findProduct(product.parent_product_tmpl_id))
-            : [];
+        return getParentsCombination(this._allProducts, product);
     }
 
     /**
@@ -473,12 +435,7 @@ export class ProductConfiguratorDialog extends Component {
      * @return {Boolean} - Whether the combination is valid or not.
      */
     _isPossibleCombination(product) {
-        return product.attribute_lines.every(ptal => {
-            const selectedPtavIds = new Set(ptal.selected_attribute_value_ids);
-            return ptal.attribute_values
-                .filter(ptav => selectedPtavIds.has(ptav.id))
-                .every(ptav => !ptav.excluded);
-        });
+        return isPossibleCombination(product);
     }
 
     /**

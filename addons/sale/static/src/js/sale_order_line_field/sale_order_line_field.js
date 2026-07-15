@@ -15,7 +15,7 @@ import { useSubEnv } from '@odoo/owl';
 import { registry } from '@web/core/registry';
 import { CharField } from '@web/fields/basic/char/char_field';
 
-function getComboRecords(listRecords, record) {
+export function getComboRecords(listRecords, record) {
     const comboRecords = [];
 
     if (record.data.product_type === 'combo') {
