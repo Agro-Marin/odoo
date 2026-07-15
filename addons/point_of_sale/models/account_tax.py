@@ -45,17 +45,33 @@ class AccountTax(models.Model):
                 )
         return super().write(vals)
 
-    # NOTE: no `_hook_compute_is_used` override. `account.tax.is_used` (which
-    # gates deletion via `unlink_except_tax_used`) must reflect *finalized*
-    # accounting only. All posted POS accounting already lands in
-    # account.move.line — the combined session-closing move sets `tax_ids` on
-    # its sale lines (pos_session._get_sale_vals) and invoiced orders carry the
-    # tax on their invoice lines — so the base `_compute_is_used` scan of
-    # account_move_line_account_tax_rel covers every closed/invoiced POS order.
-    # A tax referenced only by a *non-posted* pos.order.line (draft/open
-    # session) must stay deletable: the order degrades gracefully (the m2m link
-    # cascades away and the closing entry is computed without it). Mutation of
-    # such a tax is still blocked by `write` above until the session closes.
+    def _hook_compute_is_used(self, tax_to_compute):
+        # OVERRIDE: count a tax referenced by any pos.order.line as used, so it
+        # cannot be deleted while a POS order still carries it. Mirrors the
+        # write() guard above (which blocks *modifying* such a tax): without
+        # this, a tax used only by an open-session order stayed deletable, and
+        # deleting it left the session-closing entry computed without a tax that
+        # was already collected from the customer — a fiscal under-declaration.
+        # Restores upstream behavior dropped in the fork; see t23802.
+        used_taxes = super()._hook_compute_is_used(tax_to_compute)
+        tax_to_compute -= used_taxes
+        if tax_to_compute:
+            self.env["pos.order.line"].flush_model(["tax_ids"])
+            self.env.cr.execute(
+                """
+                SELECT id
+                FROM account_tax
+                WHERE EXISTS(
+                    SELECT 1
+                    FROM account_tax_pos_order_line_rel AS pos
+                    WHERE account_tax_id IN %s
+                      AND account_tax.id = pos.account_tax_id
+                )
+                """,
+                [tuple(tax_to_compute)],
+            )
+            used_taxes.update(tax[0] for tax in self.env.cr.fetchall())
+        return used_taxes
 
     @api.model
     def _load_pos_data_domain(self, data, config):
