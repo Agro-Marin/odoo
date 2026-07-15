@@ -137,8 +137,6 @@
             "bus/static/src/bus_parameters_service.js",
             "bus/static/src/legacy_multi_tab_service.js",
             "bus/static/src/multi_tab_service.js",
-            "bus/static/src/multi_tab_shared_worker_service.js",
-            "bus/static/src/multi_tab_fallback_service.js",
             "bus/static/src/workers/*",
             "iot_base/static/src/network_utils/*",
             "iot_base/static/src/device_controller.js",
