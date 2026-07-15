@@ -844,10 +844,13 @@ describe("Related Model", () => {
         }
 
         {
+            // backLink normalizes the (missing) "<-" prefix to the same key as the
+            // att1 block above, so it returns records in insertion order: line1
+            // (id 12, loaded first) then line2 (id 13).
             let lines = att2.backLink("pos.order.line.attribute_value_ids");
             expect(lines.length).toBe(2);
-            expect(lines[0]).toBe(line2);
-            expect(lines[1]).toBe(line1);
+            expect(lines[0]).toBe(line1);
+            expect(lines[1]).toBe(line2);
 
             line1.delete();
             lines = att2.backLink("pos.order.line.attribute_value_ids");
