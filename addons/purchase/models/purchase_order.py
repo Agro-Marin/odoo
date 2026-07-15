@@ -1174,6 +1174,17 @@ class PurchaseOrder(models.Model):
             precision_digits=2,
         )
 
+        # Authoritative "are other users' orders in scope" flag, so the client
+        # doesn't have to infer it by structurally comparing the two dicts.
+        count_keys = ("draft", "sent", "late", "not_acknowledged", "late_receipt")
+        result["multiuser"] = (
+            any(
+                result["global"][key]["all"] != result["my"][key]["all"]
+                for key in count_keys
+            )
+            or result["global"]["days_to_order"] != result["my"]["days_to_order"]
+        )
+
         return result
 
     def _prepare_confirmation_values(self):
@@ -1291,28 +1302,48 @@ class PurchaseOrder(models.Model):
         }
 
     def send_reminder_preview(self):
+        """Send the reminder email to the current user as a preview.
+
+        Always returns a ``{"toast_message", "toast_type"}`` dict so the
+        ``toaster_button`` widget can give the user feedback in every case,
+        including the ones where nothing could be sent.
+        """
         self.ensure_one()
         if not self.env.user.has_group("purchase.group_send_reminder"):
-            return None
+            return {
+                "toast_message": _("You are not allowed to send reminder emails."),
+                "toast_type": "warning",
+            }
 
         template = self.env.ref(
             "purchase.email_template_edi_purchase_reminder",
             raise_if_not_found=False,
         )
-        if template and self.env.user.email and self.id:
-            template.with_context(is_reminder=True).send_mail(
-                self.id,
-                force_send=True,
-                raise_exception=False,
-                email_layout_xmlid="mail.mail_notification_layout_with_responsible_signature",
-                email_values={"email_to": self.env.user.email, "recipient_ids": []},
-            )
+        if not template:
             return {
-                "toast_message": escape(
-                    _("A sample email has been sent to %s.", self.env.user.email),
-                ),
+                "toast_message": _("The reminder email template is missing."),
+                "toast_type": "warning",
             }
-        return None
+        if not self.env.user.email:
+            return {
+                "toast_message": _(
+                    "Set an email address on your user to preview the reminder."
+                ),
+                "toast_type": "warning",
+            }
+
+        template.with_context(is_reminder=True).send_mail(
+            self.id,
+            force_send=True,
+            raise_exception=False,
+            email_layout_xmlid="mail.mail_notification_layout_with_responsible_signature",
+            email_values={"email_to": self.env.user.email, "recipient_ids": []},
+        )
+        return {
+            "toast_message": escape(
+                _("A sample email has been sent to %s.", self.env.user.email),
+            ),
+        }
 
     def _update_order_lines_date_planned(self, updated_dates):
         # create or update the activity

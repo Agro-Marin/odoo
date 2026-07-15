@@ -3,7 +3,7 @@ import { ProductCatalogOrderLine } from "@product/product_catalog/order_line/ord
 
 export class ProductCatalogPurchaseOrderLine extends ProductCatalogOrderLine {
     static props = {
-        ...ProductCatalogPurchaseOrderLine.props,
+        ...ProductCatalogOrderLine.props,
         min_qty: { type: Number, optional: true },
         packaging: { type: Object, optional: true },
     };

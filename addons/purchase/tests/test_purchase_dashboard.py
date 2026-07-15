@@ -119,3 +119,41 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertEqual(dashboard_result["global"]["draft"]["priority"], 1)
         self.assertEqual(dashboard_result["my"]["draft"]["all"], 1)
         self.assertEqual(dashboard_result["global"]["late"]["all"], 1)
+
+        # `multiuser` is the authoritative flag the client uses to show the
+        # global/my split. Here user_b owns orders user_a can see, so global
+        # and my differ and the flag must be True.
+        self.assertTrue(dashboard_result["multiuser"])
+
+    def test_prepare_dashboard_multiuser_flag_single_user(self):
+        """The multiuser flag is False when only the current user's orders exist."""
+        self.env["purchase.order"].with_user(self.user_a).create(
+            {
+                "partner_id": self.partner_a.id,
+                "company_id": self.user_a.company_id.id,
+                "currency_id": self.user_a.company_id.currency_id.id,
+            }
+        )
+        result = self.env["purchase.order"].with_user(self.user_a).prepare_dashboard()
+        self.assertIn("multiuser", result)
+        self.assertFalse(result["multiuser"])
+
+    def test_send_reminder_preview_without_email_returns_dict(self):
+        """The reachable crash scenario: a reminder-group member with no email
+        configured clicks the preview button. The method must return a warning
+        dict, not None -- the toaster widget dereferences the payload, so None
+        used to raise a TypeError on the client. (The happy path that actually
+        sends the mail is covered end-to-end by the purchase-flow tour.)
+        """
+        order = self.env["purchase.order"].create({"partner_id": self.partner_a.id})
+        # Pass email=False explicitly: new_test_user auto-generates one otherwise.
+        reminder_user = new_test_user(
+            self.env,
+            login="purchasereminder",
+            groups="purchase.group_purchase_user,purchase.group_send_reminder",
+            email=False,
+        )
+        result = order.with_user(reminder_user).send_reminder_preview()
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result.get("toast_type"), "warning")
+        self.assertTrue(result.get("toast_message"))

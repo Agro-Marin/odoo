@@ -1,20 +1,21 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
-
 import { ProductCatalogKanbanRenderer } from "@product/product_catalog/kanban_renderer";
 
 export class PurchaseProductCatalogKanbanRenderer extends ProductCatalogKanbanRenderer {
     static template = "PurchaseProductCatalogKanbanRenderer";
 
-    setup() {
-        super.setup();
-        this.action = useService("action");
-    }
-
     get createProductContext() {
-        return {default_seller_ids: [{partner_id:this.props.list._config.context.partner_id}],};
+        return {
+            default_seller_ids: [{ partner_id: this.props.list.context.partner_id }],
+        };
     }
 
+    /**
+     * Overrides the base "create product" flow: purchase pre-seeds the vendor
+     * (see :meth:`createProductContext`) and, unlike the base ``onClose`` reload,
+     * reloads and drops sample data on save so the freshly created product shows
+     * up immediately in the catalog, then closes the dialog.
+     */
     async createProduct() {
         await this.action.doAction(
             {
@@ -27,15 +28,13 @@ export class PurchaseProductCatalogKanbanRenderer extends ProductCatalogKanbanRe
             },
             {
                 props: {
-                    onSave: async (record, params) => {
-                        await this.props.list.model.load();
+                    onSave: async () => {
                         this.props.list.model.useSampleModel = false;
-                        this.action.doAction({
-                            type: "ir.actions.act_window_close",
-                        });
+                        await this.props.list.model.load();
+                        this.action.doAction({ type: "ir.actions.act_window_close" });
                     },
-                }
-            }
+                },
+            },
         );
     }
 }

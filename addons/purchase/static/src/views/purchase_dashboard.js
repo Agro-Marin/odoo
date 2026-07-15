@@ -1,35 +1,54 @@
 /** @odoo-module native */
+import {
+    Component,
+    onWillStart,
+    onWillUnmount,
+    onWillUpdateProps,
+    useState,
+} from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { debounce } from "@web/core/utils/timing";
 
 export class PurchaseDashBoard extends Component {
     static template = "purchase.PurchaseDashboard";
-    static props = { list: { type: Object, optional: true } };
+    static props = {};
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
+        this.state = useState({ data: null, multiuser: false });
 
-        onWillStart(async () => {
-            await this.updateDashboardState();
-        });
-        onWillUpdateProps(async () => {
-            await this.updateDashboardState();
-        });
+        onWillStart(() => this.updateDashboardState());
+        // The parent list/kanban renderer re-renders for many reasons that don't
+        // change the aggregate counts (row selection, pager, etc.), and OWL calls
+        // onWillUpdateProps on every one of them. Debounce so a burst of renders
+        // collapses into a single prepare_dashboard RPC.
+        this.debouncedUpdate = debounce(() => this.updateDashboardState(), 250);
+        onWillUpdateProps(() => this.debouncedUpdate());
+        onWillUnmount(() => this.debouncedUpdate.cancel());
     }
+
+    get purchaseData() {
+        return this.state.data;
+    }
+
+    get multiuser() {
+        return this.state.multiuser;
+    }
+
     async updateDashboardState() {
-        this.purchaseData = await this.orm.call("purchase.order", "prepare_dashboard");
-        this.multiuser = JSON.stringify(this.purchaseData.global) !== JSON.stringify(this.purchaseData.my);
+        const data = await this.orm.call("purchase.order", "prepare_dashboard");
+        this.state.data = data;
+        this.state.multiuser = data.multiuser;
     }
 
     /**
-     * This method clears the current search query and activates
-     * the filters found in `filter_name` attibute from button pressed
+     * Clears the current search query and activates the search items named in
+     * `filterNames` (the comma-separated `filter_name` from the pressed card).
      */
-    setSearchContext(ev) {
-        const filter_name = ev.currentTarget.getAttribute("filter_name");
-        const filters = filter_name.split(",");
+    setSearchContext(filterNames) {
+        const filters = filterNames.split(",");
         const searchItems = this.env.searchModel.getSearchItems((item) =>
-            filters.includes(item.name)
+            filters.includes(item.name),
         );
         this.env.searchModel.query = [];
         for (const item of searchItems) {
