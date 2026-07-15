@@ -245,7 +245,10 @@ class AccountReconcileModel(models.Model):
         action.update(
             {
                 "context": {},
-                "domain": [("id", "in", self.env.cr.fetchone()[0])],
+                # ARRAY_AGG over zero matching rows returns a single NULL row;
+                # coalesce to [] so the domain degenerates to "match nothing"
+                # (showing the empty-folder placeholder) instead of ("id", "in", None).
+                "domain": [("id", "in", self.env.cr.fetchone()[0] or [])],
                 "help": """<p class="o_view_nocontent_empty_folder">{}</p>""".format(
                     _("This reconciliation model has created no entry so far")
                 ),

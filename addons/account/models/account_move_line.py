@@ -738,7 +738,7 @@ class AccountMoveLine(models.Model):
             ):
                 line.name = get_name(line)
 
-    @api.depends("product_id", "partner_id")
+    @api.depends("product_id", "partner_id", "partner_id.lang")
     def _compute_translated_product_name(self):
         for line in self:
             line.translated_product_name = line.product_id.with_context(
@@ -946,7 +946,13 @@ class AccountMoveLine(models.Model):
                 line.credit = -line.balance if line.balance > 0.0 else 0.0
 
     @api.depends(
-        "currency_id", "company_id", "move_id.invoice_currency_rate", "move_id.date"
+        "currency_id",
+        "company_id",
+        "move_id.invoice_currency_rate",
+        "move_id.date",
+        # non-invoice entries rate on invoice_date or date (see below), so the
+        # rate must recompute when a misc entry's invoice_date is edited.
+        "move_id.invoice_date",
     )
     def _compute_currency_rate(self):
         for line in self:

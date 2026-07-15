@@ -1068,7 +1068,7 @@ class AccountMove(models.Model):
             if record.auto_post in ("no", "at_date"):
                 record.auto_post_until = False
 
-    @api.depends("date", "auto_post")
+    @api.depends("state", "date", "auto_post")
     def _compute_hide_post_button(self):
         for record in self:
             record.hide_post_button = record.state != "draft" or (
@@ -1207,12 +1207,6 @@ class AccountMove(models.Model):
     def _compute_highest_name(self):
         for record in self:
             record.highest_name = record._get_last_sequence()
-
-    @api.deprecated(
-        "use `made_sequence_gap` is not computed anymore, use `_update_sequence_made_gap` instead"
-    )
-    def _compute_made_sequence_gap(self):
-        pass
 
     @api.depends_context("lang")
     @api.depends("move_type")
@@ -6685,10 +6679,6 @@ class AccountMove(models.Model):
         )._invoice_paid_hook()
 
         return to_post
-
-    @api.deprecated("use `_update_sequence_made_gap` instead")
-    def _set_next_made_sequence_gap(self, made_gap: bool):
-        self._update_sequence_made_gap(invalidate_current=made_gap)
 
     def _update_sequence_made_gap(self, invalidate_current=False):
         """Update the field made_sequence_gap on the current, next and previous moves.

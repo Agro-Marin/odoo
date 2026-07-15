@@ -566,7 +566,8 @@ class AccountAccount(models.Model):
                 ("|"),
                 ("matched_debit_ids", "!=", False),
                 ("matched_credit_ids", "!=", False),
-            ]
+            ],
+            limit=1,
         )
         if partial_lines_count > 0:
             raise UserError(
@@ -829,7 +830,8 @@ class AccountAccount(models.Model):
                     [
                         ("account_id", "=", account.id),
                         ("currency_id", "not in", (False, vals["currency_id"])),
-                    ]
+                    ],
+                    limit=1,
                 ):
                     raise UserError(
                         _(

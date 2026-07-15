@@ -893,6 +893,9 @@ class AccountTax(models.Model):
                     target_factor["tax_rep_data"][field] += amount_to_distribute
 
         subsequent_tags_per_tax = defaultdict(lambda: self.env["account.account.tag"])
+        # Invariant across the tax / repartition loops (depends only on base_line);
+        # the consumer spreads it read-only, so a single instance is safe to reuse.
+        base_line_grouping_key = self._prepare_base_line_grouping_key(base_line)
         for tax_data in reversed(taxes_data):
             tax = tax_data["tax"]
 
@@ -910,7 +913,6 @@ class AccountTax(models.Model):
                             tax_rep_data["tax_tags"] |= tags
 
                 # Add the accounting grouping_key to create the tax lines.
-                base_line_grouping_key = self._prepare_base_line_grouping_key(base_line)
                 tax_rep_data["grouping_key"] = (
                     self._prepare_base_line_tax_repartition_grouping_key(
                         base_line,
@@ -1493,7 +1495,13 @@ class AccountTax(models.Model):
                     )
             analytic_distribution = {}
             for account_id, amount in analytic_distribution_to_aggregate.items():
-                analytic_distribution[account_id] = amount * 100 / total_factor
+                # total_factor is the sum of the aggregated lines' excluded
+                # amounts; positive and negative lines sharing a grouping key
+                # (e.g. an invoice line and its return) can net to exactly zero.
+                # Guard the division like every other ratio in this method.
+                analytic_distribution[account_id] = (
+                    amount * 100 / total_factor if total_factor else 0.0
+                )
             base_line["analytic_distribution"] = analytic_distribution
 
         return list(base_line_map.values())

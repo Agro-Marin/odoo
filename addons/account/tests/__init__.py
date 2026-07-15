@@ -58,6 +58,7 @@ from . import test_multivat
 from . import test_account_partner
 from . import test_setup_wizard
 from . import test_structured_reference
+from . import test_account_cash_rounding
 from . import test_product
 from . import test_unexpected_invoice
 from . import test_mail_tracking_value

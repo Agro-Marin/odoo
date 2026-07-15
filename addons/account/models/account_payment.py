@@ -539,6 +539,10 @@ class AccountPayment(models.Model):
 
     @api.depends("company_id", "partner_id")
     def _compute_journal_id(self):
+        # Cache the default-journal search per company: every payment in a batch
+        # (e.g. mass "Register Payment") normally shares a company, so this turns
+        # N per-payment searches into one per distinct company.
+        default_journal_by_company = {}
         for payment in self:
             # default customer payment method logic
             partner = payment.partner_id
@@ -559,13 +563,17 @@ class AccountPayment(models.Model):
 
             company = payment.company_id or self.env.company
             if not payment.journal_id or company != payment.journal_id.company_id:
-                payment.journal_id = self.env["account.journal"].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(company),
-                        ("type", "in", ["bank", "cash", "credit"]),
-                    ],
-                    limit=1,
-                )
+                if company not in default_journal_by_company:
+                    default_journal_by_company[company] = self.env[
+                        "account.journal"
+                    ].search(
+                        [
+                            *self.env["account.journal"]._check_company_domain(company),
+                            ("type", "in", ["bank", "cash", "credit"]),
+                        ],
+                        limit=1,
+                    )
+                payment.journal_id = default_journal_by_company[company]
 
     @api.depends("journal_id")
     def _compute_company_id(self):
@@ -825,6 +833,27 @@ class AccountPayment(models.Model):
     @api.depends("journal_id", "partner_id", "partner_type")
     def _compute_destination_account_id(self):
         self.destination_account_id = False
+        # Cache the partner-less fallback account lookup per (company, type): the
+        # search only depends on those two, so a batch of partner-less payments
+        # issues one search per distinct pair instead of one per payment.
+        fallback_account = {}
+
+        def _fallback(company, account_type):
+            key = (company, account_type)
+            if key not in fallback_account:
+                fallback_account[key] = (
+                    self.env["account.account"]
+                    .with_company(company)
+                    .search(
+                        [
+                            *self.env["account.account"]._check_company_domain(company),
+                            ("account_type", "=", account_type),
+                        ],
+                        limit=1,
+                    )
+                )
+            return fallback_account[key]
+
         for pay in self:
             if pay.partner_type == "customer":
                 # Receive money from invoice or send money to refund it.
@@ -833,18 +862,8 @@ class AccountPayment(models.Model):
                         pay.company_id
                     ).property_account_receivable_id
                 else:
-                    pay.destination_account_id = (
-                        self.env["account.account"]
-                        .with_company(pay.company_id)
-                        .search(
-                            [
-                                *self.env["account.account"]._check_company_domain(
-                                    pay.company_id
-                                ),
-                                ("account_type", "=", "asset_receivable"),
-                            ],
-                            limit=1,
-                        )
+                    pay.destination_account_id = _fallback(
+                        pay.company_id, "asset_receivable"
                     )
             elif pay.partner_type == "supplier":
                 # Send money to pay a bill or receive money to refund it.
@@ -853,18 +872,8 @@ class AccountPayment(models.Model):
                         pay.company_id
                     ).property_account_payable_id
                 else:
-                    pay.destination_account_id = (
-                        self.env["account.account"]
-                        .with_company(pay.company_id)
-                        .search(
-                            [
-                                *self.env["account.account"]._check_company_domain(
-                                    pay.company_id
-                                ),
-                                ("account_type", "=", "liability_payable"),
-                            ],
-                            limit=1,
-                        )
+                    pay.destination_account_id = _fallback(
+                        pay.company_id, "liability_payable"
                     )
 
     @api.depends(
