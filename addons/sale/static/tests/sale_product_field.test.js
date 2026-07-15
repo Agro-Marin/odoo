@@ -83,7 +83,7 @@ test("Hide product name if its not translated", async () => {
     const product = env["product.product"][0];
     const soId = env["sale.order"].create({
         partner_id: serverState.partnerId,
-        order_line: [
+        line_ids: [
             Command.create({
                 product_id: product.id,
                 name: [product.name, "A description"].join("\n"),
@@ -106,7 +106,7 @@ test("If translated product name already in the SOL name, should not hide the tr
     const product = env["product.product"][0];
     const soId = env["sale.order"].create({
         partner_id: serverState.partnerId,
-        order_line: [
+        line_ids: [
             Command.create({
                 product_id: product.id,
                 name: [product.name, translatedProductName, "A description"].join("\n"),
@@ -131,7 +131,7 @@ test("Editing the description shouldn't show the translated product name", async
     const product = env["product.product"][0];
     const soId = env["sale.order"].create({
         partner_id: serverState.partnerId,
-        order_line: [
+        line_ids: [
             Command.create({
                 product_id: product.id,
                 name: [product.name, "something wrong"].join("\n"),
@@ -160,7 +160,7 @@ test("No description should be shown if there does not exist one apart from the 
     const product = env["product.product"][0];
     const soId = env["sale.order"].create({
         partner_id: serverState.partnerId,
-        order_line: [
+        line_ids: [
             Command.create({
                 product_id: product.id,
                 name: product.name,
@@ -183,7 +183,7 @@ test("No description should be shown if there does not exist one apart from the 
     const product = env["product.product"][0];
     const soId = env["sale.order"].create({
         partner_id: serverState.partnerId,
-        order_line: [
+        line_ids: [
             Command.create({
                 product_id: product.id,
                 name: translatedProductName,
