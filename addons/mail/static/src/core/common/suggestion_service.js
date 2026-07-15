@@ -5,6 +5,33 @@ import { toRaw } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
 import { registry } from "@web/core/registry";
 import { fuzzyLookup } from "@web/core/utils/search";
+
+/**
+ * Build a comparator ordering suggestions by: entries whose cleaned key starts
+ * with the search term first, then alphabetically by that key, then by
+ * ascending id. Shared by the canned-response, role and channel suggestion
+ * sorts (which otherwise each re-implemented this identical tail).
+ *
+ * @param {(item: any) => string} cleanedKeyFn returns the already-cleaned key
+ * @param {string} cleanedSearchTerm
+ * @returns {(a: any, b: any) => number}
+ */
+function byPrefixThenAlphaThenId(cleanedKeyFn, cleanedSearchTerm) {
+    return (a, b) => {
+        const key1 = cleanedKeyFn(a);
+        const key2 = cleanedKeyFn(b);
+        const starts1 = key1.startsWith(cleanedSearchTerm);
+        const starts2 = key2.startsWith(cleanedSearchTerm);
+        if (starts1 !== starts2) {
+            return starts1 ? -1 : 1;
+        }
+        if (key1 !== key2) {
+            return key1 < key2 ? -1 : 1;
+        }
+        return a.id - b.id;
+    };
+}
+
 export class SuggestionService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -124,32 +151,11 @@ export class SuggestionService {
         ).filter((cannedResponse) =>
             cleanTerm(cannedResponse.source).includes(cleanedSearchTerm),
         );
-        const sortFunc = (c1, c2) => {
-            const cleanedName1 = cleanTerm(c1.source);
-            const cleanedName2 = cleanTerm(c2.source);
-            if (
-                cleanedName1.startsWith(cleanedSearchTerm) &&
-                !cleanedName2.startsWith(cleanedSearchTerm)
-            ) {
-                return -1;
-            }
-            if (
-                !cleanedName1.startsWith(cleanedSearchTerm) &&
-                cleanedName2.startsWith(cleanedSearchTerm)
-            ) {
-                return 1;
-            }
-            if (cleanedName1 < cleanedName2) {
-                return -1;
-            }
-            if (cleanedName1 > cleanedName2) {
-                return 1;
-            }
-            return c1.id - c2.id;
-        };
         return {
             type: "mail.canned.response",
-            suggestions: cannedResponses.sort(sortFunc),
+            suggestions: cannedResponses.sort(
+                byPrefixThenAlphaThenId((c) => cleanTerm(c.source), cleanedSearchTerm),
+            ),
         };
     }
 
@@ -211,31 +217,10 @@ export class SuggestionService {
         const roles = Object.values(this.store["res.role"].records).filter((role) =>
             cleanTerm(role.name).includes(cleanedSearchTerm),
         );
-        const sortFunc = (r1, r2) => {
-            const cleanedName1 = cleanTerm(r1.name);
-            const cleanedName2 = cleanTerm(r2.name);
-            if (
-                cleanedName1.startsWith(cleanedSearchTerm) &&
-                !cleanedName2.startsWith(cleanedSearchTerm)
-            ) {
-                return -1;
-            }
-            if (
-                !cleanedName1.startsWith(cleanedSearchTerm) &&
-                cleanedName2.startsWith(cleanedSearchTerm)
-            ) {
-                return 1;
-            }
-            if (cleanedName1 < cleanedName2) {
-                return -1;
-            }
-            if (cleanedName1 > cleanedName2) {
-                return 1;
-            }
-            return r1.id - r2.id;
-        };
         return {
-            suggestions: roles.sort(sortFunc),
+            suggestions: roles.sort(
+                byPrefixThenAlphaThenId((r) => cleanTerm(r.name), cleanedSearchTerm),
+            ),
         };
     }
 
@@ -331,44 +316,24 @@ export class SuggestionService {
                 thread.displayName &&
                 cleanTerm(thread.displayName).includes(cleanedSearchTerm),
         );
+        const byName = byPrefixThenAlphaThenId(
+            (c) => cleanTerm(c.displayName),
+            cleanedSearchTerm,
+        );
         const sortFunc = (c1, c2) => {
+            // public channels first, then channels the user is a member of,
+            // then the shared prefix/alpha/id ordering by display name.
             const isPublicChannel1 =
                 c1.channel_type === "channel" && !c1.group_public_id;
             const isPublicChannel2 =
                 c2.channel_type === "channel" && !c2.group_public_id;
-            if (isPublicChannel1 && !isPublicChannel2) {
-                return -1;
+            if (isPublicChannel1 !== isPublicChannel2) {
+                return isPublicChannel1 ? -1 : 1;
             }
-            if (!isPublicChannel1 && isPublicChannel2) {
-                return 1;
+            if (Boolean(c1.hasSelfAsMember) !== Boolean(c2.hasSelfAsMember)) {
+                return c1.hasSelfAsMember ? -1 : 1;
             }
-            if (c1.hasSelfAsMember && !c2.hasSelfAsMember) {
-                return -1;
-            }
-            if (!c1.hasSelfAsMember && c2.hasSelfAsMember) {
-                return 1;
-            }
-            const cleanedDisplayName1 = cleanTerm(c1.displayName);
-            const cleanedDisplayName2 = cleanTerm(c2.displayName);
-            if (
-                cleanedDisplayName1.startsWith(cleanedSearchTerm) &&
-                !cleanedDisplayName2.startsWith(cleanedSearchTerm)
-            ) {
-                return -1;
-            }
-            if (
-                !cleanedDisplayName1.startsWith(cleanedSearchTerm) &&
-                cleanedDisplayName2.startsWith(cleanedSearchTerm)
-            ) {
-                return 1;
-            }
-            if (cleanedDisplayName1 < cleanedDisplayName2) {
-                return -1;
-            }
-            if (cleanedDisplayName1 > cleanedDisplayName2) {
-                return 1;
-            }
-            return c1.id - c2.id;
+            return byName(c1, c2);
         };
         return {
             type: "Thread",
