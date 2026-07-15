@@ -6,6 +6,7 @@ import { ConnectionLostError } from "@web/core/network/rpc";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { imageUrl } from "@web/core/utils/urls";
 import { prepareRoundingVals } from "../accounting/utils.js";
+import { changesToOrder } from "@point_of_sale/app/models/utils/order_change";
 const { DateTime } = luxon;
 
 definePosModels();
@@ -196,7 +197,7 @@ describe("pos_store.js", () => {
     test("changesToOrderNoPrepCateg", async () => {
         const store = await setupPosEnv();
         const order = await getFilledOrder(store);
-        const orderChange = store.changesToOrder(order, new Set([]), false);
+        const orderChange = changesToOrder(order, new Set([]), false);
         expect(orderChange.new.length).toBe(0);
         expect(orderChange.cancelled.length).toBe(0);
     });
@@ -231,7 +232,7 @@ describe("pos_store.js", () => {
         order.lines[1].setNote('[{"text":"Wait","colorIndex":0}]');
 
         order.lines[0].setCustomerNote("Test Orderline Customer Note");
-        const orderChange = store.changesToOrder(order, new Set([...pos_categories]), false);
+        const orderChange = changesToOrder(order, new Set([...pos_categories]), false);
 
         const { orderData, changes } = store.generateOrderChange(
             order,
