@@ -27,3 +27,5 @@ from . import test_pos_product_variants
 from . import test_generic_localization
 from . import test_zzz_audit
 from . import test_zzz_audit2
+
+from . import test_js
