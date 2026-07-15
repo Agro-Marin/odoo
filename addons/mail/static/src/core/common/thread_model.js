@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { getMessagePostParams } from "@mail/core/common/message_post";
 import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { useSequential } from "@mail/utils/common/hooks";
@@ -1072,7 +1073,7 @@ export class Thread extends Record {
     async post(body, postData = {}, extraData = {}) {
         postData.attachments = postData.attachments ? [...postData.attachments] : []; // to not lose them on composer clear
         const { parentId } = postData;
-        const params = await this.store.getMessagePostParams({
+        const params = await getMessagePostParams(this.store, {
             body,
             postData,
             thread: this,

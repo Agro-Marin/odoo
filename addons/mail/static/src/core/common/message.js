@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
+import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { Composer } from "@mail/core/common/composer";
 import { ImStatus } from "@mail/core/common/im_status";
@@ -501,7 +502,7 @@ export class Message extends Component {
         const editedEl = bodyEl.querySelector(".o-mail-Message-edited");
         editedEl?.replaceChildren(renderToElement("mail.Message.edited"));
         const channelLinks = bodyEl.querySelectorAll("a.o_channel_redirect");
-        this.store.handleValidChannelMention(Array.from(channelLinks));
+        handleValidChannelMention(Array.from(channelLinks));
         for (const el of bodyEl.querySelectorAll(".o_message_redirect")) {
             // only transform links targetting the same database
             if (el.getAttribute("href")?.startsWith(getOrigin())) {
