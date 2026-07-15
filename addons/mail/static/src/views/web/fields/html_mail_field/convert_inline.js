@@ -5,6 +5,16 @@ import { fonts } from "@html_editor/utils/fonts";
 import { getImageSrc } from "@html_editor/utils/image";
 import { loadImage } from "@html_editor/utils/image_processing";
 import { blendColors } from "@web/core/utils/format/colors";
+
+import {
+    _computeStyleAndSpecificityOnRules,
+    _getRightmostSelectorTokens,
+    splitSelectorAroundCommasOutsideParentheses,
+} from "./css_specificity";
+
+// Re-exported for backward compatibility of the module's public API (tests and
+// external importers still import it from convert_inline).
+export { splitSelectorAroundCommasOutsideParentheses };
 function parentsGet(node, root = undefined) {
     const parents = [];
     while (node) {
@@ -1967,91 +1977,6 @@ function _backgroundImageToVml(backgroundImage) {
     }
 }
 /**
- * Take a selector and return its specificity according to the w3
- * specification. The (a, b, c) tuple is encoded as a * 10000 + b * 100 + c so
- * that specificities compare numerically without a lower category ever
- * outweighing a higher one (e.g. ten classes never beat one id).
- *
- * @see https://www.w3.org/TR/selectors-4/#specificity-rules
- * @param {string} selector
- * @returns number
- */
-function _computeSpecificity(selector) {
-    let a = 0;
-    let b = 0;
-    let c = 0;
-    // Quoted strings (e.g. in attribute selectors) could contain misleading
-    // tokens: drop them first.
-    selector = selector.replace(/"[^"]*"|'[^']*'/g, "");
-    // :where() contributes nothing, argument included. :not(), :is() and
-    // :has() count the specificity of their argument, but the pseudo-class
-    // itself counts for nothing: unwrap them (innermost first). Note: for
-    // :not()/:is() with a selector list, the specificity of the whole list is
-    // counted instead of its most specific complex selector only.
-    let unwrapped;
-    do {
-        unwrapped = selector;
-        selector = selector
-            .replace(/:where\(([^()]*)\)/gi, "")
-            .replace(/:(?:not|is|has)\(([^()]*)\)/gi, " $1 ");
-    } while (selector !== unwrapped);
-    selector = selector.replace(/#[\w-]+/g, () => {
-        a++;
-        return "";
-    });
-    selector = selector.replace(/\[[^\]]*\]/g, () => {
-        b++;
-        return "";
-    });
-    selector = selector.replace(/\.[\w-]+/g, () => {
-        b++;
-        return "";
-    });
-    // Pseudo-elements count as type selectors.
-    selector = selector.replace(/::[\w-]+/g, () => {
-        c++;
-        return "";
-    });
-    // Pseudo-classes count as classes (functional arguments, e.g. the
-    // :nth-child(2n + 1) formula, are dropped along the way).
-    selector = selector.replace(/:[\w-]+(\([^()]*\))?/g, () => {
-        b++;
-        return "";
-    });
-    // Whatever remains beside combinators and `*` is a type selector.
-    c += (selector.match(/[a-z][\w-]*/gi) || []).length;
-    return a * 10000 + b * 100 + c;
-}
-/**
- * Take all the rules and modify them to contain information on their
- * specificity and to have normalized style.
- *
- * @see _computeSpecificity
- * @see _normalizeStyle
- * @param {Object} cssRules
- */
-function _computeStyleAndSpecificityOnRules(cssRules) {
-    for (const cssRule of cssRules) {
-        if (!cssRule.style && cssRule.rawRule.style) {
-            const style = _normalizeStyle(cssRule.rawRule.style);
-            if (Object.keys(style).length) {
-                Object.assign(cssRule, {
-                    style,
-                    // Preserve a specificity deliberately pre-set by the caller
-                    // (e.g. the low-priority body->.o_layout trickle-down rule);
-                    // only derive it from the selector when none was provided.
-                    specificity:
-                        cssRule.specificity ?? _computeSpecificity(cssRule.selector),
-                });
-            } else {
-                Object.assign(cssRule, {
-                    specificity: 0,
-                });
-            }
-        }
-    }
-}
-/**
  * Return an array of twelve table cells as JQuery elements.
  *
  * @returns {Element[]}
@@ -2062,33 +1987,6 @@ function _createColumnGrid() {
         _markGenerated(cell);
         return cell;
     });
-}
-/**
- * Extract the tag/class/id tokens of the rightmost compound selector of the
- * given selector, so that a rule can cheaply be ruled out against an index of
- * the tags/classes/ids present in a subtree. Tokens within parentheses or
- * brackets are ignored, as they don't necessarily constrain the target
- * element.
- *
- * @param {string} selector
- * @returns {{tag: string | undefined, classes: string[], ids: string[]}}
- */
-function _getRightmostSelectorTokens(selector) {
-    let cleaned = selector.replace(/"[^"]*"|'[^']*'/g, "");
-    let previous;
-    do {
-        previous = cleaned;
-        cleaned = cleaned.replace(/\([^()]*\)/g, "").replace(/\[[^[\]]*\]/g, "");
-    } while (cleaned !== previous);
-    const compound =
-        cleaned
-            .split(/[\s>+~]+/)
-            .filter(Boolean)
-            .pop() || "";
-    const tag = compound.match(/^[a-z][\w-]*/i)?.[0].toLowerCase();
-    const classes = [...compound.matchAll(/\.([\w-]+)/g)].map((match) => match[1]);
-    const ids = [...compound.matchAll(/#([\w-]+)/g)].map((match) => match[1]);
-    return { tag, classes, ids };
 }
 /**
  * Return whether the given node is an `[if mso]` conditional comment.
@@ -2470,38 +2368,6 @@ function _hideForOutlook(node, onlyHideTag = false) {
     }
 }
 /**
- * Take a css style declaration return a "normalized" version of it (as a
- * standard object) for the purposes of emails. This means removing its styles
- * that are invalid, describe animations or aren't standard css (webkit
- * extensions). It also involves adding the "!important" suffix to styles that
- * have that priority, so they can be handled without access to the full
- * declaration.
- *
- * @param {CSSStyleDeclaration} style
- * @returns {Object} {[styleName]: string}
- */
-function _normalizeStyle(style) {
-    const normalizedStyle = {};
-    for (const styleName of style) {
-        const value = style[styleName];
-        if (
-            value &&
-            !styleName.includes("animation") &&
-            !styleName.includes("-webkit") &&
-            typeof value === "string"
-        ) {
-            const normalizedStyleName = styleName.replace(/-(.)/g, (a, b) =>
-                b.toUpperCase(),
-            );
-            normalizedStyle[styleName] = style[normalizedStyleName];
-            if (style.getPropertyPriority(styleName) === "important") {
-                normalizedStyle[styleName] += " !important";
-            }
-        }
-    }
-    return normalizedStyle;
-}
-/**
  * Wrap a given element into a new parent, in place.
  *
  * @param {Element} element
@@ -2546,51 +2412,6 @@ function removeBlacklistedStyles(rule, node) {
         styles[key] = value;
     }
     return styles;
-}
-
-export function splitSelectorAroundCommasOutsideParentheses(selector) {
-    if (selector.indexOf(",") === -1) {
-        return [selector].filter(Boolean);
-    }
-    const result = [];
-    let start = 0;
-    let depth = 0;
-    let inString;
-    for (let i = 0; i < selector.length; i++) {
-        const char = selector[i];
-        if (inString) {
-            if (char === inString && selector[i - 1] !== "\\") {
-                inString = undefined;
-            }
-            continue;
-        }
-        switch (char) {
-            case "'":
-            case '"':
-                inString = char;
-                break;
-            case "(":
-                depth++;
-                break;
-            case ")":
-                depth--;
-                if (depth < 0) {
-                    return [selector];
-                }
-                break;
-            case ",":
-                if (depth === 0) {
-                    result.push(selector.slice(start, i));
-                    start = i + 1;
-                }
-                break;
-        }
-    }
-    if (depth > 0) {
-        return [selector];
-    }
-    result.push(selector.slice(start));
-    return result.filter(Boolean);
 }
 
 /**
