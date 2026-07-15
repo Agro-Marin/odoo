@@ -127,10 +127,16 @@ class IrAttachment(models.Model):
 
     name = fields.Char("Name", required=True)
     description = fields.Text("Description")
-    res_name = fields.Char("Resource Name", compute="_compute_res_name")
+    res_name = fields.Char(
+        "Resource Name",
+        compute="_compute_res_name",
+    )
     res_model = fields.Char("Resource Model")
     res_field = fields.Char("Resource Field")
-    res_id = fields.Many2oneReference("Resource ID", model_field="res_model")
+    res_id = fields.Many2oneReference(
+        "Resource ID",
+        model_field="res_model",
+    )
     company_id = fields.Many2one(
         "res.company",
         string="Company",
@@ -147,9 +153,17 @@ class IrAttachment(models.Model):
     )
     url = fields.Char("Url", index="btree_not_null", size=1024)
     public = fields.Boolean("Is public document")
-
-    # for external access
     access_token = fields.Char("Access Token", groups="base.group_user")
+
+    # Direct db_datas create/write bypasses the content pipeline (no checksum/
+    # file_size/index, no storage dispatch); use 'raw'/'datas' for normal
+    # content. test_http static-serve relies on this raw-column escape hatch.
+    db_datas = fields.Binary("Database Data", attachment=False)
+    store_fname = fields.Char("Stored Filename", index=True)
+    file_size = fields.Integer("File Size", readonly=True)
+    checksum = fields.Char("Checksum/SHA1", size=40, readonly=True)
+    mimetype = fields.Char("Mime Type", readonly=True)
+    index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
 
     # the field 'datas' is computed and may use the other fields below
     raw = fields.Binary(
@@ -162,15 +176,6 @@ class IrAttachment(models.Model):
         compute="_compute_datas",
         inverse="_inverse_datas",
     )
-    # Direct db_datas create/write bypasses the content pipeline (no checksum/
-    # file_size/index, no storage dispatch); use 'raw'/'datas' for normal
-    # content. test_http static-serve relies on this raw-column escape hatch.
-    db_datas = fields.Binary("Database Data", attachment=False)
-    store_fname = fields.Char("Stored Filename", index=True)
-    file_size = fields.Integer("File Size", readonly=True)
-    checksum = fields.Char("Checksum/SHA1", size=40, readonly=True)
-    mimetype = fields.Char("Mime Type", readonly=True)
-    index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
 
     _res_field_idx = models.Index("(res_model, res_field, res_id)")
     _checksum_idx = models.Index("(checksum) WHERE checksum IS NOT NULL")
@@ -273,6 +278,10 @@ class IrAttachment(models.Model):
         for field in ("file_size", "checksum", "store_fname", "index_content"):
             vals.pop(field, None)
         return has_content
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
 
     # Content-metadata derivation runs in TWO places BY DESIGN — do not unify:
     # create() derives inline and pops 'raw' (write-as-we-go keeps a batch flat
@@ -440,6 +449,10 @@ class IrAttachment(models.Model):
         self._storage_delete_multi(to_delete)
         return res
 
+    # ------------------------------------------------------------
+    # COMPUTE METHODS
+    # ------------------------------------------------------------
+
     def _compute_res_name(self) -> None:
         to_compute = self.filtered(lambda a: a.res_model and a.res_id)
         (self - to_compute).res_name = False
@@ -494,36 +507,9 @@ class IrAttachment(models.Model):
             else:
                 attach.raw = attach.db_datas
 
-    def _content_checksum(self, bin_data: bytes) -> str:
-        """Return the SHA-1 hex digest of *bin_data* (for content-addressed storage)."""
-        # an empty file has a checksum too (for caching)
-        return hashlib.sha1(bin_data or b"", usedforsecurity=False).hexdigest()
-
-    def _mimetype_from_values(self, values: dict[str, Any]) -> str:
-        """Guess the mimetype from create/write values.
-
-        :param dict values: create or write values of an attachment
-        :return: the mimetype, ``application/octet-stream`` by default
-        :rtype: str
-        """
-        mimetype = None
-        if values.get("mimetype"):
-            mimetype = values["mimetype"]
-        if not mimetype and values.get("name"):
-            mimetype = mimetypes.guess_type(values["name"])[0]
-        if not mimetype and values.get("url"):
-            mimetype = mimetypes.guess_type(values["url"].split("?")[0])[0]
-        if not mimetype or mimetype == "application/octet-stream":
-            raw = None
-            if "raw" in values and values["raw"] is not None:
-                raw = values["raw"]
-            elif values.get("datas"):
-                # Unreachable via create/write (they decode upstream), but direct
-                # callers of this hook get the same clean UserError.
-                raw = self._decode_datas(values["datas"])
-            if raw:
-                mimetype = guess_mimetype(raw)
-        return (mimetype and mimetype.lower()) or "application/octet-stream"
+    # ------------------------------------------------------------
+    # INVERSE METHODS
+    # ------------------------------------------------------------
 
     def _inverse_raw(self) -> None:
         self._set_attachment_data(lambda a: a.raw or b"")
@@ -531,28 +517,92 @@ class IrAttachment(models.Model):
     def _inverse_datas(self) -> None:
         self._set_attachment_data(lambda attach: base64.b64decode(attach.datas or b""))
 
-    @api.model
-    def _storage(self) -> str:
-        return (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("ir_attachment.location", "file")
-        )
+    # ------------------------------------------------------------
+    # SEARCH METHODS
+    # ------------------------------------------------------------
 
     @api.model
-    def _filestore(self) -> str:
-        return config.filestore(self.env.cr.dbname)
+    def _search(
+        self,
+        domain: Any,
+        offset: int = 0,
+        limit: int | None = None,
+        order: str | None = None,
+        *,
+        active_test: bool = True,
+        bypass_access: bool = False,
+    ) -> Query:
+        assert not self._active_name, "active name not supported on ir.attachment"
+        disable_binary_fields_attachments = False
+        domain = Domain(domain)
+        if (
+            not self.env.context.get("skip_res_field_check")
+            and not any(
+                d.field_expr in ("id", "res_field") for d in domain.iter_conditions()
+            )
+            and not bypass_access
+        ):
+            disable_binary_fields_attachments = True
+            domain &= Domain("res_field", "=", False)
 
-    @api.model
-    def _storage_backend(self) -> AttachmentStorage:
-        """Return the write-side backend for the configured storage location.
+        domain = domain.optimize(self)
+        if self.env.su or bypass_access or domain.is_false():
+            return super()._search(
+                domain,
+                offset,
+                limit,
+                order,
+                active_test=active_test,
+                bypass_access=bypass_access,
+            )
 
-        Decides where NEW content goes; existing content follows its store key
-        (:meth:`_backend_for_key`), so the two can differ (a location switch
-        does not migrate rows). Unknown locations fall back to :class:`FileStorage`.
-        """
-        backend_cls = STORAGE_BACKENDS.get(self._storage(), FileStorage)
-        return backend_cls(self.env)
+        # General access rules
+        # - public == True are always accessible
+        sec_domain = Domain("public", "=", True)
+        # - res_id == False needs to be system user or creator
+        res_ids = condition_values(self, "res_id", domain)
+        if not res_ids or False in res_ids:
+            if self.env.is_system():
+                sec_domain |= Domain("res_id", "=", False)
+            else:
+                sec_domain |= Domain("res_id", "=", False) & Domain(
+                    "create_uid", "=", self.env.uid
+                )
+
+        # Search by res_model and res_id, filter using permissions from res_model
+        # - res_id != False needs then check access on the linked res_model record
+        # - res_field != False needs to check field access on the res_model
+        res_model_names = condition_values(self, "res_model", domain)
+        if 0 < len(res_model_names or ()) <= self._SEARCH_MODEL_DOMAIN_LIMIT:
+            sec_domain |= self._search_models_security_domain(
+                domain, res_model_names, disable_binary_fields_attachments
+            )
+            return super()._search(
+                domain & sec_domain,
+                offset,
+                limit,
+                order,
+                active_test=active_test,
+            )
+
+        # No small res_model restriction (e.g. `('id', 'in', ...)`): restrict
+        # with the domain and add all model-linked attachments. Batch the fetch
+        # instead of materializing every matching row's security fields at once,
+        # which was O(table) in memory for a non-system search (IRA-P1-3).
+        domain &= sec_domain | Domain("res_model", "!=", False)
+        domain = domain.optimize_full(self)
+        ordered = bool(order)
+        if limit is None:
+            # the unbounded fallback still filters inaccessible rows via
+            # _fetch_accessible_ids' per-batch _filtered_access (IRA-T1)
+            result = self._fetch_accessible_ids(domain, order, None)
+            return self.browse(result[offset:])._as_query(ordered)
+        result = self._fetch_accessible_ids(domain, order, offset + limit)
+        return self.browse(result[offset : offset + limit])._as_query(ordered)
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     @api.model
     def _backend_for_key(self, fname: str) -> AttachmentStorage:
@@ -563,104 +613,19 @@ class IrAttachment(models.Model):
         """
         return backend_for_key(self.env, fname)
 
-    @api.model
-    def _get_storage_domain(self) -> list[tuple[str, str, Any]]:
-        """Return the domain matching attachments NOT in the current storage."""
-        return self._storage_backend().migration_domain()
-
-    def _get_pdf_raw(self) -> bytes | None:
-        """Return raw PDF bytes if this attachment is a binary PDF, else None."""
-        self.ensure_one()
-        if self.type != "binary" or not (self.mimetype or "").startswith(
-            "application/pdf"
-        ):
-            return None
-        return self.raw or None
+    def _content_checksum(self, bin_data: bytes) -> str:
+        """Return the SHA-1 hex digest of *bin_data* (for content-addressed storage)."""
+        # an empty file has a checksum too (for caching)
+        return hashlib.sha1(bin_data or b"", usedforsecurity=False).hexdigest()
 
     @api.model
-    def force_storage(self) -> None:
-        """Force all attachments to be stored in the currently configured storage"""
-        if not self.env.is_admin():
-            raise AccessError(_("Only administrators can execute this action."))
-
-        # Migrate only binary attachments, including those linked to binary
-        # fields (which are normally hidden by the _search override).
-        self.with_context(skip_res_field_check=True).search(
-            Domain.AND([self._get_storage_domain(), [("type", "=", "binary")]])
-        )._migrate()
-
-    def _migrate(self) -> None:
-        record_count = len(self)
-        backend = self._storage_backend()
-        storage = self._storage().upper()
-        _logger.info("Migrating %d attachments to %s", record_count, storage)
-        # Commit batch-by-batch on live runs: a filestore-wide force_storage
-        # otherwise holds one giant transaction (row locks, WAL bloat, restart
-        # on crash). Re-runs are idempotent (the domain skips migrated rows).
-        # Tests run in a savepoint, where commit is forbidden.
-        can_commit = not (modules.module.current_test or config["test_enable"])
-        for index, attach in enumerate(self, 1):
-            if index % 100 == 0 or index == record_count:
-                _logger.info(
-                    "Migrating attachment %d/%d to %s", index, record_count, storage
-                )
-            raw = attach.raw
-            # Data-loss guard: _file_read returns b"" on a (possibly transient)
-            # read error. Writing that back would blank the record and GC its
-            # only copy — skip and let a later run retry.
-            if not raw and attach.file_size:
-                _logger.error(
-                    "Skipping migration of attachment %s: read returned empty "
-                    "for a non-empty file (file_size=%s, store_fname=%s)",
-                    attach.id,
-                    attach.file_size,
-                    attach.store_fname,
-                )
-                continue
-            # A location migration doesn't change the bytes: reuse the derived
-            # checksum/file_size/index_content and move only the store fragment,
-            # skipping the SHA-1 re-hash and re-index (P1). Escape-hatch db_datas
-            # rows never had this metadata stamped, so fall back to full derivation.
-            reuse = bool(attach.checksum) and attach.file_size == len(raw)
-            checksum = attach.checksum if reuse else self._content_checksum(raw)
-            old_fname = attach.store_fname
-            # Both branches persist content into the target backend and return
-            # its store fragment. Written before the flush below, so the row
-            # never references a not-yet-written file.
-            super(IrAttachment, attach.sudo()).write(
-                backend.write(raw, checksum)
-                if reuse
-                else self._get_datas_related_values(raw, attach.mimetype, backend)
-            )
-            # Reference the new location before the old key becomes collectable.
-            attach.flush_recordset(
-                ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
-            )
-            if old_fname:
-                # key-axis dispatch: the old content may live in another backend.
-                attach._storage_delete(old_fname)
-            # Drop the binary from cache so memory stays flat over the migration
-            # instead of growing O(total bytes) (P2-6).
-            attach.invalidate_recordset()
-            if can_commit and index % 100 == 0:
-                self.env.cr.commit()
+    def _filestore(self) -> str:
+        return config.filestore(self.env.cr.dbname)
 
     @api.model
-    def _sanitize_store_path(self, path: str) -> str:
-        """Neutralize traversal vectors in a store path (dots, colons, leading/trailing separators)."""
-        return re.sub(r"[.:]", "", path).strip("/\\")
-
-    @api.model
-    def _full_path(self, path: str) -> str:
-        path = self._sanitize_store_path(path)
-        filestore = _resolve_filestore_root(self._filestore())
-        full = (filestore / path).resolve()
-        # Ensure the resolved path stays within the filestore (defense-in-depth).
-        # is_relative_to() checks path components — startswith() would accept
-        # sibling dirs like /data/odoo-evil for /data/odoo.
-        if not full.is_relative_to(filestore):
-            raise ValueError(f"Attachment path {path!r} escapes the filestore")
-        return str(full)
+    def _file_delete(self, fname: str) -> None:
+        # add fname to the checklist; garbage-collected later
+        self._mark_for_gc(fname)
 
     @api.model
     def _file_store_path(self, checksum: str) -> str:
@@ -671,27 +636,6 @@ class IrAttachment(models.Model):
         """
         # we use '/' in the db (even on windows)
         return checksum[:2] + "/" + checksum
-
-    @api.model
-    def _get_path(self, bin_data: bytes, sha: str) -> tuple[str, str]:
-        """Return ``(fname, full_path)`` for storing *bin_data* in the filestore.
-
-        Creates the shard directory if needed and performs a SHA-1 collision check.
-        """
-        fname = self._file_store_path(sha)
-        full_path = Path(self._full_path(fname))
-        full_path.parent.mkdir(exist_ok=True, parents=True)
-
-        # prevent sha-1 collision: on a dedup hit the stored file is read back
-        # to rule out a collision serving wrong bytes. Opt-out via
-        # _verify_content_collision (the read dominates large-file dedup).
-        if (
-            full_path.is_file()
-            and self._verify_content_collision()
-            and not self._same_content(bin_data, str(full_path))
-        ):
-            raise UserError(_("The attachment collides with an existing file."))
-        return fname, str(full_path)
 
     @api.model
     def _file_read(self, fname: str, size: int | None = None) -> bytes:
@@ -794,6 +738,265 @@ class IrAttachment(models.Model):
             raise
 
     @api.model
+    def force_storage(self) -> None:
+        """Force all attachments to be stored in the currently configured storage"""
+        if not self.env.is_admin():
+            raise AccessError(_("Only administrators can execute this action."))
+
+        # Migrate only binary attachments, including those linked to binary
+        # fields (which are normally hidden by the _search override).
+        self.with_context(skip_res_field_check=True).search(
+            Domain.AND([self._get_storage_domain(), [("type", "=", "binary")]])
+        )._migrate()
+
+    @api.model
+    def _full_path(self, path: str) -> str:
+        path = self._sanitize_store_path(path)
+        filestore = _resolve_filestore_root(self._filestore())
+        full = (filestore / path).resolve()
+        # Ensure the resolved path stays within the filestore (defense-in-depth).
+        # is_relative_to() checks path components — startswith() would accept
+        # sibling dirs like /data/odoo-evil for /data/odoo.
+        if not full.is_relative_to(filestore):
+            raise ValueError(f"Attachment path {path!r} escapes the filestore")
+        return str(full)
+
+    @api.model
+    def _get_image_autoresize_config(self) -> tuple[list[str], int, int, int]:
+        """Parse the image-autoresize system parameters, with guards.
+
+        Misconfigured parameters must never crash an upload: an invalid
+        resolution disables the resize, an invalid quality falls back to 80.
+
+        :return: ``(subtypes, max_width, max_height, jpeg_quality)``;
+            ``max_width``/``max_height`` are 0 when autoresize is disabled
+        """
+        ICP = self.env["ir.config_parameter"].sudo().get_param
+        # strip(): whitespace in the param ("png, jpeg") must not silently
+        # disable the resize for the affected subtypes
+        subtypes = [
+            subtype.strip()
+            for subtype in ICP(
+                "base.image_autoresize_extensions", "png,jpeg,bmp,tiff"
+            ).split(",")
+        ]
+        # Can be set to 0 to skip the resize
+        max_resolution = ICP("base.image_autoresize_max_px", "1920x1920")
+        if not str2bool(max_resolution, True):
+            return subtypes, 0, 0, 0
+        try:
+            max_width, max_height = map(int, max_resolution.split("x"))
+        except ValueError:
+            _logger.warning(
+                "Invalid base.image_autoresize_max_px value: %r, skipping image resize",
+                max_resolution,
+            )
+            return subtypes, 0, 0, 0
+        raw_quality = ICP("base.image_autoresize_quality", 80)
+        try:
+            quality = int(raw_quality)
+        except TypeError, ValueError:
+            _logger.warning(
+                "Invalid base.image_autoresize_quality value: %r, using 80",
+                raw_quality,
+            )
+            quality = 80
+        return subtypes, max_width, max_height, quality
+
+    @api.model
+    def _get_storage_domain(self) -> list[tuple[str, str, Any]]:
+        """Return the domain matching attachments NOT in the current storage."""
+        return self._storage_backend().migration_domain()
+
+    @api.model
+    def _get_path(self, bin_data: bytes, sha: str) -> tuple[str, str]:
+        """Return ``(fname, full_path)`` for storing *bin_data* in the filestore.
+
+        Creates the shard directory if needed and performs a SHA-1 collision check.
+        """
+        fname = self._file_store_path(sha)
+        full_path = Path(self._full_path(fname))
+        full_path.parent.mkdir(exist_ok=True, parents=True)
+
+        # prevent sha-1 collision: on a dedup hit the stored file is read back
+        # to rule out a collision serving wrong bytes. Opt-out via
+        # _verify_content_collision (the read dominates large-file dedup).
+        if (
+            full_path.is_file()
+            and self._verify_content_collision()
+            and not self._same_content(bin_data, str(full_path))
+        ):
+            raise UserError(_("The attachment collides with an existing file."))
+        return fname, str(full_path)
+
+    def _get_pdf_raw(self) -> bytes | None:
+        """Return raw PDF bytes if this attachment is a binary PDF, else None."""
+        self.ensure_one()
+        if self.type != "binary" or not (self.mimetype or "").startswith(
+            "application/pdf"
+        ):
+            return None
+        return self.raw or None
+
+    def _get_datas_related_values(
+        self,
+        data: bytes,
+        mimetype: str,
+        backend: AttachmentStorage | None = None,
+        checksum: str | None = None,
+    ) -> dict[str, Any]:
+        """Derive the content columns for *data* AND persist its bytes.
+
+        ``backend.write`` stores the payload and returns its store fragment
+        (``store_fname``/``db_datas``) in one step. Callers must NOT persist the
+        content again: the write is idempotent but a redundant call re-reads the
+        whole stored file for the SHA-1 collision check.
+        """
+        # Callers that already hashed *data* pass the checksum to skip a second
+        # SHA-1 pass.
+        if checksum is None:
+            checksum = self._content_checksum(data)
+        index_content = self._index(data, mimetype, checksum=checksum)
+        # Content-path callers pass the operation's single write-side backend;
+        # default-build one for external/override callers that omit it.
+        if backend is None:
+            backend = self._storage_backend()
+        return {
+            "file_size": len(data),
+            "checksum": checksum,
+            "index_content": index_content,
+            # content location is backend policy; backend.write persists the
+            # bytes and returns the fragment in the same step.
+            **backend.write(data, checksum),
+        }
+
+    def _get_raw_access_token(self) -> str:
+        """Return a scoped access token for the `raw` field, usable with
+        `ir_binary._find_record` to bypass access rights.
+        """
+        self.ensure_one()
+        return limited_field_access_token(self, "raw", scope="binary")
+
+    @api.model
+    def _get_serve_attachment(
+        self, url: str, extra_domain: Any = None, order: str | None = None
+    ) -> Self:
+        domain = (
+            Domain("type", "=", "binary")
+            & Domain("url", "=", url)
+            & Domain(extra_domain or [])
+        )
+        return self.search(domain, order=order, limit=1)
+
+    @api.model
+    def get_serving_groups(self) -> list[str]:
+        """Groups allowed to create/write attachments servable via the http
+        dispatch fallback (``type='binary'`` with ``url`` set).
+        """
+        return ["base.group_system"]
+
+    def _migrate(self) -> None:
+        record_count = len(self)
+        backend = self._storage_backend()
+        storage = self._storage().upper()
+        _logger.info("Migrating %d attachments to %s", record_count, storage)
+        # Commit batch-by-batch on live runs: a filestore-wide force_storage
+        # otherwise holds one giant transaction (row locks, WAL bloat, restart
+        # on crash). Re-runs are idempotent (the domain skips migrated rows).
+        # Tests run in a savepoint, where commit is forbidden.
+        can_commit = not (modules.module.current_test or config["test_enable"])
+        for index, attach in enumerate(self, 1):
+            if index % 100 == 0 or index == record_count:
+                _logger.info(
+                    "Migrating attachment %d/%d to %s", index, record_count, storage
+                )
+            raw = attach.raw
+            # Data-loss guard: _file_read returns b"" on a (possibly transient)
+            # read error. Writing that back would blank the record and GC its
+            # only copy — skip and let a later run retry.
+            if not raw and attach.file_size:
+                _logger.error(
+                    "Skipping migration of attachment %s: read returned empty "
+                    "for a non-empty file (file_size=%s, store_fname=%s)",
+                    attach.id,
+                    attach.file_size,
+                    attach.store_fname,
+                )
+                continue
+            # A location migration doesn't change the bytes: reuse the derived
+            # checksum/file_size/index_content and move only the store fragment,
+            # skipping the SHA-1 re-hash and re-index (P1). Escape-hatch db_datas
+            # rows never had this metadata stamped, so fall back to full derivation.
+            reuse = bool(attach.checksum) and attach.file_size == len(raw)
+            checksum = attach.checksum if reuse else self._content_checksum(raw)
+            old_fname = attach.store_fname
+            # Both branches persist content into the target backend and return
+            # its store fragment. Written before the flush below, so the row
+            # never references a not-yet-written file.
+            super(IrAttachment, attach.sudo()).write(
+                backend.write(raw, checksum)
+                if reuse
+                else self._get_datas_related_values(raw, attach.mimetype, backend)
+            )
+            # Reference the new location before the old key becomes collectable.
+            attach.flush_recordset(
+                ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
+            )
+            if old_fname:
+                # key-axis dispatch: the old content may live in another backend.
+                attach._storage_delete(old_fname)
+            # Drop the binary from cache so memory stays flat over the migration
+            # instead of growing O(total bytes) (P2-6).
+            attach.invalidate_recordset()
+            if can_commit and index % 100 == 0:
+                self.env.cr.commit()
+
+    def _mimetype_from_values(self, values: dict[str, Any]) -> str:
+        """Guess the mimetype from create/write values.
+
+        :param dict values: create or write values of an attachment
+        :return: the mimetype, ``application/octet-stream`` by default
+        :rtype: str
+        """
+        mimetype = None
+        if values.get("mimetype"):
+            mimetype = values["mimetype"]
+        if not mimetype and values.get("name"):
+            mimetype = mimetypes.guess_type(values["name"])[0]
+        if not mimetype and values.get("url"):
+            mimetype = mimetypes.guess_type(values["url"].split("?")[0])[0]
+        if not mimetype or mimetype == "application/octet-stream":
+            raw = None
+            if "raw" in values and values["raw"] is not None:
+                raw = values["raw"]
+            elif values.get("datas"):
+                # Unreachable via create/write (they decode upstream), but direct
+                # callers of this hook get the same clean UserError.
+                raw = self._decode_datas(values["datas"])
+            if raw:
+                mimetype = guess_mimetype(raw)
+        return (mimetype and mimetype.lower()) or "application/octet-stream"
+
+    @api.model
+    def _same_content(self, bin_data: bytes, filepath: str) -> bool:
+        """Return whether *filepath* holds exactly *bin_data*.
+
+        :param str filepath: path to the existing file (caller guarantees it exists)
+        """
+        # Fast reject on size (stat() is cheaper than reading the whole file).
+        if Path(filepath).stat().st_size != len(bin_data):
+            return False
+        BLOCK_SIZE = 65536
+        view = memoryview(bin_data)  # slice without copying
+        with Path(filepath).open("rb") as fd:
+            offset = 0
+            while chunk := fd.read(BLOCK_SIZE):
+                if chunk != view[offset : offset + len(chunk)]:
+                    return False
+                offset += len(chunk)
+        return True
+
+    @api.model
     def _same_content_files(self, path_a: str, path_b: str) -> bool:
         """Return whether two files hold identical bytes (streamed compare).
 
@@ -813,9 +1016,80 @@ class IrAttachment(models.Model):
                     return True
 
     @api.model
-    def _file_delete(self, fname: str) -> None:
-        # add fname to the checklist; garbage-collected later
-        self._mark_for_gc(fname)
+    def _sanitize_store_path(self, path: str) -> str:
+        """Neutralize traversal vectors in a store path (dots, colons, leading/trailing separators)."""
+        return re.sub(r"[.:]", "", path).strip("/\\")
+
+    def _set_attachment_data(self, asbytes: Callable[[Any], bytes]) -> None:
+        # Re-check serving permission on content changes too (IRA-P1-1): `write`
+        # only re-checks on url/type change, but swapping a served attachment's
+        # content changes what _serve_fallback hands out. Both content paths
+        # converge here (the inverse writes as sudo, bypassing `write`).
+        self._check_serving_attachments()
+        old_fnames = []
+        wrote_content = False
+        backend = self._storage_backend()
+        # Single-slot memo of the previous record's derived values: a
+        # multi-record `write({'raw': X})` hands every record the same cached
+        # bytes object, so re-hashing/re-indexing/re-writing it per row is waste
+        # (the memo also persists each distinct payload once). One slot, not a
+        # map keyed on id(bin_data): holding the single reference keeps the
+        # identity check sound, and the base64 path (a distinct object per
+        # record, never a hit) is not pinned into O(total bytes).
+        memo_key: tuple[bytes, str] | None = None  # (bin_data, mimetype)
+        memo_vals: dict[str, Any] = {}
+
+        for attach in self:
+            # compute the fields that depend on datas
+            bin_data = asbytes(attach)
+            if memo_key and memo_key[0] is bin_data and memo_key[1] == attach.mimetype:
+                vals = memo_vals
+            else:
+                vals = self._get_datas_related_values(
+                    bin_data, attach.mimetype, backend
+                )
+                memo_key, memo_vals = (bin_data, attach.mimetype), vals
+
+            # take the current store key to possibly garbage-collect it
+            if attach.store_fname:
+                old_fnames.append(attach.store_fname)
+
+            # write as superuser, as user probably does not have write access
+            super(IrAttachment, attach.sudo()).write(vals)
+
+            if bin_data:
+                # Content was already persisted by _get_datas_related_values.
+                # Writing as we go (releasing each bin_data) keeps peak memory
+                # flat; safe because the flush below precedes any old-key delete.
+                wrote_content = True
+
+        if old_fnames or wrote_content:
+            # flush so rows reference the new content before any old key is
+            # marked for deletion (prevents GC'ing in-use content mid-transaction)
+            self.flush_recordset(["checksum", "store_fname"])
+        for fname in old_fnames:
+            # key-axis dispatch: old content may live in another backend, and
+            # under db location too (the old use_filestore gate leaked those).
+            self._storage_delete(fname)
+
+    @api.model
+    def _storage(self) -> str:
+        return (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("ir_attachment.location", "file")
+        )
+
+    @api.model
+    def _storage_backend(self) -> AttachmentStorage:
+        """Return the write-side backend for the configured storage location.
+
+        Decides where NEW content goes; existing content follows its store key
+        (:meth:`_backend_for_key`), so the two can differ (a location switch
+        does not migrate rows). Unknown locations fall back to :class:`FileStorage`.
+        """
+        backend_cls = STORAGE_BACKENDS.get(self._storage(), FileStorage)
+        return backend_cls(self.env)
 
     @api.model
     def _storage_delete(self, fname: str) -> None:
@@ -845,54 +1119,6 @@ class IrAttachment(models.Model):
         if plain_fnames:
             self._mark_for_gc_multi(plain_fnames)
 
-    def _mark_for_gc(self, fname: str) -> None:
-        """Add ``fname`` in a checklist for the filestore garbage collection."""
-        self._mark_for_gc_multi((fname,))
-
-    def _mark_for_gc_multi(self, fnames: Collection[str]) -> None:
-        """Batch :meth:`_mark_for_gc`: one ``mkdir`` per shard directory.
-
-        A bulk unlink otherwise re-creates the shard dir and probes existence
-        per key (~3-4 syscalls) — felt on network filestores. ``open("ab")`` is
-        idempotent, so the per-file probe is skipped. The marker mtime is the GC
-        grace clock (:attr:`_GC_CHECKLIST_GRACE`); ``open("ab")`` alone doesn't
-        touch it, so os.utime refreshes it — else a re-mark on content with a
-        stale marker leaves it sweepable while the transaction is uncommitted.
-        """
-        checklist_dir = Path(self._full_path("checklist"))
-        by_shard_dir: dict[Path, list[Path]] = defaultdict(list)
-        for fname in fnames:
-            # fname is sanitized like _full_path does (path-traversal blocked)
-            full_path = checklist_dir / self._sanitize_store_path(fname)
-            by_shard_dir[full_path.parent].append(full_path)
-        for shard_dir, paths in by_shard_dir.items():
-            with contextlib.suppress(OSError):
-                shard_dir.mkdir(parents=True, exist_ok=True)
-            for full_path in paths:
-                with full_path.open("ab"):
-                    pass
-                with contextlib.suppress(OSError):
-                    os.utime(full_path)
-
-    @api.model
-    def _same_content(self, bin_data: bytes, filepath: str) -> bool:
-        """Return whether *filepath* holds exactly *bin_data*.
-
-        :param str filepath: path to the existing file (caller guarantees it exists)
-        """
-        # Fast reject on size (stat() is cheaper than reading the whole file).
-        if Path(filepath).stat().st_size != len(bin_data):
-            return False
-        BLOCK_SIZE = 65536
-        view = memoryview(bin_data)  # slice without copying
-        with Path(filepath).open("rb") as fd:
-            offset = 0
-            while chunk := fd.read(BLOCK_SIZE):
-                if chunk != view[offset : offset + len(chunk)]:
-                    return False
-                offset += len(chunk)
-        return True
-
     @api.model
     def _verify_content_collision(self) -> bool:
         """Whether to byte-compare the stored file against new content on dedup.
@@ -910,6 +1136,530 @@ class IrAttachment(models.Model):
             .get_param("ir_attachment.verify_content_collision", "True"),
             True,
         )
+
+    def _postprocess_contents(self, values: dict[str, Any]) -> dict[str, Any]:
+        # Reuse the mimetype _check_contents already resolved; sniff only when
+        # invoked standalone, skipping a redundant _mimetype_from_values pass.
+        mimetype = values.get("mimetype") or self._mimetype_from_values(values)
+        values["mimetype"] = mimetype
+        maintype, _, subtype = mimetype.partition("/")
+        if maintype != "image" or not (values.get("datas") or values.get("raw")):
+            return values
+        subtypes, max_width, max_height, quality = self._get_image_autoresize_config()
+        if subtype not in subtypes or not max_width:
+            return values
+
+        is_raw = bool(values.get("raw"))
+        try:
+            data = values["raw"] if is_raw else base64.b64decode(values["datas"])
+            img = image.ImageProcess(data, verify_resolution=False)
+            if not img.image:
+                _logger.info("Post processing ignored : Empty source, SVG, or WEBP")
+                return values
+            width, height = img.image.size
+            if width <= max_width and height <= max_height:
+                return values
+            img = img.resize(max_width, max_height)
+            # quality applies to JPEG only: do not affect PNGs color palette
+            image_data = img.image_quality(quality=quality if subtype == "jpeg" else 0)
+            if is_raw:
+                values["raw"] = image_data
+            else:
+                values["datas"] = base64.b64encode(image_data)
+        except (UserError, OSError, image.Image.DecompressionBombError) as e:
+            # Autoresize is best-effort and must never 500 an upload. Besides the
+            # UserError from ImageProcess.__init__, resize()/image_quality() leak
+            # PIL-native exceptions: OSError on a truncated image, and
+            # DecompressionBombError on an oversized one during the
+            # verify_resolution=False decode. Swallow all and keep the original
+            # bytes; the payload is never fully decoded, so memory stays bounded.
+            _logger.info("Post processing ignored : %s", e)
+        return values
+
+    @api.model
+    def _index(
+        self, bin_data: bytes, file_type: str, checksum: str | None = None
+    ) -> str | None:
+        """Extract the searchable text content of *bin_data* (text types only).
+
+        Python implementation of the unix command ``strings``.
+
+        :param checksum: unused here; hook parameter for caching overrides
+        :return: the index content, or ``None`` for non-text content
+        """
+        # compute index_content only for text type
+        if file_type and file_type.startswith("text/"):
+            # Decode as UTF-8, then keep runs of printable characters. Scanning
+            # the decoded TEXT (not raw bytes) keeps accented/non-Latin words
+            # whole: the old byte-class [\x20-\x7E] split every multi-byte char,
+            # shredding e.g. "configuración". Identical to the old output for
+            # pure-ASCII content.
+            text = bin_data[: self._INDEX_MAX_BYTES].decode("utf-8", errors="ignore")
+            words = re.findall(r"[^\x00-\x1f\x7f-\x9f]{4,}", text)
+            return "\n".join(words)
+        return None
+
+    @api.model
+    def _index_read_size(self, mimetype: str) -> int | None:
+        """How many bytes of stored content to read back to feed :meth:`_index`.
+
+        Used by the streaming create path (:meth:`_create_from_stream`), which
+        wrote the payload without buffering:
+
+        * ``0`` — skip the read (nothing this backend indexes);
+        * a positive int — read a bounded prefix;
+        * ``None`` — read the whole stored content.
+
+        Base indexes only ``text/*`` (capped at ``_INDEX_MAX_BYTES``), so every
+        other mimetype reads NOTHING — avoiding a wasted prefix read on every
+        binary upload. Overrides that parse more (``attachment_indexation``)
+        widen this; returning ``None`` there keeps them consistent with the
+        buffered path, which gets the full content.
+        """
+        if mimetype and mimetype.startswith("text/"):
+            return self._INDEX_MAX_BYTES
+        return 0
+
+    def _inaccessible_comodel_records(
+        self, model_and_ids: dict[str, Collection[int]], operation: str
+    ) -> Generator[tuple[str, int]]:
+        # check access rights on the records
+        if self.env.su:
+            return
+        for res_model, res_ids in model_and_ids.items():
+            res_ids = OrderedSet(filter(None, res_ids))
+            if not res_model or not res_ids:
+                # nothing to check
+                continue
+            # forbid access to attachments linked to removed models as we do not
+            # know what permissions should be checked
+            if res_model not in self.env:
+                for res_id in res_ids:
+                    yield res_model, res_id
+                continue
+            if res_model == "res.users" and self.env.uid in res_ids:
+                # A user cannot write on itself despite writable fields (e.g. its
+                # own image signature), so _filtered_access would drop the user's
+                # OWN record. Exclude just that record rather than the whole batch
+                # — a batch mixing self with another user's row otherwise wrongly
+                # denied the self record too (IRA review #4).
+                res_ids = OrderedSet(rid for rid in res_ids if rid != self.env.uid)
+                if not res_ids:
+                    continue
+            records = self.env[res_model].browse(res_ids)
+            try:
+                records = records._filtered_access(operation)
+            except MissingError:
+                records = records.exists()._filtered_access(operation)
+            res_ids.difference_update(records._ids)
+            for res_id in res_ids:
+                yield res_model, res_id
+
+    @api.model
+    def _search_models_security_domain(
+        self,
+        domain: Domain,
+        res_model_names: Collection[Any],
+        disable_binary_fields_attachments: bool,
+    ) -> Domain:
+        """Build the OR of per-comodel access subdomains for *res_model_names*.
+
+        Per linked model, an attachment is reachable when its ``res_id`` record
+        is accessible (a subquery on the comodel's ``_search``) and, for a
+        non-system user, when ``res_field`` names a readable binary/relational
+        field. Only the small-model path uses this
+        (``len <= _SEARCH_MODEL_DOMAIN_LIMIT``); the rest go through
+        :meth:`_fetch_accessible_ids`.
+
+        :param disable_binary_fields_attachments: whether ``res_field`` is
+            already forced to ``False`` upstream (skips the field-ACL clause)
+        :return: the OR of the per-model subdomains (``Domain.FALSE`` if none)
+        """
+        env = self.with_context(active_test=False).env
+        models_domain = Domain.FALSE
+        for res_model_name in res_model_names:
+            if (comodel := env.get(res_model_name)) is None:
+                continue
+            codomain = Domain("res_model", "=", comodel._name)
+            comodel_res_ids = condition_values(
+                self,
+                "res_id",
+                domain.map_conditions(
+                    # `codomain=codomain` binds this iteration's value. DEFENSIVE
+                    # only: map_conditions is eager today, so the late-binding
+                    # pitfall can't bite; the default arg keeps the closure correct
+                    # should it ever become lazy. See IRA-M1.
+                    lambda cond, codomain=codomain: (
+                        codomain & cond if cond.field_expr == "res_model" else cond
+                    )
+                ),
+            )
+            query = comodel._search(
+                Domain("id", "in", comodel_res_ids) if comodel_res_ids else Domain.TRUE
+            )
+            if query.is_empty():
+                continue
+            if query.where_clause:
+                codomain &= Domain("res_id", "in", query)
+            if not disable_binary_fields_attachments and not self.env.is_system():
+                accessible_fields = [
+                    field.name
+                    for field in comodel._fields.values()
+                    if (
+                        field.type == "binary"
+                        or (field.relational and field.comodel_name == self._name)
+                    )
+                    and comodel._has_field_access(field, "read")
+                ]
+                accessible_fields.append(False)
+                codomain &= Domain("res_field", "in", accessible_fields)
+            models_domain |= codomain
+        return models_domain
+
+    def _fetch_accessible_ids(
+        self, domain: Domain, order: str | None, bound: int | None
+    ) -> list[int]:
+        """Collect ids readable by the current user, fetching by batches.
+
+        With no ``order``, batches advance by keyset pagination on a
+        deterministic order — constant cost per batch, where OFFSET re-scans
+        skipped rows and made the scan quadratic (IRA-B5). A caller ``order``
+        keeps OFFSET batching but is made total by appending the unique ``id``,
+        else ties across a batch boundary could be skipped or duplicated — an
+        access-control hazard, not just a perf one.
+
+        :param bound: stop once this many ids are collected (None: collect all)
+        :return: the accessible ids
+        """
+        keyset = None
+        if not order:
+            if bound is None:
+                # mirror the model default order (previous behavior)
+                order = "id desc"
+
+                def keyset(last: Self) -> Domain:
+                    return Domain("id", "<", last.id)
+            else:
+                # By default, order by model to batch access checks.
+                order = "res_model nulls first, id"
+
+                def keyset(last: Self) -> Domain:
+                    if last.res_model:
+                        return (
+                            Domain("res_model", "=", last.res_model)
+                            & Domain("id", ">", last.id)
+                        ) | Domain("res_model", ">", last.res_model)
+                    # NULLs sort first: rest of the null group, then the rest
+                    return (
+                        Domain("res_model", "=", False) & Domain("id", ">", last.id)
+                    ) | Domain("res_model", "!=", False)
+        else:
+            # A caller order may have no unique tiebreaker; OFFSET over a
+            # non-total order can skip/duplicate rows across batches (PostgreSQL
+            # may order ties differently per query). Append `id` for a total,
+            # stable sort. `keyset` stays None: an arbitrary sort has no seek
+            # predicate, so this path keeps OFFSET batching.
+            order = f"{order}, id"
+
+        result: list[int] = []
+        sub_offset = 0
+        batch_domain = domain
+        while bound is None or len(result) < bound:
+            records = (
+                self.sudo()
+                .with_context(active_test=False)
+                .search_fetch(
+                    batch_domain,
+                    SECURITY_FIELDS,
+                    offset=sub_offset,
+                    limit=PREFETCH_MAX,
+                    order=order,
+                )
+                .sudo(False)
+            )
+            result.extend(records._filtered_access("read")._ids)
+            if len(records) < PREFETCH_MAX:
+                # There are no more records
+                break
+            if keyset is not None:
+                # sudo: _check_access invalidated the security fields of
+                # forbidden rows (cache-pollution guard), and the keyset
+                # anchor may be one of them
+                batch_domain = domain & keyset(records.sudo()[-1])
+            else:
+                sub_offset += PREFETCH_MAX
+        return result
+
+    def _post_add_create(self, **kwargs: Any) -> None:
+        """Hook called after an attachment is uploaded. Overridden by mail, account, etc."""
+
+    def generate_access_token(self) -> list[str]:
+        tokens = []
+        new_tokens = {}  # {id: token} for the records that lack one
+        for attachment in self:
+            if attachment.access_token:
+                tokens.append(attachment.access_token)
+                continue
+            token = self._generate_access_token()
+            new_tokens[attachment.id] = token
+            tokens.append(token)
+        # Write through super(): an access_token write can't change serving
+        # eligibility or content, so re-entering the public write() override is
+        # pure overhead. super().write still enforces the write and field-group
+        # ACLs. Tokens are unique, so the writes can't collapse into one UPDATE.
+        for attachment in self.browse(new_tokens):
+            super(IrAttachment, attachment).write(
+                {"access_token": new_tokens[attachment.id]}
+            )
+        return tokens
+
+    @api.model
+    def create_unique(self, values_list: list[dict[str, Any]]) -> list[int]:
+        """Create attachments, deduplicating by checksum/size/mimetype.
+
+        Accepts content as base64 ``datas`` or ``raw`` like :meth:`create`
+        (``raw`` wins by key presence). The create() content pipeline runs ONCE
+        per value here, so the dedup key is the checksum of the bytes that will
+        actually be stored — hashing pre-pipeline bytes made an autoresized
+        image miss its stored copy and create a duplicate row. The pipeline is
+        cheap for common inputs (header-only parse; full decode only for an
+        oversized image, whose resized bytes create() then reuses).
+
+        :raise UserError: if a value is not base64-encoded or omits ``mimetype``
+
+        .. note::
+            The dedup search runs as ``sudo()`` to match a filestore-shared file
+            across companies, so the returned id may belong to another company.
+            Reading it is still ACL-gated, so no content leaks (IRA-C2).
+        """
+        # Phase 1: normalize content (raw|datas), apply the create() content
+        # pipeline, and key the dedup on the FINAL (post-pipeline) checksum.
+        entries: list[tuple[dict, str, int, str]] = []
+        for values in values_list:
+            if "mimetype" not in values:
+                raise UserError(_("Attachment is missing its mimetype."))
+            vals = {k: v for k, v in values.items() if k != "datas"}
+            if "raw" in values:
+                raw = values["raw"] or b""
+                vals["raw"] = raw.encode() if isinstance(raw, str) else raw
+            else:
+                vals["raw"] = self._decode_datas(values.get("datas"))
+            vals = self._check_contents(vals)
+            checksum = self._content_checksum(vals["raw"])
+            entries.append((vals, checksum, len(vals["raw"]), vals["mimetype"]))
+
+        # Phase 2: find one existing id per (checksum, file_size, mimetype).
+        # Aggregate instead of materializing every row sharing a checksum (which
+        # was O(rows-with-that-checksum) on a hot file). id:max reproduces the
+        # old "newest match" (default `id desc` + setdefault-first).
+        # skip_res_field_check: also match binary-field-backing attachments,
+        # which _search hides by default.
+        all_checksums = list({cs for _, cs, _, _ in entries})
+        existing_by_key: dict[tuple, int] = {}
+        if all_checksums:
+            for checksum, file_size, mimetype, att_id in (
+                self.sudo()
+                .with_context(skip_res_field_check=True)
+                ._read_group(
+                    [("checksum", "in", all_checksums)],
+                    groupby=["checksum", "file_size", "mimetype"],
+                    aggregates=["id:max"],
+                )
+            ):
+                existing_by_key[checksum, file_size, mimetype] = att_id
+
+        # Phase 3: batch-create the misses (in-batch dupes → first occurrence),
+        # then resolve ids in input order. The pipeline ran in phase 1, so skip
+        # a second autoresize pass.
+        to_create = []
+        new_index_by_key: dict[tuple, int] = {}
+        for vals, checksum, file_size, mimetype in entries:
+            key = (checksum, file_size, mimetype)
+            if key not in existing_by_key and key not in new_index_by_key:
+                new_index_by_key[key] = len(to_create)
+                to_create.append(vals)
+        created = (
+            self.with_context(image_no_postprocess=True).create(to_create)
+            if to_create
+            else self.browse()
+        )
+        return [
+            (
+                existing
+                if (existing := existing_by_key.get((checksum, file_size, mimetype)))
+                else created[new_index_by_key[checksum, file_size, mimetype]].id
+            )
+            for _vals, checksum, file_size, mimetype in entries
+        ]
+
+    def _generate_access_token(self) -> str:
+        return str(uuid.uuid4())
+
+    @api.model
+    def action_get(self) -> dict[str, Any]:
+        return self.env["ir.actions.act_window"]._for_xml_id("base.action_attachment")
+
+    def _from_request_file(self, file: Any, *, mimetype: str, **vals: Any) -> Self:
+        """Create an attachment out of a request file.
+
+        :param file: the request file
+        :param str mimetype: one of —
+            * ``"TRUST"`` — use the request file's mimetype/extension unverified;
+            * ``"GUESS"`` — detect from content, appending the extension unless
+              the filename already has a valid one;
+            * ``"{type}/{subtype}"`` — force this mimetype, appending its
+              extension unless the filename already has a valid one.
+        """
+        # dispatch the three mimetype modes: TRUST / GUESS / explicit (IRA-T2)
+        if mimetype == "TRUST":
+            mimetype = file.content_type
+            filename = file.filename
+        elif mimetype == "GUESS":
+            head = file.read(MIMETYPE_HEAD_SIZE)
+            file.seek(-len(head), 1)  # rewind
+            mimetype = guess_mimetype(head)
+            filename = fix_filename_extension(file.filename, mimetype)
+            if mimetype in ("application/zip", *_olecf_mimetypes):
+                # Re-guess from the (potentially corrected) filename to get a
+                # more specific type (e.g. .docx → openxmlformats).  Keep the
+                # content-detected mimetype as fallback for extensionless files.
+                mimetype = mimetypes.guess_type(filename)[0] or mimetype
+        elif "/" in mimetype and all(mimetype.split("/", 1)):
+            # an explicit "{type}/{subtype}" with both halves non-empty
+            filename = fix_filename_extension(file.filename, mimetype)
+        else:
+            raise ValueError(f"{mimetype=}")
+
+        if self._should_stream_upload(mimetype):
+            # Stream straight to storage: werkzeug has already spooled the upload
+            # to a temp file, so file.read() would only copy disk -> RAM.
+            return self._create_from_stream(
+                file, name=filename, mimetype=mimetype, **vals
+            )
+        return self.create(
+            {
+                "name": filename,
+                "type": "binary",
+                "raw": file.read(),  # image autoresize needs the full payload
+                "mimetype": mimetype,
+                **vals,
+            }
+        )
+
+    def _create_from_stream(
+        self, fileobj: Any, *, name: str, mimetype: str, **vals: Any
+    ) -> Self:
+        """Create a binary attachment by streaming *fileobj* into storage.
+
+        The row is created first (access checks, post-add hooks) WITHOUT
+        content, then the payload is streamed in and the derived metadata
+        written back internally (like :meth:`copy`). Peak memory stays O(chunk).
+
+        :param fileobj: a binary file-like supporting ``read(size)``
+        """
+        record = self.create(
+            {"name": name, "type": "binary", "mimetype": mimetype, **vals}
+        )
+        # Resolve the write-side backend once and stream the payload into it.
+        store_values = self._storage_backend().write_stream(fileobj)
+        # index_content from the stored content. _index_read_size decides how
+        # much to read back for THIS mimetype: 0 skips it (common binary case,
+        # no wasted round-trip), a prefix for text, or the whole file for
+        # document-parsing backends. The checksum lets them share their index
+        # cache with the buffered path.
+        read_size = self._index_read_size(record.mimetype)
+        index_content = None
+        if read_size != 0:
+            content = b""
+            readable = True
+            if store_values.get("store_fname"):
+                content = self._backend_for_key(store_values["store_fname"]).read(
+                    store_values["store_fname"], read_size
+                )
+                if not content and store_values["file_size"]:
+                    # A store key is only set for NON-empty content, so an empty
+                    # read-back means the stored file is missing/unreadable — not
+                    # legitimately empty. Don't stamp an index from the wrong bytes.
+                    _logger.warning(
+                        "Unreadable stored content for attachment %s "
+                        "(store_fname=%s); skipping index extraction",
+                        record.id,
+                        store_values["store_fname"],
+                    )
+                    readable = False
+            elif store_values.get("db_datas"):
+                db_datas = store_values["db_datas"] or b""
+                content = db_datas if read_size is None else db_datas[:read_size]
+            if readable:
+                index_content = self._index(
+                    content, record.mimetype, checksum=store_values.get("checksum")
+                )
+        store_values["index_content"] = index_content
+        # Content metadata is internal: bypass the public write override, exactly
+        # as copy() does for relinked content.
+        super(IrAttachment, record.sudo()).write(store_values)
+        # The content of a (possibly served) binary changed; re-check serving
+        # permission, which the super() write bypassed (IRA-P1-1).
+        record._check_serving_attachments()
+        return record
+
+    def _to_http_stream(self) -> Stream:
+        """Create a :class:`~Stream` from an ir.attachment record."""
+        self.ensure_one()
+
+        stream = Stream(
+            mimetype=self.mimetype,
+            download_name=self.name,
+            etag=self.checksum,
+            public=self.public,
+        )
+
+        if self.store_fname:
+            # key-axis dispatch: content follows its store key, not the
+            # configured location (still streams from disk after a switch to db)
+            return self._backend_for_key(self.store_fname).to_stream(self, stream)
+
+        if self.db_datas:
+            stream.type = "data"
+            stream.data = self.raw
+            stream.last_modified = self.write_date
+            stream.size = len(stream.data)
+
+        elif self.url:
+            # A URL targeting an addon file is a resource path — stream it right
+            # away. `request` may be unbound here (cron, report image
+            # resolution), so guard it as the store_fname branch does.
+            host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
+            static_path = root.get_static_file(self.url, host=host)
+            if static_path:
+                stream = Stream.from_path(static_path, public=True)
+            else:
+                stream.type = "url"
+                stream.url = self.url
+
+        else:
+            stream.type = "data"
+            stream.data = b""
+            stream.size = 0
+
+        return stream
+
+    def _migrate_remote_to_local(self) -> bool:
+        """Hook: make the attachment's content locally available.
+
+        Storage modules (e.g. ``cloud_storage``) override this to download the
+        remote payload and convert the record to ``type='binary'``. A plain
+        ``url`` attachment has no retrievable payload — an expected condition,
+        hence a ``False`` return rather than an error.
+
+        :return: whether the attachment now holds local binary content
+        """
+        self.ensure_one()
+        return self.type == "binary"
+
+    # ------------------------------------------------------------
+    # GC METHODS
+    # ------------------------------------------------------------
 
     @api.autovacuum
     def _audit_url_attachments(self) -> None:
@@ -1123,771 +1873,38 @@ class IrAttachment(models.Model):
 
         _logger.info("filestore gc %d checked, %d removed", len(checklist), removed)
 
-    def _set_attachment_data(self, asbytes: Callable[[Any], bytes]) -> None:
-        # Re-check serving permission on content changes too (IRA-P1-1): `write`
-        # only re-checks on url/type change, but swapping a served attachment's
-        # content changes what _serve_fallback hands out. Both content paths
-        # converge here (the inverse writes as sudo, bypassing `write`).
-        self._check_serving_attachments()
-        old_fnames = []
-        wrote_content = False
-        backend = self._storage_backend()
-        # Single-slot memo of the previous record's derived values: a
-        # multi-record `write({'raw': X})` hands every record the same cached
-        # bytes object, so re-hashing/re-indexing/re-writing it per row is waste
-        # (the memo also persists each distinct payload once). One slot, not a
-        # map keyed on id(bin_data): holding the single reference keeps the
-        # identity check sound, and the base64 path (a distinct object per
-        # record, never a hit) is not pinned into O(total bytes).
-        memo_key: tuple[bytes, str] | None = None  # (bin_data, mimetype)
-        memo_vals: dict[str, Any] = {}
+    def _mark_for_gc(self, fname: str) -> None:
+        """Add ``fname`` in a checklist for the filestore garbage collection."""
+        self._mark_for_gc_multi((fname,))
 
-        for attach in self:
-            # compute the fields that depend on datas
-            bin_data = asbytes(attach)
-            if memo_key and memo_key[0] is bin_data and memo_key[1] == attach.mimetype:
-                vals = memo_vals
-            else:
-                vals = self._get_datas_related_values(
-                    bin_data, attach.mimetype, backend
-                )
-                memo_key, memo_vals = (bin_data, attach.mimetype), vals
+    def _mark_for_gc_multi(self, fnames: Collection[str]) -> None:
+        """Batch :meth:`_mark_for_gc`: one ``mkdir`` per shard directory.
 
-            # take the current store key to possibly garbage-collect it
-            if attach.store_fname:
-                old_fnames.append(attach.store_fname)
-
-            # write as superuser, as user probably does not have write access
-            super(IrAttachment, attach.sudo()).write(vals)
-
-            if bin_data:
-                # Content was already persisted by _get_datas_related_values.
-                # Writing as we go (releasing each bin_data) keeps peak memory
-                # flat; safe because the flush below precedes any old-key delete.
-                wrote_content = True
-
-        if old_fnames or wrote_content:
-            # flush so rows reference the new content before any old key is
-            # marked for deletion (prevents GC'ing in-use content mid-transaction)
-            self.flush_recordset(["checksum", "store_fname"])
-        for fname in old_fnames:
-            # key-axis dispatch: old content may live in another backend, and
-            # under db location too (the old use_filestore gate leaked those).
-            self._storage_delete(fname)
-
-    def _get_datas_related_values(
-        self,
-        data: bytes,
-        mimetype: str,
-        backend: AttachmentStorage | None = None,
-        checksum: str | None = None,
-    ) -> dict[str, Any]:
-        """Derive the content columns for *data* AND persist its bytes.
-
-        ``backend.write`` stores the payload and returns its store fragment
-        (``store_fname``/``db_datas``) in one step. Callers must NOT persist the
-        content again: the write is idempotent but a redundant call re-reads the
-        whole stored file for the SHA-1 collision check.
+        A bulk unlink otherwise re-creates the shard dir and probes existence
+        per key (~3-4 syscalls) — felt on network filestores. ``open("ab")`` is
+        idempotent, so the per-file probe is skipped. The marker mtime is the GC
+        grace clock (:attr:`_GC_CHECKLIST_GRACE`); ``open("ab")`` alone doesn't
+        touch it, so os.utime refreshes it — else a re-mark on content with a
+        stale marker leaves it sweepable while the transaction is uncommitted.
         """
-        # Callers that already hashed *data* pass the checksum to skip a second
-        # SHA-1 pass.
-        if checksum is None:
-            checksum = self._content_checksum(data)
-        index_content = self._index(data, mimetype, checksum=checksum)
-        # Content-path callers pass the operation's single write-side backend;
-        # default-build one for external/override callers that omit it.
-        if backend is None:
-            backend = self._storage_backend()
-        return {
-            "file_size": len(data),
-            "checksum": checksum,
-            "index_content": index_content,
-            # content location is backend policy; backend.write persists the
-            # bytes and returns the fragment in the same step.
-            **backend.write(data, checksum),
-        }
+        checklist_dir = Path(self._full_path("checklist"))
+        by_shard_dir: dict[Path, list[Path]] = defaultdict(list)
+        for fname in fnames:
+            # fname is sanitized like _full_path does (path-traversal blocked)
+            full_path = checklist_dir / self._sanitize_store_path(fname)
+            by_shard_dir[full_path.parent].append(full_path)
+        for shard_dir, paths in by_shard_dir.items():
+            with contextlib.suppress(OSError):
+                shard_dir.mkdir(parents=True, exist_ok=True)
+            for full_path in paths:
+                with full_path.open("ab"):
+                    pass
+                with contextlib.suppress(OSError):
+                    os.utime(full_path)
 
-    @api.model
-    def _get_image_autoresize_config(self) -> tuple[list[str], int, int, int]:
-        """Parse the image-autoresize system parameters, with guards.
-
-        Misconfigured parameters must never crash an upload: an invalid
-        resolution disables the resize, an invalid quality falls back to 80.
-
-        :return: ``(subtypes, max_width, max_height, jpeg_quality)``;
-            ``max_width``/``max_height`` are 0 when autoresize is disabled
-        """
-        ICP = self.env["ir.config_parameter"].sudo().get_param
-        # strip(): whitespace in the param ("png, jpeg") must not silently
-        # disable the resize for the affected subtypes
-        subtypes = [
-            subtype.strip()
-            for subtype in ICP(
-                "base.image_autoresize_extensions", "png,jpeg,bmp,tiff"
-            ).split(",")
-        ]
-        # Can be set to 0 to skip the resize
-        max_resolution = ICP("base.image_autoresize_max_px", "1920x1920")
-        if not str2bool(max_resolution, True):
-            return subtypes, 0, 0, 0
-        try:
-            max_width, max_height = map(int, max_resolution.split("x"))
-        except ValueError:
-            _logger.warning(
-                "Invalid base.image_autoresize_max_px value: %r, skipping image resize",
-                max_resolution,
-            )
-            return subtypes, 0, 0, 0
-        raw_quality = ICP("base.image_autoresize_quality", 80)
-        try:
-            quality = int(raw_quality)
-        except TypeError, ValueError:
-            _logger.warning(
-                "Invalid base.image_autoresize_quality value: %r, using 80",
-                raw_quality,
-            )
-            quality = 80
-        return subtypes, max_width, max_height, quality
-
-    def _postprocess_contents(self, values: dict[str, Any]) -> dict[str, Any]:
-        # Reuse the mimetype _check_contents already resolved; sniff only when
-        # invoked standalone, skipping a redundant _mimetype_from_values pass.
-        mimetype = values.get("mimetype") or self._mimetype_from_values(values)
-        values["mimetype"] = mimetype
-        maintype, _, subtype = mimetype.partition("/")
-        if maintype != "image" or not (values.get("datas") or values.get("raw")):
-            return values
-        subtypes, max_width, max_height, quality = self._get_image_autoresize_config()
-        if subtype not in subtypes or not max_width:
-            return values
-
-        is_raw = bool(values.get("raw"))
-        try:
-            data = values["raw"] if is_raw else base64.b64decode(values["datas"])
-            img = image.ImageProcess(data, verify_resolution=False)
-            if not img.image:
-                _logger.info("Post processing ignored : Empty source, SVG, or WEBP")
-                return values
-            width, height = img.image.size
-            if width <= max_width and height <= max_height:
-                return values
-            img = img.resize(max_width, max_height)
-            # quality applies to JPEG only: do not affect PNGs color palette
-            image_data = img.image_quality(quality=quality if subtype == "jpeg" else 0)
-            if is_raw:
-                values["raw"] = image_data
-            else:
-                values["datas"] = base64.b64encode(image_data)
-        except (UserError, OSError, image.Image.DecompressionBombError) as e:
-            # Autoresize is best-effort and must never 500 an upload. Besides the
-            # UserError from ImageProcess.__init__, resize()/image_quality() leak
-            # PIL-native exceptions: OSError on a truncated image, and
-            # DecompressionBombError on an oversized one during the
-            # verify_resolution=False decode. Swallow all and keep the original
-            # bytes; the payload is never fully decoded, so memory stays bounded.
-            _logger.info("Post processing ignored : %s", e)
-        return values
-
-    @api.model
-    def _index(
-        self, bin_data: bytes, file_type: str, checksum: str | None = None
-    ) -> str | None:
-        """Extract the searchable text content of *bin_data* (text types only).
-
-        Python implementation of the unix command ``strings``.
-
-        :param checksum: unused here; hook parameter for caching overrides
-        :return: the index content, or ``None`` for non-text content
-        """
-        # compute index_content only for text type
-        if file_type and file_type.startswith("text/"):
-            # Decode as UTF-8, then keep runs of printable characters. Scanning
-            # the decoded TEXT (not raw bytes) keeps accented/non-Latin words
-            # whole: the old byte-class [\x20-\x7E] split every multi-byte char,
-            # shredding e.g. "configuración". Identical to the old output for
-            # pure-ASCII content.
-            text = bin_data[: self._INDEX_MAX_BYTES].decode("utf-8", errors="ignore")
-            words = re.findall(r"[^\x00-\x1f\x7f-\x9f]{4,}", text)
-            return "\n".join(words)
-        return None
-
-    @api.model
-    def _index_read_size(self, mimetype: str) -> int | None:
-        """How many bytes of stored content to read back to feed :meth:`_index`.
-
-        Used by the streaming create path (:meth:`_create_from_stream`), which
-        wrote the payload without buffering:
-
-        * ``0`` — skip the read (nothing this backend indexes);
-        * a positive int — read a bounded prefix;
-        * ``None`` — read the whole stored content.
-
-        Base indexes only ``text/*`` (capped at ``_INDEX_MAX_BYTES``), so every
-        other mimetype reads NOTHING — avoiding a wasted prefix read on every
-        binary upload. Overrides that parse more (``attachment_indexation``)
-        widen this; returning ``None`` there keeps them consistent with the
-        buffered path, which gets the full content.
-        """
-        if mimetype and mimetype.startswith("text/"):
-            return self._INDEX_MAX_BYTES
-        return 0
-
-    @api.model
-    def get_serving_groups(self) -> list[str]:
-        """Groups allowed to create/write attachments servable via the http
-        dispatch fallback (``type='binary'`` with ``url`` set).
-        """
-        return ["base.group_system"]
-
-    def _inaccessible_comodel_records(
-        self, model_and_ids: dict[str, Collection[int]], operation: str
-    ) -> Generator[tuple[str, int]]:
-        # check access rights on the records
-        if self.env.su:
-            return
-        for res_model, res_ids in model_and_ids.items():
-            res_ids = OrderedSet(filter(None, res_ids))
-            if not res_model or not res_ids:
-                # nothing to check
-                continue
-            # forbid access to attachments linked to removed models as we do not
-            # know what permissions should be checked
-            if res_model not in self.env:
-                for res_id in res_ids:
-                    yield res_model, res_id
-                continue
-            if res_model == "res.users" and self.env.uid in res_ids:
-                # A user cannot write on itself despite writable fields (e.g. its
-                # own image signature), so _filtered_access would drop the user's
-                # OWN record. Exclude just that record rather than the whole batch
-                # — a batch mixing self with another user's row otherwise wrongly
-                # denied the self record too (IRA review #4).
-                res_ids = OrderedSet(rid for rid in res_ids if rid != self.env.uid)
-                if not res_ids:
-                    continue
-            records = self.env[res_model].browse(res_ids)
-            try:
-                records = records._filtered_access(operation)
-            except MissingError:
-                records = records.exists()._filtered_access(operation)
-            res_ids.difference_update(records._ids)
-            for res_id in res_ids:
-                yield res_model, res_id
-
-    @api.model
-    def _search_models_security_domain(
-        self,
-        domain: Domain,
-        res_model_names: Collection[Any],
-        disable_binary_fields_attachments: bool,
-    ) -> Domain:
-        """Build the OR of per-comodel access subdomains for *res_model_names*.
-
-        Per linked model, an attachment is reachable when its ``res_id`` record
-        is accessible (a subquery on the comodel's ``_search``) and, for a
-        non-system user, when ``res_field`` names a readable binary/relational
-        field. Only the small-model path uses this
-        (``len <= _SEARCH_MODEL_DOMAIN_LIMIT``); the rest go through
-        :meth:`_fetch_accessible_ids`.
-
-        :param disable_binary_fields_attachments: whether ``res_field`` is
-            already forced to ``False`` upstream (skips the field-ACL clause)
-        :return: the OR of the per-model subdomains (``Domain.FALSE`` if none)
-        """
-        env = self.with_context(active_test=False).env
-        models_domain = Domain.FALSE
-        for res_model_name in res_model_names:
-            if (comodel := env.get(res_model_name)) is None:
-                continue
-            codomain = Domain("res_model", "=", comodel._name)
-            comodel_res_ids = condition_values(
-                self,
-                "res_id",
-                domain.map_conditions(
-                    # `codomain=codomain` binds this iteration's value. DEFENSIVE
-                    # only: map_conditions is eager today, so the late-binding
-                    # pitfall can't bite; the default arg keeps the closure correct
-                    # should it ever become lazy. See IRA-M1.
-                    lambda cond, codomain=codomain: (
-                        codomain & cond if cond.field_expr == "res_model" else cond
-                    )
-                ),
-            )
-            query = comodel._search(
-                Domain("id", "in", comodel_res_ids) if comodel_res_ids else Domain.TRUE
-            )
-            if query.is_empty():
-                continue
-            if query.where_clause:
-                codomain &= Domain("res_id", "in", query)
-            if not disable_binary_fields_attachments and not self.env.is_system():
-                accessible_fields = [
-                    field.name
-                    for field in comodel._fields.values()
-                    if (
-                        field.type == "binary"
-                        or (field.relational and field.comodel_name == self._name)
-                    )
-                    and comodel._has_field_access(field, "read")
-                ]
-                accessible_fields.append(False)
-                codomain &= Domain("res_field", "in", accessible_fields)
-            models_domain |= codomain
-        return models_domain
-
-    @api.model
-    def _search(
-        self,
-        domain: Any,
-        offset: int = 0,
-        limit: int | None = None,
-        order: str | None = None,
-        *,
-        active_test: bool = True,
-        bypass_access: bool = False,
-    ) -> Query:
-        assert not self._active_name, "active name not supported on ir.attachment"
-        disable_binary_fields_attachments = False
-        domain = Domain(domain)
-        if (
-            not self.env.context.get("skip_res_field_check")
-            and not any(
-                d.field_expr in ("id", "res_field") for d in domain.iter_conditions()
-            )
-            and not bypass_access
-        ):
-            disable_binary_fields_attachments = True
-            domain &= Domain("res_field", "=", False)
-
-        domain = domain.optimize(self)
-        if self.env.su or bypass_access or domain.is_false():
-            return super()._search(
-                domain,
-                offset,
-                limit,
-                order,
-                active_test=active_test,
-                bypass_access=bypass_access,
-            )
-
-        # General access rules
-        # - public == True are always accessible
-        sec_domain = Domain("public", "=", True)
-        # - res_id == False needs to be system user or creator
-        res_ids = condition_values(self, "res_id", domain)
-        if not res_ids or False in res_ids:
-            if self.env.is_system():
-                sec_domain |= Domain("res_id", "=", False)
-            else:
-                sec_domain |= Domain("res_id", "=", False) & Domain(
-                    "create_uid", "=", self.env.uid
-                )
-
-        # Search by res_model and res_id, filter using permissions from res_model
-        # - res_id != False needs then check access on the linked res_model record
-        # - res_field != False needs to check field access on the res_model
-        res_model_names = condition_values(self, "res_model", domain)
-        if 0 < len(res_model_names or ()) <= self._SEARCH_MODEL_DOMAIN_LIMIT:
-            sec_domain |= self._search_models_security_domain(
-                domain, res_model_names, disable_binary_fields_attachments
-            )
-            return super()._search(
-                domain & sec_domain,
-                offset,
-                limit,
-                order,
-                active_test=active_test,
-            )
-
-        # No small res_model restriction (e.g. `('id', 'in', ...)`): restrict
-        # with the domain and add all model-linked attachments. Batch the fetch
-        # instead of materializing every matching row's security fields at once,
-        # which was O(table) in memory for a non-system search (IRA-P1-3).
-        domain &= sec_domain | Domain("res_model", "!=", False)
-        domain = domain.optimize_full(self)
-        ordered = bool(order)
-        if limit is None:
-            # the unbounded fallback still filters inaccessible rows via
-            # _fetch_accessible_ids' per-batch _filtered_access (IRA-T1)
-            result = self._fetch_accessible_ids(domain, order, None)
-            return self.browse(result[offset:])._as_query(ordered)
-        result = self._fetch_accessible_ids(domain, order, offset + limit)
-        return self.browse(result[offset : offset + limit])._as_query(ordered)
-
-    def _fetch_accessible_ids(
-        self, domain: Domain, order: str | None, bound: int | None
-    ) -> list[int]:
-        """Collect ids readable by the current user, fetching by batches.
-
-        With no ``order``, batches advance by keyset pagination on a
-        deterministic order — constant cost per batch, where OFFSET re-scans
-        skipped rows and made the scan quadratic (IRA-B5). A caller ``order``
-        keeps OFFSET batching but is made total by appending the unique ``id``,
-        else ties across a batch boundary could be skipped or duplicated — an
-        access-control hazard, not just a perf one.
-
-        :param bound: stop once this many ids are collected (None: collect all)
-        :return: the accessible ids
-        """
-        keyset = None
-        if not order:
-            if bound is None:
-                # mirror the model default order (previous behavior)
-                order = "id desc"
-
-                def keyset(last: Self) -> Domain:
-                    return Domain("id", "<", last.id)
-            else:
-                # By default, order by model to batch access checks.
-                order = "res_model nulls first, id"
-
-                def keyset(last: Self) -> Domain:
-                    if last.res_model:
-                        return (
-                            Domain("res_model", "=", last.res_model)
-                            & Domain("id", ">", last.id)
-                        ) | Domain("res_model", ">", last.res_model)
-                    # NULLs sort first: rest of the null group, then the rest
-                    return (
-                        Domain("res_model", "=", False) & Domain("id", ">", last.id)
-                    ) | Domain("res_model", "!=", False)
-        else:
-            # A caller order may have no unique tiebreaker; OFFSET over a
-            # non-total order can skip/duplicate rows across batches (PostgreSQL
-            # may order ties differently per query). Append `id` for a total,
-            # stable sort. `keyset` stays None: an arbitrary sort has no seek
-            # predicate, so this path keeps OFFSET batching.
-            order = f"{order}, id"
-
-        result: list[int] = []
-        sub_offset = 0
-        batch_domain = domain
-        while bound is None or len(result) < bound:
-            records = (
-                self.sudo()
-                .with_context(active_test=False)
-                .search_fetch(
-                    batch_domain,
-                    SECURITY_FIELDS,
-                    offset=sub_offset,
-                    limit=PREFETCH_MAX,
-                    order=order,
-                )
-                .sudo(False)
-            )
-            result.extend(records._filtered_access("read")._ids)
-            if len(records) < PREFETCH_MAX:
-                # There are no more records
-                break
-            if keyset is not None:
-                # sudo: _check_access invalidated the security fields of
-                # forbidden rows (cache-pollution guard), and the keyset
-                # anchor may be one of them
-                batch_domain = domain & keyset(records.sudo()[-1])
-            else:
-                sub_offset += PREFETCH_MAX
-        return result
-
-    def _post_add_create(self, **kwargs: Any) -> None:
-        """Hook called after an attachment is uploaded. Overridden by mail, account, etc."""
-
-    def generate_access_token(self) -> list[str]:
-        tokens = []
-        new_tokens = {}  # {id: token} for the records that lack one
-        for attachment in self:
-            if attachment.access_token:
-                tokens.append(attachment.access_token)
-                continue
-            token = self._generate_access_token()
-            new_tokens[attachment.id] = token
-            tokens.append(token)
-        # Write through super(): an access_token write can't change serving
-        # eligibility or content, so re-entering the public write() override is
-        # pure overhead. super().write still enforces the write and field-group
-        # ACLs. Tokens are unique, so the writes can't collapse into one UPDATE.
-        for attachment in self.browse(new_tokens):
-            super(IrAttachment, attachment).write(
-                {"access_token": new_tokens[attachment.id]}
-            )
-        return tokens
-
-    def _get_raw_access_token(self) -> str:
-        """Return a scoped access token for the `raw` field, usable with
-        `ir_binary._find_record` to bypass access rights.
-        """
-        self.ensure_one()
-        return limited_field_access_token(self, "raw", scope="binary")
-
-    @api.model
-    def create_unique(self, values_list: list[dict[str, Any]]) -> list[int]:
-        """Create attachments, deduplicating by checksum/size/mimetype.
-
-        Accepts content as base64 ``datas`` or ``raw`` like :meth:`create`
-        (``raw`` wins by key presence). The create() content pipeline runs ONCE
-        per value here, so the dedup key is the checksum of the bytes that will
-        actually be stored — hashing pre-pipeline bytes made an autoresized
-        image miss its stored copy and create a duplicate row. The pipeline is
-        cheap for common inputs (header-only parse; full decode only for an
-        oversized image, whose resized bytes create() then reuses).
-
-        :raise UserError: if a value is not base64-encoded or omits ``mimetype``
-
-        .. note::
-            The dedup search runs as ``sudo()`` to match a filestore-shared file
-            across companies, so the returned id may belong to another company.
-            Reading it is still ACL-gated, so no content leaks (IRA-C2).
-        """
-        # Phase 1: normalize content (raw|datas), apply the create() content
-        # pipeline, and key the dedup on the FINAL (post-pipeline) checksum.
-        entries: list[tuple[dict, str, int, str]] = []
-        for values in values_list:
-            if "mimetype" not in values:
-                raise UserError(_("Attachment is missing its mimetype."))
-            vals = {k: v for k, v in values.items() if k != "datas"}
-            if "raw" in values:
-                raw = values["raw"] or b""
-                vals["raw"] = raw.encode() if isinstance(raw, str) else raw
-            else:
-                vals["raw"] = self._decode_datas(values.get("datas"))
-            vals = self._check_contents(vals)
-            checksum = self._content_checksum(vals["raw"])
-            entries.append((vals, checksum, len(vals["raw"]), vals["mimetype"]))
-
-        # Phase 2: find one existing id per (checksum, file_size, mimetype).
-        # Aggregate instead of materializing every row sharing a checksum (which
-        # was O(rows-with-that-checksum) on a hot file). id:max reproduces the
-        # old "newest match" (default `id desc` + setdefault-first).
-        # skip_res_field_check: also match binary-field-backing attachments,
-        # which _search hides by default.
-        all_checksums = list({cs for _, cs, _, _ in entries})
-        existing_by_key: dict[tuple, int] = {}
-        if all_checksums:
-            for checksum, file_size, mimetype, att_id in (
-                self.sudo()
-                .with_context(skip_res_field_check=True)
-                ._read_group(
-                    [("checksum", "in", all_checksums)],
-                    groupby=["checksum", "file_size", "mimetype"],
-                    aggregates=["id:max"],
-                )
-            ):
-                existing_by_key[checksum, file_size, mimetype] = att_id
-
-        # Phase 3: batch-create the misses (in-batch dupes → first occurrence),
-        # then resolve ids in input order. The pipeline ran in phase 1, so skip
-        # a second autoresize pass.
-        to_create = []
-        new_index_by_key: dict[tuple, int] = {}
-        for vals, checksum, file_size, mimetype in entries:
-            key = (checksum, file_size, mimetype)
-            if key not in existing_by_key and key not in new_index_by_key:
-                new_index_by_key[key] = len(to_create)
-                to_create.append(vals)
-        created = (
-            self.with_context(image_no_postprocess=True).create(to_create)
-            if to_create
-            else self.browse()
-        )
-        return [
-            (
-                existing
-                if (existing := existing_by_key.get((checksum, file_size, mimetype)))
-                else created[new_index_by_key[checksum, file_size, mimetype]].id
-            )
-            for _vals, checksum, file_size, mimetype in entries
-        ]
-
-    def _generate_access_token(self) -> str:
-        return str(uuid.uuid4())
-
-    @api.model
-    def action_get(self) -> dict[str, Any]:
-        return self.env["ir.actions.act_window"]._for_xml_id("base.action_attachment")
-
-    @api.model
-    def _get_serve_attachment(
-        self, url: str, extra_domain: Any = None, order: str | None = None
-    ) -> Self:
-        domain = (
-            Domain("type", "=", "binary")
-            & Domain("url", "=", url)
-            & Domain(extra_domain or [])
-        )
-        return self.search(domain, order=order, limit=1)
-
-    def _from_request_file(self, file: Any, *, mimetype: str, **vals: Any) -> Self:
-        """Create an attachment out of a request file.
-
-        :param file: the request file
-        :param str mimetype: one of —
-            * ``"TRUST"`` — use the request file's mimetype/extension unverified;
-            * ``"GUESS"`` — detect from content, appending the extension unless
-              the filename already has a valid one;
-            * ``"{type}/{subtype}"`` — force this mimetype, appending its
-              extension unless the filename already has a valid one.
-        """
-        # dispatch the three mimetype modes: TRUST / GUESS / explicit (IRA-T2)
-        if mimetype == "TRUST":
-            mimetype = file.content_type
-            filename = file.filename
-        elif mimetype == "GUESS":
-            head = file.read(MIMETYPE_HEAD_SIZE)
-            file.seek(-len(head), 1)  # rewind
-            mimetype = guess_mimetype(head)
-            filename = fix_filename_extension(file.filename, mimetype)
-            if mimetype in ("application/zip", *_olecf_mimetypes):
-                # Re-guess from the (potentially corrected) filename to get a
-                # more specific type (e.g. .docx → openxmlformats).  Keep the
-                # content-detected mimetype as fallback for extensionless files.
-                mimetype = mimetypes.guess_type(filename)[0] or mimetype
-        elif "/" in mimetype and all(mimetype.split("/", 1)):
-            # an explicit "{type}/{subtype}" with both halves non-empty
-            filename = fix_filename_extension(file.filename, mimetype)
-        else:
-            raise ValueError(f"{mimetype=}")
-
-        if self._should_stream_upload(mimetype):
-            # Stream straight to storage: werkzeug has already spooled the upload
-            # to a temp file, so file.read() would only copy disk -> RAM.
-            return self._create_from_stream(
-                file, name=filename, mimetype=mimetype, **vals
-            )
-        return self.create(
-            {
-                "name": filename,
-                "type": "binary",
-                "raw": file.read(),  # image autoresize needs the full payload
-                "mimetype": mimetype,
-                **vals,
-            }
-        )
-
-    def _should_stream_upload(self, mimetype: str) -> bool:
-        """Whether an upload of *mimetype* can be streamed to storage.
-
-        Streaming bypasses the in-memory content pipeline, so it is used only
-        when no transform rewrites the bytes. The one such transform is image
-        autoresize, so buffer only an image that autoresize may shrink and
-        stream everything else.
-        """
-        if self.env.context.get("image_no_postprocess"):
-            return True
-        maintype, _, subtype = (mimetype or "").partition("/")
-        if maintype != "image":
-            return True
-        subtypes, max_width, _height, _quality = self._get_image_autoresize_config()
-        return not (max_width and subtype in subtypes)
-
-    def _create_from_stream(
-        self, fileobj: Any, *, name: str, mimetype: str, **vals: Any
-    ) -> Self:
-        """Create a binary attachment by streaming *fileobj* into storage.
-
-        The row is created first (access checks, post-add hooks) WITHOUT
-        content, then the payload is streamed in and the derived metadata
-        written back internally (like :meth:`copy`). Peak memory stays O(chunk).
-
-        :param fileobj: a binary file-like supporting ``read(size)``
-        """
-        record = self.create(
-            {"name": name, "type": "binary", "mimetype": mimetype, **vals}
-        )
-        # Resolve the write-side backend once and stream the payload into it.
-        store_values = self._storage_backend().write_stream(fileobj)
-        # index_content from the stored content. _index_read_size decides how
-        # much to read back for THIS mimetype: 0 skips it (common binary case,
-        # no wasted round-trip), a prefix for text, or the whole file for
-        # document-parsing backends. The checksum lets them share their index
-        # cache with the buffered path.
-        read_size = self._index_read_size(record.mimetype)
-        index_content = None
-        if read_size != 0:
-            content = b""
-            readable = True
-            if store_values.get("store_fname"):
-                content = self._backend_for_key(store_values["store_fname"]).read(
-                    store_values["store_fname"], read_size
-                )
-                if not content and store_values["file_size"]:
-                    # A store key is only set for NON-empty content, so an empty
-                    # read-back means the stored file is missing/unreadable — not
-                    # legitimately empty. Don't stamp an index from the wrong bytes.
-                    _logger.warning(
-                        "Unreadable stored content for attachment %s "
-                        "(store_fname=%s); skipping index extraction",
-                        record.id,
-                        store_values["store_fname"],
-                    )
-                    readable = False
-            elif store_values.get("db_datas"):
-                db_datas = store_values["db_datas"] or b""
-                content = db_datas if read_size is None else db_datas[:read_size]
-            if readable:
-                index_content = self._index(
-                    content, record.mimetype, checksum=store_values.get("checksum")
-                )
-        store_values["index_content"] = index_content
-        # Content metadata is internal: bypass the public write override, exactly
-        # as copy() does for relinked content.
-        super(IrAttachment, record.sudo()).write(store_values)
-        # The content of a (possibly served) binary changed; re-check serving
-        # permission, which the super() write bypassed (IRA-P1-1).
-        record._check_serving_attachments()
-        return record
-
-    def _to_http_stream(self) -> Stream:
-        """Create a :class:`~Stream` from an ir.attachment record."""
-        self.ensure_one()
-
-        stream = Stream(
-            mimetype=self.mimetype,
-            download_name=self.name,
-            etag=self.checksum,
-            public=self.public,
-        )
-
-        if self.store_fname:
-            # key-axis dispatch: content follows its store key, not the
-            # configured location (still streams from disk after a switch to db)
-            return self._backend_for_key(self.store_fname).to_stream(self, stream)
-
-        if self.db_datas:
-            stream.type = "data"
-            stream.data = self.raw
-            stream.last_modified = self.write_date
-            stream.size = len(stream.data)
-
-        elif self.url:
-            # A URL targeting an addon file is a resource path — stream it right
-            # away. `request` may be unbound here (cron, report image
-            # resolution), so guard it as the store_fname branch does.
-            host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
-            static_path = root.get_static_file(self.url, host=host)
-            if static_path:
-                stream = Stream.from_path(static_path, public=True)
-            else:
-                stream.type = "url"
-                stream.url = self.url
-
-        else:
-            stream.type = "data"
-            stream.data = b""
-            stream.size = 0
-
-        return stream
-
-    def _migrate_remote_to_local(self) -> bool:
-        """Hook: make the attachment's content locally available.
-
-        Storage modules (e.g. ``cloud_storage``) override this to download the
-        remote payload and convert the record to ``type='binary'``. A plain
-        ``url`` attachment has no retrievable payload — an expected condition,
-        hence a ``False`` return rather than an error.
-
-        :return: whether the attachment now holds local binary content
-        """
-        self.ensure_one()
-        return self.type == "binary"
+    # ------------------------------------------------------------
+    # VALIDATIONS
+    # ------------------------------------------------------------
 
     def _can_return_content(
         self, field_name: str | None = None, access_token: str | None = None
@@ -1907,36 +1924,6 @@ class IrAttachment(models.Model):
             self.check_access("read")
             return True
         return super()._can_return_content(field_name, access_token)
-
-    def _check_serving_attachments(self) -> None:
-        # Restrict writing on attachments that could be served by the
-        # ir.http's dispatch exception handling.
-        if self.env.is_admin():
-            return
-        served = self.filtered(lambda a: a.type == "binary" and a.url)
-        if not served:
-            return
-        # group membership is per-user, hence invariant across the records
-        has_group = self.env.user.has_group
-        if not any(has_group(g) for g in self.get_serving_groups()):
-            raise ValidationError(
-                _("Sorry, you are not allowed to write on this document")
-            )
-
-    @api.constrains("res_model", "res_id")
-    def _check_circular_attachment(self) -> None:
-        # an attachment pointing at itself causes a recursion-depth crash when
-        # its chain is walked
-        for record in self.sudo():
-            if record.res_model == "ir.attachment" and record.id == record.res_id:
-                raise ValidationError(
-                    _(
-                        "You cannot attach an attachment to itself.\n"
-                        "Attachment %(record)s cannot have res_id: %(res_id)s",
-                        record=record.display_name,
-                        res_id=record.res_id,
-                    )
-                )
 
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
         """Check access for attachments.
@@ -2034,6 +2021,48 @@ class IrAttachment(models.Model):
             return forbidden, error_func
         return None
 
+    @api.constrains("res_model", "res_id")
+    def _check_circular_attachment(self) -> None:
+        # an attachment pointing at itself causes a recursion-depth crash when
+        # its chain is walked
+        for record in self.sudo():
+            if record.res_model == "ir.attachment" and record.id == record.res_id:
+                raise ValidationError(
+                    _(
+                        "You cannot attach an attachment to itself.\n"
+                        "Attachment %(record)s cannot have res_id: %(res_id)s",
+                        record=record.display_name,
+                        res_id=record.res_id,
+                    )
+                )
+
+    def _check_contents(self, values: dict[str, Any]) -> dict[str, Any]:
+        mimetype = values["mimetype"] = self._mimetype_from_values(values)
+        force_text = self._is_xml_like_mimetype(mimetype) and (
+            self.env.context.get("attachments_mime_plainxml")
+            or not self.env["ir.ui.view"].sudo(False).has_access("write")
+        )
+        if force_text:
+            values["mimetype"] = "text/plain"
+        if not self.env.context.get("image_no_postprocess"):
+            values = self._postprocess_contents(values)
+        return values
+
+    def _check_serving_attachments(self) -> None:
+        # Restrict writing on attachments that could be served by the
+        # ir.http's dispatch exception handling.
+        if self.env.is_admin():
+            return
+        served = self.filtered(lambda a: a.type == "binary" and a.url)
+        if not served:
+            return
+        # group membership is per-user, hence invariant across the records
+        has_group = self.env.user.has_group
+        if not any(has_group(g) for g in self.get_serving_groups()):
+            raise ValidationError(
+                _("Sorry, you are not allowed to write on this document")
+            )
+
     @api.model
     def _is_xml_like_mimetype(self, mimetype: str) -> bool:
         """Whether *mimetype* denotes script-bearing markup served inline.
@@ -2059,18 +2088,6 @@ class IrAttachment(models.Model):
             or subtype.endswith("+xml")  # svg+xml, mathml+xml, atom+xml, ...
         )
 
-    def _check_contents(self, values: dict[str, Any]) -> dict[str, Any]:
-        mimetype = values["mimetype"] = self._mimetype_from_values(values)
-        force_text = self._is_xml_like_mimetype(mimetype) and (
-            self.env.context.get("attachments_mime_plainxml")
-            or not self.env["ir.ui.view"].sudo(False).has_access("write")
-        )
-        if force_text:
-            values["mimetype"] = "text/plain"
-        if not self.env.context.get("image_no_postprocess"):
-            values = self._postprocess_contents(values)
-        return values
-
     def _is_remote_source(self) -> bool:
         self.ensure_one()
         return bool(
@@ -2078,3 +2095,19 @@ class IrAttachment(models.Model):
             and not self.file_size
             and self.url.startswith(("http://", "https://", "ftp://"))
         )
+
+    def _should_stream_upload(self, mimetype: str) -> bool:
+        """Whether an upload of *mimetype* can be streamed to storage.
+
+        Streaming bypasses the in-memory content pipeline, so it is used only
+        when no transform rewrites the bytes. The one such transform is image
+        autoresize, so buffer only an image that autoresize may shrink and
+        stream everything else.
+        """
+        if self.env.context.get("image_no_postprocess"):
+            return True
+        maintype, _, subtype = (mimetype or "").partition("/")
+        if maintype != "image":
+            return True
+        subtypes, max_width, _height, _quality = self._get_image_autoresize_config()
+        return not (max_width and subtype in subtypes)
