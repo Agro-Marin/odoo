@@ -594,7 +594,6 @@ WHERE sub.user_id = ANY(%s)""",
             {
                 "id": bu.id,
                 "badge_name": bu.badge_id.name,
-                "badge_image": bu.badge_id.image_128,
                 "level": bu.level,
             }
             for bu in user.featured_badge_ids[:3]
@@ -660,7 +659,6 @@ WHERE sub.user_id = ANY(%s)""",
             {
                 "id": bu.id,
                 "badge_name": bu.badge_id.name,
-                "badge_image": bu.badge_id.image_128,
                 "level": bu.level,
                 "date": bu.create_date.date().isoformat(),
                 "sender_name": bu.sender_id.name if bu.sender_id else False,

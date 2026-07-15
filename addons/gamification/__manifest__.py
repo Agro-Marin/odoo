@@ -56,6 +56,9 @@ Both goals and badges are flexible and can be adapted to a large range of module
         "web.assets_backend": [
             "gamification/static/src/**/*",
         ],
+        "web.assets_unit_tests": [
+            "gamification/static/tests/**/*",
+        ],
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
