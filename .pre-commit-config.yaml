@@ -63,7 +63,7 @@ repos:
     hooks:
       - id: cross-repo-coherence
         name: cross-repo symbol coherence (core -> consumers)
-        entry: python tooling/architecture/cross_repo_coherence.py --check
+        entry: python3 tooling/architecture/cross_repo_coherence.py --check
         language: system
         stages: [pre-push]
         pass_filenames: false
