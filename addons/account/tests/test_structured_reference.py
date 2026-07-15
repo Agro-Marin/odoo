@@ -4,6 +4,7 @@ from odoo.tests.common import TransactionCase
 from odoo.addons.account.tools import (
     is_valid_structured_reference,
     is_valid_structured_reference_be,
+    is_valid_structured_reference_dk,
     is_valid_structured_reference_fi,
     is_valid_structured_reference_iso,
     is_valid_structured_reference_nl,
@@ -47,6 +48,37 @@ class StructuredReferenceTest(TransactionCase):
         # Validates the entire string
         self.assertFalse(
             is_valid_structured_reference_be("020343053497-OTHER-RANDOM-STUFF")
+        )
+
+    def test_structured_reference_dk(self):
+        # 71< form: 15-digit Luhn-valid payment ref + 8-digit creditor id
+        self.assertTrue(
+            is_valid_structured_reference_dk("+71<022646321691226+12345678<")
+        )
+        # Accepts the reference without the leading '+'
+        self.assertTrue(
+            is_valid_structured_reference_dk("71<022646321691226+12345678<")
+        )
+        # Tolerates surrounding/internal whitespace (sanitized before matching)
+        self.assertTrue(
+            is_valid_structured_reference_dk(" +71<022646321691226+12345678< ")
+        )
+        # 75< form: 16-digit Luhn-valid payment ref
+        self.assertTrue(
+            is_valid_structured_reference_dk("+75<0226463216912202+12345678<")
+        )
+
+        # Does not validate an invalid Luhn checksum on the payment ref
+        self.assertFalse(
+            is_valid_structured_reference_dk("+71<022646321691227+12345678<")
+        )
+        # Does not validate a malformed reference
+        self.assertFalse(is_valid_structured_reference_dk("random"))
+        # Does not validate the wrong payment-ref length for the 71< prefix
+        self.assertFalse(is_valid_structured_reference_dk("+71<12345+12345678<"))
+        # Validates the entire string (no trailing junk after the closing '<')
+        self.assertFalse(
+            is_valid_structured_reference_dk("+71<022646321691226+12345678<XXX")
         )
 
     def test_structured_reference_fi(self):

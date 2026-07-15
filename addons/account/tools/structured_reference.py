@@ -54,7 +54,7 @@ def is_valid_structured_reference_be(reference):
 
 def is_valid_structured_reference_dk(reference):
     """Check whether the provided reference is a valid structured reference for Denmark.
-    Example: +71<022646321691221+88655702<
+    Example: +71<022646321691226+88655702<
 
     :param reference: the reference to check
     """
