@@ -39,17 +39,27 @@ export class CallPreview extends Component {
         this.state = useState({
             audioStream: null,
             blurManager: null,
+            // Resolved blurred MediaStream (BlurManager.stream is a Promise); the effect binds
+            // this concrete stream, never the pending promise.
+            blurStream: null,
             videoStream: null,
         });
         this.audioRef = useRef("audio");
         this.videoRef = useRef("video");
+        // Single source of truth for stream -> media-element binding: the <audio>/<video>
+        // elements always mirror current stream state, in both directions (bind on enable,
+        // clear on disable, swap on blur). Because this is the *only* place srcObject is
+        // touched, enable*/disable*/blur mutate reactive state alone and never depend on a
+        // ref being mounted -- so the parent-notification contract can never again be gated
+        // behind a not-yet-rendered element (the guest-joins-camera-off bug).
         useEffect(
             (videoEl, audioEl, audioStream, videoStream, blurStream) => {
-                if (audioEl && !audioEl.srcObject && audioStream) {
-                    audioEl.srcObject = audioStream;
+                if (audioEl && audioEl.srcObject !== audioStream) {
+                    audioEl.srcObject = audioStream ?? null;
                 }
-                if (videoEl && !videoEl.srcObject && videoStream) {
-                    videoEl.srcObject = blurStream ?? videoStream;
+                const desiredVideo = blurStream ?? videoStream ?? null;
+                if (videoEl && videoEl.srcObject !== desiredVideo) {
+                    videoEl.srcObject = desiredVideo;
                 }
             },
             () => [
@@ -57,7 +67,7 @@ export class CallPreview extends Component {
                 this.audioRef.el,
                 this.state.audioStream,
                 this.state.videoStream,
-                this.state.blurManager?.stream,
+                this.state.blurStream,
             ],
         );
         if (this.hasRtcSupport) {
@@ -189,32 +199,56 @@ export class CallPreview extends Component {
         ];
     }
 
-    async enableMicrophone() {
+    /**
+     * Acquire a local media stream and publish it. Single acquire routine shared by the
+     * microphone and camera paths so the two can never diverge (the divergence is what let the
+     * camera path grow a DOM-gated notification the mic path never had). Order is invariant:
+     * permission -> getUserMedia -> destroyed guard -> commit state -> notify parent. DOM binding
+     * is left entirely to the reactive effect, so the parent is notified regardless of render
+     * timing.
+     *
+     * @param {Object} media
+     * @param {"audio"|"video"} media.kind getUserMedia constraint key
+     * @param {"microphonePermission"|"cameraPermission"} media.permission
+     * @param {MediaTrackConstraints} media.constraints
+     * @param {"audioStream"|"videoStream"} media.streamKey `this.state` slot to commit to
+     * @param {"microphone"|"camera"} media.setting `onSettingsChanged` flag to raise
+     * @returns {Promise<boolean>} whether the stream was acquired and committed
+     */
+    async acquireMedia({ kind, permission, constraints, streamKey, setting }) {
         if (
-            this.rtc.microphonePermission !== "granted" &&
-            !(await this.rtc.askForBrowserPermission({ audio: true }))
+            this.rtc[permission] !== "granted" &&
+            !(await this.rtc.askForBrowserPermission({ [kind]: true }))
         ) {
-            return;
+            return false;
         }
-        this.state.audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: this.store.settings.audioConstraints,
+        const stream = await navigator.mediaDevices.getUserMedia({
+            [kind]: constraints,
         });
+        // destroyed check must come first: on a dismissed popup the stream must be closed,
+        // not leaked with the device LED on.
         if (status(this) === "destroyed") {
-            closeStream(this.state.audioStream);
-            return;
+            closeStream(stream);
+            return false;
         }
-        if (this.audioRef.el) {
-            this.audioRef.el.srcObject = this.state.audioStream;
-        }
-        this.props.onSettingsChanged?.({ microphone: true });
+        this.state[streamKey] = stream;
+        this.props.onSettingsChanged?.({ [setting]: true });
+        return true;
+    }
+
+    async enableMicrophone() {
+        await this.acquireMedia({
+            kind: "audio",
+            permission: "microphonePermission",
+            constraints: this.store.settings.audioConstraints,
+            streamKey: "audioStream",
+            setting: "microphone",
+        });
     }
 
     disableMicrophone() {
         closeStream(this.state.audioStream);
         this.state.audioStream = null;
-        if (this.audioRef.el) {
-            this.audioRef.el.srcObject = null;
-        }
         this.props.onSettingsChanged?.({ microphone: false });
     }
 
@@ -235,29 +269,14 @@ export class CallPreview extends Component {
     }
 
     async enableCamera() {
-        if (
-            this.rtc.cameraPermission !== "granted" &&
-            !(await this.rtc.askForBrowserPermission({ video: true }))
-        ) {
-            return;
-        }
-        this.state.videoStream = await navigator.mediaDevices.getUserMedia({
-            video: this.store.settings.cameraConstraints,
+        const acquired = await this.acquireMedia({
+            kind: "video",
+            permission: "cameraPermission",
+            constraints: this.store.settings.cameraConstraints,
+            streamKey: "videoStream",
+            setting: "camera",
         });
-        // destroyed check must come first: on a dismissed popup the stream
-        // must be closed, not leaked with the camera LED on.
-        if (status(this) === "destroyed") {
-            closeStream(this.state.videoStream);
-            return;
-        }
-        if (!this.videoRef.el) {
-            return;
-        }
-        if (this.videoRef.el) {
-            this.videoRef.el.srcObject = this.state.videoStream;
-        }
-        this.props.onSettingsChanged?.({ camera: true });
-        if (this.store.settings.useBlur) {
+        if (acquired && this.store.settings.useBlur) {
             await this.enableBlur();
         }
     }
@@ -267,9 +286,7 @@ export class CallPreview extends Component {
         this.state.videoStream = null;
         this.state.blurManager?.close();
         this.state.blurManager = undefined;
-        if (this.videoRef.el) {
-            this.videoRef.el.srcObject = null;
-        }
+        this.state.blurStream = null;
         this.props.onSettingsChanged?.({ camera: false });
     }
 
@@ -291,14 +308,23 @@ export class CallPreview extends Component {
 
     async enableBlur() {
         this.store.settings.setUseBlur(true);
-        if (!this.videoRef.el) {
+        if (!this.state.videoStream) {
             return;
         }
         try {
-            this.state.blurManager = await this.rtc.applyBlurEffect(
-                this.state.videoStream,
-            );
-            this.videoRef.el.srcObject = await this.state.blurManager.stream;
+            const manager = await this.rtc.applyBlurEffect(this.state.videoStream);
+            // BlurManager.stream is a Promise resolving to the blurred MediaStream; resolve it
+            // before committing so the effect binds a concrete stream, not the pending promise.
+            const blurStream = await manager.stream;
+            if (status(this) === "destroyed") {
+                manager.close();
+                closeStream(blurStream);
+                return;
+            }
+            // Commit to state only; the reactive effect swaps the <video> to the blurred
+            // stream, with no dependence on the element being mounted.
+            this.state.blurManager = manager;
+            this.state.blurStream = blurStream;
         } catch (_e) {
             this.notification.add(_e.message, { type: "warning" });
             this.disableBlur();
@@ -307,11 +333,9 @@ export class CallPreview extends Component {
 
     disableBlur() {
         this.store.settings.setUseBlur(false);
-        if (this.videoRef.el) {
-            this.videoRef.el.srcObject = this.state.videoStream;
-        }
         this.state.blurManager?.close();
         this.state.blurManager = undefined;
+        this.state.blurStream = null;
     }
 
     toggleBlur() {
