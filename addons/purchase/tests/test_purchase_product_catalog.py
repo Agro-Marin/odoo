@@ -196,6 +196,83 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
             "/odoo/purchases", "test_catalog_vendor_uom", login="accountman"
         )
 
+    def test_catalog_price_vendor_uom_cross_category(self):
+        """Model-level guard for the catalog pricing exercised by the
+        ``test_catalog_vendor_uom`` tour.
+
+        A product measured in ``Units`` may be sold by a vendor quoting in a
+        different UoM *category* (``L``). Seller selection and the product-UoM
+        quantity must handle that without raising, while still honouring the
+        ``min_qty`` price tiers of the same-category vendor.
+        """
+        self._enable_uom()
+        uom_liter = self.env.ref("uom.product_uom_litre")
+        vendor_l, vendor_u = self.env["res.partner"].create(
+            [{"name": "Vendor A (l)"}, {"name": "Vendor B (unit)"}]
+        )
+        product = (
+            self.env["product.template"]
+            .create(
+                {
+                    "name": "Crab Juice",
+                    "seller_ids": [
+                        Command.create(
+                            {
+                                "partner_id": vendor_l.id,
+                                "product_uom_id": uom_liter.id,
+                                "price": 2,
+                                "discount": 22.5,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "partner_id": vendor_u.id,
+                                "product_uom_id": self.uom_unit.id,
+                                "price": 2.5,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "partner_id": vendor_u.id,
+                                "product_uom_id": self.uom_unit.id,
+                                "min_qty": 6,
+                                "price": 2.45,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "partner_id": vendor_u.id,
+                                "product_uom_id": self.uom_unit.id,
+                                "min_qty": 12,
+                                "price": 2.45,
+                                "discount": 10.2,
+                            }
+                        ),
+                    ],
+                }
+            )
+            .product_variant_id
+        )
+
+        # Units vendor: the min_qty tiers must apply as the quantity grows, even
+        # though an incompatible-UoM (L) seller exists on the same product.
+        po_unit = self.env["purchase.order"].create({"partner_id": vendor_u.id})
+        for qty, expected in [(5, 2.50), (6, 2.45), (11, 2.45), (12, 2.20)]:
+            price = po_unit._update_order_line_info(product.id, qty)
+            self.assertAlmostEqual(
+                price, expected, places=2, msg=f"unit vendor @ qty {qty}"
+            )
+
+        # Liter vendor: the line lives in the vendor's UoM; product_uom_qty has
+        # no cross-category value and must fall back rather than raise.
+        po_liter = self.env["purchase.order"].create({"partner_id": vendor_l.id})
+        price = po_liter._update_order_line_info(product.id, 1)
+        self.assertAlmostEqual(price, 1.55, places=2)
+        line = po_liter.line_ids.filtered(lambda l: l.product_id == product)
+        self.assertEqual(line.product_uom_id, uom_liter)
+        self.assertEqual(line.product_uom_qty, 1.0)
+        self.assertAlmostEqual(line.price_unit, 2.0, places=2)
+
     def test_seller_price_discounted_with_template(self):
         ProductAttribute = self.env["product.attribute"]
         ProductAttributeValue = self.env["product.attribute.value"]

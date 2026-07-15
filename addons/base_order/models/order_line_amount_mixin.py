@@ -173,14 +173,22 @@ class OrderLineAmountMixin(models.AbstractModel):
 
         Example: 2 Cases where 1 Case = 12 Units →
         ``product_qty = 2`` (Cases), ``product_uom_qty = 24`` (Units).
+
+        A vendor (or customer) may transact in a UoM outside the product's own
+        category — e.g. buying a product measured in ``Units`` from a vendor who
+        quotes in ``L``. There is no meaningful reference-UoM quantity in that
+        case, so fall back to the raw quantity rather than letting the
+        conversion raise on incompatible units.
         """
         for line in self:
             if line.display_type:
                 line.product_uom_qty = False
-                continue
-            if not line.product_uom_id or not line.product_id:
-                line.product_uom_qty = line.product_qty
-            elif line.product_id.uom_id != line.product_uom_id:
+            elif (
+                line.product_uom_id
+                and line.product_id
+                and line.product_id.uom_id != line.product_uom_id
+                and line.product_uom_id._has_common_reference(line.product_id.uom_id)
+            ):
                 line.product_uom_qty = line.product_uom_id._compute_quantity(
                     line.product_qty,
                     line.product_id.uom_id,
