@@ -1,9 +1,5 @@
 /** @odoo-module native */
 import { FileUploadListController } from '@account/views/file_upload_list/file_upload_list_controller';
+import { saleFileUploadController } from '../sale_file_upload_mixins.js';
 
-export class SaleFileUploadListController extends FileUploadListController {
-    setup() {
-        super.setup();
-        this.hideUploadButton = true;
-    }
-};
+export const SaleFileUploadListController = saleFileUploadController(FileUploadListController);
