@@ -21,17 +21,19 @@ export class ActionableErrors extends Component {
     }
 
     async handleOnClick(errorData){
-        if (errorData.action?.view_mode) {
-            // view_mode is not handled JS side
-            errorData.action['views'] = errorData.action.view_mode.split(',').map(mode => [false, mode]);
-            delete errorData.action['view_mode'];
-        }
         if (errorData.action_call) {
             const [model, method, args] = errorData.action_call;
             await this.orm.call(model, method, [args]);
             this.actionService.doAction("soft_reload");
         } else {
-            this.actionService.doAction(errorData.action);
+            let action = errorData.action;
+            if (action?.view_mode) {
+                // view_mode is not handled JS side; translate it to `views` on a
+                // copy rather than mutating the reactive errorData in place.
+                action = { ...action, views: action.view_mode.split(',').map(mode => [false, mode]) };
+                delete action.view_mode;
+            }
+            this.actionService.doAction(action);
         }
     }
 

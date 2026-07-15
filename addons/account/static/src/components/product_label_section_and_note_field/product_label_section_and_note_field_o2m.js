@@ -18,12 +18,16 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
 
     processAllColumns(allColumns, list) {
         allColumns = allColumns.map((column) => {
-            // Gate on the column name, not column.optional: the base re-invokes this
-            // every render against the SAME cached arch objects, so mutating
-            // column.optional in place made the "conditional" gate fail after the
-            // first render and let one move_type's visibility leak to other invoices.
-            // Recompute from the current move_type into a shallow copy each time.
-            if (!this.conditionalColumns.includes(column["name"])) {
+            // Only recompute the move_type-dependent default for columns the arch
+            // explicitly marks optional="conditional" (e.g. account.move lines);
+            // concrete show/hide values must be respected (e.g. sale order lines,
+            // which pin product_template_id as the default-visible product column).
+            // Reading column.optional is stable here because we return a shallow copy
+            // below instead of mutating the cached arch object across renders.
+            if (
+                column["optional"] !== "conditional"
+                || !this.conditionalColumns.includes(column["name"])
+            ) {
                 return column;
             }
             /**
