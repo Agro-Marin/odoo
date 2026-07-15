@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, time, timedelta
+from random import randint
 from typing import Any, Self
 
 from dateutil.relativedelta import relativedelta, weekdays
@@ -31,6 +32,9 @@ class ResourceResource(models.Model):
             company = self.env["res.company"].browse(res["company_id"])
             res["calendar_id"] = company.resource_calendar_id.id
         return res
+
+    def _default_color(self):
+        return randint(1, 11)
 
     name = fields.Char(required=True)
     active = fields.Boolean(
@@ -73,6 +77,7 @@ class ResourceResource(models.Model):
         required=True,
         default=lambda self: self.env.context.get("tz") or self.env.user.tz or "UTC",
     )
+    color = fields.Integer(default=_default_color)
     time_efficiency = fields.Float(
         "Efficiency Factor",
         default=100,
