@@ -2473,6 +2473,62 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
                     ],
                 )
 
+    def _test_price_included_division_tax_with_other_group(self):
+        # A price-included division tax sharing a line with a tax from another group.
+        # The division group's displayed base must be its own tax-inclusive base
+        # (100), NOT inflated by the other group's tax amount. Regression guard for
+        # the JS get_tax_totals_summary division add-back, which was missing the
+        # `amount_type == "division"` filter and therefore added every tax on the
+        # line back into the division group's displayed base (would give 111.85).
+        div = self.division_tax(
+            21.0,
+            price_include_override="tax_included",
+            tax_group_id=self.tax_groups[0].id,
+        )
+        pct = self.percent_tax(15.0, tax_group_id=self.tax_groups[1].id)
+        document = self.populate_document(
+            self.init_document(lines=[{"price_unit": 100.0, "tax_ids": div + pct}])
+        )
+        expected_values = {
+            "same_tax_base": False,
+            "currency_id": self.currency.id,
+            "base_amount_currency": 79.0,
+            "tax_amount_currency": 32.85,
+            "total_amount_currency": 111.85,
+            "subtotals": [
+                {
+                    "name": "Untaxed Amount",
+                    "base_amount_currency": 79.0,
+                    "tax_amount_currency": 32.85,
+                    "tax_groups": [
+                        {
+                            "id": self.tax_groups[0].id,
+                            "base_amount_currency": 79.0,
+                            "tax_amount_currency": 21.0,
+                            "display_base_amount_currency": 100.0,
+                        },
+                        {
+                            "id": self.tax_groups[1].id,
+                            "base_amount_currency": 79.0,
+                            "tax_amount_currency": 11.85,
+                            "display_base_amount_currency": 79.0,
+                        },
+                    ],
+                },
+            ],
+        }
+        yield 1, document, expected_values
+
+    def test_price_included_division_tax_with_other_group_generic_helpers(self):
+        for (
+            test_index,
+            document,
+            expected_values,
+        ) in self._test_price_included_division_tax_with_other_group():
+            with self.subTest(test_index=test_index):
+                self.assert_tax_totals_summary(document, expected_values)
+        self._run_js_tests()
+
     def _test_discount_with_round_globally(self):
         self.env.company.tax_calculation_rounding_method = "round_globally"
         tax = self.percent_tax(21.0)
