@@ -68,11 +68,13 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         return SHOW_ALL_ITEMS_TOOLTIP;
     }
 
-    get hidePrices() {
+    // Current row's collapse state (distinct from the props.hidePrices /
+    // props.hideComposition feature flags that gate the toggle buttons).
+    get isPriceCollapsed() {
         return this.record.data.collapse_prices;
     }
 
-    get hideComposition() {
+    get isCompositionCollapsed() {
         return this.record.data.collapse_composition;
     }
 
