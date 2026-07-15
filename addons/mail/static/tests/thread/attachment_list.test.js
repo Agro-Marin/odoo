@@ -9,11 +9,14 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { mockUserAgent } from "@odoo/hoot-mock";
-import { asyncStep, patchWithCleanup, waitForSteps } from "@web/../tests/web_test_helpers";
-
+import {
+    asyncStep,
+    patchWithCleanup,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
+import { isMobileOS } from "@web/core/browser/feature_detection";
 import { download } from "@web/core/network/download";
 import { getOrigin } from "@web/core/utils/urls";
-import { isMobileOS } from "@web/core/browser/feature_detection";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -41,7 +44,10 @@ test("simplest layout", async () => {
     expect(".o-mail-AttachmentContainer:first").toHaveAttribute("title", "test.txt");
     await contains(".o-mail-AttachmentCard-image");
     expect(".o-mail-AttachmentCard-image:first").toHaveClass("o_image"); // required for mimetype.scss style
-    expect(".o-mail-AttachmentCard-image:first").toHaveAttribute("data-mimetype", "text/plain"); // required for mimetype.scss style
+    expect(".o-mail-AttachmentCard-image:first").toHaveAttribute(
+        "data-mimetype",
+        "text/plain",
+    ); // required for mimetype.scss style
     await contains(".o-mail-AttachmentButtons button", { count: 2 });
     await contains(".o-mail-Attachment-unlink");
     await contains(".o-mail-AttachmentButtons button[title='Download']");
@@ -100,14 +106,14 @@ test("link-type attachment should have open button instead of download button", 
     await contains(".o-mail-AttachmentCard:eq(0)", { text: "url.example" });
     await contains(".o-mail-AttachmentCard:eq(1)", { text: "test.txt" });
     await contains(
-        ".o-mail-AttachmentContainer:eq(0) .o-mail-AttachmentButtons a[title='Open Link']"
+        ".o-mail-AttachmentContainer:eq(0) .o-mail-AttachmentButtons a[title='Open Link']",
     );
     await contains(
         ".o-mail-AttachmentContainer:eq(0) .o-mail-AttachmentButtons button[title='Download']",
-        { count: 0 }
+        { count: 0 },
     );
     await contains(
-        ".o-mail-AttachmentContainer:eq(1) .o-mail-AttachmentButtons button[title='Download']"
+        ".o-mail-AttachmentContainer:eq(1) .o-mail-AttachmentButtons button[title='Download']",
     );
     await contains(`.o-mail-AttachmentButtons a[title='Open Link'][target='_blank']`);
 });
@@ -187,10 +193,13 @@ test("can view pdf url", async () => {
     await openDiscuss(channelId);
     await click(".o-mail-AttachmentContainer", { text: "url.pdf.example" });
     await contains(".o-FileViewer");
+    // production-faithful URL: the server always sends raw_access_token on
+    // attachments (ir_attachment._to_store_defaults, no predicate) and the
+    // client always appends it (file_model urlQueryParams); mock token = id
     await contains(
         `iframe.o-FileViewer-view[data-src="/web/static/lib/pdfjs/web/viewer.html?file=${encodeURIComponent(
-            `${getOrigin()}/web/content/${attachmentId}?filename=url.pdf.example`
-        )}#pagemode=none"]`
+            `${getOrigin()}/web/content/${attachmentId}?access_token=${attachmentId}&filename=url.pdf.example`,
+        )}#pagemode=none"]`,
     );
 });
 
@@ -333,7 +342,8 @@ test("DOCX file is not viewable", async () => {
     });
     const attachmentId = pyEnv["ir.attachment"].create({
         name: "test.docx",
-        mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        mimetype:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
     pyEnv["mail.message"].create({
         attachment_ids: [attachmentId],
@@ -373,7 +383,9 @@ test("should not view attachment from click on non-viewable attachment in list c
     await start();
     await openDiscuss(channelId);
     await contains(".o-mail-AttachmentContainer[title='test.png'].o-viewable");
-    await contains(".o-mail-AttachmentContainer:not(.o-viewable)", { text: "test.odt" });
+    await contains(".o-mail-AttachmentContainer:not(.o-viewable)", {
+        text: "test.odt",
+    });
     await click(".o-mail-AttachmentContainer", { text: "test.odt" });
     // weak test, no guarantee that we waited long enough for the potential file viewer to show
     await contains(".o-FileViewer", { count: 0 });
@@ -402,8 +414,9 @@ test("img file has proper src in discuss.channel", async () => {
     });
     await start();
     await openDiscuss(channelId);
+    // access_token: see "can view pdf url" — real payloads always carry it
     await contains(
-        `.o-mail-AttachmentContainer[title='test.png'] img[data-src*='${getOrigin()}/web/image/${attachmentId}?filename=test.png']`
+        `.o-mail-AttachmentContainer[title='test.png'] img[data-src*='${getOrigin()}/web/image/${attachmentId}?access_token=${attachmentId}&filename=test.png']`,
     );
 });
 
@@ -431,7 +444,10 @@ test("download url of non-viewable binary file", async () => {
 
     patchWithCleanup(download, {
         _download: (options) => {
-            expect(options.url).toBe(`${getOrigin()}/web/content/${attachmentId}?filename=test.o&download=true`);
+            // access_token: see "can view pdf url" — real payloads always carry it
+            expect(options.url).toBe(
+                `${getOrigin()}/web/content/${attachmentId}?access_token=${attachmentId}&filename=test.o&download=true`,
+            );
         },
     });
     await click(".fa-download");

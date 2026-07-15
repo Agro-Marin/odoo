@@ -9,7 +9,7 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { Deferred, mockDate, animationFrame } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, mockDate } from "@odoo/hoot-mock";
 import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
 
@@ -79,14 +79,19 @@ test("create sub thread from existing message", async () => {
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
     await click(".o-mail-Message-actions [title='Expand']");
     await contains(".o-dropdown-item:contains('Create Thread')", { count: 0 });
-    await contains(".o-mail-SubChannelPreview:contains('Selling a training session and')");
+    await contains(
+        ".o-mail-SubChannelPreview:contains('Selling a training session and')",
+    );
     await click(".o-mail-SubChannelPreview:contains('Selling a training session and')");
     await contains(".o-mail-DiscussContent-threadName", {
         value: "Selling a training session and",
     });
-    await contains(".o-mail-SubChannelPreview:contains('Selling a training session and')", {
-        count: 0,
-    });
+    await contains(
+        ".o-mail-SubChannelPreview:contains('Selling a training session and')",
+        {
+            count: 0,
+        },
+    );
 });
 
 test("should allow creating a thread from an existing thread", async () => {
@@ -122,7 +127,10 @@ test("create sub thread from existing message (slow network)", async () => {
         body: "<p>Selling a training session and selling the products after the training session is more efficient.</p>",
     });
     const createSubChannelDef = new Deferred();
-    onRpcAfter("/discuss/channel/sub_channel/create", async () => await createSubChannelDef);
+    onRpcAfter(
+        "/discuss/channel/sub_channel/create",
+        async () => await createSubChannelDef,
+    );
     await start();
     await openDiscuss(channelId);
     await click(".o-mail-Message-actions [title='Expand']");
@@ -144,7 +152,9 @@ test("create sub thread from sub-thread list", async () => {
     await openDiscuss(channelId);
     await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
     await click("button[title='Threads']");
-    await contains(".o-mail-SubChannelList", { text: "This channel has no thread yet." });
+    await contains(".o-mail-SubChannelList", {
+        text: "This channel has no thread yet.",
+    });
     await click("button[aria-label='Create Thread']");
     await contains(".o-mail-DiscussContent-threadName", { value: "New Thread" });
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
@@ -152,10 +162,12 @@ test("create sub thread from sub-thread list", async () => {
     await click(".o-mail-DiscussContent-header button[title='Threads']");
     await insertText(
         ".o-mail-ActionPanel:has(.o-mail-SubChannelList) .o_searchview_input",
-        "MyEpicThread"
+        "MyEpicThread",
     );
     await click("button[aria-label='Search button']");
-    await contains(".o-mail-SubChannelList", { text: 'No thread named "MyEpicThread"' });
+    await contains(".o-mail-SubChannelList", {
+        text: 'No thread named "MyEpicThread"',
+    });
     await click("button[aria-label='Create Thread']");
     await contains(".o-mail-DiscussContent-threadName", { value: "MyEpicThread" });
 });
@@ -174,7 +186,10 @@ test("'Thread' menu available in threads", async () => {
     await click(".o-mail-DiscussSidebar-item", { text: "ThreadOne" });
     await contains(".o-mail-DiscussContent-threadName", { value: "ThreadOne" });
     await click("button[title='Threads']");
-    await insertText(".o-mail-ActionPanel input[placeholder='Search by name']", "ThreadTwo");
+    await insertText(
+        ".o-mail-ActionPanel input[placeholder='Search by name']",
+        "ThreadTwo",
+    );
     await click(".o-mail-ActionPanel button", { text: "Create" });
     await click(".o-mail-DiscussSidebar-item", { text: "ThreadTwo" });
 });
@@ -206,7 +221,7 @@ test("sub thread is available for channel and group, not for chat", async () => 
     await click("button[title='Threads']");
     await insertText(
         ".o-mail-ActionPanel input[placeholder='Search by name']",
-        "Sub thread for channel"
+        "Sub thread for channel",
     );
     await click(".o-mail-ActionPanel button", { text: "Create" });
     await click(".o-mail-DiscussSidebar-item", { text: "Sub thread for channel" });
@@ -215,7 +230,7 @@ test("sub thread is available for channel and group, not for chat", async () => 
     await click("button[title='Threads']");
     await insertText(
         ".o-mail-ActionPanel input[placeholder='Search by name']",
-        "Sub thread for group"
+        "Sub thread for group",
     );
     await click(".o-mail-ActionPanel button", { text: "Create" });
     await click(".o-mail-DiscussSidebar-item", { text: "Sub thread for group" });
@@ -234,7 +249,9 @@ test("mention suggestions in thread match channel restrictions", async () => {
         name: "Thread",
         parent_channel_id: channelId,
     });
-    pyEnv["res.users"].write(serverState.userId, { group_ids: [Command.link(groupId)] });
+    pyEnv["res.users"].write(serverState.userId, {
+        group_ids: [Command.link(groupId)],
+    });
     const [partnerId_1, partnerId_2] = pyEnv["res.partner"].create([
         { email: "p1@odoo.com", name: "p1" },
         { email: "p2@odoo.com", name: "p2" },
@@ -266,7 +283,9 @@ test("sub-thread is visually muted when mute is active", async () => {
     await contains(".o-mail-DiscussContent-threadName", { value: "General" });
     await click("button[title='Threads']");
     await click("button[aria-label='Create Thread']");
-    await contains(".opacity-50.o-mail-DiscussSidebar-item:contains('New Thread')", { count: 0 });
+    await contains(".opacity-50.o-mail-DiscussSidebar-item:contains('New Thread')", {
+        count: 0,
+    });
     await click(".o-mail-DiscussSidebar-item:contains('New Thread')");
     await click("button[title='Notification Settings']");
     await click("button:contains('Mute Conversation')");
@@ -277,8 +296,14 @@ test("sub-thread is visually muted when mute is active", async () => {
 test("muted channel hides sub-thread unless channel is selected or thread has unread messages", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
-    const partnerId2 = pyEnv["res.partner"].create({ email: "p1@odoo.com", name: "p1" });
-    const userId2 = pyEnv["res.users"].create({ name: "User 2", partner_id: partnerId2 });
+    const partnerId2 = pyEnv["res.partner"].create({
+        email: "p1@odoo.com",
+        name: "p1",
+    });
+    const userId2 = pyEnv["res.users"].create({
+        name: "User 2",
+        partner_id: partnerId2,
+    });
     const partnerId = serverState.partnerId;
     const subChannelId = pyEnv["discuss.channel"].create({
         name: "New Thread",
@@ -306,7 +331,7 @@ test("muted channel hides sub-thread unless channel is selected or thread has un
             post_data: { body: "Some message", message_type: "comment" },
             thread_id: subChannelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-DiscussSidebar-item:contains('New Thread')");
 });
@@ -344,12 +369,14 @@ test("Can delete channel thread as author of thread", async () => {
     await start();
     await openDiscuss(subChannelID);
     await contains(".o-mail-DiscussContent-threadName[title='test thread']");
-    await click(".o-mail-DiscussSidebar-item:contains('test thread') [title='Thread Actions']");
+    await click(
+        ".o-mail-DiscussSidebar-item:contains('test thread') [title='Thread Actions']",
+    );
     await click(".o-dropdown-item:contains('Delete Thread')");
     await click(".modal button:contains('Delete Thread')");
     await contains(".o-mail-DiscussContent-threadName[title='General']");
     await contains(
-        `.o-mail-NotificationMessage :text(Mitchell Admin deleted the thread "test thread")`
+        `.o-mail-NotificationMessage :text(Mitchell Admin deleted the thread "test thread")`,
     );
 });
 
@@ -366,6 +393,12 @@ test("can mention all group chat members inside its sub-thread", async () => {
     });
     const groupSubChannelId = pyEnv["discuss.channel"].create({
         name: "New Thread",
+        // sub-channels always share their parent's channel_type: the server
+        // enforces it (_check_sub_channel constraint) and _create_sub_channel
+        // copies it. The previous data (default "channel" type under a group
+        // parent) is impossible on a real server and only worked because the
+        // mock over-emitted a default group_public_id.
+        channel_type: "group",
         parent_channel_id: groupChannelId,
         channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
     });
