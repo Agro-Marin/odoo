@@ -199,6 +199,49 @@ def _distribute_reservation(candidates, quantity, available_quantity, precision_
     return reserved
 
 
+class _QuantsCache:
+    """Keyed quant cache for the reservation gather path, with coverage tracking.
+
+    It behaves like the ``defaultdict(recordset)`` it replaced for the keyed reads
+    and writes that ``_gather`` and quant ``create`` perform (``cache[key]`` returns
+    an empty recordset on a miss; ``cache[key] |= quant`` accumulates), but it also
+    records which ``(product, location)`` subtree the build scan covered.
+
+    That lets a strict ``_gather`` tell a *genuine* miss -- a product/location the
+    scan never looked at, e.g. because the caller seeded an incomplete cache -- from a
+    *covered-but-empty* result. On a genuine miss it must fall back to a DB search;
+    without this, a miss silently returned an empty recordset, which reads as "no
+    stock" and causes silent under-reservation. Coverage is scope membership only
+    (``product in built products`` and ``location`` under a built root), so an
+    ``extra_domain``-filtered cache keeps exactly its previous in-scope behaviour --
+    only never-scanned pairs change, from empty to a search.
+    """
+
+    __slots__ = ("_data", "_empty", "_location_paths", "_product_ids")
+
+    def __init__(self, empty, product_ids=(), location_paths=()):
+        self._data = {}
+        self._empty = empty  # empty stock.quant recordset returned on a miss
+        self._product_ids = frozenset(product_ids)
+        # parent_path prefixes of the root locations the scan descended from; a
+        # gathered location is covered iff its parent_path starts with one of them.
+        self._location_paths = tuple(p for p in location_paths if p)
+
+    def __getitem__(self, key):
+        return self._data.get(key, self._empty)
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+
+    def covers(self, product_id, location_id):
+        """Whether the build scan fully covered this product/location, so a missing
+        key means genuinely no quant rather than an un-scanned pair."""
+        if product_id.id not in self._product_ids:
+            return False
+        path = location_id.parent_path or ""
+        return any(path.startswith(root) for root in self._location_paths)
+
+
 class StockQuant(models.Model):
     _name = "stock.quant"
     _description = "Quants"
@@ -1366,7 +1409,12 @@ class StockQuant(models.Model):
         order = self._get_removal_strategy_order(removal_strategy)
         quants_cache = self.env.context.get("quants_cache")
 
-        if quants_cache is not None and strict and removal_strategy != "least_packages":
+        if (
+            quants_cache is not None
+            and strict
+            and removal_strategy != "least_packages"
+            and quants_cache.covers(product_id, location_id)
+        ):
             # package_id/owner_id may be None (their documented default); the cache is
             # keyed by id, so normalise to False like the search path does.
             package_key = package_id.id if package_id else False
@@ -1398,6 +1446,10 @@ class StockQuant(models.Model):
             elif removal_strategy == "lifo":
                 res = res.sorted(lambda q: (q.in_date, q.id), reverse=True)
         else:
+            # No cache / non-strict / least_packages, or a cache that never scanned
+            # this product/location: resolve from the DB. Falling back here -- rather
+            # than trusting an absent key as "empty" -- is what makes a partial cache
+            # safe (an un-scanned pair no longer silently reads as zero stock).
             res = self.search(domain, order=order)
 
         if removal_strategy == "closest":
@@ -1542,6 +1594,12 @@ class StockQuant(models.Model):
             quant = quants.try_lock_for_update(allow_referencing=True, limit=1)
 
         if quant:
+            # try_lock_for_update only SELECTs ids FOR UPDATE; it does not refetch
+            # column values. The quantity/reserved_quantity in cache came from the
+            # earlier _gather SELECT and may be stale if a concurrent transaction
+            # committed a change to this row in the gather->lock window. Re-read
+            # under the lock before incrementing, or we silently drop that update.
+            quant.invalidate_recordset(["quantity", "reserved_quantity"])
             vals = {"in_date": in_date}
             if quantity:
                 vals["quantity"] = quant.quantity + quantity
@@ -1562,7 +1620,12 @@ class StockQuant(models.Model):
             if quantity:
                 vals["quantity"] = quantity
             if reserved_quantity:
-                vals["reserved_quantity"] = reserved_quantity
+                # A release (reserved_quantity < 0) can reach this branch when the
+                # only matching quant is locked by a concurrent transaction (gather
+                # sees it, try_lock_for_update skips it). Clamp like the update
+                # branch so we never persist a negative reserved_quantity, which
+                # would inflate availability until _merge_quants repairs it.
+                vals["reserved_quantity"] = max(0, reserved_quantity)
             self.create(vals)
         return (
             self._get_available_quantity(
@@ -2137,7 +2200,11 @@ class StockQuant(models.Model):
     def _get_quants_by_products_locations(
         self, product_ids, location_ids, extra_domain=False
     ):
-        res = defaultdict(lambda: self.env["stock.quant"])
+        res = _QuantsCache(
+            self.env["stock.quant"],
+            product_ids.ids,
+            location_ids.mapped("parent_path"),
+        )
         if product_ids and location_ids:
             domain = Domain(
                 [

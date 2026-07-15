@@ -376,6 +376,45 @@ class TestStockQuantImprovements(TestStockCommon):
         )
         self.assertEqual(res.product_id, product)
 
+    # ---- #B2: incomplete cache must fall back to a search, not read empty -----
+    def test_gather_cache_miss_falls_back_to_search(self):
+        """A strict _gather for a product/location the cache never scanned must fall
+        back to a DB search instead of trusting the absent key as 'no stock'. Without
+        the fallback an incomplete cache silently causes under-reservation (this is
+        what lets `_action_assign` build the cache for only the moves that read it)."""
+        covered, uncovered = self.products[0], self.products[1]
+        self.Quant._update_available_quantity(covered, self.loc, 5.0)
+        self.Quant._update_available_quantity(uncovered, self.loc, 7.0)
+        self.env.cr.flush()
+        # Cache scanned only `covered` at `self.loc`; `uncovered` is out of scope.
+        cache = self.Quant._get_quants_by_products_locations(covered, self.loc)
+        gather = self.Quant.with_context(quants_cache=cache)._gather
+        self.assertFalse(cache.covers(uncovered, self.loc))
+        self.assertTrue(cache.covers(covered, self.loc))
+        # Covered product is served from the cache.
+        self.assertEqual(gather(covered, self.loc, strict=True).quantity, 5.0)
+        # Uncovered product has no cache key; the gather must search and find the
+        # real 7.0 rather than return an empty recordset.
+        res = gather(uncovered, self.loc, strict=True)
+        self.assertEqual(res.product_id, uncovered)
+        self.assertEqual(res.quantity, 7.0)
+
+        # A location outside the scanned subtree is a miss too: build a cache scoped
+        # to a child location, then gather at an unrelated sibling location.
+        other_loc = self.env["stock.location"].create(
+            {"name": "qimp-other", "usage": "internal", "location_id": self.loc.id}
+        )
+        self.Quant._update_available_quantity(covered, other_loc, 3.0)
+        self.env.cr.flush()
+        child_cache = self.Quant._get_quants_by_products_locations(
+            covered, self.env["stock.location"].browse()  # empty -> nothing covered
+        )
+        self.assertFalse(child_cache.covers(covered, other_loc))
+        res2 = self.Quant.with_context(quants_cache=child_cache)._gather(
+            covered, other_loc, strict=True
+        )
+        self.assertEqual(res2.quantity, 3.0)
+
     # ---- #C: least_packages domain resolves multi-single from one record -----
     def test_least_packages_multi_single_single_query(self):
         """A least_packages gather whose exact cover needs several singles from a
