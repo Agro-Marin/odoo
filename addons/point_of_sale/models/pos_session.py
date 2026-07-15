@@ -1338,7 +1338,6 @@ class PosSession(models.Model):
         )
         currency_rounding = self.currency_id.rounding
         closed_orders = self._get_closed_orders()
-        partner_rank_increments = defaultdict(int)
         for order in closed_orders:
             order_is_invoiced = order.is_invoiced
             for payment in order.payment_ids:
@@ -1479,23 +1478,9 @@ class PosSession(models.Model):
                         rounding_difference, {"amount": diff}, order.date_order
                     )
 
-                # Tally the customer_rank bump per partner; apply once after the
-                # loop (was a per-order _increase_rank call — a write storm for
-                # first-time customers whose rank is still 0).
-                for partner in (
-                    order.partner_id | order.partner_id.commercial_partner_id
-                ):
-                    partner_rank_increments[partner.id] += 1
-
-        # Group partners by their increment count so equal bumps share one call;
-        # this reproduces the original per-order totals with far fewer calls.
-        partners_by_increment = defaultdict(list)
-        for partner_id, increment in partner_rank_increments.items():
-            partners_by_increment[increment].append(partner_id)
-        for increment, partner_ids in partners_by_increment.items():
-            self.env["res.partner"].browse(partner_ids)._increase_rank(
-                "customer_rank", increment
-            )
+        # Customer-rank bumps are a DB write side-effect, not part of the pure
+        # amount accumulation — apply them in a dedicated step.
+        self._increase_customer_ranks(closed_orders)
 
         all_picking_ids = (
             self.order_ids.filtered(
@@ -1573,6 +1558,28 @@ class PosSession(models.Model):
             }
         )
         return data
+
+    def _increase_customer_ranks(self, closed_orders):
+        """Bump ``customer_rank`` once per non-invoiced order for its partner
+        (and the partner's commercial parent), batched so partners sharing the
+        same increment count are written in a single ``_increase_rank`` call
+        (was a per-order call — a write storm for first-time customers whose
+        rank is still 0). Extracted from ``_accumulate_amounts`` because it is a
+        DB write side-effect, not part of the amount accumulation."""
+        partner_rank_increments = defaultdict(int)
+        for order in closed_orders:
+            if order.is_invoiced:
+                continue
+            for partner in order.partner_id | order.partner_id.commercial_partner_id:
+                partner_rank_increments[partner.id] += 1
+
+        partners_by_increment = defaultdict(list)
+        for partner_id, increment in partner_rank_increments.items():
+            partners_by_increment[increment].append(partner_id)
+        for increment, partner_ids in partners_by_increment.items():
+            self.env["res.partner"].browse(partner_ids)._increase_rank(
+                "customer_rank", increment
+            )
 
     def _create_non_reconciliable_move_lines(self, data):
         # Create account.move.line records for

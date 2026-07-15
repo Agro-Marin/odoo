@@ -1861,7 +1861,7 @@ export class PosStore extends WithLazyGetterTrap {
                 CONSOLE_COLOR,
                 [error],
             );
-            const reason = this.failed
+            const reason = !(error instanceof ConnectionLostError)
                 ? _t(
                       "Some orders could not be submitted to " +
                           "the server due to configuration errors. " +

@@ -168,13 +168,11 @@ export class PosOrder extends PosOrderAccounting {
 
         if (invalidCustomer || isAddressMissing || invalidSlot) {
             this.uiState.requiredPartnerDetails = {
-                field: _t(
-                    invalidCustomer
-                        ? _t("Customer")
-                        : isAddressMissing
-                          ? _t("Address")
-                          : _t("Slot"),
-                ),
+                field: invalidCustomer
+                    ? _t("Customer")
+                    : isAddressMissing
+                      ? _t("Address")
+                      : _t("Slot"),
                 message: invalidCustomer
                     ? _t("Please add a valid customer to the order.")
                     : isAddressMissing
