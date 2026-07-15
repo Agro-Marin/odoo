@@ -1,4 +1,9 @@
-import { luxon } from "@web/core/l10n/luxon";
+import { expect } from "@odoo/hoot";
+import { animationFrame, tick, waitFor, waitUntil } from "@odoo/hoot-dom";
+import { Deferred } from "@odoo/hoot-mock";
+import { onMounted } from "@odoo/owl";
+import { PosDataService } from "@point_of_sale/app/services/data_service";
+import { posService } from "@point_of_sale/app/services/pos_store";
 import { uuidv4 } from "@point_of_sale/utils";
 import {
     getService,
@@ -6,12 +11,10 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { animationFrame, tick, waitFor, waitUntil } from "@odoo/hoot-dom";
-import { Deferred } from "@odoo/hoot-mock";
 import { MainComponentsContainer } from "@web/components/main_components_container";
+import { luxon } from "@web/core/l10n/luxon";
+import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import { onMounted } from "@odoo/owl";
-import { expect } from "@odoo/hoot";
 import { user } from "@web/services/user";
 
 const { DateTime } = luxon;
@@ -26,6 +29,15 @@ export const setupPosEnv = async () => {
         db: `pos-${uuidv4()}`, // Avoid indexedDB conflicts
         isEnterprise: true,
     };
+
+    // The shared HOOT setup (web .../module_set.hoot.js::setupTestEnvironment)
+    // deletes app-specific services — including "pos" and "pos_data" — from the
+    // registry once at framework init, because they crash in start() when the
+    // runtime state they need is absent. POS unit tests DO provide that state
+    // (odoo.pos_config_id above), so re-register the two services this env needs.
+    const services = registry.category("services");
+    services.add("pos_data", PosDataService, { force: true });
+    services.add("pos", posService, { force: true });
 
     await makeDialogMockEnv();
     const store = getService("pos");
@@ -53,7 +65,7 @@ export const getFilledOrder = async (store, data = {}) => {
             write_date: date,
             create_date: date,
         },
-        order
+        order,
     );
     await store.addLineToOrder(
         {
@@ -62,7 +74,7 @@ export const getFilledOrder = async (store, data = {}) => {
             write_date: date,
             create_date: date,
         },
-        order
+        order,
     );
     store.addPendingOrder([order.id]);
     return order;
