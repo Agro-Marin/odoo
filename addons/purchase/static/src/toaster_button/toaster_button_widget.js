@@ -1,7 +1,8 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 class ButtonWithNotification extends Component {
@@ -17,21 +18,30 @@ class ButtonWithNotification extends Component {
     }
 
     async onClick() {
-        const result = await this.orm.call(this.props.record.resModel, this.props.method, [
-            this.props.record.resId,
-        ]);
-        const message = result.toast_message;
-        this.notification.add(message, { type: "success" });
+        const result = await this.orm.call(
+            this.props.record.resModel,
+            this.props.method,
+            [this.props.record.resId],
+        );
+        // The backend method may legitimately return nothing (e.g. the action
+        // could not be performed); never assume a payload is present.
+        if (result?.toast_message) {
+            this.notification.add(result.toast_message, {
+                type: result.toast_type || "success",
+            });
+        } else {
+            this.notification.add(_t("The action could not be completed."), {
+                type: "warning",
+            });
+        }
     }
 }
 
 export const buttonWithNotification = {
     component: ButtonWithNotification,
-    extractProps: ({ attrs }) => {
-        return {
-            method: attrs.button_name,
-            title: attrs.title,
-        };
-    },
+    extractProps: ({ attrs }) => ({
+        method: attrs.button_name,
+        title: attrs.title,
+    }),
 };
 registry.category("view_widgets").add("toaster_button", buttonWithNotification);
