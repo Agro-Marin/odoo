@@ -5,7 +5,7 @@
 
 import { shallowEqual } from "@web/core/utils/collections/objects";
 
-/** @import { RelationalModelConfig } from "./relational_model" */
+/** @import { RelationalModelConfig } from "./relational_model.js" */
 /** @import { SearchParams } from "@web/model/types" */
 
 /**
