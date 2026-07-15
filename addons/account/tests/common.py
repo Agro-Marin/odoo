@@ -2214,8 +2214,16 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
         for index, (js_test, expected_values, assert_function), r in zip(
             count(1), self.js_tests, results
         ):
-            js_test.update(r)
             with self.subTest(test=js_test["test"], index=index):
+                # The JS harness reports a thrown case as {'error', 'error_stack'}
+                # instead of the expected result; fail with that diagnostic rather
+                # than letting the missing keys surface as an opaque error below.
+                if isinstance(r, dict) and r.get("error"):
+                    self.fail(
+                        f"JS test '{js_test['test']}' (index={index}) raised: "
+                        f"{r['error']}\n{r.get('error_stack', '')}"
+                    )
+                js_test.update(r)
                 assert_function(js_test, expected_values)
 
     # -------------------------------------------------------------------------
