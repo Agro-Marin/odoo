@@ -102,7 +102,7 @@ class SaleOrderLine(models.Model):
             line.qty_transferred = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_uom_qty
 
     def _prepare_qty_transferred(self):
-        lines_by_milestones = self.filtered(lambda sol: sol.qty_delivered_method == 'milestones')
+        lines_by_milestones = self.filtered(lambda sol: sol.qty_transferred_method == 'milestones')
         delivered_qties = super(SaleOrderLine, self - lines_by_milestones)._prepare_qty_transferred()
 
         if not lines_by_milestones:

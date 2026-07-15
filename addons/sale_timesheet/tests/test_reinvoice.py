@@ -80,8 +80,8 @@ class TestReInvoice(TestCommonSaleTimesheet):
 
         self.sale_order.action_confirm()
 
-        self.assertEqual(sale_order_line1.qty_delivered_method, 'timesheet', "Delivered quantity of 'service' SO line should be computed by timesheet amount")
-        self.assertEqual(sale_order_line2.qty_delivered_method, 'timesheet', "Delivered quantity of 'service' SO line should be computed by timesheet amount")
+        self.assertEqual(sale_order_line1.qty_transferred_method, 'timesheet', "Delivered quantity of 'service' SO line should be computed by timesheet amount")
+        self.assertEqual(sale_order_line2.qty_transferred_method, 'timesheet', "Delivered quantity of 'service' SO line should be computed by timesheet amount")
 
         # let's log some timesheets (on the project created by sale_order_line1)
         task_sol1 = sale_order_line1.task_id
@@ -125,8 +125,8 @@ class TestReInvoice(TestCommonSaleTimesheet):
         self.assertEqual((sale_order_line3.price_unit, sale_order_line3.qty_delivered, sale_order_line3.product_uom_qty, sale_order_line3.qty_invoiced), (self.company_data['product_order_cost'].standard_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
         self.assertEqual((sale_order_line4.price_unit, sale_order_line4.qty_delivered, sale_order_line4.product_uom_qty, sale_order_line4.qty_invoiced), (self.company_data['product_delivery_cost'].standard_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
 
-        self.assertEqual(sale_order_line3.qty_delivered_method, 'analytic', "Delivered quantity of 'expense' SO line should be computed by analytic amount")
-        self.assertEqual(sale_order_line4.qty_delivered_method, 'analytic', "Delivered quantity of 'expense' SO line should be computed by analytic amount")
+        self.assertEqual(sale_order_line3.qty_transferred_method, 'analytic', "Delivered quantity of 'expense' SO line should be computed by analytic amount")
+        self.assertEqual(sale_order_line4.qty_transferred_method, 'analytic', "Delivered quantity of 'expense' SO line should be computed by analytic amount")
 
         # create second invoice lines and validate it
         move_form = Form(self.Invoice)
@@ -219,8 +219,8 @@ class TestReInvoice(TestCommonSaleTimesheet):
         self.assertEqual((sale_order_line3.price_unit, sale_order_line3.qty_delivered, sale_order_line3.product_uom_qty, sale_order_line3.qty_invoiced), (self.company_data['product_delivery_sales_price'].list_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
         self.assertEqual((sale_order_line4.price_unit, sale_order_line4.qty_delivered, sale_order_line4.product_uom_qty, sale_order_line4.qty_invoiced), (self.company_data['product_order_sales_price'].list_price, 3.0, 3.0, 0), 'Sale line is wrong after confirming vendor invoice')
 
-        self.assertEqual(sale_order_line3.qty_delivered_method, 'analytic', "Delivered quantity of 'expense' SO line 3 should be computed by analytic amount")
-        self.assertEqual(sale_order_line4.qty_delivered_method, 'analytic', "Delivered quantity of 'expense' SO line 4 should be computed by analytic amount")
+        self.assertEqual(sale_order_line3.qty_transferred_method, 'analytic', "Delivered quantity of 'expense' SO line 3 should be computed by analytic amount")
+        self.assertEqual(sale_order_line4.qty_transferred_method, 'analytic', "Delivered quantity of 'expense' SO line 4 should be computed by analytic amount")
 
         # create second invoice lines and validate it
         move_form = Form(self.Invoice)
