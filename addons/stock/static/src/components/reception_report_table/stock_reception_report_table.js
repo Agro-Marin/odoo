@@ -1,6 +1,12 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { ReceptionReportLine } from "../reception_report_line/stock_reception_report_line.js";
+import {
+    collectAssignable,
+    assignMoves,
+    collectAssignedLabels,
+    buildLabelAction,
+} from "../reception_report_utils.js";
 import { Component } from "@odoo/owl";
 
 export class ReceptionReportTable extends Component {
@@ -26,23 +32,8 @@ export class ReceptionReportTable extends Component {
     //---- Handlers ----
 
     async onClickAssignAll() {
-        const moveIds = [];
-        const quantities = [];
-        const inIds = [];
-        for (const line of this.props.lines) {
-            // Skip lines with nothing to assign (already assigned, or "expected"
-            // draft lines that carry no incoming moves to link).
-            if (line.is_assigned || !line.is_qty_assignable) continue;
-            moveIds.push(line.move_out_id);
-            quantities.push(line.quantity);
-            inIds.push(line.move_ins);
-        }
-
-        await this.ormService.call(
-            "report.stock.report_reception",
-            "action_assign",
-            [false, moveIds, quantities, inIds],
-        );
+        const { moveIds, quantities, inIds } = collectAssignable(this.props.lines);
+        await assignMoves(this.ormService, moveIds, quantities, inIds);
         this.env.bus.trigger("update-assign-state", { isAssigned: true, tableIndex: this.props.index });
     }
 
@@ -57,22 +48,11 @@ export class ReceptionReportTable extends Component {
     }
 
     async onClickPrintLabels() {
-        const modelIds = [];
-        const quantities = [];
-        for (const line of this.props.lines) {
-            if (!line.is_assigned) continue;
-            modelIds.push(line.move_out_id);
-            quantities.push(Math.ceil(line.quantity) || 1);
+        const { docids, quantities } = collectAssignedLabels(this.props.lines);
+        const action = buildLabelAction(this.props.labelReport, docids, quantities);
+        if (action) {
+            return this.actionService.doAction(action);
         }
-        if (!modelIds.length) {
-            return;
-        }
-
-        return this.actionService.doAction({
-            ...this.props.labelReport,
-            context: { active_ids: modelIds },
-            data: { docids: modelIds, quantity: quantities.join(",") },
-        });
     }
 
     //---- Getters ----
