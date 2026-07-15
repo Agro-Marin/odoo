@@ -1539,14 +1539,6 @@ class ProductProduct(models.Model):
         sellers_filtered = self._prepare_sellers(params)
         matching_ids = []
         for seller in sellers_filtered:
-            # Set quantity in UoM of seller
-            quantity_uom_seller = quantity
-            if quantity_uom_seller and uom_id and uom_id != seller.product_uom_id:
-                quantity_uom_seller = uom_id._compute_quantity(
-                    quantity_uom_seller,
-                    seller.product_uom_id,
-                )
-
             if seller.date_start and seller.date_start > date:
                 continue
             if seller.date_end and seller.date_end < date:
@@ -1562,18 +1554,33 @@ class ProductProduct(models.Model):
                 partner_id.parent_id,
             ]:
                 continue
-            if (
-                quantity is not None
-                and float_compare(
-                    quantity_uom_seller,
-                    seller.min_qty,
-                    precision_digits=precision,
-                )
-                == -1
-            ):
-                continue
             if seller.product_id and seller.product_id != self:
                 continue
+            # min_qty is expressed in the seller's UoM, so convert the requested
+            # quantity into it before comparing. This runs only for sellers that
+            # passed the filters above, so we never convert into the UoM of an
+            # irrelevant seller. If the requested UoM shares no reference unit
+            # with the seller's (different category, e.g. Units vs Liters), the
+            # seller cannot satisfy a request denominated in `uom_id` -- skip it
+            # instead of letting the conversion raise.
+            if quantity is not None:
+                quantity_uom_seller = quantity
+                if quantity_uom_seller and uom_id and uom_id != seller.product_uom_id:
+                    if not uom_id._has_common_reference(seller.product_uom_id):
+                        continue
+                    quantity_uom_seller = uom_id._compute_quantity(
+                        quantity_uom_seller,
+                        seller.product_uom_id,
+                    )
+                if (
+                    float_compare(
+                        quantity_uom_seller,
+                        seller.min_qty,
+                        precision_digits=precision,
+                    )
+                    == -1
+                ):
+                    continue
             matching_ids.append(seller.id)
         return self.env["product.supplierinfo"].browse(matching_ids)
 
