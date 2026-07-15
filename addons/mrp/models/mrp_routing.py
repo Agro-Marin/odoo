@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import float_is_zero, float_round
 
@@ -128,6 +128,7 @@ class MrpRoutingWorkcenter(models.Model):
         "bom_id.product_qty",
         "workcenter_id.time_start",
         "workcenter_id.time_stop",
+        "workcenter_id.time_efficiency",
         "workcenter_id.capacity_ids",
     )
     @api.depends_context("product", "quantity", "unit", "workcenter")
@@ -216,7 +217,7 @@ class MrpRoutingWorkcenter(models.Model):
         for operation in self:
             operation.workorder_count = count_data.get(operation.id, 0)
 
-    @api.depends("time_total", "workcenter_id")
+    @api.depends("time_total", "workcenter_id", "workcenter_id.costs_hour")
     @api.depends_context("product", "quantity", "unit", "workcenter")
     def _compute_cost(self):
         for operation in self:
@@ -250,8 +251,8 @@ class MrpRoutingWorkcenter(models.Model):
                     lambda byproduct, op=op: byproduct.operation_id == op
                 ).operation_id = False
                 op.bom_id.operation_ids.filtered(
-                    lambda operation, op=op: operation.blocked_by_operation_ids == op
-                ).blocked_by_operation_ids = False
+                    lambda operation, op=op: op in operation.blocked_by_operation_ids
+                ).blocked_by_operation_ids = [Command.unlink(op.id)]
         return super().write(vals)
 
     def action_archive(self):

@@ -230,6 +230,12 @@ class MrpUnbuild(models.Model):
         if self.mo_id and self.mo_id.state != "done":
             raise UserError(_("You cannot unbuild a undone manufacturing order."))
 
+        if self.mo_id and self.mo_id.product_uom_id.is_zero(self.mo_id.qty_produced):
+            # The consume/produce factor divides by the MO's produced quantity.
+            raise UserError(
+                _("You cannot unbuild a manufacturing order that produced nothing.")
+            )
+
         consume_moves = self._generate_consume_moves()
         consume_moves._action_confirm()
         produce_moves = self._generate_produce_moves()
@@ -391,7 +397,7 @@ class MrpUnbuild(models.Model):
                     / unbuild.bom_id.product_qty
                 )
                 moves += unbuild._generate_move_from_bom_line(
-                    self.product_id, self.product_uom_id, unbuild.product_qty
+                    unbuild.product_id, unbuild.product_uom_id, unbuild.product_qty
                 )
                 for byproduct in unbuild.bom_id.byproduct_ids:
                     if byproduct._skip_byproduct_line(unbuild.product_id):
@@ -423,7 +429,7 @@ class MrpUnbuild(models.Model):
                         raw_move,
                         factor,
                         raw_move.location_dest_id,
-                        self.location_dest_id,
+                        unbuild.location_dest_id,
                     )
             else:
                 factor = (

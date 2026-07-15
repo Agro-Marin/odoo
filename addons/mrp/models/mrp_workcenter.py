@@ -235,7 +235,7 @@ class MrpWorkcenter(models.Model):
         result = self.env["mrp.workorder"]._read_group(
             [
                 ("workcenter_id", "in", self.ids),
-                ("state", "in", ("pending", "waiting", "ready", "progress")),
+                ("state", "in", ("blocked", "ready", "progress")),
                 ("production_date", ">=", date_start),
                 ("production_date", "<=", date_stop),
             ],
@@ -295,7 +295,7 @@ class MrpWorkcenter(models.Model):
             [
                 ("workcenter_id", "in", self.ids),
                 ("state", "in", ("blocked", "ready")),
-                ("date_start", "<", datetime.now().strftime("%Y-%m-%d")),
+                ("date_start", "<", fields.Datetime.now().strftime("%Y-%m-%d")),
             ],
             ["workcenter_id"],
             ["__count"],
@@ -361,7 +361,7 @@ class MrpWorkcenter(models.Model):
                     "date_start",
                     ">=",
                     fields.Datetime.to_string(
-                        datetime.now() - relativedelta.relativedelta(months=1)
+                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
                     ),
                 ),
                 ("workcenter_id", "in", self.ids),
@@ -383,7 +383,7 @@ class MrpWorkcenter(models.Model):
                     "date_start",
                     ">=",
                     fields.Datetime.to_string(
-                        datetime.now() - relativedelta.relativedelta(months=1)
+                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
                     ),
                 ),
                 ("workcenter_id", "in", self.ids),
@@ -405,7 +405,7 @@ class MrpWorkcenter(models.Model):
                     "date_start",
                     ">=",
                     fields.Datetime.to_string(
-                        datetime.now() - relativedelta.relativedelta(months=1)
+                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
                     ),
                 ),
                 ("workcenter_id", "in", self.ids),
@@ -442,7 +442,7 @@ class MrpWorkcenter(models.Model):
                     "date_start",
                     ">=",
                     fields.Datetime.to_string(
-                        datetime.now() - relativedelta.relativedelta(months=1)
+                        fields.Datetime.now() - relativedelta.relativedelta(months=1)
                     ),
                 ),
                 ("workcenter_id", "in", self.ids),
@@ -468,9 +468,7 @@ class MrpWorkcenter(models.Model):
     @api.depends("routing_line_ids")
     def _compute_has_routing_lines(self):
         for workcenter in self:
-            workcenter.has_routing_lines = self.env[
-                "mrp.routing.workcenter"
-            ].search_count([("workcenter_id", "in", workcenter.ids)], limit=1)
+            workcenter.has_routing_lines = bool(workcenter.routing_line_ids)
 
     def unblock(self):
         self.ensure_one()
@@ -479,7 +477,7 @@ class MrpWorkcenter(models.Model):
         times = self.env["mrp.workcenter.productivity"].search(
             [("workcenter_id", "=", self.id), ("date_end", "=", False)]
         )
-        times.write({"date_end": datetime.now()})
+        times.write({"date_end": fields.Datetime.now()})
         return True
 
     @api.model_create_multi
@@ -586,7 +584,7 @@ class MrpWorkcenter(models.Model):
         )
 
         remaining = duration = max(duration, 1 / 60)
-        now = localized(datetime.now())
+        now = localized(fields.Datetime.now())
         delta = timedelta(days=14)
         start_interval, stop_interval = None, None
         for n in range(max_planning_iterations):  # 50 * 14 = 700 days in advance
@@ -738,7 +736,9 @@ class MrpWorkcenter(models.Model):
             and capacity.product_id in [product, self.env["product.product"]]
             and capacity.product_uom_id in [product.uom_id, unit]
         ):
-            if float_is_zero(capacity.capacity, 0):
+            if float_is_zero(
+                capacity.capacity, precision_rounding=capacity.product_uom_id.rounding
+            ):
                 return (default_capacity, capacity.time_start, capacity.time_stop)
             return (
                 capacity.product_uom_id._compute_quantity(capacity.capacity, unit),

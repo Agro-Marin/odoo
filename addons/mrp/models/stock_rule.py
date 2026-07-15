@@ -48,7 +48,8 @@ class StockRule(models.Model):
     def _should_auto_confirm_procurement_mo(self, p):
         if not p.move_raw_ids:
             return not p.workorder_ids and (
-                p.orderpoint_id or p.move_dest_ids.procure_method == "make_to_stock"
+                p.orderpoint_id
+                or "make_to_stock" in p.move_dest_ids.mapped("procure_method")
             )
         return not p.orderpoint_id
 

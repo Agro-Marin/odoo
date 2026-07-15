@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 
 from .common import TestMrpCommon
@@ -221,3 +222,126 @@ class TestMrpAuditFixes(TestMrpCommon):
             "Ready-To-Produce must sum mixed-UoM demand (2u + 1doz = 14u) against "
             "28u of stock -> 2.",
         )
+
+    def test_bom_create_syncs_product_uom_id(self):
+        """mrp.bom.create
+
+        A BoM created in code (no `product_uom_id` given) for a product measured
+        in a non-default UoM must inherit the product's UoM, not the field's
+        default ("Units"). Otherwise every UoM conversion in the BoM/MO reports
+        and in explode() raises "cannot be converted" across UoM categories.
+        """
+        square_meter = self.env.ref("uom.product_uom_square_meter")
+        template = self.env["product.template"].create(
+            {"name": "Audit m2 product", "uom_id": square_meter.id}
+        )
+        bom = self.env["mrp.bom"].create(
+            {"product_tmpl_id": template.id, "product_qty": 1.0}
+        )
+        self.assertEqual(
+            bom.product_uom_id,
+            square_meter,
+            "BoM UoM must follow the product's UoM when not given explicitly.",
+        )
+
+    def test_routing_bom_change_removes_only_moved_operation_blocker(self):
+        """mrp.routing.workcenter.write (bom_id change)
+
+        Moving an operation to another BoM must strip *only that operation* from
+        the blockers of its former siblings, leaving the other blockers intact.
+        The pre-fix code compared a recordset to a singleton
+        (`blocked_by_operation_ids == op`) and then cleared *all* blockers.
+        """
+        product = self.env["product.product"].create(
+            {"name": "Audit Dep Final", "is_storable": True}
+        )
+        wc = self.workcenter_1
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "allow_operation_dependencies": True,
+                "operation_ids": [
+                    Command.create({"name": "OP A", "workcenter_id": wc.id}),
+                    Command.create({"name": "OP B", "workcenter_id": wc.id}),
+                    Command.create({"name": "OP C", "workcenter_id": wc.id}),
+                ],
+            }
+        )
+        op_a, op_b, op_c = bom.operation_ids
+        # C is blocked by BOTH A and B.
+        op_c.blocked_by_operation_ids = [Command.set((op_a + op_b).ids)]
+        self.assertEqual(op_c.blocked_by_operation_ids, op_a + op_b)
+
+        other_bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "allow_operation_dependencies": True,
+            }
+        )
+        # Move A to another BoM; only A must be removed from C's blockers.
+        op_a.bom_id = other_bom.id
+        self.assertEqual(
+            op_c.blocked_by_operation_ids,
+            op_b,
+            "Only the moved operation (A) may be removed; B must remain a blocker.",
+        )
+
+    def test_explode_detects_phantom_cycle(self):
+        """mrp.bom.explode
+
+        A phantom-BoM cycle (A's kit contains B, B's kit contains A) must raise a
+        clean ValidationError rather than looping forever. `_check_bom_cycle`
+        resolves BoMs without the phantom/company/picking_type parameters that
+        explode() uses, so a phantom-specific cycle can slip past the config-time
+        constraint; the runtime guard in explode() is the backstop. The
+        constraint is patched off here only to build the cyclic data that would
+        otherwise be rejected at save time.
+        """
+        prod_a = self.env["product.product"].create(
+            {"name": "Cycle A", "is_storable": True}
+        )
+        prod_b = self.env["product.product"].create(
+            {"name": "Cycle B", "is_storable": True}
+        )
+        # Two empty phantom BoMs (each valid on its own).
+        bom_a = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": prod_a.product_tmpl_id.id,
+                "product_id": prod_a.id,
+                "product_qty": 1.0,
+                "type": "phantom",
+            }
+        )
+        bom_b = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": prod_b.product_tmpl_id.id,
+                "product_id": prod_b.id,
+                "product_qty": 1.0,
+                "type": "phantom",
+            }
+        )
+        # Close the loop (A's kit -> B, B's kit -> A) with direct SQL to bypass
+        # the config-time _check_bom_cycle constraint, simulating a phantom cycle
+        # it failed to resolve (it omits the phantom/company/picking_type
+        # parameters that explode() uses).
+        self.env.cr.execute(
+            """
+            INSERT INTO mrp_bom_line (product_id, product_uom_id, bom_id, product_qty)
+            VALUES (%s, %s, %s, 1), (%s, %s, %s, 1)
+            """,
+            (
+                prod_b.id,
+                prod_b.uom_id.id,
+                bom_a.id,
+                prod_a.id,
+                prod_a.uom_id.id,
+                bom_b.id,
+            ),
+        )
+        self.env["mrp.bom"].invalidate_model()
+        self.env["mrp.bom.line"].invalidate_model()
+        # Pre-fix: this would loop forever (the BFS queue grows without bound).
+        with self.assertRaises(ValidationError):
+            bom_a.explode(prod_a, 1.0)

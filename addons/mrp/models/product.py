@@ -512,24 +512,35 @@ class ProductProduct(models.Model):
                 bom_sub_lines and ratios_virtual_available
             ):  # Guard against all cnsumable bom: at least one ratio should be present.
                 res[product.id] = {
-                    "qty_available_virtual": component.uom_id.round(
-                        min(ratios_virtual_available) * bom_kits[product].product_qty
+                    # Round with the KIT product's own UoM (not the arbitrary
+                    # last-iterated `component`) and DOWN, then floor to whole
+                    # kits. The previous `component.uom_id.round(...) // 1` used a
+                    # leaked loop variable and HALF-UP rounding, so a fractional
+                    # shortfall could be rounded up past the true floor and
+                    # over-report the number of buildable kits.
+                    "qty_available_virtual": product.uom_id.round(
+                        min(ratios_virtual_available) * bom_kits[product].product_qty,
+                        rounding_method="DOWN",
                     )
                     // 1,
-                    "qty_available": component.uom_id.round(
-                        min(ratios_qty_available) * bom_kits[product].product_qty
+                    "qty_available": product.uom_id.round(
+                        min(ratios_qty_available) * bom_kits[product].product_qty,
+                        rounding_method="DOWN",
                     )
                     // 1,
-                    "qty_incoming": component.uom_id.round(
-                        min(ratios_incoming_qty) * bom_kits[product].product_qty
+                    "qty_incoming": product.uom_id.round(
+                        min(ratios_incoming_qty) * bom_kits[product].product_qty,
+                        rounding_method="DOWN",
                     )
                     // 1,
-                    "qty_outgoing": component.uom_id.round(
-                        min(ratios_outgoing_qty) * bom_kits[product].product_qty
+                    "qty_outgoing": product.uom_id.round(
+                        min(ratios_outgoing_qty) * bom_kits[product].product_qty,
+                        rounding_method="DOWN",
                     )
                     // 1,
-                    "qty_free": component.uom_id.round(
-                        min(ratios_free_qty) * bom_kits[product].product_qty
+                    "qty_free": product.uom_id.round(
+                        min(ratios_free_qty) * bom_kits[product].product_qty,
+                        rounding_method="DOWN",
                     )
                     // 1,
                 }

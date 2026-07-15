@@ -109,11 +109,19 @@ class StockWarehouseOrderpoint(models.Model):
             orderpoint.show_bom = orderpoint.effective_route_id.id in manufacture_route
 
     def _inverse_bom_id(self):
-        manufacture_rule = self.env["stock.rule"].search(
-            [("action", "=", "manufacture")], limit=1
-        )
         for orderpoint in self:
-            if not orderpoint.route_id and orderpoint.bom_id and manufacture_rule:
+            if orderpoint.route_id or not orderpoint.bom_id:
+                continue
+            # Scope the manufacture rule to the orderpoint's own company, else a
+            # global search would leak another company's route onto the orderpoint.
+            manufacture_rule = self.env["stock.rule"].search(
+                [
+                    ("action", "=", "manufacture"),
+                    ("company_id", "in", [orderpoint.company_id.id, False]),
+                ],
+                limit=1,
+            )
+            if manufacture_rule:
                 orderpoint.route_id = manufacture_rule.route_id
 
     @api.depends("effective_route_id", "bom_id", "rule_ids", "product_id.bom_ids")
@@ -243,14 +251,13 @@ class StockWarehouseOrderpoint(models.Model):
                 product_qty, orderpoint.product_uom_id, round=False
             )
 
-        bom_manufacture = self.env["mrp.bom"]._bom_find(
-            orderpoints_without_kit.product_id, bom_type="normal"
-        )
-        bom_manufacture = self.env["mrp.bom"].concat(*bom_manufacture.values())
-        # add quantities coming from draft MOs
+        # add quantities coming from draft MOs. The orderpoint_id link already
+        # scopes these to the current orderpoints, so we must NOT additionally
+        # filter on the default BoM: an MO built from a non-default (but still
+        # normal) BoM of the same product would otherwise be dropped here and the
+        # scheduler would keep launching duplicate MOs on every run.
         productions_group = self.env["mrp.production"]._read_group(
             [
-                ("bom_id", "in", bom_manufacture.ids),
                 ("state", "=", "draft"),
                 ("orderpoint_id", "in", orderpoints_without_kit.ids),
                 ("id", "not in", self.env.context.get("ignore_mo_ids", [])),
@@ -267,7 +274,6 @@ class StockWarehouseOrderpoint(models.Model):
         # by the end of the stock forecast
         in_progress_productions = self.env["mrp.production"].search(
             [
-                ("bom_id", "in", bom_manufacture.ids),
                 ("state", "=", "confirmed"),
                 ("orderpoint_id", "in", orderpoints_without_kit.ids),
                 ("id", "not in", self.env.context.get("ignore_mo_ids", [])),

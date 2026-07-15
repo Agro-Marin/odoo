@@ -366,6 +366,18 @@ class MrpBom(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        for values in vals_list:
+            # Keep the BoM UoM in the same category as its product when it isn't
+            # given explicitly (mirrors mrp.bom.line.create). The field default is
+            # the first uom.uom ("Units"), so a BoM created in code for a product
+            # measured in e.g. m² would otherwise keep "Units" and every UoM
+            # conversion in the BoM/MO reports and explode() would raise.
+            if values.get("product_tmpl_id") and "product_uom_id" not in values:
+                values["product_uom_id"] = (
+                    self.env["product.template"]
+                    .browse(values["product_tmpl_id"])
+                    .uom_id.id
+                )
         res = super().create(vals_list)
         # Checks if the BoM was created from a Manufacturing Order (through Generate BoM action).
         parent_production_id = self.env.context.get("parent_production_id")
@@ -645,12 +657,23 @@ class MrpBom(models.Model):
         bom_lines = []
         for bom_line in self.bom_line_ids:
             product_id = bom_line.product_id
-            bom_lines.append((bom_line, product, quantity, False))
+            # The 5th tuple element tracks the products whose phantom BoM has
+            # already been expanded on the path leading to this line (seeded with
+            # the finished product). It is the runtime cycle guard for phantom
+            # explosion: _check_bom_cycle resolves BoMs without the
+            # phantom/company/picking_type parameters explode() uses, so a
+            # phantom-specific cycle can slip past the constraint and would loop
+            # here forever.
+            bom_lines.append(
+                (bom_line, product, quantity, False, frozenset((product.id,)))
+            )
             product_ids.add(product_id.id)
         update_product_boms()
         product_ids.clear()
         while bom_lines:
-            current_line, current_product, current_qty, parent_line = bom_lines[0]
+            current_line, current_product, current_qty, parent_line, ancestors = (
+                bom_lines[0]
+            )
             bom_lines = bom_lines[1:]
 
             if current_line._skip_bom_line(current_product, never_attribute_values):
@@ -662,6 +685,15 @@ class MrpBom(models.Model):
                 product_ids.clear()
             bom = product_boms.get(current_line.product_id)
             if bom:
+                if current_line.product_id.id in ancestors:
+                    raise ValidationError(
+                        _(
+                            "The current configuration is incorrect because it would "
+                            "create a cycle between these products: %s.",
+                            current_line.product_id.display_name,
+                        )
+                    )
+                child_ancestors = ancestors | {current_line.product_id.id}
                 converted_line_quantity = current_line.product_uom_id._compute_quantity(
                     line_quantity / bom.product_qty, bom.product_uom_id, round=False
                 )
@@ -671,6 +703,7 @@ class MrpBom(models.Model):
                         current_line.product_id,
                         converted_line_quantity,
                         current_line,
+                        child_ancestors,
                     )
                     for line in bom.bom_line_ids
                 ] + bom_lines
