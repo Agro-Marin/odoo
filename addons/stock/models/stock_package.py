@@ -171,13 +171,12 @@ class StockPackage(models.Model):
 
     def write(self, vals):
         if "name" in vals and not vals.get("name"):
-            # Regenerate the name from the sequence if it was emptied.
-            package_type = self.env["stock.package.type"].browse(
-                vals.get("package_type_id")
-            )
+            # Regenerate the name from the sequence if it was emptied. The type may
+            # come from vals (same for the whole batch) or fall back to each
+            # package's own type, so resolve it per record.
             for package in self:
                 package_type = self.env["stock.package.type"].browse(
-                    vals.get("package_type_id", self.package_type_id.id)
+                    vals.get("package_type_id", package.package_type_id.id)
                 )
                 package.name = package_type._get_next_name_by_sequence()
             del vals["name"]

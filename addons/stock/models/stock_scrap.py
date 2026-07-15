@@ -164,7 +164,9 @@ class StockScrap(models.Model):
                     else scrap.picking_id.location_id
                 )
             elif scrap.company_id:
-                scrap.location_id = locations_per_company[scrap.company_id.id]
+                scrap.location_id = locations_per_company.get(
+                    scrap.company_id.id, False
+                )
 
     @api.depends("company_id")
     def _compute_scrap_location_id(self):

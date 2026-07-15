@@ -42,6 +42,21 @@ class TestPackingCommon(TransactionCase):
 
 
 class TestPacking(TestPackingCommon):
+    def test_package_name_regeneration_on_multi_write(self):
+        """Clearing the name on a recordset of >=2 packages must regenerate each
+        name from the sequence without raising. Regression: the write() branch used
+        to read ``self.package_type_id.id`` (the whole recordset) inside the per-record
+        loop, raising ``Expected singleton`` for multi-record writes and drawing the
+        name from the wrong record even for a singleton.
+        """
+        packages = self.env["stock.package"].create(
+            [{"name": "PKG-1"}, {"name": "PKG-2"}]
+        )
+        # Must not raise Expected singleton, and both names must be refreshed.
+        packages.write({"name": False})
+        self.assertTrue(all(packages.mapped("name")))
+        self.assertEqual(len(set(packages.mapped("name"))), 2)
+
     def test_put_in_pack(self):
         """In a pick pack ship scenario, create two packs in pick and check that
         they are correctly recognised and handled by the pack and ship picking.
