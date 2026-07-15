@@ -947,6 +947,12 @@ test("Attachment-only message preview shows file type icon", async () => {
             ],
             author_id: partners[i],
             body: "",
+            // Distinct, decreasing dates so the messaging menu's recency order
+            // is deterministic (Channel1 newest -> first). Without this, every
+            // message shares the mock's fixed default date, the recency
+            // comparators all tie, and the menu falls back to a localId
+            // tiebreak — leaving the :eq(0..4) positions below undefined.
+            date: `2024-01-0${5 - i} 12:00:00`,
             model: "discuss.channel",
             res_id: channelIds[i],
         }))
