@@ -267,8 +267,12 @@ class BaseAutomation(models.Model):
         copy=False,
     )
     record_getter = fields.Char(
-        default="model.env[payload.get('_model')].browse(int(payload.get('_id')))",
-        help="This code will be run to find on which record the automation rule should be run.",
+        help="This code will be run to find on which record the automation rule "
+        "should be run. Leave empty to run the rule record-less (e.g. a "
+        "create-from-payload webhook receiver) — a non-empty default here "
+        "would assume a payload shape (a '_model'/'_id' pair) the sender may "
+        "not actually use, silently breaking the record-less path unless "
+        "cleared by hand.",
     )
     log_webhook_calls = fields.Boolean(
         string="Log Calls",
