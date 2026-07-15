@@ -514,8 +514,13 @@ export class SearchPanel extends Component {
 
             removeListeners();
             // Remove focus from inside the panel: a lingering focus triggers a
-            // CSS darken-on-hover style that looks wrong here.
-            /** @type {HTMLElement} */ (document.activeElement)?.blur();
+            // CSS darken-on-hover style that looks wrong here. Guard on containment
+            // so the resize never blurs focus that legitimately sits outside the
+            // panel (e.g. an input the user was typing in).
+            const active = /** @type {HTMLElement} */ (document.activeElement);
+            if (active && this.root.el?.contains(active)) {
+                active.blur();
+            }
         };
         // Listen for several events to reliably stop resizing:
         // - pointerdown (e.g. pressing right click)

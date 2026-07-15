@@ -426,8 +426,13 @@ export function useMagicColumnWidths(tableRef, getState) {
             cleanup();
 
             // Blur to avoid leaving focus inside the header row: CSS darkens the whole
-            // thead on focus, which looks odd combined with the hover effect.
-            /** @type {HTMLElement} */ (document.activeElement).blur();
+            // thead on focus, which looks odd combined with the hover effect. Guard on
+            // containment so a resize gesture never blurs focus that legitimately sits
+            // outside the header (e.g. a search input the user was typing in).
+            const active = /** @type {HTMLElement} */ (document.activeElement);
+            if (active && table.querySelector("thead")?.contains(active)) {
+                active.blur();
+            }
         };
         // We have to listen to several events to properly stop the resizing function. Those are:
         // - pointerdown (e.g. pressing right click)

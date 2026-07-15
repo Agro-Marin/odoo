@@ -244,6 +244,30 @@ test("navigation should move forward from search bar filter", async () => {
 });
 
 test.tags("desktop");
+test("typing keeps focus in the input while the filter menu is open", async () => {
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["filter"],
+        searchViewId: false,
+    });
+
+    // Open the search-bar menu via its caret toggler: this anchors the menu's
+    // focus-restore (Dropdown.focusToggleOnClosed) on the toggler button.
+    await toggleSearchBarMenu();
+    expect(`.o_search_bar_menu`).toHaveCount(1);
+
+    // Focus the input the way clicking into it would, then type. Typing closes
+    // the menu as a side effect; that close must NOT yank focus to the caret
+    // toggler, otherwise the following keystrokes land on the button and are
+    // lost (the reported "second keystroke jumps to the arrow" bug).
+    queryFirst`.o_searchview input`.focus();
+    await edit("a", { confirm: false });
+    await animationFrame();
+    expect(`.o_search_bar_menu`).toHaveCount(0);
+    expect(queryFirst`.o_searchview input`).toBeFocused();
+});
+
+test.tags("desktop");
 test("navigation should move backward from search bar filter", async () => {
     await mountWithSearch(SearchBar, {
         resModel: "partner",

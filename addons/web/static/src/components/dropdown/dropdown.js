@@ -437,10 +437,27 @@ export class Dropdown extends Component {
     }
 
     closePopover() {
+        const restoreEl = this._focusedElBeforeOpen;
+        this._focusedElBeforeOpen = undefined;
+        // Read focus BEFORE unmounting: popover.close() detaches the menu (async).
+        const active = document.activeElement;
         this.popover.close();
-        if (this.props.focusToggleOnClosed && !this.group.isInGroup) {
-            this._focusedElBeforeOpen?.focus();
-            this._focusedElBeforeOpen = undefined;
+        if (!this.props.focusToggleOnClosed || this.group.isInGroup || !restoreEl) {
+            return;
+        }
+        // Don't yank focus off an editable element the user has moved focus to —
+        // e.g. typing in the search input whose keystroke just closed this menu.
+        // Restoring to the toggler there steals the following keystrokes. Mirrors
+        // the same guard handleMouseEnter already applies. Focus still inside the
+        // menu/toggler (keyboard close) or lost to <body> stays "ours" → restore.
+        const stealsFromEditable =
+            active &&
+            (["INPUT", "TEXTAREA"].includes(active.nodeName) ||
+                active.isContentEditable) &&
+            !this.target?.contains(active) &&
+            !this.menuRef.el?.contains(active);
+        if (!stealsFromEditable) {
+            restoreEl.focus();
         }
     }
 
