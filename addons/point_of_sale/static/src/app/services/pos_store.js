@@ -36,6 +36,7 @@ import { normalize } from "@web/core/l10n/utils";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
+import { effect } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { debounce } from "@web/core/utils/timing";
 import { user } from "@web/services/user";
@@ -169,7 +170,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
         this.closeOtherTabs();
         this.syncAllOrdersDebounced = debounce(this.syncAllOrders, 100);
-        this._searchTriggered = false;
 
         if (this.env.debug) {
             registry.category("main_components").add("DebugWidget", {
@@ -325,6 +325,25 @@ export class PosStore extends WithLazyGetterTrap {
 
     async initServerData() {
         await this.processServerData();
+
+        // When a search begins, reset the selected category to "all" so the
+        // search spans every product (resetting only on the inactive->active
+        // edge lets the user still narrow by category mid-search). This lives in
+        // a reactive effect rather than the productsToDisplay getter: that getter
+        // is read during render and mutating reactive state there scheduled an
+        // extra render pass on every keystroke.
+        let searchWasActive = false;
+        effect(
+            (self) => {
+                const active = self.searchProductWord.trim() !== "";
+                if (active && !searchWasActive) {
+                    self.setSelectedCategory(0);
+                }
+                searchWasActive = active;
+            },
+            [this],
+        );
+
         await this.handleUrlParams();
         this.data.connectWebSocket(
             "CLOSING_SESSION",
@@ -2906,10 +2925,9 @@ export class PosStore extends WithLazyGetterTrap {
         const isSearchByWord = searchWord !== "";
 
         if (isSearchByWord) {
-            if (!this._searchTriggered) {
-                this.setSelectedCategory(0);
-                this._searchTriggered = true;
-            }
+            // The "reset category when a search begins" transition lives in a
+            // reactive effect (see setup), not here — this getter is read during
+            // render and must stay pure.
             list = this.getProductsBySearchWord(
                 searchWord,
                 this.selectedCategory?.id
@@ -2917,7 +2935,6 @@ export class PosStore extends WithLazyGetterTrap {
                     : allProducts,
             );
         } else {
-            this._searchTriggered = false;
             if (this.selectedCategory?.id) {
                 list = this.selectedCategory.associatedProducts;
             } else {
