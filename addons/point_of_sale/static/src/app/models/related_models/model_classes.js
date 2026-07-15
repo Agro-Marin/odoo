@@ -10,11 +10,16 @@ import {
     X2MANY_TYPES,
 } from "./utils.js";
 
-// It allows us to track which fields have been dynamically added to the model.
-// This is usefull to avoid conflicts during Hoot tests, where the model class prototype
-// is shared across multiple tests, and we want to ensure that dynamic fields are not
-// redefined or conflict with existing properties.
-const INITIALIZED_CLASSES = new Set();
+// Tracks which record classes have already had their field getters/setters
+// defined on their prototype. Keyed by the class object itself (not the model
+// name): during Hoot tests a real model class is a singleton reused across many
+// createRelatedModels() calls, and redefining its prototype fields a second time
+// would hit the "matches an existing property" guard below. Keying by identity
+// also lets a later call that supplies a *different* class for the same model
+// (e.g. the default `Base` subclass when no model class is passed) still get
+// processed and registered — keying by model name would wrongly skip it and
+// leave modelClasses[modelName] undefined.
+const INITIALIZED_CLASSES = new WeakSet();
 
 /**
  * Processes model definitions to dynamically define getter and setter properties
@@ -23,20 +28,22 @@ const INITIALIZED_CLASSES = new Set();
 export function processModelClasses(modelDefs, modelClasses = {}) {
     const modelNames = new Set(Object.keys(modelDefs));
     for (const modelName of modelNames) {
-        if (INITIALIZED_CLASSES.has(modelName)) {
-            continue; // Skip already initialized classes in the registry
-        }
-
         const fields = modelDefs[modelName];
         const ModelRecordClass =
             modelClasses[modelName] || class ModelRecord extends Base {};
-        const excludedLazyGetters = [];
 
-        if (modelClasses[modelName]) {
-            INITIALIZED_CLASSES.add(modelName);
-        }
-
+        // Always register the class for this call, even if its prototype was
+        // already processed in a previous call — otherwise _create() would later
+        // do `new undefined`.
         modelClasses[modelName] = ModelRecordClass;
+
+        // Only (re)define the prototype fields once per class object.
+        if (INITIALIZED_CLASSES.has(ModelRecordClass)) {
+            continue;
+        }
+        INITIALIZED_CLASSES.add(ModelRecordClass);
+
+        const excludedLazyGetters = [];
 
         for (const fieldName in fields) {
             const field = fields[fieldName];
