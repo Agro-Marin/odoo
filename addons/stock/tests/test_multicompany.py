@@ -1,3 +1,4 @@
+from odoo import fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, TransactionCase
 
@@ -295,6 +296,39 @@ class TestMultiCompany(TransactionCase):
                 "company_id": cls.company_b.id,
                 "company_ids": [(6, 0, [cls.company_a.id, cls.company_b.id])],
             }
+        )
+
+    def test_orderpoint_lead_horizon_uses_own_company_horizon(self):
+        """`lead_horizon_date` must be computed from the orderpoint's *own* company
+        horizon, not the active `env.company`'s. `run_scheduler` runs under the cron
+        user's company, so resolving the horizon off `env.company` gave every other
+        company's orderpoints the wrong forecast window (over/under-ordering).
+        Regression for the empty-recordset `get_horizon_days()` in `_get_lead_days`.
+        """
+        self.company_a.horizon_days = 10
+        self.company_b.horizon_days = 40
+        product = self.env["product.product"].create(
+            {"name": "horizon prod", "is_storable": True}
+        )
+        # Active company is A; the orderpoint belongs to B.
+        env_a = self.env(user=self.user_a)
+        self.assertEqual(env_a.company, self.company_a)
+        orderpoint = env_a["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": product.id,
+                "location_id": self.stock_location_b.id,
+                "warehouse_id": self.warehouse_b.id,
+                "company_id": self.company_b.id,
+                "product_min_qty": 5.0,
+                "product_max_qty": 10.0,
+            }
+        )
+        # No rule delay, so lead_horizon_date = today + horizon_days.
+        offset = (orderpoint.lead_horizon_date - fields.Date.today()).days
+        self.assertEqual(
+            offset,
+            40,
+            "orderpoint should use company B's horizon (40), not env.company A's (10)",
         )
 
     def test_picking_type_1(self):

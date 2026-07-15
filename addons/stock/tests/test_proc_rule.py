@@ -587,6 +587,7 @@ class TestProcRule(TransactionCase):
                     {
                         "name": "Test UoM",
                         "relative_factor": 1,
+                        "relative_uom_id": self.env.ref("uom.product_uom_unit").id,
                     }
                 )
             }
@@ -598,6 +599,42 @@ class TestProcRule(TransactionCase):
             }
         )
         self.assertEqual(orderpoint.qty_to_order, 15.5)  # 15.0 < 14.5 + 15.5 <= 30.0
+
+    def test_get_multiple_rounded_qty_rounds_up_to_multiple(self):
+        """`_get_multiple_rounded_qty` must round the order quantity UP to a whole
+        multiple of `replenishment_uom_id`, converting through the product UoM both
+        ways. This pins the rounding *direction* (UP) and the boundary directly; a
+        silent switch to DOWN/HALF-UP would slip past the state-only integration
+        tests that only read the final `qty_to_order`.
+        """
+        unit = self.env.ref("uom.product_uom_unit")
+        pack_of_10 = self.env["uom.uom"].create(
+            {
+                "name": "round-pack of 10",
+                "relative_factor": 10.0,
+                "relative_uom_id": unit.id,
+            }
+        )
+        product = self.env["product.product"].create(
+            {"name": "multiple-round prod", "is_storable": True}
+        )
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "name": "multiple RR",
+                "product_id": product.id,
+                "location_id": self.env.ref("stock.stock_location_stock").id,
+                "replenishment_uom_id": pack_of_10.id,
+            }
+        )
+        _round = orderpoint._get_multiple_rounded_qty
+        self.assertEqual(_round(10.0), 10.0)  # exact multiple: unchanged
+        self.assertEqual(_round(11.0), 20.0)  # 1.1 packs -> up to 2 packs -> 20
+        self.assertEqual(_round(1.0), 10.0)  # shortage of 1 -> a full pack
+        self.assertEqual(_round(0.5), 10.0)  # fractional -> a full pack
+        self.assertEqual(_round(20.0), 20.0)  # exact 2 packs
+        # No replenishment multiple (base stock has no alternative) -> unchanged.
+        orderpoint.replenishment_uom_id = False
+        self.assertEqual(_round(11.0), 11.0)
 
     def test_orderpoint_replenishment_view_1(self):
         """Create two warehouses + two moves
