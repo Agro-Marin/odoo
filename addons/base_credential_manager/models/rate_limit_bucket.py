@@ -176,8 +176,14 @@ class RateLimitBucket(models.Model):
         # create(). The unique index on bucket_key protects data integrity but
         # raises UniqueViolation for the loser — we catch it, roll back to a
         # savepoint, and re-read the winning row instead of failing the request.
+        # Double-quoted identifier: endpoint_record.id is normally a positive
+        # DB row id, but callers may key buckets on a synthetic, non-DB
+        # identifier (e.g. mcp_server's per-user bucket uses -1 for
+        # anonymous) — an unquoted savepoint name can't contain a bare "-"
+        # (SAVEPOINT bucket_create_-1_global is a SQL syntax error).
+        # Quoting makes any id/company value safe.
         savepoint = f"bucket_create_{endpoint_record.id}_{company_part}"
-        self.env.cr.execute(f"SAVEPOINT {savepoint}")
+        self.env.cr.execute(f'SAVEPOINT "{savepoint}"')
         try:
             bucket = self.create(
                 {
@@ -189,7 +195,7 @@ class RateLimitBucket(models.Model):
                     "last_refill": fields.Datetime.now(),
                 },
             )
-            self.env.cr.execute(f"RELEASE SAVEPOINT {savepoint}")
+            self.env.cr.execute(f'RELEASE SAVEPOINT "{savepoint}"')
             _logger.info(
                 "Created rate limit bucket: %s (capacity: %d)",
                 bucket_key,
@@ -197,7 +203,7 @@ class RateLimitBucket(models.Model):
             )
             return bucket
         except psycopg_errors.UniqueViolation:
-            self.env.cr.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            self.env.cr.execute(f'ROLLBACK TO SAVEPOINT "{savepoint}"')
             bucket = self.search([("bucket_key", "=", bucket_key)], limit=1)
             if not bucket:
                 # Extremely unlikely: unique violation but row not visible.
@@ -272,6 +278,17 @@ class RateLimitBucket(models.Model):
                     """,
                     [self.id],
                 )
+                # Fetch BEFORE resetting lock_timeout: executing another
+                # statement first would consume the cursor's result set for
+                # that statement instead of this SELECT.
+                row = self.env.cr.fetchone()
+                # Narrow the tightened timeout to just this lock acquisition.
+                # is_local=true scopes it like SET LOCAL (resets at
+                # transaction end), but a caller that reaches consume_token()
+                # mid-transaction and keeps issuing queries afterward would
+                # otherwise run the REST of that transaction under a 3s
+                # lock_timeout too. Reset immediately once the lock is held.
+                self.env.cr.execute("RESET lock_timeout")
             else:
                 # SKIP LOCKED: if the row is locked, skip it instead of waiting.
                 # Prevents deadlocks/latency in high-concurrency best-effort
@@ -285,8 +302,7 @@ class RateLimitBucket(models.Model):
                     """,
                     [self.id],
                 )
-
-            row = self.env.cr.fetchone()
+                row = self.env.cr.fetchone()
             if not row:
                 # Only reachable in non-strict mode: SKIP LOCKED returned no
                 # row because another transaction holds the lock. Allow the

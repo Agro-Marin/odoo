@@ -1824,12 +1824,15 @@ class CredentialCredential(models.Model):
         Users can still override these values after selection.
         """
         if self.category_id:
-            self.enable_rate_limiting = self.category_id.default_enable_rate_limiting
-            self.rate_limit_max_attempts = (
-                self.category_id.default_rate_limit_max_attempts
-            )
-            self.auto_validate_health = self.category_id.default_auto_validate_health
-            self.allow_key_fallback = self.category_id.default_allow_key_fallback
+            # sudo(): these are category-level defaults (config), not secret
+            # data — a user who can create/edit a credential but lacks direct
+            # read access to credential.category must still see them, rather
+            # than the onchange raising or silently no-op'ing.
+            category = self.category_id.sudo()
+            self.enable_rate_limiting = category.default_enable_rate_limiting
+            self.rate_limit_max_attempts = category.default_rate_limit_max_attempts
+            self.auto_validate_health = category.default_auto_validate_health
+            self.allow_key_fallback = category.default_allow_key_fallback
 
     # ------------------------------------------------------------
     # ACTION METHODS
