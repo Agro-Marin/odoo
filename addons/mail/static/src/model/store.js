@@ -33,13 +33,7 @@
  */
 import { reactive, toRaw } from "@odoo/owl";
 
-import {
-    IS_DELETED_SYM,
-    IS_DELETING_SYM,
-    isRelation,
-    modelRegistry,
-    STORE_SYM,
-} from "./misc.js";
+import { IS_DELETED_SYM, isRelation, modelRegistry, STORE_SYM } from "./misc.js";
 import { Record } from "./record.js";
 
 /** @typedef {import("./record_list").RecordList} RecordList */
@@ -257,7 +251,6 @@ export class Store extends Record {
                         // addressable for the rest of this flush.
                         deletingRecordsByLocalId.set(record.localId, record);
                         this.recordByLocalId.delete(record.localId);
-                        record._[IS_DELETING_SYM] = true;
                         record._proxy[IS_DELETED_SYM] = true;
                         delete record.Model.records[record.localId];
                         this._.ADD_QUEUE("hard_delete", record);
@@ -352,9 +345,9 @@ export class Store extends Record {
                 }
             };
             if (this._.UPDATE !== 0) {
-                if (!this._.RO_QUEUE.has(fn)) {
-                    this._.RO_QUEUE.set(fn, true);
-                }
+                // `fn` is a fresh closure each call, so it is always new to the
+                // queue; enqueue it directly (dedup here would be a no-op).
+                this._.RO_QUEUE.set(fn, true);
             } else {
                 fn();
             }

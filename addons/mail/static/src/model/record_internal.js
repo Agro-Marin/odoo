@@ -22,7 +22,7 @@ export class RecordInternal {
     proxyUsed = new Map();
     /** @type {string} */
     localId;
-    gettingField = false;
+    gettingField = 0;
 
     /**
      * @param {Record} record

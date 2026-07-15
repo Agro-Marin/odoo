@@ -375,7 +375,6 @@ export class Record {
     _cleanupData(data) {
         const fieldsToDelete = [
             "_",
-            "_fieldsValue",
             "_proxy",
             "_proxyInternal",
             "_raw",

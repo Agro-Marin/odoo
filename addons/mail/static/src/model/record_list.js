@@ -213,10 +213,18 @@ export class RecordListInternal {
         }
         if (inverse && inv) {
             // special command to call addNoinv/deleteNoInv, to prevent infinite loop
-            const target = isRecord(val) && val._raw === val ? val._proxy : val;
-            target[inverse] = [
+            const command = [
                 [mode === "ADD" ? "ADD.noinv" : "DELETE.noinv", recordList._.owner],
             ];
+            if (isRecord(val)) {
+                const target = val._raw === val ? val._proxy : val;
+                target[inverse] = command;
+            } else {
+                // `val` is a caller-supplied plain payload that may be reused for
+                // later inserts; clone it instead of writing the inverse command
+                // onto the original (see the no-mutate-payload policy in store.js).
+                val = { ...val, [inverse]: command };
+            }
         }
         /** @type {R} */
         let newRecordProxy;

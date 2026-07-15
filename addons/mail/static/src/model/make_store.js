@@ -77,13 +77,16 @@ export function makeStore(env, { localRegistry } = {}) {
                             if (isRelation(Model, name)) {
                                 // read through the receiver so a reactive
                                 // receiver wraps the returned list; the flag
-                                // makes the re-entrant trap call fall through
-                                record._.gettingField = true;
+                                // makes the re-entrant trap call fall through.
+                                // A counter (not a boolean) so a nested read of
+                                // another field on the SAME record doesn't reset
+                                // the flag early on its way out.
+                                record._.gettingField++;
                                 let recordList;
                                 try {
                                     recordList = recordFullProxy[name];
                                 } finally {
-                                    record._.gettingField = false;
+                                    record._.gettingField--;
                                 }
                                 const recordListFullProxy = recordList._proxy;
                                 if (isMany(Model, name)) {
