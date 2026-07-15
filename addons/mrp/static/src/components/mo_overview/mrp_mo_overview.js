@@ -8,6 +8,8 @@ import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
 import { MoOverviewDisplayFilter } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
 import { MoOverviewComponentsBlock } from "../mo_overview_components_block/mrp_mo_overview_components_block.js";
 import { formatMonetary } from "@web/fields/formatters";
+import { getColorClass } from "../mrp_overview_utils.js";
+import { FOLD_ALL, useUnfoldedIds } from "../overview_fold.js";
 
 export class MoOverview extends Component {
     static components = {
@@ -23,7 +25,7 @@ export class MoOverview extends Component {
     setup() {
         this.actionService = useService("action");
         this.ormService = useService("orm");
-        this.unfoldedIds = new Set();
+        this.getColorClass = getColorClass;
         this.context = {};
 
         this.state = useState({
@@ -32,11 +34,13 @@ export class MoOverview extends Component {
         });
 
         useSubEnv({ overviewBus: new EventBus() });
+        // Kept in sync (via the shared fold protocol) with the folded rows so the
+        // printed PDF reproduces the on-screen state.
+        this.unfoldedIds = useUnfoldedIds();
 
         onWillStart(async () => {
             await this.getManufacturingData();
         });
-        useBus(this.env.overviewBus, "update-folded", (ev) => this.onChangeFolded(ev.detail));
         useBus(this.env.overviewBus, "reload", () => this.getManufacturingData());
     }
 
@@ -77,12 +81,6 @@ export class MoOverview extends Component {
         this.state.showOptions[displayInfo] = !this.state.showOptions[displayInfo];
     }
 
-    onChangeFolded(foldInfo) {
-        const { indexes, isFolded } = foldInfo;
-        const operation = isFolded ? "delete" : "add";
-        indexes.forEach(index => this.unfoldedIds[operation](index));
-    }
-
     async onPrint() {
         return this.actionService.doAction({
             type: "ir.actions.report",
@@ -93,7 +91,7 @@ export class MoOverview extends Component {
     }
 
     onUnfold() {
-        this.env.overviewBus.trigger("unfold-all")
+        this.env.overviewBus.trigger(FOLD_ALL, { folded: false });
     }
 
     //---- Helpers ----
@@ -109,10 +107,6 @@ export class MoOverview extends Component {
             bomCosts: true,
             realCosts: true,
         };
-    }
-
-    getColorClass(decorator) {
-        return decorator ? `text-${decorator}` : "";
     }
 
     formatCost(cost) {
@@ -192,15 +186,19 @@ export class MoOverview extends Component {
     }
 
     get reportName() {
-        return `mrp.report_mo_overview?docids=${this.activeId}`
-            + `&replenishments=${+this.state.showOptions.replenishments}`
-            + `&availabilities=${+this.state.showOptions.availabilities}`
-            + `&receipts=${+this.state.showOptions.receipts}`
-            + `&unitCosts=${+this.state.showOptions.unitCosts}`
-            + `&moCosts=${+this.state.showOptions.moCosts}`
-            + `&bomCosts=${+this.state.showOptions.bomCosts}`
-            + `&realCosts=${+this.state.showOptions.realCosts}`
-            + `&unfoldedIds=${JSON.stringify(Array.from(this.unfoldedIds))}`;
+        const options = this.state.showOptions;
+        const params = new URLSearchParams({
+            docids: this.activeId,
+            replenishments: +options.replenishments,
+            availabilities: +options.availabilities,
+            receipts: +options.receipts,
+            unitCosts: +options.unitCosts,
+            moCosts: +options.moCosts,
+            bomCosts: +options.bomCosts,
+            realCosts: +options.realCosts,
+            unfoldedIds: JSON.stringify(Array.from(this.unfoldedIds)),
+        });
+        return `mrp.report_mo_overview?${params}`;
     }
 }
 

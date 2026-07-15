@@ -4,6 +4,7 @@ import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 import { getStateDecorator } from "./mo_overview_colors.js";
+import { getColorClass, getForecastAction } from "../mrp_overview_utils.js";
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
 
 export class MoOverviewLine extends Component {
@@ -62,6 +63,7 @@ export class MoOverviewLine extends Component {
     setup() {
         this.actionService = useService("action");
         this.ormService = useService("orm");
+        this.getColorClass = getColorClass;
         this.formatFloat = (val) => formatFloat(val, { digits: [false, this.data.uom_precision || undefined] });
         this.formatFloatTime = formatFloatTime;
         this.formatMonetary = (val) => formatMonetary(val, { currencyId: this.data.currency_id });
@@ -128,10 +130,6 @@ export class MoOverviewLine extends Component {
 
     //---- Helpers ----
 
-    getColorClass(decorator) {
-        return decorator ? `text-${decorator}` : "";
-    }
-
     hasQuantity(keyName) {
         return this.data.hasOwnProperty(keyName) && this.data[keyName] !== false;
     }
@@ -153,10 +151,6 @@ export class MoOverviewLine extends Component {
         return this.formatFloat(this.data.quantity);
     }
 
-    get hasFoldButton() {
-        return false;
-    }
-
     get marginMultiplicator() {
         return this.data.level - (this.props.hasFoldButton ? 1 : 0);
     }
@@ -166,11 +160,6 @@ export class MoOverviewLine extends Component {
     }
 
     get forecastAction() {
-        switch (this.data.product_model) {
-            case "product.product":
-                return "action_product_forecast_report";
-            case "product.template":
-                return "action_product_tmpl_forecast_report";
-        }
+        return getForecastAction(this.data.product_model);
     }
 }

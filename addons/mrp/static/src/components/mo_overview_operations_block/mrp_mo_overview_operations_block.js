@@ -3,7 +3,9 @@ import { Component, useState } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
+import { getColorClass } from "../mrp_overview_utils.js";
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+import { FOLD_ALL, FOLD_CHANGED } from "../overview_fold.js";
 
 export class MoOverviewOperationsBlock extends Component {
     static template = "mrp.MoOverviewOperationsBlock";
@@ -38,37 +40,34 @@ export class MoOverviewOperationsBlock extends Component {
 
     setup() {
         this.formatFloatTime = formatFloatTime;
+        this.getColorClass = getColorClass;
         this.state = useState({
             // Unfold the main MO's operations by default
             isFolded: this.level > 0 && !this.props.unfoldAll,
         });
         if (this.props.unfoldAll) {
-            this.env.overviewBus.trigger("update-folded", { indexes: [this.index], isFolded: false });
+            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.index], folded: false });
         }
 
-        useBus(this.env.overviewBus, "unfold-all", () => this.unfold());
+        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) => this.setFolded(detail.folded));
     }
 
     //---- Handlers ----
 
     toggleFolded() {
         this.state.isFolded = !this.state.isFolded;
-        this.env.overviewBus.trigger("update-folded", { indexes: [this.index], isFolded: this.state.isFolded });
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.index], folded: this.state.isFolded });
     }
 
-    unfold() {
-        this.state.isFolded = false;
-        this.env.overviewBus.trigger("update-folded", { indexes: [this.index], isFolded: false });
+    setFolded(folded) {
+        this.state.isFolded = folded;
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.index], folded });
     }
 
     //---- Helpers ----
 
     formatMonetary(val) {
         return formatMonetary(val, { currencyId: this.props.summary.currency_id });
-    }
-
-    getColorClass(decorator) {
-        return decorator ? `text-${decorator}` : "";
     }
 
     //---- Getters ----

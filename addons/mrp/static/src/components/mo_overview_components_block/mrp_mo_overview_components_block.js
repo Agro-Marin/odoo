@@ -5,6 +5,7 @@ import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
 import { MoOverviewOperationsBlock } from "../mo_overview_operations_block/mrp_mo_overview_operations_block.js";
 import { MoOverviewByproductsBlock } from "../mo_overview_byproducts_block/mrp_mo_overview_byproducts_block.js";
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+import { FOLD_ALL, FOLD_CHANGED } from "../overview_fold.js";
 
 export class MoOverviewComponentsBlock extends Component {
     static components = {
@@ -47,10 +48,10 @@ export class MoOverviewComponentsBlock extends Component {
         });
 
         if (this.props.unfoldAll) {
-            this.env.overviewBus.trigger("update-folded", { indexes: Object.keys(this.state.fold), isFolded: false });
+            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: Object.keys(this.state.fold), folded: false });
         }
 
-        useBus(this.env.overviewBus, "unfold-all", () => this.unfoldAll());
+        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) => this.setFoldAll(detail.folded));
 
         onWillUpdateProps(newProps => {
             // Update the fold indexes so it matches the newly added lines.
@@ -70,14 +71,14 @@ export class MoOverviewComponentsBlock extends Component {
             });
         }
         this.state.fold[foldIndex] = newState;
-        this.env.overviewBus.trigger("update-folded", { indexes: [foldIndex], isFolded: newState });
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [foldIndex], folded: newState });
     }
 
-    unfoldAll() {
-        this.state.unfoldAll = true;
-        const foldIndexes = Object.keys(this.state.fold);
-        foldIndexes.forEach(index => this.state.fold[index] = false);
-        this.env.overviewBus.trigger("update-folded", { indexes: foldIndexes, isFolded: false });
+    setFoldAll(folded) {
+        this.state.unfoldAll = !folded;
+        const ids = Object.keys(this.state.fold);
+        ids.forEach(index => this.state.fold[index] = folded);
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids, folded });
     }
 
     //---- Helpers ----

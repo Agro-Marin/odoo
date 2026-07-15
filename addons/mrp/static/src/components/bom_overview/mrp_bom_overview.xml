@@ -28,8 +28,7 @@
             currentWarehouseId="state.currentWarehouse?.id"
             data="state.bomData"
             precision="state.precision"
-            bomQuantity="state.bomQuantity"
-            changeFolded.bind="onChangeFolded"/>
+            bomQuantity="state.bomQuantity"/>
     </div>
 
 </templates>

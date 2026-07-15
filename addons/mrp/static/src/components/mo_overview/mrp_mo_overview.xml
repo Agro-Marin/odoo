@@ -27,7 +27,7 @@
                             <th class="text-end" t-if="showUnitCosts">Unit Cost</th>
                             <th class="text-end" t-if="showMoCosts" title="Cost based on related replenishments. Otherwise cost from product form">MO Cost</th>
                             <th class="text-end" t-if="showBomCosts" title="Cost based on the BoM">BoM Cost</th>
-                            <th class="text-end" t-if="showRealCosts and realInDraft" title="Cost based on cost projection">Real Cost</th>
+                            <th class="text-end" t-if="showRealCosts and isProductionDraft" title="Cost based on cost projection">Real Cost</th>
                             <th class="text-end" t-elif="showRealCosts" title="Cost as it is currently accumulated">Real Cost</th>
                         </tr>
                     </thead>
