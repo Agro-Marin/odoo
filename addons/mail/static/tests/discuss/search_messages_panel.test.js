@@ -39,7 +39,7 @@ test("Should open the search panel when search button is clicked", async () => {
     await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
     await click("[title='Search Messages']");
     await contains(".o-mail-SearchMessagesPanel");
-    await contains(".o_searchview");
+    await contains(".o-mail-ActionPanel-header .o_searchview");
     await contains(".o_searchview_input");
 });
 
