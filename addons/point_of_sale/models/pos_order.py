@@ -272,9 +272,7 @@ class PosOrder(models.Model):
     @api.model
     def _get_invoice_lines_values(self, line_values, pos_line, move_type):
         # correct quantity sign based on move type and if line is refund.
-        is_refund_order = bool(
-            pos_line.order_id.is_refund or pos_line.order_id.amount_total < 0.0
-        )
+        is_refund_order = pos_line.order_id._is_refund_order()
         qty_sign = (
             -1
             if (
@@ -800,7 +798,7 @@ class PosOrder(models.Model):
                 company=order.company_id,
                 cash_rounding=cash_rounding,
             )
-            refund_factor = -1 if (order.is_refund or order.amount_total < 0.0) else 1
+            refund_factor = -1 if order._is_refund_order() else 1
             order.amount_tax = refund_factor * tax_totals["tax_amount_currency"]
             order.amount_total = refund_factor * tax_totals["total_amount_currency"]
             order.amount_difference = order.amount_paid - order.amount_total
@@ -1147,6 +1145,18 @@ class PosOrder(models.Model):
             precision_rounding=self.currency_id.rounding,
         )
 
+    def _is_refund_order(self):
+        """Whether the order should be treated as a refund for sign/qty purposes.
+
+        An order counts as a refund either when it was explicitly created through
+        the refund flow (``is_refund``) or when its net total is negative. This is
+        the single source of truth for that rule; do not re-spell the expression
+        inline (it was previously duplicated across four call sites, one of which
+        could silently diverge and flip a tax/quantity sign).
+        """
+        self.ensure_one()
+        return self.is_refund or self.amount_total < 0.0
+
     def _get_rounded_amount(self, amount, force_round=False):
         # TODO: add support for mix of cash and non-cash payments when both cash_rounding and only_round_cash_method are True
         if self.config_id.cash_rounding and (
@@ -1334,7 +1344,7 @@ class PosOrder(models.Model):
         pos_config = self.config_id
         move_type = (
             "out_invoice"
-            if not any(order.is_refund or order.amount_total < 0.0 for order in self)
+            if not any(order._is_refund_order() for order in self)
             else "out_refund"
         )
         invoice_payment_term_id = (
@@ -1426,11 +1436,38 @@ class PosOrder(models.Model):
         )
         tax_results = AccountTax._prepare_tax_lines(base_lines, self.company_id)
 
-        total_balance = 0.0
-        total_amount_currency = 0.0
         aml_vals_list_per_nature = defaultdict(list)
 
-        # Create the tax lines
+        # Tax and product (sales) lines, accumulating the order's running
+        # currency total which the cash-rounding step then rounds.
+        total_amount_currency = self._add_tax_aml_vals(
+            aml_vals_list_per_nature, tax_results
+        )
+        total_amount_currency += self._add_product_aml_vals(
+            aml_vals_list_per_nature, tax_results, rate, sign
+        )
+        self._add_cash_rounding_aml_vals(
+            aml_vals_list_per_nature,
+            total_amount_currency,
+            rate,
+            sign,
+            commercial_partner,
+            company_currency,
+        )
+
+        # Stock valuation and receivable/payment-term lines are self-contained
+        # natures (no coupling to the running totals above); build them in
+        # dedicated helpers to keep this orchestrator readable.
+        self._add_stock_aml_vals(aml_vals_list_per_nature, commercial_partner)
+        self._add_payment_term_aml_vals(aml_vals_list_per_nature, commercial_partner)
+
+        return aml_vals_list_per_nature
+
+    def _add_tax_aml_vals(self, aml_vals_list_per_nature, tax_results):
+        """Append the tax lines, returning their contribution to the order's
+        running amount_currency total. Extracted from
+        ``_prepare_aml_values_list_per_nature``."""
+        total_amount_currency = 0.0
         for tax_line in tax_results["tax_lines_to_add"]:
             aml_vals_list_per_nature["tax"].append(
                 {
@@ -1439,9 +1476,13 @@ class PosOrder(models.Model):
                 }
             )
             total_amount_currency += tax_line["amount_currency"]
-            total_balance += tax_line["balance"]
+        return total_amount_currency
 
-        # Create the aml values for order lines.
+    def _add_product_aml_vals(self, aml_vals_list_per_nature, tax_results, rate, sign):
+        """Append the product (sales) lines, returning their contribution to the
+        order's running amount_currency total. Extracted from
+        ``_prepare_aml_values_list_per_nature``."""
+        total_amount_currency = 0.0
         for base_line_vals, update_base_line_vals in tax_results[
             "base_lines_to_update"
         ]:
@@ -1450,9 +1491,23 @@ class PosOrder(models.Model):
             )
             aml_vals_list_per_nature["product"].append(product_dict)
             total_amount_currency += product_dict["amount_currency"]
-            total_balance += product_dict["balance"]
+        return total_amount_currency
 
-        # Cash rounding.
+    def _add_cash_rounding_aml_vals(
+        self,
+        aml_vals_list_per_nature,
+        total_amount_currency,
+        rate,
+        sign,
+        commercial_partner,
+        company_currency,
+    ):
+        """Apply the configured cash-rounding difference. For ``add_invoice_line``
+        a dedicated rounding line is appended; for ``biggest_tax`` the difference
+        is folded into the largest existing tax line in place. (POS forbids the
+        biggest_tax strategy via pos.config._check_rounding_method_strategy, so
+        that branch is currently unreachable for POS orders.) Extracted from
+        ``_prepare_aml_values_list_per_nature``."""
         cash_rounding = self.config_id.rounding_method
         if (
             self.config_id.cash_rounding
@@ -1512,7 +1567,12 @@ class PosOrder(models.Model):
                             "display_type": "rounding",
                         }
                     )
-        # Stock.
+
+    def _add_stock_aml_vals(self, aml_vals_list_per_nature, commercial_partner):
+        """Append real-time stock-valuation lines (expense + counterpart) for
+        each valued stock move of this order's pickings. Mutates the passed
+        per-nature dict. Extracted verbatim from
+        ``_prepare_aml_values_list_per_nature``."""
         if self.picking_ids.ids:
             stock_moves = (
                 self.env["stock.move"]
@@ -1550,7 +1610,13 @@ class PosOrder(models.Model):
                     }
                 )
 
-        # sort self.payment_ids by is_split_transaction:
+    def _add_payment_term_aml_vals(self, aml_vals_list_per_nature, commercial_partner):
+        """Append (or aggregate into) the receivable/payment-term lines, one per
+        payment. Combine (non-split) payments to the same receivable account are
+        merged into a single partner-less line; split payments book against the
+        customer's own receivable with the partner set. Mutates the passed
+        per-nature dict. Extracted verbatim from
+        ``_prepare_aml_values_list_per_nature``."""
         for payment_id in self.payment_ids:
             is_split_transaction = payment_id.payment_method_id.split_transactions
             if is_split_transaction:
@@ -1593,8 +1659,6 @@ class PosOrder(models.Model):
                         "display_type": "payment_term",
                     }
                 )
-
-        return aml_vals_list_per_nature
 
     def _create_misc_reversal_move(self, payment_moves):
         """Create a misc move to reverse POS orders and "remove" it from the POS closing entry.
@@ -2724,7 +2788,7 @@ class PosOrderLine(models.Model):
         if fiscal_position:
             account = fiscal_position.map_account(account)
 
-        is_refund_order = line.order_id.is_refund or line.order_id.amount_total < 0.0
+        is_refund_order = line.order_id._is_refund_order()
         is_refund_line = line.qty * line.price_unit < 0
 
         lang = line.order_id.partner_id.lang or self.env.user.lang

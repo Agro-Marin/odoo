@@ -25,7 +25,9 @@ from . import test_report_session
 from . import test_res_config_settings
 from . import test_pos_product_variants
 from . import test_generic_localization
+from . import test_pos_accounting_units
 from . import test_zzz_audit
 from . import test_zzz_audit2
 
 from . import test_js
+from . import test_zzz_audit3
