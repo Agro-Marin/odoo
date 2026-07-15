@@ -25,7 +25,7 @@ export class ForecastedButtons extends Component {
      * @param {Object | undefined} res
      */
     _onClose(res) {
-        return res?.special || !res?.noReload || this.props.reloadReport();
+        return res?.special || res?.noReload || this.props.reloadReport();
     }
 
     async _onClickReplenish() {

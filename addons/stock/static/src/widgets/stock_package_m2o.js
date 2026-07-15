@@ -50,7 +50,10 @@ export class StockPackageMany2One extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this.isDone = ["done", "cancel"].includes(this.props.record?.data?.state);
+    }
+
+    get isDone() {
+        return ["done", "cancel"].includes(this.props.record?.data?.state);
     }
 
     get m2oProps() {
@@ -72,7 +75,9 @@ export class StockPackageMany2One extends Component {
     get displayValue() {
         const displayVal = this.props.record.data[this.props.name];
         if (this.isDone && displayVal?.display_name) {
-            displayVal["display_name"] = displayVal["display_name"].split(" > ").pop();
+            // Return a trimmed copy; never mutate the record's own datapoint data
+            // from a render getter (other consumers/persistence read the same object).
+            return { ...displayVal, display_name: displayVal.display_name.split(" > ").pop() };
         }
         return displayVal;
     }

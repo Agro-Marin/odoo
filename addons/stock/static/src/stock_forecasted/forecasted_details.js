@@ -91,7 +91,7 @@ export class ForecastedDetails extends Component {
     _groupReconciledLinesByProduct() {
         this.ReconciledLinesPerProduct = {};
         for (const line of this.props.docs.lines) {
-            if (this._onHandCondition(line)) {
+            if (this._reconciledCondition(line)) {
                 const key = line.product.id;
                 (this.ReconciledLinesPerProduct[key] ??= []).push(line);
             }

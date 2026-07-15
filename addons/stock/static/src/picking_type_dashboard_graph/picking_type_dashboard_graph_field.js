@@ -46,13 +46,14 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                 ],
             },
             options: {
-                onClick: (e) => {
-                    const pickingTypeId = e.chart.config._config.options.pickingTypeId;
-                    // If no picking type ID was provided, than this is sample data
-                    if (!pickingTypeId) {
+                onClick: (e, elements) => {
+                    // Sample data has no picking type id and is not clickable.
+                    // `elements` is empty when the click misses every bar.
+                    const pickingTypeId = this.data[0].picking_type_id;
+                    if (!pickingTypeId || !elements.length) {
                         return;
                     }
-                    const columnIndex = e.chart.tooltip.dataPoints[0].parsed.x;
+                    const columnIndex = elements[0].index;
                     const dateCategories = {
                         0: "before",
                         1: "yesterday",
@@ -75,6 +76,9 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        // Suppress the tooltip over fake sample bars (matches the
+                        // parent JournalDashboardGraphField behaviour).
+                        enabled: !this.data[0]?.is_sample_data,
                         intersect: false,
                         position: "nearest",
                         caretSize: 0,
@@ -88,7 +92,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                         display: false,
                     },
                 },
-                pickingTypeId: this.data[0].picking_type_id,
                 maintainAspectRatio: false,
                 elements: {
                     line: {

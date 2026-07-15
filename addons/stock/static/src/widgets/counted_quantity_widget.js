@@ -14,14 +14,11 @@ export class CountedQuantityWidgetField extends FloatField {
         useEffect(
             (inputEl) => {
                 if (inputEl) {
-                    const boundOnInput = this.onInput.bind(this);
                     const boundOnKeydown = this.onKeydown.bind(this);
                     const boundOnBlur = this.onBlur.bind(this);
-                    inputEl.addEventListener("input", boundOnInput);
                     inputEl.addEventListener("keydown", boundOnKeydown);
                     inputEl.addEventListener("blur", boundOnBlur);
                     return () => {
-                        inputEl.removeEventListener("input", boundOnInput);
                         inputEl.removeEventListener("keydown", boundOnKeydown);
                         inputEl.removeEventListener("blur", boundOnBlur);
                     };
@@ -29,10 +26,6 @@ export class CountedQuantityWidgetField extends FloatField {
             },
             () => [inputRef.el]
         );
-    }
-
-    onInput(ev) {
-        //TODO remove in master
     }
 
     updateValue(ev){
@@ -50,14 +43,13 @@ export class CountedQuantityWidgetField extends FloatField {
         const hotkey = getActiveHotkey(ev);
         if (["enter", "tab", "shift+tab"].includes(hotkey)) {
             this.updateValue(ev);
-            this.onInput(ev);
         }
     }
 
     get formattedValue() {
         if (
             this.props.readonly &&
-            !this.props.record.data[this.props.name] & !this.props.record.data.inventory_quantity_set
+            !this.props.record.data[this.props.name] && !this.props.record.data.inventory_quantity_set
         ) {
             return "";
         }
