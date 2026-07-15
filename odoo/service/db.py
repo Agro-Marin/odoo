@@ -63,11 +63,13 @@ __all__ = (
     "DBNAME_PATTERN",
     "DatabaseExists",
     # Underscore-prefixed but deliberately exported: the ungated, no-allowlist
-    # DROP DATABASE primitive for callers that already establish their own
-    # trust boundary (odoo/cli/db.py's local, shell-access-gated commands;
-    # internal create/restore/duplicate rollback). Not RPC-facing — exp_drop
-    # is the gated public entry point for that.
+    # DROP/DUPLICATE/RENAME DATABASE primitives for callers that already
+    # establish their own trust boundary (odoo/cli/db.py's local,
+    # shell-access-gated commands; internal create/restore/duplicate rollback).
+    # Not RPC-facing — the exp_* wrappers are the gated public entry points.
     "_drop_database",
+    "_duplicate_database",
+    "_rename_database",
     "check_db_management_enabled",
     "check_super",
     "database_identifier",
@@ -335,7 +337,30 @@ def exp_duplicate_database(
     db_name: str,
     neutralize_database: bool = False,
 ) -> Literal[True]:
-    """Duplicate ``db_original_name`` to ``db_name`` as a new database.
+    """Duplicate ``db_original_name`` to ``db_name`` (public/RPC-facing).
+
+    Refuses ``db_original_name`` outside ``list_dbs(True)``: with the master
+    password alone an RPC caller could otherwise copy any database owned by this
+    PostgreSQL role. ``db_name`` (the new target) is create-like and not checked.
+
+    :raises odoo.exceptions.AccessDenied: if ``db_original_name`` is not exposed
+    """
+    check_db_exposed(db_original_name)
+    return _duplicate_database(db_original_name, db_name, neutralize_database)
+
+
+def _duplicate_database(
+    db_original_name: str,
+    db_name: str,
+    neutralize_database: bool = False,
+) -> Literal[True]:
+    """Duplicate ``db_original_name`` to ``db_name`` (ungated internal helper).
+
+    No ``@check_db_management_enabled`` and no ``check_db_exposed``: both gates
+    live on the RPC wrapper ``exp_duplicate_database``. The local, shell-access
+    ``odoo db duplicate`` CLI calls this directly — trusted tooling that must
+    not be blocked by the RPC-facing ``list_db`` toggle or the allowlist.
+    Mirrors the ``_drop_database`` / ``exp_drop`` split.
 
     Uses PostgreSQL's ``CREATE DATABASE ... TEMPLATE ...`` which requires the
     source to have no active connections — hence the ``close_db`` +
@@ -588,6 +613,28 @@ def _drop_database(db_name: str) -> bool:
     return True
 
 
+def check_db_exposed(db_name: str) -> None:
+    """Raise ``AccessDenied`` if ``db_name`` is not an exposed database.
+
+    Shared allowlist gate for the master-password RPC handlers that operate on
+    an existing database by name (``exp_dump``, ``exp_rename``,
+    ``exp_duplicate_database``, ``exp_migrate_databases``). Logs a warning
+    before raising.
+
+    :param db_name: database name to check against ``list_dbs(True)``
+    :raises odoo.exceptions.AccessDenied: if ``db_name`` is not exposed
+    """
+    # Defined here, not beside check_super in _db_helpers: it needs list_dbs
+    # (defined in this module), and db.py imports from _db_helpers, not the
+    # reverse.
+    if db_name not in list_dbs(True):
+        _logger.warning(
+            "DB management op on %s rejected, not in the list of exposed databases",
+            db_name,
+        )
+        raise odoo.exceptions.AccessDenied
+
+
 @check_db_management_enabled
 def exp_drop(db_name: str) -> bool:
     """Drop a database (public/RPC-facing, subject to ``list_db`` gate).
@@ -628,6 +675,7 @@ def exp_dump(db_name: str, backup_format: str) -> str:
     only true-streaming caller is the ``odoo db dump`` CLI (``stream`` = a real
     file / ``sys.stdout.buffer``).
     """
+    check_db_exposed(db_name)
     # 3 MiB — a multiple of 3 so each chunk encodes independently (base64
     # consumes 3 input bytes per 4 output chars; non-3-aligned chunks would
     # emit padding mid-stream).
@@ -1124,7 +1172,25 @@ def restore_db(
 
 @check_db_management_enabled
 def exp_rename(old_name: str, new_name: str) -> Literal[True]:
-    """Rename a database.
+    """Rename ``old_name`` to ``new_name`` (public/RPC-facing).
+
+    Refuses ``old_name`` outside ``list_dbs(True)``: with the master password
+    alone an RPC caller could otherwise rename any database owned by this
+    PostgreSQL role. ``new_name`` (the target) is create-like and not checked.
+
+    :raises odoo.exceptions.AccessDenied: if ``old_name`` is not exposed
+    """
+    check_db_exposed(old_name)
+    return _rename_database(old_name, new_name)
+
+
+def _rename_database(old_name: str, new_name: str) -> Literal[True]:
+    """Rename a database (ungated internal helper; gates live on ``exp_rename``).
+
+    No ``@check_db_management_enabled`` and no ``check_db_exposed``: the local,
+    shell-access ``odoo db rename`` CLI calls this directly — trusted tooling
+    that must not be blocked by the RPC-facing ``list_db`` toggle or the
+    allowlist. Mirrors the ``_drop_database`` / ``exp_drop`` split.
 
     Validates the new name against ``DBNAME_PATTERN`` (same gate as create),
     tears down the old registry and connection pool, issues ``ALTER
@@ -1310,6 +1376,10 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
     Used by the HTTP database-manager "Migrate" action to bring several
     databases forward one Odoo version at a time.
     """
+    # Reject the whole call if ANY target is unexposed — before migrating any,
+    # so a mixed list can't leave a partial, half-migrated result.
+    for db in databases:
+        check_db_exposed(db)
     for db in databases:
         _logger.info("migrate database %s", db)
         odoo.modules.registry.Registry.new(

@@ -341,7 +341,7 @@ class TestDbNameValidation:
     @pytest.mark.parametrize("bad_name", ["bad name", "-start", "has/slash"])
     def test_duplicate_rejects_invalid_new_name(self, db_mod, bypass_db_mgmt, bad_name):
         with pytest.raises(ValueError, match="Invalid database name"):
-            db_mod.exp_duplicate_database("source_db", bad_name)
+            db_mod._duplicate_database("source_db", bad_name)
 
     def test_pattern_accepts_valid_names(self, db_mod):
         """DBNAME_PATTERN accepts all canonical valid names (spot-check)."""
@@ -916,16 +916,220 @@ class TestExpDumpMemory:
         def fake_dump_db(db_name, stream, backup_format):
             stream.write(payload)
 
-        with patch.object(db_mod, "dump_db", side_effect=fake_dump_db):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["testdb"]),
+            patch.object(db_mod, "dump_db", side_effect=fake_dump_db),
+        ):
             encoded = db_mod.exp_dump("testdb", "zip")
 
         assert encoded == base64.b64encode(payload).decode("ascii")
 
     def test_dump_accepts_backup_format_kwarg(self, db_mod, bypass_db_mgmt):
         """The parameter was renamed from ``format`` (builtin) to ``backup_format``."""
-        with patch.object(db_mod, "dump_db"):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["testdb"]),
+            patch.object(db_mod, "dump_db"),
+        ):
             # Must not TypeError on the new kwarg name
             db_mod.exp_dump("testdb", backup_format="zip")
+
+
+# ---------------------------------------------------------------------------
+# check_db_exposed — shared allowlist gate
+# (exp_rename / exp_duplicate_database gates live in their own sections)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckDbExposed:
+    """The shared gate raises ``AccessDenied`` for a db outside ``list_dbs(True)``
+    and logs a warning naming it; it is a guard (returns None), not a predicate."""
+
+    def test_raises_access_denied_for_unlisted_db(self, db_mod):
+        import odoo.exceptions
+
+        with patch.object(db_mod, "list_dbs", return_value=["exposed"]):
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.check_db_exposed("other")
+
+    def test_passes_silently_for_listed_db(self, db_mod):
+        with patch.object(db_mod, "list_dbs", return_value=["exposed"]):
+            assert db_mod.check_db_exposed("exposed") is None
+
+    def test_logs_warning_with_db_name_before_raising(self, db_mod, caplog):
+        import odoo.exceptions
+
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            caplog.at_level("WARNING", logger="odoo.service.db"),
+        ):
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.check_db_exposed("secret_db")
+        assert any("secret_db" in m for m in caplog.messages)
+
+    def test_consults_list_dbs_with_force(self, db_mod):
+        """Uses ``list_dbs(True)`` so the allowlist is enforced even when
+        ``list_db`` is toggled off — the gate can't be bypassed that way."""
+        with patch.object(db_mod, "list_dbs", return_value=["exposed"]) as mock_list:
+            db_mod.check_db_exposed("exposed")
+        mock_list.assert_called_once_with(True)
+
+
+class TestExpDumpAllowlistGate:
+    """``exp_dump`` refuses a source outside the allowlist before dumping."""
+
+    def test_rejects_db_outside_allowlist(self, db_mod, bypass_db_mgmt):
+        import odoo.exceptions
+
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(db_mod, "dump_db") as mock_dump,
+        ):
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.exp_dump("other", "zip")
+        mock_dump.assert_not_called()
+
+    def test_allows_db_inside_allowlist(self, db_mod, bypass_db_mgmt):
+        import base64
+
+        payload = b"content" * 500
+
+        def fake_dump_db(db_name, stream, backup_format):
+            stream.write(payload)
+
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(db_mod, "dump_db", side_effect=fake_dump_db),
+        ):
+            encoded = db_mod.exp_dump("exposed", "zip")
+
+        assert encoded == base64.b64encode(payload).decode("ascii")
+
+
+class TestExpMigrateDatabasesAllowlistGate:
+    """``exp_migrate_databases`` rejects the WHOLE call if any db is unexposed,
+    before migrating any of them (no partial run)."""
+
+    def test_rejects_when_any_db_outside_allowlist(self, db_mod, bypass_db_mgmt):
+        import odoo.exceptions
+
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["a", "b"]),
+            patch("odoo.modules.registry.Registry.new") as mock_new,
+        ):
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.exp_migrate_databases(["a", "c"])
+        # Not even the allowed "a" was migrated — the gate rejects up front.
+        mock_new.assert_not_called()
+
+    def test_accepts_when_all_in_allowlist(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["a", "b"]),
+            patch("odoo.modules.registry.Registry.new") as mock_new,
+        ):
+            result = db_mod.exp_migrate_databases(["a", "b"])
+        assert result is True
+        assert mock_new.call_count == 2
+
+    def test_empty_list_is_noop_success(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["a"]),
+            patch("odoo.modules.registry.Registry.new") as mock_new,
+        ):
+            result = db_mod.exp_migrate_databases([])
+        assert result is True
+        mock_new.assert_not_called()
+
+
+class TestExpRenameAllowlistGate:
+    """``exp_rename`` gates ``old_name`` (source) through the allowlist and
+    delegates to the ungated ``_rename_database``; ``new_name`` (target) is
+    create-like and not checked."""
+
+    def test_rejects_old_name_outside_allowlist(self, db_mod, bypass_db_mgmt):
+        import odoo.exceptions
+
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(db_mod, "_rename_database") as mock_inner,
+        ):
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.exp_rename("other", "newname")
+        mock_inner.assert_not_called()
+
+    def test_passes_through_to_inner_when_exposed(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(db_mod, "_rename_database", return_value=True) as mock_inner,
+        ):
+            result = db_mod.exp_rename("exposed", "newname")
+        assert result is True
+        mock_inner.assert_called_once_with("exposed", "newname")
+
+    def test_new_name_not_checked_against_allowlist(self, db_mod, bypass_db_mgmt):
+        # Only the source is gated; the target need not be exposed (it's new).
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(db_mod, "_rename_database", return_value=True) as mock_inner,
+        ):
+            db_mod.exp_rename("exposed", "brand_new_target")
+        mock_inner.assert_called_once_with("exposed", "brand_new_target")
+
+    def test_internal_helper_does_not_consult_allowlist(self, db_mod):
+        """``_rename_database`` must never call ``list_dbs`` — the CLI/rollback
+        path depends on renaming a source that need not be exposed."""
+        with patch.object(db_mod, "list_dbs") as mock_list:
+            # Fails fast at validate_db_name (target), proving we got past any
+            # would-be gate without ever consulting list_dbs.
+            with pytest.raises(ValueError):
+                db_mod._rename_database("any_unexposed", "bad name")
+        mock_list.assert_not_called()
+
+
+class TestExpDuplicateAllowlistGate:
+    """``exp_duplicate_database`` gates ``db_original_name`` (source) and
+    delegates to the ungated ``_duplicate_database``; ``db_name`` (target) is
+    create-like and not checked."""
+
+    def test_rejects_source_outside_allowlist(self, db_mod, bypass_db_mgmt):
+        import odoo.exceptions
+
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(db_mod, "_duplicate_database") as mock_inner,
+        ):
+            with pytest.raises(odoo.exceptions.AccessDenied):
+                db_mod.exp_duplicate_database("other", "newdb")
+        mock_inner.assert_not_called()
+
+    def test_passes_through_to_inner_when_exposed(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(
+                db_mod, "_duplicate_database", return_value=True
+            ) as mock_inner,
+        ):
+            result = db_mod.exp_duplicate_database(
+                "exposed", "newdb", neutralize_database=True
+            )
+        assert result is True
+        mock_inner.assert_called_once_with("exposed", "newdb", True)
+
+    def test_target_name_not_checked_against_allowlist(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "list_dbs", return_value=["exposed"]),
+            patch.object(
+                db_mod, "_duplicate_database", return_value=True
+            ) as mock_inner,
+        ):
+            db_mod.exp_duplicate_database("exposed", "brand_new_target")
+        mock_inner.assert_called_once()
+
+    def test_internal_helper_does_not_consult_allowlist(self, db_mod):
+        """``_duplicate_database`` must never call ``list_dbs``."""
+        with patch.object(db_mod, "list_dbs") as mock_list:
+            with pytest.raises(ValueError):
+                db_mod._duplicate_database("any_unexposed", "bad name")
+        mock_list.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -1150,15 +1354,15 @@ class TestExpRenameValidation:
 
     def test_rejects_invalid_new_name(self, db_mod):
         with pytest.raises(ValueError, match="Invalid database name"):
-            db_mod.exp_rename("old_name", "has spaces")
+            db_mod._rename_database("old_name", "has spaces")
 
     def test_rejects_empty_new_name(self, db_mod):
         with pytest.raises(ValueError, match="Invalid database name"):
-            db_mod.exp_rename("old_name", "")
+            db_mod._rename_database("old_name", "")
 
     def test_rejects_leading_underscore(self, db_mod):
         with pytest.raises(ValueError, match="Invalid database name"):
-            db_mod.exp_rename("old_name", "_starts_with_underscore")
+            db_mod._rename_database("old_name", "_starts_with_underscore")
 
 
 # ---------------------------------------------------------------------------
@@ -1329,6 +1533,57 @@ class TestDispatchInvariants:
         mock_handler.assert_called_once_with("mydb")
         assert result is True
 
+    # Master-password handlers whose DB-name argument is a NEW/create-like
+    # target (or which take no DB name at all) — nothing to gate against the
+    # exposed-databases allowlist. Every OTHER master-password handler acts on
+    # an EXISTING database by name and MUST gate it.
+    _ALLOWLIST_EXEMPT = frozenset({
+        "create_database",  # target is a brand-new name
+        "restore",  # target is a brand-new name
+        "change_admin_password",  # takes no DB name
+    })
+
+    def test_db_name_handlers_gate_through_check_db_exposed(self, db_mod):
+        """Every master-password handler acting on an EXISTING DB by name must
+        gate it — via ``check_db_exposed`` (the 4 raising handlers) or the
+        inline ``list_dbs(True)`` form (``exp_drop``, whose ``-> bool`` contract
+        is consumed by the web/CLI drop callers so it can't raise).
+
+        Derived from ``_REQUIRES_MASTER_PASSWORD`` minus ``_ALLOWLIST_EXEMPT``,
+        NOT a hardcoded list — so a future ``exp_*`` added to the master-password
+        set without a gate (and without an explicit, justified exemption) fails
+        this test by default. That is the actual forget-proofing.
+        """
+        import ast
+        import inspect
+        import textwrap
+
+        # A real CALL to check_db_exposed (the 4 raising handlers) or list_dbs
+        # (exp_drop's inline form) — parsed from the AST, NOT a substring search,
+        # so a mere docstring/comment mention (the handlers' own docstrings name
+        # check_db_exposed) cannot satisfy the gate check.
+        gate_calls = {"check_db_exposed", "list_dbs"}
+        missing = []
+        for method in db_mod._REQUIRES_MASTER_PASSWORD - self._ALLOWLIST_EXEMPT:
+            fn = db_mod._DISPATCH[method]
+            # Unwrap @check_db_management_enabled to reach the real body.
+            while hasattr(fn, "__wrapped__"):
+                fn = fn.__wrapped__
+            tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+            calls = {
+                node.func.id
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            }
+            if not (calls & gate_calls):
+                missing.append(method)
+        assert not missing, (
+            f"master-password handlers acting on an existing DB by name but "
+            f"missing an allowlist gate: {sorted(missing)}. Gate via "
+            f"check_db_exposed (raise) or list_dbs(True) (exp_drop's form), or "
+            f"add to _ALLOWLIST_EXEMPT with a create-like/no-DB-name justification."
+        )
+
 
 # ---------------------------------------------------------------------------
 # exp_duplicate_database — rollback on filestore copy failure
@@ -1407,7 +1662,7 @@ class TestExpDuplicateRollback:
                 side_effect=OSError("disk full"),
             ), patch.object(db_mod, "_drop_database") as mock_drop:
                 with pytest.raises(OSError, match="disk full"):
-                    db_mod.exp_duplicate_database("source", "newdb")
+                    db_mod._duplicate_database("source", "newdb")
 
             mock_drop.assert_called_once_with("newdb")
 
@@ -1420,7 +1675,7 @@ class TestExpDuplicateRollback:
                 side_effect=RuntimeError("registry boom"),
             ), patch.object(db_mod, "_drop_database") as mock_drop:
                 with pytest.raises(RuntimeError, match="registry boom"):
-                    db_mod.exp_duplicate_database("source", "newdb")
+                    db_mod._duplicate_database("source", "newdb")
 
             mock_drop.assert_called_once_with("newdb")
 
@@ -1437,7 +1692,7 @@ class TestExpDuplicateRollback:
                 db_mod, "_drop_database", side_effect=Exception("drop also failed")
             ):
                 with pytest.raises(RuntimeError, match="original error"):
-                    db_mod.exp_duplicate_database("source", "newdb")
+                    db_mod._duplicate_database("source", "newdb")
 
 
 # ---------------------------------------------------------------------------
@@ -1502,7 +1757,7 @@ class TestExpRenameRollback:
                 "odoo.service.db.shutil.move", side_effect=OSError("permission denied")
             ):
                 with pytest.raises(RuntimeError, match="permission denied"):
-                    db_mod.exp_rename("oldname", "newname")
+                    db_mod._rename_database("oldname", "newname")
 
         # Two ALTER DATABASE RENAME calls expected: the original one, then
         # the rollback that swaps newname back to oldname.
@@ -1536,7 +1791,7 @@ class TestExpRenameRollback:
                 "odoo.service.db.shutil.move", side_effect=OSError("disk full")
             ):
                 with pytest.raises(RuntimeError, match="manual intervention required"):
-                    db_mod.exp_rename("oldname", "newname")
+                    db_mod._rename_database("oldname", "newname")
 
 
 # ---------------------------------------------------------------------------
