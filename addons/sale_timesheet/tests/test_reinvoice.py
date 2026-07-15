@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import timedelta
 
-from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
-
 from odoo.fields import Date
 from odoo.tests import Form, tagged
+
+from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 
 
 @tagged('-at_install', 'post_install')
@@ -142,8 +141,8 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_b = move_form.save()
         invoice_b.action_post()
 
-        sale_order_line5 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line1 and sol != sale_order_line3 and sol.product_id == self.company_data['product_order_cost'])
-        sale_order_line6 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line2 and sol != sale_order_line4 and sol.product_id == self.company_data['product_delivery_cost'])
+        sale_order_line5 = self.sale_order.line_ids.filtered(lambda sol: sol not in (sale_order_line1, sale_order_line3) and sol.product_id == self.company_data['product_order_cost'])
+        sale_order_line6 = self.sale_order.line_ids.filtered(lambda sol: sol not in (sale_order_line2, sale_order_line4) and sol.product_id == self.company_data['product_delivery_cost'])
 
         self.assertTrue(sale_order_line5, "A new sale line should have been created with ordered product")
         self.assertTrue(sale_order_line6, "A new sale line should have been created with delivered product")
@@ -236,8 +235,8 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_b = move_form.save()
         invoice_b.action_post()
 
-        sale_order_line5 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line1 and sol != sale_order_line3 and sol.product_id == self.company_data['product_delivery_sales_price'])
-        sale_order_line6 = self.sale_order.line_ids.filtered(lambda sol: sol != sale_order_line2 and sol != sale_order_line4 and sol.product_id == self.company_data['product_order_sales_price'])
+        sale_order_line5 = self.sale_order.line_ids.filtered(lambda sol: sol not in (sale_order_line1, sale_order_line3) and sol.product_id == self.company_data['product_delivery_sales_price'])
+        sale_order_line6 = self.sale_order.line_ids.filtered(lambda sol: sol not in (sale_order_line2, sale_order_line4) and sol.product_id == self.company_data['product_order_sales_price'])
 
         self.assertFalse(sale_order_line5, "No new sale line should have been created with delivered product !!")
         self.assertTrue(sale_order_line6, "A new sale line should have been created with ordered product")
