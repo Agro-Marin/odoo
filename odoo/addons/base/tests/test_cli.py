@@ -340,7 +340,7 @@ class TestCommand(BaseCase):
     def test_db_duplicate_checks_source_before_drop(self):
         """`db duplicate missing_src tgt --force` must abort before the
         target is dropped — the source check used to happen inside
-        exp_duplicate_database, after the drop."""
+        _duplicate_database, after the drop."""
         from odoo.cli import db as dbmod
 
         calls = []
@@ -352,7 +352,7 @@ class TestCommand(BaseCase):
             ),
             mock.patch.object(
                 dbmod,
-                "exp_duplicate_database",
+                "_duplicate_database",
                 lambda *a, **k: calls.append("duplicate"),
             ),
         ):

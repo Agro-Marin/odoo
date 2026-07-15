@@ -16,11 +16,11 @@ from ..db import db_connect
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
     _drop_database,
+    _duplicate_database,
+    _rename_database,
     dump_db,
     exp_create_database,
     exp_db_exist,
-    exp_duplicate_database,
-    exp_rename,
     restore_db,
 )
 from ..tools import config
@@ -380,7 +380,10 @@ class Db(Command):
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_if_exists(args.target)
-        exp_duplicate_database(
+        # _duplicate_database, not exp_duplicate_database: this CLI is local
+        # trusted tooling, not the RPC surface the exposed-databases allowlist
+        # gate exists to protect. Same reasoning as drop()/_drop_if_exists.
+        _duplicate_database(
             args.source, args.target, neutralize_database=args.neutralize
         )
 
@@ -388,7 +391,8 @@ class Db(Command):
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_if_exists(args.target)
-        exp_rename(args.source, args.target)
+        # _rename_database, not exp_rename — same reasoning as duplicate() above.
+        _rename_database(args.source, args.target)
         if args.neutralize:
             with db_connect(args.target).cursor() as cr:
                 neutralize_database(cr)
