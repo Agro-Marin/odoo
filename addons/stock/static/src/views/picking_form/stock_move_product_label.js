@@ -10,11 +10,12 @@ export class MoveProductLabelField extends ProductNameAndDescriptionField {
     get label() {
         const record = this.props.record.data;
         let label = record[this.descriptionColumn];
-        const productName = record.product_id.display_name;
-        if (label === productName) {
+        // Use the base productName getter (bound field, `|| ""` guarded) rather
+        // than hardcoding product_id, so this works on any product column.
+        if (label === this.productName) {
             label = "";
         }
-        return label.trim();
+        return (label || "").trim();
     }
     get isDescriptionReadonly() {
         return this.props.readonly && ["done", "cancel"].includes(this.props.record.evalContext.parent.state);

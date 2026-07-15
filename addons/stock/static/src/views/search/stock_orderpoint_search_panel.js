@@ -15,12 +15,15 @@ export class StockOrderpointSearchPanel extends SearchPanel {
     }
 
     async getHorizonParameter() {
-        let res = await this.orm.call("stock.warehouse.orderpoint", "get_horizon_days", [0]);
-        this.globalHorizonDays.value = Math.abs(parseInt(res)) || 0;
+        // Pass an empty recordset ([[]]), not browse(0): get_horizon_days is not
+        // @api.model and reads self.company_id (matches get_current_warehouses).
+        const res = await this.orm.call("stock.warehouse.orderpoint", "get_horizon_days", [[]]);
+        // Clamp to >= 0, consistent with applyGlobalHorizonDays below.
+        this.globalHorizonDays.value = Math.max(parseInt(res, 10) || 0, 0);
     }
 
     async applyGlobalHorizonDays(ev) {
-        this.globalHorizonDays.value = Math.max(parseInt(ev.target.value || 0), 0);
+        this.globalHorizonDays.value = Math.max(parseInt(ev.target.value, 10) || 0, 0);
         await this.env.searchModel.applyGlobalHorizonDays(this.globalHorizonDays.value);
     }
 }

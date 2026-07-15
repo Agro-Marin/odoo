@@ -86,7 +86,11 @@ export class ReceptionReportTable extends Component {
     }
 
     get isAssignAllDisabled() {
-        return this.props.lines.every(line => line.is_assigned);
+        // Disabled when no line is actually assignable — mirror the skip
+        // condition in onClickAssignAll (assigned OR not qty-assignable),
+        // otherwise a table of non-assignable lines shows an enabled button
+        // that assigns nothing.
+        return this.props.lines.every(line => line.is_assigned || !line.is_qty_assignable);
     }
 
     get isPrintLabelDisabled() {
