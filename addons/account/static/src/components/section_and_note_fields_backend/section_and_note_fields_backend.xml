@@ -32,8 +32,8 @@
  onSelected="() => this.toggleCollapse(record, 'collapse_prices')"
  attrs="{ 'class': disablePricesButton ? 'disabled' : '' }"
  >
- <i class="me-1 fa-solid " t-att-class="hidePrices ? 'fa-eye' : 'fa-eye-slash'"/>
- <span t-if="hidePrices">Show Prices</span>
+ <i class="me-1 fa-solid " t-att-class="isPriceCollapsed ? 'fa-eye' : 'fa-eye-slash'"/>
+ <span t-if="isPriceCollapsed">Show Prices</span>
  <span t-else="">Hide Prices</span>
  </DropdownItem>
  <t t-name="composition_button">
@@ -42,8 +42,8 @@
  onSelected="() => this.toggleCollapse(record, 'collapse_composition')"
  attrs="{ 'class': disableCompositionButton ? 'disabled' : '' }"
  >
- <i class="me-1 fa-solid " t-att-class="hideComposition ? 'fa-eye' : 'fa-eye-slash'"/>
- <span t-if="hideComposition">Show Composition</span>
+ <i class="me-1 fa-solid " t-att-class="isCompositionCollapsed ? 'fa-eye' : 'fa-eye-slash'"/>
+ <span t-if="isCompositionCollapsed">Show Composition</span>
  <span t-else="">Hide Composition</span>
  </DropdownItem>
  </t>
