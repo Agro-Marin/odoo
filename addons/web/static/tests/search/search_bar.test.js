@@ -2118,3 +2118,25 @@ test("search on full query without waiting for display synchronisation", async (
     await keyDown("Enter");
     expect(searchBar.env.searchModel.domain).toEqual([["foo", "ilike", "0123456"]]);
 });
+
+test.tags("desktop");
+test("typing right after opening the search menu keeps focus in the input", async () => {
+    // Clicking the empty search input opens the SearchBarMenu; the first
+    // keystroke closes it again (onSearchInput). That close must not steal
+    // focus from the input mid-typing — "one character per click" (t23947).
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["filter", "groupBy", "favorite"],
+        searchViewId: false,
+    });
+
+    await click("input.o_searchview_input");
+    await animationFrame();
+    expect(".o_search_bar_menu").toHaveCount(1);
+
+    await editSearch("ab");
+    await animationFrame();
+    expect(".o_search_bar_menu").toHaveCount(0);
+    expect("input.o_searchview_input").toBeFocused();
+    expect("input.o_searchview_input").toHaveValue("ab");
+});
