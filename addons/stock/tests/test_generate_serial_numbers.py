@@ -3,6 +3,58 @@ from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, new_test_user
 
 
+class TestGenerateLotNames(TransactionCase):
+    """Focused unit tests for `stock.lot.generate_lot_names`, the pure string/re
+    series generator behind serial-number generation. It was previously exercised
+    only through full confirmed moves; these call it directly (no move machinery)
+    so the fiddly increment/padding/fallback edge cases are pinned cheaply.
+    """
+
+    def _names(self, base, count):
+        return [
+            d["lot_name"]
+            for d in self.env["stock.lot"].generate_lot_names(base, count)
+        ]
+
+    def test_basic_increment(self):
+        self.assertEqual(self._names("sn1", 3), ["sn1", "sn2", "sn3"])
+
+    def test_zero_padding_preserved(self):
+        self.assertEqual(self._names("sn05", 3), ["sn05", "sn06", "sn07"])
+
+    def test_padding_grows_on_overflow(self):
+        # padding=2; once the counter needs 3 digits, zfill(2) is a no-op and the
+        # width grows naturally rather than truncating.
+        self.assertEqual(
+            self._names("sn98", 4), ["sn98", "sn99", "sn100", "sn101"]
+        )
+        self.assertEqual(
+            self._names("098", 5), ["098", "099", "100", "101", "102"]
+        )
+
+    def test_suffix_after_number_is_kept(self):
+        self.assertEqual(
+            self._names("SN0001-A", 2), ["SN0001-A", "SN0002-A"]
+        )
+
+    def test_only_last_number_group_increments(self):
+        # BAV023B00001S00001: several digit groups; only the trailing one is the
+        # series counter, the earlier ones are frozen into the prefix.
+        self.assertEqual(
+            self._names("BAV023B00001S00001", 3),
+            ["BAV023B00001S00001", "BAV023B00001S00002", "BAV023B00001S00003"],
+        )
+
+    def test_no_digit_appends_zero_seed(self):
+        self.assertEqual(self._names("ABC", 3), ["ABC0", "ABC1", "ABC2"])
+
+    def test_non_ascii_prefix(self):
+        self.assertEqual(self._names("SN°9", 2), ["SN°9", "SN°10"])
+
+    def test_zero_count_is_empty(self):
+        self.assertEqual(self._names("sn1", 0), [])
+
+
 class StockGenerateCommon(TransactionCase):
     @classmethod
     def setUpClass(cls):
