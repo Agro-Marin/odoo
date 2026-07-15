@@ -4,8 +4,8 @@ import { patch } from "@web/core/utils/patch";
 import { _t } from "@web/core/l10n/translation";
 
 patch(ProductCatalogKanbanController.prototype, {
-    get stateFiels() {
-        return this.orderResModel === "account.move" ? ["state", "move_type"] : super.stateFiels;
+    get stateFields() {
+        return this.orderResModel === "account.move" ? ["state", "move_type"] : super.stateFields;
     },
 
     _defineButtonContent() {
