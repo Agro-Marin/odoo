@@ -86,6 +86,9 @@ This module contains all the common features of Sales Management and eCommerce.
         "web.assets_unit_tests": [
             "sale/static/tests/mock_server/**/*",
             "sale/static/tests/sale_test_helpers.js",
+            # Interactions are frontend assets; include them so the public
+            # interaction tests (portal_prepayment) can start them under Hoot.
+            "sale/static/src/interactions/**/*",
             "sale/static/tests/**/*.test.js",
         ],
         "web.report_assets_common": [

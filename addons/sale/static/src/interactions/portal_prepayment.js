@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+import { computeIsDownPayment } from "./portal_prepayment_utils.js";
 
 export class PortalPrepayment extends Interaction {
     static selector = ".o_portal_sale_sidebar";
@@ -27,28 +28,23 @@ export class PortalPrepayment extends Interaction {
     };
 
     setup() {
-        this.amountPrepaymentButton = document.querySelector(
+        this.amountPrepaymentButton = this.el.querySelector(
             'button[name="o_sale_portal_amount_prepayment_button"]'
         );
-        this.amountTotalButton = document.querySelector(
+        this.amountTotalButton = this.el.querySelector(
             'button[name="o_sale_portal_amount_total_button"]'
         );
         const params = new URLSearchParams(window.location.search);
-        if (params.has('amount_selection')) {
-           this.isDownPayment = params.get('amount_selection') === 'down_payment'
-        } else if (params.has('payment_amount')) {
-            const paymentAmount = params.get('payment_amount');
-            this.isDownPayment = Number(paymentAmount) < Number(this.el.dataset.orderAmountTotal);
-        } else {
-            this.isDownPayment = true;
-        }
+        this.isDownPayment = computeIsDownPayment(
+            params, Number(this.el.dataset.orderAmountTotal)
+        );
         this.showPaymentModal = params.has('payment_amount') || params.has('amount_selection');
     }
 
     start() {
         // When updating the amount re-open the modal.
         if (this.showPaymentModal) {
-            document.querySelector("#o_sale_portal_paynow")?.click();
+            this.el.querySelector("#o_sale_portal_paynow")?.click();
         }
     }
 
