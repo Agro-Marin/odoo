@@ -19,6 +19,61 @@ class TestRobustness(TransactionCase):
             }
         )
 
+    def test_create_done_line_frees_over_reservation(self):
+        """Directly creating a *done* move line that forces the source quant
+        negative must free the now-invalid reservations pointing at it -- exactly
+        as write() and _action_done already do. Regression: the create() path
+        discarded _apply_quant_move()'s return value, so the over-reservation was
+        never released, leaving phantom (double) reservations and a wrong forecast.
+        """
+        Quant = self.env["stock.quant"]
+        Quant._update_available_quantity(self.product1, self.stock_location, 10.0)
+
+        # Reserve all 10 with a delivery move.
+        move = self.env["stock.move"].create(
+            {
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "product_id": self.product1.id,
+                "product_uom_id": self.uom_unit.id,
+                "product_uom_qty": 10.0,
+            }
+        )
+        move._action_confirm()
+        move._action_assign()
+        self.assertEqual(move.state, "assigned")
+        quant = Quant._gather(self.product1, self.stock_location, strict=True)
+        self.assertEqual(quant.reserved_quantity, 10.0)
+
+        # A done move line consumes 6 straight out of stock, bypassing reservation
+        # (e.g. an inventory loss). This drives available to 4 - 10 = -6.
+        loss_move = self.env["stock.move"].create(
+            {
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "product_id": self.product1.id,
+                "product_uom_id": self.uom_unit.id,
+                "product_uom_qty": 0.0,
+                "state": "done",
+            }
+        )
+        self.env["stock.move.line"].create(
+            {
+                "move_id": loss_move.id,
+                "product_id": self.product1.id,
+                "product_uom_id": self.uom_unit.id,
+                "quantity": 6.0,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            }
+        )
+
+        quant.invalidate_recordset(["quantity", "reserved_quantity"])
+        self.assertEqual(quant.quantity, 4.0)
+        # The 6 units of now-invalid reservation must have been freed (10 -> 4),
+        # keeping available non-negative rather than a phantom -6.
+        self.assertEqual(quant.reserved_quantity, 4.0)
+
     def test_uom_factor(self):
         """Changing the factor of a unit of measure shouldn't be allowed while
         quantities are reserved, else the existing move lines won't be consistent
