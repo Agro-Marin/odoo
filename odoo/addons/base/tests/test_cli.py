@@ -295,7 +295,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(dbmod, "exp_db_exist", lambda db: True),
                 mock.patch.object(
-                    dbmod, "exp_drop", lambda db: calls.append("drop") or True
+                    dbmod, "_drop_database", lambda db: calls.append("drop") or True
                 ),
                 mock.patch.object(
                     dbmod, "restore_db", lambda **kw: calls.append("restore")
@@ -306,7 +306,13 @@ class TestCommand(BaseCase):
         self.assertEqual(calls, [], msg=f"target dropped before validation: {calls}")
 
     def test_db_load_force_drops_after_validation(self):
-        """The happy path must still work: valid zip -> drop -> restore."""
+        """The happy path must still work: valid zip -> drop -> restore.
+
+        ``_drop_if_exists`` calls ``_drop_database`` directly, not ``exp_drop``
+        (t23746/EO7.9.11, A3 HIGH) — the CLI is local trusted tooling and must
+        not be silently blocked by ``exp_drop``'s exposed-databases allowlist
+        gate, which exists to protect the RPC entry point instead. Mock the
+        function actually called, not the RPC-facing one."""
         import zipfile as zipfile_mod
 
         from odoo.cli import db as dbmod
@@ -322,7 +328,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(dbmod, "exp_db_exist", lambda db: True),
                 mock.patch.object(
-                    dbmod, "exp_drop", lambda db: calls.append("drop") or True
+                    dbmod, "_drop_database", lambda db: calls.append("drop") or True
                 ),
                 mock.patch.object(
                     dbmod, "restore_db", lambda **kw: calls.append("restore")
@@ -342,7 +348,7 @@ class TestCommand(BaseCase):
         with (
             mock.patch.object(dbmod, "exp_db_exist", lambda db: db != "missing_src"),
             mock.patch.object(
-                dbmod, "exp_drop", lambda db: calls.append("drop") or True
+                dbmod, "_drop_database", lambda db: calls.append("drop") or True
             ),
             mock.patch.object(
                 dbmod,
@@ -354,6 +360,27 @@ class TestCommand(BaseCase):
                 dbmod.Db().duplicate(ns)
         self.assertEqual(calls, [])
         self.assertIn("missing_src", str(ctx.exception.code))
+
+    def test_db_drop_calls_drop_database_not_exp_drop(self):
+        """`db drop <name>` must call `_drop_database` (local trusted CLI),
+        not `exp_drop` (RPC-gated, refuses anything outside the exposed
+        allowlist) — the two must stay consistent with `load/duplicate/rename
+        --force`, which already route through `_drop_database`."""
+        from odoo.cli import db as dbmod
+
+        with mock.patch.object(dbmod, "_drop_database", return_value=True) as drop_mock:
+            dbmod.Db().drop(mock.Mock(database="mydb"))
+        drop_mock.assert_called_once_with("mydb")
+
+    def test_db_drop_reports_missing_database(self):
+        """The happy-path exit message must still fire when the database is
+        genuinely absent (`_drop_database` returns False)."""
+        from odoo.cli import db as dbmod
+
+        with mock.patch.object(dbmod, "_drop_database", return_value=False):
+            with self.assertRaises(SystemExit) as ctx:
+                dbmod.Db().drop(mock.Mock(database="missing"))
+        self.assertIn("missing", str(ctx.exception.code))
 
     def test_db_connection_flag_map_covers_all_flags(self):
         """The dest->flag map is derived from _CONNECTION_FLAGS; every
