@@ -117,6 +117,16 @@ export class Thread extends Record {
         return false;
     }
     /**
+     * Whether this thread is a mailbox (Inbox / Starred / History) — the
+     * pseudo-threads backing the discuss "notification" views, keyed under the
+     * `mail.box` model. Named seam so callers don't hard-code the model string.
+     *
+     * @returns {boolean}
+     */
+    get isMailbox() {
+        return this.model === "mail.box";
+    }
+    /**
      * Whether this thread is strictly a 1:1 (or self) direct chat, excluding
      * group chats and specialized chat-like kinds (livechat, whatsapp, ...).
      * Neutral default: false; overridden by the discuss layer.
@@ -229,7 +239,7 @@ export class Thread extends Record {
      * @returns {number}
      */
     get importantCounter() {
-        if (this.model === "mail.box") {
+        if (this.isMailbox) {
             return this.counter;
         }
         return this.message_needaction_counter;
@@ -584,7 +594,7 @@ export class Thread extends Record {
      * @returns {boolean}
      */
     get canFetchMessages() {
-        return this.model === "mail.box" || Boolean(this.id);
+        return this.isMailbox || Boolean(this.id);
     }
 
     /** @param {{after: Number, before: Number}} */
@@ -702,7 +712,7 @@ export class Thread extends Record {
      * @returns {boolean}
      */
     get busKeepsMessagesFresh() {
-        return this.model === "mail.box";
+        return this.isMailbox;
     }
 
     async fetchNewMessages() {
@@ -767,7 +777,7 @@ export class Thread extends Record {
     }
 
     getFetchParams() {
-        if (this.model === "mail.box") {
+        if (this.isMailbox) {
             return {};
         }
         return {
@@ -778,13 +788,13 @@ export class Thread extends Record {
     }
 
     getFetchRoute() {
-        if (this.model === "mail.box" && this.id === "inbox") {
+        if (this.isMailbox && this.id === "inbox") {
             return `/mail/inbox/messages`;
         }
-        if (this.model === "mail.box" && this.id === "starred") {
+        if (this.isMailbox && this.id === "starred") {
             return `/mail/starred/messages`;
         }
-        if (this.model === "mail.box" && this.id === "history") {
+        if (this.isMailbox && this.id === "history") {
             return `/mail/history/messages`;
         }
         return this.fetchRouteChatter;
@@ -1128,7 +1138,10 @@ export class Thread extends Record {
         for (const message of this.transientMessages) {
             if (message.id < this.oldestPersistentMessage?.id && !this.loadOlder) {
                 this.messages.unshift(message);
-            } else if (message.id > this.newestPersistentMessage?.id && !this.loadNewer) {
+            } else if (
+                message.id > this.newestPersistentMessage?.id &&
+                !this.loadNewer
+            ) {
                 this.messages.push(message);
             } else {
                 let afterIndex = this.messages.findIndex((msg) => msg.id > message.id);
