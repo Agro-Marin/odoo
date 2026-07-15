@@ -126,11 +126,30 @@ export class TestsSharedJsPython extends Component {
                 base_lines_tax_details: this.extractBaseLinesDetails(document),
             };
         }
+        // Fail loudly rather than returning undefined (which serializes to null and
+        // surfaces Python-side as a cryptic `NoneType` error much later).
+        throw new Error(`Unknown JS/Python shared test: ${params.test}`);
     }
 
     async processTests() {
         const tests = this.props.tests || [];
-        const results = tests.map(this.processTest.bind(this));
+        // Catch per-test so one throwing case is reported back to Python (with its
+        // message + stack) instead of aborting processTests — which would leave
+        // `done` false and make the tour time out with no diagnostic.
+        const results = tests.map((params, index) => {
+            try {
+                return this.processTest(params);
+            } catch (error) {
+                console.error(
+                    `[tests_shared_js_python] test #${index} (${params?.test}) threw:`,
+                    error,
+                );
+                return {
+                    error: `${error?.message ?? error}`,
+                    error_stack: `${error?.stack ?? ""}`,
+                };
+            }
+        });
         await rpc("/account/post_tests_shared_js_python", { results: results });
         this.state.done = true;
     }
