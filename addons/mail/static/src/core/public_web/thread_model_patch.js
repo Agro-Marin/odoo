@@ -28,7 +28,7 @@ patch(Thread.prototype, {
                 (this.channel_type === "channel" &&
                     (channel_notifications === "all" ||
                         (channel_notifications === "mentions" &&
-                            message.partner_ids?.includes(this.store.self)))))
+                            message.isSelfMentioned))))
         ) {
             if (this.model === "discuss.channel" && this.inChathubOnNewMessage) {
                 await this.store.chatHub.initPromise;

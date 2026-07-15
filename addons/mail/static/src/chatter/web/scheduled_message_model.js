@@ -21,6 +21,8 @@ export class ScheduledMessage extends Record {
     scheduled_date = fields.Datetime();
     /** @type {boolean} */
     is_note;
+    /** @type {string} sent by the server in _to_store_defaults; rendered in the UI */
+    subject;
     textContent = fields.Attr(false, {
         compute() {
             if (!this.body) {
@@ -45,7 +47,7 @@ export class ScheduledMessage extends Record {
 
     get isSubjectThreadName() {
         return (
-            this.thread.display_name?.trim().toLowerCase() ===
+            this.thread?.display_name?.trim().toLowerCase() ===
             this.subject?.trim().toLowerCase()
         );
     }
