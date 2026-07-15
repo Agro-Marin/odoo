@@ -531,6 +531,76 @@ test("opening a dropdown over another restores focus to its own toggler", async 
 });
 
 test.tags("desktop");
+test("programmatic close does not steal focus from an editable outside the dropdown", async () => {
+    class DropdownWithOutsideInput extends Component {
+        static components = { Dropdown, DropdownItem };
+        static props = [];
+        static template = xml`
+            <input class="outside-input"/>
+            <Dropdown state="dropdownState">
+                <button>Dropdown</button>
+                <t t-set-slot="content">
+                    <DropdownItem class="'item-a'">Item A</DropdownItem>
+                </t>
+            </Dropdown>
+        `;
+        setup() {
+            this.dropdownState = useDropdownState();
+        }
+    }
+    const comp = await mountWithCleanup(DropdownWithOutsideInput);
+
+    await click(DROPDOWN_TOGGLE);
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+    expect(DROPDOWN_TOGGLE).toBeFocused();
+
+    // The user moves on to type somewhere else (e.g. the search input).
+    queryOne("input.outside-input").focus();
+    expect("input.outside-input").toBeFocused();
+
+    // Something closes the dropdown programmatically (e.g. SearchBar's
+    // onSearchInput closing the SearchBarMenu on the first keystroke,
+    // t23947): the close must NOT yank focus away from the editable.
+    comp.dropdownState.close();
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(0);
+    expect("input.outside-input").toBeFocused();
+});
+
+test.tags("desktop");
+test("closing with focus on an editable inside the dropdown refocuses the toggler", async () => {
+    class DropdownWithInsideInput extends Component {
+        static components = { Dropdown, DropdownItem };
+        static props = [];
+        static template = xml`
+            <Dropdown state="dropdownState">
+                <button>Dropdown</button>
+                <t t-set-slot="content">
+                    <input class="inside-input"/>
+                </t>
+            </Dropdown>
+        `;
+        setup() {
+            this.dropdownState = useDropdownState();
+        }
+    }
+    const comp = await mountWithCleanup(DropdownWithInsideInput);
+
+    await click(DROPDOWN_TOGGLE);
+    await animationFrame();
+    queryOne("input.inside-input").focus();
+    expect("input.inside-input").toBeFocused();
+
+    // An editable INSIDE the closing menu is about to be unmounted: the
+    // focus restore to the toggler must still happen (guard boundary).
+    comp.dropdownState.close();
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(0);
+    expect(DROPDOWN_TOGGLE).toBeFocused();
+});
+
+test.tags("desktop");
 test("navigationProps changes navigation behaviour", async () => {
     class Parent extends SimpleDropdown {
         setup() {
