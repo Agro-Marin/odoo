@@ -548,112 +548,6 @@ class StockMove(models.Model):
             self._set_references()
         return res
 
-    def _check_write_vals(self, vals):
-        """Validate `vals` before writing; return it, reordered if needed."""
-        if "quantity" in vals:
-            if any(move.state == "cancel" for move in self):
-                raise UserError(
-                    _(
-                        "You cannot change a cancelled stock move, create a new line instead.",
-                    ),
-                )
-            if "lot_ids" in vals:
-                # `lot_ids` must be applied before `quantity`: the `lot_ids`
-                # inverse rewrites the move lines, so applying `quantity` first
-                # would be undone by it. Move `lot_ids` to the front of `vals`
-                # explicitly (inverses run in key order) rather than relying on
-                # `lot_ids` happening to sort alphabetically before `quantity`.
-                vals = {"lot_ids": vals["lot_ids"], **vals}
-        if (
-            "product_uom_id" in vals
-            and any(move.state == "done" for move in self)
-            and not self.env.context.get("skip_uom_conversion")
-        ):
-            raise UserError(
-                _(
-                    "You cannot change the UoM for a stock move that has been set to 'Done'.",
-                ),
-            )
-        return vals
-
-    def _on_demand_change(self, vals):
-        """Log the demand change and unreserve moves whose reservation now
-        exceeds the new demand. Runs before the write, on the old quantities.
-
-        :return: (receipt moves to re-assign after the write,
-                  moves whose state must be recomputed after the write)
-        """
-        new_qty = vals["product_uom_qty"]
-        for move in self.filtered(
-            lambda m: m.state not in ("done", "draft") and m.picking_id,
-        ):
-            if move.product_uom_id.compare(new_qty, move.product_uom_qty):
-                self.env["stock.move.line"]._log_message(
-                    move.picking_id,
-                    move,
-                    "stock.track_move_template",
-                    vals,
-                )
-        if self.env.context.get("do_not_unreserve"):
-            return self.browse(), self.browse()
-        move_to_unreserve = self.filtered(
-            lambda m: (
-                m.state not in ["draft", "done", "cancel"]
-                and m.product_uom_id.compare(m.quantity, new_qty) == 1
-            ),
-        )
-        move_to_unreserve._do_unreserve()
-        (self - move_to_unreserve).filtered(
-            lambda m: m.state == "assigned",
-        ).write({"state": "partially_available"})
-        # When editing the initial demand, directly run again action assign on receipt moves.
-        receipt_moves_to_reassign = move_to_unreserve.filtered(
-            lambda m: m.location_id.usage == "supplier",
-        )
-        receipt_moves_to_reassign |= (self - move_to_unreserve).filtered(
-            lambda m: (
-                m.location_id.usage == "supplier"
-                and m.state in ("partially_available", "assigned")
-            ),
-        )
-        move_to_recompute_state = self - move_to_unreserve - receipt_moves_to_reassign
-        return receipt_moves_to_reassign, move_to_recompute_state
-
-    def _on_source_location_change(self):
-        """Called after a write changed the moves' source location: drop the
-        move lines whose own source is no longer under it and detach the
-        moves from their origin chain.
-
-        :return: the moves that must be re-assigned
-        """
-        mls_to_unlink = self.move_line_ids.filtered(
-            lambda ml: not ml.location_id._child_of(ml.move_id.location_id),
-        )
-        if not mls_to_unlink:
-            return self.browse()
-        # Only reset the moves that actually lost a line: a batched write applies
-        # the same source location to every move in `self`, but a sibling whose
-        # lines are still under the new location must keep its chain/procure
-        # method untouched (upstream reset the whole batch indiscriminately).
-        affected = mls_to_unlink.move_id
-        affected.procure_method = "make_to_stock"
-        affected.move_orig_ids = [Command.clear()]
-        mls_to_unlink.unlink()
-        return affected
-
-    def _sync_warehouse_from_locations(self):
-        """Realign `warehouse_id` with the warehouse of the (new) locations."""
-        wh_by_moves = defaultdict(self.env["stock.move"].browse)
-        for move in self:
-            move_warehouse = (
-                move.location_id.warehouse_id or move.location_dest_id.warehouse_id
-            )
-            if move_warehouse == move.warehouse_id:
-                continue
-            wh_by_moves[move_warehouse] |= move
-        for warehouse, moves in wh_by_moves.items():
-            moves.warehouse_id = warehouse.id
-
     def unlink(self):
         # With the non plannified picking, draft moves could have some move lines.
         self.with_context(prefetch_fields=False).mapped("move_line_ids").unlink()
@@ -3642,6 +3536,71 @@ Please change the quantity done or the rounding precision in your settings.""",
                 moves_to_cancel |= pos_move
         return merged_moves, moves_to_unlink, moves_to_cancel
 
+    def _on_demand_change(self, vals):
+        """Log the demand change and unreserve moves whose reservation now
+        exceeds the new demand. Runs before the write, on the old quantities.
+
+        :return: (receipt moves to re-assign after the write,
+                  moves whose state must be recomputed after the write)
+        """
+        new_qty = vals["product_uom_qty"]
+        for move in self.filtered(
+            lambda m: m.state not in ("done", "draft") and m.picking_id,
+        ):
+            if move.product_uom_id.compare(new_qty, move.product_uom_qty):
+                self.env["stock.move.line"]._log_message(
+                    move.picking_id,
+                    move,
+                    "stock.track_move_template",
+                    vals,
+                )
+        if self.env.context.get("do_not_unreserve"):
+            return self.browse(), self.browse()
+        move_to_unreserve = self.filtered(
+            lambda m: (
+                m.state not in ["draft", "done", "cancel"]
+                and m.product_uom_id.compare(m.quantity, new_qty) == 1
+            ),
+        )
+        move_to_unreserve._do_unreserve()
+        (self - move_to_unreserve).filtered(
+            lambda m: m.state == "assigned",
+        ).write({"state": "partially_available"})
+        # When editing the initial demand, directly run again action assign on receipt moves.
+        receipt_moves_to_reassign = move_to_unreserve.filtered(
+            lambda m: m.location_id.usage == "supplier",
+        )
+        receipt_moves_to_reassign |= (self - move_to_unreserve).filtered(
+            lambda m: (
+                m.location_id.usage == "supplier"
+                and m.state in ("partially_available", "assigned")
+            ),
+        )
+        move_to_recompute_state = self - move_to_unreserve - receipt_moves_to_reassign
+        return receipt_moves_to_reassign, move_to_recompute_state
+
+    def _on_source_location_change(self):
+        """Called after a write changed the moves' source location: drop the
+        move lines whose own source is no longer under it and detach the
+        moves from their origin chain.
+
+        :return: the moves that must be re-assigned
+        """
+        mls_to_unlink = self.move_line_ids.filtered(
+            lambda ml: not ml.location_id._child_of(ml.move_id.location_id),
+        )
+        if not mls_to_unlink:
+            return self.browse()
+        # Only reset the moves that actually lost a line: a batched write applies
+        # the same source location to every move in `self`, but a sibling whose
+        # lines are still under the new location must keep its chain/procure
+        # method untouched (upstream reset the whole batch indiscriminately).
+        affected = mls_to_unlink.move_id
+        affected.procure_method = "make_to_stock"
+        affected.move_orig_ids = [Command.clear()]
+        mls_to_unlink.unlink()
+        return affected
+
     def _post_process_created_moves(self):
         """Hook for moves auto-created alongside move lines (e.g. via the barcode app)
         that bypass `_action_confirm` and so never run its post-creation logic.
@@ -4414,6 +4373,19 @@ Please change the quantity done or the rounding precision in your settings.""",
         # These new SMLs need to be redirected thanks to putaway rules
         (self.move_line_ids - existing_smls)._apply_putaway_strategy()
 
+    def _sync_warehouse_from_locations(self):
+        """Realign `warehouse_id` with the warehouse of the (new) locations."""
+        wh_by_moves = defaultdict(self.env["stock.move"].browse)
+        for move in self:
+            move_warehouse = (
+                move.location_id.warehouse_id or move.location_dest_id.warehouse_id
+            )
+            if move_warehouse == move.warehouse_id:
+                continue
+            wh_by_moves[move_warehouse] |= move
+        for warehouse, moves in wh_by_moves.items():
+            moves.warehouse_id = warehouse.id
+
     def _trigger_scheduler(self):
         """Check for auto-triggered orderpoints and trigger them."""
         if not self or self.env["ir.config_parameter"].sudo().get_param(
@@ -4715,6 +4687,34 @@ Please change the quantity done or the rounding precision in your settings.""",
             )
             .check_quantity()
         )
+
+    def _check_write_vals(self, vals):
+        """Validate `vals` before writing; return it, reordered if needed."""
+        if "quantity" in vals:
+            if any(move.state == "cancel" for move in self):
+                raise UserError(
+                    _(
+                        "You cannot change a cancelled stock move, create a new line instead.",
+                    ),
+                )
+            if "lot_ids" in vals:
+                # `lot_ids` must be applied before `quantity`: the `lot_ids`
+                # inverse rewrites the move lines, so applying `quantity` first
+                # would be undone by it. Move `lot_ids` to the front of `vals`
+                # explicitly (inverses run in key order) rather than relying on
+                # `lot_ids` happening to sort alphabetically before `quantity`.
+                vals = {"lot_ids": vals["lot_ids"], **vals}
+        if (
+            "product_uom_id" in vals
+            and any(move.state == "done" for move in self)
+            and not self.env.context.get("skip_uom_conversion")
+        ):
+            raise UserError(
+                _(
+                    "You cannot change the UoM for a stock move that has been set to 'Done'.",
+                ),
+            )
+        return vals
 
     def _is_consuming(self):
         self.ensure_one()
