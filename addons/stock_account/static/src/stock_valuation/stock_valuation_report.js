@@ -31,10 +31,6 @@ export class StockValuationReport extends Component {
 
     setup() {
         this.controller = useState(new StockValuationReportController(this.props.action));
-        this.state = useState({
-            displayInventoryValuationLine: false,
-        })
-        this.orm = useService("orm");
         this.actionService = useService("action");
         this._t = _t;
 
@@ -62,24 +58,6 @@ export class StockValuationReport extends Component {
     // Getters -----------------------------------------------------------------
     get data() {
         return this.controller.data || {};
-    }
-
-    get accountingStockValuation() {
-        return this.formatMonetary(this.data.accounting_stock_valuation);
-    }
-
-    get inventoryValuation() {
-        return formatMonetary(this.data.inventory_valuation.value, {
-            currencyId: this.data.currency_id,
-        });
-    }
-
-    get stockInitial() {
-        return this.formatMonetary(this.data.stock_initial);
-    }
-
-    get stockVariation() {
-        return this.formatMonetary(this.data.stock_variation);
     }
 
     // On Click Methods --------------------------------------------------------
@@ -134,10 +112,6 @@ export class StockValuationReport extends Component {
             "stock.action_product_stock_view",
             { additionalContext }
         );
-    }
-
-    toggleInventoryValuationFold() {
-        this.state.displayInventoryValuationLine = !this.state.displayInventoryValuationLine;
     }
 }
 

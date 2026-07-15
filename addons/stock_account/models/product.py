@@ -7,25 +7,23 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, split_every
 
+from odoo.addons.stock_account.models.constants import (
+    COST_METHOD_SELECTION,
+    VALUATION_SELECTION,
+)
+
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
     cost_method = fields.Selection(
         string="Cost Method",
-        selection=[
-            ('standard', "Standard Price"),
-            ('fifo', "First In First Out (FIFO)"),
-            ('average', "Average Cost (AVCO)"),
-        ],
+        selection=COST_METHOD_SELECTION,
         compute='_compute_cost_method',
     )
     valuation = fields.Selection(
         string="Valuation",
-        selection=[
-            ('periodic', 'Periodic (at closing)'),
-            ('real_time', 'Perpetual (at invoicing)'),
-        ],
+        selection=VALUATION_SELECTION,
         compute='_compute_valuation', search='_search_valuation',
     )
     lot_valuated = fields.Boolean(
@@ -231,7 +229,10 @@ class ProductProduct(models.Model):
             ).mapped('total_value')
             for product, lots in lots_by_product:
                 value = sum(lots.mapped('total_value'))
-                std_price_by_product_id[product.id] = value / product.qty_available if product.qty_available else product.standard_price
+                qty = product.qty_available
+                std_price_by_product_id[product.id] = (
+                    value / qty if not product.uom_id.is_zero(qty) else product.standard_price
+                )
                 total_value_by_product_id[product.id] = value
 
         product_ids_grouped_by_cost_method = defaultdict(set)
@@ -308,7 +309,12 @@ class ProductProduct(models.Model):
         product_ids_lot_valuated = set()
         date = self.env.context.get('valuation_date') or fields.Datetime.now()
         for product in self:
-            if product.cost_method == 'fifo' or product.standard_price == old_price.get(product):
+            # Default the previous price to 0 (the field default) so that a product
+            # created at a 0 standard price does not record a spurious "0 -> 0" history
+            # row. Such a row (dated datetime.min) otherwise seeds `_run_average_batch`
+            # with an average cost of 0 and poisons the valuation of out-only lots.
+            product_old_price = old_price.get(product, 0)
+            if product.cost_method == 'fifo' or product.standard_price == product_old_price:
                 continue
 
             if product.lot_valuated:
@@ -320,7 +326,7 @@ class ProductProduct(models.Model):
                 'company_id': product.company_id.id or self.env.company.id,
                 'date': date,
                 'description': _('Price update from %(old_price)s to %(new_price)s by %(user)s',
-                    old_price=old_price.get(product), new_price=product.standard_price, user=self.env.user.name)
+                    old_price=product_old_price, new_price=product.standard_price, user=self.env.user.name)
             })
         self.env['product.value'].sudo().create(product_values)
         if product_ids_lot_valuated:
@@ -576,7 +582,6 @@ class ProductProduct(models.Model):
                 last_in = self._get_last_in(at_date)
                 return quantity * (last_in._get_price_unit() if last_in else std_price)
             return quantity * std_price
-        external_location = location and location.is_valued_external
 
         fifo_cost = 0
         fifo_stack, qty_on_first_move = self._run_fifo_get_stack(lot=lot, at_date=at_date, location=location)
@@ -745,21 +750,14 @@ class ProductCategory(models.Model):
         help="If checked, the product will be valued using the Anglo-Saxon accounting method.")
     property_valuation = fields.Selection(
         string="Inventory Valuation",
-        selection=[
-            ('periodic', 'Periodic (at closing)'),
-            ('real_time', 'Perpetual (at invoicing)'),
-        ],
+        selection=VALUATION_SELECTION,
         company_dependent=True, copy=True, tracking=True,
         help="""Periodic: The accounting entries are suggested manually in the inventory valuation report.
         Perpetual: An accounting entry is automatically created to value the inventory when a product is billed or invoiced.
         """)
     property_cost_method = fields.Selection(
         string="Costing Method",
-        selection=[
-            ('standard', "Standard Price"),
-            ('fifo', "First In First Out (FIFO)"),
-            ('average', "Average Cost (AVCO)"),
-        ],
+        selection=COST_METHOD_SELECTION,
         company_dependent=True, copy=True,
         default=lambda self: self.env.company.cost_method,
         help="""Standard Price: The products are valued at their standard cost defined on the product.

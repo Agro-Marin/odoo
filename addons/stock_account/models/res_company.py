@@ -6,6 +6,11 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from odoo.addons.stock_account.models.constants import (
+    COST_METHOD_SELECTION,
+    VALUATION_SELECTION,
+)
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -29,20 +34,13 @@ class ResCompany(models.Model):
 
     inventory_valuation = fields.Selection(
         string='Valuation',
-        selection=[
-            ('periodic', 'Periodic (at closing)'),
-            ('real_time', 'Perpetual (at invoicing)'),
-        ],
+        selection=VALUATION_SELECTION,
         default='periodic',
     )
 
     cost_method = fields.Selection(
         string="Cost Method",
-        selection=[
-            ('standard', "Standard Price"),
-            ('fifo', "First In First Out (FIFO)"),
-            ('average', "Average Cost (AVCO)"),
-        ],
+        selection=COST_METHOD_SELECTION,
         default='standard',
         required=True,
     )

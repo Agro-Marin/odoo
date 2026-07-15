@@ -3184,3 +3184,51 @@ class TestStockValuation(TestStockValuationCommon):
 
         # Ensure that we didn't do 109 / 9 to compute the price
         self.assertEqual(product.standard_price, 1.0)
+
+
+class TestMoveValueAdjustmentAccess(TestStockValuationCommon):
+    """`product.value` is restricted to stock managers, but adjusting a move's value
+    can be triggered by a non-manager (e.g. an account user). Every create-site must
+    therefore be sudoed. Regression for `stock.move._inverse_value_manual`."""
+
+    def test_non_manager_can_adjust_move_value(self):
+        move = self._make_in_move(self.product_avco, 5, 10)
+        pv_before = self.env['product.value'].sudo().search_count([('move_id', '=', move.id)])
+        # inventory_user is a stock user without any access to product.value.
+        move.with_user(self.inventory_user).value_manual = 999.0
+        pv_after = self.env['product.value'].sudo().search([('move_id', '=', move.id)])
+        self.assertEqual(
+            len(pv_after), pv_before + 1,
+            "Adjusting a move's value as a non-manager must record a product.value row.",
+        )
+        self.assertEqual(pv_after.sorted('id')[-1].value, 999.0)
+
+
+class TestProductPriceHistoryCreation(TestStockValuationCommon):
+    """A product created at a 0 standard price must not record a spurious `0 -> 0`
+    price-history row, which would seed the AVCO batch with a 0 average cost."""
+
+    def _price_rows(self, product):
+        return self.env['product.value'].sudo().search([
+            ('product_id', '=', product.id), ('move_id', '=', False), ('lot_id', '=', False),
+        ])
+
+    def test_zero_price_product_creates_no_history(self):
+        product = self.env['product.product'].create({
+            'name': 'Zero Price', 'is_storable': True, 'categ_id': self.category_avco.id,
+            'standard_price': 0.0,
+        })
+        self.assertFalse(
+            self._price_rows(product),
+            "A product created at a 0 standard price must not record a price-history row.",
+        )
+
+    def test_nonzero_price_product_records_history(self):
+        product = self.env['product.product'].create({
+            'name': 'Priced', 'is_storable': True, 'categ_id': self.category_avco.id,
+            'standard_price': 12.0,
+        })
+        rows = self._price_rows(product)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows.value, 12.0)
+        self.assertIn('from 0 to 12.0', rows.description)

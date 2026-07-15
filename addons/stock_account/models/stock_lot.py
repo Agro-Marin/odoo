@@ -91,11 +91,12 @@ class StockLot(models.Model):
         """Helper to create the stock valuation layers and the account moves
         after an update of standard price.
 
-        :param new_price: new standard price
+        :param old_price: mapping ``{lot: previous standard price}``
         """
         product_values = []
         for lot in self:
-            if lot.product_id.cost_method != 'average' or lot.standard_price == old_price:
+            lot_old_price = old_price.get(lot)
+            if lot.product_id.cost_method != 'average' or lot.standard_price == lot_old_price:
                 continue
             product = lot.product_id
             product_values.append({
@@ -105,7 +106,7 @@ class StockLot(models.Model):
                 'company_id': product.company_id.id or self.env.company.id,
                 'date': fields.Datetime.now(),
                 'description': _('%(lot)s price update from %(old_price)s to %(new_price)s by %(user)s',
-                    lot=lot.name, old_price=old_price, new_price=lot.standard_price, user=self.env.user.name)
+                    lot=lot.name, old_price=lot_old_price, new_price=lot.standard_price, user=self.env.user.name)
             })
 
         self.env['product.value'].sudo().create(product_values)

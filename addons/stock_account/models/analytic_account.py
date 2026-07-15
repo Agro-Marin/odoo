@@ -103,7 +103,8 @@ class AccountAnalyticAccount(models.Model):
                 continue
             account_field_values = {}
             for account in accounts:
-                new_amount = account.root_plan_id._calculate_distribution_amount(amount, percentage, total_percentages[plan], distribution_on_each_plan)
+                plan = account.root_plan_id
+                new_amount = plan._calculate_distribution_amount(amount, percentage, total_percentages[plan], distribution_on_each_plan)
                 account_field_values[account.plan_id._column_name()] = account.id
             currency = account.currency_id or obj.company_id.currency_id
             if not float_is_zero(new_amount, precision_rounding=currency.rounding):
