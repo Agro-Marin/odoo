@@ -100,13 +100,13 @@ class RateLimitBucket(models.Model):
                 f"(valid: {sorted(self._PERIOD_SECONDS)})"
             ) from exc
 
-    def _get_endpoint_config(self) -> tuple[int, str, float]:
+    def _get_endpoint_config(self) -> tuple[int, int, float]:
         """Get rate limit configuration from endpoint record.
 
         Returns:
-            tuple: (max_requests, period, refill_rate)
+            tuple: (max_requests, period_seconds, refill_rate)
                 - max_requests (int): Maximum requests per period
-                - period (str): Time period ('second', 'minute', 'hour', 'day')
+                - period_seconds (int): Window length, in seconds
                 - refill_rate (float): Tokens per second
 
         """
@@ -135,12 +135,30 @@ class RateLimitBucket(models.Model):
         max_requests = getattr(endpoint, "rate_limit_requests", None)
         if max_requests is None:
             max_requests = 100
-        period = getattr(endpoint, "rate_limit_period", None) or "minute"
 
-        period_seconds = self._get_period_seconds(period)
+        # base_automation's webhook config stores the window as a raw seconds
+        # count (webhook_rate_limit_window), not the period-string contract
+        # documented above — no model actually defines rate_limit_period, so
+        # reading it here always fell through to a hardcoded "minute" (60s)
+        # regardless of the configured window. Prefer the explicit seconds
+        # value when present; keep the period-string path as a fallback for
+        # any future endpoint model that does implement that contract.
+        # ``webhook_rate_limit_window`` is an ORM Integer, so a cleared or
+        # zeroed window reads as 0 (never None); a non-positive value is
+        # nonsensical as the refill-window denominator — it would give
+        # refill_rate=0.0 (a bucket that never refills) or, if negative, a
+        # rate that drains tokens over time. Unlike ``max_requests`` above,
+        # where 0 is a meaningful "block everything" cap, a non-positive
+        # window means "not configured": fall back to the period-string
+        # contract.
+        period_seconds = getattr(endpoint, "webhook_rate_limit_window", None)
+        if period_seconds is None or period_seconds <= 0:
+            period = getattr(endpoint, "rate_limit_period", None) or "minute"
+            period_seconds = self._get_period_seconds(period)
+
         refill_rate = (max_requests / period_seconds) if period_seconds else 0.0
 
-        return max_requests, period, refill_rate
+        return max_requests, period_seconds, refill_rate
 
     @api.model
     def get_or_create_bucket(
