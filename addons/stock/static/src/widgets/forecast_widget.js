@@ -7,25 +7,45 @@ import { useService } from "@web/core/utils/hooks";
 
 export class ForecastWidgetField extends FloatField {
     static template = "stock.ForecastWidget";
+    // NB: intentionally does not call super.setup() — this widget reuses
+    // FloatField only for its field descriptor/formatting, not the numeric input
+    // the base wires up (the template is a custom badge with no input ref).
     setup() {
-        const { data, fields, resId } = this.props.record;
         this.actionService = useService("action");
         this.orm = useService("orm");
-        this.resId = resId;
+    }
 
-        this.forecastExpectedDate = formatDate(
-            data.date_planned_forecast,
-            fields.date_planned_forecast
+    // Derived values are getters (not setup-time snapshots) so the badge stays
+    // correct when the move's fields change in place in an editable list.
+    get resId() {
+        return this.props.record.resId;
+    }
+
+    get forecastExpectedDate() {
+        const { data, fields } = this.props.record;
+        return formatDate(data.date_planned_forecast, fields.date_planned_forecast);
+    }
+
+    get forecastIsLate() {
+        const { data } = this.props.record;
+        return (
+            data.date_planned_forecast &&
+            data.date_deadline &&
+            data.date_planned_forecast > data.date_deadline
         );
-        if (data.date_planned_forecast && data.date_deadline) {
-            this.forecastIsLate = data.date_planned_forecast > data.date_deadline;
-        }
-        const digits = fields.forecast_availability.digits;
-        const options = { digits, thousandsSep: "", decimalPoint: "." };
-        const forecast_availability = parseFloat(formatFloat(data.forecast_availability, options));
-        const product_qty = parseFloat(formatFloat(data.product_qty, options));
-        this.willBeFulfilled = forecast_availability >= product_qty;
-        this.state = data.state;
+    }
+
+    get willBeFulfilled() {
+        const { data, fields } = this.props.record;
+        const options = { digits: fields.forecast_availability.digits, thousandsSep: "", decimalPoint: "." };
+        return (
+            parseFloat(formatFloat(data.forecast_availability, options)) >=
+            parseFloat(formatFloat(data.product_qty, options))
+        );
+    }
+
+    get state() {
+        return this.props.record.data.state;
     }
 
     //--------------------------------------------------------------------------
