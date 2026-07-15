@@ -16,7 +16,16 @@ class AccountOnboardingWidget extends Component {
     }
 
     get recordOnboardingSteps() {
-        return JSON.parse(this.props.record.data.kanban_dashboard).onboarding?.steps;
+        const raw = this.props.record.data.kanban_dashboard;
+        if (!raw) {
+            return undefined;
+        }
+        try {
+            return JSON.parse(raw).onboarding?.steps;
+        } catch {
+            // A malformed dashboard blob shouldn't crash the journal kanban render.
+            return undefined;
+        }
     }
 
     async onboardingLinkClicked(step) {
