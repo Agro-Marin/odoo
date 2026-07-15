@@ -5,7 +5,6 @@ import { Dialog } from '@web/ui/dialog/dialog';
 import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
 import { parseInteger  } from "@web/fields/parsers";
-import { getId } from "@web/model/relational_model/utils";
 import { Component, useRef, onMounted, onWillStart } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 import { user } from "@web/services/user";
@@ -79,33 +78,22 @@ export class GenerateDialog extends Component {
             count,
             this.lots.el?.value,
         ]);
-        const newlines = [];
-        let lines = []
-        lines = this.props.move.data.move_line_ids;
+        const lines = this.props.move.data.move_line_ids;
 
-        // create records directly from values to bypass onchanges
-        for (const values of move_line_vals) {
-            newlines.push(
-                lines._createRecordDatapoint(values, {
-                    mode: 'readonly',
-                    virtualId: getId("virtual"),
-                    manuallyAdded: false,
-                })
-            );
-        }
+        // Create the generated lines directly from the server-computed values.
+        // The CREATE command bypasses onchanges (as intended here); using the
+        // public applyCommands lets the model handle datapoint creation, command
+        // tracking, currentIds, count/limit and the update notification — instead
+        // of poking private internals by hand. Clear the existing lines first
+        // unless "keep current lines" is ticked.
+        const commands = [];
         if (!this.keepLines.el.checked) {
-            await lines._applyCommands(lines._currentIds.map((currentId) => [
-                x2ManyCommands.DELETE,
-                currentId,
-            ]));
+            commands.push(...lines.currentIds.map((currentId) => x2ManyCommands.delete(currentId)));
         }
-        lines.records.push(...newlines);
-        lines._commands.push(...newlines.map((record) => [
-            x2ManyCommands.CREATE,
-            record._virtualId,
-        ]));
-        lines._currentIds.push(...newlines.map((record) => record._virtualId));
-        await lines._onUpdate();
+        for (const values of move_line_vals) {
+            commands.push(x2ManyCommands.create(false, values));
+        }
+        await lines.applyCommands(commands);
         this.props.close();
     }
 }
@@ -118,7 +106,7 @@ class GenerateSerials extends Component {
         this.dialog = useService("dialog");
     }
 
-    openDialog(ev){
+    openDialog(){
         this.dialog.add(GenerateDialog, {
             move: this.props.record,
             mode: 'generate',
@@ -133,7 +121,7 @@ class ImportLots extends Component {
         this.dialog = useService("dialog");
     }
 
-    openDialog(ev){
+    openDialog(){
         this.dialog.add(GenerateDialog, {
             move: this.props.record,
             mode: 'import',
