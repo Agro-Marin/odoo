@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { getMentionsFromText } from "@mail/core/common/message_post";
 import { fields, OR, Record } from "@mail/core/common/record";
 import {
     convertBrToLineBreak,
@@ -7,7 +8,10 @@ import {
     prettifyMessageText,
 } from "@mail/utils/common/format";
 import { markup } from "@odoo/owl";
-import { createDocumentFragmentFromContent, isHtmlEmpty } from "@web/core/utils/dom/html";
+import {
+    createDocumentFragmentFromContent,
+    isHtmlEmpty,
+} from "@web/core/utils/dom/html";
 import { nbsp } from "@web/core/utils/format/strings";
 export class Composer extends Record {
     static id = OR("thread", "message");
@@ -57,7 +61,7 @@ export class Composer extends Record {
                 this.updateFrom = undefined;
                 return;
             }
-            const validMentions = this.store.getMentionsFromText(this.composerText, {
+            const validMentions = getMentionsFromText(this.store, this.composerText, {
                 mentionedChannels: this.mentionedChannels,
                 mentionedPartners: this.mentionedPartners,
                 mentionedRoles: this.mentionedRoles,

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { generateThreadMentionElement } from "@mail/utils/common/format";
 
 export class MentionPlugin extends Plugin {
@@ -62,7 +63,7 @@ export class MentionPlugin extends Plugin {
                 selector: "a.o_channel_redirect",
                 checker: (el) => this.isValidChannelMentionElement(el),
                 validMentionsHandler: (channelLinks) => {
-                    this.store.handleValidChannelMention(channelLinks);
+                    handleValidChannelMention(channelLinks);
                     this.dependencies.history.addStep();
                 },
             },

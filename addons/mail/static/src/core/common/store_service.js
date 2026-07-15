@@ -9,7 +9,6 @@ import { threadCompareRegistry } from "@mail/core/common/thread_compare";
 import {
     attClassObjectToString,
     cleanTerm,
-    generateEmojisOnHtml,
     prettifyMessageText,
 } from "@mail/utils/common/format";
 import { compareDatetime } from "@mail/utils/common/misc";
@@ -32,14 +31,12 @@ import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { isMarkup, createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
-import { renderToElement } from "@web/core/utils/render";
 import { debounce } from "@web/core/utils/timing";
 import { getOrigin } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
@@ -749,16 +746,6 @@ export class Store extends BaseStore {
         return chat;
     }
 
-    fillPartnersMentionToken(postData) {
-        postData.partner_ids_mention_token ||= {};
-        for (const pid of postData.partner_ids) {
-            const partner = this["res.partner"].get(pid);
-            if (partner?.mention_token) {
-                postData.partner_ids_mention_token[pid] = partner.mention_token;
-            }
-        }
-    }
-
     /**
      * Highest message id (including temporary fractional ids) ever inserted in
      * this store. Tracked incrementally at message insert (see
@@ -773,139 +760,6 @@ export class Store extends BaseStore {
     /** @returns {number} */
     getLastMessageId() {
         return this.lastKnownMessageId;
-    }
-
-    handleValidChannelMention(channelLinks) {
-        for (const linkEl of channelLinks.filter(
-            (el) => !el.querySelector(".fa-comments-o, .fa-hashtag"),
-        )) {
-            const text = linkEl.textContent.substring(1); // remove '#' prefix
-            const icon = linkEl.classList.contains("o_channel_redirect_asThread")
-                ? "fa-regular fa-comments"
-                : "fa-solid fa-hashtag";
-            const iconEl = renderToElement("mail.Message.mentionedChannelIcon", {
-                icon,
-            });
-            linkEl.replaceChildren(iconEl);
-            linkEl.insertAdjacentText("beforeend", ` ${text}`);
-        }
-    }
-
-    getMentionsFromText(
-        body,
-        {
-            mentionedChannels = [],
-            mentionedPartners = [],
-            mentionedRoles = [],
-            thread,
-        } = {},
-    ) {
-        const validMentions = {};
-        const segments = isMarkup(body)
-            ? Array.from(
-                  createDocumentFragmentFromContent(body).querySelectorAll("a"),
-                  (a) => a.textContent,
-              )
-            : [body];
-        validMentions.threads = mentionedChannels.filter((thread) => {
-            const mention = thread.parent_channel_id
-                ? `#${thread.parent_channel_id.displayName} > ${thread.displayName}`
-                : `#${thread.displayName}`;
-            return segments.some((segment) => segment.includes(mention));
-        });
-        validMentions.partners = mentionedPartners.filter((partner) =>
-            segments.some((segment) =>
-                segment.includes(
-                    `@${thread?.getPersonaName?.(partner) ?? partner.name}`,
-                ),
-            ),
-        );
-        validMentions.roles = mentionedRoles.filter((role) =>
-            segments.some((segment) => segment.includes(`@${role.name}`)),
-        );
-        validMentions.specialMentions = this.specialMentions
-            .filter((special) =>
-                segments.some((segment) => segment.includes(`@${special.label}`)),
-            )
-            .map((special) => special.label);
-        return validMentions;
-    }
-
-    /**
-     * Get the parameters to pass to the message post route.
-     */
-    async getMessagePostParams({ body, postData, thread }) {
-        const {
-            attachments,
-            cannedResponseIds,
-            emailAddSignature,
-            isNote,
-            mentionedChannels,
-            mentionedPartners,
-            mentionedRoles,
-        } = postData;
-        const subtype = isNote ? "mail.mt_note" : "mail.mt_comment";
-        const validMentions = this.getMentionsFromText(body, {
-            mentionedChannels,
-            mentionedPartners,
-            mentionedRoles,
-            thread,
-        });
-        const partner_ids = validMentions?.partners.map((partner) => partner.id) ?? [];
-        const role_ids = validMentions?.roles.map((role) => role.id) ?? [];
-        const recipientEmails = [];
-        if (!isNote) {
-            const allRecipients = [
-                ...thread.suggestedRecipients,
-                ...thread.additionalRecipients,
-            ];
-            const recipientIds = allRecipients
-                .filter((recipient) => recipient.persona)
-                .map((recipient) => recipient.persona.id);
-            allRecipients
-                .filter((recipient) => !recipient.persona)
-                .forEach((recipient) => {
-                    recipientEmails.push(recipient.email);
-                });
-            partner_ids.push(...recipientIds);
-        }
-        postData = {
-            body: await generateEmojisOnHtml(body),
-            email_add_signature: emailAddSignature,
-            message_type: "comment",
-            subtype_xmlid: subtype,
-        };
-        if (attachments.length) {
-            postData.attachment_ids = attachments.map(({ id }) => id);
-        }
-        if (partner_ids.length) {
-            Object.assign(postData, { partner_ids });
-            this.fillPartnersMentionToken(postData);
-        }
-        if (role_ids.length) {
-            Object.assign(postData, { role_ids });
-        }
-        if (thread.isChannelKind && validMentions?.specialMentions.length) {
-            postData.special_mentions = validMentions.specialMentions;
-        }
-        if (attachments.length) {
-            postData.attachment_tokens = attachments.map(
-                (attachment) => attachment.ownership_token,
-            );
-        }
-        if (recipientEmails.length) {
-            postData.partner_emails = recipientEmails;
-        }
-        const params = {
-            // Changed in 18.2+: finally get rid of autofollow, following should be done manually
-            post_data: postData,
-            thread_id: thread.id,
-            thread_model: thread.model,
-        };
-        if (cannedResponseIds?.length) {
-            params.canned_response_ids = cannedResponseIds;
-        }
-        return params;
     }
 
     notifySendFromMailbox(recordName) {

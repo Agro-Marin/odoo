@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
+import {
+    fillPartnersMentionToken,
+    getMentionsFromText,
+} from "@mail/core/common/message_post";
 import { fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import {
@@ -617,7 +621,7 @@ export class Message extends Record {
         ) {
             return;
         }
-        const validMentions = this.store.getMentionsFromText(body, {
+        const validMentions = getMentionsFromText(this.store, body, {
             mentionedChannels,
             mentionedPartners,
             mentionedRoles,
@@ -635,7 +639,7 @@ export class Message extends Record {
             partner_ids: validMentions?.partners?.map((partner) => partner.id),
             role_ids: validMentions?.roles?.map((role) => role.id),
         };
-        this.store.fillPartnersMentionToken(updateData);
+        fillPartnersMentionToken(this.store, updateData);
         const data = await rpc("/mail/message/update_content", {
             message_id: this.id,
             update_data: updateData,
