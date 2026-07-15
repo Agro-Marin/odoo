@@ -442,21 +442,33 @@ export class Dropdown extends Component {
         // Read focus BEFORE unmounting: popover.close() detaches the menu (async).
         const active = document.activeElement;
         this.popover.close();
-        if (!this.props.focusToggleOnClosed || this.group.isInGroup || !restoreEl) {
+        if (!this.props.focusToggleOnClosed || !restoreEl) {
             return;
         }
-        // Don't yank focus off an editable element the user has moved focus to —
-        // e.g. typing in the search input whose keystroke just closed this menu.
-        // Restoring to the toggler there steals the following keystrokes. Mirrors
-        // the same guard handleMouseEnter already applies. Focus still inside the
-        // menu/toggler (keyboard close) or lost to <body> stays "ours" → restore.
-        const stealsFromEditable =
+        // Where does focus live now? "Ours" = inside this dropdown's toggler or
+        // its menu; focus still inside (keyboard close) or lost to <body> should
+        // be restored to the toggler (the menu-button a11y contract).
+        const focusOutside =
             active &&
-            (["INPUT", "TEXTAREA"].includes(active.nodeName) ||
-                active.isContentEditable) &&
             !this.target?.contains(active) &&
             !this.menuRef.el?.contains(active);
-        if (!stealsFromEditable) {
+        // Decide when to LEAVE focus where the user put it instead of restoring:
+        // - In a group (menu bar): whenever focus moved to a real element outside
+        //   this dropdown — typically the sibling menu the user just switched to.
+        //   Restoring would yank focus off that sibling. Focus still inside our
+        //   menu/toggler or lost to <body> is a keyboard close → restore (this is
+        //   what the old `!group.isInGroup` early-out failed to do, dropping focus
+        //   to <body>).
+        // - Standalone: keep restoring to the toggler on close, but never yank
+        //   focus off an editable the user has moved to (typing in a search input
+        //   whose keystroke closed this menu — the following keystrokes would land
+        //   on the toggler). Mirrors the guard handleMouseEnter already applies.
+        const leaveFocus = this.group.isInGroup
+            ? focusOutside && active !== document.body
+            : focusOutside &&
+              (["INPUT", "TEXTAREA"].includes(active.nodeName) ||
+                  active.isContentEditable);
+        if (!leaveFocus) {
             restoreEl.focus();
         }
     }
