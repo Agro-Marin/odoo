@@ -80,8 +80,13 @@ The kernel of Odoo, needed for all installation.
         "views/tag_tag_views.xml",
         "security/ir.model.access.csv",
     ],
+    "assets": {
+        "web.assets_tests": [
+            "base/static/tests/**/*",
+        ],
+    },
     "demo": [
-        "data/res_users_demo.xml",
+        "demo/res_users_demo.xml",
         "demo/res_partner_bank_demo.xml",
         "demo/res_currency_demo.xml",
         "demo/res_currency_rate_demo.xml",
@@ -89,11 +94,6 @@ The kernel of Odoo, needed for all installation.
         "demo/res_partner_demo.xml",
         "demo/res_partner_image_demo.xml",
     ],
-    "assets": {
-        "web.assets_tests": [
-            "base/static/tests/**/*",
-        ],
-    },
     "installable": True,
     "auto_install": True,
     "post_init_hook": "post_init",
