@@ -15,10 +15,10 @@ import requests
 from ..db import db_connect
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
+    _drop_database,
     dump_db,
     exp_create_database,
     exp_db_exist,
-    exp_drop,
     exp_duplicate_database,
     exp_rename,
     restore_db,
@@ -394,7 +394,10 @@ class Db(Command):
                 neutralize_database(cr)
 
     def drop(self, args: argparse.Namespace) -> None:
-        if not exp_drop(args.database):
+        # _drop_database, not exp_drop: same reasoning as _drop_if_exists
+        # below — this CLI is local trusted tooling, not the RPC surface
+        # exp_drop's exposed-databases allowlist exists to gate.
+        if not _drop_database(args.database):
             sys.exit(f"Database {args.database} does not exist.")
 
     def _check_target_free(self, target: str, *, force: bool) -> None:
@@ -417,6 +420,12 @@ class Db(Command):
             sys.exit(f"Source database {source} does not exist.")
 
     def _drop_if_exists(self, target: str) -> None:
-        """Drop ``target`` (with filestore) if present; no-op otherwise."""
+        """Drop ``target`` (with filestore) if present; no-op otherwise.
+
+        Calls ``_drop_database`` directly, NOT ``exp_drop``: this CLI already
+        requires local trusted (shell) access, unlike ``exp_drop``'s RPC entry
+        point, which the exposed-databases allowlist gate exists to protect.
+        Same reasoning applies to ``drop()`` above.
+        """
         if exp_db_exist(target):
-            exp_drop(target)
+            _drop_database(target)

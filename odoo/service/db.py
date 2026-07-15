@@ -62,6 +62,12 @@ __all__ = (
     "DBNAME_MAX_LENGTH",
     "DBNAME_PATTERN",
     "DatabaseExists",
+    # Underscore-prefixed but deliberately exported: the ungated, no-allowlist
+    # DROP DATABASE primitive for callers that already establish their own
+    # trust boundary (odoo/cli/db.py's local, shell-access-gated commands;
+    # internal create/restore/duplicate rollback). Not RPC-facing — exp_drop
+    # is the gated public entry point for that.
+    "_drop_database",
     "check_db_management_enabled",
     "check_super",
     "database_identifier",
@@ -509,9 +515,13 @@ def _pg_restore_total_timeout() -> float:
 def _drop_database(db_name: str) -> bool:
     """Internal DROP DATABASE helper, used by both ``exp_drop`` and cleanup paths.
 
-    Not decorated with ``@check_db_management_enabled``: cleanup-on-failure
-    callers (e.g. ``restore_db`` rolling back an empty database) must not
-    be blocked by a runtime toggle of ``list_db``.
+    Not decorated with ``@check_db_management_enabled``, and does not check
+    ``list_dbs(True)`` either: both gates live on ``exp_drop`` (the RPC entry
+    point), not here. Cleanup-on-failure callers (e.g. ``restore_db`` rolling
+    back an empty database) must not be blocked by a runtime toggle of
+    ``list_db``, nor by the exposed-databases allowlist — the whole point of
+    this helper existing separately is to drop a half-built database that was
+    never in that allowlist to begin with.
 
     Handles the terminate-then-drop race: another thread (cron, HTTP) can
     open a new connection between ``pg_terminate_backend`` and ``DROP
@@ -580,7 +590,21 @@ def _drop_database(db_name: str) -> bool:
 
 @check_db_management_enabled
 def exp_drop(db_name: str) -> bool:
-    """Drop a database (public/RPC-facing, subject to ``list_db`` gate)."""
+    """Drop a database (public/RPC-facing, subject to ``list_db`` gate).
+
+    Refuses any ``db_name`` outside ``list_dbs(True)``: with the master
+    password alone, an RPC caller could otherwise ``DROP DATABASE`` any DB
+    owned by this PostgreSQL role, not just the ones this Odoo instance
+    exposes. The allowlist gate lives here, on the RPC entry point — not in
+    ``_drop_database``, which internal callers (create/restore/duplicate
+    rollback) need to keep bypassing to clean up a half-built database that
+    was never in the allowlist to begin with.
+    """
+    if db_name not in list_dbs(True):
+        _logger.warning(
+            "DROP DB: %s rejected, not in the list of exposed databases", db_name
+        )
+        return False
     return _drop_database(db_name)
 
 
