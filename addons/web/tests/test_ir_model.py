@@ -148,14 +148,19 @@ class IrModelAccessTest(TransactionCase):
         result = IrModel.with_user(self.public_user)._get_definitions(["res.company"])
         self.assertEqual(result, {})
 
-        # Transient models are excluded (mirrors _is_valid_for_model_selector).
+        # Transient models the internal user may read ARE introspectable here:
+        # their schema is already visible through the wizard views the user
+        # opens, so withholding it adds no protection. (The stricter selector
+        # gate in display_name_for/get_available_models still hides them from a
+        # model-selector dropdown — see test_display_name_for above.)
         result = IrModel._get_definitions(["res.company", "base.language.export"])
         self.assertIn("res.company", result)
-        self.assertNotIn("base.language.export", result)
+        self.assertIn("base.language.export", result)
 
-        # A relational cross-reference to an inaccessible model is not resolved:
-        # only models in the (access-filtered) request set appear.
-        self.assertEqual(set(result) - {"res.company"}, set())
+        # A relational cross-reference to a model NOT in the request set is not
+        # resolved: only the (access-filtered) requested models appear, so no
+        # inaccessible model leaks through a relation.
+        self.assertEqual(set(result), {"res.company", "base.language.export"})
 
 
 @tagged("web_unit", "web_model")
