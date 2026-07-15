@@ -10,7 +10,7 @@ import { getBasicEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { getAggregateSpecifications, getGroupServerValue } from "./field_values.js";
 
-/** @import { RelationalModelConfig } from "./relational_model" */
+/** @import { RelationalModelConfig } from "./relational_model.js" */
 
 /**
  * Walk the cached ``config.groups`` tree and emit the ``opening_info``

@@ -180,6 +180,14 @@ export function mockService(name, serviceFactory) {
     // several tests mock the same service, and each later ``startServices``
     // replays the whole chain. Hand ``patch()`` a fresh descriptor-clone per
     // call instead of the shared factory object.
+    // Limitation: copying descriptors preserves each method's original
+    // ``[[HomeObject]]`` (bound at definition time on ``serviceFactory``, which
+    // has no meaningful prototype). ``[[HomeObject]]`` is not reflectively
+    // rebindable in JS, so a factory method that calls ``super.foo()`` would
+    // resolve ``super`` against ``serviceFactory``'s prototype, not the clone's
+    // patched chain. Harmless today (no factory uses ``super``); if one ever
+    // does, it must declare the method on the object it is defined in, not rely
+    // on this clone rebinding ``super``.
     const freshExtension = () =>
         Object.defineProperties({}, Object.getOwnPropertyDescriptors(serviceFactory));
     serviceRegistry.add(
