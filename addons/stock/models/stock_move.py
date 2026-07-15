@@ -1792,7 +1792,11 @@ Please change the quantity done or the rounding precision in your settings.""",
     def action_view_reference(self):
         """Open the form view of the move's reference document, if one exists, otherwise open form view of self"""
         self.ensure_one()
-        if not self.is_inventory and self.location_dest_usage == "inventory":
+        if (
+            not self.is_inventory
+            and self.location_dest_usage == "inventory"
+            and self.scrap_id
+        ):
             return {
                 "res_model": "stock.scrap",
                 "type": "ir.actions.act_window",
@@ -1843,10 +1847,13 @@ Please change the quantity done or the rounding precision in your settings.""",
                     and m.state in ["confirmed", "waiting", "partially_available"]
                 ),
             )
-        # Build quants cache for all moves needing reservation (MTO + MTS).
-        # One _read_group replaces N individual _gather() searches.
+        # Build the quants cache only for chained moves: the strict, exact-location
+        # gather they use is the only path that reads it. Plain MTS moves (no origin)
+        # reserve with strict=False against child locations and never consult the
+        # cache; an un-scanned product/location now falls back to a DB search in
+        # `_gather` (see `_QuantsCache`), so leaving them out is safe.
         moves_needing_reservation = moves_to_assign.filtered(
-            lambda m: not m._should_bypass_reservation(),
+            lambda m: m.move_orig_ids and not m._should_bypass_reservation(),
         )
         quants_cache = self.env["stock.quant"]._get_quants_by_products_locations(
             moves_needing_reservation.product_id,

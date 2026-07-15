@@ -1,5 +1,4 @@
 from ast import literal_eval
-from contextlib import closing
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
@@ -310,47 +309,36 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_available_quantity_3(self):
-        """Increase the available quantity when a concurrent transaction is already increasing
-        the reserved quanntity for the same product.
-        TODO: this test is currently always skipped, even with demo data.
-        """
-        stock_location = self.env["stock.location"].create(
-            {
-                "name": "stock_location",
-                "usage": "internal",
-            }
-        )
-        quant = self.env["stock.quant"].search(
-            [("location_id", "=", stock_location.id)], limit=1
-        )
-        if not quant:
-            self.skipTest("Cannot test concurrent transactions without demo data.")
-        product = quant.product_id
-        available_quantity = self.env["stock.quant"]._get_available_quantity(
-            product, stock_location, allow_negative=True
-        )
-        # opens a new cursor and SELECT FOR UPDATE the quant, to simulate another concurrent reserved
-        # quantity increase
-        with closing(self.registry.cursor()) as cr:
-            cr.execute(
-                "SELECT id FROM stock_quant WHERE product_id=%s AND location_id=%s",
-                (product.id, stock_location.id),
-            )
-            quant_id = cr.fetchone()
-            cr.execute("SELECT 1 FROM stock_quant WHERE id=%s FOR UPDATE", quant_id)
-            self.env["stock.quant"]._update_available_quantity(
-                product, stock_location, 1.0
-            )
+        """A concurrent, already-committed change to a quant must not be lost when
+        `_update_available_quantity` increments it.
 
-        self.assertEqual(
-            self.env["stock.quant"]._get_available_quantity(
-                product, stock_location, allow_negative=True
-            ),
-            available_quantity + 1,
+        `try_lock_for_update` locks the row but does NOT refetch column values, so
+        the increment has to be computed against a value re-read under the lock, not
+        against the (possibly stale) value the earlier `_gather` cached. A concurrent
+        transaction that committed between our gather and our lock would otherwise be
+        silently overwritten (lost update).
+
+        We can't open a second connection here -- a TransactionCase never commits, so
+        another cursor cannot see the seeded quant. Instead we mutate the row via raw
+        SQL on the *same* cursor, which changes the DB while leaving the ORM cache
+        stale: an exact stand-in for the "row changed under us" condition the lock is
+        meant to guard.
+        """
+        Quant = self.env["stock.quant"]
+        Quant._update_available_quantity(self.productA, self.stock_location, 10.0)
+        quant = self.gather_relevant(self.productA, self.stock_location, strict=True)
+        self.assertEqual(len(quant), 1)
+        # Prime the ORM cache with the current value (10).
+        self.assertEqual(quant.quantity, 10.0)
+        # Simulate a concurrent txn that committed +5 after our cache was primed.
+        self.env.cr.execute(
+            "UPDATE stock_quant SET quantity = quantity + 5 WHERE id = %s",
+            (quant.id,),
         )
-        self.assertEqual(
-            len(self.gather_relevant(product, stock_location, strict=True)), 2
-        )
+        # Increment by 3: the result must build on the fresh 15, not the stale 10.
+        Quant._update_available_quantity(self.productA, self.stock_location, 3.0)
+        quant.invalidate_recordset(["quantity"])
+        self.assertEqual(quant.quantity, 18.0)
 
     def test_increase_available_quantity_4(self):
         """Increase the available quantity when no quants are already in a location with a user without access right."""
@@ -480,43 +468,32 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_decrease_available_quantity_3(self):
-        """Decrease the available quantity when a concurrent transaction is already increasing
-        the reserved quantity for the same product.
-        TODO: this test is currently always skipped, even with demo data.
+        """Same lost-update guard as `test_increase_available_quantity_3`, but for a
+        `reserved_quantity` decrement (unreservation).
+
+        A release must be applied on top of the value actually in the database, so a
+        concurrent reserve that committed in the gather->lock window is preserved
+        rather than clobbered. Raw SQL on the same cursor stands in for that
+        concurrent committed writer (see the increase variant for why a second
+        connection can't be used in a TransactionCase).
         """
-        stock_location = self.env["stock.location"].create(
-            {
-                "name": "stock_location",
-                "usage": "internal",
-            }
+        Quant = self.env["stock.quant"]
+        Quant._update_available_quantity(self.productA, self.stock_location, 10.0)
+        quant = self.gather_relevant(self.productA, self.stock_location, strict=True)
+        self.assertEqual(len(quant), 1)
+        # Reserve 4 through the ORM so cache and DB agree.
+        Quant._update_reserved_quantity(self.productA, self.stock_location, 4.0)
+        quant.invalidate_recordset(["reserved_quantity"])
+        self.assertEqual(quant.reserved_quantity, 4.0)
+        # Concurrent committed reserve of +3 (DB now 7), leaving the cache stale at 4.
+        self.env.cr.execute(
+            "UPDATE stock_quant SET reserved_quantity = reserved_quantity + 3 WHERE id = %s",
+            (quant.id,),
         )
-        quant = self.env["stock.quant"].search(
-            [("location_id", "=", stock_location.id)], limit=1
-        )
-        if not quant:
-            self.skipTest("Cannot test concurrent transactions without demo data.")
-        product = quant.product_id
-        available_quantity = self.env["stock.quant"]._get_available_quantity(
-            product, stock_location, allow_negative=True
-        )
-
-        # opens a new cursor and SELECT FOR UPDATE the quant, to simulate another concurrent reserved
-        # quantity increase
-        with closing(self.registry.cursor()) as cr:
-            cr.execute("SELECT 1 FROM stock_quant WHERE id = %s FOR UPDATE", quant.ids)
-            self.env["stock.quant"]._update_available_quantity(
-                product, stock_location, -1.0
-            )
-
-        self.assertEqual(
-            self.env["stock.quant"]._get_available_quantity(
-                product, stock_location, allow_negative=True
-            ),
-            available_quantity - 1,
-        )
-        self.assertEqual(
-            len(self.gather_relevant(product, stock_location, strict=True)), 2
-        )
+        # Release 2: must build on the fresh 7 -> 5, not the stale 4 -> 2.
+        Quant._update_reserved_quantity(self.productA, self.stock_location, -2.0)
+        quant.invalidate_recordset(["reserved_quantity"])
+        self.assertEqual(quant.reserved_quantity, 5.0)
 
     def test_decrease_available_quantity_4(self):
         """Decrease the available quantity that delete the quant. The active user should have
