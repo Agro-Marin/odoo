@@ -74,9 +74,18 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
 
     async createSection() {
         const sectionName = this.state.newSectionName.trim();
-        if (!sectionName) return this.state.isAddingSection = '';
-
         const position = this.state.isAddingSection;
+        // Capture the input then clear it synchronously, so a concurrent trigger
+        // (Enter + blur, or a double Enter) can't fire a second create RPC with the
+        // same name before this one resolves.
+        Object.assign(this.state, {
+            isAddingSection: '',
+            newSectionName: "",
+        });
+        if (!sectionName) {
+            return;
+        }
+
         const section = await rpc('/product/catalog/create_section',
             this._getSectionInfoParams({
                 name: sectionName,
@@ -93,17 +102,13 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
                 sections.delete(false);
             }
             sections.set(section.id, {
-                name: this.state.newSectionName,
+                name: sectionName,
                 sequence: section.sequence,
                 line_count: newLineCount,
             });
             this._sortSectionsBySequence(sections);
             this.setSelectedSection(section.id);
         }
-        Object.assign(this.state, {
-            isAddingSection: '',
-            newSectionName: "",
-        });
     }
 
     async loadSections() {

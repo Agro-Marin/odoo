@@ -18,11 +18,6 @@ const DISPLAY_TYPES = {
     SUBSECTION: "line_subsection",
 };
 
-export function getParentSectionRecord(list, record) {
-    const { sectionIndex } = getRecordsUntilSection(list, record, false, record.data.display_type !== DISPLAY_TYPES.SUBSECTION);
-    return list.records[sectionIndex];
-}
-
 function getPreviousSectionRecords(list, record) {
     const { sectionRecords } = getRecordsUntilSection(list, record, false);
     return sectionRecords;
@@ -64,7 +59,11 @@ function getRecordsUntilSection(list, record, asc, subSection) {
             sectionRecords.unshift(list.records[index]);
             index--;
         }
-        sectionRecords.unshift(list.records[index]);
+        // Only prepend the delimiting section when one exists above; otherwise
+        // index is -1 and list.records[-1] would push `undefined` into the array.
+        if (index >= 0) {
+            sectionRecords.unshift(list.records[index]);
+        }
     }
 
     return {
@@ -159,21 +158,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         await record.update(changes);
     }
 
-    async addRowAfterSection(record, addSubSection) {
-        const canProceed = await this.props.list.leaveEditMode({ canAbandon: false });
-        if (!canProceed) {
-            return;
-        }
-
-        const index =
-            this.props.list.records.indexOf(record) +
-            getSectionRecords(this.props.list, record).length -
-            1;
-        const context = {
-            default_display_type: addSubSection ? DISPLAY_TYPES.SUBSECTION : DISPLAY_TYPES.SECTION,
-        };
-        await this.props.list.addNewRecordAtIndex(index, { context });
-    }
 
     async addNoteInSection(record) {
         const canProceed = await this.props.list.leaveEditMode({ canAbandon: false });
@@ -399,7 +383,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         if (
             this.isSectionOrNote(record)
             && column.widget !== "handle"
-            && ![column.name, ...this.props.aggregatedFields].includes(column.name)
+            && ![this.titleField, ...this.props.aggregatedFields].includes(column.name)
         ) {
             return `${classNames} o_hidden`;
         }
@@ -427,7 +411,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         if (this.isSection(record) && this.props.aggregatedFields.includes(column.name)) {
             const total = getSectionRecords(this.props.list, record)
                 .filter((record) => !this.isSection(record))
-                .reduce((total, record) => total + record.data[column.name], 0);
+                .reduce((total, record) => total + (record.data[column.name] || 0), 0);
             const formatter = registry.category("formatters").get(column.fieldType, (val) => val);
             return formatter(total, {
                 ...formatter.extractOptions?.(column),

@@ -8,7 +8,6 @@ export class AccountX2ManyListController extends ListController {
     setup() {
         super.setup();
         this.orm = useService("orm");
-        this.action = useService("action");
     }
 
     async openRecord(record) {

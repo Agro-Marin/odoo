@@ -14,12 +14,15 @@ export class AutosaveMany2ManyTaxTagsField extends Many2ManyTaxTagsField {
         this.lastAccount = this.props.record.data.account_id;
         this.lastPartner = this.props.record.data.partner_id;
 
-        const super_update = this.update;
-        this.update = (recordlist) => {
-            super_update(recordlist);
-            this._saveOnUpdate();
-        };
         useRecordObserver(this.onRecordChange.bind(this));
+    }
+
+    // The base binds `this.update` through the prototype chain (see
+    // Many2ManyTagsField.setup), so overriding it as a method is the supported
+    // way. Await super.update so the tag link is committed before we save.
+    async update(recordlist) {
+        await super.update(recordlist);
+        await this._saveOnUpdate();
     }
 
     async deleteTag(id) {
@@ -30,9 +33,11 @@ export class AutosaveMany2ManyTaxTagsField extends Many2ManyTaxTagsField {
     onRecordChange(record) {
         const line = record.data;
         if (line.tax_ids.records.length > 0) {
+            // account_id/partner_id are `false` when unset, so guard with ?. before
+            // reading .id (a fresh line can have a tax tag but no account/partner yet).
             if (line.balance !== this.lastBalance
-                || line.account_id.id !== this.lastAccount.id
-                || line.partner_id.id !== this.lastPartner.id) {
+                || line.account_id?.id !== this.lastAccount?.id
+                || line.partner_id?.id !== this.lastPartner?.id) {
                 this.lastBalance = line.balance;
                 this.lastAccount = line.account_id;
                 this.lastPartner = line.partner_id;

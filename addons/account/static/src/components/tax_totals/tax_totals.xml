@@ -62,7 +62,6 @@
                             taxGroup="taxGroup"
                             isReadonly="readonly"
                             onChangeTaxGroup.bind="_onChangeTaxValueByTaxGroup"
-                            invalidate.bind="invalidate"
                         />
                     </t>
                 </t>

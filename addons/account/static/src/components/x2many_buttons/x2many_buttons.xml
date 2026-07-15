@@ -10,7 +10,7 @@
                 <span t-if="!record_last" class="pe-1">,</span>
             </t>
             <t t-if="this.currentField.count gt props.nbRecordsShown">
-                <button class="btn btn-link p-0" t-on-click="() => this.openTreeAndDiscard()" data-hotkey="shift+4">... (View all)</button>
+                <button class="btn btn-link p-0" t-on-click="() => this.openTreeAndDiscard()" t-att-data-hotkey="`shift+${props.nbRecordsShown + 1}`">... (View all)</button>
             </t>
         </div>
     </t>

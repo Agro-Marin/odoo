@@ -7,7 +7,7 @@ const supportedFileTypes = ["text/xml", "application/pdf"];
  *
  * @param {dataTransfer} dataTransfer containing text or files.
  */
-export function uploadFileFromData(dataTransfer) {
+export function uploadFileFromData() {
     return async (dataTransfer) => {
 
         function uploadFiles(dataTransfer) {
@@ -19,7 +19,12 @@ export function uploadFileFromData(dataTransfer) {
                 console.warn("Invalid files to extract details.");
                 return;
             }
-            let uploadInput = document.querySelector('.document_file_uploader.o_input_file');
+            const uploadInput = document.querySelector('.document_file_uploader.o_input_file');
+            if (!uploadInput) {
+                // The uploader input is not in the DOM (e.g. upload button hidden).
+                console.warn("No file uploader available to receive the pasted files.");
+                return;
+            }
             uploadInput.files = dataTransfer.files;
             uploadInput.dispatchEvent(new Event("change"));
         }

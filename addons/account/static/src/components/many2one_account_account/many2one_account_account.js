@@ -15,13 +15,14 @@ export class Many2XAccountAccountAutocomplete extends Many2XAutocomplete {
 
     async onSearchMore(request) {
         const { getDomain, context, fieldString } = this.props;
-        if (request.length) {
-            context["search_default_name"] = request;
-        }
+        // Don't mutate the shared props.context object; derive a copy instead.
+        const searchContext = request.length
+            ? { ...context, search_default_name: request }
+            : context;
         const title = _t("Search: %s", fieldString);
         this.selectCreate({
             domain: getDomain(),
-            context,
+            context: searchContext,
             title,
         });
     }

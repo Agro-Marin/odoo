@@ -8,39 +8,25 @@ import {
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
 
 export class Many2XTaxTagsAutocomplete extends Many2XAutocomplete {
-    static components = {
-        ...Many2XAutocomplete.components,
-    };
-
-    async loadOptionsSource(request) {
-        // Always include Search More
-        let options = await super.loadOptionsSource(...arguments);
-        if (!options.slice(-1)[0]?.cssClass?.includes("o_m2o_dropdown_option_search_more")) {
-            options.push({
-                label: this.SearchMoreButtonLabel,
-                onSelect: this.onSearchMore.bind(this, request),
-                cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_search_more",
-            });
-        }
-        return options;
+    // Always offer "Search More" for tax tags; the base gates the option on this
+    // hook and builds it via buildSearchMoreSuggestion (which wires onSearchMore).
+    addSearchMoreSuggestion() {
+        return true;
     }
 
     async onSearchMore(request) {
         const { getDomain, context, fieldString } = this.props;
-
-        const domain = getDomain();
-        if (request.length) {
-            context["search_default_name"] = request;
-        }
-
+        // Don't mutate the shared props.context object; derive a copy instead.
+        const searchContext = request.length
+            ? { ...context, search_default_name: request }
+            : context;
         const title = _t("Search: %s", fieldString);
         this.selectCreate({
-            domain,
-            context,
+            domain: getDomain(),
+            context: searchContext,
             title,
         });
     }
-
 }
 
 export class Many2ManyTaxTagsField extends Many2ManyTagsField {

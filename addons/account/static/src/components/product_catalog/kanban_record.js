@@ -8,8 +8,8 @@ patch(ProductCatalogKanbanRecord.prototype, {
     setup() {
         super.setup();
 
+        // useSubEnv already layers onto the parent env; no need to spread it.
         useSubEnv({
-            ...this.env,
             selectedSectionId: this.env.searchModel.selectedSection.sectionId,
         });
     },
@@ -36,9 +36,14 @@ patch(ProductCatalogKanbanRecord.prototype, {
     },
 
     updateQuantity(quantity) {
-        const lineCountChange = (quantity > 0) - (this.productCatalogData.quantity > 0);
-        if (lineCountChange !== 0) {
-            this.notifyLineCountChange(lineCountChange);
+        // The base updateQuantity is a no-op for a read-only card, so it neither
+        // adds nor removes an order line; emitting a section count change here would
+        // desync the sidebar counter. Only notify when the change is real.
+        if (!this.productCatalogData.readOnly) {
+            const lineCountChange = (quantity > 0) - (this.productCatalogData.quantity > 0);
+            if (lineCountChange !== 0) {
+                this.notifyLineCountChange(lineCountChange);
+            }
         }
 
         super.updateQuantity(quantity);
