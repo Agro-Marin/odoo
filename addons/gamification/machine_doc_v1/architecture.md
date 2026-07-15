@@ -295,7 +295,7 @@ round-trip to populate the OWL dashboard component. It returns:
         "user_name", "karma", "rank_name", "rank_image",
         "next_rank_name", "xp_progress_percent", "xp_to_next_rank",
         "gold_badge", "silver_badge", "bronze_badge",
-        "featured_badges": [{"id", "badge_name", "badge_image", "level"}...],
+        "featured_badges": [{"id", "badge_name", "level"}...],
         "visibility",
     },
     "streaks": [{
@@ -307,7 +307,7 @@ round-trip to populate the OWL dashboard component. It returns:
         "target", "completeness", "state", "end_date",
     }...],
     "badges": [{
-        "id", "badge_name", "badge_image", "level", "date", "sender_name",
+        "id", "badge_name", "level", "date", "sender_name",
     }...],
     "activity_feed": [{
         "id", "activity_type", "user_name", "target_user_name",

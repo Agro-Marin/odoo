@@ -92,7 +92,7 @@
                             <div class="card shadow-sm">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <h5 class="mb-0"><i class="fa fa-line-chart text-info me-2"/>Engagement Analytics</h5>
-                                    <button class="btn btn-sm btn-outline-primary" t-on-click="openAnalytics">
+                                    <button class="btn btn-sm btn-outline-primary" t-on-click="() => this.openAction('gamification.engagement_snapshot_list_action')">
                                         View History
                                     </button>
                                 </div>
@@ -146,7 +146,7 @@
                         <div class="card shadow-sm mb-3">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0"><i class="fa fa-fire text-warning me-2"/>Streaks</h5>
-                                <button class="btn btn-sm btn-outline-primary" t-on-click="openStreaks">
+                                <button class="btn btn-sm btn-outline-primary" t-on-click="() => this.openAction('gamification.streak_list_action')">
                                     View All
                                 </button>
                             </div>
@@ -198,7 +198,7 @@
                         <div class="card shadow-sm mb-3">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0"><i class="fa fa-bullseye text-primary me-2"/>Active Goals</h5>
-                                <button class="btn btn-sm btn-outline-primary" t-on-click="openChallenges">
+                                <button class="btn btn-sm btn-outline-primary" t-on-click="() => this.openAction('gamification.challenge_list_action')">
                                     View All
                                 </button>
                             </div>
@@ -296,7 +296,7 @@
                         <div class="card shadow-sm mb-3">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0"><i class="fa fa-certificate text-warning me-2"/>Badges</h5>
-                                <button class="btn btn-sm btn-outline-primary" t-on-click="openBadges">
+                                <button class="btn btn-sm btn-outline-primary" t-on-click="() => this.openAction('gamification.badge_list_action')">
                                     View All
                                 </button>
                             </div>
@@ -340,7 +340,7 @@
                                             <div class="list-group-item">
                                                 <div class="d-flex justify-content-between">
                                                     <strong t-esc="ach.name"/>
-                                                    <span t-att-class="'badge ' + (ach.rarity === 'legendary' ? 'bg-success' : ach.rarity === 'epic' ? 'bg-warning' : ach.rarity === 'rare' ? 'bg-info' : 'bg-secondary')"
+                                                    <span t-att-class="'badge ' + getRarityBadgeClass(ach.rarity)"
                                                           t-esc="ach.rarity"/>
                                                 </div>
                                                 <small class="text-muted" t-esc="ach.date"/>
@@ -364,7 +364,7 @@
                                 <div class="card-body border-bottom bg-light">
                                     <div class="mb-2">
                                         <select class="form-select form-select-sm"
-                                                t-on-change="onKudosRecipientChange"
+                                                t-model.number="state.kudosRecipientId"
                                                 aria-label="Select kudos recipient">
                                             <option value="">Select recipient...</option>
                                             <t t-foreach="state.kudosUsers" t-as="u" t-key="u.id">
@@ -374,7 +374,7 @@
                                     </div>
                                     <div class="mb-2">
                                         <select class="form-select form-select-sm"
-                                                t-on-change="onKudosCategoryChange"
+                                                t-model.number="state.kudosCategoryId"
                                                 aria-label="Select kudos category">
                                             <option value="">Select category...</option>
                                             <t t-foreach="state.kudosCategories" t-as="cat" t-key="cat.id">
@@ -388,8 +388,7 @@
                                         <textarea class="form-control form-control-sm" rows="2"
                                                   placeholder="Write your recognition message..."
                                                   aria-label="Kudos message"
-                                                  t-on-input="onKudosMessageChange"
-                                                  t-att-value="state.kudosMessage"/>
+                                                  t-model="state.kudosMessage"/>
                                     </div>
                                     <button class="btn btn-sm btn-primary w-100"
                                             t-on-click="sendKudos"

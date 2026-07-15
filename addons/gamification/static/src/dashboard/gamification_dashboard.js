@@ -2,7 +2,15 @@
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { user } from "@web/services/user";
+import { _t } from "@web/core/l10n/translation";
 import { Layout } from "@web/search/layout";
+import {
+    getBadgeLevelClass,
+    getRarityBadgeClass,
+    getStreakIcon,
+    getTrendIcon,
+} from "./gamification_dashboard_utils";
 
 class GamificationDashboard extends Component {
     static template = "gamification.Dashboard";
@@ -13,6 +21,17 @@ class GamificationDashboard extends Component {
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.notification = useService("notification");
+
+        // Layout display config — a stable reference so <Layout> is not handed a
+        // fresh prop object on every render.
+        this.display = { controlPanel: {} };
+
+        // Expose the pure presentation helpers to the template.  The logic lives
+        // in gamification_dashboard_utils so it can be unit-tested standalone.
+        this.getBadgeLevelClass = getBadgeLevelClass;
+        this.getRarityBadgeClass = getRarityBadgeClass;
+        this.getStreakIcon = getStreakIcon;
+        this.getTrendIcon = getTrendIcon;
 
         this.state = useState({
             profile: {},
@@ -35,96 +54,65 @@ class GamificationDashboard extends Component {
             kudosCategories: [],
         });
 
-        onWillStart(async () => {
-            await this.loadData();
-        });
-    }
-
-    get display() {
-        return { controlPanel: {} };
+        onWillStart(() => this.loadData());
     }
 
     async loadData() {
         this.state.loading = true;
-        const [data, analytics] = await Promise.all([
-            this.orm.call("res.users", "get_gamification_dashboard_data", []),
-            this.orm.call("gamification.engagement.snapshot", "get_analytics_summary", []),
-        ]);
-        Object.assign(this.state, data, { analytics, loading: false });
+        try {
+            // The two calls are independent and analytics is optional (the
+            // template guards on it).  Load them concurrently but do NOT let an
+            // analytics failure take down the whole dashboard, and always clear
+            // the loading flag so a failure can never leave a stuck spinner.
+            const [dataResult, analyticsResult] = await Promise.allSettled([
+                this.orm.call("res.users", "get_gamification_dashboard_data", []),
+                this.orm.call(
+                    "gamification.engagement.snapshot",
+                    "get_analytics_summary",
+                    [],
+                ),
+            ]);
+            if (dataResult.status === "rejected") {
+                throw dataResult.reason;
+            }
+            Object.assign(this.state, dataResult.value, {
+                analytics:
+                    analyticsResult.status === "fulfilled"
+                        ? analyticsResult.value
+                        : null,
+            });
+        } finally {
+            this.state.loading = false;
+        }
     }
 
     async refresh() {
         await this.loadData();
-        this.notification.add("Dashboard refreshed", { type: "info", sticky: false });
-    }
-
-    getRarityClass(rarity) {
-        const map = {
-            common: "text-muted",
-            rare: "text-info",
-            epic: "text-warning",
-            legendary: "text-success",
-        };
-        return map[rarity] || "";
-    }
-
-    getBadgeLevelClass(level) {
-        const map = {
-            gold: "text-warning",
-            silver: "text-muted",
-            bronze: "text-danger",
-        };
-        return map[level] || "";
-    }
-
-    getStreakIcon(streak) {
-        if (streak.state === "broken") return "fa-heart-o text-danger";
-        if (streak.current_count >= 30) return "fa-fire text-warning";
-        if (streak.current_count >= 7) return "fa-fire text-success";
-        return "fa-fire text-muted";
-    }
-
-    getTrendIcon(trend) {
-        const map = {
-            up: "fa-arrow-up text-success",
-            down: "fa-arrow-down text-danger",
-            flat: "fa-minus text-muted",
-            new: "fa-plus text-info",
-        };
-        return map[trend] || "fa-minus text-muted";
+        this.notification.add(_t("Dashboard refreshed"), {
+            type: "info",
+            sticky: false,
+        });
     }
 
     // ── Navigation ─────────────────────────────────────────────────
 
-    async openChallenges() {
-        this.actionService.doAction("gamification.challenge_list_action");
-    }
-
-    async openBadges() {
-        this.actionService.doAction("gamification.badge_list_action");
-    }
-
-    async openKudos() {
-        this.actionService.doAction("gamification.kudos_list_action");
-    }
-
-    async openStreaks() {
-        this.actionService.doAction("gamification.streak_list_action");
-    }
-
-    async openAnalytics() {
-        this.actionService.doAction("gamification.engagement_snapshot_list_action");
+    openAction(xmlId) {
+        return this.actionService.doAction(xmlId);
     }
 
     // ── Send Kudos ─────────────────────────────────────────────────
 
     async toggleKudosForm() {
         if (!this.state.kudosFormOpen && this.state.kudosUsers.length === 0) {
-            // Load users and categories for the form
+            // Load recipients (everyone but the current user) and categories.
             const [users, categories] = await Promise.all([
                 this.orm.searchRead(
                     "res.users",
-                    [["active", "=", true], ["share", "=", false], ["id", "!=", this.state.profile.user_id || false]],
+                    [
+                        ["active", "=", true],
+                        ["share", "=", false],
+                        ["id", "!=", user.userId],
+                    ],
                     ["name"],
                     { order: "name", limit: 100 },
                 ),
@@ -141,22 +129,12 @@ class GamificationDashboard extends Component {
         this.state.kudosFormOpen = !this.state.kudosFormOpen;
     }
 
-    onKudosRecipientChange(ev) {
-        this.state.kudosRecipientId = parseInt(ev.target.value) || false;
-    }
-
-    onKudosCategoryChange(ev) {
-        this.state.kudosCategoryId = parseInt(ev.target.value) || false;
-    }
-
-    onKudosMessageChange(ev) {
-        this.state.kudosMessage = ev.target.value;
-    }
-
     async sendKudos() {
         const { kudosRecipientId, kudosCategoryId, kudosMessage } = this.state;
         if (!kudosRecipientId || !kudosCategoryId || !kudosMessage.trim()) {
-            this.notification.add("Please fill in all fields", { type: "warning" });
+            this.notification.add(_t("Please fill in all fields"), {
+                type: "warning",
+            });
             return;
         }
         this.state.kudosSending = true;
@@ -167,7 +145,10 @@ class GamificationDashboard extends Component {
                 [kudosRecipientId, kudosCategoryId, kudosMessage],
             );
             this.notification.add(
-                `Kudos sent to ${result.recipient_name}! (+${result.karma_granted} karma)`,
+                _t("Kudos sent to %(name)s! (+%(karma)s karma)", {
+                    name: result.recipient_name,
+                    karma: result.karma_granted,
+                }),
                 { type: "success" },
             );
             // Reset form and refresh feed
@@ -177,7 +158,15 @@ class GamificationDashboard extends Component {
             this.state.kudosFormOpen = false;
             await this.loadData();
         } catch (e) {
-            this.notification.add(e.message || "Failed to send kudos", { type: "danger" });
+            // Business errors (UserError/ValidationError) carry the human-readable
+            // text on ``data.message``; the top-level ``message`` is the generic
+            // "Odoo Server Error" wrapper.
+            this.notification.add(
+                e.data?.message || e.message || _t("Failed to send kudos"),
+                {
+                    type: "danger",
+                },
+            );
         } finally {
             this.state.kudosSending = false;
         }
