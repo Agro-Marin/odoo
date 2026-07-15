@@ -33,6 +33,38 @@ const patchDescriptions = new WeakMap();
 const usedExtensions = new WeakSet();
 
 /**
+ * Weak enumeration of every object ever handed to ``patch()`` as a target.
+ *
+ * ``patchDescriptions`` is a WeakMap, which is the right lifetime model but
+ * makes the patch graph non-enumerable — diagnostics like ``patchInfo`` can
+ * only answer questions about a target the caller already holds. This set of
+ * ``WeakRef``s adds enumeration for {@link getPatchedTargets} without
+ * extending any target's lifetime (dead refs are pruned on read).
+ * ``enumerableTargets`` (a WeakSet) only dedupes: one ref per target ever.
+ *
+ * @type {Set<WeakRef<object>>}
+ */
+const patchedTargetRefs = new Set();
+
+/** @type {WeakSet<object>} */
+const enumerableTargets = new WeakSet();
+
+/**
+ * Keys each extension object *declared* when it was first handed to
+ * ``patch()``. Recorded before the patch is applied because ``patch()``
+ * mutates extension objects afterwards: when a later patch overrides key
+ * ``K``, the previous descriptor of ``K`` is copied onto the current
+ * skeleton — which is the *previous extension object*. Own-key inspection of
+ * an extension therefore over-reports (it includes such skeleton copies);
+ * this map preserves the honest set for {@link patchDeclaredKeys}. Recorded
+ * once per extension: the unpatch closure legitimately re-applies surviving
+ * extensions, whose own keys may by then include skeleton copies.
+ *
+ * @type {WeakMap<object, string[]>}
+ */
+const extensionDeclaredKeys = new WeakMap();
+
+/**
  * Create or get the patch description for the given `objToPatch`.
  * @param {object} objToPatch
  * @returns {PatchDescription}
@@ -122,8 +154,15 @@ export function patch(objToPatch, extension) {
     const description = getPatchDescription(objToPatch);
     description.extensions.add(extension);
     usedExtensions.add(extension);
+    if (!enumerableTargets.has(objToPatch)) {
+        enumerableTargets.add(objToPatch);
+        patchedTargetRefs.add(new WeakRef(objToPatch));
+    }
 
     const properties = Object.getOwnPropertyDescriptors(extension);
+    if (!extensionDeclaredKeys.has(extension)) {
+        extensionDeclaredKeys.set(extension, Object.keys(properties));
+    }
     for (const [key, newProperty] of Object.entries(properties)) {
         const oldProperty = Object.getOwnPropertyDescriptor(objToPatch, key);
         if (oldProperty) {
@@ -198,6 +237,47 @@ export function patch(objToPatch, extension) {
  *   prototype, class constructor, or plain object).
  * @returns {{ extensions: object[], patchedKeys: string[] } | null}
  */
+/**
+ * Diagnostic companion to ``patchInfo``: enumerate every object that
+ * currently has at least one live patch. Backed by weak references, so it
+ * never keeps a target alive; targets whose patches were all reverted (or
+ * that were garbage-collected) are skipped. DevTools/test helper only — no
+ * production code path calls it.
+ *
+ * @returns {object[]} the currently patched targets (fresh array)
+ */
+export function getPatchedTargets() {
+    const targets = [];
+    for (const ref of patchedTargetRefs) {
+        const target = ref.deref();
+        if (!target) {
+            patchedTargetRefs.delete(ref);
+            continue;
+        }
+        if (patchDescriptions.has(target)) {
+            targets.push(target);
+        }
+    }
+    return targets;
+}
+
+/**
+ * The keys an extension object declared when it was passed to ``patch()``.
+ *
+ * Prefer this over inspecting the extension's own keys: ``patch()`` re-uses
+ * extension objects as skeletons of the ``super`` chain and copies previous
+ * descriptors onto them, so own-key inspection over-reports (see
+ * ``extensionDeclaredKeys``). Returns ``null`` for objects never used as a
+ * ``patch()`` extension. DevTools/test helper only.
+ *
+ * @param {object} extension An extension object as passed to ``patch()``
+ * @returns {string[] | null} fresh copy of the declared keys
+ */
+export function patchDeclaredKeys(extension) {
+    const keys = extensionDeclaredKeys.get(extension);
+    return keys ? [...keys] : null;
+}
+
 export function patchInfo(target) {
     const description = patchDescriptions.get(target);
     if (!description) {
