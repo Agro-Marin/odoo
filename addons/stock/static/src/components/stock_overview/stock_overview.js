@@ -7,10 +7,6 @@ import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_li
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 
 export class StockKanbanRenderer extends KanbanRenderer {
-    setup() {
-        super.setup();
-    }
-
     // If all Inventory Overview graphs are empty, we use random sample data
     getGroupsOrRecords() {
         const { list } = this.props;
@@ -22,17 +18,34 @@ export class StockKanbanRenderer extends KanbanRenderer {
                 records.push(...g.list.records);
             });
         }
-        // Data type "sample" is assigned in Python to empty graph data
-        let allEmpty = records.every(r => {
-            return r.data.kanban_dashboard_graph.includes('"type": "sample"');
+        // Python tags empty graph data with type "sample" (and a null
+        // picking_type_id). When every card is empty we replace the flat zeros
+        // with lively random bars. Detection is parse-based (robust to JSON
+        // whitespace), and each record is randomised only once (tracked in a
+        // WeakSet) so the bars stay stable across re-renders instead of
+        // re-randomising on every render.
+        this._sampledRecords ??= new WeakSet();
+        const parsed = records.map((r) => {
+            try {
+                return JSON.parse(r.data.kanban_dashboard_graph);
+            } catch {
+                return null;
+            }
         });
+        const allEmpty =
+            parsed.length &&
+            parsed.every((p) => p && p[0]?.values?.every((v) => v.type === "sample"));
         if (allEmpty) {
-            records.forEach(r => {
-                let parsedDashboardData = JSON.parse(r.data.kanban_dashboard_graph);
-                parsedDashboardData[0].values.forEach(d => {
+            records.forEach((r, i) => {
+                if (this._sampledRecords.has(r)) {
+                    return;
+                }
+                const data = parsed[i];
+                data[0].values.forEach((d) => {
                     d.value = Math.floor(Math.random() * 9 + 1);
                 });
-                r.data.kanban_dashboard_graph = JSON.stringify(parsedDashboardData);
+                r.data.kanban_dashboard_graph = JSON.stringify(data);
+                this._sampledRecords.add(r);
             });
         }
         return super.getGroupsOrRecords();

@@ -3,6 +3,12 @@ import { SearchModel } from "@web/search/search_model";
 
 export class StockReportSearchModel extends SearchModel {
 
+    setup() {
+        super.setup(...arguments);
+        // Ensure getWarehouses() never returns undefined if load() fails/hasn't run.
+        this.warehouses = [];
+    }
+
     async load() {
         await super.load(...arguments);
         await this._loadWarehouses();

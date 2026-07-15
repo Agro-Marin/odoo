@@ -32,12 +32,10 @@ export class StockPickFrom extends Component {
             }
             name_parts.push(packageName);
         }
-        if (data.owner) {
-            name_parts.push(data.owner?.display_name)
+        if (data.owner_id) {
+            name_parts.push(data.owner_id?.display_name)
         }
-        const result = name_parts.join(" - ");
-        if (result) return result;
-        return "";
+        return name_parts.join(" - ");
     }
 }
 
@@ -46,8 +44,9 @@ registry.category("fields").add("pick_from", {
     fieldDependencies: [
         // dependencies to build the quant display name
         { name: "location_id", type: "relation" },
-        { name: "location_dest_id", type: "relation" },
         { name: "package_id", type: "relation" },
+        { name: "lot_id", type: "relation" },
+        { name: "lot_name", type: "char" },
         { name: "owner_id", type: "relation" },
         { name: "state", type: "char" },
     ],

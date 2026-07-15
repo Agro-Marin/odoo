@@ -122,8 +122,11 @@ export class TraceabilityReport extends Component {
                 active_id: line.model_id,
                 active_model: line.model,
                 auto_unfold: true,
-                lot_name: line.lot_name !== undefined && line.lot_name,
-                url: "/stock/output_format/stock/active_id",
+                lot_name: line.lot_name || false,
+                // Must carry the :active_id/:active_model placeholders that
+                // onClickPrint() substitutes; without them Print builds a broken
+                // URL (see stock_traceability_report_data.xml for the canonical form).
+                url: "/stock/output_format/stock?active_id=:active_id&active_model=:active_model",
             },
         });
     }

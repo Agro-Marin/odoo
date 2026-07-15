@@ -7,7 +7,7 @@ import {
     popoverWidgetField,
 } from "@stock/widgets/popover_widget";
 
-export class StockRescheculingPopoverComponent extends PopoverComponent {
+export class StockReschedulingPopoverComponent extends PopoverComponent {
     setup(){
         this.action = useService("action");
     }
@@ -15,7 +15,7 @@ export class StockRescheculingPopoverComponent extends PopoverComponent {
     openElement(ev){
         this.action.doAction({
             res_model: ev.currentTarget.getAttribute('element-model'),
-            res_id: parseInt(ev.currentTarget.getAttribute('element-id')),
+            res_id: parseInt(ev.currentTarget.getAttribute("element-id"), 10),
             views: [[false, "form"]],
             type: "ir.actions.act_window",
             view_mode: "form",
@@ -23,14 +23,19 @@ export class StockRescheculingPopoverComponent extends PopoverComponent {
     }
 }
 
-export class StockRescheculingPopover extends PopoverWidgetField {
+export class StockReschedulingPopover extends PopoverWidgetField {
     static components = {
-        Popover: StockRescheculingPopoverComponent
+        Popover: StockReschedulingPopoverComponent
     };
     setup(){
         super.setup();
         this.color = this.jsonValue.color || 'text-danger';
-        this.icon = this.jsonValue.icon || 'fa-exclamation-triangle';
+        // Set the full FA7 class (family + name); the parent's bare-name
+        // normalization only runs on the default, not on this override, so a
+        // bare "fa-triangle-exclamation" here would render with no glyph.
+        this.icon = this.jsonValue.icon
+            ? (this.jsonValue.icon.includes(' ') ? this.jsonValue.icon : `fa-solid ${this.jsonValue.icon}`)
+            : 'fa-solid fa-triangle-exclamation';
     }
 
     showPopup(ev){
@@ -43,5 +48,5 @@ export class StockRescheculingPopover extends PopoverWidgetField {
 
 registry.category("fields").add("stock_rescheduling_popover", {
     ...popoverWidgetField,
-    component: StockRescheculingPopover,
+    component: StockReschedulingPopover,
 });

@@ -7,9 +7,11 @@ export class InventoryReportListModel extends RelationalModel {
     /**
      * Override
      */
-    setup(params) {
-        // model has not created any record yet
-        this._lastCreatedRecordId;
+    setup() {
+        // Id of the datapoint created by the most recent addNewRecord, consumed
+        // once by the immediately-following post-create reload (see
+        // _updateSimilarRecords). null when no create is pending inspection.
+        this._lastCreatedRecordId = null;
         return super.setup(...arguments);
     }
 
@@ -24,7 +26,12 @@ export class InventoryReportListModel extends RelationalModel {
             return;
         }
 
-        const justCreated = reloadedRecord.id == this._lastCreatedRecordId;
+        const justCreated = reloadedRecord.id === this._lastCreatedRecordId;
+        // One-shot: only the reload immediately following the create should be
+        // inspected. Clearing it here prevents a later legitimate edit of the
+        // same datapoint (whose id is unchanged, but now write_date > create_date)
+        // from re-firing the "already exists" notification.
+        this._lastCreatedRecordId = null;
         if (justCreated && serverValues.create_date !== serverValues.write_date) {
             this.env.services.notification.add(
                 _t(

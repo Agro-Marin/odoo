@@ -18,19 +18,24 @@ export class StockOrderpointSearchModel extends SearchModel {
 
     async applyGlobalHorizonDays(globalHorizonDays) {
         this.ui.block();
-        this.globalContext = {
-            ...this.globalContext,
-            global_horizon_days: globalHorizonDays,
-        };
-        this._context = false; // Force rebuild of this.context to take into account the updated this.globalContext
-        await this.orm.call("stock.warehouse.orderpoint", "action_open_orderpoints", [], {
-            context: {
-                ...this.context,
-                force_orderpoint_recompute: true,
-            }
-        });
-        await this._fetchSections(this.categories, this.filters);
-        this._notify();
-        this.ui.unblock();
+        try {
+            this.globalContext = {
+                ...this.globalContext,
+                global_horizon_days: globalHorizonDays,
+            };
+            this._context = false; // Force rebuild of this.context to take into account the updated this.globalContext
+            await this.orm.call("stock.warehouse.orderpoint", "action_open_orderpoints", [], {
+                context: {
+                    ...this.context,
+                    force_orderpoint_recompute: true,
+                }
+            });
+            await this._fetchSections(this.categories, this.filters);
+            this._notify();
+        } finally {
+            // Always release the UI, even if the recompute RPC rejects, so a
+            // server error can't leave the screen permanently blocked.
+            this.ui.unblock();
+        }
     }
 }
