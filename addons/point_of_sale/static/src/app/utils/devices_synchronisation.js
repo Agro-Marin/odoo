@@ -200,7 +200,15 @@ export default class DevicesSynchronisation {
     constructOrdersDomain() {
         const dynamicModels = this.dynamicModels;
         const recordsToCheck = Array.from(dynamicModels).reduce((acc, model) => {
-            acc[model] = this.models[model].filter(
+            const collection = this.models[model];
+            // A dynamic model can be declared by an installed module without being
+            // part of the current session's loaded data (e.g. preparation-display
+            // models when the POS config has no preparation display). There is then
+            // no collection to read and nothing to sync for it.
+            if (!collection) {
+                return acc;
+            }
+            acc[model] = collection.filter(
                 (r) => !this.pos.data.opts.databaseTable[model]?.condition(r),
             );
             return acc;

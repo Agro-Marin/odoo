@@ -273,7 +273,12 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     // an omitted many2one into a `_disconnect`, silently erasing
                     // relations on partial server payloads (the reason callers had to
                     // manually re-attach `config_id`/`session_id` after connect).
+                    // Carry the current raw value over: `_loadData` wholesale-replaces
+                    // the record's raw store with this `rawData`, so dropping the field
+                    // would leave the relation undefined (e.g. an x2many Set becoming
+                    // `undefined`, which then crashes `_addItem` on the next connect).
                     if (existingRecord && !(fieldName in vals)) {
+                        rawData[fieldName] = existingRecord[RAW_SYMBOL][fieldName];
                         continue;
                     }
                     const isX2Many = X2MANY_TYPES.has(field.type);

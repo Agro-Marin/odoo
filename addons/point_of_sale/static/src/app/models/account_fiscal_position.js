@@ -6,18 +6,18 @@ export class AccountFiscalPosition extends Base {
 
     getTaxesAfterFiscalPosition(taxes) {
         if (!this.tax_ids?.length) {
-            // Mirror Python's map_tax: only return empty when the taxes themselves
-            // are linked to fiscal positions (tax units pattern). Otherwise pass through.
-            if (taxes.some((tax) => tax.fiscal_position_ids?.length)) {
-                return [];
-            }
-            return taxes;
+            // Mirror Python's account.fiscal.position.map_tax: a position with no
+            // tax mapping keeps only the taxes that are not themselves scoped to a
+            // fiscal position (the tax-units pattern), dropping the scoped ones.
+            // This is a per-tax filter, not an all-or-nothing decision.
+            return taxes.filter((tax) => !tax.fiscal_position_ids?.length);
         }
 
+        const taxMap = this.tax_map || {};
         const newTaxIds = [];
         for (const tax of taxes) {
-            if (this.tax_map[tax.id]) {
-                for (const mapTaxId of this.tax_map[tax.id]) {
+            if (taxMap[tax.id]) {
+                for (const mapTaxId of taxMap[tax.id]) {
                     newTaxIds.push(mapTaxId);
                 }
             } else {
