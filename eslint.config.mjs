@@ -251,6 +251,8 @@ export default [
             }],
             "no-undef": "error",
             "no-restricted-globals": ["error", "event", "self"],
+            eqeqeq: ["error", "smart"],
+            "no-var": "error",
             "no-const-assign": "error",
             "no-debugger": "error",
             "no-dupe-class-members": "error",
