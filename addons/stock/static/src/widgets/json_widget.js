@@ -4,7 +4,6 @@ import { cookie } from "@web/core/browser/cookie";
 import { getColor } from "@web/core/colors/colors";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -12,7 +11,15 @@ export class JsonPopOver extends Component {
     static template = "";
     static props = {...standardFieldProps};
     get jsonValue() {
-        return JSON.parse(this.props.record.data[this.props.name]);
+        // Memoized: this getter is read many times per render (once per derived
+        // getter and repeatedly in getScatterGraphConfig). Re-parse only when the
+        // underlying field value actually changes.
+        const raw = this.props.record.data[this.props.name];
+        if (raw !== this._jsonRaw) {
+            this._jsonRaw = raw;
+            this._jsonValue = JSON.parse(raw);
+        }
+        return this._jsonValue;
     }
 }
 
@@ -47,18 +54,22 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
         this.chart = null;
         this.canvasRef = useRef("canvas");
         onWillStart(async () => {
-            this.displayUOM = await user.hasGroup("uom.group_uom");
             await loadChartJS();
         });
 
-        useEffect(() => {
-            this.renderChart();
-            return () => {
-                if (this.chart) {
-                    this.chart.destroy();
-                }
-            };
-        });
+        useEffect(
+            () => {
+                this.renderChart();
+                return () => {
+                    if (this.chart) {
+                        this.chart.destroy();
+                    }
+                };
+            },
+            // Rebuild the chart only when the underlying JSON changes, not on
+            // every render.
+            () => [this.props.record.data[this.props.name]]
+        );
     }
     get productUomName(){
         return this.jsonValue["product_uom_name"];

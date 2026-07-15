@@ -12,6 +12,9 @@ export class ForecastedHeader extends Component {
         this.action = useService("action");
 
         this._formatFloat = (num) => formatFloat(num, { digits: this.props.docs.precision });
+        // Computed once; leadTime is read several times per render and previously
+        // rebuilt dates and mutated the report data on every access.
+        this.leadTimeData = this._computeLeadTime();
     }
 
     async _onClickInventory(){
@@ -28,23 +31,34 @@ export class ForecastedHeader extends Component {
     }
 
     get leadTime() {
-        if (!this.products || this.products.length === 0) {
+        return this.leadTimeData;
+    }
+
+    _computeLeadTime() {
+        const productsArray = Object.values(this.products || {});
+        if (!productsArray.length) {
             return null;
         }
-        const productsArray = Object.values(this.products || {});
         const product = productsArray.reduce((minProduct, p) => {
             if (
-            !minProduct ||
-            (p.leadtime && p.leadtime.total_delay < (minProduct.leadtime?.total_delay ?? Infinity))
+                !minProduct ||
+                (p.leadtime && p.leadtime.total_delay < (minProduct.leadtime?.total_delay ?? Infinity))
             ) {
-            return p;
+                return p;
             }
             return minProduct;
         }, null);
-        const today = new Date(Date.now());
-        product.leadtime["today"] = today.toLocaleDateString();
-        product.leadtime["earliestPossibleArrival"] = this.addDays(today, product.leadtime.total_delay);
-        return product.leadtime;
+        if (!product?.leadtime) {
+            return null;
+        }
+        // Return a derived copy; never write today/earliestPossibleArrival back
+        // into the shared report data.
+        const today = new Date();
+        return {
+            ...product.leadtime,
+            today: today.toLocaleDateString(),
+            earliestPossibleArrival: this.addDays(today, product.leadtime.total_delay),
+        };
     }
 
     get leadTimeShort() {

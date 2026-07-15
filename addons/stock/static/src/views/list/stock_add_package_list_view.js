@@ -3,8 +3,7 @@ import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { openSelectPackagesDialog } from "@stock/views/select_packages_dialog";
 
 export class AddPackageListRenderer extends ListRenderer {
     setup() {
@@ -23,38 +22,17 @@ export class AddPackageListRenderer extends ListRenderer {
         return this.canAddEntirePacks;
     }
 
-    async add(params) {
+    async add() {
         await this.onClickAdd();
     }
 
     async onClickAdd() {
-        const domain = [];
-        if (this.locationId) {
-            domain.push(["location_id", "child_of", this.locationId]);
-        }
-        this.addDialog(SelectCreateDialog, {
-            title: _t("Select Packages to Move"),
-            noCreate: true,
-            multiSelect: true,
-            resModel: "stock.package",
-            domain,
-            context: {
-                list_view_ref: "stock.view_stock_package_list_add",
-            },
-            onSelected: async (resIds) => {
-                if (resIds.length) {
-                    const done = await this.orm.call("stock.picking", "action_add_entire_packs", [
-                        [this.pickingId],
-                        resIds,
-                    ]);
-                    if (done) {
-                        await this.actionService.doAction({
-                            type: "ir.actions.client",
-                            tag: "soft_reload",
-                        });
-                    }
-                }
-            },
+        openSelectPackagesDialog({
+            addDialog: this.addDialog,
+            orm: this.orm,
+            actionService: this.actionService,
+            pickingId: this.pickingId,
+            locationId: this.locationId,
         });
     }
 }
