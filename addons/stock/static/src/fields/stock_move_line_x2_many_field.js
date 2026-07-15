@@ -34,7 +34,7 @@ export class SMLX2ManyField extends X2ManyField {
         return true; // To override in mrp_subcontracting
     }
 
-    async onAdd({ context, editable } = {}) {
+    async onAdd({ context } = {}) {
         if (!this.props.record.data.show_quant) {
             return super.onAdd(...arguments);
         }
@@ -76,12 +76,26 @@ export class SMLX2ManyField extends X2ManyField {
         return this.selectCreate({ domain, context, title });
     }
 
+    /**
+     * Pending, not-yet-saved change to a move line's quantity, as
+     * `savedQty - currentQty` (negative when the line now reserves more than the
+     * DB reflects). Reads the relational Record's private `_values`/`_changes`
+     * because the last-saved baseline is not exposed publicly (`data.quantity` is
+     * the current, edited value) and the quant's DB `available_quantity` does not
+     * yet account for unsaved line-quantity edits. Returns a falsy `NaN` when the
+     * quantity is unchanged, so it also serves as a "quantity is dirty" test.
+     * Isolated here so this fragile coupling lives in one place.
+     */
+    _unsavedQtyDelta(ml) {
+        return ml._values.quantity - ml._changes.quantity;
+    }
+
     async updateDirtyQuantsData() {
         // Since changes of move line quantities will not affect the available quantity of the quant before
         // the record has been saved, it is necessary to determine the offset of the DB quant data.
         this.dirtyQuantsData.clear();
         const dirtyQuantityMoveLines = this._move_line_ids.filter(
-            (ml) => !ml.data.quant_id && ml._values.quantity - ml._changes.quantity
+            (ml) => !ml.data.quant_id && this._unsavedQtyDelta(ml)
         );
         const dirtyQuantMoveLines = this._move_line_ids.filter(
             (ml) => ml.data.quant_id.id
@@ -125,15 +139,15 @@ export class SMLX2ManyField extends X2ManyField {
         }
         const offsetByQuantity = new Map();
         for (const ml of dirtyQuantityMoveLines) {
-            offsetByQuantity.set(ml.resId, ml._values.quantity - ml._changes.quantity);
+            offsetByQuantity.set(ml.resId, this._unsavedQtyDelta(ml));
         }
         for (const quant of quants) {
-            const quantityOffest = quant[1].move_line_ids
+            const quantityOffset = quant[1].move_line_ids
                 .map((ml) => offsetByQuantity.get(ml) || 0)
                 .reduce((val, sum) => val + sum, 0);
-            const quantOffest = offsetByQuant.get(quant[0]) || 0;
+            const quantOffset = offsetByQuant.get(quant[0]) || 0;
             this.dirtyQuantsData.set(quant[0], {
-                available_quantity: quant[1].available_quantity + quantityOffest + quantOffest,
+                available_quantity: quant[1].available_quantity + quantityOffset + quantOffset,
             });
         }
     }
