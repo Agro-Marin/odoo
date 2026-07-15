@@ -267,6 +267,15 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     if (field.dummy) {
                         continue;
                     }
+                    // When updating an existing record, a relational field that is
+                    // absent from `vals` means "unchanged" — never "clear". Without
+                    // this guard an omitted x2many was turned into `[["clear"]]` and
+                    // an omitted many2one into a `_disconnect`, silently erasing
+                    // relations on partial server payloads (the reason callers had to
+                    // manually re-attach `config_id`/`session_id` after connect).
+                    if (existingRecord && !(fieldName in vals)) {
+                        continue;
+                    }
                     const isX2Many = X2MANY_TYPES.has(field.type);
                     const rawValue = isX2Many ? new Set(value) : value;
                     const data = existingRecord?.[field.name];
@@ -795,7 +804,7 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         } else {
                             modelEvents.triggerEvents("update", {
                                 id: record.id,
-                                fields: Object.keys(rawData),
+                                fields: Object.keys(vals),
                             });
                         }
                         resultsArray.push(record);

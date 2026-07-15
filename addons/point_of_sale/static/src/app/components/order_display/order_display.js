@@ -18,11 +18,16 @@ export class OrderDisplay extends Component {
 
     setup() {
         this.scrollableRef = useRef("scrollable");
-        useEffect(() => {
-            this.scrollableRef.el
-                ?.querySelector(".orderline.selected")
-                ?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        // Only scroll when the selected orderline actually changes. Without a
+        // dependency array this ran (and smooth-scrolled) after every patch.
+        useEffect(
+            () => {
+                this.scrollableRef.el
+                    ?.querySelector(".orderline.selected")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            },
+            () => [this.props.order?.uiState?.selected_orderline_uuid],
+        );
     }
 
     formatCurrency(amount) {

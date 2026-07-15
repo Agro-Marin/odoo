@@ -176,8 +176,19 @@ export default class DevicesSynchronisation {
      */
     processDeletedRecords(deletedRecords) {
         for (const [model, ids] of Object.entries(deletedRecords)) {
-            const records = this.models[model].readMany(ids);
-            this.models[model].deleteMany(records.filter(Boolean), { silent: true });
+            const records = this.models[model].readMany(ids).filter(Boolean);
+            // Also evict the rows from IndexedDB, otherwise records deleted on
+            // another device stay persisted locally and get re-loaded on the next
+            // refresh (resurrecting orders that were deleted elsewhere).
+            const dbTable = this.pos.data.opts.databaseTable[model];
+            if (dbTable) {
+                const key = dbTable.key || "id";
+                const keys = records.map((r) => r[key]).filter((k) => k !== undefined);
+                if (keys.length) {
+                    this.pos.data.deleteRecordsInIndexedDB(model, keys);
+                }
+            }
+            this.models[model].deleteMany(records, { silent: true });
         }
     }
 

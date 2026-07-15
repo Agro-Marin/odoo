@@ -272,7 +272,7 @@ export class PaymentScreen extends Component {
             this.currentOrder.setShippingDate(false);
         }
     }
-    deletePaymentLine(uuid) {
+    async deletePaymentLine(uuid) {
         const line = this.paymentLines.find((line) => line.uuid === uuid);
         if (line.payment_method_id.payment_method_type === "qr_code") {
             this.currentOrder.removePaymentline(line);
@@ -283,13 +283,21 @@ export class PaymentScreen extends Component {
         // it is removed, the terminal should get a cancel
         // request.
         if (["waiting", "waitingCard", "timeout"].includes(line.getPaymentStatus())) {
+            const previousStatus = line.getPaymentStatus();
             line.setPaymentStatus("waitingCancel");
-            line.payment_method_id.payment_terminal
-                .sendPaymentCancel(this.currentOrder, uuid)
-                .then(() => {
-                    this.currentOrder.removePaymentline(line);
-                    this.numberBuffer.reset();
-                });
+            try {
+                await line.payment_method_id.payment_terminal.sendPaymentCancel(
+                    this.currentOrder,
+                    uuid,
+                );
+                this.currentOrder.removePaymentline(line);
+                this.numberBuffer.reset();
+            } catch {
+                // Don't leave the line stuck in "waitingCancel" (and swallow the
+                // unhandled rejection) if the terminal cancel fails — restore the
+                // prior status so it can be retried.
+                line.setPaymentStatus(previousStatus);
+            }
         } else if (line.getPaymentStatus() !== "waitingCancel") {
             this.currentOrder.removePaymentline(line);
             this.numberBuffer.reset();

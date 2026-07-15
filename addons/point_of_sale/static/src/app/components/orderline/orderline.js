@@ -110,16 +110,20 @@ export class Orderline extends Component {
 
         const imageUrl = line.product_id?.getImageUrl();
         const basic = this.props.basic_receipt;
-        const unitPart = line.getQuantityStr().unitPart;
-        const decimalPart = line.getQuantityStr().decimalPart;
-        const decimalPoint = line.getQuantityStr().decimalPoint;
+        const quantityStr = line.getQuantityStr();
+        const unitPart = quantityStr.unitPart;
+        const decimalPart = quantityStr.decimalPart;
+        const decimalPoint = quantityStr.decimalPoint;
         const discount = line.getDiscountStr();
         const mode = this.props.mode;
         const attributeStr = line.orderDisplayProductName.attributeString;
         const taxGroup = this.line.taxGroupLabels;
         const showPrice =
             !basic &&
-            line.getQuantityStr() != 1 &&
+            // getQuantityStr() returns an object, so `!= 1` was always true and the
+            // "hide the unit price when qty is 1" intent never applied. Compare the
+            // numeric quantity instead. (Also compute the object once, above.)
+            line.getQuantity() !== 1 &&
             (mode === "receipt" ||
                 (line.price_type !== "original" && !line.combo_parent_id));
         const priceUnit = `${line.currencyDisplayPriceUnit} / ${

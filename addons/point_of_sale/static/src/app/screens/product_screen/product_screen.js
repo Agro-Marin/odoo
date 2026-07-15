@@ -159,9 +159,6 @@ export class ProductScreen extends Component {
             "-": "o_colorlist_item_numpad_color_3",
         };
 
-        const defaultLastRowValues =
-            DEFAULT_LAST_ROW.map((button) => button.value) + [BACKSPACE.value];
-
         return getButtons(DEFAULT_LAST_ROW, [
             { value: "quantity", text: _t("Qty") },
             {
@@ -186,7 +183,6 @@ export class ProductScreen extends Component {
                 (button.value === SWITCHSIGN.value &&
                     this.pos.cashier._role === "minimal"),
             class: `
-                ${defaultLastRowValues.includes(button.value) ? "" : ""}
                 ${colorClassMap[button.value] || ""}
                 ${this.pos.numpadMode === button.value ? "active" : ""}
                 ${button.value === "quantity" ? "numpad-qty rounded-0" : ""}
@@ -332,7 +328,10 @@ export class ProductScreen extends Component {
             return;
         }
         this.sound.play("beep");
-        const vals = { product_id: product, product_tmpl_id: product.product_tmpl_id };
+        const vals = {
+            product_id: product,
+            product_tmpl_id: product.product_tmpl_id,
+        };
         if (
             qty &&
             product.uom_id &&

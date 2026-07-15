@@ -231,13 +231,19 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setDiscount(discount) {
-        const parsed_discount =
-            typeof discount === "number"
-                ? discount
-                : isNaN(parseFloat(discount))
-                  ? 0
-                  : parseFloat("" + discount);
-
+        // `parseFloat` (from @web/fields/parsers) throws on unparseable input, so
+        // the old `isNaN(parseFloat(...)) ? 0 : ...` fallback was dead and let the
+        // exception escape. Parse once, defensively, keeping locale-aware parsing.
+        let parsed_discount;
+        if (typeof discount === "number") {
+            parsed_discount = discount;
+        } else {
+            try {
+                parsed_discount = parseFloat("" + discount);
+            } catch {
+                parsed_discount = 0;
+            }
+        }
         const disc = Math.min(Math.max(parsed_discount || 0, 0), 100);
         this.discount = disc;
     }
@@ -322,8 +328,11 @@ export class PosOrderline extends PosOrderlineAccounting {
         }
         for (const comboLine of this.combo_line_ids) {
             // If each combo contains 2 qty of a product, we wanna keep this ratio after setting the new quantity on the parent product.
+            // The `|| 1` guards a zero divisor, so it must wrap `oldQty`, not the
+            // whole quotient — otherwise `oldQty === 0` gives `qty/0 = Infinity`
+            // (truthy, guard skipped) and a bogus child quantity/price.
             comboLine.setQuantity(
-                (comboLine.qty / this.uiState.oldQty || 1) * quantity,
+                (comboLine.qty / (this.uiState.oldQty || 1)) * quant,
                 true,
             );
         }
@@ -410,11 +419,20 @@ export class PosOrderline extends PosOrderlineAccounting {
         const ProductPrice = this.models["decimal.precision"].find(
             (dp) => dp.name === "Product Price",
         );
-        const parsed_price = !isNaN(price)
-            ? Number(price)
-            : isNaN(parseFloat(price))
-              ? 0
-              : parseFloat("" + price);
+        // `parseFloat` (from @web/fields/parsers) throws on unparseable input, so
+        // the old `isNaN(parseFloat(...)) ? 0 : ...` fallback was dead. `!isNaN`
+        // already handles numbers/numeric-strings/empty; only genuinely
+        // non-numeric strings reach the parse — do it defensively.
+        let parsed_price;
+        if (!isNaN(price)) {
+            parsed_price = Number(price);
+        } else {
+            try {
+                parsed_price = parseFloat("" + price);
+            } catch {
+                parsed_price = 0;
+            }
+        }
         this.price_unit = ProductPrice.round(parsed_price || 0);
     }
 

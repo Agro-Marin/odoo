@@ -102,7 +102,7 @@ export class PartnerList extends Component {
         this.clickPartner(this.props.partner);
         const partnerHasActiveOrders = this.pos
             .getOpenOrders()
-            .some((order) => order.partner?.id === partner.id);
+            .some((order) => order.getPartner()?.id === partner.id);
         const stateOverride = {
             search: {
                 fieldName: "PARTNER",
@@ -115,7 +115,10 @@ export class PartnerList extends Component {
     }
 
     confirm() {
-        this.props.resolve({ confirmed: true, payload: this.state.selectedPartner });
+        this.props.resolve({
+            confirmed: true,
+            payload: this.state.selectedPartner,
+        });
         this.pos.closeTempScreen();
     }
     getPartners(partners) {

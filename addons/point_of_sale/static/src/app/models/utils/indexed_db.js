@@ -184,12 +184,20 @@ export default class IndexedDB {
                             reject(event.target?.error || "Unknown error");
                         };
                     } catch {
+                        // Count the unserializable item as processed so a single bad
+                        // record can't stall the whole batch until TRANSACTION_TIMEOUT
+                        // fires and aborts (rolling back every successful put in it).
+                        completed++;
                         logPosMessage(
                             "IndexedDB",
                             method,
                             `Error processing ${method} for ${storeName}: Invalid data format`,
                             CONSOLE_COLOR,
                         );
+                        if (completed === batch.length && !hasError && !finished) {
+                            clearTimeout(timeoutId);
+                            resolve();
+                        }
                     }
                 }
             });
@@ -238,7 +246,7 @@ export default class IndexedDB {
                     "IndexedDB",
                     "reset",
                     "Timeout: Database reset took too long",
-                    CONSOLE_COLOR
+                    CONSOLE_COLOR,
                 );
                 resolve(false);
             }, 3000);
@@ -246,7 +254,12 @@ export default class IndexedDB {
             const request = this.dbInstance.deleteDatabase(this.dbName);
 
             request.onsuccess = () => {
-                logPosMessage("IndexedDB", "reset", "Database deleted successfully", CONSOLE_COLOR);
+                logPosMessage(
+                    "IndexedDB",
+                    "reset",
+                    "Database deleted successfully",
+                    CONSOLE_COLOR,
+                );
                 this.db = null;
                 clearTimeout(timeout);
                 resolve(true);
@@ -257,14 +270,19 @@ export default class IndexedDB {
                     "IndexedDB",
                     "reset",
                     `Error deleting DB: ${event.target.error}`,
-                    CONSOLE_COLOR
+                    CONSOLE_COLOR,
                 );
                 clearTimeout(timeout);
                 resolve(false);
             };
 
             request.onblocked = () => {
-                logPosMessage("IndexedDB", "reset", "Blocked deleting DB", CONSOLE_COLOR);
+                logPosMessage(
+                    "IndexedDB",
+                    "reset",
+                    "Blocked deleting DB",
+                    CONSOLE_COLOR,
+                );
                 clearTimeout(timeout);
                 resolve(false);
             };

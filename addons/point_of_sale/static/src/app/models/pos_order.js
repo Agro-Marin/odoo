@@ -403,7 +403,11 @@ export class PosOrder extends PosOrderAccounting {
             if (cLine.qty) {
                 if (newQty >= 0) {
                     comboRemainingFree[cLine.combo_item_id.combo_id.id] = newQty;
-                    childLineFree.push({ ...baseData, qty: cLine.qty, parentQty: pLine.qty });
+                    childLineFree.push({
+                        ...baseData,
+                        qty: cLine.qty,
+                        parentQty: pLine.qty,
+                    });
                 } else {
                     childLineExtra.push({ ...baseData, qty: cLine.qty });
                 }
@@ -746,7 +750,9 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get floatingOrderName() {
-        return this.floating_order_name || this.tracking_number.toString() || "";
+        // A fresh, not-yet-synced order has no tracking_number — guard the
+        // `.toString()` so reading the name (e.g. via getName()) can't throw.
+        return this.floating_order_name || this.tracking_number?.toString() || "";
     }
 
     sortBySequenceAndCategory(a, b) {
