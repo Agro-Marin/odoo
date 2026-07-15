@@ -299,7 +299,19 @@ class StockMoveLine(models.Model):
             if ml.state == "done":
                 if ml.product_id.is_storable:
                     # Move the quant from source to destination.
-                    ml._apply_quant_move()
+                    available_qty, _in_date = ml._apply_quant_move()
+                    if available_qty < 0:
+                        # A directly-created done line can force the source quant
+                        # negative; free the now-invalid reservations pointing at it,
+                        # mirroring write()/_action_done (else phantom reservations).
+                        ml._free_reservation(
+                            ml.product_id,
+                            ml.location_id,
+                            abs(available_qty),
+                            lot_id=ml.lot_id,
+                            package_id=ml.package_id,
+                            owner_id=ml.owner_id,
+                        )
                 next_moves = ml.move_id.move_dest_ids.filtered(
                     lambda move: move.state not in ("done", "cancel")
                 )
