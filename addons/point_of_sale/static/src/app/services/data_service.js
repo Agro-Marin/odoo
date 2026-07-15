@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { markRaw } from "@odoo/owl";
-import { Base, createRelatedModels } from "@point_of_sale/app/models/related_models";
+import { createRelatedModels } from "@point_of_sale/app/models/related_models";
 import { getOnNotified, uuidv4 } from "@point_of_sale/utils";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
@@ -503,14 +503,10 @@ export class PosData extends SignalStore {
                 if (!record) {
                     return; // the record may be deleted
                 }
-                for (const [key, value] of Object.entries(record)) {
-                    if (value instanceof Base) {
-                        record[key] = value.id;
-                    } else if (Array.isArray(value) && value[0] instanceof Base) {
-                        record[key] = value.map((v) => v.id);
-                    }
-                }
-
+                // `record` is `.raw` — a deep-immutable clone whose values are
+                // already ids / arrays of ids / scalars, never Base instances, so
+                // the old id-normalization loop here was unreachable (and would
+                // have thrown on the immutable proxy if it ever ran).
                 this.synchronizeServerDataInIndexedDB({ [model]: [record] });
             });
         }
