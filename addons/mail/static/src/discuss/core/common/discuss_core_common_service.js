@@ -103,7 +103,7 @@ export class DiscussCoreCommon {
         // the first "mail.message" of the payload for older payloads (that
         // convention only holds by Python Store insertion order).
         const message = this.store["mail.message"].get(
-            message_id ?? data["mail.message"][0],
+            message_id ?? data["mail.message"]?.[0],
         );
         if (!message) {
             return;

@@ -18,6 +18,9 @@ export class DiscussAppCategory extends Record {
                 compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id
             );
         }
+        // unknown category (e.g. one added by another addon): stable order
+        // instead of an implicit `undefined` return.
+        return t2.id - t1.id;
     }
 
     get isVisible() {
@@ -87,11 +90,9 @@ export class DiscussAppCategory extends Record {
                 // which the ``?? "true"`` defense does NOT catch — the
                 // string is truthy and reaches ``JSON.parse("undefined")``
                 // which throws and aborts the enclosing store insert.
-                const raw =
-                    browser.localStorage.getItem(this.localStateKey) ?? "true";
+                const raw = browser.localStorage.getItem(this.localStateKey) ?? "true";
                 try {
-                    this._openLocally =
-                        raw === "undefined" ? true : JSON.parse(raw);
+                    this._openLocally = raw === "undefined" ? true : JSON.parse(raw);
                 } catch {
                     this._openLocally = true;
                 }

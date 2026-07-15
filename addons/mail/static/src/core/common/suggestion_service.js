@@ -314,6 +314,9 @@ export class SuggestionService {
                     return result;
                 }
             }
+            // no comparator was decisive: keep a stable order rather than
+            // returning undefined (which Array.sort treats as non-ordering).
+            return 0;
         });
     }
 

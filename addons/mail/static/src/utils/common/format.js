@@ -17,6 +17,9 @@ import {
 import { setAttributes } from "@web/core/utils/dom/xml";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { getOrigin } from "@web/core/utils/urls";
+// Hoisted so `prettifyMessageText` doesn't allocate a throwaway markup() on
+// every call just to read its constructor (same pattern as model/record.js).
+const Markup = markup().constructor;
 const urlRegexp =
     /\b(?:https?:\/\/\d{1,3}(?:\.\d{1,3}){3}|(?:https?:\/\/|(?:www\.))[-a-z0-9@:%._+~#=\u00C0-\u024F\u1E00-\u1EFF]{1,256}(?:\.{1})?(?:[a-z]{2,13}))\b(?:[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|[.]*[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|,(?!$| )|\.(?!$| |\.)|;(?!$| ))*/gi;
 // Lazy: with native ESM this module is evaluated eagerly at bundle load,
@@ -28,9 +31,7 @@ function getMessageUrlRegExp() {
     const origin = getOrigin();
     if (messageUrlRegExpOrigin !== origin) {
         messageUrlRegExpOrigin = origin;
-        messageUrlRegExp = new RegExp(
-            `^${escapeRegExp(origin)}/mail/message/(\\d+)$`,
-        );
+        messageUrlRegExp = new RegExp(`^${escapeRegExp(origin)}/mail/message/(\\d+)$`);
     }
     return messageUrlRegExp;
 }
@@ -42,7 +43,7 @@ function getMessageUrlRegExp() {
  * @returns {Promise<string|ReturnType<markup>>}
  */
 export function prettifyMessageText(rawBody, { validMentions = {}, thread } = {}) {
-    if (rawBody instanceof markup().constructor) {
+    if (rawBody instanceof Markup) {
         // markup is already "pretty"
         return rawBody;
     }
@@ -70,10 +71,7 @@ export async function generateEmojisOnHtml(
     { allowEmojiLoading = true } = {},
 ) {
     let body = htmlBody;
-    if (
-        allowEmojiLoading ||
-        loader.loaded
-    ) {
+    if (allowEmojiLoading || loader.loaded) {
         body = await _generateEmojisOnHtml(body);
     }
     return body;
@@ -480,7 +478,10 @@ export function trimEmptyBlocksAround(content) {
     const trimEmptyParagraphs = (side) => {
         trimTextNodes(body, side);
         let paragraph = getBoundaryElement(body, side);
-        while (["P", "DIV"].includes(paragraph?.tagName) && isHtmlEmpty(paragraph.innerHTML)) {
+        while (
+            ["P", "DIV"].includes(paragraph?.tagName) &&
+            isHtmlEmpty(paragraph.innerHTML)
+        ) {
             removeNode(paragraph);
             trimTextNodes(body, side);
             paragraph = getBoundaryElement(body, side);

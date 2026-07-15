@@ -80,7 +80,14 @@ patch(Composer.prototype, {
         if (!this.typingNotified && value) {
             this.typingNotified = true;
             this.notifyIsTyping();
-            browser.setTimeout(() => (this.typingNotified = false), LONG_TYPING);
+            // After LONG_TYPING of continuous typing, clear the flag so the next
+            // keystroke re-notifies. Track the timer so it can be cleared on
+            // stop/destroy instead of leaking (and stacking) live 50s timers.
+            browser.clearTimeout(this._typingNotifiedTimeout);
+            this._typingNotifiedTimeout = browser.setTimeout(
+                () => (this.typingNotified = false),
+                LONG_TYPING,
+            );
         }
         this.stopTypingDebounced();
     },
@@ -92,6 +99,7 @@ patch(Composer.prototype, {
         this.stopTyping();
     },
     stopTyping() {
+        browser.clearTimeout(this._typingNotifiedTimeout);
         if (this.typingNotified) {
             this.typingNotified = false;
             this.notifyIsTyping(false);

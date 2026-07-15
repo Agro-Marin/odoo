@@ -199,7 +199,12 @@ async function _loadAudioWorkletProcessor(
  * @returns {number} normalized [0...1] average quantity of the relevant frequencies
  */
 function getFrequencyAverage(analyser, lowerFrequency, higherFrequency) {
-    const frequencies = new window.Uint8Array(analyser.frequencyBinCount);
+    // Reuse one buffer per analyser instead of allocating a fresh Uint8Array on
+    // every processing tic (~20 Hz for the lifetime of the mic monitor).
+    // frequencyBinCount is fixed once fftSize is set.
+    const frequencies = (analyser._freqBuffer ??= new window.Uint8Array(
+        analyser.frequencyBinCount,
+    ));
     analyser.getByteFrequencyData(frequencies);
     const sampleRate = analyser.context.sampleRate;
     const startIndex = _getFrequencyIndex(

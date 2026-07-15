@@ -7,6 +7,8 @@ import { rpc } from "@web/core/network/rpc";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { user } from "@web/services/user";
+// Server page size for /discuss/gif/favorites.
+const GIF_FAVORITES_LIMIT = 20;
 export function useGifPicker(...args) {
     return usePicker(GifPicker, ...args);
 }
@@ -78,6 +80,7 @@ export class GifPicker extends Component {
         this.next = "";
         this.showFavorite = false;
         this.offset = 0;
+        this.favoritesAllLoaded = false;
         this.state = useState({
             favorites: {
                 /** @type {TenorGif[]} */
@@ -291,7 +294,7 @@ export class GifPicker extends Component {
     }
 
     async loadFavorites() {
-        if (!this.store.hasGifPickerFeature) {
+        if (!this.store.hasGifPickerFeature || this.favoritesAllLoaded) {
             return;
         }
         this.state.loadingGif = true;
@@ -301,8 +304,13 @@ export class GifPicker extends Component {
                 { offset: this.offset },
                 { silent: true },
             );
-            this.offset += 20;
+            this.offset += results.length;
             this.state.favorites.gifs.push(...results);
+            if (results.length < GIF_FAVORITES_LIMIT) {
+                // Short (or empty) page => end of list; stop paginating so
+                // bottom-scrolling doesn't fire endless empty RPCs.
+                this.favoritesAllLoaded = true;
+            }
         } catch {
             this.state.loadingError = true;
         }
