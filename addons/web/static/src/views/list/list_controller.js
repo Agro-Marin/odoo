@@ -553,7 +553,11 @@ export class ListController extends MultiRecordController {
                 );
                 this.dialogService.add(ListConfirmationDialog, dialogProps, {
                     onClose: () => {
-                        if (focusedCellBeforeDialog) {
+                        // Only restore if the captured cell is still in the DOM:
+                        // the list may have re-rendered while the dialog was open,
+                        // detaching it — focusing a detached node drops focus to
+                        // <body>.
+                        if (focusedCellBeforeDialog?.isConnected) {
                             focusedCellBeforeDialog.focus();
                         }
                         resolve(false);

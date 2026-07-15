@@ -114,7 +114,16 @@ export class FormRenderer extends Component {
                                     .join(", "),
                             );
                     }
-                    if (elementToFocus) {
+                    // Don't steal focus the user has already placed inside the
+                    // form content — a re-render can re-fire this effect while
+                    // they're typing. Same guard form_controller uses when
+                    // focusing the primary button on leaving edition.
+                    if (
+                        elementToFocus &&
+                        !rootEl
+                            .querySelector(".o_content")
+                            ?.contains(document.activeElement)
+                    ) {
                         elementToFocus.focus();
                     }
                 },

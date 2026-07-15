@@ -127,7 +127,10 @@ export class X2ManyField extends Component {
                 ...params,
                 controls: this.controls,
                 onClose: () => {
-                    if (activeElement) {
+                    // Only restore if the captured node is still in the DOM: the
+                    // list can re-render on save, detaching it — focusing a
+                    // detached node silently drops focus to <body>.
+                    if (activeElement?.isConnected) {
                         /** @type {HTMLElement} */ (activeElement).focus();
                     }
                 },
