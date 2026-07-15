@@ -295,7 +295,12 @@ registerCallAction("join-with-camera", {
     disabledCondition: ({ store }) => store.rtc?.state.hasPendingRequest,
     name: _t("Join Video Call"),
     icon: "fa-solid fa-video",
-    onSelected: ({ store, thread }) => store.rtc.toggleCall(thread, { camera: true }),
+    onSelected: async ({ store, thread }) => {
+        await store.rtc.toggleCall(thread, { camera: true });
+        if (store.rtc.selfSession) {
+            store.rtc.enterFullscreen();
+        }
+    },
     sequence: 120,
     sequenceGroup: 300,
     tags: [ACTION_TAGS.JOIN_LEAVE_CALL, ACTION_TAGS.SUCCESS],
