@@ -27,7 +27,6 @@ class StockActionField extends Component {
     setup() {
         super.setup();
         this.actionService = useService("action");
-        this.orm = useService("orm");
         this.fieldType = this.props.record.fields[this.props.name].type;
     }
     
@@ -48,9 +47,10 @@ class StockActionField extends Component {
 
         // Get the action name from props.options
         const actionName = this.props.actionName;
-        const actionContext = evaluateExpr(this.props.actionContext, this.props.record.evalContext);
+        const actionContext = this.props.actionContext
+            ? evaluateExpr(this.props.actionContext, this.props.record.evalContext)
+            : {};
 
-        // const action = this.orm.call(this.props.record.resModel, actionName, this.props.record.resId);
         // Use the action service to perform the action
         this.actionService.doAction(actionName, {
             additionalContext: { ...actionContext, ...this.props.record.context },
@@ -63,7 +63,10 @@ const stockActionField = {
     ...monetaryField,
     component: StockActionField,
     supportedOptions: [
-        Object.values(
+        // Spread the de-duped float/monetary options into the flat list; wrapping
+        // them in an array (the old form) produced a nested entry that option
+        // tooling can't read.
+        ...Object.values(
             Object.fromEntries(
                 [...floatField.supportedOptions, ...monetaryField.supportedOptions].map(
                     (option) => [option.name, option]
@@ -74,6 +77,12 @@ const stockActionField = {
             label: _t("Action Name"),
             name: "action_name",
             type: "string",
+        },
+        {
+            label: _t("Disabled"),
+            name: "disabled",
+            type: "string",
+            help: _t("Python expression evaluated against the record to disable the field."),
         },
     ],
     extractProps: (...args) => {
