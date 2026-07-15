@@ -548,7 +548,16 @@ class StockWarehouseOrderpoint(models.Model):
             bypass_delay_description=True,
         ):
             values = orderpoint._get_lead_days_values()
-            lead_days, _dummy = orderpoint.rule_ids._get_lead_days(
+            # Resolve the horizon from *this orderpoint's* company and thread it, so
+            # the forecast window honours `company_id.horizon_days` (the declared
+            # dependency). Otherwise `_get_lead_days` re-resolves it off an empty
+            # recordset -> `env.company`, which during `run_scheduler` is the cron
+            # user's company, giving every other company's orderpoints the wrong
+            # horizon. `get_horizon_days()` still yields to an explicit
+            # `global_horizon_days` in context (the replenishment view's override).
+            lead_days, _dummy = orderpoint.rule_ids.with_context(
+                global_horizon_days=orderpoint.get_horizon_days(),
+            )._get_lead_days(
                 orderpoint.product_id,
                 **values,
             )
@@ -785,10 +794,14 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints = self.filtered(
             lambda orderpoint: orderpoint.id and orderpoint._is_below_min(),
         )
-        qty_in_progress_by_orderpoint = orderpoints._quantity_in_progress()
         for orderpoint in orderpoints:
+            # `qty_forecast` is already batch-computed (it is
+            # `qty_available_virtual` over the horizon + quantity in progress).
+            # Reuse it instead of re-reading `qty_available_virtual` per orderpoint:
+            # nothing has moved stock during this pure recompute, so the fresh read
+            # would only repeat the same aggregation N times.
             orderpoint.qty_to_order_computed = orderpoint._get_qty_to_order(
-                qty_in_progress_by_orderpoint=qty_in_progress_by_orderpoint,
+                qty_forecast=orderpoint.qty_forecast,
             )
         (self - orderpoints).qty_to_order_computed = False
 
@@ -1026,28 +1039,35 @@ class StockWarehouseOrderpoint(models.Model):
             < 0
         )
 
-    def _get_qty_to_order(self, qty_in_progress_by_orderpoint=None):
+    def _get_qty_to_order(self, qty_in_progress_by_orderpoint=None, qty_forecast=None):
+        """Compute how much to order to reach min/max, given the horizon forecast.
+
+        :param qty_forecast: the already-computed forecast (``qty_available_virtual``
+            over the lead horizon *plus* quantity in progress -- exactly the
+            ``qty_forecast`` field). Pass it to reuse the batched value; leave it
+            ``None`` on the sequential procurement / live-action paths so the forecast
+            is re-read fresh (sibling procurements may have moved stock mid-run).
+        """
         self.ensure_one()
         if not self._is_below_min():
             return 0.0
-        qty_in_progress_by_orderpoint = qty_in_progress_by_orderpoint or {}
-        qty_in_progress = qty_in_progress_by_orderpoint.get(self.id)
-        if qty_in_progress is None:
-            qty_in_progress = self._quantity_in_progress()[self.id]
-        # Re-read `qty_available_virtual` fresh instead of the cached `qty_forecast`: by the
-        # time this runs (scheduler / action_replenish), procurements for sibling
-        # orderpoints may have moved stock, leaving the cached value stale.
-        product_context = self._get_product_context()
-        qty_forecast_with_visibility = (
-            self.product_id.with_context(product_context).read(
-                ["qty_available_virtual"],
-            )[0]["qty_available_virtual"]
-            + qty_in_progress
-        )
-        qty_to_order = (
-            max(self.product_min_qty, self.product_max_qty)
-            - qty_forecast_with_visibility
-        )
+        if qty_forecast is None:
+            qty_in_progress_by_orderpoint = qty_in_progress_by_orderpoint or {}
+            qty_in_progress = qty_in_progress_by_orderpoint.get(self.id)
+            if qty_in_progress is None:
+                qty_in_progress = self._quantity_in_progress()[self.id]
+            # Re-read `qty_available_virtual` fresh instead of the cached
+            # `qty_forecast`: by the time this runs (scheduler / action_replenish),
+            # procurements for sibling orderpoints may have moved stock, leaving the
+            # cached value stale.
+            product_context = self._get_product_context()
+            qty_forecast = (
+                self.product_id.with_context(product_context).read(
+                    ["qty_available_virtual"],
+                )[0]["qty_available_virtual"]
+                + qty_in_progress
+            )
+        qty_to_order = max(self.product_min_qty, self.product_max_qty) - qty_forecast
         return self._get_multiple_rounded_qty(qty_to_order)
 
     def _get_lead_days_values(self):
