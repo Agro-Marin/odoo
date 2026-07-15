@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { AccountUploadListController } from "../account_upload_list/account_upload_list_controller.js";
+import { showAccountUploadButton } from "../account_file_uploader_mixin.js";
 import { deleteConfirmationMessage } from "@web/ui/dialog/confirmation_dialog";
 
 import { useService } from "@web/core/utils/hooks";
@@ -10,7 +11,7 @@ export class AccountMoveListController extends AccountUploadListController {
         super.setup();
         this.orm = useService("orm");
         this.account_move_service = useService("account_move");
-        this.showUploadButton = this.props.context.default_move_type !== 'entry' || 'active_id' in this.props.context;
+        this.showUploadButton = showAccountUploadButton(this.props.context);
     }
 
     get actionMenuProps() {

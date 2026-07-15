@@ -1,20 +1,18 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Component } from "@odoo/owl";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { JsonBlobField } from "@account/components/json_blob_field/json_blob_field";
 
 class ChangeLine extends Component {
     static template = "account.ResequenceChangeLine";
     static props = ["changeLine", "ordering"];
 }
 
-class ShowResequenceRenderer extends Component {
+class ShowResequenceRenderer extends JsonBlobField {
     static template = "account.ResequenceRenderer";
     static components = { ChangeLine };
-    static props = { ...standardFieldProps };
-    getValue() {
-        const value = this.props.record.data[this.props.name];
-        return value ? JSON.parse(value) : { changeLines: [], ordering: "date" };
+    get defaultValue() {
+        return { changeLines: [], ordering: "date" };
     }
 }
 
