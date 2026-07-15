@@ -2,6 +2,7 @@
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
+import { getForecastAction } from "../mrp_overview_utils.js";
 import { Component } from "@odoo/owl";
 
 export class BomOverviewLine extends Component {
@@ -162,12 +163,7 @@ export class BomOverviewLine extends Component {
     }
 
     get forecastAction() {
-        switch (this.data.link_model) {
-            case "product.product":
-                return "action_product_forecast_report";
-            case "product.template":
-                return "action_product_tmpl_forecast_report";
-        }
+        return getForecastAction(this.data.link_model);
     }
 
     get statusBackgroundClass() {

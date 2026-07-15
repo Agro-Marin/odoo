@@ -17,6 +17,12 @@ function formatMinutes(value) {
     }
     let min = Math.floor(value);
     let sec = Math.round((value % 1) * 60);
+    if (sec === 60) {
+        // Rounding up a fractional minute >= 59.5s must carry into the minutes,
+        // otherwise the display shows an invalid ":60".
+        min += 1;
+        sec = 0;
+    }
     sec = `${sec}`.padStart(2, "0");
     min = `${min}`.padStart(2, "0");
     return `${isNegative ? "-" : ""}${min}:${sec}`;
@@ -39,8 +45,7 @@ export class MrpTimer extends Component {
         this.ongoing = this.props.ongoing;
         onWillStart(() => {
             if (this.ongoing) {
-                this._runTimer();
-                this._runSleepTimer();
+                this._startTimers();
             }
         });
         onWillUpdateProps((nextProps) => {
@@ -48,19 +53,34 @@ export class MrpTimer extends Component {
             this.ongoing = nextProps.ongoing;
             if (rerun) {
                 this.state.duration = nextProps.value;
-                this._runTimer();
-                this._runSleepTimer();
+                this._startTimers();
             }
         });
-        onWillDestroy(() => clearTimeout(this.timer));
+        onWillDestroy(() => this._stopTimers());
     }
 
     get durationFormatted() {
         return formatMinutes(this.state.duration);
     }
 
+    _startTimers() {
+        // Clear any in-flight timers first so a fresh start never leaves an
+        // orphan chain running (e.g. on a stop/start toggle).
+        this._stopTimers();
+        this.lastDateTime = Date.now();
+        this._runTimer();
+        this._runSleepTimer();
+    }
+
+    _stopTimers() {
+        // The tick and sleep timers are two independent chains, so both handles
+        // must be cleared — a single shared handle would leak one of them.
+        clearTimeout(this._tickTimer);
+        clearTimeout(this._sleepTimer);
+    }
+
     _runTimer() {
-        this.timer = setTimeout(() => {
+        this._tickTimer = setTimeout(() => {
             if (this.ongoing) {
                 this.state.duration += 1 / 60;
                 this._runTimer();
@@ -70,7 +90,10 @@ export class MrpTimer extends Component {
 
     //updates the time when the computer wakes from sleep mode
     _runSleepTimer() {
-        this.timer = setTimeout(async () => {
+        this._sleepTimer = setTimeout(() => {
+            if (!this.ongoing) {
+                return;
+            }
             const diff = Date.now() - this.lastDateTime - 10000;
             if (diff > 1000) {
                 this.state.duration += diff / (1000 * 60);
@@ -105,12 +128,10 @@ class MrpTimerField extends Component {
                 this.duration = record.data[this.props.name];
             }
         })
-
-        onWillDestroy(() => clearTimeout(this.timer));
     }
 
     get durationFormatted() {
-        if (this.props.record.data[this.props.name] != this.duration && this.props.record.dirty) {
+        if (this.props.record.data[this.props.name] !== this.duration && this.props.record.dirty) {
             this.duration = this.props.record.data[this.props.name];
         }
         return formatMinutes(this.duration);

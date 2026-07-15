@@ -5,6 +5,7 @@ import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_o
 import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table.js";
 import { Component, EventBus, onWillStart, useSubEnv, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { FOLD_ALL, useUnfoldedIds } from "../overview_fold.js";
 
 export class BomOverviewComponent extends Component {
     static template = "mrp.BomOverviewComponent";
@@ -22,7 +23,6 @@ export class BomOverviewComponent extends Component {
         this.warehouses = [];
         this.showVariants = false;
         this.uomName = "";
-        this.unfoldedIds = new Set();
 
         this.state = useState({
             showOptions: {
@@ -42,11 +42,14 @@ export class BomOverviewComponent extends Component {
         useSubEnv({
             overviewBus: new EventBus(),
         });
+        // Kept in sync (via the shared fold protocol) with the folded rows so the
+        // printed PDF reproduces the on-screen state.
+        this.unfoldedIds = useUnfoldedIds();
 
         useBus(
             this.env.overviewBus,
-            "toggle-fold-all",
-            () => (this.state.allFolded = !this.state.allFolded)
+            FOLD_ALL,
+            ({ detail }) => (this.state.allFolded = detail.folded)
         );
 
         onWillStart(async () => {
@@ -110,12 +113,6 @@ export class BomOverviewComponent extends Component {
 
     //---- Handlers ----
 
-    onChangeFolded(foldInfo) {
-        const { ids, isFolded } = foldInfo;
-        const operation = isFolded ? "delete" : "add";
-        ids.forEach(id => this.unfoldedIds[operation](id));
-    }
-
     onChangeMode(mode) {
         this.state.showOptions.mode = mode;
     }
@@ -159,19 +156,21 @@ export class BomOverviewComponent extends Component {
     // ---- Helpers ----
 
     getReportName(printAll) {
-        let reportName = "mrp.report_bom_structure?docids=" + this.activeId +
-                         "&mode=" + this.state.showOptions.mode +
-                         "&quantity=" + (this.state.bomQuantity || 1) +
-                         "&unfolded_ids=" + JSON.stringify(Array.from(this.unfoldedIds));
+        const params = new URLSearchParams({
+            docids: this.activeId,
+            mode: this.state.showOptions.mode,
+            quantity: this.state.bomQuantity || 1,
+            unfolded_ids: JSON.stringify(Array.from(this.unfoldedIds)),
+        });
         if (this.state.currentWarehouse) {
-            reportName += "&warehouse_id=" + this.state.currentWarehouse.id;
+            params.set("warehouse_id", this.state.currentWarehouse.id);
         }
         if (printAll) {
-            reportName += "&all_variants=1";
+            params.set("all_variants", 1);
         } else if (this.showVariants && this.state.currentVariantId) {
-            reportName += "&variant=" + this.state.currentVariantId;
+            params.set("variant", this.state.currentVariantId);
         }
-        return reportName;
+        return `mrp.report_bom_structure?${params}`;
     }
 }
 

@@ -38,7 +38,7 @@ export class WorkcenterDashboardGraphField extends JournalDashboardGraphField{
                         type: 'bar',
                         backgroundColor: loadBarColor,
                         data: this.data[0].values[0],
-                        label: "Total Load",
+                        label: _t("Total Load"),
                         borderWidth: 0,
                         stack: 'mainStack',
                         hoverBackgroundColor: function(ctx, options) {
@@ -49,7 +49,7 @@ export class WorkcenterDashboardGraphField extends JournalDashboardGraphField{
                         type: 'bar',
                         backgroundColor: excessBarColor,
                         data: this.data[0].values[2],
-                        label: "Excess Load",
+                        label: _t("Excess Load"),
                         borderWidth: 0,
                         stack: 'mainStack',
                     }
@@ -81,9 +81,9 @@ export class WorkcenterDashboardGraphField extends JournalDashboardGraphField{
                             label: function(ctx) {
                                 if (ctx.datasetIndex === 1) {
                                     const totalLoadValue = Object.values(ctx.parsed._stacks.y._visualValues).reduce((accu, curr) => {return accu + curr}, 0);
-                                    return _t(ctx.dataset.label + ": " + totalLoadValue + " hours");
+                                    return _t("%(label)s: %(value)s hours", { label: ctx.dataset.label, value: totalLoadValue });
                                 }
-                                return _t(ctx.dataset.label + ": " + ctx.parsed.y + " hours");
+                                return _t("%(label)s: %(value)s hours", { label: ctx.dataset.label, value: ctx.parsed.y });
                             },
                             title: function(ctx) {
                                 return "";

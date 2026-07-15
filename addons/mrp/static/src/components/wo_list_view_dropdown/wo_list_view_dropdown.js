@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useState } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { registry } from "@web/core/registry";
@@ -18,9 +18,6 @@ export class MOListViewDropdown extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.workorderState = useState({
-            state: this.props.record.data.state,
-        });
         this.colorIcons = {
             "blocked": "bg-warning",
             "ready": "bg-muted",
@@ -36,28 +33,29 @@ export class MOListViewDropdown extends Component {
     }
 
     get statusColor() {
-        const state = this.workorderState.state;
-        return this.colorIcons[state] || "";
+        // Read the record's reactive state directly so the dot stays in sync.
+        return this.colorIcons[this.props.record.data.state] || "";
     }
 
     async setState(state) {
         let selectedWorkorders = this.props.record.model.root.selection;
-        if (!selectedWorkorders || selectedWorkorders.length == 0) {
+        if (!selectedWorkorders || selectedWorkorders.length === 0) {
             selectedWorkorders = [this.props.record];
         }
-        let ids = selectedWorkorders.filter((wo) => !([state, 'done'].includes(wo.data.state) || wo.data.production_state == 'done')).map((wo) => wo.resId)  
-        if (ids && ids.length > 0) {
+        const ids = selectedWorkorders
+            .filter((wo) => !([state, 'done'].includes(wo.data.state) || wo.data.production_state === 'done'))
+            .map((wo) => wo.resId);
+        if (ids.length > 0) {
             await this.callOrm("set_state", [state], ids);
         }
     }
 
-
     async callOrm(functionName, args, ids = undefined) {
         if (!ids){
-            ids = this.props.record.model.root.selection?.map((element) => element.evalContext.id);
+            ids = this.props.record.model.root.selection?.map((wo) => wo.resId);
         }
         // if no records selected, take the current clicked one
-        if (!ids || ids.length == 0) {
+        if (!ids || ids.length === 0) {
             ids = [this.props.record.resId];
         }
         if (args !== undefined) {

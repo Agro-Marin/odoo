@@ -7,6 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { Component, onMounted, useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { FOLD_ALL } from "../overview_fold.js";
 
 export class BomOverviewControlPanel extends Component {
     static template = "mrp.BomOverviewControlPanel";
@@ -66,7 +67,7 @@ export class BomOverviewControlPanel extends Component {
     }
 
     clickTogglefold() {
-        this.env.overviewBus.trigger("toggle-fold-all");
+        this.env.overviewBus.trigger(FOLD_ALL, { folded: !this.props.allFolded });
     }
 
     getDomain() {

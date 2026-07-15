@@ -3,6 +3,7 @@ import { useBus } from "@web/core/utils/hooks";
 import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";
 import { BomOverviewExtraBlock } from "../bom_overview_extra_block/mrp_bom_overview_extra_block.js";
 import { Component, onWillUnmount, onWillUpdateProps, useState } from "@odoo/owl";
+import { FOLD_ALL, FOLD_CHANGED } from "../overview_fold.js";
 
 export class BomOverviewComponentsBlock extends Component {
     static template = "mrp.BomOverviewComponentsBlock";
@@ -17,7 +18,6 @@ export class BomOverviewComponentsBlock extends Component {
         currentWarehouseId: { type: Number, optional: true },
         data: Object,
         precision: Number,
-        changeFolded: Function,
     };
     static defaultProps = {
         unfoldAll: false,
@@ -30,11 +30,11 @@ export class BomOverviewComponentsBlock extends Component {
             unfoldAll: this.props.unfoldAll || false,
         });
         if (this.props.unfoldAll) {
-            this.props.changeFolded({ ids: this.childIds, isFolded: false });
+            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: this.childIds, folded: false });
         }
 
         if (this.hasComponents) {
-            useBus(this.env.overviewBus, "toggle-fold-all", () => this._toggleFoldAll());
+            useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) => this.setFoldAll(detail.folded));
         }
 
         onWillUpdateProps(newProps => {
@@ -48,7 +48,7 @@ export class BomOverviewComponentsBlock extends Component {
 
         onWillUnmount(() => {
             if (this.hasComponents) {
-                this.props.changeFolded({ ids: this.childIds, isFolded: true });
+                this.env.overviewBus.trigger(FOLD_CHANGED, { ids: this.childIds, folded: true });
             }
         });
     }
@@ -58,15 +58,14 @@ export class BomOverviewComponentsBlock extends Component {
         const newState = !this.state[foldId];
         this.state[foldId] = newState;
         this.state.unfoldAll = false;
-        this.props.changeFolded({ ids: [foldId], isFolded: newState });
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [foldId], folded: newState });
     }
 
-    _toggleFoldAll() {
+    setFoldAll(folded) {
         const allChildIds = this.childIds;
-
-        this.state.unfoldAll = !this.state.unfoldAll;
-        allChildIds.forEach(id => this.state[id] = !this.state.unfoldAll);
-        this.props.changeFolded({ ids: allChildIds, isFolded: !this.state.unfoldAll });
+        this.state.unfoldAll = !folded;
+        allChildIds.forEach(id => this.state[id] = folded);
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: allChildIds, folded });
     }
 
     //---- Getters ----

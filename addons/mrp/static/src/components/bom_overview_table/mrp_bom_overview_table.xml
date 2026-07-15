@@ -38,8 +38,7 @@
                             showOptions="props.showOptions"
                             currentWarehouseId="props.currentWarehouseId"
                             data="data"
-                            precision="props.precision"
-                            changeFolded.bind="props.changeFolded"/>
+                            precision="props.precision"/>
                     </tbody>
                     <tfoot t-if="showUnitCosts">
                         <tr>

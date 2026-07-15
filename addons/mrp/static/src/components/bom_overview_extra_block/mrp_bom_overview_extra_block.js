@@ -3,6 +3,7 @@ import { useBus } from "@web/core/utils/hooks";
 import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";
 import { BomOverviewSpecialLine } from "../bom_overview_special_line/mrp_bom_overview_special_line.js";
 import { Component, onWillUnmount, onWillUpdateProps, useState } from "@odoo/owl";
+import { FOLD_ALL, FOLD_CHANGED } from "../overview_fold.js";
 
 export class BomOverviewExtraBlock extends Component {
     static template = "mrp.BomOverviewExtraBlock";
@@ -19,7 +20,6 @@ export class BomOverviewExtraBlock extends Component {
         showOptions: Object,
         data: Object,
         precision: Number,
-        changeFolded: Function,
     };
 
     setup() {
@@ -27,10 +27,10 @@ export class BomOverviewExtraBlock extends Component {
             isFolded: !this.props.unfoldAll,
         });
         if (this.props.unfoldAll) {
-            this.props.changeFolded({ ids: [this.identifier], isFolded: false });
+            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.identifier], folded: false });
         }
 
-        useBus(this.env.overviewBus, "toggle-fold-all", () => this._toggleFoldAll());
+        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) => this.setFolded(detail.folded));
 
         onWillUpdateProps(newProps => {
             if (this.props.data.product_id != newProps.data.product_id) {
@@ -40,7 +40,7 @@ export class BomOverviewExtraBlock extends Component {
 
         onWillUnmount(() => {
             // Need to notify main component that the block was folded so it doesn't appear on the PDF.
-            this.props.changeFolded({ ids: [this.identifier], isFolded: true });
+            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.identifier], folded: true });
         });
     }
 
@@ -49,12 +49,12 @@ export class BomOverviewExtraBlock extends Component {
     onToggleFolded() {
         const newState = !this.state.isFolded;
         this.state.isFolded = newState;
-        this.props.changeFolded({ ids: [this.identifier], isFolded: newState });
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.identifier], folded: newState });
     }
 
-    _toggleFoldAll() {
-        this.state.isFolded = !this.state.isFolded;
-        this.props.changeFolded({ ids: [this.identifier], isFolded: this.state.isFolded });
+    setFolded(folded) {
+        this.state.isFolded = folded;
+        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.identifier], folded });
     }
 
     //---- Getters ----
