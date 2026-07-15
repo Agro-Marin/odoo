@@ -18,7 +18,12 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 const { DateTime } = luxon;
 
 export class ClosePosPopup extends Component {
-    static components = { SaleDetailsButton, Input, Dialog, PaymentMethodBreakdown };
+    static components = {
+        SaleDetailsButton,
+        Input,
+        Dialog,
+        PaymentMethodBreakdown,
+    };
     static template = "point_of_sale.ClosePosPopup";
     static props = [
         "orders_details",
@@ -233,9 +238,11 @@ export class ClosePosPopup extends Component {
         } catch (error) {
             // We have to handle the error manually otherwise the validation check stops the script.
             // In case of "rescue session", we want to display the next popup with "handleClosingError".
-            // FIXME
+            // Re-raise anything that is not the known "already closed" case. Must be
+            // `||`: with `&&` this threw a TypeError when `error.data` was undefined
+            // and silently swallowed every real error when it was set.
             if (
-                !error.data &&
+                !error.data ||
                 error.data.message !== "This session is already closed."
             ) {
                 throw error;

@@ -39,6 +39,9 @@ export class PosOrderLineRefund {
         }
 
         const line = this.line;
-        return line.qty - this.refundedQty;
+        // `refundedQty` lives on the order line, not on this refund detail — reading
+        // `this.refundedQty` yielded `undefined`, so maxQty was NaN and the one-tap
+        // refund default (`qty = 1` for a single-available-unit line) never fired.
+        return line.qty - line.refundedQty;
     }
 }

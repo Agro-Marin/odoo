@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useExternalListener } from "@odoo/owl";
+import { onWillUnmount, useExternalListener } from "@odoo/owl";
 
 const UserPresenceEvents = [
     "mousemove",
@@ -36,12 +36,15 @@ export function useIdleTimer(steps, onAlive) {
         useExternalListener(window, event, onMove);
     }
 
-    setInterval(() => {
+    const intervalId = setInterval(() => {
         state.time++;
         if (state.timeout.has(state.time * 1000)) {
             checkSteps();
         }
     }, 1000);
+    // Without this the 1 Hz interval outlives the component, keeps firing step
+    // actions on a torn-down instance, and leaks one timer per mount.
+    onWillUnmount(() => clearInterval(intervalId));
 
     return state;
 }

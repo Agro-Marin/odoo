@@ -11,8 +11,14 @@ export const reportService = {
             async doAction(reportXmlId, active_ids) {
                 ui.block();
                 try {
+                    // Evict the cache entry if the load fails, otherwise a single
+                    // transient rejection is memoized and re-thrown forever for that
+                    // report.
                     reportActionsCache[reportXmlId] ||= rpc("/web/action/load", {
                         action_id: reportXmlId,
+                    }).catch((error) => {
+                        delete reportActionsCache[reportXmlId];
+                        throw error;
                     });
                     const reportAction = await reportActionsCache[reportXmlId];
                     // await instead of return because we want the ui to stay blocked

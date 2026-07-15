@@ -252,7 +252,7 @@ export class PosData extends SignalStore {
         const databaseProductIds = missing["product.product"]?.map((p) => p.id) ?? [];
         const loadedProductIds = new Set([...databaseProductIds, ...serverProductIds]);
         missing["pos.order.line"] = missing["pos.order.line"]?.filter((line) =>
-            loadedProductIds.has(line.product_id)
+            loadedProductIds.has(line.product_id),
         );
 
         const results = this.models.loadConnectedData(missing, []);
@@ -266,11 +266,14 @@ export class PosData extends SignalStore {
         // Used to load models that have not yet been loaded into related_models.
         // These models have been sent to the indexedDB directly after the RPC load_data.
         const data = await this.indexedDB.readAll();
-        const modelToIgnore = Object.keys(this.opts.databaseTable);
+        const modelToIgnore = new Set(Object.keys(this.opts.databaseTable));
         const results = {};
 
         for (const name in data) {
-            if (name in modelToIgnore) {
+            // `modelToIgnore` is a list of model names — `name in modelToIgnore`
+            // tests array indices ("0", "1", …), never model names, so the filter
+            // never fired. Use a Set membership test instead.
+            if (modelToIgnore.has(name)) {
                 continue;
             }
             results[name] = data[name];
@@ -915,11 +918,25 @@ export class PosData extends SignalStore {
     }
 
     async read(model, ids, fields = [], options = [], queue = false) {
-        return await this.execute({ type: "read", model, ids, fields, options, queue });
+        return await this.execute({
+            type: "read",
+            model,
+            ids,
+            fields,
+            options,
+            queue,
+        });
     }
 
     async call(model, method, args = [], kwargs = {}, queue = false) {
-        return await this.execute({ type: "call", model, method, args, kwargs, queue });
+        return await this.execute({
+            type: "call",
+            model,
+            method,
+            args,
+            kwargs,
+            queue,
+        });
     }
 
     // In a silent call we ignore the error and return false instead
@@ -980,7 +997,13 @@ export class PosData extends SignalStore {
     }
 
     async ormWrite(model, ids, values, queue = true) {
-        const result = await this.execute({ type: "write", model, ids, values, queue });
+        const result = await this.execute({
+            type: "write",
+            model,
+            ids,
+            values,
+            queue,
+        });
         this.deviceSync?.dispatch &&
             this.deviceSync.dispatch({ [model]: ids.map((id) => ({ id })) });
         return result;
@@ -1000,10 +1023,15 @@ export class PosData extends SignalStore {
             (relation) => record[relation] || [],
         );
 
-        // Delete all children records before main record
-        this.deleteRecordsInIndexedDB(recordModel, [record.uuid]);
+        // Delete all children records before main record. Delete by each store's
+        // configured key path (not a hard-coded `uuid`): id-keyed stores such as
+        // `product.attribute.custom.value` would otherwise never match a `uuid` and
+        // leave orphaned rows behind.
+        const idbKey = (rec) =>
+            rec[this.opts.databaseTable[rec.model.name]?.key || "id"];
+        this.deleteRecordsInIndexedDB(recordModel, [idbKey(record)]);
         for (const item of recordsToDelete) {
-            this.deleteRecordsInIndexedDB(item.model.name, [item.uuid]);
+            this.deleteRecordsInIndexedDB(item.model.name, [idbKey(item)]);
             item.delete({ silent: !removeFromServer });
         }
 

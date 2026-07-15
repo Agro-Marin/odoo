@@ -291,9 +291,10 @@ class NumberBuffer extends EventBus {
             if (isEmpty(buffer)) {
                 this.state.buffer = null;
             } else {
-                const nCharToRemove =
-                    buffer[buffer.length - 1] === this.decimalPoint ? 2 : 1;
-                this.state.buffer = buffer.substring(0, buffer.length - nCharToRemove);
+                // Remove exactly one character. The previous "remove 2 when the
+                // last char is the decimal point" ate the preceding digit too
+                // (e.g. "12." backspaced to "1" instead of "12").
+                this.state.buffer = buffer.substring(0, buffer.length - 1);
             }
         } else if (input === "+") {
             if (this.state.buffer[0] === "-") {

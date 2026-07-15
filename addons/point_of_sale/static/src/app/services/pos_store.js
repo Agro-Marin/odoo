@@ -1062,7 +1062,10 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (values.product_id.tracking === "serial") {
-            this.selectedOrder.getSelectedOrderline().setPackLotLines({
+            // Use the order threaded through this method, not the globally
+            // selected one — they can differ when a line is added to a
+            // non-active order, and this branch must write to `order`.
+            order.getSelectedOrderline().setPackLotLines({
                 modifiedPackLotLines: pack_lot_ids.modifiedPackLotLines ?? [],
                 newPackLotLines: pack_lot_ids.newPackLotLines ?? [],
                 setQuantity: true,
@@ -1186,12 +1189,12 @@ export class PosStore extends WithLazyGetterTrap {
     // We assign the payload to the current values object.
     // ---
     // This actions cannot be handled inside pos_order.js or pos_order_line.js
-    handleConfigurableProduct = async (
+    async handleConfigurableProduct(
         values,
         productTemplate,
         opts = {},
         configure = true,
-    ) => {
+    ) {
         if (productTemplate.isConfigurable() && configure) {
             const payload =
                 values?.payload && Object.keys(values?.payload).length
@@ -1278,7 +1281,7 @@ export class PosStore extends WithLazyGetterTrap {
                 ]),
             );
         }
-    };
+    }
 
     createPrinter(config) {
         if (config.printer_type === "epson_epos") {
@@ -1632,7 +1635,11 @@ export class PosStore extends WithLazyGetterTrap {
                     errorOccurred = true;
                 }
             } finally {
-                orders.forEach((order) => this.syncingOrders.delete(order.uuid));
+                // Only release the order that was just processed. Deleting every
+                // uuid in `orders` after each iteration also cleared the guard of
+                // orders still in flight in a concurrent (non-mutex) syncAllOrders
+                // that shares an order, allowing a duplicate submit to the backend.
+                this.syncingOrders.delete(order.uuid);
             }
         }
 
@@ -1700,10 +1707,14 @@ export class PosStore extends WithLazyGetterTrap {
     async getServerOrders() {
         await this.syncAllOrders();
         const config_domain = new Domain([
-            ["config_id", "in", [...this.config.raw.trusted_config_ids, this.config.id]],
+            [
+                "config_id",
+                "in",
+                [...this.config.raw.trusted_config_ids, this.config.id],
+            ],
         ]);
         return await this.data.loadServerOrders(
-            Domain.and([config_domain, this.getServerOrdersDomain()]).toList()
+            Domain.and([config_domain, this.getServerOrdersDomain()]).toList(),
         );
     }
     getServerOrdersDomain() {
@@ -1953,14 +1964,6 @@ export class PosStore extends WithLazyGetterTrap {
     }
     getOrderChanges(order = this.getOrder()) {
         return getOrderChanges(order, this.config.preparationCategories);
-    }
-    changesToOrder(
-        order,
-        skipped = false,
-        orderPreparationCategories,
-        cancelled = false,
-    ) {
-        return changesToOrder(order, skipped, orderPreparationCategories, cancelled);
     }
     async checkPreparationStateAndSentOrderInPreparation(order, opts = {}) {
         if (!order.isSynced) {
@@ -2424,9 +2427,12 @@ export class PosStore extends WithLazyGetterTrap {
     async closePos() {
         this._resetConnectedCashier();
         // If pos is not properly loaded, we just go back to /web without
-        // doing anything in the order data.
-        if (!this) {
+        // doing anything in the order data. (`if (!this)` was dead — `this` is
+        // never falsy — and it also failed to return, so the next line would
+        // throw on a missing session.)
+        if (!this.session) {
             this.redirectToBackend();
+            return;
         }
 
         if (this.session.state === "opening_control") {
@@ -3076,7 +3082,9 @@ export class PosStore extends WithLazyGetterTrap {
         const { page, params } = this.defaultPage;
         this.navigate(
             page,
-            page === "ProductScreen" ? { orderUuid: this.getEmptyOrder().uuid } : params
+            page === "ProductScreen"
+                ? { orderUuid: this.getEmptyOrder().uuid }
+                : params,
         );
     }
 

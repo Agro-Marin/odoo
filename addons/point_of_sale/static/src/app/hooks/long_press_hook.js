@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { onWillUnmount } from "@odoo/owl";
 import { LONG_PRESS_DURATION } from "@point_of_sale/utils";
 
 export function useLongPress(callback, delay = LONG_PRESS_DURATION) {
@@ -16,6 +17,10 @@ export function useLongPress(callback, delay = LONG_PRESS_DURATION) {
             timer = null;
         }
     }
+
+    // If the component unmounts mid-press, cancel the pending timer so the
+    // callback can't fire against a torn-down component.
+    onWillUnmount(cancelLongPress);
 
     return {
         onMouseDown(event, params) {
