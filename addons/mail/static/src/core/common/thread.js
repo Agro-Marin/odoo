@@ -420,7 +420,7 @@ export class Thread extends Component {
     }
 
     isSquashed(msg, prevMsg) {
-        if (this.props.thread.model === "mail.box") {
+        if (this.props.thread.isMailbox) {
             return false;
         }
         if (!prevMsg || prevMsg.message_type === "notification" || this.env.inChatter) {

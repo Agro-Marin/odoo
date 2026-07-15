@@ -223,8 +223,7 @@ export class Store extends BaseStore {
             let threads = Object.values(this.Thread.records).filter(
                 (thread) =>
                     (thread.displayToSelf ||
-                        (thread.needactionMessages.length > 0 &&
-                            thread.model !== "mail.box")) &&
+                        (thread.needactionMessages.length > 0 && !thread.isMailbox)) &&
                     cleanTerm(thread.displayName).includes(searchTerm),
             );
             const tab = this.discuss?.activeTab;
@@ -816,7 +815,9 @@ export class Store extends BaseStore {
         });
         validMentions.partners = mentionedPartners.filter((partner) =>
             segments.some((segment) =>
-                segment.includes(`@${thread?.getPersonaName?.(partner) ?? partner.name}`),
+                segment.includes(
+                    `@${thread?.getPersonaName?.(partner) ?? partner.name}`,
+                ),
             ),
         );
         validMentions.roles = mentionedRoles.filter((role) =>

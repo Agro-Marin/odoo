@@ -69,7 +69,7 @@ registerThreadAction("close", {
 registerThreadAction("search-messages", {
     actionPanelComponent: SearchMessagesPanel,
     condition: ({ owner, thread }) =>
-        (thread?.isChannelKind || thread?.model === "mail.box") &&
+        (thread?.isChannelKind || thread?.isMailbox) &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
         !owner.isDiscussSidebarChannelActions,
     hotkey: "f",

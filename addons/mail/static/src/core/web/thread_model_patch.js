@@ -64,7 +64,7 @@ const threadPatch = {
      */
     openWebClientUI(options) {
         const actionService = this.store.env.services.action;
-        if (this.model === "mail.box") {
+        if (this.isMailbox) {
             if (this.store.discuss.isActive) {
                 this.setAsDiscussThread();
             } else {

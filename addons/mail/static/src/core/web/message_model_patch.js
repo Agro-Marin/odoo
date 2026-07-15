@@ -14,7 +14,7 @@ const messagePatch = {
             return false;
         }
         return (
-            !(thread.isChannelKind || thread.model === "mail.box") &&
+            !(thread.isChannelKind || thread.isMailbox) &&
             ["comment", "email"].includes(this.message_type)
         );
     },

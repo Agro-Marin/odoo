@@ -196,8 +196,7 @@ export class MessagingMenu extends Component {
         this.store.discuss.activeTab = tabId;
         if (
             this.store.discuss.activeTab === "inbox" &&
-            (!this.store.discuss.thread ||
-                this.store.discuss.thread.model !== "mail.box")
+            (!this.store.discuss.thread || !this.store.discuss.thread.isMailbox)
         ) {
             this.store.inbox.setAsDiscussThread();
         }

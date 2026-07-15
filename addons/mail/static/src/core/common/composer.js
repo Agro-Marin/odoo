@@ -667,7 +667,7 @@ export class Composer extends Component {
         } else {
             message = await post();
         }
-        if (thread.model === "mail.box") {
+        if (thread.isMailbox) {
             this.notifySendFromMailbox();
         }
         this.suggestion?.clearRawMentions();

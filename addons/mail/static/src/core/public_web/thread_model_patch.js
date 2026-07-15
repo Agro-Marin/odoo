@@ -68,7 +68,7 @@ patch(Thread.prototype, {
         this.store.discuss.thread = this;
         this.store.discuss.activeTab = !this.store.env.services.ui.isSmall
             ? "notification"
-            : this.model === "mail.box"
+            : this.isMailbox
               ? this.store.self.main_user_id?.notification_type === "inbox"
                   ? "inbox"
                   : "starred"
@@ -80,7 +80,7 @@ patch(Thread.prototype, {
         }
         if (
             this.store.env.services.ui.isSmall &&
-            this.model !== "mail.box" &&
+            !this.isMailbox &&
             !this.store.is_welcome_page_displayed
         ) {
             this.open({ focus: true });

@@ -71,7 +71,7 @@ registerMessageAction("reply-to", {
         const thread = toRaw(thr);
         return (
             message.canReplyTo(thread) ||
-            (!(thread?.isChannelKind || thread?.model === "mail.box") &&
+            (!(thread?.isChannelKind || thread?.isMailbox) &&
                 message.isNote &&
                 !message.isSelfAuthored)
         );
@@ -86,7 +86,7 @@ registerMessageAction("reply-to", {
             composer.replyToMessage = undefined;
             return;
         }
-        if (thread.isChannelKind || thread.model === "mail.box") {
+        if (thread.isChannelKind || thread.isMailbox) {
             composer.replyToMessage = message;
         }
         if (thread.isChannelKind) {
@@ -114,7 +114,9 @@ registerMessageAction("reply-to", {
 registerMessageAction("toggle-star", {
     condition: ({ message }) => message.canToggleStar,
     icon: ({ message }) =>
-        message.starred ? "fa-solid fa-star o-mail-Message-starred" : "fa-regular fa-star",
+        message.starred
+            ? "fa-solid fa-star o-mail-Message-starred"
+            : "fa-regular fa-star",
     name: ({ message }) => (message.starred ? _t("Remove Star") : _t("Add Star")),
     onSelected: ({ message }) => message.toggleStar(),
     sequence: 30,

@@ -373,7 +373,7 @@ export class Message extends Record {
             !this.isBodyEmpty &&
             !this.hasMailNotificationSummary &&
             this.store.hasMessageTranslationFeature &&
-            !(thread?.isChannelKind || thread?.model === "mail.box")
+            !(thread?.isChannelKind || thread?.isMailbox)
         );
     }
 
@@ -538,7 +538,9 @@ export class Message extends Record {
             case firstAttachment.isImage:
                 return "fa-regular fa-image";
             case firstAttachment.mimetype === "audio/mpeg":
-                return firstAttachment.voice ? "fa-solid fa-microphone" : "fa-solid fa-headphones";
+                return firstAttachment.voice
+                    ? "fa-solid fa-microphone"
+                    : "fa-solid fa-headphones";
             case firstAttachment.isVideo:
                 return "fa-solid fa-video";
             default:
@@ -560,14 +562,14 @@ export class Message extends Record {
     /** @param {import("models").Thread} thread the thread where the message is shown */
     canReplyTo(thread) {
         return (
-            (thread?.isChannelKind || thread?.model === "mail.box") &&
+            (thread?.isChannelKind || thread?.isMailbox) &&
             this.message_type !== "user_notification"
         );
     }
 
     /** @param {import("models").Thread} thread the thread where the message is shown */
     canUnfollow(thread) {
-        return Boolean(this.thread?.selfFollower && thread?.model === "mail.box");
+        return Boolean(this.thread?.selfFollower && thread?.isMailbox);
     }
 
     async copyLink() {
