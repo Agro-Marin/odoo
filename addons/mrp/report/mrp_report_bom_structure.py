@@ -33,17 +33,24 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     @api.model
     def _compute_current_production_capacity(self, bom_data):
         # Get the maximum amount producible product of the selected bom given each component's stock levels.
+        # Demand and availability are aggregated per component product in the
+        # product's reference UoM. A product that appears on several BoM lines —
+        # possibly expressed in different UoMs — must have its per-line demand
+        # summed in a single unit, and its free stock (a per-product value)
+        # taken once; keying the raw per-line quantities by product_id alone
+        # would otherwise add mismatched units and overwrite the availability.
         components_qty_to_produce = defaultdict(lambda: 0)
         components_qty_available = {}
         for comp in bom_data.get("components", []):
-            if not comp["product"].is_storable or comp["uom"].is_zero(
+            product = comp["product"]
+            if not product.is_storable or comp["uom"].is_zero(
                 comp["base_bom_line_qty"]
             ):
                 continue
-            components_qty_to_produce[comp["product_id"]] += comp["base_bom_line_qty"]
-            components_qty_available[comp["product_id"]] = comp[
-                "free_to_manufacture_qty"
-            ]
+            components_qty_to_produce[product.id] += comp["uom"]._compute_quantity(
+                comp["base_bom_line_qty"], product.uom_id
+            )
+            components_qty_available[product.id] = product.qty_free
         producibles = [
             float_round(
                 components_qty_available[p_id] / qty,
