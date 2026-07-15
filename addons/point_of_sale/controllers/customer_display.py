@@ -1,5 +1,6 @@
 from odoo import http
 from odoo.http import request
+from odoo.tools import consteq
 
 
 class PosCustomerDisplay(http.Controller):
@@ -9,18 +10,25 @@ class PosCustomerDisplay(http.Controller):
         type="http",
         website=True,
     )
-    def pos_customer_display(self, id_, device_uuid, **kw):
-        # This route is public and reachable by enumerable integer id. Reject
-        # non-numeric ids, non-existent configs, and configs without an active
-        # session so the access_token / customer-display payload is not handed
-        # out for arbitrary ids. The customer display is only opened from a
-        # running POS session, so requiring an active session is safe.
+    def pos_customer_display(self, id_, device_uuid, access_token=None, **kw):
+        # Public, enumerable-id route. Reject non-numeric ids, non-existent
+        # configs, configs without an active session, and — crucially —
+        # callers that do not present the config's access_token. Without the
+        # token check the payload (which carries access_token + proxy_ip) was
+        # handed to any anonymous caller who guessed an id while a session was
+        # open (all day in retail): R6-3 / t23962. The token travels in the QR
+        # the authenticated POS operator generates, so a real display has it.
         try:
             config_id = int(id_)
         except TypeError, ValueError:
             return request.not_found()
         pos_config_sudo = request.env["pos.config"].sudo().browse(config_id)
-        if not pos_config_sudo.exists() or not pos_config_sudo.has_active_session:
+        if (
+            not pos_config_sudo.exists()
+            or not pos_config_sudo.has_active_session
+            or not access_token
+            or not consteq(access_token, pos_config_sudo.access_token or "")
+        ):
             return request.not_found()
         return request.render(
             "point_of_sale.customer_display_index",

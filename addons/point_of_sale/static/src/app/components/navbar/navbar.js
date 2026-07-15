@@ -156,9 +156,12 @@ export class Navbar extends Component {
             }
             return localStorage.getItem("device_uuid");
         };
+        // Carry the config access_token so the public customer-display route
+        // can authenticate the caller instead of serving its payload to any
+        // enumerable id (t23962 / R6-3).
         const customer_display_url = `/pos_customer_display/${
             this.pos.config.id
-        }/${getDeviceUuid()}`;
+        }/${getDeviceUuid()}?access_token=${encodeURIComponent(this.pos.config.access_token)}`;
 
         this.dialog.add(QrCodeCustomerDisplay, {
             customerDisplayURL: `${this.pos.config._base_url}${customer_display_url}`,
