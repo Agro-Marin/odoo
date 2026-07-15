@@ -3,8 +3,8 @@
     <t t-name="uom.Many2ManyUomTagsField" t-inherit="web.Many2ManyTagsField">
         <xpath expr="//Many2XAutocomplete" position="attributes">
             <attribute name="productModel">this.productModel</attribute>
-            <attribute name="productId">["product.template", "product.product"].includes(this.props.record.resModel) ? (this.props.record.resId || 0) : this.props.record.data[this.props.productField]?.id || 0</attribute>
-            <attribute name="productQuantity">this.props.record.data[this.props.quantityField]</attribute>
+            <attribute name="productId">this.productId</attribute>
+            <attribute name="productQuantity">this.productQuantity</attribute>
         </xpath>
         <xpath expr="//Many2XAutocomplete//span[@t-out]" position="replace">
             <t t-if="autoCompleteItemScope.record?.relative_info">

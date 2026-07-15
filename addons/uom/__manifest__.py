@@ -20,6 +20,9 @@ This is the base module for managing Units of measure.
         'web.assets_backend': [
             'uom/static/src/components/**/*',
         ],
+        'web.assets_unit_tests': [
+            'uom/static/tests/**/*',
+        ],
     },
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',

@@ -7,16 +7,37 @@ import {
     many2ManyTagsFieldColorEditable,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
 import { roundPrecision } from "@web/core/utils/format/numbers";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { onWillUpdateProps } from "@odoo/owl";
+
+// These three helpers are called with `this` bound to the host field component
+// (`Many2OneUomField` or `Many2ManyUomTagsField`), which is why they read from
+// `this.props` rather than taking an argument: it keeps a single source of truth
+// for "which product / quantity is this UoM widget attached to" shared by both
+// the many2one and the many2many variants (and their templates).
 
 export function getProductRelatedModel() {
     const field = this.props.record.fields[this.props.productField];
-    // The widget is either used alongisde a product related field or either used in a product view.
+    // The widget is either used alongside a product related field or used in a product view.
     let resModel = field?.relation || this.props.record.resModel;
     if (!["product.product", "product.template"].includes(resModel)) {
         throw new Error(`The widget '${this.constructor.name}' (field '${this.props.name}') needs a 'product.product' or 'product.template' field. '${this.props.productField}' is used but is related to '${field?.relation}' model.`);
     }
     return resModel;
+}
+
+export function getProductId() {
+    const { record } = this.props;
+    // On a product form the record *is* the product; elsewhere the product is
+    // reached through the configured product field (defaults to `product_id`).
+    if (["product.product", "product.template"].includes(record.resModel)) {
+        return record.resId || 0;
+    }
+    return record.data[this.props.productField]?.id || 0;
+}
+
+export function getProductQuantity() {
+    return this.props.record.data[this.props.quantityField];
 }
 
 export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
@@ -27,16 +48,25 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
         productQuantity: { type: Number, optional: true },
     };
 
-    async setup() {
+    setup() {
         super.setup();
-        onWillUpdateProps(async (nextProps) => {
+        // Serialises the reference-unit fetches: when the product changes faster
+        // than the RPCs resolve, only the latest webRead is allowed to write
+        // `this.referenceUnit`; superseded ones stay pending forever (KeepLast
+        // default), so a slow early response can never clobber a newer one.
+        this.referenceUnitLoader = new KeepLast();
+        // Fire-and-forget on purpose: an `await` here (or an async
+        // onWillUpdateProps callback returning a promise) would put this RPC on
+        // OWL's render path and block the field from patching on every product
+        // change. `referenceUnit` is only consumed later, in search().
+        this.updateReferenceUnit();
+        onWillUpdateProps((nextProps) => {
             if (nextProps.productModel !== this.props.productModel ||
                 nextProps.productId !== this.props.productId
             ) {
-                await this.updateReferenceUnit(nextProps);
+                this.updateReferenceUnit(nextProps);
             }
         });
-        await this.updateReferenceUnit();
     }
 
     async updateReferenceUnit(props = this.props) {
@@ -45,12 +75,14 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
             return;
         }
         try {
-            const products = await this.orm.webRead(props.productModel, [props.productId], {
-                specification: {
-                    uom_id: { fields: { name: {}, factor: {}, parent_path: {}, rounding: {} } },
-                },
-                context: { active_test: false },
-            });
+            const products = await this.referenceUnitLoader.add(
+                this.orm.webRead(props.productModel, [props.productId], {
+                    specification: {
+                        uom_id: { fields: { name: {}, factor: {}, parent_path: {}, rounding: {} } },
+                    },
+                    context: { active_test: false },
+                })
+            );
             this.referenceUnit = products[0]?.uom_id || undefined;
         } catch {
             // deleted or inaccessible product: degrade to a plain autocomplete
@@ -75,16 +107,21 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
         } else {
             records = await this.orm.searchRead(this.props.resModel, domain, fields, { limit });
         }
-        const hasCommonReference = (uom) =>
-            uom.parent_path.split("/")[0] === this.referenceUnit.parent_path.split("/")[0];
+        const reference = this.referenceUnit;
+        const referenceRoot = reference?.parent_path.split("/")[0];
+        const quantity = this.props.productQuantity || 1;
         return records.map((record) => {
             // Only advertise a conversion for units actually convertible into
-            // the product's unit.
+            // the product's unit (i.e. sharing its reference root).
             let relativeInfo = "";
-            if (this.referenceUnit && record.id !== this.referenceUnit.id && hasCommonReference(record)) {
+            if (
+                reference &&
+                record.id !== reference.id &&
+                record.parent_path.split("/")[0] === referenceRoot
+            ) {
                 relativeInfo = record.relative_uom_id
-                    ? `${roundPrecision((this.props.productQuantity || 1) * record.relative_factor, this.referenceUnit.rounding)} ${record.relative_uom_id[1]}`
-                    : `${roundPrecision((this.props.productQuantity || 1) * record.factor / this.referenceUnit.factor, this.referenceUnit.rounding)} ${this.referenceUnit.name}`;
+                    ? `${roundPrecision(quantity * record.relative_factor, reference.rounding)} ${record.relative_uom_id[1]}`
+                    : `${roundPrecision(quantity * record.factor / reference.factor, reference.rounding)} ${reference.name}`;
             }
             return { ...record, relative_info: relativeInfo };
         });
@@ -108,9 +145,17 @@ export class Many2ManyUomTagsField extends Many2ManyTagsFieldColorEditable {
         quantityField: "product_uom_qty",
     }
 
-    async setup() {
+    setup() {
         super.setup();
         this.productModel = getProductRelatedModel.call(this);
+    }
+
+    get productId() {
+        return getProductId.call(this);
+    }
+
+    get productQuantity() {
+        return getProductQuantity.call(this);
     }
 }
 

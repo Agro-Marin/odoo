@@ -9,7 +9,12 @@ import {
     m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
-import { getProductRelatedModel, Many2XUomTagsAutocomplete } from "../many2x_uom_tags/many2x_uom_tags.js";
+import {
+    getProductId,
+    getProductQuantity,
+    getProductRelatedModel,
+    Many2XUomTagsAutocomplete,
+} from "../many2x_uom_tags/many2x_uom_tags.js";
 
 // @todo: this extension will be removed in the future
 // when the autocomplete source generation come from a hook.
@@ -50,21 +55,12 @@ export class Many2OneUomField extends Component {
     };
 
     get m2oProps() {
-        const productModel = getProductRelatedModel.call(this);
-        let productId = this.props.record.data[this.props.productField]?.id || 0;
-        if (["product.template", "product.product"].includes(this.props.record.resModel)) {
-            productId = this.props.record.resId || 0;
-        }
         return {
             ...computeM2OProps(this.props),
-            productModel,
-            productId,
-            productQuantity: this.props.record.data[this.props.quantityField],
+            productModel: getProductRelatedModel.call(this),
+            productId: getProductId.call(this),
+            productQuantity: getProductQuantity.call(this),
         };
-    }
-
-    getLabel(record) {
-        return record.name ? record.name.split("\n")[0] : _t("Unnamed");
     }
 }
 
