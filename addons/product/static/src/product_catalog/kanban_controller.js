@@ -28,13 +28,13 @@ export class ProductCatalogKanbanController extends KanbanController {
         return true;
     }
 
-    get stateFiels() {
+    get stateFields() {
         return ["state"];
     }
 
     async setOrderStateInfo() {
         const orderData = await this.orm.searchRead(
-            this.orderResModel, [["id", "=", this.orderId]], this.stateFiels
+            this.orderResModel, [["id", "=", this.orderId]], this.stateFields
         );
         this.orderStateInfo = orderData[0] || {};
     }
