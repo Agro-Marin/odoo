@@ -69,7 +69,7 @@ class TestReInvoice(TestStockCommon):
             (self.reinvoicable_product_at_cost.standard_price, 3, 3, 0),
             'Sale line is wrong after confirming the picking',
         )
-        self.assertEqual(new_sale_order_line1.qty_delivered_method, 'stock_move', 'Delivered quantity of SO line should be computed by stock move')
+        self.assertEqual(new_sale_order_line1.qty_transferred_method, 'stock_move', 'Delivered quantity of SO line should be computed by stock move')
 
         new_sale_order_line2 = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.reinvoicable_product_sales_price)
         self.assertTrue(new_sale_order_line2, 'A new sale line should have been created with the reinvoicable product at sales price')
@@ -78,4 +78,4 @@ class TestReInvoice(TestStockCommon):
             (self.reinvoicable_product_sales_price.list_price, 5, 5, 0),
             'Sale line is wrong after confirming the picking',
         )
-        self.assertEqual(new_sale_order_line2.qty_delivered_method, 'stock_move', 'Delivered quantity of SO line should be computed by stock move')
+        self.assertEqual(new_sale_order_line2.qty_transferred_method, 'stock_move', 'Delivered quantity of SO line should be computed by stock move')

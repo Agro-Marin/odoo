@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, Command, fields, models, _
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
 
@@ -38,7 +38,8 @@ class SaleOrderLine(models.Model):
                     del res['order_id']
 
             if 'order_id' in fields and not res.get('order_id'):
-                assert (partner_id := self.env.context.get('default_partner_id'))
+                partner_id = self.env.context.get('default_partner_id')
+                assert partner_id
                 project_id = self.env.context.get('link_to_project')
                 sale_order = None
                 so_create_values = {
@@ -102,7 +103,7 @@ class SaleOrderLine(models.Model):
             line.qty_transferred = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_uom_qty
 
     def _prepare_qty_transferred(self):
-        lines_by_milestones = self.filtered(lambda sol: sol.qty_delivered_method == 'milestones')
+        lines_by_milestones = self.filtered(lambda sol: sol.qty_transferred_method == 'milestones')
         delivered_qties = super(SaleOrderLine, self - lines_by_milestones)._prepare_qty_transferred()
 
         if not lines_by_milestones:
@@ -134,7 +135,7 @@ class SaleOrderLine(models.Model):
                     list({int(account_id) for ids in line.analytic_distribution for account_id in ids.split(",")})
                 ).exists().root_plan_id
                 if accounts_to_add := project._get_analytic_accounts().filtered(
-                    lambda account: account.root_plan_id not in applied_root_plans
+                    lambda account: account.root_plan_id not in applied_root_plans  # noqa: B023 - lambda consumed immediately in-loop, no late binding
                 ):
                     # project account is added to each analytic distribution line
                     line.analytic_distribution = {
@@ -161,7 +162,8 @@ class SaleOrderLine(models.Model):
 
         # Set a service SOL on the project, if any is given
         if project_id := self.env.context.get('link_to_project'):
-            assert (service_line := next((line for line in lines if line.is_service), False))
+            service_line = next((line for line in lines if line.is_service), False)
+            assert service_line
             project = self.env['project.project'].browse(project_id)
             if not project.sale_line_id:
                 project.sale_line_id = service_line
@@ -188,7 +190,7 @@ class SaleOrderLine(models.Model):
 
     def copy_data(self, default=None):
         data = super().copy_data(default)
-        for origin, datum in zip(self, data):
+        for origin, datum in zip(self, data, strict=True):
             if origin.analytic_distribution == origin.order_id.project_id.sudo()._get_analytic_distribution():
                 datum['analytic_distribution'] = False
         return data
