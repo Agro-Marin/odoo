@@ -39,6 +39,28 @@ class IrModel(models.Model):
         ]
 
     @api.model
+    def _is_valid_for_schema_introspection(self, model_name: str) -> bool:
+        """Access gate for ``_get_definitions``.
+
+        The genuine security requirement is: only an internal user who may
+        read a model may introspect its schema (this withholds it from
+        portal/public users). Unlike ``_is_valid_for_model_selector`` this
+        does NOT additionally exclude transient/abstract models — those are
+        merely unpickable in a model-selector dropdown, which is irrelevant to
+        schema introspection. Their fields are already visible to an
+        authorized internal user through the wizard/report views they open, so
+        withholding the schema here protects nothing while breaking legitimate
+        introspection (e.g. the JS mock-server fetching the fields of the
+        transient ``mail.compose.message`` composer wizard).
+        """
+        model = self.env.get(model_name)
+        return (
+            self.env.user._is_internal()
+            and model is not None
+            and model.has_access("read")
+        )
+
+    @api.model
     def _is_valid_for_model_selector(self, model_name: str) -> bool:
         model = self.env.get(model_name)
         return (
@@ -67,12 +89,15 @@ class IrModel(models.Model):
         # This backs the public-facing ``/web/model/get_definitions`` route, a
         # model-introspection surface; without this gate a non-internal or
         # unauthorized user could read field/relation metadata of any model.
-        # Mirrors the access checks in ``display_name_for``/
-        # ``get_available_models`` (via ``_is_valid_for_model_selector``), and
-        # the relational/inverse cross-references below stay confined to this
-        # filtered set, so no inaccessible model leaks through a relation.
+        # Uses ``_is_valid_for_schema_introspection`` (internal + read access)
+        # rather than the stricter ``_is_valid_for_model_selector``: schema
+        # introspection legitimately covers transient/abstract models the user
+        # can read, whereas the selector gate additionally hides those because
+        # they can't be picked in a dropdown. The relational/inverse
+        # cross-references below stay confined to this access-filtered set, so
+        # no inaccessible model leaks through a relation.
         model_names = [
-            name for name in model_names if self._is_valid_for_model_selector(name)
+            name for name in model_names if self._is_valid_for_schema_introspection(name)
         ]
         model_definitions = {}
         for model_name in model_names:

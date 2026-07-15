@@ -173,23 +173,27 @@ export async function makeDialogMockEnv(partialEnv) {
 export function mockService(name, serviceFactory) {
     const serviceRegistry = registry.category("services");
     const originalService = serviceRegistry.get(name, null);
-    // ``patch()`` extensions are single-use (the extension object is mutated
-    // to build the ``super`` chain and reuse throws). This start wrapper can
-    // run more than once for the same ``serviceFactory`` object: the forced
-    // registry entry outlives the test that installed it, wrappers stack when
-    // several tests mock the same service, and each later ``startServices``
-    // replays the whole chain. Hand ``patch()`` a fresh descriptor-clone per
-    // call instead of the shared factory object.
-    // Limitation: copying descriptors preserves each method's original
-    // ``[[HomeObject]]`` (bound at definition time on ``serviceFactory``, which
-    // has no meaningful prototype). ``[[HomeObject]]`` is not reflectively
-    // rebindable in JS, so a factory method that calls ``super.foo()`` would
-    // resolve ``super`` against ``serviceFactory``'s prototype, not the clone's
-    // patched chain. Harmless today (no factory uses ``super``); if one ever
-    // does, it must declare the method on the object it is defined in, not rely
-    // on this clone rebinding ``super``.
-    const freshExtension = () =>
-        Object.defineProperties({}, Object.getOwnPropertyDescriptors(serviceFactory));
+    // ``patch()`` extensions are single-use: it mutates the extension in place
+    // (re-parenting it via ``setPrototypeOf`` to wire the ``super`` chain), and
+    // that re-parenting is precisely what makes ``super.method(...)`` inside an
+    // object-literal mock resolve to the original service. So the extension
+    // MUST be ``serviceFactory`` itself — a descriptor-clone would carry the
+    // methods (whose ``[[HomeObject]]`` is the original literal) but leave their
+    // ``super`` pointing at the un-reparented original, silently breaking it.
+    // The start wrapper can still run more than once for the same factory (the
+    // forced registry entry outlives its test; later ``startServices`` calls
+    // replay it), so instead of cloning we release the previous application
+    // before re-patching and register a test-teardown ``after`` — a
+    // single-use extension is fine as long as it is unpatched between uses.
+    let unpatch = null;
+    const applyMock = (service) => {
+        unpatch?.();
+        unpatch = patch(service, serviceFactory);
+        after(() => {
+            unpatch?.();
+            unpatch = null;
+        });
+    };
     serviceRegistry.add(
         name,
         {
@@ -200,10 +204,12 @@ export function mockService(name, serviceFactory) {
                 } else {
                     const service = originalService.start(env, dependencies);
                     if (service instanceof Promise) {
-                        service.then((value) => patch(value, freshExtension()));
-                    } else {
-                        patch(service, freshExtension());
+                        return service.then((value) => {
+                            applyMock(value);
+                            return value;
+                        });
                     }
+                    applyMock(service);
                     return service;
                 }
             },
@@ -223,7 +229,7 @@ export function mockService(name, serviceFactory) {
                 /** @type {any} */ (dependencies),
             );
         } else {
-            patch(currentEnv.services[name], freshExtension());
+            applyMock(currentEnv.services[name]);
         }
     }
 }
