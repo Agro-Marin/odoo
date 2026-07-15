@@ -1,12 +1,13 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, hover, queryOne } from "@odoo/hoot-dom";
+import { click, hover, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import { getDropdownMenu, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 
 const DROPDOWN_MENU = ".o-dropdown--menu.dropdown-menu";
 
@@ -222,4 +223,44 @@ test("DropdownGroup: toggler focused on mouseenter", async () => {
     await animationFrame();
     expect("button.two").toBeFocused();
     expect(DROPDOWN_MENU).toHaveText("Two Content");
+});
+
+test.tags("desktop");
+test("DropdownGroup: keyboard close returns focus to the toggler, not <body>", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownGroup, DropdownItem };
+        static props = [];
+        static template = xml`
+            <DropdownGroup>
+                <Dropdown>
+                    <button class="one">One</button>
+                    <t t-set-slot="content">
+                        <DropdownItem class="'item-one'">Item One</DropdownItem>
+                    </t>
+                </Dropdown>
+                <Dropdown>
+                    <button class="two">Two</button>
+                    <t t-set-slot="content">
+                        <DropdownItem class="'item-two'">Item Two</DropdownItem>
+                    </t>
+                </Dropdown>
+            </DropdownGroup>
+        `;
+    }
+    await mountWithCleanup(Parent);
+
+    await click("button.one");
+    await animationFrame();
+    expect("button.one").toBeFocused();
+
+    // Move focus into the open menu, then close it with the keyboard.
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".item-one").toBeFocused();
+
+    await press("Escape");
+    await animationFrame();
+    // Focus must return to the menu button (menu-button a11y), not be dropped
+    // to <body> — the bug the old `!group.isInGroup` restore skip caused.
+    expect("button.one").toBeFocused();
 });
