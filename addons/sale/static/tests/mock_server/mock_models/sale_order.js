@@ -8,7 +8,7 @@ export class SaleOrder extends models.ServerModel {
         {
             id: 1,
             name: "first record",
-            order_line: [],
+            line_ids: [],
         },
     ];
 }

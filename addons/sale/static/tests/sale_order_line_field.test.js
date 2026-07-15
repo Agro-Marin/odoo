@@ -30,7 +30,7 @@ class SaleOrder extends saleModels.SaleOrder {
         {
             id: 1,
             name: "Combo Sale order",
-            order_line: SaleOrderLine._records.map(record => record.id),
+            line_ids: SaleOrderLine._records.map(record => record.id),
         },
     ]
 }
@@ -47,7 +47,7 @@ test("test combo move up/down", async () => {
         arch: `
             <form>
                 <field
-                    name="order_line"
+                    name="line_ids"
                     widget="sol_o2m"
                     options="{'subsections': True}"
                 >
@@ -191,7 +191,7 @@ test("Test combo columns", async () => {
         arch: `
             <form>
                 <field
-                    name="order_line"
+                    name="line_ids"
                     widget="sol_o2m"
                     options="{'subsections': True}"
                     aggregated_fields="price_total"
