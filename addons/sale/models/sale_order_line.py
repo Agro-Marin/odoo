@@ -206,14 +206,6 @@ class SaleOrderLine(models.Model):
         comodel_name="product.pricelist.item",
         compute="_compute_pricelist_item_id",
     )
-    discount = fields.Float(
-        # Extends the order.line.amount.mixin declaration: sale's
-        # _compute_price_and_discount depends on ``linked_line_id.discount``
-        # (a self-referential many2one), which makes the dependency graph
-        # recursive. Purchase shares the mixin without such a loop, so the
-        # flag belongs here rather than on the mixin.
-        recursive=True,
-    )
     price_unit_auto = fields.Float(
         string="Automatic Price",
         min_display_digits="Product Price",
@@ -1331,13 +1323,19 @@ class SaleOrderLine(models.Model):
         line, depending on whether the linked line is saved in the DB.
         """
         self.ensure_one()
+        # Mirror `_get_lines_linked`: fall back to an empty recordset instead of
+        # raising. During a fresh-order `web_save`, a combo item's price is
+        # precomputed before its `linked_line_id` is assigned (post-`create`) and
+        # while `order_id.line_ids` is not yet populated, so no line matches
+        # `linked_virtual_id`. Using `[:1]` (not `.ensure_one()`) lets pricing fall
+        # back gracefully; the value is recomputed once `linked_line_id` is set.
         return (
             self.linked_line_id
             or (
                 self.linked_virtual_id
                 and self.order_id.line_ids.filtered(
                     lambda line: line.virtual_id == self.linked_virtual_id,
-                ).ensure_one()
+                )[:1]
             )
             or self.env["sale.order.line"]
         )
@@ -1498,6 +1496,12 @@ class SaleOrderLine(models.Model):
 
         # Compute the combo product's price.
         combo_line = self._get_line_linked()
+        if not combo_line:
+            # The linked combo line isn't resolvable yet (e.g. during a fresh-order
+            # `web_save`, combo-item price precomputes before `linked_line_id` is
+            # assigned). Return a neutral price; `_compute_price_and_discount` reruns
+            # once `linked_line_id` is set (it depends on it), yielding the real price.
+            return 0.0
         combo_product_price = combo_line._get_price_display_regular_item()
         # Compute the combos' base prices.
         combo_base_prices = {

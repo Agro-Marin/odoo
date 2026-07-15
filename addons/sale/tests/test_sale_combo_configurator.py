@@ -150,6 +150,15 @@ class TestSaleComboConfigurator(HttpCase, SaleCommon):
             optional_product,
             "Optional product should be added as a part of this combo",
         )
+        # Combo-item prices must be recomputed post-create (not left at the 0.0
+        # placeholder returned while `linked_line_id` was still unset). Regression
+        # guard for the combo-save singleton/pricing fix.
+        self.assertTrue(
+            order.line_ids[1].price_unit > 0 and order.line_ids[2].price_unit > 0,
+            "Combo-item price_unit should be recomputed, got A1=%s B2=%s" % (
+                order.line_ids[1].price_unit, order.line_ids[2].price_unit,
+            ),
+        )
 
     def test_sale_combo_configurator_preselect_single_unconfigurable_items(self):
         self.env["res.users"].search(

@@ -675,7 +675,7 @@
                                             'partner_id': parent.partner_id,
                                         }"
                                         options="{'show_label_warning': True}"
-                                        optional="show"
+                                        optional="hide"
                                          />
                                     <field name="product_template_id"
                                         string="Product"
@@ -689,7 +689,7 @@
                                         }"
                                         options="{'show_label_warning': True}"
                                         placeholder="Type to find a product..."
-                                        optional="hide" />
+                                        optional="show" />
                                     <field name="name" widget="sol_text"
                                         optional="show" />
                                     <field name="analytic_distribution"
