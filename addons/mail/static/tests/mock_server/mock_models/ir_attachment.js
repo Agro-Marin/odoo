@@ -1,5 +1,4 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { getKwArgs, makeKwArgs, webModels } from "@web/../tests/web_test_helpers";
 
 export class IrAttachment extends webModels.IrAttachment {
@@ -37,24 +36,30 @@ export class IrAttachment extends webModels.IrAttachment {
         fields = kwargs.fields;
 
         for (const attachment of this) {
-            const [data] = this._read_format(
-                attachment.id,
+            // _add_record_fields (not _read_format) so that Store.attr entries
+            // in the field list (access tokens, has_thumbnail) are serialized
+            // instead of being silently dropped by _read_format.
+            store._add_record_fields(
+                this.browse(attachment.id),
                 fields.filter((field) => field !== "thread"),
-                false
             );
             if (fields.includes("thread")) {
-                data.thread =
-                    attachment.model !== "mail.compose.message" && attachment.res_id
-                        ? mailDataHelpers.Store.one(
-                              this.env[attachment.res_model].browse(attachment.res_id),
-                              makeKwArgs({
-                                  as_thread: true,
-                                  only_id: true,
-                              })
-                          )
-                        : false;
+                const data = {
+                    thread:
+                        attachment.model !== "mail.compose.message" && attachment.res_id
+                            ? mailDataHelpers.Store.one(
+                                  this.env[attachment.res_model].browse(
+                                      attachment.res_id,
+                                  ),
+                                  makeKwArgs({
+                                      as_thread: true,
+                                      only_id: true,
+                                  }),
+                              )
+                            : false,
+                };
+                store._add_record_fields(this.browse(attachment.id), data);
             }
-            store._add_record_fields(this.browse(attachment.id), data);
         }
     }
 
@@ -62,10 +67,18 @@ export class IrAttachment extends webModels.IrAttachment {
         return [
             "checksum",
             "create_date",
+            "file_size",
+            // mock server simplification: no thumbnails, id-based access tokens
+            mailDataHelpers.Store.attr("has_thumbnail", (a) =>
+                Boolean(a.has_thumbnail),
+            ),
             "mimetype",
             "name",
+            mailDataHelpers.Store.attr("raw_access_token", (a) => a.id),
+            "res_model",
             "res_name",
             "thread",
+            mailDataHelpers.Store.attr("thumbnail_access_token", (a) => a.id),
             "type",
             "url",
             "voice_ids",

@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { markup } from "@odoo/owl";
 import {
     authenticate,
@@ -14,6 +13,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
@@ -160,7 +160,9 @@ async function mail_attachment_upload(request) {
     return {
         data: {
             attachment_id: attachmentId,
-            store_data: new mailDataHelpers.Store(IrAttachment.browse(attachmentId)).get_result(),
+            store_data: new mailDataHelpers.Store(
+                IrAttachment.browse(attachmentId),
+            ).get_result(),
         },
     };
 }
@@ -198,7 +200,7 @@ async function load_attachments(request) {
         ({ id, res_id, res_model }) =>
             res_id === channel_id &&
             res_model === "discuss.channel" &&
-            (!older_attachment_id || id < older_attachment_id)
+            (!older_attachment_id || id < older_attachment_id),
     )
         // newest first, like the real controller (default-comparator sort on
         // record objects was a no-op returning insertion order)
@@ -207,7 +209,9 @@ async function load_attachments(request) {
         .map(({ id }) => id);
     return {
         count: attachmentIds.length,
-        store_data: new mailDataHelpers.Store(IrAttachment.browse(attachmentIds)).get_result(),
+        store_data: new mailDataHelpers.Store(
+            IrAttachment.browse(attachmentIds),
+        ).get_result(),
     };
 }
 
@@ -222,23 +226,35 @@ async function channel_call_join(request) {
     const DiscussChannelRtcSession = this.env["discuss.channel.rtc.session"];
 
     const { channel_id } = await parseRequestParams(request);
-    const memberOfCurrentUser = DiscussChannel._find_or_create_member_for_self(channel_id);
+    const memberOfCurrentUser =
+        DiscussChannel._find_or_create_member_for_self(channel_id);
     const sessionId = DiscussChannelRtcSession.create({
         channel_member_id: memberOfCurrentUser.id,
         channel_id, // on the server, this is a related field from channel_member_id and not explicitly set
         guest_id: memberOfCurrentUser.guest_id,
         partner_id: memberOfCurrentUser.partner_id,
     });
-    const channelMembers = DiscussChannelMember._filter([["channel_id", "=", channel_id]]);
+    const channelMembers = DiscussChannelMember._filter([
+        ["channel_id", "=", channel_id],
+    ]);
     const rtcSessions = DiscussChannelRtcSession._filter([
-        ["channel_member_id", "in", channelMembers.map((channelMember) => channelMember.id)],
+        [
+            "channel_member_id",
+            "in",
+            channelMembers.map((channelMember) => channelMember.id),
+        ],
     ]);
     return new mailDataHelpers.Store(DiscussChannel.browse(channel_id), {
-        rtc_session_ids: mailDataHelpers.Store.many(rtcSessions, makeKwArgs({ mode: "ADD" })),
+        rtc_session_ids: mailDataHelpers.Store.many(
+            rtcSessions,
+            makeKwArgs({ mode: "ADD" }),
+        ),
     })
         .add("Rtc", {
             iceServers: false,
-            localSession: mailDataHelpers.Store.one(DiscussChannelRtcSession.browse(sessionId)),
+            localSession: mailDataHelpers.Store.one(
+                DiscussChannelRtcSession.browse(sessionId),
+            ),
         })
         .get_result();
 }
@@ -265,7 +281,11 @@ async function channel_call_leave(request) {
         ["is_self", "=", true],
     ]);
     const rtcSessions = DiscussChannelRtcSession._filter([
-        ["channel_member_id", "in", channelMembers.map((channelMember) => channelMember.id)],
+        [
+            "channel_member_id",
+            "in",
+            channelMembers.map((channelMember) => channelMember.id),
+        ],
     ]);
     const notifications = [];
     const sessionsByChannelId = {};
@@ -277,14 +297,18 @@ async function channel_call_leave(request) {
         sessionsByChannelId[member.channel_id].push(session);
     }
     for (const [channelId, sessions] of Object.entries(sessionsByChannelId)) {
-        const channel = DiscussChannel.search_read([["id", "=", parseInt(channelId)]])[0];
+        const channel = DiscussChannel.search_read([
+            ["id", "=", parseInt(channelId)],
+        ])[0];
         notifications.push([
             channel,
             "mail.record/insert",
             new mailDataHelpers.Store(DiscussChannel.browse(Number(channelId)), {
                 rtc_session_ids: mailDataHelpers.Store.many(
-                    DiscussChannelRtcSession.browse(sessions.map((session) => session.id)),
-                    makeKwArgs({ only_id: true, mode: "DELETE" })
+                    DiscussChannelRtcSession.browse(
+                        sessions.map((session) => session.id),
+                    ),
+                    makeKwArgs({ only_id: true, mode: "DELETE" }),
                 ),
             }).get_result(),
         ]);
@@ -299,7 +323,9 @@ async function channel_call_leave(request) {
             { sessionId: rtcSession.id },
         ]);
     }
-    this.env["discuss.channel.rtc.session"].unlink(Array.from(rtcSessions).map(({ id }) => id));
+    this.env["discuss.channel.rtc.session"].unlink(
+        Array.from(rtcSessions).map(({ id }) => id),
+    );
     BusBus._sendmany(notifications);
 }
 
@@ -331,24 +357,31 @@ async function discuss_channel_messages(request) {
         ...res,
         data: new mailDataHelpers.Store(
             MailMessage.browse(messages.map((message) => message.id)),
-            makeKwArgs({ for_current_user: true })
+            makeKwArgs({ for_current_user: true }),
         ).get_result(),
         messages: messages.map((message) => message.id),
     };
 }
 
-registerRoute("/discuss/channel/sub_channel/create", discuss_channel_sub_channel_create);
+registerRoute(
+    "/discuss/channel/sub_channel/create",
+    discuss_channel_sub_channel_create,
+);
 async function discuss_channel_sub_channel_create(request) {
     /** @type {import("mock_models").DiscussChannel} */
     const DiscussChannel = this.env["discuss.channel"];
-    const { from_message_id, parent_channel_id, name } = await parseRequestParams(request);
+    const { from_message_id, parent_channel_id, name } =
+        await parseRequestParams(request);
     return DiscussChannel._create_sub_channel(
         [parent_channel_id],
-        makeKwArgs({ from_message_id, name })
+        makeKwArgs({ from_message_id, name }),
     );
 }
 
-registerRoute("/discuss/channel/sub_channel/delete", discuss_channel_sub_channel_delete);
+registerRoute(
+    "/discuss/channel/sub_channel/delete",
+    discuss_channel_sub_channel_delete,
+);
 async function discuss_channel_sub_channel_delete(request) {
     /** @type {import("mock_models").DiscussChannel} */
     const DiscussChannel = this.env["discuss.channel"];
@@ -367,7 +400,7 @@ async function discuss_channel_sub_channel_delete(request) {
             body: `<div data-oe-type="thread_deletion" class="o_mail_notification">${sub_channel.name}</div>`,
             message_type: "notification",
             subtype_xmlid: "mail.mt_comment",
-        })
+        }),
     );
     DiscussChannel.unlink([sub_channel_id]);
 }
@@ -383,7 +416,10 @@ async function discuss_channel_sub_channel_fetch(request) {
     if (before) {
         domain.push(["id", "<", before]);
     }
-    const subChannels = DiscussChannel.search(domain, makeKwArgs({ limit, order: "id DESC" }));
+    const subChannels = DiscussChannel.search(
+        domain,
+        makeKwArgs({ limit, order: "id DESC" }),
+    );
     const store = new mailDataHelpers.Store(DiscussChannel.browse(subChannels));
     const lastMessageIds = [];
     // search() returns ids: browse to get records; Math.max needs a spread
@@ -429,7 +465,7 @@ async function discuss_settings_mute(request) {
         "mail.record/insert",
         new mailDataHelpers.Store(DiscussChannelMember.browse([member.id]), {
             mute_until_dt,
-        }).get_result()
+        }).get_result(),
     );
     return "dummy";
 }
@@ -469,7 +505,8 @@ async function discuss_channel_notify_typing(request) {
     const DiscussChannelMember = this.env["discuss.channel.member"];
 
     const { channel_id, is_typing } = await parseRequestParams(request);
-    const memberOfCurrentUser = DiscussChannel._find_or_create_member_for_self(channel_id);
+    const memberOfCurrentUser =
+        DiscussChannel._find_or_create_member_for_self(channel_id);
     if (!memberOfCurrentUser) {
         return;
     }
@@ -494,7 +531,7 @@ async function discuss_channel_pins(request) {
     ]);
     return new mailDataHelpers.Store(
         MailMessage.browse(messageIds),
-        makeKwArgs({ for_current_user: true })
+        makeKwArgs({ for_current_user: true }),
     ).get_result();
 }
 
@@ -517,7 +554,7 @@ async function discuss_channel_mark_as_read(request) {
 
 registerRoute(
     "/discuss/channel/set_new_message_separator",
-    discuss_channel_set_new_message_separator
+    discuss_channel_set_new_message_separator,
 );
 /** @type {RouteCallback} */
 async function discuss_channel_set_new_message_separator(request) {
@@ -530,7 +567,7 @@ async function discuss_channel_set_new_message_separator(request) {
     return this.env["discuss.channel.member"]._set_new_message_separator(
         [memberId],
         message_id,
-        true
+        true,
     );
 }
 
@@ -565,7 +602,7 @@ async function discuss_history_messages(request) {
         ...res,
         data: new mailDataHelpers.Store(
             MailMessage.browse(messagesWithNotification.map((message) => message.id)),
-            makeKwArgs({ for_current_user: true })
+            makeKwArgs({ for_current_user: true }),
         ).get_result(),
         messages: mailDataHelpers.Store.many(messages)._get_id(),
     };
@@ -586,7 +623,7 @@ async function discuss_inbox_messages(request) {
         ...res,
         data: new mailDataHelpers.Store(
             MailMessage.browse(messages.map((message) => message.id)),
-            makeKwArgs({ for_current_user: true, add_followers: true })
+            makeKwArgs({ for_current_user: true, add_followers: true }),
         ).get_result(),
         messages: messages.map((message) => message.id),
     };
@@ -607,7 +644,7 @@ async function mail_link_preview(request) {
     const { message_id } = await parseRequestParams(request);
     const [message] = MailMessage.search_read([["id", "=", message_id]]);
     const link = createDocumentFragmentFromContent(markup(message.body)).querySelector(
-        "a[href^='https://tenor.com'], a[href^='https://make-link-preview.com'], a[href^='https://media.tenor.com']"
+        "a[href^='https://tenor.com'], a[href^='https://make-link-preview.com'], a[href^='https://media.tenor.com']",
     );
     if (link) {
         const isGifPreview =
@@ -628,7 +665,7 @@ async function mail_link_preview(request) {
         BusBus._sendone(
             MailMessage._bus_notification_target(message_id),
             "mail.record/insert",
-            new mailDataHelpers.Store(MailMessage.browse(message_id)).get_result()
+            new mailDataHelpers.Store(MailMessage.browse(message_id)).get_result(),
         );
     }
 }
@@ -645,7 +682,7 @@ async function mail_link_preview_hide(request) {
 
     const { message_link_preview_ids } = await parseRequestParams(request);
     const messageLinkPreviews = MailMessageLinkPreview.browse(
-        MailMessageLinkPreview.search([["id", "in", message_link_preview_ids]])
+        MailMessageLinkPreview.search([["id", "in", message_link_preview_ids]]),
     );
     for (const messageLinkPreview of messageLinkPreviews) {
         messageLinkPreview.is_hidden = true;
@@ -653,8 +690,8 @@ async function mail_link_preview_hide(request) {
             MailMessage._bus_notification_target(messageLinkPreview.message_id),
             "mail.record/insert",
             new mailDataHelpers.Store(
-                MailMessage.browse(messageLinkPreview.message_id)
-            ).get_result()
+                MailMessage.browse(messageLinkPreview.message_id),
+            ).get_result(),
         );
     }
 }
@@ -707,9 +744,15 @@ export async function mail_message_post(request) {
         allowedParams.push("parent_id", "special_mentions");
     }
     if (post_data.role_ids?.length) {
-        const userIds = this.env["res.users"].search([["role_ids", "in", post_data.role_ids]]);
-        const partnerIds = this.env["res.partner"].search([["user_ids", "in", userIds]]);
-        post_data.partner_ids = [...new Set([...(post_data.partner_ids || []), ...partnerIds])];
+        const userIds = this.env["res.users"].search([
+            ["role_ids", "in", post_data.role_ids],
+        ]);
+        const partnerIds = this.env["res.partner"].search([
+            ["user_ids", "in", userIds],
+        ]);
+        post_data.partner_ids = [
+            ...new Set([...(post_data.partner_ids || []), ...partnerIds]),
+        ];
     }
     for (const allowedParam of allowedParams) {
         if (post_data[allowedParam] !== undefined) {
@@ -731,7 +774,7 @@ export async function mail_message_post(request) {
         message_id: messageIds[0],
         store_data: new mailDataHelpers.Store(
             MailMessage.browse(messageIds[0]),
-            makeKwArgs({ for_current_user: true })
+            makeKwArgs({ for_current_user: true }),
         ).get_result(),
     };
 }
@@ -745,7 +788,14 @@ async function mail_message_reaction(request) {
     const partner_id = this.env.user?.partner_id ?? false;
     const guest_id = this.env.cookie.get("dgid") ?? false;
     const store = new mailDataHelpers.Store();
-    MailMessage._message_reaction(message_id, content, partner_id, guest_id, action, store);
+    MailMessage._message_reaction(
+        message_id,
+        content,
+        partner_id,
+        guest_id,
+        action,
+        store,
+    );
     return store.get_result();
 }
 
@@ -781,14 +831,14 @@ async function mail_message_update_content(request) {
         const attachments = IrAttachment.browse(update_data.attachment_ids).filter(
             (attachment) =>
                 attachment.res_model === "mail.compose.message" &&
-                attachment.create_uid === this.env.user?.id
+                attachment.create_uid === this.env.user?.id,
         );
         IrAttachment.write(
             attachments.map((attachment) => attachment.id),
             {
                 res_model: message.model,
                 res_id: message.res_id,
-            }
+            },
         );
         msg_values.attachment_ids = update_data.attachment_ids;
     }
@@ -804,12 +854,14 @@ async function mail_message_update_content(request) {
     }
     MailMessage.write([message_id], msg_values);
     const res = {
-        attachment_ids: mailDataHelpers.Store.many(IrAttachment.browse(message.attachment_ids)),
+        attachment_ids: mailDataHelpers.Store.many(
+            IrAttachment.browse(message.attachment_ids),
+        ),
         body: ["markup", message.body],
         parent_id: mailDataHelpers.Store.one(MailMessage.browse(message.parent_id)),
         partner_ids: mailDataHelpers.Store.many(
             this.env["res.partner"].browse(message.partner_ids),
-            makeKwArgs({ fields: ["avatar_128", "name"] })
+            makeKwArgs({ fields: ["avatar_128", "name"] }),
         ),
         pinned_at: message.pinned_at,
         message_link_preview_ids: message.message_link_preview_ids,
@@ -820,15 +872,18 @@ async function mail_message_update_content(request) {
     BusBus._sendone(
         MailMessage._bus_notification_target(message.id),
         "mail.record/insert",
-        new mailDataHelpers.Store(MailMessage.browse(message.id), res).get_result()
+        new mailDataHelpers.Store(MailMessage.browse(message.id), res).get_result(),
     );
     return new mailDataHelpers.Store(
         MailMessage.browse(message_id),
-        makeKwArgs({ for_current_user: true })
+        makeKwArgs({ for_current_user: true }),
     ).get_result();
 }
 
-registerRoute("/discuss/channel/<int:cid>/partner/<int:pid>/avatar_128", partnerAvatar128);
+registerRoute(
+    "/discuss/channel/<int:cid>/partner/<int:pid>/avatar_128",
+    partnerAvatar128,
+);
 /** @type {RouteCallback} */
 async function partnerAvatar128(request, { cid, pid }) {
     return [cid, pid];
@@ -843,7 +898,9 @@ async function mail_thread_partner_from_email(request) {
     const { thread_model, thread_id, emails } = await parseRequestParams(request);
     // use variables, but don't actually implement py in JS, much effort for nothing
     this.env[thread_model].browse(thread_id);
-    const partners = emails.map((email) => ResPartner.search([["email", "=", email]])[0]);
+    const partners = emails.map(
+        (email) => ResPartner.search([["email", "=", email]])[0],
+    );
     for (const index in partners) {
         if (!partners[index]) {
             const email = emails[index];
@@ -879,9 +936,12 @@ async function read_subscription_data(request) {
     return {
         store_data: new mailDataHelpers.Store(
             MailMessageSubtype.browse(subtypes),
-            makeKwArgs({ fields: ["name"] })
+            makeKwArgs({ fields: ["name"] }),
         )
-            .add(MailFollowers.browse(follower_id), makeKwArgs({ fields: ["subtype_ids"] }))
+            .add(
+                MailFollowers.browse(follower_id),
+                makeKwArgs({ fields: ["subtype_ids"] }),
+            )
             .get_result(),
         subtype_ids: subtypes, // Not sorted for simplicity.
     };
@@ -920,7 +980,7 @@ async function discuss_starred_messages(request) {
         ...res,
         data: new mailDataHelpers.Store(
             MailMessage.browse(messages.map((message) => message.id)),
-            makeKwArgs({ for_current_user: true })
+            makeKwArgs({ for_current_user: true }),
         ).get_result(),
         messages: messages.map((message) => message.id),
     };
@@ -932,7 +992,11 @@ async function mail_thread_messages(request) {
     /** @type {import("mock_models").MailMessage} */
     const MailMessage = this.env["mail.message"];
 
-    const { fetch_params = {}, thread_id, thread_model } = await parseRequestParams(request);
+    const {
+        fetch_params = {},
+        thread_id,
+        thread_model,
+    } = await parseRequestParams(request);
     const thread = this.env[thread_model].browse(thread_id);
     const res = MailMessage._message_fetch([], thread, makeKwArgs(fetch_params));
     const { messages } = res;
@@ -942,7 +1006,7 @@ async function mail_thread_messages(request) {
         ...res,
         data: new mailDataHelpers.Store(
             MailMessage.browse(messages.map((message) => message.id)),
-            makeKwArgs({ for_current_user: true })
+            makeKwArgs({ for_current_user: true }),
         ).get_result(),
         messages: messages.map((message) => message.id),
     };
@@ -985,7 +1049,10 @@ async function search(request) {
         ["name", "ilike", term],
         ["channel_type", "!=", "chat"],
     ];
-    const priority_conditions = [[["is_member", "=", true], ...base_domain], base_domain];
+    const priority_conditions = [
+        [["is_member", "=", true], ...base_domain],
+        base_domain,
+    ];
     const channelIds = new Set();
     let remaining_limit;
     for (const domain of priority_conditions) {
@@ -996,7 +1063,7 @@ async function search(request) {
         const partialChannelIds = DiscussChannel.search(
             Domain.and([[["id", "not in", [...channelIds]]], domain]).toList(),
             undefined,
-            remaining_limit
+            remaining_limit,
         );
         for (const channelId of partialChannelIds) {
             channelIds.add(channelId);
@@ -1007,12 +1074,20 @@ async function search(request) {
     return store.get_result();
 }
 
-registerRoute("/mail/thread/recipients/get_suggested_recipients", get_suggested_recipients);
+registerRoute(
+    "/mail/thread/recipients/get_suggested_recipients",
+    get_suggested_recipients,
+);
 /** @type {RouteCallback} */
 async function get_suggested_recipients(request) {
-    const { thread_model, thread_id, partner_ids, main_email } = await parseRequestParams(request);
+    const { thread_model, thread_id, partner_ids, main_email } =
+        await parseRequestParams(request);
     const MailThread = this.env[thread_model];
-    return MailThread._message_get_suggested_recipients([thread_id], partner_ids, main_email);
+    return MailThread._message_get_suggested_recipients(
+        [thread_id],
+        partner_ids,
+        main_email,
+    );
 }
 
 registerRoute("/mail/thread/unsubscribe", mail_thread_unsubscribe);
@@ -1023,7 +1098,10 @@ async function mail_thread_unsubscribe(request) {
     this.env["mail.thread"].message_unsubscribe.call(thread, [res_id], partner_ids);
     return new mailDataHelpers.Store(
         thread,
-        makeKwArgs({ as_thread: true, request_list: ["followers", "suggestedRecipients"] })
+        makeKwArgs({
+            as_thread: true,
+            request_list: ["followers", "suggestedRecipients"],
+        }),
     ).get_result();
 }
 
@@ -1035,7 +1113,10 @@ async function mail_thread_subscribe(request) {
     this.env["mail.thread"].message_subscribe.call(thread, [res_id], partner_ids);
     return new mailDataHelpers.Store(
         thread,
-        makeKwArgs({ as_thread: true, request_list: ["followers", "suggestedRecipients"] })
+        makeKwArgs({
+            as_thread: true,
+            request_list: ["followers", "suggestedRecipients"],
+        }),
     ).get_result();
 }
 
@@ -1047,8 +1128,19 @@ function processRequest(fetchParams, context) {
                 ? [fetchParam, undefined, undefined]
                 : fetchParam;
         store.data_id = data_id;
-        mailDataHelpers._process_request_for_all.call(this, store, name, params, context);
-        mailDataHelpers._process_request_for_internal_user.call(this, store, name, params);
+        mailDataHelpers._process_request_for_all.call(
+            this,
+            store,
+            name,
+            params,
+            context,
+        );
+        mailDataHelpers._process_request_for_internal_user.call(
+            this,
+            store,
+            name,
+            params,
+        );
     }
     store.data_id = null;
     return store;
@@ -1070,12 +1162,18 @@ function _process_request_for_all(store, name, params, context = {}) {
     /** @type {import("mock_models").ResUsers} */
     const ResUsers = this.env["res.users"];
     if (name === "init_messaging") {
-        if (!MailGuest._get_guest_from_context() || !ResUsers._is_public(this.env.uid)) {
+        if (
+            !MailGuest._get_guest_from_context() ||
+            !ResUsers._is_public(this.env.uid)
+        ) {
             ResUsers._init_messaging([this.env.uid], store, context);
         }
-        const guest = ResUsers._is_public(this.env.uid) && MailGuest._get_guest_from_context();
+        const guest =
+            ResUsers._is_public(this.env.uid) && MailGuest._get_guest_from_context();
         const members = DiscussChannelMember._filter([
-            guest ? ["guest_id", "=", guest.id] : ["partner_id", "=", this.env.user.partner_id],
+            guest
+                ? ["guest_id", "=", guest.id]
+                : ["partner_id", "=", this.env.user.partner_id],
             ["rtc_inviting_session_id", "!=", false],
         ]);
         const channelsDomain = [["id", "in", members.map((m) => m.channel_id)]];
@@ -1101,7 +1199,7 @@ function _process_request_for_all(store, name, params, context = {}) {
         messages.length = Math.min(messages.length, 100);
         MailMessage._message_notifications_to_store(
             messages.map((message) => message.id),
-            store
+            store,
         );
     }
     if (name === "channels_as_member") {
@@ -1114,19 +1212,19 @@ function _process_request_for_all(store, name, params, context = {}) {
                             MailMessage._filter([
                                 ["model", "=", "discuss.channel"],
                                 ["res_id", "=", channel.id],
-                            ]).sort((a, b) => b.id - a.id)[0]
+                            ]).sort((a, b) => b.id - a.id)[0],
                     )
                     .filter((lastMessage) => lastMessage)
-                    .map((message) => message.id)
+                    .map((message) => message.id),
             ),
-            makeKwArgs({ for_current_user: true })
+            makeKwArgs({ for_current_user: true }),
         );
         store.add(channels);
     }
     if (name === "mail.thread") {
         store.add(
             this.env[params.thread_model].browse(params.thread_id),
-            makeKwArgs({ as_thread: true, request_list: params.request_list })
+            makeKwArgs({ as_thread: true, request_list: params.request_list }),
         );
     }
     if (name === "discuss.channel") {
@@ -1142,23 +1240,32 @@ function _process_request_for_all(store, name, params, context = {}) {
     if (name === "/discuss/get_or_create_chat") {
         const channelId = DiscussChannel._get_or_create_chat(params.partners_to);
         store.add(channelId).resolve_data_request({
-            channel: mailDataHelpers.Store.one(channelId, makeKwArgs({ only_id: true })),
+            channel: mailDataHelpers.Store.one(
+                channelId,
+                makeKwArgs({ only_id: true }),
+            ),
         });
     }
     if (name === "/discuss/create_channel") {
         const channelId = DiscussChannel._create_channel(params.name, params.group_id);
         store.add(channelId).resolve_data_request({
-            channel: mailDataHelpers.Store.one(channelId, makeKwArgs({ only_id: true })),
+            channel: mailDataHelpers.Store.one(
+                channelId,
+                makeKwArgs({ only_id: true }),
+            ),
         });
     }
     if (name === "/discuss/create_group") {
         const channelId = DiscussChannel._create_group(
             params.partners_to,
             params.default_display_mode,
-            params.name
+            params.name,
         );
         store.add(channelId).resolve_data_request({
-            channel: mailDataHelpers.Store.one(channelId, makeKwArgs({ only_id: true })),
+            channel: mailDataHelpers.Store.one(
+                channelId,
+                makeKwArgs({ only_id: true }),
+            ),
         });
     }
 }
@@ -1172,7 +1279,7 @@ function _process_request_for_internal_user(store, name, params) {
         store.add({
             activityCounter: groups.reduce(
                 (counter, group) => counter + (group.total_count || 0),
-                0
+                0,
             ),
             activity_counter_bus_id: bus_last_id,
             activityGroups: groups,
@@ -1223,7 +1330,12 @@ function extractAndDeleteKwArgs(args, ...keys) {
 
 export class StoreAttr {
     constructor(name, value, predicate) {
-        const [kwargs] = extractAndDeleteKwArgs(arguments, "name", "value", "predicate");
+        const [kwargs] = extractAndDeleteKwArgs(
+            arguments,
+            "name",
+            "value",
+            "predicate",
+        );
         this.name = kwargs.name;
         this.value = kwargs.value;
         this.predicate = kwargs.predicate;
@@ -1240,15 +1352,16 @@ export class StoreAttr {
 
 export class StoreRelation extends StoreAttr {
     constructor(name_or_record, fields, value, predicate, as_thread, only_id) {
-        [{ name_or_record, fields, value, predicate, as_thread, only_id }] = extractAndDeleteKwArgs(
-            arguments,
-            "name_or_record",
-            "fields",
-            "value",
-            "predicate",
-            "as_thread",
-            "only_id"
-        );
+        [{ name_or_record, fields, value, predicate, as_thread, only_id }] =
+            extractAndDeleteKwArgs(
+                arguments,
+                "name_or_record",
+                "fields",
+                "value",
+                "predicate",
+                "as_thread",
+                "only_id",
+            );
         const name = typeof name_or_record === "string" ? name_or_record : null;
         super(makeKwArgs({ name, value }));
         this.records = name_or_record instanceof models.Model ? name_or_record : null;
@@ -1288,13 +1401,22 @@ export class StoreRelation extends StoreAttr {
                 value: this.value,
                 predicate: this.predicate,
                 as_thread: this.as_thread,
-            })
+                // losing only_id here made every named Store.one/many relation
+                // fully serialize its target (e.g. spurious mail.thread records
+                // with access flags the real server never sends) — caught by
+                // the store contract tests (mock_server/contract.test.js).
+                only_id: this.only_id,
+            }),
         );
     }
 
     _add_to_store(store, target, key) {
         if (!this.only_id) {
-            store.add(this.records, this.fields, makeKwArgs({ as_thread: this.as_thread }));
+            store.add(
+                this.records,
+                this.fields,
+                makeKwArgs({ as_thread: this.as_thread }),
+            );
         }
     }
 }
@@ -1320,7 +1442,16 @@ export class StoreOne extends StoreRelation {
 }
 
 export class StoreMany extends StoreRelation {
-    constructor(name_or_record, fields, value, predicate, as_thread, mode, only_id, sort) {
+    constructor(
+        name_or_record,
+        fields,
+        value,
+        predicate,
+        as_thread,
+        mode,
+        only_id,
+        sort,
+    ) {
         const [kwargs] = extractAndDeleteKwArgs(
             arguments,
             "name_or_record",
@@ -1330,7 +1461,7 @@ export class StoreMany extends StoreRelation {
             "as_thread",
             "mode",
             "only_id",
-            "sort"
+            "sort",
         );
         name_or_record = kwargs.name_or_record;
         fields = kwargs.fields;
@@ -1348,7 +1479,7 @@ export class StoreMany extends StoreRelation {
                 predicate,
                 as_thread,
                 only_id,
-            })
+            }),
         );
         this.mode = mode;
     }
@@ -1376,7 +1507,10 @@ export class StoreMany extends StoreRelation {
         const res = [];
 
         if (this.records._name === "mail.message.reaction") {
-            const reactionGroups = groupBy(this.records, (r) => [r.message_id, r.content]);
+            const reactionGroups = groupBy(this.records, (r) => [
+                r.message_id,
+                r.content,
+            ]);
             for (const groupId in reactionGroups) {
                 const { message_id, content } = reactionGroups[groupId][0];
                 res.push({ message: message_id, content: content });
@@ -1388,8 +1522,8 @@ export class StoreMany extends StoreRelation {
                         this.records.env[this.records._name].browse(record.id),
                         makeKwArgs({
                             as_thread: this.as_thread,
-                        })
-                    )._get_id()
+                        }),
+                    )._get_id(),
                 );
             }
         }
@@ -1420,7 +1554,7 @@ class Store {
                 "fields",
                 "as_thread",
                 "delete",
-                "extra_fields"
+                "extra_fields",
             );
         _delete = _delete ?? false;
         let model_name;
@@ -1428,11 +1562,13 @@ class Store {
             if (fields) {
                 if (Object.keys(kwargs).length) {
                     throw new Error(
-                        `expected empty kwargs with recordset ${data} values: ${kwargs}`
+                        `expected empty kwargs with recordset ${data} values: ${kwargs}`,
                     );
                 }
                 if (_delete) {
-                    throw new Error(`deleted not expected for ${data} with values: ${fields}`);
+                    throw new Error(
+                        `deleted not expected for ${data} with values: ${fields}`,
+                    );
                 }
             }
             if (_delete) {
@@ -1440,24 +1576,26 @@ class Store {
                     throw new Error(`expected single record ${data} with delete`);
                 }
                 if (fields) {
-                    throw new Error(`for ${data} expected empty values with delete: ${fields}`);
+                    throw new Error(
+                        `for ${data} expected empty values with delete: ${fields}`,
+                    );
                 }
             }
             const ids = data.map((idOrRecord) =>
-                typeof idOrRecord === "number" ? idOrRecord : idOrRecord.id
+                typeof idOrRecord === "number" ? idOrRecord : idOrRecord.id,
             );
             if (_delete) {
                 if (as_thread) {
                     this._add_model_values(
                         "mail.thread",
                         { id: data[0].id, model: data._name },
-                        makeKwArgs({ delete: _delete })
+                        makeKwArgs({ delete: _delete }),
                     );
                 } else {
                     this._add_model_values(
                         data._name,
                         { id: ids[0] },
-                        makeKwArgs({ delete: _delete })
+                        makeKwArgs({ delete: _delete }),
                     );
                 }
             } else {
@@ -1468,13 +1606,15 @@ class Store {
                         fields = data._to_store_defaults || [];
                     }
                 }
-                fields = this._format_fields(fields).concat(this._format_fields(extra_fields));
+                fields = this._format_fields(fields).concat(
+                    this._format_fields(extra_fields),
+                );
                 if (as_thread) {
                     MockServer.env["mail.thread"]._thread_to_store.call(
                         data,
                         this,
                         fields,
-                        makeKwArgs(kwargs)
+                        makeKwArgs(kwargs),
                     );
                 } else {
                     if (data._to_store) {
@@ -1499,10 +1639,14 @@ class Store {
             fields = data;
         } else {
             if (Object.keys(kwargs).length) {
-                throw new Error(`expected empty kwargs with model name ${data}: ${kwargs}`);
+                throw new Error(
+                    `expected empty kwargs with model name ${data}: ${kwargs}`,
+                );
             }
             if (as_thread) {
-                throw new Error(`expected not as_thread with model name ${data}: ${fields}`);
+                throw new Error(
+                    `expected not as_thread with model name ${data}: ${fields}`,
+                );
             }
             model_name = data;
         }
@@ -1515,7 +1659,7 @@ class Store {
             ._read_format(
                 records.map((r) => r.id),
                 fields.filter((f) => !abstractedFields.includes(f)),
-                false
+                false,
             )
             .map((data) => [data]);
         for (const index in records_data_list) {
@@ -1629,7 +1773,7 @@ class Store {
             !(fields instanceof StoreAttr)
         ) {
             fields = Object.entries(fields).map(
-                ([key, value]) => new StoreAttr(makeKwArgs({ name: key, value }))
+                ([key, value]) => new StoreAttr(makeKwArgs({ name: key, value })),
             );
         }
         if (!Array.isArray(fields)) {
@@ -1639,7 +1783,9 @@ class Store {
     }
 
     _add_values(values, model_name, index) {
-        const target = index ? this.data.get(model_name).get(index) : this.data.get(model_name);
+        const target = index
+            ? this.data.get(model_name).get(index)
+            : this.data.get(model_name);
         for (const [key, val] of Object.entries(values)) {
             if (key === "_DELETE") {
                 throw new Error(`invalid key ${key} in ${model_name}: ${values}`);
@@ -1660,7 +1806,9 @@ class Store {
                 // singleton
                 res[model_name] = { ...records };
             } else {
-                res[model_name] = [...records.values()].map((record) => ({ ...record }));
+                res[model_name] = [...records.values()].map((record) => ({
+                    ...record,
+                }));
             }
         }
         return res;
@@ -1668,14 +1816,18 @@ class Store {
 
     resolve_data_request(values) {
         if (this.data_id) {
-            this._add_model_values("DataResponse", { id: this.data_id, _resolve: true, ...values });
+            this._add_model_values("DataResponse", {
+                id: this.data_id,
+                _resolve: true,
+                ...values,
+            });
         }
         return this;
     }
 
     toJSON() {
         throw Error(
-            "Converting Store to JSON is not supported, you might want to call 'get_result()' instead."
+            "Converting Store to JSON is not supported, you might want to call 'get_result()' instead.",
         );
     }
 
@@ -1686,7 +1838,7 @@ class Store {
             "records",
             "fields",
             "mode",
-            "as_thread"
+            "as_thread",
         );
         records = kwargs.records;
         fields = kwargs.fields;
@@ -1699,13 +1851,18 @@ class Store {
                 mode,
                 as_thread,
                 ...otherKwArgs,
-            })
+            }),
         );
     }
 
     static one(records, fields, as_thread, kwargs) {
         let otherKwArgs;
-        [kwargs, otherKwArgs] = extractAndDeleteKwArgs(arguments, "records", "fields", "as_thread");
+        [kwargs, otherKwArgs] = extractAndDeleteKwArgs(
+            arguments,
+            "records",
+            "fields",
+            "as_thread",
+        );
         records = kwargs.records;
         fields = kwargs.fields;
         as_thread = kwargs.as_thread;
@@ -1715,7 +1872,7 @@ class Store {
                 fields: fields,
                 as_thread,
                 ...otherKwArgs,
-            })
+            }),
         );
     }
 
@@ -1724,7 +1881,7 @@ class Store {
             arguments,
             "name",
             "value",
-            "predicate"
+            "predicate",
         );
         return new StoreAttr(makeKwArgs({ name, value, predicate }));
     }
