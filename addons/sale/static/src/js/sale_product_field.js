@@ -8,6 +8,9 @@ import { serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
+// `StaticList._sort()` was extracted into this free function; call it directly (as the
+// framework's own internal callers do) to re-sort line_ids after a combo mutation.
+import { sort as sortListRecords } from "@web/model/relational_model/static_list_sort";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { uuid } from "@web/core/utils/format/strings";
@@ -197,7 +200,8 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
             }
         );
         if (result && result.product_id) {
-            if (this.props.record.data.product_id != result.product_id.id) {
+            // `result.product_id` is a scalar id; compare against the m2o's `.id`.
+            if (this.props.record.data.product_id?.id !== result.product_id) {
                 if (result.is_combo) {
                     await this.props.record.update({
                         product_id: { id: result.product_id, display_name: result.product_name },
@@ -332,14 +336,16 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
             pricelist_id: saleOrder.pricelist_id.id,
             date: serializeDateTime(saleOrder.date_order),
             edit: edit,
-            save: async (comboProductData, selectedComboItems) => {
+            // Return the promise (don't fire-and-forget) so the dialog's `confirm`
+            // awaits the save: keeps the loading state meaningful and surfaces errors
+            // instead of dropping them as unhandled rejections.
+            save: (comboProductData, selectedComboItems) =>
                 this.handleComboSave(
                     comboProductData,
                     selectedComboItems,
                     edit,
                     hasOptionalProducts
-                );
-            },
+                ),
             discard: () => saleOrder.line_ids.delete(comboLineRecord),
             ...this._getAdditionalDialogProps(),
         });
@@ -360,7 +366,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         }
         await comboLineRecord.update(comboLineValues);
         // Ensure that the order lines are sorted according to their sequence.
-        await saleOrder.line_ids._sort();
+        await sortListRecords(saleOrder.line_ids);
 
         if (hasOptionalProducts && !edit) {
             const selectedComboProducts = selectedComboItems.map(

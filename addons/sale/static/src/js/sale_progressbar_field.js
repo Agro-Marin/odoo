@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import {
@@ -23,10 +22,15 @@ export class SaleProgressBarField extends KanbanProgressBarField {
 
         this.actionService = useService("action");
         this.orm = useService("orm");
+    }
 
-        useEffect(() => {
-            this.state.isInvoicingTargetDefined = this.props.record.data[this.props.maxValueField];
-        });
+    /**
+     * Whether an invoicing target (the max value) is defined. Derived directly from
+     * props — not synced into reactive state via an effect that would rerun on every
+     * render.
+     */
+    get isInvoicingTargetDefined() {
+        return this.props.record.data[this.props.maxValueField];
     }
 
     /**

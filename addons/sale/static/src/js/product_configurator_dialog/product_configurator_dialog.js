@@ -366,13 +366,16 @@ export class ProductConfiguratorDialog extends Component {
         const archivedCombinations = product.archived_combinations;
         const parentCombination = this._getParentsCombination(product);
         const childProducts = this._getChildProducts(product.product_tmpl_id)
-        const ptavList = product.attribute_lines.flat().flatMap(ptal => ptal.attribute_values)
-        ptavList.map(ptav => ptav.excluded = false); // Reset all the values
+        const ptavList = product.attribute_lines.flatMap(ptal => ptal.attribute_values)
+        ptavList.forEach(ptav => ptav.excluded = false); // Reset all the values
 
         if (exclusions) {
             for(const ptavId of combination) {
-                for(const excludedPtavId of exclusions[ptavId]) {
-                    ptavList.find(ptav => ptav.id === excludedPtavId).excluded = true;
+                for(const excludedPtavId of (exclusions[ptavId] || [])) {
+                    const excludedPtav = ptavList.find(ptav => ptav.id === excludedPtavId);
+                    if (excludedPtav) {
+                        excludedPtav.excluded = true; // Assign only if the element exists
+                    }
                 }
             }
         }
@@ -484,7 +487,7 @@ export class ProductConfiguratorDialog extends Component {
      * @return {Boolean} - Whether all the products selected have a valid combination or not.
      */
     isPossibleConfiguration() {
-        return [...this.state.products].every(
+        return this.state.products.every(
             p => this._isPossibleCombination(p)
         );
     }
