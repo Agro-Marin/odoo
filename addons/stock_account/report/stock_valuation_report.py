@@ -82,9 +82,6 @@ class StockValuationReport(models.AbstractModel):
                 ending_stock['lines_by_account_id'][account.id]['value'] += ending_balance
 
         # Get accounting data.
-        location_valuation_vals = company._get_location_valuation_vals(
-            date, location_domain=[('usage', '=', 'inventory')],
-        )
         stock_valuation_account_vals = company.with_context(inventory_data=inventory_data)._get_stock_valuation_account_vals(
             accounts_by_product, date, company._get_location_valuation_vals(date))
 
@@ -96,7 +93,11 @@ class StockValuationReport(models.AbstractModel):
         }
 
         if self._must_include_inventory_loss():
-            # Compute Inventory Loss values.
+            # Compute Inventory Loss values. Only the inventory-usage locations are
+            # relevant here, so this valuation is computed lazily inside the guard.
+            location_valuation_vals = company._get_location_valuation_vals(
+                date, location_domain=[('usage', '=', 'inventory')],
+            )
             inventory_loss = {
                 'label': _("Inventory Loss"),
                 'value': 0,

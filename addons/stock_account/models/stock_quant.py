@@ -1,7 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, SUPERUSER_ID, _
+from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.tools.misc import groupby
+
+from odoo.addons.stock_account.models.constants import COST_METHOD_SELECTION
 
 
 class StockQuant(models.Model):
@@ -16,11 +18,7 @@ class StockQuant(models.Model):
              " If empty, the inventory date will be used.")
     cost_method = fields.Selection(
         string="Cost Method",
-        selection=[
-            ('standard', "Standard Price"),
-            ('fifo', "First In First Out (FIFO)"),
-            ('average', "Average Cost (AVCO)"),
-        ],
+        selection=COST_METHOD_SELECTION,
         compute='_compute_cost_method',
     )
 

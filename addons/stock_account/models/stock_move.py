@@ -97,10 +97,12 @@ class StockMove(models.Model):
         for move in self:
             move.is_valued = move.is_in or move.is_out
 
+    @api.depends('value')
     def _compute_value_manual(self):
         for move in self:
             move.value_manual = move.value
 
+    @api.depends('value', 'is_in')
     def _compute_value_justification(self):
         self.value_justification = False
         self.value_computed_justification = False
@@ -146,7 +148,10 @@ class StockMove(models.Model):
         for move in self:
             if move.value_manual == move.value:
                 continue
-            self.env['product.value'].create({
+            # sudo: `product.value` is restricted to stock managers, but a value
+            # adjustment can be triggered by an account user editing the move; every
+            # other `product.value` create-site is sudoed for the same reason.
+            self.env['product.value'].sudo().create({
                 'move_id': move.id,
                 'value': move.value_manual,
                 'company_id': move.company_id.id,
@@ -328,10 +333,15 @@ class StockMove(models.Model):
                 if move.product_id.lot_valuated:
                     value = 0.0
                     for move_line in move.move_line_ids:
-                        if move_line.lot_id:
-                            value += move_line.lot_id.standard_price * move_line.quantity_product_uom
-                        else:
-                            value += move.product_id.standard_price * move_line.quantity_product_uom
+                        # Fall back to the product's average cost when the lot has no
+                        # cost basis of its own (e.g. a lot never received, hence still
+                        # at a 0 standard price). Otherwise the move would be valued at
+                        # 0, understating COGS and overstating the remaining on-hand
+                        # value / average cost.
+                        lot_price = move_line.lot_id.standard_price
+                        if not lot_price:
+                            lot_price = move.product_id.standard_price
+                        value += lot_price * move_line.quantity_product_uom
                     move.value = value
                     continue
 
