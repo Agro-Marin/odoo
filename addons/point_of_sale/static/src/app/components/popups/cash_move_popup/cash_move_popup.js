@@ -79,14 +79,20 @@ export class CashMovePopup extends Component {
             sequence_number: 0,
             pos_reference: "",
         });
-        await this.printer.print(CashMoveReceipt, {
-            reason,
-            translatedType,
-            order: order,
-            formattedAmount,
-            date: new Date().toLocaleString(),
-        });
-        this.pos.models["pos.order"].delete(order);
+        // This throwaway order exists only to render the receipt. Delete it in a
+        // finally so a printer/hardware-proxy error can't leave an orphan draft
+        // order polluting the order tabs and next-order numbering.
+        try {
+            await this.printer.print(CashMoveReceipt, {
+                reason,
+                translatedType,
+                order: order,
+                formattedAmount,
+                date: new Date().toLocaleString(),
+            });
+        } finally {
+            this.pos.models["pos.order"].delete(order);
+        }
 
         this.props.close();
         this.notification.add(

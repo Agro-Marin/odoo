@@ -44,6 +44,10 @@ export class HardwareProxy extends EventBus {
     disconnect() {
         if (this.connectionInfo.status !== "disconnected") {
             this.host = null;
+            // Stop the keepAlive poll: without this it keeps firing every 5s for
+            // the life of the tab, hitting `null/hw_proxy/status_json` once the
+            // host is cleared. keepAlive() restarts it cleanly on reconnect.
+            this.keptalive = false;
             this.setConnectionInfo({ status: "disconnected" });
         }
     }
@@ -107,7 +111,11 @@ export class HardwareProxy extends EventBus {
     // starts a loop that updates the connection status
     keepAlive() {
         const status = () => {
-            const always = () => setTimeout(status, 5000);
+            if (!this.keptalive || !this.host) {
+                // Stopped via disconnect(); don't reschedule or poll a null host.
+                return;
+            }
+            const always = () => this.keptalive && setTimeout(status, 5000);
             const xhr = new browser.XMLHttpRequest();
             xhr.timeout = 2500;
             rpc(`${this.host}/hw_proxy/status_json`, {}, { silent: true, xhr })

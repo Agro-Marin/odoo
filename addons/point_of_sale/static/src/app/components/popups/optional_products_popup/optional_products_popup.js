@@ -63,13 +63,19 @@ export class OptionalProductPopup extends Component {
         optional_product.qty = Math.max(0, parseInt(quantity) || 0);
     }
 
-    confirm() {
-        this.state.product_lines.forEach(async (product) => {
-            if (product.qty > 0) {
-                await this.pos.addLineToCurrentOrder(product, {});
+    async confirm() {
+        // Add sequentially and await each: forEach(async …) launched detached
+        // promises and closed immediately, so a rejection was unhandled, lines
+        // could be silently dropped, and their order was non-deterministic.
+        try {
+            for (const product of this.state.product_lines) {
+                if (product.qty > 0) {
+                    await this.pos.addLineToCurrentOrder(product, {});
+                }
             }
-        });
-        this.props.close();
+        } finally {
+            this.props.close();
+        }
     }
 
     cancel() {

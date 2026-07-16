@@ -132,18 +132,22 @@ class NumberBuffer extends EventBus {
         const currentComponent = useComponent();
         config = Object.assign(getDefaultConfig(), config);
 
-        this.bufferHolderStack.push({
+        const holder = {
             component: currentComponent,
             state: config.state ? config.state : { buffer: "", toStartOver: false },
             config,
-        });
+        };
+        this.bufferHolderStack.push(holder);
         this._setUp();
         onWillDestroy(() => {
-            const currentComponentName = currentComponent.constructor.name;
-            const indexComponent = this.bufferHolderStack.findIndex(
-                (stack) => stack.component.constructor.name === currentComponentName,
-            );
-            this.bufferHolderStack.splice(indexComponent, 1);
+            // Remove the exact holder this component pushed. Matching by
+            // constructor.name removed the first same-class entry, corrupting the
+            // stack when two instances of one component class are stacked (and
+            // minified builds mangle/duplicate names).
+            const indexComponent = this.bufferHolderStack.indexOf(holder);
+            if (indexComponent !== -1) {
+                this.bufferHolderStack.splice(indexComponent, 1);
+            }
             this._setUp();
         });
     }
