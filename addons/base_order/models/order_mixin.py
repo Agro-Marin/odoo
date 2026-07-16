@@ -399,6 +399,38 @@ class OrderMixin(models.AbstractModel):
             )
 
     # ------------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------------
+
+    @api.constrains("company_id", "line_ids")
+    def _check_line_ids_company_id(self):
+        """Ensure all product lines belong to the same company as the order."""
+        for order in self:
+            invalid_companies = order.line_ids.product_id.company_id.filtered(
+                lambda c, order=order: order.company_id not in c._accessible_branches(),
+            )
+            if invalid_companies:
+                bad_products = order.line_ids.product_id.filtered(
+                    lambda p, invalid=invalid_companies: (
+                        p.company_id and p.company_id in invalid
+                    ),
+                )
+                raise ValidationError(
+                    _(
+                        "Your %(desc)s contains products from company %(product_company)s "
+                        "whereas your %(desc)s belongs to company %(quote_company)s.\n\n"
+                        "Please change the company of your %(desc)s or remove the products "
+                        "from other companies (%(bad_products)s).",
+                        desc=self._description.lower(),
+                        product_company=", ".join(
+                            invalid_companies.sudo().mapped("display_name"),
+                        ),
+                        quote_company=order.company_id.display_name,
+                        bad_products=", ".join(bad_products.mapped("display_name")),
+                    ),
+                )
+
+    # ------------------------------------------------------------------
     # COMPUTE — identical in sale and purchase
     # ------------------------------------------------------------------
 

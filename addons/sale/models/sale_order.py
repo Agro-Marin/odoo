@@ -146,6 +146,7 @@ class SaleOrder(models.Model):
     # ``group_expand`` is sale-specific. The rest is inherited.
     state = fields.Selection(
         selection=const.ORDER_STATE,
+        group_expand=True,
     )
     create_date = fields.Datetime(
         string="Creation Date",
