@@ -32,7 +32,6 @@ import {
 import { formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
-import { normalize } from "@web/core/l10n/utils";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
@@ -45,13 +44,62 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { SelectionPopup } from "../components/popups/selection_popup/selection_popup.js";
 import { computeComboItems } from "../models/utils/compute_combo_items.js";
 import { changesToOrder, getOrderChanges } from "../models/utils/order_change.js";
+import {
+    computeProductAttributesExclusion,
+    doHaveConflictWith,
+} from "../models/utils/product_attributes.js";
 import { PartnerList } from "../screens/partner_list/partner_list.js";
 import { ScaleScreen } from "../screens/scale_screen/scale_screen.js";
 import { DebugWidget } from "../utils/debug/debug_widget.js";
 import DevicesSynchronisation from "../utils/devices_synchronisation.js";
 import { initLNA } from "../utils/init_lna.js";
 import { Domain } from "@web/core/domain";
+import {
+    cashierHasPriceControlRights,
+    getCashier,
+    getCashierUserId,
+    getConnectedCashier,
+    resetCashier,
+    resetConnectedCashier,
+    setCashier,
+    storeConnectedCashier,
+} from "../utils/cashier.js";
+import {
+    filterChangeByCategories,
+    generateOrderChange,
+    generateReceiptsDataToPrint,
+    getOrderData,
+    getStrNotes,
+    prepareReceiptGroupedData,
+} from "../utils/order_change_receipts.js";
 import OrderPaymentValidation from "../utils/order_payment_validation.js";
+import {
+    addPendingOrder,
+    clearPendingOrder,
+    getOrderIdsToDelete,
+    getPendingOrder,
+    removePendingOrder,
+    shouldCreatePendingOrder,
+} from "../utils/pending_orders.js";
+import {
+    computeDefaultPage,
+    computeFirstPage,
+    navigate,
+    navigateToFirstPage,
+    navigateToOrderScreen,
+    showBackButton,
+    showSearchButton,
+    switchPane,
+    switchPaneTicketScreen,
+} from "../utils/pos_navigation.js";
+import {
+    areAllProductsSpecial,
+    computeProductsToDisplay,
+    computeProductToDisplayByCateg,
+    getExcludedProductIds,
+    getProductsBySearchWord,
+    orderProductBySequenceAndFav,
+} from "../utils/product_catalog.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 
 const { DateTime } = luxon;
@@ -192,60 +240,23 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     navigate(routeName, routeParams = {}) {
-        const pageParams = registry.category("pos_pages").get(routeName);
-        const component = pageParams.component;
-
-        if (routeParams.orderUuid) {
-            this.selectedOrderUuid = routeParams.orderUuid;
-        }
-
-        if (component.storeOnOrder ?? true) {
-            this.getOrder()?.setScreenData({ name: routeName, props: routeParams });
-        }
-
-        this.router.navigate(routeName, routeParams);
-        return true;
+        return navigate(this, routeName, routeParams);
     }
 
     navigateToFirstPage() {
-        const page = this.firstPage;
-        this.navigate(page.page, page.params);
+        return navigateToFirstPage(this);
     }
 
     navigateToOrderScreen(order) {
-        const orderPage = order.getScreenData();
-        const page = orderPage?.name || "ProductScreen";
-        const params = orderPage?.props || {
-            orderUuid: order.uuid,
-        };
-        this.ticket_screen_mobile_pane = "left";
-        this.navigate(page, params);
+        return navigateToOrderScreen(this, order);
     }
 
     get defaultPage() {
-        return {
-            page: "ProductScreen",
-            params: {
-                orderUuid: this.openOrder.uuid,
-            },
-        };
+        return computeDefaultPage(this);
     }
 
     get firstPage() {
-        if (odoo.from_backend) {
-            // Remove from_backend params in the URL but keep the rest
-            const url = new URL(window.location.href);
-            url.searchParams.delete("from_backend");
-            window.history.replaceState({}, "", url);
-
-            if (!this.config.module_pos_hr) {
-                this.setCashier(this.user);
-            }
-        } else {
-            this.resetCashier();
-        }
-
-        return !this.cashier ? { page: "LoginScreen", params: {} } : this.defaultPage;
+        return computeFirstPage(this);
     }
 
     get idleTimeout() {
@@ -285,8 +296,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     resetCashier() {
-        this.cashier = false;
-        this._resetConnectedCashier();
+        return resetCashier(this);
     }
 
     checkPreviousLoggedCashier() {
@@ -297,30 +307,19 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     setCashier(user) {
-        if (!user) {
-            return;
-        }
-
-        this.cashier = user;
-        this._storeConnectedCashier(user);
+        return setCashier(this, user);
     }
 
     _getConnectedCashier() {
-        const cashier_id = Number(
-            sessionStorage.getItem(`connected_cashier_${this.config.id}`),
-        );
-        if (cashier_id && this.models["res.users"].get(cashier_id)) {
-            return this.models["res.users"].get(cashier_id);
-        }
-        return false;
+        return getConnectedCashier(this);
     }
 
     _storeConnectedCashier(user) {
-        sessionStorage.setItem(`connected_cashier_${this.config.id}`, user.id);
+        return storeConnectedCashier(this, user);
     }
 
     _resetConnectedCashier() {
-        sessionStorage.removeItem(`connected_cashier_${this.config.id}`);
+        return resetConnectedCashier(this);
     }
 
     async initServerData() {
@@ -553,38 +552,11 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     computeProductAttributesExclusion(excl = false) {
-        const exclusions = this.productAttributesExclusion || new Map();
-
-        const addExclusion = (key, value) => {
-            if (!exclusions.has(key)) {
-                exclusions.set(key, new Set());
-            }
-            exclusions.get(key).add(value);
-        };
-
-        for (const exclusion of excl ||
-            this.models["product.template.attribute.exclusion"].getAll()) {
-            const ptavId = exclusion.product_template_attribute_value_id.id;
-            for (const { id: valueId } of exclusion.value_ids) {
-                addExclusion(ptavId, valueId);
-                addExclusion(valueId, ptavId);
-            }
-        }
-        return exclusions;
+        return computeProductAttributesExclusion(this, excl);
     }
 
     doHaveConflictWith(value, selectedValues) {
-        const exclusions = this.productAttributesExclusion.get(value.id);
-        if (!exclusions) {
-            return false;
-        }
-        const selectedValueIds = new Set(selectedValues.map((v) => v.id));
-        for (const exclusionId of exclusions) {
-            if (selectedValueIds.has(exclusionId)) {
-                return true;
-            }
-        }
-        return false;
+        return doHaveConflictWith(this, value, selectedValues);
     }
 
     async beforeDeleteOrder(order, { title, body } = {}) {
@@ -1361,15 +1333,13 @@ export class PosStore extends WithLazyGetterTrap {
      * @returns {name: string, id: int, role: string}
      */
     getCashier() {
-        return this.user;
+        return getCashier(this);
     }
     getCashierUserId() {
-        return this.user?.id;
+        return getCashierUserId(this);
     }
     cashierHasPriceControlRights() {
-        return (
-            !this.config.restrict_price_control || this.getCashier()._role == "manager"
-        );
+        return cashierHasPriceControlRights(this);
     }
     get showCashMoveButton() {
         return Boolean(this.config.cash_control && this.config._has_cash_move_perm);
@@ -1468,75 +1438,27 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     addPendingOrder(orderIds, remove = false) {
-        if (remove) {
-            for (const id of orderIds) {
-                this.pendingOrder["create"].delete(id);
-                this.pendingOrder["write"].delete(id);
-            }
-
-            for (const id of orderIds) {
-                this.pendingOrder["delete"].add(id);
-            }
-            return true;
-        }
-
-        for (const id of orderIds) {
-            if (typeof id === "number") {
-                this.pendingOrder["write"].add(id);
-            } else {
-                this.pendingOrder["create"].add(id);
-            }
-        }
-
-        return true;
+        return addPendingOrder(this, orderIds, remove);
     }
 
     getPendingOrder() {
-        const orderToCreate = this.models["pos.order"]
-            .filter(
-                (order) =>
-                    this.pendingOrder.create.has(order.id) &&
-                    this.shouldCreatePendingOrder(order),
-            )
-            .filter(Boolean);
-        const orderToUpdate = this.models["pos.order"]
-            .readMany(Array.from(this.pendingOrder.write))
-            .filter(Boolean);
-        const orderToDelete = this.models["pos.order"]
-            .readMany(Array.from(this.pendingOrder.delete))
-            .filter(Boolean);
-
-        return {
-            orderToDelete,
-            orderToCreate,
-            orderToUpdate,
-        };
+        return getPendingOrder(this);
     }
 
     shouldCreatePendingOrder(order) {
-        return (
-            order.lines.length > 0 ||
-            order.payment_ids.some((p) => p.payment_method_id.type === "pay_later")
-        );
+        return shouldCreatePendingOrder(this, order);
     }
 
     getOrderIdsToDelete() {
-        return [...this.pendingOrder.delete];
+        return getOrderIdsToDelete(this);
     }
 
     removePendingOrder(order) {
-        this.pendingOrder["create"].delete(order.id);
-        this.pendingOrder["write"].delete(order.id);
-        this.pendingOrder["delete"].delete(order.id);
-        return true;
+        return removePendingOrder(this, order);
     }
 
     clearPendingOrder() {
-        this.pendingOrder = {
-            create: new Set(),
-            write: new Set(),
-            delete: new Set(),
-        };
+        return clearPendingOrder(this);
     }
 
     getSyncAllOrdersContext(orders, options = {}) {
@@ -1959,11 +1881,10 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     switchPane() {
-        this.mobile_pane = this.mobile_pane === "left" ? "right" : "left";
+        return switchPane(this);
     }
     switchPaneTicketScreen() {
-        this.ticket_screen_mobile_pane =
-            this.ticket_screen_mobile_pane === "left" ? "right" : "left";
+        return switchPaneTicketScreen(this);
     }
     async logEmployeeMessage(action, message) {
         await this.data.call(
@@ -2116,124 +2037,19 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     getStrNotes(note) {
-        if (!note) {
-            return "";
-        }
-        if (Array.isArray(note)) {
-            return note.map((n) => (typeof n === "string" ? n : n.text)).join(", ");
-        }
-        if (typeof note === "string") {
-            try {
-                const parsed = JSON.parse(note);
-                if (Array.isArray(parsed)) {
-                    return parsed
-                        .map((n) => (typeof n === "string" ? n : n.text))
-                        .join(", ");
-                }
-                return note;
-            } catch (error) {
-                logPosMessage(
-                    "Store",
-                    "getStrNotes",
-                    "Error while parsing note, not valid JSON",
-                    CONSOLE_COLOR,
-                    [error],
-                );
-                return note;
-            }
-        }
-        return "";
+        return getStrNotes(note);
     }
 
     getOrderData(order, reprint) {
-        return {
-            reprint: reprint,
-            pos_reference: order.getName(),
-            config_name: order.config_id?.name || order.config.name,
-            time: DateTime.now().toFormat("HH:mm"),
-            tracking_number: order.tracking_number,
-            preset_time: order.presetDateTime,
-            preset_name: order.preset_id?.name || "",
-            employee_name: order.employee_id?.name || order.user_id?.name,
-            internal_note: this.getStrNotes(order.internal_note),
-            general_customer_note: order.general_customer_note,
-            changes: {
-                title: "",
-                data: [],
-            },
-        };
+        return getOrderData(this, order, reprint);
     }
 
     generateOrderChange(order, orderChange, categories, reprint = false) {
-        const isPartOfCombo = (line) =>
-            line.isCombo ||
-            line.combo_parent_uuid ||
-            this.models["product.product"].get(line.product_id).type == "combo";
-        const comboChanges = orderChange.new.filter(isPartOfCombo);
-        const normalChanges = orderChange.new.filter((line) => !isPartOfCombo(line));
-        normalChanges.sort((a, b) => {
-            const sequenceA = a.pos_categ_sequence;
-            const sequenceB = b.pos_categ_sequence;
-            if (sequenceA === 0 && sequenceB === 0) {
-                return a.pos_categ_id - b.pos_categ_id;
-            }
-
-            return sequenceA - sequenceB;
-        });
-        orderChange.new = [...comboChanges, ...normalChanges];
-
-        const orderData = this.getOrderData(order, reprint);
-
-        const changes = this.filterChangeByCategories(categories, orderChange);
-        for (const changeItem of [
-            ...changes.new,
-            ...changes.cancelled,
-            ...changes.noteUpdate,
-        ]) {
-            changeItem.note = this.getStrNotes(changeItem.note || "[]");
-        }
-        return { orderData, changes };
+        return generateOrderChange(this, order, orderChange, categories, reprint);
     }
 
     async generateReceiptsDataToPrint(orderData, changes, orderChange) {
-        const receiptsData = [];
-        if (changes.new.length) {
-            const orderDataNew = { ...orderData };
-            orderDataNew.changes = {
-                title: _t("NEW"),
-                data: changes.new,
-            };
-            receiptsData.push(await this.prepareReceiptGroupedData(orderDataNew));
-        }
-
-        if (changes.cancelled.length) {
-            const orderDataCancelled = { ...orderData };
-            orderDataCancelled.changes = {
-                title: _t("CANCELLED"),
-                data: changes.cancelled,
-            };
-            receiptsData.push(await this.prepareReceiptGroupedData(orderDataCancelled));
-        }
-
-        if (changes.noteUpdate.length) {
-            const orderDataNoteUpdate = { ...orderData };
-            const { noteUpdateTitle, printNoteUpdateData = true } = orderChange;
-            orderDataNoteUpdate.changes = {
-                title: noteUpdateTitle || _t("NOTE UPDATE"),
-                data: printNoteUpdateData ? changes.noteUpdate : [],
-            };
-            receiptsData.push(
-                await this.prepareReceiptGroupedData(orderDataNoteUpdate),
-            );
-            orderData.changes.noteUpdate = [];
-        }
-
-        if (orderChange.internal_note || orderChange.general_customer_note) {
-            const orderDataNote = { ...orderData };
-            orderDataNote.changes = { title: "", data: [] };
-            receiptsData.push(await this.prepareReceiptGroupedData(orderDataNote));
-        }
-        return receiptsData;
+        return generateReceiptsDataToPrint(this, orderData, changes, orderChange);
     }
 
     async printChanges(
@@ -2294,21 +2110,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async prepareReceiptGroupedData(data) {
-        const dataChanges = data.changes?.data;
-        if (dataChanges && dataChanges.some((c) => c.group)) {
-            const groupedData = dataChanges.reduce((acc, c) => {
-                const { name = "", index = -1 } = c.group || {};
-                if (!acc[name]) {
-                    acc[name] = { name, index, data: [] };
-                }
-                acc[name].data.push(c);
-                return acc;
-            }, {});
-            data.changes.groupedData = Object.values(groupedData).sort(
-                (a, b) => a.index - b.index,
-            );
-        }
-        return data;
+        return prepareReceiptGroupedData(data);
     }
 
     async printOrderChanges(data, printer) {
@@ -2319,39 +2121,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     filterChangeByCategories(categories, currentOrderChange) {
-        const matchesCategories = (change) => {
-            const product = this.models["product.product"].get(change["product_id"]);
-            const categoryIds = product.parentPosCategIds;
-            for (const categoryId of categoryIds) {
-                if (categories.includes(categoryId)) {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        const filterChanges = (changes) => {
-            // Combo line uuids to have at least one child line in the given categories
-            const validComboUuids = new Set(
-                changes
-                    .filter(
-                        (change) =>
-                            change.combo_parent_uuid && matchesCategories(change),
-                    )
-                    .map((change) => change.combo_parent_uuid),
-            );
-            return changes.filter(
-                (change) =>
-                    (change.isCombo && validComboUuids.has(change.uuid)) ||
-                    (!change.isCombo && matchesCategories(change)),
-            );
-        };
-
-        return {
-            new: filterChanges(currentOrderChange["new"]),
-            cancelled: filterChanges(currentOrderChange["cancelled"]),
-            noteUpdate: filterChanges(currentOrderChange["noteUpdate"]),
-        };
+        return filterChangeByCategories(this, categories, currentOrderChange);
     }
 
     connectToProxy() {
@@ -2823,12 +2593,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     showBackButton() {
-        return (
-            this.ui.isSmall &&
-            this.numpadMode !== "table" &&
-            (this.router.state.current !== "ProductScreen" ||
-                this.mobile_pane === "left")
-        );
+        return showBackButton(this);
     }
     async onClickBackButton() {
         if (this.router.state.current === "TicketScreen") {
@@ -2855,10 +2620,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     showSearchButton() {
-        if (this.router.state.current === "ProductScreen") {
-            return this.ui.isSmall ? this.mobile_pane === "right" : true;
-        }
-        return false;
+        return showSearchButton(this);
     }
 
     async showQR(payment) {
@@ -2916,189 +2678,27 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     getExcludedProductIds() {
-        return [
-            this.config.tip_product_id?.product_tmpl_id?.id,
-            ...this.config._pos_special_products_ids.map(
-                (id) => this.models["product.product"].get(id)?.product_tmpl_id?.id,
-            ),
-        ].filter(Boolean);
+        return getExcludedProductIds(this);
     }
 
     areAllProductsSpecial(products) {
-        const specialDisplayProductIds =
-            this.config._pos_special_display_products_ids || [];
-        return (
-            specialDisplayProductIds.length >= products.length &&
-            products.every((product) => specialDisplayProductIds.includes(product.id))
-        );
+        return areAllProductsSpecial(this, products);
     }
 
     orderProductBySequenceAndFav(products) {
-        const searchWord = this.searchProductWord.trim();
-        const isSearchByWord = searchWord !== "";
-        return isSearchByWord
-            ? products.sort((a, b) => b.is_favorite - a.is_favorite)
-            : products.sort((a, b) => {
-                  if (b.is_favorite !== a.is_favorite) {
-                      return b.is_favorite - a.is_favorite;
-                  } else if (a.pos_sequence !== b.pos_sequence) {
-                      return a.pos_sequence - b.pos_sequence;
-                  }
-                  return a.name.localeCompare(b.name);
-              });
+        return orderProductBySequenceAndFav(this, products);
     }
 
     get productsToDisplay() {
-        const searchWord = this.searchProductWord.trim();
-        const allProducts = this.models["product.template"].getAll();
-        let list = [];
-        const isSearchByWord = searchWord !== "";
-
-        if (isSearchByWord) {
-            // The "reset category when a search begins" transition lives in a
-            // reactive effect (see setup), not here — this getter is read during
-            // render and must stay pure.
-            list = this.getProductsBySearchWord(
-                searchWord,
-                this.selectedCategory?.id
-                    ? this.selectedCategory.associatedProducts
-                    : allProducts,
-            );
-        } else {
-            if (this.selectedCategory?.id) {
-                list = this.selectedCategory.associatedProducts;
-            } else {
-                list = allProducts;
-            }
-        }
-
-        if (!list || list.length === 0) {
-            return [];
-        }
-
-        const filteredList = [];
-        const excludedProductIds = new Set(this.getExcludedProductIds());
-        const availableCateg = new Set(
-            (this.config.iface_available_categ_ids || []).map((c) => c.id),
-        );
-
-        for (const p of list) {
-            if (filteredList.length >= 100) {
-                break;
-            }
-
-            if (excludedProductIds.has(p.id) || !p.canBeDisplayed) {
-                continue;
-            }
-
-            if (
-                availableCateg.size &&
-                !this.config._pos_special_display_products_ids?.includes(p.id) &&
-                !p.pos_categ_ids.some((c) => availableCateg.has(c.id))
-            ) {
-                continue;
-            }
-
-            filteredList.push(p);
-        }
-
-        if (
-            !isSearchByWord &&
-            !this.selectedCategory?.id &&
-            this.areAllProductsSpecial(filteredList)
-        ) {
-            return [];
-        }
-
-        return this.orderProductBySequenceAndFav(filteredList);
+        return computeProductsToDisplay(this);
     }
 
     get productToDisplayByCateg() {
-        const sortedProducts = this.productsToDisplay;
-        if (!this.config.iface_group_by_categ) {
-            return sortedProducts.length ? [["0", sortedProducts]] : [];
-        }
-
-        const results = [];
-        const searchWord = this.searchProductWord.trim();
-        const byCateg = this.models["product.template"].getAllBy("pos_categ_ids");
-        const selectedCategoryIds = !this.selectedCategory
-            ? this.models["pos.category"].map((c) => c.id)
-            : this.selectedCategory.getAllChildren().map((c) => c.id);
-
-        // Sorting in place the categories according to their sequence in the database
-        selectedCategoryIds.sort((a, b) => {
-            const categA = this.models["pos.category"].get(a);
-            const categB = this.models["pos.category"].get(b);
-
-            // All category with a parent will be at the end
-            if (categA.parent_id && !categB.parent_id) {
-                return 1;
-            } else if (!categA.parent_id && categB.parent_id) {
-                return -1;
-            }
-
-            return categA.sequence - categB.sequence;
-        });
-
-        if (!this.selectedCategory) {
-            // In case of no category selected, we want to display products without category in
-            // a "Without category" category at the end of the list.
-            // We use the default sortedProducts order to keep the same order as in the non
-            // group by category mode.
-            const productWithoutCategory = sortedProducts.filter(
-                (p) => !p.pos_categ_ids.length,
-            );
-            byCateg["0"] = productWithoutCategory;
-            selectedCategoryIds.push("0");
-        }
-
-        for (const catId of selectedCategoryIds) {
-            const products = byCateg[catId] || [];
-            const filtered = searchWord
-                ? this.getProductsBySearchWord(searchWord, products)
-                : products;
-
-            if (filtered.length) {
-                // Its advised to not use group by categ with too much products in differents
-                // categories, but in case of we end up with too much products, we slice them in
-                // group of 100 to avoid freezing the browser tab.
-                // We cannot just slice the products to display and keep the same category, because
-                // we want to avoid having categories with only few products displayed and others
-                // with a lot of products not displayed.
-                const sorted = this.orderProductBySequenceAndFav(filtered);
-                results.push([catId, sorted.splice(0, 100)]);
-            }
-        }
-
-        return results;
+        return computeProductToDisplayByCateg(this);
     }
 
     getProductsBySearchWord(searchWord, products) {
-        const query = normalize(searchWord);
-        const matches = [];
-
-        for (const product of products) {
-            const searchStr = product.searchString;
-
-            if (searchStr.includes(query)) {
-                const normName = product.normalizedName;
-                matches.push({
-                    product: product,
-                    index: normName.indexOf(query),
-                    name: normName,
-                });
-            }
-        }
-
-        matches.sort(
-            (a, b) =>
-                (a.index === -1) - (b.index === -1) ||
-                a.index - b.index ||
-                (a.name == b.name ? 0 : a.name > b.name ? 1 : -1),
-        );
-
-        return matches.map((m) => m.product);
+        return getProductsBySearchWord(searchWord, products);
     }
     getPaymentMethodFmtAmount(pm, order) {
         const amount = order.getDefaultAmountDueToPayIn(pm);
