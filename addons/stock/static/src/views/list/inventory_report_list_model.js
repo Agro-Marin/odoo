@@ -46,11 +46,20 @@ export class InventoryReportListModel extends RelationalModel {
             const duplicateRecords = this.root.records.filter(
                 (record) => record.resId === reloadedRecord.resId && record.id !== reloadedRecord.id
             );
-            if (duplicateRecords.length > 0) {
-                /* more than 1 'resId' record loaded in view (user added an already loaded record) :
-                 * - both have been updated
-                 * - remove the current record (the added one)
-                 */
+            // Drop the added row when it is really an update of an existing record:
+            //  - if a duplicate is already loaded (ungrouped, or same group), remove
+            //    the added row and apply the server values to the existing one;
+            //  - in a grouped list, remove it even when no duplicate is loaded — its
+            //    group-by value points at a *different* (folded) group than the one it
+            //    was added in, so leaving it there strands a record in the wrong group
+            //    and desyncs the grouped renderer's row indexing (spawning spurious
+            //    empty edit rows). The real record shows the fresh values when its own
+            //    group is opened.
+            // In an ungrouped list with no duplicate loaded (the existing record is
+            // just off-page/filtered), keep the added row: it correctly shows that
+            // existing record, and it is not in any "wrong" group.
+            const isGrouped = this.config.groupBy.length > 0;
+            if (isGrouped || duplicateRecords.length > 0) {
                 await this.root._removeRecords([reloadedRecord.id]);
                 for (const record of duplicateRecords) {
                     record._applyValues(serverValues);
