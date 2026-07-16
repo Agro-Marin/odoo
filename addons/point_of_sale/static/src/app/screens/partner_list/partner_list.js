@@ -37,6 +37,7 @@ export class PartnerList extends Component {
             query: "",
             loading: false,
         });
+        this.searchInputRef = null;
         this.loadedPartnerIds = new Set(this.state.initialPartners.map((p) => p.id));
         useHotkey("enter", () => this.onEnter(), {
             bypassEditableProtection: true,
@@ -82,6 +83,12 @@ export class PartnerList extends Component {
         }
     }
     async onEnter() {
+        // The search input uses a debounce, so state.query may lag behind what
+        // the user typed. Read the live DOM value and sync it before
+        // triggering the server search (upstream 757a5be7661).
+        if (this.searchInputRef?.el) {
+            this.state.query = this.searchInputRef.el.value;
+        }
         if (!this.state.query) {
             return;
         }

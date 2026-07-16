@@ -20,19 +20,21 @@ const CONSOLE_COLOR = "#28ffeb";
 
 export class PosData extends SignalStore {
     static modelToLoad = []; // When empty all models are loaded
-    static serviceDependencies = ["orm", "bus_service"];
+    static serviceDependencies = ["orm", "bus_service", "dialog"];
 
     constructor() {
         super();
         this.ready = this.setup(...arguments).then(() => this);
     }
 
-    async setup(env, { orm, bus_service }) {
+    async setup(env, { orm, bus_service, dialog }) {
+        this.dialog = dialog;
         this.orm = orm;
         this.bus = bus_service;
         this.relations = [];
         this.custom = {};
         this.mutex = markRaw(new Mutex());
+        this.indexedDBMutex = markRaw(new Mutex());
         this.records = {};
         this.opts = new DataServiceOptions();
         this.channels = [];
@@ -57,9 +59,11 @@ export class PosData extends SignalStore {
         // upstream 8070239c9a3).
         this.localUnsyncedPaidOrderUuids = new Set();
 
-        if (!navigator.onLine) {
-            await this.checkConnectivity();
-        }
+        // Always probe: navigator.onLine misses e.g. Chrome DevTools offline
+        // mode, and the offline-boot restore path depends on network.offline
+        // being accurate before intializeDataRelation runs (upstream
+        // 5ef07075b62).
+        await this.checkConnectivity();
 
         this.initializeWebsocket();
         await this.initializeDeviceIdentifier();
@@ -166,11 +170,27 @@ export class PosData extends SignalStore {
         });
 
         return new Promise((resolve) => {
-            this.indexedDB = new IndexedDB(this.databaseName, false, models, resolve);
+            this.indexedDB = new IndexedDB(
+                this.databaseName,
+                false,
+                models,
+                resolve,
+                this.dialog,
+            );
         });
     }
 
     async synchronizeLocalDataInIndexedDB() {
+        // Serialized on a mutex to avoid concurrent IndexedDB access
+        // (upstream 800cbd474b7).
+        return this.indexedDBMutex.exec(() => this._synchronizeLocalDataInIndexedDB());
+    }
+
+    /**
+     * Private method that synchronizes local data and state in indexedDB.
+     * DO NOT CALL THIS METHOD DIRECTLY, use synchronizeLocalDataInIndexedDB instead.
+     */
+    async _synchronizeLocalDataInIndexedDB() {
         // This methods will synchronize local data and state in indexedDB. This methods is mostly
         // used with models like pos.order, pos.order.line, pos.payment etc. These models are created
         // in the frontend and are not loaded from the backend.
