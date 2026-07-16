@@ -8,10 +8,6 @@ class ReportStockReport_Reception(models.AbstractModel):
     _name = "report.stock.report_reception"
     _description = "Stock Reception Report"
 
-    # ------------------------------------------------------------------
-    # Report values
-    # ------------------------------------------------------------------
-
     @api.model
     def get_report_data(self, docids, data):
         """Entry point for the interactive (OWL) report: same values as
