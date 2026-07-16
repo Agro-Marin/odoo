@@ -428,6 +428,39 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             "There should be 2 visits for the portal user",
         )
 
+    def test_update_last_visit_8h_increment(self):
+        """``_update_visitor_last_visit`` bumps ``visit_count`` only after 8h,
+        decided in SQL from the row's own ``last_connection_datetime`` (UTC)."""
+        visitor = self.env["website.visitor"].create(
+            {
+                "lang_id": self.env.ref("base.lang_en").id,
+                "website_id": 1,
+                "access_token": "e9d2b14b21be669518b14a9590cb62ff",
+            }
+        )
+        start = visitor.visit_count
+        # Backdate the row unambiguously (same UTC basis as the comparison).
+        self.env.cr.execute(
+            "UPDATE website_visitor "
+            "SET last_connection_datetime = (now() at time zone 'UTC') - INTERVAL '9 hours' "
+            "WHERE id = %s",
+            (visitor.id,),
+        )
+        visitor.invalidate_recordset()
+
+        visitor._update_visitor_last_visit()
+        visitor.invalidate_recordset()
+        self.assertEqual(
+            visitor.visit_count, start + 1, "a visit after 8h must increment"
+        )
+
+        # An immediate re-visit (well within 8h) must not increment.
+        visitor._update_visitor_last_visit()
+        visitor.invalidate_recordset()
+        self.assertEqual(
+            visitor.visit_count, start + 1, "a visit within 8h must not increment"
+        )
+
     def test_clean_inactive_visitors(self):
         inactive_visitors = self.env["website.visitor"].create(
             [

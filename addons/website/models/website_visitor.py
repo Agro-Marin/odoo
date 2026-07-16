@@ -485,18 +485,25 @@ class WebsiteVisitor(models.Model):
         self.env.cr.execute(query, (timezone, self.id))
 
     def _update_visitor_last_visit(self):
-        date_now = datetime.now()
-        query = "UPDATE website_visitor SET "
-        if self.last_connection_datetime < (date_now - timedelta(hours=8)):
-            query += "visit_count = visit_count + 1,"
-        query += """
-            last_connection_datetime = %s
-            WHERE id IN (
-                SELECT id FROM website_visitor WHERE id = %s
-                FOR NO KEY UPDATE SKIP LOCKED
-            )
+        # Decide the 8-hour ``visit_count`` bump in SQL from the row's own
+        # ``last_connection_datetime`` rather than a possibly-stale ORM value,
+        # and in UTC — matching the CASE in ``_upsert_visitor`` (the old code
+        # compared against a naive local ``datetime.now()``, which drifts by the
+        # server's timezone offset).
+        query = """
+            UPDATE website_visitor
+               SET visit_count = CASE
+                       WHEN last_connection_datetime < (now() at time zone 'UTC') - INTERVAL '8 hours'
+                       THEN visit_count + 1
+                       ELSE visit_count
+                   END,
+                   last_connection_datetime = now() at time zone 'UTC'
+             WHERE id IN (
+                   SELECT id FROM website_visitor WHERE id = %s
+                   FOR NO KEY UPDATE SKIP LOCKED
+             )
         """
-        self.env.cr.execute(query, (date_now, self.id), log_exceptions=False)
+        self.env.cr.execute(query, (self.id,), log_exceptions=False)
 
     def _get_visitor_timezone(self):
         tz = request.cookies.get("tz") if request else None
