@@ -10,9 +10,6 @@ import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-const colorScheme = cookie.get("color_scheme");
-const GRAPH_GRID_COLOR = getCustomColor(colorScheme, "#d8dadd", "#3C3E4B");
-const GRAPH_LABEL_COLOR = getCustomColor(colorScheme, "#111827", "#E4E4E4");
 export class JournalDashboardGraphField extends Component {
     static template = "web.JournalDashboardGraphField";
     static props = {
@@ -119,8 +116,14 @@ export class JournalDashboardGraphField extends Component {
         const labels = [];
         const backgroundColor = [];
 
-        const color13 = getColor(2, cookie.get("color_scheme"), "odoo");
-        const color19 = getColor(1, cookie.get("color_scheme"), "odoo");
+        // Read the color scheme fresh per render (not once at module load) so a
+        // light/dark toggle without a hard reload re-themes the grid/labels too,
+        // matching the line chart which already reads the cookie per render.
+        const colorScheme = cookie.get("color_scheme");
+        const gridColor = getCustomColor(colorScheme, "#d8dadd", "#3C3E4B");
+        const labelColor = getCustomColor(colorScheme, "#111827", "#E4E4E4");
+        const color13 = getColor(2, colorScheme, "odoo");
+        const color19 = getColor(1, colorScheme, "odoo");
         this.data[0].values.forEach((pt) => {
             data.push(pt.value);
             labels.push(pt.label);
@@ -161,13 +164,13 @@ export class JournalDashboardGraphField extends Component {
                     },
                     x: {
                         grid: {
-                            color: GRAPH_GRID_COLOR,
+                            color: gridColor,
                         },
                         ticks: {
-                            color: GRAPH_LABEL_COLOR,
+                            color: labelColor,
                         },
                         border: {
-                            color: GRAPH_GRID_COLOR,
+                            color: gridColor,
                         },
                     },
                 },

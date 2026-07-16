@@ -57,7 +57,7 @@ export function makeActionState(controllerStack) {
     };
     const stateKeys = [...PATH_KEYS];
     const { action, props, currentState } = controllerStack.at(-1);
-    if (props.type !== "form" && props.type !== action.views?.[0][1]) {
+    if (props.type !== "form" && props.type !== action.views?.[0]?.[1]) {
         // add view_type only when it's not already known implicitly
         stateKeys.push("view_type");
     }

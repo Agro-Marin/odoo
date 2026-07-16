@@ -45,7 +45,9 @@ export const slowRpcService = {
                 return;
             }
             const { data, settings } = detail;
-            // Same silent opt-out as error dialogs.
+            // Same silent opt-out as the loading indicator (the only other
+            // RPC:REQUEST consumer that honors it). Note ``silent`` does NOT
+            // suppress error dialogs — the error service ignores it.
             if (settings?.silent) {
                 return;
             }

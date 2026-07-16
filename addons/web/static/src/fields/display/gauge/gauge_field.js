@@ -82,11 +82,15 @@ export class GaugeField extends Component {
     /** Creates and renders the Chart.js doughnut gauge on the canvas element. */
     renderChart() {
         const gaugeValue = this.props.record.data[this.props.name];
-        let maxValue = this.props.maxValueField
+        const configuredMax = this.props.maxValueField
             ? this.props.record.data[this.props.maxValueField]
             : this.props.maxValue;
-        maxValue = Math.max(gaugeValue, maxValue);
-        let maxLabel = maxValue;
+        // Draw a full arc when the value overflows the configured maximum
+        // (``maxValue - gaugeValue`` collapses to 0), but keep the tooltip's
+        // "Max" label reporting the real configured ceiling rather than the
+        // overflowed value.
+        let maxValue = Math.max(gaugeValue, configuredMax);
+        let maxLabel = configuredMax;
         if (gaugeValue === 0 && maxValue === 0) {
             maxValue = 1;
             maxLabel = 0;

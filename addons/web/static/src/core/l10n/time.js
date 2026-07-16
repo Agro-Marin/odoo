@@ -221,7 +221,11 @@ export function parseTime(value, parseSeconds) {
         const pickSolution = (/** @type {string[][]} */ ...solutions) => {
             for (const solution of solutions) {
                 const h = parse(solution[0]);
-                if (h <= 24) {
+                // "24" is only a valid hour with no minutes (ISO 8601
+                // end-of-day). Reject a 24-hour candidate that carries minutes
+                // so e.g. "240" resolves to the ["2", "40"] reading (2:40)
+                // instead of being consumed as hour 24 → 00:00.
+                if (h < 24 || (h === 24 && !solution[1])) {
                     hour = h;
                     if (solution[1]) {
                         minute = parse(solution[1].padEnd(2, "0"));

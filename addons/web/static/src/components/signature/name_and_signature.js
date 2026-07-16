@@ -212,7 +212,11 @@ export class NameAndSignature extends Component {
             color: this.props.fontColor,
         });
 
-        return "data:image/svg+xml," + encodeURI(svg);
+        // ``encodeURIComponent`` (not ``encodeURI``) so a ``#`` in the typed
+        // name (e.g. "Apt #3") or in a hex ``fontColor`` (e.g. "#1F2937") is
+        // escaped — an unescaped ``#`` turns the rest of the SVG into a URL
+        // fragment, truncating the data-URI and rendering a blank signature.
+        return "data:image/svg+xml," + encodeURIComponent(svg);
     }
 
     getSVGTextFont(font) {

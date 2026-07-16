@@ -60,9 +60,14 @@ export class TimezoneMismatchField extends SelectionField {
         return super.options.map((option) => {
             const [value, label] = option;
             if (value === this.props.record.data[this.props.name]) {
-                const offset = this.props.record.data[this.props.tzOffsetField].match(
+                const offset = this.props.record.data[this.props.tzOffsetField]?.match(
                     /([+-])([0-9]{2})([0-9]{2})/,
                 );
+                if (!offset) {
+                    // Missing/malformed offset string: fall back to the plain
+                    // label rather than throwing on ``offset[1]``.
+                    return [value, label];
+                }
                 const sign = offset[1] === "-" ? -1 : 1;
                 const userOffset =
                     sign *

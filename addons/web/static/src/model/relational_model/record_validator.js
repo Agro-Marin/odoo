@@ -144,8 +144,20 @@ export function checkValidity(
     const callbacks = {
         isInvisible: (fieldName) => record._isInvisible(fieldName),
         isRequired: (fieldName) => record._isRequired(fieldName),
-        isChildListValid: (_fieldName, list) =>
-            list.records.every((r) => {
+        isChildListValid: (_fieldName, list) => {
+            // Validate OFF-PAGE dirty children too. A paginated x2many keeps
+            // edited off-page rows in ``_cache`` (referenced by ``_currentIds``)
+            // and still serializes them into the save payload via ``_commands``
+            // — but ``list.records`` only holds the current page. Scanning just
+            // ``list.records`` would let a required field emptied on a row that
+            // was then paged away ship unvalidated. Iterate the cache (a strict
+            // superset of ``list.records``) scoped to ``_currentIds`` membership
+            // so removed-but-unpruned cache entries are excluded.
+            const membership = new Set(list._currentIds);
+            return Object.values(list._cache).every((r) => {
+                if (!membership.has(r.resId || r._virtualId)) {
+                    return true;
+                }
                 if (!r.dirty) {
                     return true;
                 }
@@ -158,7 +170,8 @@ export function checkValidity(
                     return true;
                 }
                 return r._checkValidity({ silent, removeInvalidOnly });
-            }),
+            });
+        },
     };
 
     if (removeInvalidOnly) {

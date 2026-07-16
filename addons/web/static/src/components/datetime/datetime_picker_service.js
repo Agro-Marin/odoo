@@ -464,6 +464,11 @@ export class DateTimePickerController {
 
         if (!this.isOpen()) {
             const popoverTarget = this.getPopoverTarget();
+            if (!popoverTarget) {
+                // The input left the DOM (e.g. a programmatic open after the
+                // field was removed): nothing to anchor the popover to.
+                return;
+            }
             if (this.ensureVisibility()) {
                 const { marginBottom } = popoverTarget.style;
                 // Adds enough space for the popover to be displayed below the target

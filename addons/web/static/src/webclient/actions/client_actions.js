@@ -68,7 +68,12 @@ function reload(env, action) {
         }
     }
 
-    router.pushState(route, { replace: true, reload: true });
+    // ``sync: true`` forces the push through synchronously. Without it the
+    // push is debounced into ``pushTimeout`` and a concurrent ``popstate``
+    // (back/forward) clears the timeout, dropping the push AND its
+    // ``reload: true`` flag — so the intended hard reload never fires (the
+    // company switcher defends the same way for ``reload_context``).
+    router.pushState(route, { replace: true, reload: true, sync: true });
 }
 
 registry.category("actions").add("reload", reload);

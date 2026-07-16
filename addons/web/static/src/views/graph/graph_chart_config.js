@@ -232,9 +232,14 @@ export function styleLineChartData(data, metaData) {
         }
         if (data.labels.length === 1) {
             // Shift values right to center the single point (see data.labels below).
+            // ``currencyIds`` is built index-aligned with these arrays
+            // (graph_model), so it must shift too — otherwise the point moves to
+            // index 1 while its currency stays at index 0 and ``buildTooltipItems``
+            // reads ``undefined``, dropping the monetary formatting.
             dataset.data.unshift(undefined);
             dataset.trueLabels.unshift(undefined);
             dataset.domains.unshift(undefined);
+            dataset.currencyIds?.unshift(undefined);
         }
         dataset.pointBackgroundColor = dataset.borderColor;
     }

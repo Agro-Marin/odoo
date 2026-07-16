@@ -306,14 +306,43 @@ export class ListController extends MultiRecordController {
      *
      * @param {BeforeUnloadEvent} ev
      */
-    async beforeUnload(ev) {
-        if (this.editedRecord) {
-            const isValid = await this.editedRecord.urgentSave();
+    beforeUnload(ev) {
+        const record = this.editedRecord;
+        if (!record) {
+            return;
+        }
+        // Mirror ``FormController.beforeUnload``: ``ev.preventDefault()`` is only
+        // honored by the browser when it runs SYNCHRONOUSLY during the
+        // ``beforeunload`` dispatch. A record is beacon-eligible only when it
+        // already exists (sendBeacon cannot return the new id for a creation),
+        // is not inside a dialog, and the model opted into sendBeacon urgent
+        // saves. Only that path settles in microtasks, so a late
+        // ``preventDefault()`` after awaiting is still honored.
+        const canBeacon =
+            Boolean(record.resId) &&
+            !this.env.inDialog &&
+            this.model.useSendBeaconToSaveUrgently;
+        if (!canBeacon) {
+            // Non-beaconable record (a dirty NEW inline row, or a list in a
+            // dialog): ``urgentSave()`` would ``await`` a real web_save
+            // macrotask, so ``preventDefault()`` would land after the
+            // synchronous ``beforeunload`` dispatch has already returned — too
+            // late — while the in-flight fetch is aborted by the navigation,
+            // silently losing the user's edit. Block the unload SYNCHRONOUSLY
+            // instead so the browser shows its native "unsaved changes" prompt
+            // while the record is still dirty and the user can save manually.
+            if (record.dirty) {
+                ev.preventDefault();
+                ev.returnValue = "Unsaved changes";
+            }
+            return;
+        }
+        return record.urgentSave().then((isValid) => {
             if (!isValid) {
                 ev.preventDefault();
                 ev.returnValue = "Unsaved changes";
             }
-        }
+        });
     }
 
     /**
@@ -350,7 +379,17 @@ export class ListController extends MultiRecordController {
             }
             await list.leaveEditMode();
             if (!list.editedRecord) {
-                await (group || list).addNewRecord(this.editable === "top");
+                // ``Group.addNewRecord(_unused, atFirstPosition)`` takes the
+                // position flag as its SECOND arg (its first is unused), whereas
+                // ``DynamicRecordList.addNewRecord(atFirstPosition)`` takes it
+                // first. Pass through the correct slot for each so an
+                // ``editable="top"`` grouped list inserts at the top (matching
+                // the "Add a line" button at ``list_group_rendering.js``).
+                if (group) {
+                    await group.addNewRecord({}, this.editable === "top");
+                } else {
+                    await list.addNewRecord(this.editable === "top");
+                }
             }
             this.render();
         } else {
