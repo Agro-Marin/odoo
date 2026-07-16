@@ -83,7 +83,11 @@ export class BarcodeReader {
             }
         }
         if (Array.isArray(parseBarcode)) {
-            cbMaps.map((cb) => cb.gs1?.(parseBarcode));
+            // Await GS1 handlers like the scalar path below: fire-and-forget
+            // released the scan mutex while handlers still ran, letting the
+            // next scan interleave with them (and their errors were unhandled
+            // rejections).
+            await Promise.all(cbMaps.map((cb) => cb.gs1?.(parseBarcode)));
         } else {
             const cbs = cbMaps.map((cbMap) => cbMap[parseBarcode.type]).filter(Boolean);
             if (cbs.length === 0) {
@@ -206,6 +210,16 @@ export const barcodeReaderService = {
         barcode.bus.addEventListener("barcode_scanned", (ev) => {
             if (barcodeReader) {
                 barcodeReader.scan(ev.detail.barcode);
+            } else if (session.nomenclature_id) {
+                // A nomenclature IS configured — the boot-time fetch failed
+                // (transient network). Diagnosing this as "not configured"
+                // sent users to the settings for nothing; tell them to retry.
+                dialog.add(AlertDialog, {
+                    title: _t("Unable to parse barcode"),
+                    body: _t(
+                        "The barcode nomenclature could not be loaded when the session started. Check the connection and reload the Point of Sale to scan barcodes.",
+                    ),
+                });
             } else {
                 dialog.add(AlertDialog, {
                     title: _t("Unable to parse barcode"),

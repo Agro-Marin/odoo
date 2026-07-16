@@ -88,16 +88,19 @@ export class PosRouter extends SignalStore {
     }
 
     back() {
-        if (!this.historyPage.length) {
+        // historyPage is only assigned by navigate(): calling back() before
+        // any navigation (popstate-restored load) dereferenced undefined.
+        if (!this.historyPage?.length) {
             this.navigate("LoginScreen", {
                 configId: odoo.pos_config_id,
             });
             return;
         }
 
+        // history.back() is asynchronous — the state updates happen in the
+        // popstate listener once the navigation lands; reading
+        // window.location here captured the pre-navigation URL.
         history.back();
-        this.path = window.location.pathname;
-        this.state.previous = window.location.pathname;
     }
 
     close() {

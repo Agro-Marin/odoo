@@ -6,7 +6,12 @@ import { CriticalPOSError } from "./critical_pos_error/critical_pos_error.js";
 export class Loader extends Component {
     static template = "point_of_sale.Loader";
     static props = {
-        loader: { type: Object, shape: { isShown: Boolean, error: Object } },
+        // error starts as `false` on every clean boot and becomes an Error on
+        // failure — the Object-only shape was violated on every startup.
+        loader: {
+            type: Object,
+            shape: { isShown: Boolean, error: [Object, Boolean, { value: null }] },
+        },
     };
     static components = { CriticalPOSError };
 

@@ -179,7 +179,7 @@ export class PosStore extends WithLazyGetterTrap {
 
         this.loadingOrderState = false; // used to prevent orders fetched to be put in the update set during the reactive change
         this.screenState = {
-            ticketSCreen: {
+            ticketScreen: {
                 offsetByDomain: {},
                 totalCount: 0,
             },
@@ -201,9 +201,10 @@ export class PosStore extends WithLazyGetterTrap {
         this.selectedPartner = null;
         this.selectedCategory = null;
         this.searchProductWord = "";
-        this.ready = new Promise((resolve) => {
-            this.markReady = resolve;
-        });
+        // NB: no `ready`/`markReady` promise here — the constructor overwrites
+        // `reactiveSelf.ready` with the full setup() promise the moment setup
+        // hits its first await, so a promise created here was unresolvable by
+        // any consumer (fork-carried confusion, absent upstream).
         this.scale = pos_scale;
 
         this.orderCounter = new Counter(0);
@@ -757,7 +758,6 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        this.markReady();
         await this.deviceSync.readDataFromServer();
 
         if (this.config.other_devices && this.config.epson_printer_ip) {

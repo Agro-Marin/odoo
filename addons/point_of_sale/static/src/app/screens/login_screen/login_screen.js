@@ -24,10 +24,10 @@ export class LoginScreen extends Component {
         this.selectOneCashier(this.pos.user);
     }
     cashierLogIn() {
-        const selectedScreen =
-            this.pos.previousScreen && this.pos.previousScreen !== "LoginScreen"
-                ? this.pos.previousScreen
-                : this.pos.defaultPage;
+        // `pos.previousScreen` is assigned nowhere since the router migration
+        // — the "return to previous screen" arm could never run (and would
+        // have navigated to undefined if it had: it expected a string).
+        const selectedScreen = this.pos.defaultPage;
         const order = this.pos.getOrder();
         if (!order && selectedScreen.page === "ProductScreen") {
             this.pos.addNewOrder();

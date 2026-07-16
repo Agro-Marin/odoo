@@ -34,7 +34,9 @@ export class SelectionPopup extends Component {
      */
     setup() {
         this.state = useState({
-            selectedId: this.props.list.find((item) => item.isSelected),
+            // computePayload compares selectedId === item.id: storing the item
+            // OBJECT here made a pre-selected default unresolvable.
+            selectedId: this.props.list.find((item) => item.isSelected)?.id,
         });
     }
     selectItem(itemId) {

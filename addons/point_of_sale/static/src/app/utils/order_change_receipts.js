@@ -92,14 +92,24 @@ export function generateOrderChange(
     const orderData = pos.getOrderData(order, reprint);
 
     const changes = pos.filterChangeByCategories(categories, orderChange);
-    for (const changeItem of [
-        ...changes.new,
-        ...changes.cancelled,
-        ...changes.noteUpdate,
-    ]) {
-        changeItem.note = pos.getStrNotes(changeItem.note || "[]");
-    }
-    return { orderData, changes };
+    // Annotate COPIES: printChanges calls this once per printer, and mutating
+    // the shared change items handed the second printer already-stringified
+    // notes (re-parsed through the JSON failure path, logged as an error on
+    // every multi-printer note print).
+    const stringifyNotes = (items) =>
+        items.map((changeItem) => ({
+            ...changeItem,
+            note: pos.getStrNotes(changeItem.note || "[]"),
+        }));
+    return {
+        orderData,
+        changes: {
+            ...changes,
+            new: stringifyNotes(changes.new),
+            cancelled: stringifyNotes(changes.cancelled),
+            noteUpdate: stringifyNotes(changes.noteUpdate),
+        },
+    };
 }
 
 export async function generateReceiptsDataToPrint(
@@ -135,7 +145,6 @@ export async function generateReceiptsDataToPrint(
             data: printNoteUpdateData ? changes.noteUpdate : [],
         };
         receiptsData.push(await pos.prepareReceiptGroupedData(orderDataNoteUpdate));
-        orderData.changes.noteUpdate = [];
     }
 
     if (orderChange.internal_note || orderChange.general_customer_note) {

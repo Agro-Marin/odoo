@@ -56,14 +56,15 @@ export default class OrderPaymentValidation {
             };
         }
 
-        return !this.error
-            ? {
-                  page: "ReceiptScreen",
-                  params: {
-                      orderUuid: this.order.uuid,
-                  },
-              }
-            : this.pos.defaultPage;
+        // NB: a `!this.error` ternary used to sit here — nothing in this class
+        // or any override ever assigned `error`, so the defaultPage arm was
+        // unreachable and only misled subclass authors.
+        return {
+            page: "ReceiptScreen",
+            params: {
+                orderUuid: this.order.uuid,
+            },
+        };
     }
 
     get paymentLines() {
@@ -240,9 +241,9 @@ export default class OrderPaymentValidation {
                 );
             }
 
-            return await this.afterOrderValidation(
-                !!syncOrderResult && syncOrderResult.length > 0,
-            );
+            // afterOrderValidation is declared with no parameters — the
+            // argument that used to be passed here was silently dropped.
+            return await this.afterOrderValidation();
         } catch (error) {
             return this.handleValidationError(error);
         }
@@ -451,7 +452,8 @@ export default class OrderPaymentValidation {
             return false;
         }
 
-        if (!this.order.isPaid() || this.invoicing) {
+        // (`|| this.invoicing` used to sit here — never assigned anywhere.)
+        if (!this.order.isPaid()) {
             return false;
         }
 

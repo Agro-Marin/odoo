@@ -87,8 +87,7 @@ export class Chrome extends Component {
         adapter.dispatch(this.pos);
     }
 
-    // GETTERS //
-    get showCashMoveButton() {
-        return Boolean(this.pos.config.cash_control);
-    }
+    // NB: the showCashMoveButton getter was removed: no template referenced it,
+    // and unlike the navbar's store getter it skipped the cash-move permission
+    // check — a permission bypass waiting to be wired in by mistake.
 }

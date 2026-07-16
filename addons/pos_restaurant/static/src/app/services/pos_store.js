@@ -764,7 +764,9 @@ patch(PosStore.prototype, {
             }
             if (!this.isOrderTransferMode) {
                 this.syncAllOrders();
-            } else if (order && this.previousScreen !== "ReceiptScreen") {
+            } else if (order) {
+                // (`this.previousScreen !== "ReceiptScreen"` used to guard here
+                // — previousScreen is assigned nowhere, so it was always true.)
                 await this.syncAllOrders({ orders: [order] });
             }
         }

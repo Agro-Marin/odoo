@@ -6,10 +6,13 @@ export class DataServiceOptions {
         return {
             "pos.order": {
                 key: "uuid",
+                // NB: the JS field is session_id (pos_session_id does not
+                // exist on the model — the old clause was always true, so the
+                // condition silently degenerated to `finalized && isSynced`).
                 condition: (record) =>
                     record.finalized &&
                     record.isSynced &&
-                    record.pos_session_id !== parseInt(odoo.pos_session_id),
+                    record.session_id?.id !== parseInt(odoo.pos_session_id),
             },
             "pos.order.line": {
                 key: "uuid",

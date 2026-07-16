@@ -114,13 +114,6 @@ export class PartnerList extends Component {
         this.pos.navigate("TicketScreen", { stateOverride });
     }
 
-    confirm() {
-        this.props.resolve({
-            confirmed: true,
-            payload: this.state.selectedPartner,
-        });
-        this.pos.closeTempScreen();
-    }
     getPartners(partners) {
         const searchWord = normalize(this.state.query?.trim() ?? "");
         const exactMatches = partners.filter((partner) =>

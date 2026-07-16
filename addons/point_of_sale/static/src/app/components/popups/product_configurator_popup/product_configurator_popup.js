@@ -239,10 +239,14 @@ export class ProductConfiguratorPopup extends Component {
             attribute_value_ids: this.selectedValues.map((val) => val.id),
             attribute_custom_values: Object.values(this.state.attributes)
                 .filter((attribute) => attribute.selected.is_custom)
+                // A plain object as accumulator, like the combo configurator
+                // builds: the id-keyed Array was sparse (length = max PTAV id)
+                // and only avoided exploding over RPC because every consumer
+                // happens to use Object.entries.
                 .reduce((acc, { selected, custom_value }) => {
                     acc[selected.id] = custom_value;
                     return acc;
-                }, []),
+                }, {}),
             price_extra: this.priceExtra,
         };
     }
