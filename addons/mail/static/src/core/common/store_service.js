@@ -162,6 +162,15 @@ export class Store extends BaseStore {
      * @type {Set<string>}
      */
     _threadFetchAttempted = new Set();
+    /**
+     * Tombstones of messages deleted via the bus this session. Message
+     * ingestion consults it so a stale fetch response (computed before the
+     * deletion, processed after) cannot resurrect a deleted message.
+     * Server ids are never reused, so entries stay valid for the session.
+     *
+     * @type {Set<number>}
+     */
+    deletedMessageIds = new Set();
 
     cannedResponses = this.makeCachedFetchData("mail.canned.response");
 

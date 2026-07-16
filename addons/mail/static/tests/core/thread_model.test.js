@@ -218,3 +218,42 @@ test("channel threads answer the channel-behavior hooks channel-wise", async () 
     expect(thread.chatWindowComposerType).toBe(undefined);
     expect(thread._getActualModelName()).toBe("discuss.channel");
 });
+
+test("a deleted message is not resurrected by a stale fetch response", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John" });
+    const messageId = pyEnv["mail.message"].create({
+        body: "doomed",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ id: partnerId, model: "res.partner" });
+    await thread.fetchNewMessages();
+    expect(thread.messages).toHaveLength(1);
+    // the deletion arrives via the bus...
+    const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
+    pyEnv["bus.bus"]._sendone(partner, "mail.message/delete", {
+        message_ids: [messageId],
+    });
+    await waitUntilSubscribe();
+    await runAllTimers();
+    expect(store["mail.message"].get(messageId)).toBe(undefined);
+    expect(thread.messages).toHaveLength(0);
+    // ...then a stale fetch response (computed before the deletion,
+    // processed after) lands: last-write-wins ingestion used to resurrect
+    // the message in the store and in the thread
+    store.insert({
+        "mail.message": [
+            {
+                id: messageId,
+                body: "<p>doomed</p>",
+                thread: { id: partnerId, model: "res.partner" },
+            },
+        ],
+    });
+    thread.messages.add({ id: messageId });
+    expect(store["mail.message"].get(messageId)).toBe(undefined);
+    expect(thread.messages).toHaveLength(0);
+});
