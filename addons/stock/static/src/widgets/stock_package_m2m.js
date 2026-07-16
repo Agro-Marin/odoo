@@ -8,19 +8,30 @@ import { _t } from "@web/core/l10n/translation";
 
 
 export class Many2ManyPackageTagsField extends Many2ManyTagsField {
-    setup() {
-        super.setup();
-        this.hasNoneTag = this.props.record.data?.has_lines_without_result_package || false;
+    // Getter, not a setup() snapshot: has_lines_without_result_package is a
+    // computed field that changes as move lines change, so the "No Package" tag
+    // must re-evaluate on every render.
+    get hasNoneTag() {
+        return this.props.record.data?.has_lines_without_result_package || false;
     }
 
     get tags() {
         const tags = super.tags;
         if (this.hasNoneTag) {
-            tags.push({
-                ...this.getTagProps(this.props.record.data[this.props.name].records.at(-1)),
-                id: "datapoint_None",
-                text: _t("No Package"),
-            });
+            const records = this.props.record.data[this.props.name].records;
+            const lastRecord = records.at(-1);
+            if (lastRecord) {
+                tags.push({
+                    ...this.getTagProps(lastRecord),
+                    id: "datapoint_None",
+                    text: _t("No Package"),
+                    // Synthetic tag: never let it inherit a real package's identity
+                    // or delete handler (would target the wrong record if this field
+                    // ever becomes editable).
+                    resId: false,
+                    onDelete: undefined,
+                });
+            }
         }
         return tags;
     }

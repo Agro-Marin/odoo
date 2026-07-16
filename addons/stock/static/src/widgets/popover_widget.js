@@ -17,7 +17,7 @@ export class PopoverComponent extends Component {
  * Widget Popover for JSON field (char), renders a popover above an icon button on click
  * {
  *  'msg': '<CONTENT OF THE POPOVER>' required if not 'popoverTemplate' is given,
- *  'icon': '<FONT AWESOME CLASS>' default='fa-info-circle',
+ *  'icon': '<FONT AWESOME CLASS>' default='fa-circle-info',
  *  'color': '<COLOR CLASS OF ICON>' default='text-primary',
  *  'position': <POSITION OF THE POPOVER> default='top',
  *  'popoverTemplate': '<TEMPLATE OF THE POPOVER>' default='stock.popoverContent'
@@ -31,14 +31,31 @@ export class PopoverWidgetField extends Component {
     static components = { Popover: PopoverComponent };
     static props = {...standardFieldProps};
     setup(){
-        let fieldValue = this.props.record.data[this.props.name];
-        this.jsonValue = JSON.parse(fieldValue || "{}");
-        const position = this.jsonValue.position || "top";
-        this.popover = usePopover(this.constructor.components.Popover, { position });
-        this.color = this.jsonValue.color || 'text-primary';
-        const rawIcon = this.jsonValue.icon || 'fa-circle-info';
+        this.popover = usePopover(this.constructor.components.Popover, {
+            position: this.jsonValue.position || "top",
+        });
+    }
+
+    // Re-parse when the underlying char value changes (record reload / recompute)
+    // instead of snapshotting once in setup — mirrors json_widget, so the button
+    // icon/color and popover content never go stale. Memoized on the raw value.
+    get jsonValue() {
+        const raw = this.props.record.data[this.props.name];
+        if (raw !== this._rawValue) {
+            this._rawValue = raw;
+            this._jsonValue = JSON.parse(raw || "{}");
+        }
+        return this._jsonValue;
+    }
+
+    get color() {
+        return this.jsonValue.color || "text-primary";
+    }
+
+    get icon() {
         // Support full FA7 class strings ("fa-solid fa-x") and bare icon names ("fa-x")
-        this.icon = rawIcon.includes(' ') ? rawIcon : `fa-solid ${rawIcon}`;
+        const rawIcon = this.jsonValue.icon || "fa-circle-info";
+        return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
     }
 
     showPopup(ev){
