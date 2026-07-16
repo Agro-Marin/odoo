@@ -9,9 +9,25 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test, expect } from "@odoo/hoot";
 import { disableAnimations } from "@odoo/hoot-mock";
+import { getService } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
+
+test("pinned messages with equal pinned_at are ordered by id", async () => {
+    await start();
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ id: 1, model: "discuss.channel" });
+    const pinnedAt = "2024-01-01 10:00:00";
+    // inserted out of id order and with the SAME pinned_at: the tiebreaker
+    // must kick in (a luxon DateTime is never === another, so the previous
+    // `===` check made the id tiebreak dead code and the order unstable)
+    store["mail.message"].insert([
+        { id: 2, thread: { id: 1, model: "discuss.channel" }, pinned_at: pinnedAt },
+        { id: 1, thread: { id: 1, model: "discuss.channel" }, pinned_at: pinnedAt },
+    ]);
+    expect(thread.pinnedMessages.map((message) => message.id)).toEqual([1, 2]);
+});
 
 async function assertPinnedPanelUnpinCount(expectedCount) {
     await contains(".dropdown-item", { text: "Unpin", count: expectedCount });

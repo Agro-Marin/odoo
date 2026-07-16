@@ -138,6 +138,9 @@ export function useVoiceRecorder() {
                     },
                 );
                 stopRecording();
+                // stopRecording() already flushed the encoder and ran cleanUp();
+                // don't fall through to _encode() on the finished encoder.
+                return;
             }
             if (!e.data) {
                 return;

@@ -339,6 +339,10 @@ export class GifPicker extends Component {
     }
 
     onClickFavoritesCategory() {
+        // clear the previous category/search results first (like
+        // onClickCategory), otherwise favorites stack under them and duplicate
+        // when toggling back and forth
+        this.clear();
         this.showFavorite = true;
         for (const gif of this.state.favorites.gifs) {
             this.pushGif(gif);

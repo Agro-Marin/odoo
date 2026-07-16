@@ -42,12 +42,14 @@ export class CallInvitation extends Component {
     get acceptOrRejectActions() {
         const joinUpdated = {
             ...joinAction,
-            btnClass: joinAction.btnClass + " o-me-0_5",
+            // btnClass is optional on the action definitions; avoid the literal
+            // "undefined o-me-0_5" class string when it is unset
+            btnClass: (joinAction.btnClass ?? "") + " o-me-0_5",
             onSelected: () => this.joinCall(),
         };
         const acceptWithCameraUpdated = {
             ...acceptWithCamera,
-            btnClass: acceptWithCamera.btnClass + " o-me-0_5",
+            btnClass: (acceptWithCamera.btnClass ?? "") + " o-me-0_5",
             onSelected: () => {
                 this.state.hasCamera = true;
                 this.joinCall();
