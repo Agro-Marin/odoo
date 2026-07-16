@@ -23,7 +23,6 @@ test("uiState", async () => {
         TipScreen: {
             inputTipAmount: "",
         },
-        requiredPartnerDetails: {},
     });
 });
 
@@ -120,14 +119,15 @@ test("customer requirements", async () => {
 
     // No partner
     expect(order.presetRequirementsFilled).toBe(false);
-    expect(order.uiState.requiredPartnerDetails.field).toBe("Customer");
-    expect(order.uiState.requiredPartnerDetails.message).toBe(
+    expect(order.getMissingPresetRequirement().field).toBe("Customer");
+    expect(order.getMissingPresetRequirement().message).toBe(
         "Please add a valid customer to the order."
     );
 
     // Partner
     order.partner_id = partner;
     expect(order.presetRequirementsFilled).toBe(true);
+    expect(order.getMissingPresetRequirement()).toBe(null);
 });
 
 test("Address requirements", async () => {
@@ -139,8 +139,8 @@ test("Address requirements", async () => {
     order.partner_id = partner;
 
     expect(order.presetRequirementsFilled).toBe(false);
-    expect(order.uiState.requiredPartnerDetails.field).toBe("Address");
-    expect(order.uiState.requiredPartnerDetails.message).toBe(
+    expect(order.getMissingPresetRequirement().field).toBe("Address");
+    expect(order.getMissingPresetRequirement().message).toBe(
         "The selected customer needs an address."
     );
 
@@ -157,8 +157,8 @@ test("slot requirement preset", async () => {
 
     // No slot
     expect(order.presetRequirementsFilled).toBe(false);
-    expect(order.uiState.requiredPartnerDetails.field).toBe("Slot");
-    expect(order.uiState.requiredPartnerDetails.message).toBe(
+    expect(order.getMissingPresetRequirement().field).toBe("Slot");
+    expect(order.getMissingPresetRequirement().message).toBe(
         "Please select a time slot before proceeding."
     );
 
