@@ -31,7 +31,8 @@ function compileChatter(node, params) {
         threadId: "__comp__.props.record.resId or undefined",
         threadModel: "__comp__.props.record.resModel",
         record: "__comp__.props.record",
-        saveRecord: "() => __comp__.save and __comp__.save()",
+        // saveRecord is set by the FormCompiler.compile patch below
+        // (setAttributes, unconditional) — a value here would be dead.
         highlightMessageId: "__comp__.highlightMessageId",
     });
     const chatterContainerHookXml = createElement("div");

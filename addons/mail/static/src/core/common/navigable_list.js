@@ -75,18 +75,23 @@ export class NavigableList extends Component {
         useEffect(
             () => {
                 if (!this.props.isLoading) {
-                    clearTimeout(this.loadingTimeoutId);
+                    browser.clearTimeout(this.loadingTimeoutId);
                     // Reset the id, otherwise the `!this.loadingTimeoutId`
                     // guard below stays false forever and the spinner never
                     // re-arms on later loading cycles of the same instance.
                     this.loadingTimeoutId = undefined;
                     this.state.showLoading = false;
                 } else if (!this.loadingTimeoutId) {
-                    this.loadingTimeoutId = setTimeout(
+                    this.loadingTimeoutId = browser.setTimeout(
                         () => (this.state.showLoading = true),
                         2000,
                     );
                 }
+                // cleanup covers destroy-while-loading: suggestion fetches
+                // keep isLoading true, so closing the composer / switching
+                // thread mid-fetch would otherwise leave the timer to fire
+                // `state.showLoading = true` on a torn-down component
+                return () => browser.clearTimeout(this.loadingTimeoutId);
             },
             () => [this.props.isLoading],
         );
