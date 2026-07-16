@@ -203,15 +203,39 @@ function group(...args) {
     return "(" + args.join("|") + ")";
 }
 
+/**
+ * Convert a matched numeric-literal token to its Number value. Handles the
+ * base prefixes (0x/0o/0b), PEP 515 digit-group underscores, and the legacy
+ * Python-2 long suffix (10L): stripping the underscores and a trailing L lets
+ * ``Number`` resolve the prefixes, decimals, floats, and exponents uniformly
+ * (unlike ``parseFloat``, which reads "0x10" as 0 and stops at "_").
+ * @param {string} token
+ * @returns {number}
+ */
+function parseNumberLiteral(token) {
+    return Number(token.replace(/_/g, "").replace(/[lL]$/, ""));
+}
+
 const Name = "[a-zA-Z_]\\w*";
 const Whitespace = "[ \\f\\t]*";
-const DecNumber = "\\d+(L|l)?";
-const IntNumber = DecNumber;
+// A run of digits with optional single underscores between them (PEP 515:
+// every "_" must sit between two digits).
+const Digitpart = "\\d(?:_?\\d)*";
+const DecNumber = `${Digitpart}(L|l)?`;
+// Base-prefixed integer literals (Python 3). These must precede DecNumber in
+// the alternation below so e.g. "0x10" is not consumed as the decimal "0".
+const HexNumber = "0[xX](?:_?[0-9a-fA-F])+";
+const OctNumber = "0[oO](?:_?[0-7])+";
+const BinNumber = "0[bB](?:_?[01])+";
+const IntNumber = group(HexNumber, OctNumber, BinNumber, DecNumber);
 
-const Exponent = "[eE][+-]?\\d+";
-const PointFloat = group(`\\d+\\.\\d*(${Exponent})?`, `\\.\\d+(${Exponent})?`);
+const Exponent = `[eE][+-]?${Digitpart}`;
+const PointFloat = group(
+    `${Digitpart}\\.(?:${Digitpart})?(${Exponent})?`,
+    `\\.${Digitpart}(${Exponent})?`,
+);
 // Exponent not optional when no decimal point
-const FloatNumber = group(PointFloat, `\\d+${Exponent}`);
+const FloatNumber = group(PointFloat, `${Digitpart}${Exponent}`);
 
 const NumberToken = group(FloatNumber, IntNumber);
 const Operator = group(
@@ -283,7 +307,7 @@ export function tokenize(str) {
         if (NumberPattern.test(token)) {
             tokens.push({
                 type: TokenType.Number,
-                value: Number.parseFloat(token),
+                value: parseNumberLiteral(token),
             });
         } else if (StringPattern.test(token)) {
             // Guaranteed to match: the `StringPattern.test(token)` branch above.

@@ -58,6 +58,36 @@ test("can tokenize floats", () => {
     ]);
 });
 
+test("can tokenize base-prefixed integer literals", () => {
+    expect(tokenize("0x10")).toEqual([{ type: 0 /* Number */, value: 16 }]);
+    expect(tokenize("0X1F")).toEqual([{ type: 0 /* Number */, value: 31 }]);
+    expect(tokenize("0o17")).toEqual([{ type: 0 /* Number */, value: 15 }]);
+    expect(tokenize("0O10")).toEqual([{ type: 0 /* Number */, value: 8 }]);
+    expect(tokenize("0b101")).toEqual([{ type: 0 /* Number */, value: 5 }]);
+    expect(tokenize("0B1111")).toEqual([{ type: 0 /* Number */, value: 15 }]);
+    // still usable in an expression
+    expect(tokenize("0x10 + 0b10")).toEqual([
+        { type: 0 /* Number */, value: 16 },
+        { type: 2 /* Symbol */, value: "+" },
+        { type: 0 /* Number */, value: 2 },
+    ]);
+});
+
+test("can tokenize numeric literals with underscore digit separators (PEP 515)", () => {
+    expect(tokenize("1_000")).toEqual([{ type: 0 /* Number */, value: 1000 }]);
+    expect(tokenize("1_000_000")).toEqual([{ type: 0 /* Number */, value: 1000000 }]);
+    expect(tokenize("0xDE_AD")).toEqual([{ type: 0 /* Number */, value: 57005 }]);
+    expect(tokenize("1_0.5_0")).toEqual([{ type: 0 /* Number */, value: 10.5 }]);
+    // legacy Python-2 long suffix still accepted
+    expect(tokenize("10L")).toEqual([{ type: 0 /* Number */, value: 10 }]);
+    // a leading/trailing/doubled underscore is not part of the number: "1__0"
+    // tokenizes as the number 1 followed by the name "__0"
+    expect(tokenize("1__0")).toEqual([
+        { type: 0 /* Number */, value: 1 },
+        { type: 3 /* Name */, value: "__0" },
+    ]);
+});
+
 test("can tokenize strings", () => {
     expect(tokenize('"foo"')).toEqual([{ type: 1 /* String */, value: "foo" }]);
 });
