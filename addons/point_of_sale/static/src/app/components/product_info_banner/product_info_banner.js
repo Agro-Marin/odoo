@@ -12,7 +12,7 @@ export class ProductInfoBanner extends Component {
     };
     static props = {
         productTemplate: Object,
-        product: { type: Object | null, optional: true },
+        product: { type: Object, optional: true },
         info: { type: Object, optional: true },
     };
 

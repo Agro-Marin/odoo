@@ -105,7 +105,10 @@ export default class DeviceIdentifierSequence {
         }
         const numbers = orders
             .filter((o) => !o.isSynced)
-            .map((o) => this.extractNumberFromReference(o.pos_reference));
+            .map((o) => this.extractNumberFromReference(o.pos_reference))
+            // One malformed pos_reference would poison the stack with NaN,
+            // which then corrupted the next-number sorting for the session.
+            .filter(Number.isInteger);
         const unsyncedNumberStack = new Set([
             ...data.unsynced_number_stack,
             ...numbers,

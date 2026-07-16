@@ -47,7 +47,7 @@ export default class DevicesSynchronisation {
         logPosMessage(
             "Synchronisation",
             "dispatch",
-            "Disptaching synchronization",
+            "Dispatching synchronization",
             CONSOLE_COLOR,
         );
         await this.pos.data.call("pos.config", "notify_synchronisation", [
@@ -97,9 +97,8 @@ export default class DevicesSynchronisation {
      * and synchronize the records with other devices.
      */
     async readDataFromServer() {
-        const serverOpenOrders = this.pos.getOpenOrders().filter((o) => o.isSynced);
-        const { domain, recordIds } = this.constructOrdersDomain(serverOpenOrders);
-        let response;
+        const { domain, recordIds } = this.constructOrdersDomain();
+        let response = {};
         try {
             response = await this.pos.data.call(
                 "pos.config",
@@ -139,8 +138,12 @@ export default class DevicesSynchronisation {
                 const session = this.models["pos.session"].get(odoo.pos_session_id);
 
                 for (const order of res["pos.order"]) {
-                    // Clear commands
-                    order.serializeForORM();
+                    // Consume stale commands — but never for a locally-dirty
+                    // order: its pending unlink/delete commands are exactly
+                    // the edits the next sync must still send.
+                    if (!order.isDirty()) {
+                        order.serializeForORM();
+                    }
                     order.config_id = config;
                     order.session_id = session;
                 }

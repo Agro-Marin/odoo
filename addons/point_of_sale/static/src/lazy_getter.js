@@ -60,7 +60,9 @@ export function createLazyGetter(object, name, func) {
     const getter = function () {
         const disabler = getDisabler(object, name);
         if (disabler.isDisabled()) {
-            return func();
+            // Keep `this` bound like the class-getter path does — a bare
+            // func() lost the receiver for method-style getters.
+            return func.call(object);
         }
         return object[lazyName];
     };
@@ -74,8 +76,16 @@ export function createLazyGetter(object, name, func) {
 function defineLazyGetterTrap(Class) {
     const getters = getLazyGetters(Class);
     return function get(target, prop, receiver) {
+        // Cheap check first: this trap runs on EVERY property read of every
+        // record (the hottest path in the POS). getDisabler permanently
+        // allocates a TrapDisabler + Map entry per (record, prop) — doing it
+        // before the getters check paid that cost for plain fields, methods
+        // and symbols that will never be lazy.
+        if (!getters.has(prop)) {
+            return Reflect.get(target, prop, receiver);
+        }
         const disabler = getDisabler(target, prop);
-        if (disabler.isDisabled() || !getters.has(prop)) {
+        if (disabler.isDisabled()) {
             return Reflect.get(target, prop, receiver);
         }
         return disabler.call(() => {

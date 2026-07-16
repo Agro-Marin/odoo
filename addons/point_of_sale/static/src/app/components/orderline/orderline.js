@@ -12,6 +12,9 @@ export class Orderline extends Component {
         slots: { type: Object, optional: true },
         showTaxGroupLabels: { type: Boolean, optional: true },
         showTaxGroup: { type: Boolean, optional: true },
+        // showImage had a defaultProps entry (and a template read) but no
+        // declaration, so passing it was a validation error in dev mode.
+        showImage: { type: Boolean, optional: true },
         mode: { type: String, optional: true }, // display, receipt
         basic_receipt: { type: Boolean, optional: true },
         onClick: { type: Function, optional: true },

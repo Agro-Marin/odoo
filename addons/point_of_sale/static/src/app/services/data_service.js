@@ -266,15 +266,6 @@ export class PosData extends SignalStore {
             return;
         }
 
-        const newData = {};
-        for (const model of models) {
-            const rawRec = data[model];
-
-            if (rawRec) {
-                newData[model] = rawRec.filter((r) => !this.models[model].get(r.id));
-            }
-        }
-
         const preLoadData = await this.preLoadData(data);
         const missing = await this.missingRecursive(preLoadData);
 

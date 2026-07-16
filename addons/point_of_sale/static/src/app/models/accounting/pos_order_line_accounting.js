@@ -120,16 +120,6 @@ export class PosOrderlineAccounting extends Base {
         return data.tax_details;
     }
 
-    get productProductPrice() {
-        return this.product_id.getPrice(
-            this.config.pricelist_id,
-            1,
-            this.price_extra,
-            false,
-            this.product_id,
-        );
-    }
-
     get comboTotalPrice() {
         // Line totals, tax-included — deliberately independent of the
         // iface_tax_included display configuration: pos_loyalty uses this pair

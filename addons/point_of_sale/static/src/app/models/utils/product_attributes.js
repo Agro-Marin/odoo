@@ -6,7 +6,12 @@
 // The exclusion map itself stays on the store as `pos.productAttributesExclusion`.
 
 export function computeProductAttributesExclusion(pos, excl = false) {
-    const exclusions = pos.productAttributesExclusion || new Map();
+    // A full recompute (no incremental `excl` payload) starts fresh:
+    // accumulating onto the existing map kept exclusions deleted in the
+    // backend blocking valid combinations until reload.
+    const exclusions = excl
+        ? pos.productAttributesExclusion || new Map()
+        : new Map();
 
     const addExclusion = (key, value) => {
         if (!exclusions.has(key)) {

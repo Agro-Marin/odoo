@@ -4,7 +4,7 @@ import { enhancedButtons, Numpad } from "@point_of_sale/app/components/numpad/nu
 import { DatePickerPopup } from "@point_of_sale/app/components/popups/date_picker_popup/date_picker_popup";
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
-import { useAsyncLockedMethod, useErrorHandlers } from "@point_of_sale/app/hooks/hooks";
+import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useRouterParamsChecker } from "@point_of_sale/app/hooks/pos_router_hook";
 import { PaymentScreenPaymentLines } from "@point_of_sale/app/screens/payment_screen/payment_lines/payment_lines";
@@ -42,7 +42,6 @@ export class PaymentScreen extends Component {
         this.numberBuffer = useService("number_buffer");
         this.numberBuffer.use(this._getNumberBufferConfig);
         useRouterParamsChecker();
-        useErrorHandlers();
         this.payment_interface = null;
         this.error = false;
         this.validateOrder = useAsyncLockedMethod(this.validateOrder);
@@ -170,7 +169,9 @@ export class PaymentScreen extends Component {
         }
     }
     updateSelectedPaymentline(amount = false) {
-        if (this.paymentLines.every((line) => line.paid)) {
+        // `line.paid` never existed on the payment model — the predicate was
+        // only true for the empty list, so make that the explicit condition.
+        if (this.paymentLines.length === 0) {
             this.currentOrder.addPaymentline(this.payment_methods_from_config[0]);
         }
         if (!this.selectedPaymentLine) {

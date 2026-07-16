@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { useErrorHandlers, useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
+import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useRouterParamsChecker } from "@point_of_sale/app/hooks/pos_router_hook";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
@@ -20,7 +20,6 @@ export class ReceiptScreen extends Component {
         super.setup();
         this.pos = usePos();
         useRouterParamsChecker();
-        useErrorHandlers();
         this.ui = useService("ui");
         this.renderer = useService("renderer");
         this.notification = useService("notification");

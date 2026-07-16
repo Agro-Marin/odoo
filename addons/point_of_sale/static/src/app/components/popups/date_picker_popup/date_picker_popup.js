@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { Dialog } from "@web/ui/dialog/dialog";
 export class DatePickerPopup extends Component {
@@ -31,6 +32,8 @@ export class DatePickerPopup extends Component {
         this.props.close();
     }
     _today() {
-        return new Date().toISOString().split("T")[0];
+        // Local date, not UTC: toISOString() put evening users west of UTC on
+        // tomorrow's date (and early-morning users east of UTC on yesterday's).
+        return luxon.DateTime.now().toISODate();
     }
 }

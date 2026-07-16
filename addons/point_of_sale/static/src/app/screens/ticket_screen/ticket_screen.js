@@ -53,10 +53,7 @@ export class TicketScreen extends Component {
     static defaultProps = {
         // When passed as true, it will use the saved _state.ui as default
         // value when this component is reinstantiated.
-        // After setting the default value, the _state.ui will be overridden
-        // by the passed props.ui if there is any.
         reuseSavedUIState: false,
-        ui: {},
     };
 
     setup() {
@@ -140,8 +137,8 @@ export class TicketScreen extends Component {
     }
     async onFilterSelected(selectedFilter) {
         this.state.filter = selectedFilter;
-        this.pos.screenState.ticketSCreen.totalCount = 0;
-        this.pos.screenState.ticketSCreen.offsetByDomain = {};
+        this.pos.screenState.ticketScreen.totalCount = 0;
+        this.pos.screenState.ticketScreen.offsetByDomain = {};
 
         if (this.state.filter === "SYNCED") {
             await this._fetchSyncedOrders();
@@ -516,7 +513,7 @@ export class TicketScreen extends Component {
     // state, and doing so could schedule an extra render pass.
     get filteredOrdersCount() {
         return this.state.filter === "SYNCED"
-            ? this.pos.screenState.ticketSCreen.totalCount
+            ? this.pos.screenState.ticketScreen.totalCount
             : this._getFilteredOrders().length;
     }
     getDate(order) {
@@ -878,7 +875,7 @@ export class TicketScreen extends Component {
      * order is not fetched anymore, instead, we use info from cache.
      */
     async _fetchSyncedOrders() {
-        const screenState = this.pos.screenState.ticketSCreen;
+        const screenState = this.pos.screenState.ticketScreen;
         const domain = this._computeSyncedOrdersDomain();
         const offset = screenState.offsetByDomain[JSON.stringify(domain)] || 0;
         const config_id = this.pos.config.id;

@@ -28,7 +28,13 @@ patch(ConfirmationDialog.prototype, {
             try {
                 await this.pos.syncAllOrders();
             } catch (error) {
-                logPosMessage("Failed to sync orders:", error);
+                logPosMessage(
+                    "ConfirmationDialog",
+                    "_reloadData",
+                    "Failed to sync orders",
+                    undefined,
+                    [error],
+                );
             }
         }
         this.pos.dialog.add(SyncPopup, {
