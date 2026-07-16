@@ -191,10 +191,13 @@ class AccountBankStatement(models.Model):
                 )
                 balance_start -= sum(lines_in_common.mapped("amount"))
 
-            lines_in_between = self.env["account.bank.statement.line"].search(
-                lines_in_between_domain
-            )
-            balance_start += sum(lines_in_between.mapped("amount"))
+            # Sum in SQL rather than loading every in-between line into memory:
+            # on a busy journal there can be thousands of lines between two
+            # statements, and we only need their total.
+            [(amount_in_between,)] = self.env[
+                "account.bank.statement.line"
+            ]._read_group(lines_in_between_domain, aggregates=["amount:sum"])
+            balance_start += amount_in_between or 0.0
 
             stmt.balance_start = balance_start
 
