@@ -76,11 +76,12 @@ const threadStaticPatch = {
                     id: data.id,
                     model: data.model,
                 });
-                if (thread?.exists()) {
-                    def.reject(thread);
-                } else {
-                    def.reject();
-                }
+                // Resolve (never reject) with the existing thread or undefined.
+                // Every caller null-checks the result; the previous
+                // `def.reject(thread)` both rejected with a *Thread* record
+                // (not an Error) and produced unhandled rejections in the
+                // fire-and-forget awaits (e.g. the new-message bus handler).
+                def.resolve(thread?.exists() ? thread : undefined);
             },
         );
         return def;
@@ -475,13 +476,21 @@ const threadPatch = {
         });
     },
     async notifyDescriptionToServer(description) {
+        const previousDescription = this.description;
         this.description = description;
-        return this.store.env.services.orm.call(
-            "discuss.channel",
-            "channel_change_description",
-            [[this.id]],
-            { description },
-        );
+        try {
+            return await this.store.env.services.orm.call(
+                "discuss.channel",
+                "channel_change_description",
+                [[this.id]],
+                { description },
+            );
+        } catch (e) {
+            // revert the optimistic write so the UI doesn't diverge from the
+            // server until a reload
+            this.description = previousDescription;
+            throw e;
+        }
     },
     /** @override */
     async rename(name) {
@@ -491,23 +500,38 @@ const threadPatch = {
             ((newName && this.channel_type === "channel") || this.isChatChannel)
         ) {
             if (this.channel_type === "channel" || this.channel_type === "group") {
+                const previousName = this.name;
                 this.name = newName;
-                await this.store.env.services.orm.call(
-                    "discuss.channel",
-                    "channel_rename",
-                    [[this.id]],
-                    { name: newName },
-                );
-            } else if (this.supportsCustomChannelName) {
-                if (this.self_member_id) {
-                    this.self_member_id.custom_channel_name = newName;
+                try {
+                    await this.store.env.services.orm.call(
+                        "discuss.channel",
+                        "channel_rename",
+                        [[this.id]],
+                        { name: newName },
+                    );
+                } catch (e) {
+                    this.name = previousName; // revert optimistic write
+                    throw e;
                 }
-                await this.store.env.services.orm.call(
-                    "discuss.channel",
-                    "channel_set_custom_name",
-                    [[this.id]],
-                    { name: newName },
-                );
+            } else if (this.supportsCustomChannelName) {
+                const member = this.self_member_id;
+                const previousCustomName = member?.custom_channel_name;
+                if (member) {
+                    member.custom_channel_name = newName;
+                }
+                try {
+                    await this.store.env.services.orm.call(
+                        "discuss.channel",
+                        "channel_set_custom_name",
+                        [[this.id]],
+                        { name: newName },
+                    );
+                } catch (e) {
+                    if (member) {
+                        member.custom_channel_name = previousCustomName; // revert
+                    }
+                    throw e;
+                }
             }
         }
         return super.rename(...arguments);
@@ -601,7 +625,11 @@ const threadPatch = {
             return this.correspondent.name;
         }
         if (this.channel_name_member_ids.length && !this.name) {
-            const nameParts = this.channel_name_member_ids
+            const nameParts = [...this.channel_name_member_ids]
+                // copy before sorting: `.sort()` on the reactive Many mutates
+                // it in place, and this getter runs on the render path (every
+                // channel-row render), permanently reordering the stored field
+                // and churning reactivity.
                 .sort((m1, m2) => m1.id - m2.id)
                 .slice(0, 3)
                 .map((member) => member.name);

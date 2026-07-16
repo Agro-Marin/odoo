@@ -13,14 +13,11 @@ export async function generatePdfThumbnail(
         return { thumbnail, pdfEnabled: false };
     }
     try {
-        // Support for blob url
-        if (pdfUrl.startsWith("blob:")) {
-            pdfUrl = URL.createObjectURL(pdfUrl);
-            pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-            URL.revokeObjectURL(pdfUrl);
-        } else {
-            pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-        }
+        // pdfjs' getDocument accepts a URL string directly, including a
+        // "blob:" object URL. (The previous blob branch wrapped the string in
+        // URL.createObjectURL(), which requires a Blob and threw for every
+        // blob URL, silently blanking the thumbnail.)
+        pdf = await pdfjsLib.getDocument(pdfUrl).promise;
     } catch (_error) {
         if (_error.status === 415) {
             isPdfValid = false;

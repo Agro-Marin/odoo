@@ -39,6 +39,12 @@ patch(FormController.prototype, {
 
     async onWillSaveRecord(record, changes) {
         if (record.resModel === "mail.compose.message") {
+            // `changes` is a dirty-field delta: `body`/`partner_ids` are only
+            // present when they actually changed. With no body change there are
+            // no @mentions to reconcile, so bail before dereferencing either.
+            if (!changes.body) {
+                return;
+            }
             const doc = createDocumentFragmentFromContent(changes.body);
             const partnerElements = doc.querySelectorAll(
                 '[data-oe-model="res.partner"]',
@@ -47,6 +53,9 @@ patch(FormController.prototype, {
                 parseInt(element.dataset.oeId),
             );
             if (partnerIds.length) {
+                // partner_ids may be absent from the delta even when the body
+                // (and thus its mentions) changed — seed it before appending.
+                changes.partner_ids ??= [];
                 if (
                     changes.partner_ids[0] &&
                     changes.partner_ids[0][0] === x2ManyCommands.SET

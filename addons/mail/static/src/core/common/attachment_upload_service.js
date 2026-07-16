@@ -142,6 +142,14 @@ export class AttachmentUploadService {
     async _upload(thread, composer, file, options, tmpId, tmpURL) {
         this.targetsByTmpId.set(tmpId, { composer, thread });
         this.uploadingAttachmentIds.add(tmpId);
+        // Register the deferred BEFORE starting the upload: the file-upload
+        // bus can emit FILE_UPLOAD_LOADED/FILE_UPLOAD_ERROR before this
+        // function's continuation resumes (a synchronous mock XHR in tests, an
+        // instant 413, or an already-buffered response), and those handlers
+        // resolve this deferred via `deferredByAttachmentId.get(tmpId)`.
+        // Registering it after the await would let them hit `undefined.resolve()`.
+        const uploadDoneDeferred = new Deferred();
+        this.deferredByAttachmentId.set(tmpId, uploadDoneDeferred);
         await this.fileUploadService
             .upload(this.getUploadURL(thread), [file], {
                 buildFormData: (formData) => {
@@ -160,8 +168,6 @@ export class AttachmentUploadService {
                     throw e;
                 }
             });
-        const uploadDoneDeferred = new Deferred();
-        this.deferredByAttachmentId.set(tmpId, uploadDoneDeferred);
         return uploadDoneDeferred;
     }
 

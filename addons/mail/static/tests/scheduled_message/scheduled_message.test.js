@@ -9,8 +9,14 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { SCHEDULED_MESSAGE_TRUNCATE_THRESHOLD } from "@mail/chatter/web/scheduled_message";
-import { mockService, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    getService,
+    mockService,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { ConnectionLostError } from "@web/core/network/rpc";
 import { getOrigin } from "@web/core/utils/urls";
 import { MailComposerAttachmentSelector } from "@mail/core/web/mail_composer_attachment_selector";
 
@@ -21,6 +27,24 @@ import { manuallyDispatchProgrammaticEvent, queryAll } from "@odoo/hoot-dom";
 beforeEach(() => mockDate("2024-10-20 10:00:00"));
 describe.current.tags("desktop");
 defineMailModels();
+
+test("edit() re-throws a transient connection error instead of reporting 'already sent'", async () => {
+    await start();
+    const scheduledMessage = getService("mail.store")["mail.scheduled.message"].insert({
+        id: 1,
+    });
+    // simulate a network drop (not a server-side "already sent" business error)
+    mockService("orm", {
+        call() {
+            return Promise.reject(new ConnectionLostError("offline"));
+        },
+    });
+    let threw = false;
+    await scheduledMessage.edit().catch(() => (threw = true));
+    // a transient connection failure must surface, not be swallowed and
+    // mislabeled as "this message has already been sent"
+    expect(threw).toBe(true);
+});
 
 test("Scheduled messages basic layout", async () => {
     const pyEnv = await startServer();

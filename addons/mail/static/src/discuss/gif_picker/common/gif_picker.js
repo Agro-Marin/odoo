@@ -81,6 +81,7 @@ export class GifPicker extends Component {
         this.showFavorite = false;
         this.offset = 0;
         this.favoritesAllLoaded = false;
+        this._loadingFavorites = false;
         this.state = useState({
             favorites: {
                 /** @type {TenorGif[]} */
@@ -294,9 +295,18 @@ export class GifPicker extends Component {
     }
 
     async loadFavorites() {
-        if (!this.store.hasGifPickerFeature || this.favoritesAllLoaded) {
+        // Reentrancy guard: onWillStart and the bottom-scroll debounce can both
+        // call this. Overlapping runs read the same `offset`, duplicate results
+        // and double-advance the cursor (skipping a page). (cf. `search()`,
+        // which is already serialized through `useSequential`.)
+        if (
+            !this.store.hasGifPickerFeature ||
+            this.favoritesAllLoaded ||
+            this._loadingFavorites
+        ) {
             return;
         }
+        this._loadingFavorites = true;
         this.state.loadingGif = true;
         try {
             const [results] = await rpc(
@@ -313,8 +323,10 @@ export class GifPicker extends Component {
             }
         } catch {
             this.state.loadingError = true;
+        } finally {
+            this._loadingFavorites = false;
+            this.state.loadingGif = false;
         }
-        this.state.loadingGif = false;
     }
 
     /**

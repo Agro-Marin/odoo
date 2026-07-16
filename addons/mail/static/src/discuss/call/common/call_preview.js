@@ -118,6 +118,12 @@ export class CallPreview extends Component {
             onWillDestroy(() => {
                 closeStream(this.state.audioStream);
                 closeStream(this.state.videoStream);
+                // The BlurManager owns a Web Worker, a SelfieSegmentation
+                // instance and a canvas.captureStream(); without closing it (and
+                // its output stream) here, dismissing the preview with blur on
+                // leaks a live worker + capture stream for the tab's lifetime.
+                closeStream(this.state.blurStream);
+                this.state.blurManager?.close();
             });
             useEffect(
                 (activateCamera) => {

@@ -16,7 +16,7 @@ declare module "models" {
     export interface Store {
         channels: ReturnType<Store['makeCachedFetchData']>;
         DiscussAppCategory: StaticMailRecord<DiscussAppCategory, typeof DiscussAppCategoryClass>;
-        fetchSsearchConversationsSequential: () => Promise<any>;
+        fetchSearchConversationsSequential: () => Promise<any>;
         searchConversations: (searchValue: string) => Promise<void>;
     }
     export interface Thread {

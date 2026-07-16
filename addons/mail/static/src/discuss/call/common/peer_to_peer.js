@@ -768,10 +768,15 @@ export class PeerToPeer extends EventTarget {
                 if (!this.isActive || this._notificationsToSend.size === 0) {
                     return;
                 }
-                const ids = [];
+                // Snapshot the notification object alongside its id: an OFFER
+                // reuses a per-target key (`latestOffer_to:<target>`), so a
+                // fresh offer queued during the RPC overwrites this map entry.
+                // Deleting by id alone (below) would then drop that newer offer
+                // — with its up-to-date SDP — before it is ever sent.
+                const sent = [];
                 const notifications = [];
                 this._notificationsToSend.forEach((notification, id) => {
-                    ids.push(id);
+                    sent.push([id, notification]);
                     notifications.push([
                         notification.sender,
                         notification.targets,
@@ -812,8 +817,13 @@ export class PeerToPeer extends EventTarget {
                 }
                 failedAttempts = 0;
                 retryDelay = INITIAL_RECONNECT_DELAY;
-                for (const id of ids) {
-                    this._notificationsToSend.delete(id);
+                for (const [id, notification] of sent) {
+                    // Only clear entries not superseded while the RPC was in
+                    // flight; a newer notification under the same key must
+                    // survive to be sent on the next iteration.
+                    if (this._notificationsToSend.get(id) === notification) {
+                        this._notificationsToSend.delete(id);
+                    }
                 }
             }
         } finally {

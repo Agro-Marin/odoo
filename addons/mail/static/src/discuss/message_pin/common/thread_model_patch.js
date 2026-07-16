@@ -38,9 +38,13 @@ patch(Thread.prototype, {
             data = await rpc("/discuss/channel/pinned_messages", {
                 channel_id: this.id,
             });
-        } catch (e) {
+        } catch {
+            // Surface the failure via the reactive state (the panel renders an
+            // error/retry UI from `pinnedMessagesState`). Both callers invoke
+            // this fire-and-forget, so re-throwing only produced an unhandled
+            // rejection and never reached a handler.
             this.pinnedMessagesState = "error";
-            throw e;
+            return;
         }
         this.store.insert(data);
         this.pinnedMessagesState = "loaded";

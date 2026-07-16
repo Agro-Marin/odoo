@@ -2,6 +2,7 @@
 import { fields, Record } from "@mail/core/common/record";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { _t } from "@web/core/l10n/translation";
+import { ConnectionAbortedError, ConnectionLostError } from "@web/core/network/rpc";
 export class ScheduledMessage extends Record {
     static _name = "mail.scheduled.message";
     static id = "id";
@@ -72,7 +73,16 @@ export class ScheduledMessage extends Record {
                 "open_edit_form",
                 [this.id],
             );
-        } catch {
+        } catch (e) {
+            // Only a server-side business error means the record is gone
+            // (already sent / deleted). A transient connection failure must not
+            // be reported as "already sent" — re-throw so it surfaces normally.
+            if (
+                e instanceof ConnectionLostError ||
+                e instanceof ConnectionAbortedError
+            ) {
+                throw e;
+            }
             this.notifyAlreadySent();
             return;
         }
@@ -100,8 +110,16 @@ export class ScheduledMessage extends Record {
                 "post_message",
                 [this.id],
             );
-        } catch {
-            // already sent (by someone else or by cron)
+        } catch (e) {
+            // A server-side business error means already sent (by someone else
+            // or by cron) — swallow. A transient connection failure must not be
+            // silently ignored: re-throw it.
+            if (
+                e instanceof ConnectionLostError ||
+                e instanceof ConnectionAbortedError
+            ) {
+                throw e;
+            }
             return;
         }
     }
