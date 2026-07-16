@@ -1,5 +1,6 @@
 from odoo import fields, models, tools
-from odoo.tools import float_is_zero
+
+from odoo.addons.stock_account.models.avco import AvcoAccumulator
 
 
 class StockAverageCostReport(models.AbstractModel):
@@ -99,39 +100,25 @@ WHERE
         for records in self.grouped(lambda m: (m.product_id, m.company_id)).values():
             current_page_records = records.sorted('date, id')
             total_records = total_records_grouped.get((records.product_id, records.company_id)).sorted('date, id')
+            # Replay the same AVCO recurrence as the live valuation engine
+            # (product._run_average_batch) via the shared accumulator, so the audit
+            # figures cannot drift from the actual valuation.
+            avco = AvcoAccumulator(uom=records.product_id.uom_id)
             added_value = 0.0
-            total_value = 0.0
-            total_quantity = 0.0
-            avco = 0.0
             for record in total_records:
-                qty = record.quantity
                 if record.res_model_name == 'stock.move':
-                    previous_qty = total_quantity
-                    total_quantity += qty
-                    if qty > 0:
-                        added_value = record.value
-                        # Regular case, value from accumulation
-                        if previous_qty > 0:
-                            total_value += added_value
-                            avco = total_value / total_quantity if not float_is_zero(total_quantity, precision_digits=self.env['decimal.precision'].precision_get('Product Unit')) else avco
-                        # From negative quantity case, value from last_in
-                        elif previous_qty <= 0:
-                            avco = added_value / qty if qty else avco
-                            total_value = avco * total_quantity
+                    if record.quantity > 0:
+                        added_value = avco.add_in(record.quantity, record.value)
                     else:
-                        added_value = avco * qty
-                        total_value += added_value
-
+                        added_value = -avco.add_out(-record.quantity)
                 elif record.res_model_name == 'product.value':
-                    avco = record.value
-                    added_value = (avco * total_quantity) - total_value
-                    total_value = avco * total_quantity
+                    added_value = avco.set_unit_cost(record.value)
 
                 if record in current_page_records:
                     record.added_value = added_value
-                    record.total_value = total_value
-                    record.total_quantity = total_quantity
-                    record.avco_value = avco
+                    record.total_value = avco.value
+                    record.total_quantity = avco.quantity
+                    record.avco_value = avco.unit_cost
 
     def _compute_justification(self):
         self.justification = False

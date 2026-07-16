@@ -68,7 +68,7 @@ class ResCompany(models.Model):
             'ref': _('Stock Closing'),
             'line_ids': [Command.create(aml_vals) for aml_vals in aml_vals_list],
         }
-        account_move = self.with_context(allowed_company_ids=self.env.company.ids).env['account.move'].create(moves_vals)
+        account_move = self.with_context(allowed_company_ids=self.ids).env['account.move'].create(moves_vals)
         self._save_closing_id(account_move.id)
         if auto_post:
             account_move._post()
@@ -217,7 +217,7 @@ class ResCompany(models.Model):
             account_balance[location.valuation_account_id, stock_valuation_acc] -= value
 
         for (location_account, stock_account), balance in account_balance.items():
-            if balance == 0:
+            if self.currency_id.is_zero(balance):
                 continue
             amls_vals = self._prepare_inventory_aml_vals(
                 location_account,
@@ -270,10 +270,11 @@ class ResCompany(models.Model):
         """
         extra_balance = self._get_extra_balance(extra_aml_vals_list)
 
-        fiscal_year_date_from = self.compute_fiscalyear_dates(fields.Date.today())['date_from']
+        reference_date = at_date or fields.Date.today()
+        fiscal_year_date_from = self.compute_fiscalyear_dates(reference_date)['date_from']
 
         amls_vals_list = []
-        accounting_data_today = self.stock_accounting_value(accounts_by_product)
+        accounting_data_today = self.stock_accounting_value(accounts_by_product, at_date=at_date)
         accounting_data_last_period = self.stock_accounting_value(accounts_by_product, at_date=fiscal_year_date_from)
 
         accounts = accounting_data_today.keys() | accounting_data_last_period.keys()
@@ -285,7 +286,7 @@ class ResCompany(models.Model):
             if not variation_acc or not expense_acc:
                 continue
 
-            balance_today = accounting_data_today.get(account, 0) - extra_balance[account]
+            balance_today = accounting_data_today.get(account, 0) - extra_balance.get(account.id, 0)
             balance_last_period = accounting_data_last_period.get(account, 0)
             balance_over_period = balance_today - balance_last_period
 
