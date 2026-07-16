@@ -51,6 +51,10 @@ export function rottingProgressBarPatch() {
          */
         getGroupCount(group) {
             if (this.rotIsFiltered[group.id]) {
+                // client-side filter: counts only the loaded page, not the
+                // group's server-side total (unlike the super path). Inherent
+                // to filtering in-memory records; the rotting count can shrink
+                // to the loaded subset when the filter is toggled.
                 return group.list.records.filter((record) => record.data.is_rotting)
                     .length;
             }

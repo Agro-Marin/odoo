@@ -42,13 +42,18 @@ export class KanbanRottingField extends Component {
     };
     static template = "mail.KanbanRottingField";
 
-    setup() {
-        // Preprocess all sentences as childless strings so they're easier to format in the DOM
-        this.dayCount = _t("%(numberOfDays)sd", {
+    // getters, not setup() fields: the widget instance is reused across data
+    // updates (OWL calls onWillUpdateProps, not a fresh setup), so a cached
+    // value showed the stale rotting_days after an inline stage/step edit
+    // recomputed it server-side.
+    get dayCount() {
+        return _t("%(numberOfDays)sd", {
             numberOfDays: this.props.record.data.rotting_days,
         });
+    }
 
-        this.title = getRottingDaysTitle(
+    get title() {
+        return getRottingDaysTitle(
             this.props.record.model.config.resModel,
             this.props.record.data.rotting_days,
         );
@@ -58,10 +63,11 @@ export class KanbanRottingField extends Component {
 export class Many2OneFieldRotting extends Many2OneField {
     static template = "mail.Many2OneFieldRotting";
 
-    setup() {
-        super.setup();
-        // As this widget is appended to another field's value, we display no additional title to prevent title overlap
-        this.dayCount = _t("%(numberOfDays)sd", {
+    // getter (see KanbanRottingField): reads live rotting_days each render.
+    // As this widget is appended to another field's value, we display no
+    // additional title to prevent title overlap.
+    get dayCount() {
+        return _t("%(numberOfDays)sd", {
             numberOfDays: this.props.record.data.rotting_days,
         });
     }
