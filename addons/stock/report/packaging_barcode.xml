@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <data>
-        <template id="label_packaging_barcode_view">
+
+    <template id="label_packaging_barcode_view">
             <t t-foreach="docs" t-as="packaging">
                 <t t-translation="off">
 ^XA
@@ -19,6 +19,6 @@
 ^XZ
                 </t>
             </t>
-        </template>
-    </data>
+    </template>
+
 </odoo>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <data>
-        <template id="label_transfer_template_view_zpl">
+
+    <template id="label_transfer_template_view_zpl">
             <t t-set="uom_unit" t-value="env.ref('uom.product_uom_unit')"/>
             <t t-foreach="docs" t-as="picking">
 
@@ -123,5 +123,4 @@
                 </t>
             </t>
         </template>
-    </data>
 </odoo>
