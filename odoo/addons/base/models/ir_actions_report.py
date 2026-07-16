@@ -212,11 +212,11 @@ _WEASY_IMAGE_CACHE_MAX = 256
 # evicted.
 _WEASY_CSS_CACHE_MAX = 32
 
-# /web/assets/<unique>/<filename> URLs are content-addressed: <unique> is the
-# bundle version hash, so the content behind a given URL never changes (a
-# rebuilt bundle gets a new URL). That makes the parsed stylesheet safe to
-# cache process-wide — including across databases, since an equal URL implies
-# equal content. "debug" is the one mutable <unique> and is never cached.
+# /web/assets/<unique>/<filename> URLs *eligible* for the process-wide
+# parsed-CSS cache. Eligible only: the URL is source-addressed, not a content
+# address, so the cache keys on (url, compiled checksum) — see
+# OdooURLFetcher.asset_checksum for the full rationale. "debug" is the one
+# mutable <unique> and is never cached.
 _IMMUTABLE_ASSET_CSS_RE = re.compile(r"^/web/assets/(?!debug/)[^/]+/")
 
 # Non-split batches larger than this are serialized incrementally (render one
@@ -267,7 +267,7 @@ class _WeasySharedState:
         self._font_config: FontConfiguration | None = None
         self._image_cache: dict[str, Any] = {}
         self._css_lock = threading.Lock()
-        self._css_cache: dict[str, Any] = {}
+        self._css_cache: dict[tuple[str, str], Any] = {}
         self._process_setup_done = False
 
     def setup_process(self) -> None:
@@ -323,25 +323,27 @@ class _WeasySharedState:
                 for key in list(self._image_cache)[:evict_count]:
                     del self._image_cache[key]
 
-    def get_parsed_css(self, url: str, parse: Callable[[], Any]) -> Any:
-        """Process-cached parsed stylesheet for a content-addressed asset URL.
+    def get_parsed_css(self, key: tuple[str, str], parse: Callable[[], Any]) -> Any:
+        """Process-cached parsed stylesheet for a compiled asset stylesheet.
 
-        ``parse`` runs under the cache lock, so a cold URL is fetched, parsed
+        ``key`` is ``(url, compiled-attachment checksum)`` — the URL alone is
+        not a content address; see :meth:`OdooURLFetcher.asset_checksum`.
+
+        ``parse`` runs under the cache lock, so a cold key is fetched, parsed
         (and its ``@font-face`` rules registered) exactly once per process even
         under concurrent renders. Only successful parses are cached; a raising
         ``parse`` propagates and leaves no entry, so failures are retried on
-        the next render. Callers must only pass URLs matching
-        :data:`_IMMUTABLE_ASSET_CSS_RE` — cache entries are never invalidated,
-        which is only sound for content-addressed URLs.
+        the next render. Cache entries are never invalidated, which is only
+        sound because a (url, checksum) pair pins the exact compiled content.
         """
         with self._css_lock:
-            if url not in self._css_cache:
+            if key not in self._css_cache:
                 if len(self._css_cache) >= _WEASY_CSS_CACHE_MAX:
                     evict_count = _WEASY_CSS_CACHE_MAX // 2
-                    for key in list(self._css_cache)[:evict_count]:
-                        del self._css_cache[key]
-                self._css_cache[url] = parse()
-            return self._css_cache[url]
+                    for old_key in list(self._css_cache)[:evict_count]:
+                        del self._css_cache[old_key]
+                self._css_cache[key] = parse()
+            return self._css_cache[key]
 
     def reset_for_tests(self) -> None:
         """Drop the font config and clear the image and CSS caches in place.
@@ -619,6 +621,63 @@ class OdooURLFetcher(URLFetcher):
 
     # -- Resolution helpers -----------------------------------------------
 
+    def _find_asset_attachment(self, path: str) -> Any:
+        """The single ir.attachment row backing a ``/web/assets/`` path.
+
+        Sole owner of the lookup domain: both :meth:`_resolve_asset_bundle`
+        (which serves the content) and :meth:`asset_checksum` (which
+        fingerprints it for the parsed-CSS cache) MUST resolve through here,
+        or the cache key could describe an attachment other than the one
+        actually served.
+        """
+        return (
+            self._env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("public", "=", True),
+                    ("url", "=", path),
+                    ("res_model", "=", "ir.ui.view"),
+                    ("res_id", "=", 0),
+                ],
+                limit=1,
+            )
+        )
+
+    @staticmethod
+    def _asset_blob_present(attachment: Any) -> bool:
+        """Whether the attachment's binary content is actually readable.
+
+        Equivalent to ``bool(attachment.raw)`` — the serving condition of
+        :meth:`_resolve_asset_bundle` — but reads at most 1 byte from the
+        filestore instead of the whole compiled bundle, since callers only
+        need existence (a lost blob keeps its ``checksum`` column, so the
+        column alone cannot be trusted).
+        """
+        if not attachment:
+            return False
+        if attachment.store_fname:
+            backend = attachment._backend_for_key(attachment.store_fname)
+            return bool(backend.read(attachment.store_fname, 1))
+        return bool(attachment.db_datas)
+
+    def asset_checksum(self, url: str) -> str | None:
+        """Checksum of the stored compiled asset behind ``url``, or ``None``.
+
+        This is the content fingerprint for the process-wide parsed-CSS
+        cache: the ``<unique>`` URL segment hashes the bundle *sources*, so
+        two databases (or one database before and after a compiler change)
+        can hold different compiled CSS behind an equal URL — the URL alone
+        is NOT a content address. ``None`` when no readable attachment is
+        stored (on-the-fly compile, or a row whose filestore blob was lost):
+        in that case :meth:`_resolve_asset_bundle` serves something this
+        method cannot cheaply fingerprint, so the caller must not cache.
+        """
+        attachment = self._find_asset_attachment(urlparse(url).path or "")
+        if not self._asset_blob_present(attachment):
+            return None
+        return attachment.checksum or None
+
     def _resolve_asset_bundle(self, url: str, path: str) -> URLFetcherResponse | None:
         """Resolve ``/web/assets/<unique>/<filename>`` from ir.attachment or on-the-fly."""
         parts = path.strip("/").split("/")
@@ -631,19 +690,7 @@ class OdooURLFetcher(URLFetcher):
 
         # Try cached attachment first
         if not debug_assets:
-            attachment = (
-                self._env["ir.attachment"]
-                .sudo()
-                .search(
-                    [
-                        ("public", "=", True),
-                        ("url", "=", path),
-                        ("res_model", "=", "ir.ui.view"),
-                        ("res_id", "=", 0),
-                    ],
-                    limit=1,
-                )
-            )
+            attachment = self._find_asset_attachment(path)
             if attachment and attachment.raw:
                 return self._make_response(
                     url, attachment.raw, attachment.mimetype or "text/css"
@@ -1137,7 +1184,14 @@ class WeasyPrintEngine:
 
         try:
             if _IMMUTABLE_ASSET_CSS_RE.match(css_url):
-                return _weasy_state.get_parsed_css(css_url, parse)
+                # Key on (url, compiled checksum) — see asset_checksum for why
+                # the URL alone is not a content address. checksum=None means
+                # no cheap fingerprint exists: skip the cache rather than risk
+                # serving another database's stylesheet (an uncached parse
+                # every render, not a wrong one — deliberate trade-off).
+                checksum = fetcher.asset_checksum(css_url)
+                if checksum:
+                    return _weasy_state.get_parsed_css((css_url, checksum), parse)
             return parse()
         except Exception:
             _logger.warning("Failed to pre-parse CSS: %s", css_url, exc_info=True)
