@@ -865,9 +865,7 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     @tools.ormcache("self._routing_map_key()", "path", cache="routing.rewrites")
-    def url_rewrite(
-        self, path: str, _visited: frozenset[str] = frozenset()
-    ) -> tuple[str, typing.Any]:
+    def url_rewrite(self, path: str) -> tuple[str, typing.Any]:
         """Resolve ``path`` against the routing table.
 
         Besides the routing-map discriminator, the result only depends on
@@ -879,6 +877,20 @@ class IrHttp(models.AbstractModel):
         :return: a ``(path, endpoint)`` tuple: the possibly-rewritten path (a
                  redirect rule reports its target) and the endpoint serving it,
                  or ``False`` when nothing matches.
+        """
+        return self._url_rewrite(path, frozenset())
+
+    def _url_rewrite(
+        self, path: str, _visited: frozenset[str]
+    ) -> tuple[str, typing.Any]:
+        """Uncached body of :meth:`url_rewrite`.
+
+        Redirect chains recurse through this method, NOT through the cached
+        wrapper: a result computed mid-recursion (non-empty ``_visited``) is
+        not equivalent to a fresh top-level resolution of the same path — in
+        a redirect cycle the node reached second returns early on the visited
+        check, and memoizing that value would pin the cycle's nodes to
+        whichever path happened to be resolved first.
         """
         router = http.root.get_db_router(request.db).bind("")
         try:
@@ -904,9 +916,7 @@ class IrHttp(models.AbstractModel):
                     new_path,
                 )
                 return path, False
-            # ``_visited`` is intentionally absent from the ormcache key: it
-            # only breaks in-flight cycles and never changes a loop-free result.
-            _, func = self.url_rewrite(new_path, _visited | {path})
+            _, func = self._url_rewrite(new_path, _visited | {path})
             return new_path or path, func
         except werkzeug.exceptions.NotFound:
             return path, False
