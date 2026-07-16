@@ -21,9 +21,11 @@ from collections.abc import Sequence
 from typing import Protocol
 from urllib.parse import quote
 
+from odoo import modules
 from odoo.api import SUPERUSER_ID, Environment
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import ODOO_EXTERNAL_LIBS
+from odoo.tools import config
 from odoo.tools.assets.esbuild import EsbuildCompiler
 from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
@@ -37,6 +39,18 @@ __all__ = ["BridgeShimManager", "NativeModuleLike"]
 
 _logger = logging.getLogger(__name__)
 _bridge_log = get_asset_logger("bridge")
+
+
+def _rw_escalation_expected() -> bool:
+    """Whether a failed read-write cursor escalation is an expected condition.
+
+    Under a test the request runs on a readonly ``TestCursor`` and opening a
+    read-write cursor from it is *structurally* refused (see
+    ``odoo/tests/cursor.py``), so the ``data:`` URI fallback is the correct,
+    isolated path — not the production "primary is unwritable" degradation the
+    WARNING is meant to flag. Used to keep that expected path quiet in tests.
+    """
+    return bool(modules.module.current_test) or config["test_enable"]
 
 
 class NativeModuleLike(Protocol):
@@ -227,7 +241,7 @@ class BridgeShimManager:
         missing_urls = {item["url"] for item in to_create}
         log_event(
             _bridge_log,
-            logging.WARNING,
+            logging.DEBUG if _rw_escalation_expected() else logging.WARNING,
             "bridges_inlined_no_rw_cursor",
             bundle=self.bundle_name,
             inline=len(missing_urls),
@@ -269,11 +283,16 @@ class BridgeShimManager:
         except Exception:
             # Explicit degradation, not error-hiding: the caller has a
             # functional (if heavier) ``data:`` URI path for exactly this
-            # case, and the traceback is preserved for the operator.
-            _logger.warning(
+            # case, and the traceback is preserved for the operator. Under a
+            # test the escalation is structurally refused (readonly TestCursor),
+            # which is expected rather than a degradation, so log it quietly and
+            # without the (noise) traceback there.
+            expected = _rw_escalation_expected()
+            _logger.log(
+                logging.DEBUG if expected else logging.WARNING,
                 "Bridge attachment escalation to a read-write cursor "
                 "failed; falling back to data: URIs",
-                exc_info=True,
+                exc_info=not expected,
             )
             return False
         return True
