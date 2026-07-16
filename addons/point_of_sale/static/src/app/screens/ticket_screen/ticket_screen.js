@@ -447,7 +447,10 @@ export class TicketScreen extends Component {
         const oScreen = o.getScreenData();
         return (!o.finalized || screen.includes(oScreen.name)) && o.uiState.displayed;
     }
-    getFilteredOrderList() {
+    // Full filtered + sorted order list, WITHOUT the pagination slice. Pure — no
+    // state writes — so it is safe to read repeatedly during render and to derive
+    // both the page slice and the count from it.
+    _getFilteredOrders() {
         const orderModel = this.pos.models["pos.order"];
         let orders =
             this.state.filter === "SYNCED"
@@ -480,32 +483,37 @@ export class TicketScreen extends Component {
             );
         }
 
-        const sortOrders = (orders, ascending = false) =>
-            orders.sort((a, b) => {
-                const dateA = a.date_order;
-                const dateB = b.date_order;
+        // SYNCED lists are shown newest-first, local (active) lists oldest-first.
+        const ascending = this.state.filter !== "SYNCED";
+        return orders.sort((a, b) => {
+            const dateA = a.date_order;
+            const dateB = b.date_order;
+            if (!dateA.equals(dateB)) {
+                return ascending ? dateA - dateB : dateB - dateA;
+            }
+            const nameA = parseInt(a.pos_reference.replace(/\D/g, "")) || 0;
+            const nameB = parseInt(b.pos_reference.replace(/\D/g, "")) || 0;
+            return ascending ? nameA - nameB : nameB - nameA;
+        });
+    }
 
-                if (!dateA.equals(dateB)) {
-                    return ascending ? dateA - dateB : dateB - dateA;
-                } else {
-                    const nameA = parseInt(a.pos_reference.replace(/\D/g, "")) || 0;
-                    const nameB = parseInt(b.pos_reference.replace(/\D/g, "")) || 0;
-                    return ascending ? nameA - nameB : nameB - nameA;
-                }
-            });
+    getFilteredOrderList() {
+        return this._getFilteredOrders().slice(
+            (this.state.page - 1) * this.state.nbrByPage,
+            this.state.page * this.state.nbrByPage,
+        );
+    }
 
-        if (this.state.filter === "SYNCED") {
-            return sortOrders(orders).slice(
-                (this.state.page - 1) * this.state.nbrByPage,
-                this.state.page * this.state.nbrByPage,
-            );
-        } else {
-            this.pos.screenState.ticketSCreen.totalCount = orders.length;
-            return sortOrders(orders, true).slice(
-                (this.state.page - 1) * this.state.nbrByPage,
-                this.state.page * this.state.nbrByPage,
-            );
-        }
+    // Grand total used by the pager. SYNCED pages are sliced on the server, so
+    // the total comes from the last fetch (screenState.totalCount); local orders
+    // are filtered in memory, so it is the full filtered length. This replaces a
+    // `screenState.totalCount = orders.length` write that used to run inside
+    // getFilteredOrderList during render — a getter must not mutate reactive
+    // state, and doing so could schedule an extra render pass.
+    get filteredOrdersCount() {
+        return this.state.filter === "SYNCED"
+            ? this.pos.screenState.ticketSCreen.totalCount
+            : this._getFilteredOrders().length;
     }
     getDate(order) {
         return this.pos.getDate(order.date_order);
@@ -586,18 +594,16 @@ export class TicketScreen extends Component {
         };
     }
     getNbrPages() {
-        return Math.ceil(
-            this.pos.screenState.ticketSCreen.totalCount / this.state.nbrByPage,
-        );
+        return Math.ceil(this.filteredOrdersCount / this.state.nbrByPage);
     }
     getPageNumber() {
-        if (!this.pos.screenState.ticketSCreen.totalCount) {
+        if (!this.filteredOrdersCount) {
             return `0/0`;
         } else {
             return `${(this.state.page - 1) * this.state.nbrByPage + 1}-${Math.min(
                 this.state.page * this.state.nbrByPage,
-                this.pos.screenState.ticketSCreen.totalCount,
-            )} / ${this.pos.screenState.ticketSCreen.totalCount}`;
+                this.filteredOrdersCount,
+            )} / ${this.filteredOrdersCount}`;
         }
     }
     getHasItemsToRefund() {
