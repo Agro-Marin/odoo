@@ -194,6 +194,13 @@ Help your customers with this chat, and analyse their feedback.
             'im_livechat.assets_embed_cors',
             'im_livechat.assets_embed_external',
             'im_livechat.assets_livechat_support_tours',
+            # Custom-named embed unit-test bundles: they carry native
+            # import/export test files, so they must be registered as ESM.
+            # Without this, AssetsBundle builds them as classic concatenated
+            # <script>s and the whole page throws "Unexpected token 'export'"
+            # before Hoot registers, failing all 80 embed tests (R15-6).
+            'im_livechat.embed_assets_unit_tests_setup',
+            'im_livechat.embed_assets_unit_tests',
         ],
         'dynamic_children': {
             'web.assets_web': [
